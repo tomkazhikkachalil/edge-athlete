@@ -1,0 +1,72 @@
+{
+  "name": "Generation AI - Student Workspace",
+  "image": "mcr.microsoft.com/devcontainers/typescript-node:22",
+  
+  // Forward ports
+  "forwardPorts": [3000],
+  "portsAttributes": {
+    "3000": {
+      "label": "Next.js App",
+      "onAutoForward": "openPreview"
+    }
+  },
+
+  // VS Code customizations
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "Anthropic.claude-code",
+        "dbaeumer.vscode-eslint",
+        "esbenp.prettier-vscode",
+        "bradlc.vscode-tailwindcss",
+        "formulahendry.auto-rename-tag",
+        "prisma.prisma"
+      ],
+      "settings": {
+        // Layout
+        "simpleBrowser.focusLockIndicator.enabled": false,
+        "workbench.editor.openSideBySideDirection": "right",
+        "workbench.editor.openPositioning": "right",
+        "workbench.startupEditor": "none",
+        "terminal.integrated.defaultLocation": "editor",
+        "workbench.editor.revealIfOpen": true,
+        
+        // Editor
+        // "editor.fontSize": 14,
+        "editor.formatOnSave": true,
+        "editor.defaultFormatter": "esbenp.prettier-vscode",
+        "editor.minimap.enabled": false,
+        "editor.wordWrap": "on",
+        
+        // Terminal
+        "terminal.integrated.fontSize": 14,
+        
+        // Files
+        "files.autoSave": "afterDelay",
+        "files.autoSaveDelay": 1000,
+        
+        // Tailwind CSS
+        "tailwindCSS.includeLanguages": {
+          "typescript": "javascript",
+          "typescriptreact": "javascript"
+        },
+        
+        // Hide clutter from students
+        "files.exclude": {
+          "**/.git": true,
+          "**/.DS_Store": true,
+          "**/node_modules": true,
+          "**/.next": true
+        }
+      }
+    },
+    "codespaces": {
+      "openFiles": [
+        "README.md"
+      ]
+    }
+  },
+
+  // Install dependencies and Claude Code CLI
+  "postCreateCommand": "npm install && npm install -g @anthropic-ai/claude-code"
+}
