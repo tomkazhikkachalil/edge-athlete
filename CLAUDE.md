@@ -261,6 +261,58 @@ ALWAYS remind students to:
 3. Test the auth flow (login → redirect → logout)
 4. Commit their changes with descriptive messages
 
+## Critical Pattern: Duplicate Email Prevention
+
+### Understanding RLS and Admin Operations
+When working with Supabase and Row Level Security (RLS), admin operations require special handling:
+
+**The Problem**: RLS policies can prevent API routes from checking existing user data
+**The Solution**: Use service role client for admin operations
+
+```typescript
+// src/lib/supabase.ts
+export const supabaseAdmin = supabaseServiceRoleKey 
+  ? createClient(supabaseUrl, supabaseServiceRoleKey, {
+      auth: { autoRefreshToken: false, persistSession: false }
+    })
+  : null;
+```
+
+### Implementing Robust Duplicate Checking
+For user registration, always implement multi-layer duplicate prevention:
+
+```typescript
+// 1. Pre-flight check with admin client (bypasses RLS)
+if (supabaseAdmin) {
+  const { data: existingProfiles } = await supabaseAdmin
+    .from('profiles')
+    .select('email')
+    .eq('email', email.toLowerCase());
+    
+  if (existingProfiles && existingProfiles.length > 0) {
+    return NextResponse.json(
+      { error: 'This email is already registered. Please log in instead.' },
+      { status: 409 }
+    );
+  }
+}
+
+// 2. Also check auth.users directly
+const { data: authUsers } = await supabaseAdmin.auth.admin.listUsers();
+const existingAuthUser = authUsers.users.find(user => 
+  user.email?.toLowerCase() === email.toLowerCase()
+);
+
+// 3. Proceed with Supabase Auth (has built-in duplicate prevention)
+const { data, error } = await supabase.auth.signUp({ email, password });
+```
+
+### Environment Variable Requirements
+Always ensure these are set in production:
+```bash
+SUPABASE_SERVICE_ROLE_KEY=your_service_role_key_here
+```
+
 ## Adding New Features
 
 ### Creating New API Routes
