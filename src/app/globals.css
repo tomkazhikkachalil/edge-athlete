@@ -29,6 +29,53 @@
   --space-micro: 12px;
   --space-base: 24px;
   --space-section: 48px;
+  
+  /* Typography Scale
+   * 
+   * HEADING SIZES:
+   * H1: 32px bold - Athlete name (primary page anchor)
+   * H2: 24px semibold - Section titles (e.g., "Season Highlights", "Recent Performances")
+   * H3: 18px bold - Card titles (e.g., "Hockey", "Basketball")
+   * 
+   * BODY TEXT SIZES:
+   * Body: 16px regular - Standard paragraphs and descriptions
+   * Label: 14px regular - Form labels, secondary info
+   * Chip: 12px medium - Badges, chips, meta info
+   * 
+   * LINE HEIGHT: 1.4x for all text for optimal readability
+   * 
+   * UTILITY CLASSES:
+   * .text-h1, .text-h2, .text-h3
+   * .text-body, .text-label, .text-chip
+   */
+  --text-h1-size: 2rem; /* 32px */
+  --text-h2-size: 1.5rem; /* 24px */
+  --text-h3-size: 1.125rem; /* 18px */
+  --text-body-size: 1rem; /* 16px */
+  --text-label-size: 0.875rem; /* 14px */
+  --text-chip-size: 0.75rem; /* 12px */
+  --text-line-height: 1.4;
+  
+  /* Icon Sizing System
+   * 
+   * ICON SIZES:
+   * --icon-header: 24px - Sport icons in card headers
+   * --icon-edit: 20px - Edit pencil icons
+   * --icon-social: 20px - Social media icons
+   * --icon-footer: 16px - Footer/mini icons in cards
+   * 
+   * ICON SPACING:
+   * --icon-gap: 8px - Standard gap between icon and text
+   * 
+   * UTILITY CLASSES:
+   * .icon-header, .icon-edit, .icon-social, .icon-footer
+   * .icon-gap (for consistent icon-to-text spacing)
+   */
+  --icon-header: 1.5rem; /* 24px */
+  --icon-edit: 1.25rem; /* 20px */
+  --icon-social: 1.25rem; /* 20px */
+  --icon-footer: 1rem; /* 16px */
+  --icon-gap: 0.5rem; /* 8px */
 }
 
 @theme inline {
@@ -194,4 +241,89 @@ select {
   letter-spacing: 0.05em;
   line-height: 1;
   margin-top: 4px;
+}
+
+/* Typography Scale Utilities */
+.text-h1 {
+  font-size: var(--text-h1-size);
+  font-weight: 700; /* bold */
+  line-height: var(--text-line-height);
+}
+
+.text-h2 {
+  font-size: var(--text-h2-size);
+  font-weight: 600; /* semibold */
+  line-height: var(--text-line-height);
+}
+
+.text-h3 {
+  font-size: var(--text-h3-size);
+  font-weight: 700; /* bold */
+  line-height: var(--text-line-height);
+}
+
+.text-body {
+  font-size: var(--text-body-size);
+  font-weight: 400; /* regular */
+  line-height: var(--text-line-height);
+}
+
+.text-label {
+  font-size: var(--text-label-size);
+  font-weight: 400; /* regular */
+  line-height: var(--text-line-height);
+}
+
+.text-chip {
+  font-size: var(--text-chip-size);
+  font-weight: 500; /* medium */
+  line-height: var(--text-line-height);
+}
+
+/* Icon Size Utilities */
+.icon-header {
+  font-size: var(--icon-header);
+  width: var(--icon-header);
+  height: var(--icon-header);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.icon-edit {
+  font-size: var(--icon-edit);
+  width: var(--icon-edit);
+  height: var(--icon-edit);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.icon-social {
+  font-size: var(--icon-social);
+  width: var(--icon-social);
+  height: var(--icon-social);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.icon-footer {
+  font-size: var(--icon-footer);
+  width: var(--icon-footer);
+  height: var(--icon-footer);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.icon-gap {
+  gap: var(--icon-gap);
+}
+
+/* Icon baseline alignment helper */
+.icon-baseline {
+  display: inline-flex;
+  align-items: baseline;
+  gap: var(--icon-gap);
 }

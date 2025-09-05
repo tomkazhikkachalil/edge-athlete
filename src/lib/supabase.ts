@@ -114,6 +114,7 @@ export interface SeasonHighlight {
   metric_b?: string;  // TEXT in database for flexibility
   metric_c?: string;  // TEXT in database for flexibility
   rating?: number;    // NUMERIC in database (0-100)
+  league_tags?: string[];  // Array of league affiliations (e.g., ["NCAA D1", "Big Ten"])
   created_at: string;
   updated_at: string;
 }

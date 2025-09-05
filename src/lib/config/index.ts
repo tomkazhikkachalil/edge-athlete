@@ -34,6 +34,25 @@ export {
   type SportMetadata,
 } from './sports-config';
 
+// Sport metrics configuration
+export {
+  getSportConfig,
+  getSportMetrics,
+  getDisplaySports,
+  SPORT_METRICS,
+  DEFAULT_METRICS
+} from './sports-metrics';
+export type { SportMetricConfig } from './sports-metrics';
+
+// League configuration
+export {
+  getLeagueConfig,
+  getLeagueChipStyles,
+  formatLeagueTags,
+  LEAGUE_CONFIGS
+} from './league-config';
+export type { LeagueConfig } from './league-config';
+
 // Import necessary items for getConfiguration
 import { ACTIVE_SEASON as ActiveSeasonConfig, APP_CONFIG as AppConfigData } from './app-config';
 

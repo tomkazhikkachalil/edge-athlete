@@ -6,15 +6,17 @@ import { useRouter } from 'next/navigation';
 import { AthleteService } from '@/lib/athleteService';
 import EditProfileTabs from '@/components/EditProfileTabs';
 import { ToastContainer, useToast } from '@/components/Toast';
-import SeasonHighlights from '@/components/SeasonHighlights';
+import MultiSportHighlights from '@/components/MultiSportHighlights';
+import MultiSportActivity from '@/components/MultiSportActivity';
 import SeasonHighlightsModal from '@/components/SeasonHighlightsModal';
+import PerformanceModal from '@/components/PerformanceModal';
 import LazyImage from '@/components/LazyImage';
+import CreatePostModal from '@/components/CreatePostModal';
 import type { AthleteBadge, SeasonHighlight, Performance, Profile } from '@/lib/supabase';
 import { 
   formatHeight, 
   formatWeightWithUnit, 
   formatAge, 
-  formatDate,
   formatDisplayName,
   getInitials,
   formatSocialHandleDisplay,
@@ -22,8 +24,7 @@ import {
 } from '@/lib/formatters';
 import { 
   PLACEHOLDERS,
-  getPlaceholder,
-  formatEmptyValue
+  getPlaceholder
 } from '@/lib/config';
 
 export default function AthleteProfilePage() {
@@ -39,10 +40,15 @@ export default function AthleteProfilePage() {
   const [isSeasonHighlightsModalOpen, setIsSeasonHighlightsModalOpen] = useState(false);
   const [editingSportKey, setEditingSportKey] = useState<string>('');
   const [editingHighlight, setEditingHighlight] = useState<SeasonHighlight | undefined>();
+  const [isPerformanceModalOpen, setIsPerformanceModalOpen] = useState(false);
+  const [editingPerformance, setEditingPerformance] = useState<Performance | undefined>();
   const [avatarUploading, setAvatarUploading] = useState(false);
   const [submitStates, setSubmitStates] = useState<Record<string, boolean>>({});
   const [errors, setErrors] = useState<Record<string, string>>({});
-  const { toasts, dismissToast } = useToast();
+  const { toasts, dismissToast, showSuccess, showError } = useToast();
+  
+  // Create Post Modal state
+  const [isCreatePostModalOpen, setIsCreatePostModalOpen] = useState(false);
   
   // Inline editing states
   const [editingField, setEditingField] = useState<string | null>(null);
@@ -51,7 +57,6 @@ export default function AthleteProfilePage() {
   // Redirect to auth if not logged in
   useEffect(() => {
     if (!loading && !user) {
-      console.log('No user found, redirecting to login...');
       router.push('/');
     }
   }, [user, loading, router]);
@@ -139,19 +144,13 @@ export default function AthleteProfilePage() {
         throw new Error('User not authenticated');
       }
 
-      console.log('=== PROFILE SAVE DEBUG START ===');
-      console.log('HandleSaveProfile called with updates:', JSON.stringify(updates, null, 2));
-      console.log('User ID:', user.id);
-      console.log('Badge updates:', JSON.stringify(badgeUpdates, null, 2));
       
       const requestBody = {
         profileData: updates,
         userId: user.id
       };
-      console.log('Request body being sent:', JSON.stringify(requestBody, null, 2));
 
       // Save profile updates
-      console.log('Making fetch request to /api/profile...');
       const profileResponse = await fetch('/api/profile', {
         method: 'PUT',
         headers: {
@@ -160,14 +159,9 @@ export default function AthleteProfilePage() {
         body: JSON.stringify(requestBody),
       });
 
-      console.log('Profile response received!');
-      console.log('Profile response status:', profileResponse.status);
-      console.log('Profile response statusText:', profileResponse.statusText);
-      console.log('Profile response ok:', profileResponse.ok);
       
       // Always try to get the response text first
       const responseText = await profileResponse.text();
-      console.log('Profile response raw text:', responseText);
       
       if (!profileResponse.ok) {
         console.error('Profile response not ok, status:', profileResponse.status);
@@ -182,17 +176,13 @@ export default function AthleteProfilePage() {
       }
 
       try {
-        const result = responseText ? JSON.parse(responseText) : {};
-        console.log('Profile save result (parsed):', result);
-        console.log('=== PROFILE SAVE DEBUG END ===');
+        if (responseText) JSON.parse(responseText);
       } catch (parseError) {
         console.error('Failed to parse success response:', parseError);
-        console.log('Response was successful but not JSON, raw text:', responseText);
       }
 
       // TODO: Implement badge updates API if needed
       if (badgeUpdates.length > 0) {
-        console.log('Badge updates not yet implemented:', badgeUpdates);
       }
 
       // Refresh the data instead of full page reload - do it in background
@@ -235,6 +225,9 @@ export default function AthleteProfilePage() {
         throw new Error(error.error || 'Failed to save season highlights');
       }
 
+      // Show success toast
+      showSuccess('Season highlights updated successfully!');
+
       // Refresh the data instead of full page reload - do it in background
       if (user?.id) {
         // Don't await - let it happen in background for faster UI response
@@ -243,7 +236,94 @@ export default function AthleteProfilePage() {
       }
     } catch (error) {
       console.error('Season highlights save error:', error);
+      showError('Failed to save season highlights', error instanceof Error ? error.message : 'Please try again');
       throw new Error(error instanceof Error ? error.message : 'Failed to save season highlights');
+    }
+  };
+
+  const handleEditPerformance = (existingData?: Performance) => {
+    setEditingPerformance(existingData);
+    setIsPerformanceModalOpen(true);
+  };
+
+  const handleSavePerformance = async (data: Partial<Performance>) => {
+    try {
+      if (!user?.id) {
+        throw new Error('User not authenticated');
+      }
+
+      const response = await fetch('/api/performances', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          performanceData: data,
+          userId: user.id
+        }),
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Failed to save performance');
+      }
+
+      // Show success toast  
+      showSuccess(editingPerformance ? 'Performance updated successfully!' : 'Performance added successfully!');
+
+      // Refresh the data instead of full page reload - do it in background  
+      if (user?.id) {
+        // Don't await - let it happen in background for faster UI response
+        refreshProfile();
+        loadAthleteData(user.id, true); // Skip loading state for background refresh
+        
+        // Also refresh performances specifically to maintain sort order
+        AthleteService.getRecentPerformances(user.id).then(newPerformances => {
+          setPerformances(newPerformances);
+        }).catch(error => {
+          console.error('Failed to refresh performances:', error);
+        });
+      }
+    } catch (error) {
+      console.error('Performance save error:', error);
+      showError('Failed to save performance', error instanceof Error ? error.message : 'Please try again');
+      throw new Error(error instanceof Error ? error.message : 'Failed to save performance');
+    }
+  };
+
+  const handleDeletePerformance = async (performanceId: string) => {
+    if (!window.confirm('Are you sure you want to delete this performance? This action cannot be undone.')) {
+      return;
+    }
+
+    try {
+      const response = await fetch(`/api/performances/${performanceId}`, {
+        method: 'DELETE',
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Failed to delete performance');
+      }
+
+      // Show success toast
+      showSuccess('Performance deleted successfully!');
+
+      // Refresh the data
+      if (user?.id) {
+        refreshProfile();
+        loadAthleteData(user.id, true);
+        
+        // Also refresh performances specifically to maintain sort order
+        AthleteService.getRecentPerformances(user.id).then(newPerformances => {
+          setPerformances(newPerformances);
+        }).catch(error => {
+          console.error('Failed to refresh performances:', error);
+        });
+      }
+    } catch (error) {
+      console.error('Performance delete error:', error);
+      showError('Failed to delete performance', error instanceof Error ? error.message : 'Please try again');
     }
   };
 
@@ -272,13 +352,6 @@ export default function AthleteProfilePage() {
     setAvatarUploading(true);
     
     try {
-      console.log('Avatar Upload: Starting upload for file:', file.name);
-      console.log('Avatar Upload: File details:', {
-        name: file.name,
-        size: file.size,
-        type: file.type
-      });
-
       const formData = new FormData();
       formData.append('avatar', file);
       formData.append('userId', user.id);
@@ -294,7 +367,6 @@ export default function AthleteProfilePage() {
         throw new Error(result.error || 'Failed to upload avatar');
       }
 
-      console.log('Avatar Upload: Success! Refreshing data...');
       // Refresh the data to show the new avatar
       await Promise.all([
         refreshProfile(),
@@ -324,14 +396,12 @@ export default function AthleteProfilePage() {
       }
       // If currentValue is already a formatted height like "5'10"", use it as-is
       else if (currentValue && (currentValue.includes("'") || currentValue.includes("ft"))) {
-        console.log('Height edit from formatted:', currentValue);
         editValue = currentValue;
       }
     } else if (field === 'weight_display') {
       // For weight, show the current value with unit for editing
       if (profile?.weight_display) {
         editValue = `${profile.weight_display} ${profile.weight_unit || 'lbs'}`;
-        console.log('Weight edit init:', profile.weight_display, profile.weight_unit);
       } else if (!currentValue || currentValue === PLACEHOLDERS.EMPTY_VALUE || currentValue === 'Add weight') {
         editValue = '';
       } else {
@@ -362,7 +432,6 @@ export default function AthleteProfilePage() {
     // Convert specific fields with proper parsing and validation
     if (field === 'height_cm') {
       const validation = validateHeight(newValue as string);
-      console.log('Height conversion:', newValue, '→', validation.value ? validation.value + ' cm' : 'invalid');
       if (validation.error) {
         throw new Error(validation.error);
       }
@@ -389,7 +458,6 @@ export default function AthleteProfilePage() {
         throw new Error(`Weight must be less than ${maxWeight} ${unit}`);
       }
       
-      console.log('Weight save:', { input, value, unit });
       
       // Save both weight_display and weight_unit
       const updateData: Partial<Profile> = { 
@@ -629,7 +697,7 @@ export default function AthleteProfilePage() {
                 
                 {/* Rating Bubble */}
                 <div 
-                  className="absolute -top-1 -right-1 bg-blue-500 text-white text-xs font-bold px-micro py-micro rounded-full border-2 border-white"
+                  className="absolute -top-1 -right-1 bg-blue-500 text-white text-chip font-bold px-micro py-micro rounded-full border-2 border-white"
                   role="img"
                   aria-label="Athlete rating"
                 >
@@ -652,7 +720,7 @@ export default function AthleteProfilePage() {
                         aria-hidden="true"
                       ></div>
                     ) : (
-                      <i className="fas fa-camera text-white text-sm" aria-hidden="true"></i>
+                      <i className="fas fa-camera icon-footer text-white" aria-hidden="true"></i>
                     )}
                   </label>
                   <input
@@ -676,14 +744,14 @@ export default function AthleteProfilePage() {
                   field="full_name"
                   value={formatDisplayName(profile?.full_name, profile?.first_name, profile?.last_name)}
                   placeholder="Click to add your name"
-                  className="text-3xl font-bold text-gray-900 space-micro block"
+                  className="text-h1 text-gray-900 space-micro block"
                   ariaLabel="Athlete name"
                 />
                 <InlineEdit
                   field="bio"
                   value={profile?.bio || ''}
                   placeholder={getPlaceholder('ADD_BIO')}
-                  className="text-gray-700 space-micro leading-relaxed block"
+                  className="text-body text-gray-700 space-micro block"
                   multiline={true}
                   ariaLabel="Athlete biography"
                 />
@@ -694,7 +762,7 @@ export default function AthleteProfilePage() {
                     badges.slice(0, 3).map((badge: AthleteBadge) => (
                       <div
                         key={badge.id}
-                        className={`inline-flex items-center px-micro py-micro rounded-full text-xs font-medium border ${getBadgeColor(badge.color_token)}`}
+                        className={`inline-flex items-center px-micro py-micro rounded-full text-chip border ${getBadgeColor(badge.color_token)}`}
                         role="listitem"
                         aria-label={`Badge: ${badge.label}`}
                       >
@@ -712,7 +780,7 @@ export default function AthleteProfilePage() {
                     ))
                   ) : (
                     <div 
-                      className="inline-flex items-center px-micro py-micro rounded-full text-xs font-medium bg-gray-100 text-gray-500 border border-gray-200"
+                      className="inline-flex items-center px-micro py-micro rounded-full text-chip bg-gray-100 text-gray-500 border border-gray-200"
                       role="listitem"
                       aria-label="No badges earned yet"
                     >
@@ -723,28 +791,34 @@ export default function AthleteProfilePage() {
               </div>
             </div>
             
-            {/* Edit and Sign Out Buttons */}
-            <div className="flex items-center gap-micro">
+            {/* Action Buttons */}
+            <div className="flex items-center icon-baseline icon-gap">
+              <button 
+                onClick={() => setIsCreatePostModalOpen(true)}
+                className="min-h-[44px] px-base py-micro text-sm font-semibold text-white bg-green-600 border border-transparent rounded-md hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 transition-colors shadow-md"
+                aria-label="Create new post"
+              >
+                <i className="fas fa-plus icon-edit" aria-hidden="true"></i>
+                Create Post
+              </button>
               <button 
                 onClick={() => {
-                  console.log('Edit Profile clicked');
                   setIsEditModalOpen(true);
                 }}
                 className="min-h-[44px] px-base py-micro text-sm font-semibold text-white bg-blue-600 border border-transparent rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-colors shadow-md"
                 aria-label="Edit athlete profile"
               >
-                <i className="fas fa-edit" aria-hidden="true"></i>
+                <i className="fas fa-edit icon-edit" aria-hidden="true"></i>
                 Edit Profile
               </button>
               <button
                 onClick={() => {
-                  console.log('Sign Out button clicked');
                   signOut();
                 }}
                 className="min-h-[44px] px-micro py-micro text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 transition-colors"
                 aria-label="Sign out of account"
               >
-                <i className="fas fa-sign-out-alt" aria-hidden="true"></i>
+                <i className="fas fa-sign-out-alt icon-edit" aria-hidden="true"></i>
                 Sign Out
               </button>
             </div>
@@ -757,11 +831,11 @@ export default function AthleteProfilePage() {
                 field="height_cm"
                 value={formatHeight(profile?.height_cm)}
                 placeholder={getPlaceholder('NO_HEIGHT')}
-                className="text-lg font-semibold text-gray-900 block"
+                className="text-h3 text-gray-900 block"
                 ariaLabel="Height in feet and inches"
                 inputType="text"
               />
-              <div className="text-xs text-gray-500 uppercase tracking-wide" id="height-label">Height</div>
+              <div className="text-chip text-gray-500 uppercase tracking-wide" id="height-label">Height</div>
             </div>
             <div className="text-center p-micro bg-gray-50 rounded-lg border">
               <InlineEdit
@@ -772,79 +846,73 @@ export default function AthleteProfilePage() {
                   }
                   // Fallback to old format if weight_display doesn't exist yet
                   const formatted = formatWeightWithUnit(profile?.weight_kg, profile?.weight_unit);
-                  console.log('Weight display fallback:', {
-                    weight_kg: profile?.weight_kg,
-                    weight_unit: profile?.weight_unit,
-                    weight_display: profile?.weight_display,
-                    formatted
-                  });
                   return formatted;
                 })()}
                 placeholder={getPlaceholder('NO_WEIGHT')}
-                className="text-lg font-semibold text-gray-900 block"
+                className="text-h3 text-gray-900 block"
                 ariaLabel="Weight"
                 inputType="text"
               />
-              <div className="text-xs text-gray-500 uppercase tracking-wide" id="weight-label">Weight</div>
+              <div className="text-chip text-gray-500 uppercase tracking-wide" id="weight-label">Weight</div>
             </div>
             <div className="text-center p-micro bg-gray-50 rounded-lg border">
-              <div className="text-lg font-semibold text-gray-900 block">
+              <div className="text-h3 text-gray-900 block">
                 {formatAge(profile?.dob)}
               </div>
-              <div className="text-xs text-gray-500 uppercase tracking-wide">Age</div>
+              <div className="text-chip text-gray-500 uppercase tracking-wide">Age</div>
             </div>
             <div className="text-center p-micro bg-gray-50 rounded-lg border">
               <InlineEdit
                 field="location"
                 value={profile?.location || ''}
                 placeholder={getPlaceholder('NO_LOCATION')}
-                className="text-lg font-semibold text-gray-900 block"
+                className="text-h3 text-gray-900 block"
                 ariaLabel="Location"
               />
-              <div className="text-xs text-gray-500 uppercase tracking-wide">Location</div>
+              <div className="text-chip text-gray-500 uppercase tracking-wide">Location</div>
             </div>
             <div className="text-center p-micro bg-gray-50 rounded-lg border">
               <InlineEdit
                 field="class_year"
                 value={profile?.class_year ? String(profile.class_year) : ''}
                 placeholder={getPlaceholder('NO_CLASS_YEAR')}
-                className="text-lg font-semibold text-gray-900 block"
+                className="text-h3 text-gray-900 block"
                 inputType="number"
                 ariaLabel="Class year"
               />
-              <div className="text-xs text-gray-500 uppercase tracking-wide">Class Year</div>
+              <div className="text-chip text-gray-500 uppercase tracking-wide">Class Year</div>
             </div>
           </div>
 
           {/* Socials Row */}
           <div className="flex items-center justify-center gap-base py-base border-t border-gray-200 relative z-10" role="list" aria-label="Social media links">
             <div className="flex items-center gap-micro" role="listitem">
-              <i className="fab fa-twitter text-blue-400 text-lg" aria-label="Twitter" aria-hidden="true"></i>
+              <i className="fab fa-twitter icon-social text-blue-400" aria-label="Twitter" aria-hidden="true"></i>
               <InlineEdit
                 field="social_twitter"
                 value={formatSocialHandleDisplay(profile?.social_twitter)}
                 placeholder={getPlaceholder('ADD_TWITTER')}
-                className="text-gray-700 text-sm"
+                className="text-label text-gray-700"
                 ariaLabel="Twitter handle"
               />
             </div>
             <div className="flex items-center gap-micro" role="listitem">
-              <i className="fab fa-instagram text-pink-500 text-lg" aria-label="Instagram" aria-hidden="true"></i>
+              <i className="fab fa-instagram icon-social text-pink-500" aria-label="Instagram" aria-hidden="true"></i>
               <InlineEdit
                 field="social_instagram"
                 value={formatSocialHandleDisplay(profile?.social_instagram)}
                 placeholder={getPlaceholder('ADD_INSTAGRAM')}
-                className="text-gray-700 text-sm"
+                className="text-label text-gray-700"
                 ariaLabel="Instagram handle"
               />
             </div>
             <div className="flex items-center gap-micro" role="listitem">
-              <i className="fab fa-facebook text-blue-600 text-lg" aria-label="Facebook" aria-hidden="true"></i>
+              <i className="fab fa-facebook icon-social text-blue-600" aria-label="Facebook" aria-hidden="true"></i>
               <InlineEdit
                 field="social_facebook"
                 value={formatSocialHandleDisplay(profile?.social_facebook)}
                 placeholder="Add Facebook"
-                className="text-gray-700 text-sm"
+                className="text-label text-gray-700"
                 ariaLabel="Facebook handle"
               />
             </div>
@@ -855,70 +923,35 @@ export default function AthleteProfilePage() {
       {/* Main content */}
       <div className="max-w-4xl mx-auto px-micro pt-section pb-section gap-section flex flex-col">
 
-        {/* Season Highlights */}
-        <SeasonHighlights
-          highlights={highlights}
-          badges={badges}
-          onEdit={handleEditSeasonHighlights}
+        {/* Sport Highlights */}
+        <MultiSportHighlights
+          profileId={user?.id || ''}
           canEdit={true}
+          onEdit={handleEditSeasonHighlights}
         />
 
-        {/* Recent Performances */}
-        <div className="bg-white rounded-lg shadow-sm p-base">
-          <h2 className="text-lg font-semibold text-gray-900 space-base">Recent Performances</h2>
-          {performances.length > 0 ? (
-            <div className="overflow-x-auto">
-              <table className="min-w-full">
-                <thead className="bg-gray-50">
-                  <tr>
-                    <th className="px-micro py-micro text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Date
-                    </th>
-                    <th className="px-micro py-micro text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Event
-                    </th>
-                    <th className="px-micro py-micro text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Result
-                    </th>
-                    <th className="px-micro py-micro text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Time/Score
-                    </th>
-                    <th className="px-micro py-micro text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Organization
-                    </th>
-                  </tr>
-                </thead>
-                <tbody className="bg-white divide-y divide-gray-200">
-                  {performances.map((performance: Performance) => (
-                    <tr key={performance.id}>
-                      <td className="px-micro py-micro whitespace-nowrap text-sm text-gray-900">
-                        {formatDate(performance.date)}
-                      </td>
-                      <td className="px-micro py-micro whitespace-nowrap text-sm text-gray-900">
-                        {formatEmptyValue(performance.event)}
-                      </td>
-                      <td className="px-micro py-micro whitespace-nowrap text-sm text-gray-900">
-                        {formatEmptyValue(performance.result_place)}
-                      </td>
-                      <td className="px-micro py-micro whitespace-nowrap text-sm text-gray-900">
-                        {formatEmptyValue(performance.stat_primary)}
-                      </td>
-                      <td className="px-4 py-2 whitespace-nowrap text-sm text-gray-500">
-                        {formatEmptyValue(performance.organization)}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          ) : (
-            <div className="text-center py-8 text-gray-500" role="status" aria-label="No performances available">
-              <i className="fas fa-chart-line text-4xl text-gray-300 mb-3" aria-hidden="true"></i>
-              <p>{getPlaceholder('NO_PERFORMANCES')}</p>
-              <p className="text-sm">Add your competition results to track progress!</p>
-            </div>
-          )}
-        </div>
+        {/* Recent Activity */}
+        <MultiSportActivity
+          profileId={user?.id || ''}
+          canEdit={true}
+          onEdit={(sportKey: string, entityId?: string) => {
+            if (sportKey === 'golf') {
+              // For golf, edit performance
+              const performance = performances.find(p => p.id === entityId);
+              handleEditPerformance(performance);
+            } else {
+              // For other sports, show "coming soon"
+            }
+          }}
+          onDelete={(sportKey: string, entityId: string) => {
+            if (sportKey === 'golf') {
+              // For golf, delete performance  
+              handleDeletePerformance(entityId);
+            } else {
+              // For other sports, show "coming soon"
+            }
+          }}
+        />
       </div>
 
       {/* Edit Profile Modal */}
@@ -948,6 +981,28 @@ export default function AthleteProfilePage() {
         sportKey={editingSportKey}
         existingData={editingHighlight}
         onSave={handleSaveSeasonHighlights}
+      />
+
+      {/* Performance Modal */}
+      <PerformanceModal
+        isOpen={isPerformanceModalOpen}
+        onClose={() => setIsPerformanceModalOpen(false)}
+        existingData={editingPerformance}
+        onSave={handleSavePerformance}
+      />
+
+      {/* Create Post Modal */}
+      <CreatePostModal
+        isOpen={isCreatePostModalOpen}
+        onClose={() => setIsCreatePostModalOpen(false)}
+        userId={user?.id || ''}
+        onPostCreated={() => {
+          // Refresh data to show new post
+          if (user?.id) {
+            loadAthleteData(user.id, true);
+          }
+          showSuccess('Post created successfully!');
+        }}
       />
     </div>
   );

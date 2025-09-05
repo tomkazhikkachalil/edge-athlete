@@ -7,7 +7,7 @@
  * Active season configuration
  * This determines the current recruiting season displayed throughout the app
  */
-export const ACTIVE_SEASON = '2024-25';
+export const ACTIVE_SEASON = '2024–25';
 
 /**
  * Get the current active season

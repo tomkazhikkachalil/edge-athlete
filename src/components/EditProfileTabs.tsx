@@ -5,6 +5,8 @@ import { useAuth } from '@/lib/auth';
 import { useToast } from './Toast';
 import LazyImage from './LazyImage';
 import type { Profile, AthleteBadge, SeasonHighlight, Performance } from '@/lib/supabase';
+import { getSportDefinition, getEnabledSports, getAllSports } from '@/lib/sports';
+import { COPY, getComingSoonMessage } from '@/lib/copy';
 import { 
   formatHeight, 
   formatDisplayName,
@@ -23,22 +25,52 @@ interface EditProfileTabsProps {
   onSave: () => void;
 }
 
-type TabId = 'basic' | 'vitals' | 'socials' | 'badges' | 'sports' | 'performances';
+type TabId = 'basic' | 'vitals' | 'socials' | 'golf' | 'equipment' | 'hockey' | 'volleyball';
 
 interface TabConfig {
   id: TabId;
   label: string;
   icon: string;
+  enabled: boolean;
+  comingSoon?: boolean;
 }
 
-const TABS: TabConfig[] = [
-  { id: 'basic', label: 'Basic', icon: 'fas fa-user' },
-  { id: 'vitals', label: 'Vitals', icon: 'fas fa-chart-line' },
-  { id: 'socials', label: 'Socials', icon: 'fas fa-share-alt' },
-  { id: 'badges', label: 'Badges', icon: 'fas fa-award' },
-  { id: 'sports', label: 'Sports & Highlights', icon: 'fas fa-trophy' },
-  { id: 'performances', label: 'Performances', icon: 'fas fa-list' },
-];
+// Generate sport-aware tabs dynamically
+const generateTabs = (): TabConfig[] => {
+  const baseTabs: TabConfig[] = [
+    { id: 'basic', label: 'Basic', icon: 'fas fa-user', enabled: true },
+    { id: 'vitals', label: 'Vitals', icon: 'fas fa-chart-line', enabled: true },
+    { id: 'socials', label: 'Socials', icon: 'fas fa-share-alt', enabled: true },
+  ];
+
+  // Add sport-specific tabs
+  const allSports = getAllSports();
+  allSports.forEach(adapter => {
+    const sportDef = getSportDefinition(adapter.sportKey);
+    baseTabs.push({
+      id: adapter.sportKey as TabId,
+      label: sportDef.display_name,
+      icon: sportDef.icon_id,
+      enabled: adapter.isEnabled(),
+      comingSoon: !adapter.isEnabled()
+    });
+  });
+
+  // Add equipment tab for golf only (when golf is enabled)
+  const golfEnabled = getEnabledSports().some(adapter => adapter.sportKey === 'golf');
+  if (golfEnabled) {
+    baseTabs.push({
+      id: 'equipment',
+      label: 'Equipment',
+      icon: 'fas fa-golf-club',
+      enabled: true
+    });
+  }
+
+  return baseTabs;
+};
+
+const TABS = generateTabs();
 
 export default function EditProfileTabs({
   isOpen,
@@ -78,6 +110,21 @@ export default function EditProfileTabs({
     social_facebook: '',
   });
 
+  const [golfForm, setGolfForm] = useState({
+    handicap: '',
+    home_course: '',
+    tee_preference: 'white' as 'black' | 'blue' | 'white' | 'red' | 'gold',
+    dominant_hand: 'right' as 'right' | 'left',
+  });
+
+  const [equipmentForm, setEquipmentForm] = useState({
+    driver_brand: '',
+    driver_loft: '',
+    irons_brand: '',
+    putter_brand: '',
+    ball_brand: '',
+  });
+
   // No conversion - save exactly what user enters
 
   // Initialize forms when profile changes
@@ -106,6 +153,23 @@ export default function EditProfileTabs({
       social_twitter: formatSocialHandle(profile?.social_twitter),
       social_instagram: formatSocialHandle(profile?.social_instagram),
       social_facebook: formatSocialHandle(profile?.social_facebook),
+    });
+
+    // Initialize golf-specific form fields
+    setGolfForm({
+      handicap: (profile?.golf_handicap?.toString() || ''),
+      home_course: (profile?.golf_home_course || ''),
+      tee_preference: (profile?.golf_tee_preference as 'black' | 'blue' | 'white' | 'red' | 'gold') || 'white',
+      dominant_hand: (profile?.golf_dominant_hand as 'right' | 'left') || 'right',
+    });
+
+    // Initialize equipment form fields  
+    setEquipmentForm({
+      driver_brand: (profile?.golf_driver_brand || ''),
+      driver_loft: (profile?.golf_driver_loft?.toString() || ''),
+      irons_brand: (profile?.golf_irons_brand || ''),
+      putter_brand: (profile?.golf_putter_brand || ''),
+      ball_brand: (profile?.golf_ball_brand || ''),
     });
   }, [profile]);
 
@@ -183,19 +247,32 @@ export default function EditProfileTabs({
           hasChanges = true;
           break;
 
-        case 'badges':
-          // TODO: Implement badge updates
-          showInfo('Badges', 'Badge management coming soon!');
-          return;
+        case 'golf':
+          updateData = {
+            golf_handicap: golfForm.handicap ? parseFloat(golfForm.handicap) : undefined,
+            golf_home_course: golfForm.home_course.trim() || undefined,
+            golf_tee_preference: golfForm.tee_preference,
+            golf_dominant_hand: golfForm.dominant_hand,
+          };
+          hasChanges = true;
+          break;
 
-        case 'sports':
-          // TODO: Implement sports/highlights updates
-          showInfo('Sports & Highlights', 'Sports management coming soon!');
-          return;
+        case 'equipment':
+          updateData = {
+            golf_driver_brand: equipmentForm.driver_brand.trim() || undefined,
+            golf_driver_loft: equipmentForm.driver_loft ? parseFloat(equipmentForm.driver_loft) : undefined,
+            golf_irons_brand: equipmentForm.irons_brand.trim() || undefined,
+            golf_putter_brand: equipmentForm.putter_brand.trim() || undefined,
+            golf_ball_brand: equipmentForm.ball_brand.trim() || undefined,
+          };
+          hasChanges = true;
+          break;
 
-        case 'performances':
-          // TODO: Implement performances updates
-          showInfo('Performances', 'Performance management coming soon!');
+        case 'hockey':
+        case 'volleyball':
+          // Future sports - show coming soon
+          const sportName = TABS.find(t => t.id === tabId)?.label || 'Sport';
+          showInfo(`${sportName} Settings`, getComingSoonMessage(tabId, 'settings'));
           return;
       }
 
@@ -475,6 +552,164 @@ export default function EditProfileTabs({
     </div>
   );
 
+  const renderGolfTab = () => (
+    <div className="space-y-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div>
+          <label htmlFor="handicap" className="block text-sm font-medium text-gray-700 mb-1">
+            <i className="fas fa-golf-ball text-green-600 mr-2" aria-hidden="true"></i>
+            Handicap Index
+          </label>
+          <input
+            id="handicap"
+            type="number"
+            step="0.1"
+            value={golfForm.handicap || ''}
+            onChange={(e) => setGolfForm(prev => ({ ...prev, handicap: e.target.value }))}
+            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            placeholder="12.4"
+          />
+          <p className="mt-1 text-xs text-gray-500">
+            Official USGA Handicap Index
+          </p>
+        </div>
+
+        <div>
+          <label htmlFor="dominant_hand" className="block text-sm font-medium text-gray-700 mb-1">
+            <i className="fas fa-hand-paper text-green-600 mr-2" aria-hidden="true"></i>
+            Dominant Hand
+          </label>
+          <select
+            id="dominant_hand"
+            value={golfForm.dominant_hand}
+            onChange={(e) => setGolfForm(prev => ({ ...prev, dominant_hand: e.target.value as 'right' | 'left' }))}
+            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+          >
+            <option value="right">Right-handed</option>
+            <option value="left">Left-handed</option>
+          </select>
+        </div>
+      </div>
+
+      <div>
+        <label htmlFor="home_course" className="block text-sm font-medium text-gray-700 mb-1">
+          <i className="fas fa-flag text-green-600 mr-2" aria-hidden="true"></i>
+          Home Course
+        </label>
+        <input
+          id="home_course"
+          type="text"
+          value={golfForm.home_course || ''}
+          onChange={(e) => setGolfForm(prev => ({ ...prev, home_course: e.target.value }))}
+          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+          placeholder="Pebble Beach Golf Links"
+        />
+      </div>
+
+      <div>
+        <label htmlFor="tee_preference" className="block text-sm font-medium text-gray-700 mb-1">
+          <i className="fas fa-golf-tee text-green-600 mr-2" aria-hidden="true"></i>
+          Preferred Tee
+        </label>
+        <select
+          id="tee_preference"
+          value={golfForm.tee_preference}
+          onChange={(e) => setGolfForm(prev => ({ ...prev, tee_preference: e.target.value as 'black' | 'blue' | 'white' | 'red' | 'gold' }))}
+          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+        >
+          <option value="black">Black (Championship)</option>
+          <option value="blue">Blue (Back/Tips)</option>
+          <option value="white">White (Men's Regular)</option>
+          <option value="red">Red (Forward/Ladies)</option>
+          <option value="gold">Gold (Senior)</option>
+        </select>
+      </div>
+    </div>
+  );
+
+  const renderEquipmentTab = () => (
+    <div className="space-y-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div>
+          <label htmlFor="driver_brand" className="block text-sm font-medium text-gray-700 mb-1">
+            <i className="fas fa-golf-club text-green-600 mr-2" aria-hidden="true"></i>
+            Driver Brand
+          </label>
+          <input
+            id="driver_brand"
+            type="text"
+            value={equipmentForm.driver_brand || ''}
+            onChange={(e) => setEquipmentForm(prev => ({ ...prev, driver_brand: e.target.value }))}
+            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            placeholder="TaylorMade, Callaway, Titleist..."
+          />
+        </div>
+
+        <div>
+          <label htmlFor="driver_loft" className="block text-sm font-medium text-gray-700 mb-1">
+            Driver Loft
+          </label>
+          <input
+            id="driver_loft"
+            type="number"
+            step="0.5"
+            value={equipmentForm.driver_loft || ''}
+            onChange={(e) => setEquipmentForm(prev => ({ ...prev, driver_loft: e.target.value }))}
+            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            placeholder="10.5"
+          />
+        </div>
+      </div>
+
+      <div>
+        <label htmlFor="irons_brand" className="block text-sm font-medium text-gray-700 mb-1">
+          <i className="fas fa-golf-club text-green-600 mr-2" aria-hidden="true"></i>
+          Irons Brand
+        </label>
+        <input
+          id="irons_brand"
+          type="text"
+          value={equipmentForm.irons_brand || ''}
+          onChange={(e) => setEquipmentForm(prev => ({ ...prev, irons_brand: e.target.value }))}
+          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+          placeholder="Titleist, Ping, Mizuno..."
+        />
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div>
+          <label htmlFor="putter_brand" className="block text-sm font-medium text-gray-700 mb-1">
+            <i className="fas fa-golf-club text-green-600 mr-2" aria-hidden="true"></i>
+            Putter Brand
+          </label>
+          <input
+            id="putter_brand"
+            type="text"
+            value={equipmentForm.putter_brand || ''}
+            onChange={(e) => setEquipmentForm(prev => ({ ...prev, putter_brand: e.target.value }))}
+            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            placeholder="Scotty Cameron, Odyssey..."
+          />
+        </div>
+
+        <div>
+          <label htmlFor="ball_brand" className="block text-sm font-medium text-gray-700 mb-1">
+            <i className="fas fa-golf-ball text-green-600 mr-2" aria-hidden="true"></i>
+            Ball Brand
+          </label>
+          <input
+            id="ball_brand"
+            type="text"
+            value={equipmentForm.ball_brand || ''}
+            onChange={(e) => setEquipmentForm(prev => ({ ...prev, ball_brand: e.target.value }))}
+            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            placeholder="Pro V1, TP5, Chrome Soft..."
+          />
+        </div>
+      </div>
+    </div>
+  );
+
   const renderSocialsTab = () => (
     <div className="space-y-6">
       <div>
@@ -541,28 +776,25 @@ export default function EditProfileTabs({
         return renderVitalsTab();
       case 'socials':
         return renderSocialsTab();
-      case 'badges':
+      case 'golf':
+        return renderGolfTab();
+      case 'equipment':
+        return renderEquipmentTab();
+      case 'hockey':
+      case 'volleyball':
+        const currentTab = TABS.find(t => t.id === activeTab);
+        const sportDef = getSportDefinition(activeTab);
         return (
           <div className="text-center py-12 text-gray-500">
-            <i className="fas fa-award text-4xl text-gray-300 mb-4" aria-hidden="true"></i>
-            <h3 className="text-lg font-medium mb-2">Badge Management</h3>
-            <p>Badge ordering and management features coming soon!</p>
-          </div>
-        );
-      case 'sports':
-        return (
-          <div className="text-center py-12 text-gray-500">
-            <i className="fas fa-trophy text-4xl text-gray-300 mb-4" aria-hidden="true"></i>
-            <h3 className="text-lg font-medium mb-2">Sports & Season Highlights</h3>
-            <p>Sports selection and season metrics management coming soon!</p>
-          </div>
-        );
-      case 'performances':
-        return (
-          <div className="text-center py-12 text-gray-500">
-            <i className="fas fa-list text-4xl text-gray-300 mb-4" aria-hidden="true"></i>
-            <h3 className="text-lg font-medium mb-2">Performance Management</h3>
-            <p>Add, edit, and delete performance records coming soon!</p>
+            <i className={`${sportDef.icon_id} text-4xl text-gray-300 mb-4`} aria-hidden="true"></i>
+            <h3 className="text-lg font-medium mb-2">{currentTab?.label} Settings</h3>
+            <p>Sport preferences and equipment settings coming soon!</p>
+            <div className="mt-4 px-4 py-2 bg-amber-50 border border-amber-200 rounded-md">
+              <div className="flex items-center justify-center">
+                <i className="fas fa-clock text-amber-600 mr-2" aria-hidden="true"></i>
+                <span className="text-sm text-amber-800 font-medium">Coming Soon</span>
+              </div>
+            </div>
           </div>
         );
       default:
@@ -601,20 +833,27 @@ export default function EditProfileTabs({
 
             {/* Tabs */}
             <div className="border-b border-gray-200">
-              <nav className="-mb-px flex space-x-8" aria-label="Profile sections">
+              <nav className="-mb-px flex flex-wrap gap-x-8 gap-y-2" aria-label="Profile sections">
                 {TABS.map((tab) => (
                   <button
                     key={tab.id}
-                    onClick={() => setActiveTab(tab.id)}
-                    className={`py-2 px-1 border-b-2 font-medium text-sm whitespace-nowrap focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 ${
-                      activeTab === tab.id
+                    onClick={() => tab.enabled && setActiveTab(tab.id)}
+                    className={`py-2 px-1 border-b-2 font-medium text-sm whitespace-nowrap focus:outline-none transition-colors ${
+                      !tab.enabled
+                        ? 'border-transparent text-gray-400 cursor-not-allowed'
+                        : activeTab === tab.id
                         ? 'border-blue-500 text-blue-600'
-                        : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                        : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 focus:ring-2 focus:ring-blue-500 focus:ring-offset-2'
                     }`}
                     aria-current={activeTab === tab.id ? 'page' : undefined}
+                    disabled={!tab.enabled}
+                    title={tab.comingSoon ? COPY.COMING_SOON.SPORT_GENERAL : undefined}
                   >
                     <i className={`${tab.icon} mr-2`} aria-hidden="true"></i>
                     {tab.label}
+                    {tab.comingSoon && (
+                      <span className="ml-1 text-xs text-gray-400">{COPY.TABS.COMING_SOON_INDICATOR}</span>
+                    )}
                   </button>
                 ))}
               </nav>

@@ -572,6 +572,86 @@ const displayValue = `${profile.weight_display} ${profile.weight_unit}`;
 - Simpler to maintain and debug
 - Better user experience
 
+## Create Post Modal Pattern (Single Screen)
+
+### Design Principles
+The Create Post modal uses a single-screen design for efficiency:
+
+```typescript
+// Structure
+1. Sport Selection Dropdown (always at top)
+2. Media Upload Section (always visible)
+3. Dynamic Stats Form (conditional on sport)
+4. Caption & Visibility (always at bottom)
+```
+
+### Sport Dropdown Implementation
+```typescript
+// State management
+const [selectedType, setSelectedType] = useState<string>('general');
+const [dropdownOpen, setDropdownOpen] = useState(false);
+const [searchQuery, setSearchQuery] = useState('');
+
+// Build sports list
+const allSports = [
+  { display_name: 'Media Only', sportKey: 'general', enabled: true },
+  ...enabledSports.map(adapter => ({ 
+    ...getSportDefinition(adapter.sportKey), 
+    sportKey: adapter.sportKey, 
+    enabled: true 
+  })),
+  // Disabled sports for future
+  { display_name: 'Hockey', sportKey: 'ice_hockey', enabled: false }
+];
+
+// Filter on search
+const filteredSports = searchQuery 
+  ? allSports.filter(sport => sport.display_name?.toLowerCase().includes(searchQuery.toLowerCase()))
+  : allSports;
+```
+
+### Dynamic Stats Form
+Stats forms appear conditionally based on sport selection:
+
+```typescript
+{selectedType === 'golf' && (
+  <div>
+    {/* Golf-specific stats form */}
+    <GolfStatsForm 
+      mode={golfData.mode}
+      data={golfData}
+      onChange={setGolfData}
+    />
+  </div>
+)}
+```
+
+### Caption Auto-Generation
+Generate captions from sport stats:
+
+```typescript
+const generateCaption = () => {
+  if (selectedType === 'golf' && golfData.score) {
+    return `${golfData.score} at ${golfData.course} | FIR ${golfData.fir}% | ${golfData.putts} putts`;
+  }
+  return '';
+};
+```
+
+### Validation Pattern
+Single-step validation for submission:
+
+```typescript
+const isValidForSubmission = () => {
+  if (selectedType === 'general') {
+    return mediaFiles.length > 0; // Media required
+  } else if (selectedType === 'golf') {
+    return golfData.score !== undefined; // Score required
+  }
+  return false;
+};
+```
+
 ## Deployment Considerations
 
 1. **Database**: Ensure Supabase project is set up with proper pooling

@@ -4,9 +4,11 @@
 import type { SeasonHighlight, AthleteBadge } from '@/lib/supabase';
 import { 
   getSeasonDisplayName,
-  PLACEHOLDERS,
-  getSportName
+  PLACEHOLDERS
 } from '@/lib/config';
+import { getSportConfig, getDisplaySports } from '@/lib/config/sports-metrics';
+import { formatLeagueTags } from '@/lib/config/league-config';
+import { formatScore } from '@/lib/formatters';
 
 interface SeasonHighlightsProps {
   highlights: SeasonHighlight[];
@@ -15,69 +17,61 @@ interface SeasonHighlightsProps {
   canEdit?: boolean;
 }
 
-interface SportConfig {
-  key: string;
-  title: string;
-  icon: string;
-  color: string;
-  bgColor: string;
-  borderColor: string;
-}
-
-// Dynamic sports configuration using centralized data
-const SPORTS_CONFIG: SportConfig[] = [
-  {
-    key: 'ice_hockey',
-    title: getSportName('ice_hockey'),
-    icon: 'fas fa-hockey-puck',
-    color: 'text-sky-500',
-    bgColor: 'bg-sky-50',
-    borderColor: 'border-sky-200'
-  },
-  {
-    key: 'volleyball',
-    title: getSportName('volleyball'), 
-    icon: 'fas fa-volleyball-ball',
-    color: 'text-amber-500',
-    bgColor: 'bg-amber-50',
-    borderColor: 'border-amber-200'
-  },
-  {
-    key: 'track_field',
-    title: getSportName('track_field'),
-    icon: 'fas fa-running',
-    color: 'text-blue-500',
-    bgColor: 'bg-blue-50',
-    borderColor: 'border-blue-200'
-  }
-];
+// Get sports configuration from centralized source
+const SPORTS_CONFIG = getDisplaySports();
 
 export default function SeasonHighlights({ highlights, badges, onEdit, canEdit = true }: SeasonHighlightsProps) {
   // Active season is now managed centrally
   // Uncomment if needed for season-specific display
   // const currentSeason = getActiveSeason();
 
-  const getLeagueChips = (sportKey: string): string[] => {
-    // Get league info from badges that match this sport
+  // Check if all season highlight cards are completely empty
+  const areAllCardsEmpty = () => {
+    // Check each sport to see if it has any meaningful data
+    return SPORTS_CONFIG.every(sport => {
+      const highlight = highlights.find(h => h.sport_key === sport.key);
+      
+      // A card is considered empty if:
+      // - No highlight record exists, OR
+      // - All metric fields and rating are empty/null
+      if (!highlight) return true;
+      
+      const hasMetricA = highlight.metric_a && highlight.metric_a.trim() !== '';
+      const hasMetricB = highlight.metric_b && highlight.metric_b.trim() !== '';
+      const hasMetricC = highlight.metric_c && highlight.metric_c.trim() !== '';
+      const hasRating = highlight.rating !== null && highlight.rating !== undefined;
+      
+      return !hasMetricA && !hasMetricB && !hasMetricC && !hasRating;
+    });
+  };
+
+
+  const getLeagueChips = (sportKey: string, highlight?: SeasonHighlight) => {
+    // First try to get league tags from the highlight data
+    if (highlight?.league_tags && highlight.league_tags.length > 0) {
+      return formatLeagueTags(highlight.league_tags);
+    }
+    
+    // Fallback: Get league info from badges that match this sport
     const sportBadges = badges.filter(badge => 
       badge.label.toLowerCase().includes(sportKey.toLowerCase()) ||
       badge.label.toLowerCase().includes('league') ||
       badge.label.toLowerCase().includes('championship')
     );
     
-    // Always return exactly 2 chips for consistent layout
-    const chip1 = sportBadges[0]?.label || '—';
-    const chip2 = sportBadges[1]?.label || '—';
-    
-    return [chip1, chip2];
+    const badgeLabels = sportBadges.slice(0, 2).map(badge => badge.label);
+    return formatLeagueTags(badgeLabels);
   };
 
-  const renderStatGrid = (highlight?: SeasonHighlight) => {
+  const renderStatGrid = (sportKey: string, highlight?: SeasonHighlight) => {
+    const sportConfig = getSportConfig(sportKey);
+    const metrics = sportConfig.metrics;
+    
     const stats = [
-      { label: 'Metric A', value: highlight?.metric_a || '—' },
-      { label: 'Metric B', value: highlight?.metric_b || '—' },
-      { label: 'Metric C', value: highlight?.metric_c || '—' },
-      { label: 'Rating', value: highlight?.rating ? `${highlight.rating}/100` : '—' }
+      { label: metrics.a, value: highlight?.metric_a || '—' },
+      { label: metrics.b, value: highlight?.metric_b || '—' },
+      { label: metrics.c, value: highlight?.metric_c || '—' },
+      { label: metrics.rating, value: highlight?.rating !== undefined && highlight?.rating !== null ? `${formatScore(highlight.rating)}/100` : '—' }
     ];
 
     return (
@@ -96,9 +90,9 @@ export default function SeasonHighlights({ highlights, badges, onEdit, canEdit =
     );
   };
 
-  const renderSportCard = (sport: SportConfig) => {
+  const renderSportCard = (sport: typeof SPORTS_CONFIG[0]) => {
     const highlight = highlights.find(h => h.sport_key === sport.key);
-    const leagueChips = getLeagueChips(sport.key);
+    const leagueChips = getLeagueChips(sport.key, highlight);
 
     return (
       <div
@@ -109,13 +103,12 @@ export default function SeasonHighlights({ highlights, badges, onEdit, canEdit =
         <div className="season-card-header">
           {/* Top row: Icon + Title + Edit Button */}
           <div className="season-card-header-top flex items-center justify-between">
-            <div className="flex items-center gap-micro flex-1 min-w-0">
-              <div className={`w-10 h-10 rounded-full bg-white flex items-center justify-center shadow-sm flex-shrink-0`}>
-                <i className={`${sport.icon} ${sport.color} text-lg`}></i>
+            <div className="flex items-center icon-gap flex-1 min-w-0">
+              <div className="icon-header rounded-full bg-white shadow-sm flex-shrink-0">
+                <i className={`${sport.icon} ${sport.color}`}></i>
               </div>
               <div className="flex-1 min-w-0">
-                <h3 className="font-semibold text-gray-900 truncate">{sport.title}</h3>
-                <p className="text-xs text-gray-500 truncate">{getSeasonDisplayName()}</p>
+                <h3 className="text-h3 text-gray-900 truncate">{sport.displayName}</h3>
               </div>
             </div>
             {canEdit && (
@@ -124,23 +117,19 @@ export default function SeasonHighlights({ highlights, badges, onEdit, canEdit =
                 className="p-1 text-gray-400 hover:text-gray-600 transition-colors flex-shrink-0"
                 title="Edit season highlights"
               >
-                <i className="fas fa-edit text-sm"></i>
+                <i className="fas fa-edit icon-edit"></i>
               </button>
             )}
           </div>
 
           {/* League Chips Row */}
           <div className="season-card-chips">
-            {leagueChips.map((league, index) => (
+            {leagueChips.map((chip, index) => (
               <div
                 key={index}
-                className={`season-chip ${
-                  league === '—' 
-                    ? 'bg-gray-100 text-gray-400' 
-                    : `bg-white ${sport.color} border ${sport.borderColor}`
-                }`}
+                className={`season-chip ${chip.styles.bgColor} ${chip.styles.color} border ${chip.styles.borderColor}`}
               >
-                {league}
+                {chip.styles.text}
               </div>
             ))}
           </div>
@@ -148,16 +137,16 @@ export default function SeasonHighlights({ highlights, badges, onEdit, canEdit =
 
         {/* Stats Grid */}
         <div className="season-card-stats">
-          {renderStatGrid(highlight)}
+          {renderStatGrid(sport.key, highlight)}
         </div>
 
         {/* Decorative Footer */}
         <div className="season-card-footer">
           <div className="flex items-center justify-center gap-micro opacity-30">
-            <i className={`${sport.icon} text-xs ${sport.color}`}></i>
-            <i className="fas fa-trophy text-xs text-yellow-500"></i>
-            <i className="fas fa-medal text-xs text-gray-400"></i>
-            <i className="fas fa-star text-xs text-yellow-400"></i>
+            <i className={`${sport.icon} icon-footer ${sport.color}`}></i>
+            <i className="fas fa-trophy icon-footer text-yellow-500"></i>
+            <i className="fas fa-medal icon-footer text-gray-400"></i>
+            <i className="fas fa-star icon-footer text-yellow-400"></i>
           </div>
         </div>
 
@@ -171,10 +160,11 @@ export default function SeasonHighlights({ highlights, badges, onEdit, canEdit =
 
   return (
     <div className="bg-white rounded-lg shadow-sm p-base">
-      <div className="flex items-center justify-between space-base">
-        <h2 className="text-lg font-semibold text-gray-900">Season Highlights</h2>
-        <div className="text-sm text-gray-500">
-          {getSeasonDisplayName()}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between space-base">
+        <h2 className="text-h2 text-gray-900">Season Highlights</h2>
+        <div className="inline-flex items-center px-3 py-1 bg-gray-50 rounded-md border border-gray-200 hover:bg-gray-100 transition-colors cursor-default">
+          <span className="text-label text-gray-700 font-medium">{getSeasonDisplayName()}</span>
+          <i className="fas fa-chevron-down icon-footer text-gray-400 ml-2" aria-hidden="true"></i>
         </div>
       </div>
 
@@ -182,10 +172,9 @@ export default function SeasonHighlights({ highlights, badges, onEdit, canEdit =
         {SPORTS_CONFIG.map(sport => renderSportCard(sport))}
       </div>
 
-      {/* Empty State Message */}
-      {highlights.length === 0 && (
-        <div className="text-center mt-6 py-4">
-          <i className="fas fa-chart-line text-3xl text-gray-300 mb-2"></i>
+      {/* Empty State Message - only show when ALL cards are empty */}
+      {areAllCardsEmpty() && (
+        <div className="text-center mt-base mb-section">
           <p className="text-gray-500 text-sm">
             {PLACEHOLDERS.NO_HIGHLIGHTS}
           </p>

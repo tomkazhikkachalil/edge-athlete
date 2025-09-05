@@ -138,9 +138,31 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
     );
 
+    // Set up periodic session refresh to prevent token expiry
+    const refreshInterval = setInterval(async () => {
+      if (isMounted) {
+        try {
+          const { error } = await supabase.auth.refreshSession();
+          if (error) {
+            console.log('Session refresh error:', error);
+            // If refresh fails due to invalid token, sign out
+            if (error.message?.includes('refresh_token_not_found') || 
+                error.message?.includes('Invalid Refresh Token')) {
+              await supabase.auth.signOut();
+              setUser(null);
+              setProfile(null);
+            }
+          }
+        } catch (err) {
+          console.error('Error refreshing session:', err);
+        }
+      }
+    }, 5 * 60 * 1000); // Refresh every 5 minutes
+
     return () => {
       isMounted = false;
       subscription.unsubscribe();
+      clearInterval(refreshInterval);
     };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
