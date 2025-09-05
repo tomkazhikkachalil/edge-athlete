@@ -110,9 +110,16 @@ export async function POST(request: NextRequest) {
     // Update the profile with additional data (using admin client to bypass RLS if available)
     if (data.user) {
       const client = supabaseAdmin || supabase;
+      
+      // Create a full name from first and last name
+      const fullName = [profileData.first_name, profileData.last_name]
+        .filter(Boolean)
+        .join(' ') || undefined;
+
       const { error: profileError } = await client
         .from('profiles')
         .update({
+          // Original fields
           first_name: profileData.first_name,
           last_name: profileData.last_name,
           nickname: profileData.nickname,
@@ -122,6 +129,12 @@ export async function POST(request: NextRequest) {
           location: profileData.location,
           postal_code: profileData.postal_code,
           user_type: profileData.user_type || 'athlete',
+          
+          // Athlete-specific fields
+          full_name: fullName,
+          // Use birthday as DOB if provided
+          dob: profileData.birthday,
+          // We can derive bio from other info later, for now keep it empty for user to fill
         })
         .eq('id', data.user.id);
 
@@ -129,6 +142,16 @@ export async function POST(request: NextRequest) {
         console.error('Error updating profile:', profileError);
         // Don't return error here as user was created successfully
       }
+      
+      // Log successful profile update for debugging
+      console.log('Profile updated for user:', data.user.id, 'with data:', {
+        full_name: fullName,
+        first_name: profileData.first_name,
+        last_name: profileData.last_name,
+        nickname: profileData.nickname,
+        location: profileData.location,
+        dob: profileData.birthday
+      });
     }
 
     return NextResponse.json(

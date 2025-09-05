@@ -469,9 +469,108 @@ const response = await fetch('/api/ai/image', {
 - **Current Design**: Clean black/white/gray theme (students can change this!)
 - **Layout**: Consistent navigation + content structure
 - **Styling**: Tailwind CSS for easy customization
+- **Input Fields**: Global black text styling applied via CSS for better readability
 - **Components**: Place new components in `/src/components`, organize by feature
 - **State**: Use React hooks and context when needed
 - **Responsive**: Mobile-first approach recommended
+
+## Spacing & Design System
+
+### Vertical Rhythm System (12/24/48px)
+
+The application uses a systematic spacing approach based on CSS custom properties:
+
+```css
+/* Spacing Tokens */
+--space-micro: 12px;   /* ½ base - micro spacing, icons, small gaps */
+--space-base: 24px;    /* 1x base - standard gaps, card padding */
+--space-section: 48px; /* 2x base - major sections, page regions */
+```
+
+### Usage Guidelines
+
+**Use --space-micro (12px) for:**
+- Icon margins and small gaps (`gap-micro`)
+- Input field padding (`px-micro`, `py-micro`)
+- Chip/badge spacing
+- Button internal padding
+
+**Use --space-base (24px) for:**
+- Card content padding (`p-base`)
+- Standard gaps between elements (`gap-base`)
+- Form field spacing (`space-base`)
+- Navigation spacing
+
+**Use --space-section (48px) for:**
+- Major section breaks (`py-section`)
+- Page region separation
+- Large whitespace areas
+- Between distinct content blocks
+
+### Available Utility Classes
+
+```css
+/* Spacing (margin-bottom) */
+.space-micro, .space-base, .space-section
+
+/* Gaps (flexbox/grid) */
+.gap-micro, .gap-base, .gap-section
+
+/* Padding */
+.p-micro, .px-micro, .py-micro, .pt-micro, .pb-micro, .pl-micro, .pr-micro
+.p-base, .px-base, .py-base, .pt-base, .pb-base, .pl-base, .pr-base
+.p-section, .px-section, .py-section, .pt-section, .pb-section, .pl-section, .pr-section
+
+/* Margins */
+.m-micro, .mx-micro, .my-micro, .mt-micro, .mb-micro
+.m-base, .mx-base, .my-base, .mt-base, .mb-base
+.m-section, .mx-section, .my-section, .mt-section, .mb-section
+```
+
+### Card System
+
+Season Highlights cards use a fixed-height system for consistency:
+
+```css
+.season-card {
+  min-height: 280px;        /* Fixed total height */
+  display: flex;
+  flex-direction: column;
+}
+```
+
+- Header: 80px fixed (icon + title + chips)
+- Stats area: flexible (`flex: 1`)
+- Footer: 32px fixed
+- All internal padding uses `var(--space-micro)` (12px)
+- Text truncation handles long content gracefully
+
+## Weight System Implementation
+
+### Pattern: Direct Save/Display (No Conversions)
+When building weight/measurement systems, use this pattern:
+
+```typescript
+// Database fields
+weight_display: number    // The exact value user entered
+weight_unit: string      // User's preferred unit ('lbs', 'kg', 'stone')
+
+// Save exactly what user enters
+const weightDisplay = parseFloat(userInput);
+updateData = {
+  weight_display: weightDisplay,
+  weight_unit: selectedUnit
+};
+
+// Display exactly what was saved
+const displayValue = `${profile.weight_display} ${profile.weight_unit}`;
+```
+
+**Why this approach:**
+- Preserves user intent and expectations
+- Eliminates conversion errors and precision loss
+- Simpler to maintain and debug
+- Better user experience
 
 ## Deployment Considerations
 

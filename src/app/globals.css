@@ -3,6 +3,32 @@
 :root {
   --background: #ffffff;
   --foreground: #171717;
+  
+  /* Vertical Rhythm System - Base 24px
+   * 
+   * SPACING TOKENS:
+   * --space-micro: 12px   (½ base) - micro spacing, label-to-value, icon-to-text, small gaps
+   * --space-base: 24px    (1x base) - standard intra-section gaps, card padding
+   * --space-section: 48px (2x base) - major section gutters, large spacing between regions
+   * 
+   * USAGE GUIDELINES:
+   * - Use -micro (12px) for: small gaps, icon margins, chip spacing, input padding
+   * - Use -base (24px) for: content padding, card spacing, medium gaps between elements  
+   * - Use -section (48px) for: major section breaks, page regions, large whitespace
+   * 
+   * UTILITY CLASSES AVAILABLE:
+   * Spacing: .space-micro, .space-base, .space-section (margin-bottom)
+   * Gaps: .gap-micro, .gap-base, .gap-section (flexbox/grid gap)
+   * Padding: .p-micro, .px-micro, .py-micro, .pt-micro, .pb-micro, .pl-micro, .pr-micro
+   *          .p-base, .px-base, .py-base, .pt-base, .pb-base, .pl-base, .pr-base
+   *          .p-section, .px-section, .py-section, .pt-section, .pb-section, .pl-section, .pr-section
+   * Margins: .m-micro, .mx-micro, .my-micro, .mt-micro, .mb-micro
+   *          .m-base, .mx-base, .my-base, .mt-base, .mb-base  
+   *          .m-section, .mx-section, .my-section, .mt-section, .mb-section
+   */
+  --space-micro: 12px;
+  --space-base: 24px;
+  --space-section: 48px;
 }
 
 @theme inline {
@@ -23,4 +49,149 @@ body {
   background: var(--background);
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
+}
+
+/* Make all input fields have black text */
+input,
+textarea,
+select {
+  color: #000000 !important;
+}
+
+/* Vertical Rhythm Utility Classes */
+.space-micro { margin-bottom: var(--space-micro); }
+.space-base { margin-bottom: var(--space-base); }
+.space-section { margin-bottom: var(--space-section); }
+
+/* Margin Utilities */
+.mt-micro { margin-top: var(--space-micro); }
+.mb-micro { margin-bottom: var(--space-micro); }
+.my-micro { margin-top: var(--space-micro); margin-bottom: var(--space-micro); }
+.mx-micro { margin-left: var(--space-micro); margin-right: var(--space-micro); }
+.m-micro { margin: var(--space-micro); }
+
+.mt-base { margin-top: var(--space-base); }
+.mb-base { margin-bottom: var(--space-base); }
+.my-base { margin-top: var(--space-base); margin-bottom: var(--space-base); }
+.mx-base { margin-left: var(--space-base); margin-right: var(--space-base); }
+.m-base { margin: var(--space-base); }
+
+.mt-section { margin-top: var(--space-section); }
+.mb-section { margin-bottom: var(--space-section); }
+.my-section { margin-top: var(--space-section); margin-bottom: var(--space-section); }
+.mx-section { margin-left: var(--space-section); margin-right: var(--space-section); }
+.m-section { margin: var(--space-section); }
+
+.gap-micro { gap: var(--space-micro); }
+.gap-base { gap: var(--space-base); }
+.gap-section { gap: var(--space-section); }
+
+.pt-micro { padding-top: var(--space-micro); }
+.pb-micro { padding-bottom: var(--space-micro); }
+.py-micro { padding-top: var(--space-micro); padding-bottom: var(--space-micro); }
+
+.pt-base { padding-top: var(--space-base); }
+.pb-base { padding-bottom: var(--space-base); }
+.py-base { padding-top: var(--space-base); padding-bottom: var(--space-base); }
+
+.pt-section { padding-top: var(--space-section); }
+.pb-section { padding-bottom: var(--space-section); }
+.py-section { padding-top: var(--space-section); padding-bottom: var(--space-section); }
+
+.px-micro { padding-left: var(--space-micro); padding-right: var(--space-micro); }
+.pl-micro { padding-left: var(--space-micro); }
+.pr-micro { padding-right: var(--space-micro); }
+
+.px-base { padding-left: var(--space-base); padding-right: var(--space-base); }
+.pl-base { padding-left: var(--space-base); }
+.pr-base { padding-right: var(--space-base); }
+
+.px-section { padding-left: var(--space-section); padding-right: var(--space-section); }
+.pl-section { padding-left: var(--space-section); }
+.pr-section { padding-right: var(--space-section); }
+
+/* Season Highlights Card System */
+.season-card {
+  min-height: 280px; /* Fixed card height */
+  display: flex;
+  flex-direction: column;
+}
+
+.season-card-header {
+  height: 80px; /* Fixed header height: icon + title + chips */
+  flex-shrink: 0;
+  padding: var(--space-micro);
+  border-bottom: 1px solid rgba(229, 231, 235, 0.5);
+}
+
+.season-card-header-top {
+  height: 48px; /* Icon + title + edit button */
+  margin-bottom: var(--space-micro);
+}
+
+.season-card-chips {
+  height: 20px; /* Two chip row */
+  display: flex;
+  gap: var(--space-micro);
+}
+
+.season-card-stats {
+  flex: 1; /* Takes remaining space */
+  padding: var(--space-micro);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.season-card-footer {
+  height: 32px; /* Fixed footer height */
+  flex-shrink: 0;
+  padding: 0 var(--space-micro) var(--space-micro) var(--space-micro);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Ensure consistent chip sizes */
+.season-chip {
+  height: 20px;
+  display: inline-flex;
+  align-items: center;
+  padding: 0 8px;
+  border-radius: 10px;
+  font-size: 0.75rem;
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 80px;
+}
+
+/* Stat grid consistency */
+.stat-tile {
+  text-align: center;
+  min-height: 48px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+.stat-value {
+  font-size: 1.125rem;
+  font-weight: 700;
+  line-height: 1.2;
+  color: #111827;
+  min-height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.stat-label {
+  font-size: 0.75rem;
+  color: #6B7280;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  line-height: 1;
+  margin-top: 4px;
 }

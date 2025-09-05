@@ -70,6 +70,56 @@ npm run lint       # Check code quality
 npm run studio     # Open Prisma Studio (database viewer)
 ```
 
+## 📏 Design System - Vertical Spacing
+
+**All vertical gaps MUST be 12/24/48px.**
+
+- **12px (`space-micro`)**: Label-to-value, icon-to-text micro gaps
+- **24px (`space-base`)**: Intra-section gaps between stacked blocks
+- **48px (`space-section`)**: Section gutters between major sections
+
+### CSS Classes Available:
+```css
+/* Margin bottom */
+.space-micro { margin-bottom: 12px; }
+.space-base { margin-bottom: 24px; }  
+.space-section { margin-bottom: 48px; }
+
+/* Gaps */
+.gap-micro { gap: 12px; }
+.gap-base { gap: 24px; }
+.gap-section { gap: 48px; }
+
+/* Padding */
+.py-micro, .pt-micro, .pb-micro
+.py-base, .pt-base, .pb-base  
+.py-section, .pt-section, .pb-section
+```
+
+## 📐 Card Height Consistency - Season Highlights
+
+**All season highlight cards have identical heights regardless of content.**
+
+### Fixed Card Structure (280px total):
+- **Header (80px)**: Icon + title (48px) + chips row (20px) + spacing (12px)
+- **Stats Grid (flexible)**: Takes remaining space, centers content
+- **Footer (32px)**: Decorative icons, always present
+
+### Key Features:
+- ✅ **Always 2 chips**: Missing chips show as "—" placeholder
+- ✅ **Always 4 stats**: Missing stats show as "—" placeholder  
+- ✅ **Truncated text**: Long names/labels truncate with ellipsis
+- ✅ **Fixed edit button**: Pencil icon always in same position
+- ✅ **Consistent spacing**: All internal gaps use 12px rhythm
+
+### CSS Classes:
+```css
+.season-card { min-height: 280px; display: flex; flex-direction: column; }
+.season-card-header { height: 80px; flex-shrink: 0; }
+.season-card-stats { flex: 1; /* takes remaining space */ }
+.season-card-footer { height: 32px; flex-shrink: 0; }
+```
+
 ## 🤖 Using Claude Code
 
 Claude Code is your AI assistant that helps you code:

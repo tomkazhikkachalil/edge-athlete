@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/lib/auth';
 import { useRouter } from 'next/navigation';
+import WaitlistPopup from '@/components/WaitlistPopup';
 
 export default function Home() {
   const [showAthleteRegistration, setShowAthleteRegistration] = useState(false);
@@ -22,21 +23,58 @@ export default function Home() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
+  const [showWaitlist, setShowWaitlist] = useState(false);
+  const [waitlistUserType, setWaitlistUserType] = useState('');
 
-  const { signIn, user, loading } = useAuth();
+  const { signIn, user, loading, initialAuthCheckComplete } = useAuth();
   const router = useRouter();
 
-  // Redirect to dashboard if user is already logged in
+  // Redirect to athlete profile if user is already logged in
   useEffect(() => {
     if (!loading && user) {
-      router.push('/dashboard');
+      console.log('User authenticated, redirecting to athlete profile...');
+      router.push('/athlete');
     }
   }, [user, loading, router]);
+
+  // Show loading state while auth is being determined - prevent flash of login page
+  if (loading || !initialAuthCheckComplete) {
+    return (
+      <div className="min-h-screen bg-blue-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
+          <p className="mt-2 text-gray-600">Loading...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // If user is authenticated, show loading until redirect happens
+  if (user) {
+    return (
+      <div className="min-h-screen bg-blue-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
+          <p className="mt-2 text-gray-600">Redirecting to your profile...</p>
+        </div>
+      </div>
+    );
+  }
 
   const handleAthleteClick = () => {
     setShowAthleteRegistration(true);
     setError('');
     setSuccess('');
+  };
+
+  const handleWaitlistClick = (userType: string) => {
+    setWaitlistUserType(userType);
+    setShowWaitlist(true);
+  };
+
+  const handleCloseWaitlist = () => {
+    setShowWaitlist(false);
+    setWaitlistUserType('');
   };
 
   const handleBackToLogin = () => {
@@ -137,6 +175,7 @@ export default function Home() {
         // Switch back to login view after successful registration
         setTimeout(() => {
           setShowAthleteRegistration(false);
+          // Optionally redirect to login or let them sign in
         }, 2000);
       }
     } catch (err: unknown) {
@@ -163,8 +202,8 @@ export default function Home() {
         const errorMessage = error instanceof Error ? error.message : 'Invalid email or password';
         setError(errorMessage);
       } else {
-        setSuccess('Login successful! Redirecting to your dashboard...');
-        // Redirect will happen automatically via useEffect when user state changes
+        setSuccess('Login successful! Redirecting to your profile...');
+        // The redirect will happen automatically via useEffect when user state changes
       }
     } catch (err) {
       setError('An unexpected error occurred');
@@ -177,14 +216,14 @@ export default function Home() {
   if (showAthleteRegistration) {
     return (
       <div className="min-h-screen flex flex-col bg-blue-50">
-        <div className="w-full bg-blue-600 py-3 px-4">
+        <div className="w-full bg-blue-600 py-micro px-micro">
           <h1 className="text-2xl sm:text-3xl font-bold text-white text-center">Edge Athlete</h1>
         </div>
         
         <div className="flex-grow flex items-center justify-center p-4">
           <div className="w-full max-w-3xl bg-white rounded-lg shadow-lg overflow-hidden">
-            <div className="w-full p-4 sm:p-6">
-              <h2 className="text-xl sm:text-2xl font-bold text-blue-800 mb-4">Create Athlete Account</h2>
+            <div className="w-full p-micro sm:p-base">
+              <h2 className="text-xl sm:text-2xl font-bold text-blue-800 space-micro">Create Athlete Account</h2>
               {error && (
                 <div className="bg-red-50 border border-red-200 text-red-600 px-4 py-3 rounded-md text-sm">
                   {error}
@@ -195,7 +234,7 @@ export default function Home() {
                   {success}
                 </div>
               )}
-              <form className="space-y-4" onSubmit={handleRegistrationSubmit}>
+              <form className="gap-micro flex flex-col" onSubmit={handleRegistrationSubmit}>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
                     <label htmlFor="first-name" className="block text-sm font-medium text-gray-700 mb-1">First Name</label>
@@ -387,7 +426,7 @@ export default function Home() {
                 <button 
                   type="submit" 
                   disabled={isSubmitting}
-                  className="w-full bg-blue-600 text-white py-3 px-4 rounded-md hover:bg-blue-700 transition duration-300 flex items-center justify-center text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="w-full bg-blue-600 text-white py-micro px-micro rounded-md hover:bg-blue-700 transition duration-300 flex items-center justify-center text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   {isSubmitting ? (
                     <>
@@ -504,28 +543,47 @@ export default function Home() {
                   <i className="fas fa-person-running mb-1 sm:mb-0 sm:mr-2 text-lg sm:text-base"></i>
                   <span>Athlete</span>
                 </button>
-                <button className="bg-white text-blue-600 py-3 px-3 sm:px-4 rounded-md font-semibold hover:bg-blue-100 transition duration-300 flex flex-col sm:flex-row items-center justify-center text-xs sm:text-sm">
+                <button 
+                  onClick={() => handleWaitlistClick('Club')}
+                  className="bg-white text-blue-600 py-3 px-3 sm:px-4 rounded-md font-semibold hover:bg-blue-100 transition duration-300 flex flex-col sm:flex-row items-center justify-center text-xs sm:text-sm"
+                >
                   <i className="fas fa-shield mb-1 sm:mb-0 sm:mr-2 text-lg sm:text-base"></i>
                   <span>Club</span>
                 </button>
-                <button className="bg-white text-blue-600 py-3 px-3 sm:px-4 rounded-md font-semibold hover:bg-blue-100 transition duration-300 flex flex-col sm:flex-row items-center justify-center text-xs sm:text-sm">
+                <button 
+                  onClick={() => handleWaitlistClick('League')}
+                  className="bg-white text-blue-600 py-3 px-3 sm:px-4 rounded-md font-semibold hover:bg-blue-100 transition duration-300 flex flex-col sm:flex-row items-center justify-center text-xs sm:text-sm"
+                >
                   <i className="fas fa-trophy mb-1 sm:mb-0 sm:mr-2 text-lg sm:text-base"></i>
                   <span>League</span>
                 </button>
-                <button className="bg-white text-blue-600 py-3 px-3 sm:px-4 rounded-md font-semibold hover:bg-blue-100 transition duration-300 flex flex-col sm:flex-row items-center justify-center text-xs sm:text-sm">
+                <button 
+                  onClick={() => handleWaitlistClick('Fan')}
+                  className="bg-white text-blue-600 py-3 px-3 sm:px-4 rounded-md font-semibold hover:bg-blue-100 transition duration-300 flex flex-col sm:flex-row items-center justify-center text-xs sm:text-sm"
+                >
                   <i className="fas fa-star mb-1 sm:mb-0 sm:mr-2 text-lg sm:text-base"></i>
                   <span>Fan</span>
                 </button>
               </div>
             </div>
             <div className="mt-6 sm:mt-8">
-              <button className="w-full bg-transparent border-2 border-white text-white py-3 px-4 rounded-md font-semibold hover:bg-white hover:text-blue-600 transition duration-300 flex items-center justify-center text-sm sm:text-base">
+              <button 
+                onClick={() => handleWaitlistClick('Guest')}
+                className="w-full bg-transparent border-2 border-white text-white py-3 px-4 rounded-md font-semibold hover:bg-white hover:text-blue-600 transition duration-300 flex items-center justify-center text-sm sm:text-base"
+              >
                 <i className="fas fa-binoculars mr-2"></i> Explore as Guest
               </button>
             </div>
           </div>
         </div>
       </div>
+      
+      {/* Waitlist Popup */}
+      <WaitlistPopup
+        isOpen={showWaitlist}
+        onClose={handleCloseWaitlist}
+        userType={waitlistUserType}
+      />
     </div>
   );
 }

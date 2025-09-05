@@ -9,10 +9,12 @@ interface AuthContextType {
   user: User | null;
   profile: Profile | null;
   loading: boolean;
+  initialAuthCheckComplete: boolean;
   signUp: (email: string, password: string, profileData: Partial<Profile>) => Promise<{ error: unknown }>;
   signIn: (email: string, password: string) => Promise<{ error: unknown }>;
   signOut: () => Promise<void>;
   updateProfile: (profileData: Partial<Profile>) => Promise<{ error: unknown }>;
+  refreshProfile: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -21,18 +23,95 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
   const [loading, setLoading] = useState(true);
+  const [initialAuthCheckComplete, setInitialAuthCheckComplete] = useState(false);
+  const [profileCache, setProfileCache] = useState<Map<string, Profile>>(new Map()); // eslint-disable-line @typescript-eslint/no-unused-vars
 
   useEffect(() => {
-    // Get initial session
+    let isMounted = true;
+
+    // Get initial session with faster localStorage check and caching
     const getInitialSession = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      setUser(session?.user || null);
-      
-      if (session?.user) {
-        await fetchProfile(session.user.id);
+      try {
+        // Ultra-fast initial check - use synchronous localStorage access
+        let cachedUser = null;
+        let cachedProfile = null;
+        
+        if (typeof window !== 'undefined') {
+          // Check for cached user data first
+          const cachedUserData = localStorage.getItem('edge-athlete-user-cache');
+          const cachedProfileData = localStorage.getItem('edge-athlete-profile-cache');
+          
+          if (cachedUserData && cachedProfileData) {
+            try {
+              cachedUser = JSON.parse(cachedUserData);
+              cachedProfile = JSON.parse(cachedProfileData);
+              
+              // Set immediately for instant UI response
+              if (isMounted && cachedUser && cachedProfile) {
+                setUser(cachedUser);
+                setProfile(cachedProfile);
+                setProfileCache(new Map([[cachedUser.id, cachedProfile]]));
+              }
+            } catch {
+              // Invalid cache, clear it
+              localStorage.removeItem('edge-athlete-user-cache');
+              localStorage.removeItem('edge-athlete-profile-cache');
+            }
+          }
+        }
+
+        // Then verify/update with fresh data from Supabase
+        const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+        
+        // Handle refresh token errors
+        if (sessionError) {
+          console.log('Session error:', sessionError);
+          if (sessionError.message?.includes('refresh_token_not_found') || 
+              sessionError.message?.includes('Invalid Refresh Token') ||
+              sessionError.message?.includes('Refresh Token Not Found')) {
+            console.log('Invalid refresh token detected, clearing auth state');
+            // Clear all auth-related storage
+            await supabase.auth.signOut();
+            if (typeof window !== 'undefined') {
+              localStorage.removeItem('edge-athlete-user-cache');
+              localStorage.removeItem('edge-athlete-profile-cache');
+            }
+          }
+        }
+        
+        if (!isMounted) return;
+        
+        const currentUser = session?.user || null;
+        setUser(currentUser);
+        
+        if (currentUser) {
+          // If we don't have cached data or user changed, fetch profile
+          if (!cachedProfile || cachedUser?.id !== currentUser.id) {
+            await fetchProfile(currentUser.id);
+          } else {
+            // We already set the cached profile, but still refresh it in background
+            fetchProfile(currentUser.id); // Don't await - background refresh
+          }
+        } else {
+          // Clear cache if no user
+          setProfile(null);
+          if (typeof window !== 'undefined') {
+            localStorage.removeItem('edge-athlete-user-cache');
+            localStorage.removeItem('edge-athlete-profile-cache');
+          }
+        }
+        
+        if (isMounted) {
+          setLoading(false);
+          setInitialAuthCheckComplete(true);
+        }
+      } catch (error) {
+        console.error('Error getting initial session:', error);
+        if (isMounted) {
+          setLoading(false);
+          setInitialAuthCheckComplete(true);
+        }
       }
-      
-      setLoading(false);
     };
 
     getInitialSession();
@@ -40,22 +119,30 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     // Listen for auth changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
+        console.log('Auth state changed:', event, session?.user?.email);
+        
+        if (!isMounted) return;
+        
         setUser(session?.user || null);
         
-        if (session?.user) {
+        if (session?.user && event !== 'SIGNED_OUT') {
           await fetchProfile(session.user.id);
         } else {
           setProfile(null);
         }
         
-        setLoading(false);
+        if (isMounted) {
+          setLoading(false);
+          setInitialAuthCheckComplete(true);
+        }
       }
     );
 
     return () => {
+      isMounted = false;
       subscription.unsubscribe();
     };
-  }, []);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const fetchProfile = async (userId: string) => {
     try {
@@ -67,12 +154,26 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       if (error && error.code !== 'PGRST116') {
         console.error('Error fetching profile:', error);
-        return;
+        // Don't return early, set profile to null and continue
       }
 
-      setProfile(data || null);
+      const profileData = data || null;
+      console.log('Fetched profile data:', profileData);
+      setProfile(profileData);
+      
+      // Update cache
+      if (profileData) {
+        setProfileCache(prev => new Map(prev.set(userId, profileData)));
+        
+        // Cache in localStorage for faster next load
+        if (typeof window !== 'undefined') {
+          localStorage.setItem('edge-athlete-user-cache', JSON.stringify(user));
+          localStorage.setItem('edge-athlete-profile-cache', JSON.stringify(profileData));
+        }
+      }
     } catch (error) {
       console.error('Error in fetchProfile:', error);
+      setProfile(null);
     }
   };
 
@@ -179,7 +280,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   const signOut = async () => {
-    await supabase.auth.signOut();
+    try {
+      console.log('Signing out...');
+      setLoading(true);
+      await supabase.auth.signOut();
+      // Clear local state immediately
+      setUser(null);
+      setProfile(null);
+      // Use router instead of window.location for smoother transitions
+      window.location.href = '/';
+    } catch (error) {
+      console.error('Error signing out:', error);
+      setLoading(false);
+    }
   };
 
   const updateProfile = async (profileData: Partial<Profile>) => {
@@ -201,14 +314,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
+  const refreshProfile = async () => {
+    if (user?.id) {
+      await fetchProfile(user.id);
+    }
+  };
+
   const value: AuthContextType = {
     user,
     profile,
     loading,
+    initialAuthCheckComplete,
     signUp,
     signIn,
     signOut,
     updateProfile,
+    refreshProfile,
   };
 
   return (
