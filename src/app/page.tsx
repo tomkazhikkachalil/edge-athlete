@@ -32,7 +32,6 @@ export default function Home() {
   // Redirect to athlete profile if user is already logged in
   useEffect(() => {
     if (!loading && user) {
-      console.log('User authenticated, redirecting to athlete profile...');
       router.push('/athlete');
     }
   }, [user, loading, router]);
@@ -126,7 +125,6 @@ export default function Home() {
     }
 
     try {
-      console.log('Attempting signup with email:', formData.email);
       
       // Use our custom API route for signup
       const response = await fetch('/api/signup', {
@@ -152,7 +150,6 @@ export default function Home() {
       });
 
       const result = await response.json();
-      console.log('Signup result:', result);
 
       if (!response.ok) {
         setError(result.error || 'An error occurred during registration');

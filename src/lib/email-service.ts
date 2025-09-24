@@ -82,7 +82,7 @@ This email was sent from your website's contact form.
       await this.transporter.verify();
       return true;
     } catch (error) {
-      console.error('Email connection failed:', error);
+      // Email connection failed
       return false;
     }
   }

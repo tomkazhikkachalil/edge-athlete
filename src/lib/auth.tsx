@@ -65,17 +65,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         
         // Handle refresh token errors
         if (sessionError) {
-          console.log('Session error:', sessionError);
-          if (sessionError.message?.includes('refresh_token_not_found') || 
-              sessionError.message?.includes('Invalid Refresh Token') ||
-              sessionError.message?.includes('Refresh Token Not Found')) {
-            console.log('Invalid refresh token detected, clearing auth state');
+          // Check for any variant of refresh token error
+          const errorMessage = sessionError.message?.toLowerCase() || '';
+          if (errorMessage.includes('refresh') && errorMessage.includes('token')) {
             // Clear all auth-related storage
             await supabase.auth.signOut();
             if (typeof window !== 'undefined') {
               localStorage.removeItem('edge-athlete-user-cache');
               localStorage.removeItem('edge-athlete-profile-cache');
+              // Also clear Supabase auth storage
+              const storageKey = `sb-${process.env.NEXT_PUBLIC_SUPABASE_URL?.split('//')[1]?.split('.')[0]}-auth-token`;
+              localStorage.removeItem(storageKey);
             }
+            // Reset state immediately
+            setUser(null);
+            setProfile(null);
           }
         }
         
@@ -105,8 +109,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           setLoading(false);
           setInitialAuthCheckComplete(true);
         }
-      } catch (error) {
-        console.error('Error getting initial session:', error);
+      } catch {
+        // Error getting initial session
         if (isMounted) {
           setLoading(false);
           setInitialAuthCheckComplete(true);
@@ -119,7 +123,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     // Listen for auth changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
-        console.log('Auth state changed:', event, session?.user?.email);
         
         if (!isMounted) return;
         
@@ -144,17 +147,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         try {
           const { error } = await supabase.auth.refreshSession();
           if (error) {
-            console.log('Session refresh error:', error);
             // If refresh fails due to invalid token, sign out
             if (error.message?.includes('refresh_token_not_found') || 
-                error.message?.includes('Invalid Refresh Token')) {
+                error.message?.includes('Invalid Refresh Token') ||
+                error.message?.includes('Refresh Token Not Found')) {
               await supabase.auth.signOut();
               setUser(null);
               setProfile(null);
+              // Clear cached auth data
+              if (typeof window !== 'undefined') {
+                localStorage.removeItem('edge-athlete-user-cache');
+                localStorage.removeItem('edge-athlete-profile-cache');
+              }
             }
           }
-        } catch (err) {
-          console.error('Error refreshing session:', err);
+        } catch {
+          // Error refreshing session
         }
       }
     }, 5 * 60 * 1000); // Refresh every 5 minutes
@@ -175,12 +183,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         .single();
 
       if (error && error.code !== 'PGRST116') {
-        console.error('Error fetching profile:', error);
+        // Error fetching profile
         // Don't return early, set profile to null and continue
       }
 
       const profileData = data || null;
-      console.log('Fetched profile data:', profileData);
       setProfile(profileData);
       
       // Update cache
@@ -193,8 +200,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           localStorage.setItem('edge-athlete-profile-cache', JSON.stringify(profileData));
         }
       }
-    } catch (error) {
-      console.error('Error in fetchProfile:', error);
+    } catch {
+      // Error in fetchProfile
       setProfile(null);
     }
   };
@@ -222,7 +229,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       });
 
       if (error) {
-        console.log('Supabase auth error:', error);
         // Handle Supabase auth errors
         if (error.message.includes('already registered') || 
             error.message.includes('already exists') ||
@@ -266,7 +272,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           .eq('id', data.user.id);
 
         if (profileError) {
-          console.error('Error updating profile:', profileError);
+          // Error updating profile
           // Don't return error here as user was created successfully
         }
       }
@@ -274,7 +280,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       return { error: null };
     } catch (error: unknown) {
       const errorMessage = error instanceof Error ? error.message : String(error);
-      console.error('SignUp catch error:', error);
+      // SignUp catch error
       if (errorMessage?.includes('already registered') || 
           errorMessage?.includes('already exists') ||
           errorMessage?.includes('duplicate') ||
@@ -303,7 +309,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const signOut = async () => {
     try {
-      console.log('Signing out...');
       setLoading(true);
       await supabase.auth.signOut();
       // Clear local state immediately
@@ -311,8 +316,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setProfile(null);
       // Use router instead of window.location for smoother transitions
       window.location.href = '/';
-    } catch (error) {
-      console.error('Error signing out:', error);
+    } catch {
+      // Error signing out
       setLoading(false);
     }
   };

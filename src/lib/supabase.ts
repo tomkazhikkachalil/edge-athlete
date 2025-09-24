@@ -6,14 +6,10 @@ const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
 const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
 if (!supabaseUrl || !supabaseAnonKey) {
-  console.error('Missing required Supabase environment variables');
-  console.error('URL present:', !!supabaseUrl, 'Anon key present:', !!supabaseAnonKey);
+  // Missing required Supabase environment variables
 }
 
-console.log('Supabase configuration:');
-console.log('- URL present:', !!supabaseUrl);
-console.log('- Anon key present:', !!supabaseAnonKey);
-console.log('- Service role key present:', !!supabaseServiceRoleKey);
+// Supabase configuration loaded
 
 // Client-side Supabase client (for browser use) with optimized auth settings
 export const supabase = createClient(supabaseUrl, supabaseAnonKey, {

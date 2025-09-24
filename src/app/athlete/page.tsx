@@ -12,6 +12,7 @@ import SeasonHighlightsModal from '@/components/SeasonHighlightsModal';
 import PerformanceModal from '@/components/PerformanceModal';
 import LazyImage from '@/components/LazyImage';
 import CreatePostModal from '@/components/CreatePostModal';
+import RecentPosts from '@/components/RecentPosts';
 import type { AthleteBadge, SeasonHighlight, Performance, Profile } from '@/lib/supabase';
 import { 
   formatHeight, 
@@ -49,6 +50,9 @@ export default function AthleteProfilePage() {
   
   // Create Post Modal state
   const [isCreatePostModalOpen, setIsCreatePostModalOpen] = useState(false);
+  
+  // Posts count for stats display
+  const [postsCount, setPostsCount] = useState(0);
   
   // Inline editing states
   const [editingField, setEditingField] = useState<string | null>(null);
@@ -136,67 +140,6 @@ export default function AthleteProfilePage() {
   };
 
 
-  // Keeping this for backwards compatibility with any remaining references
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const handleSaveProfile = async (updates: Partial<Profile>, badgeUpdates: AthleteBadge[]) => {
-    try {
-      if (!user?.id) {
-        throw new Error('User not authenticated');
-      }
-
-      
-      const requestBody = {
-        profileData: updates,
-        userId: user.id
-      };
-
-      // Save profile updates
-      const profileResponse = await fetch('/api/profile', {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(requestBody),
-      });
-
-      
-      // Always try to get the response text first
-      const responseText = await profileResponse.text();
-      
-      if (!profileResponse.ok) {
-        console.error('Profile response not ok, status:', profileResponse.status);
-        try {
-          const error = responseText ? JSON.parse(responseText) : {};
-          console.error('Profile save error response (parsed):', error);
-          throw new Error(error.error || `HTTP ${profileResponse.status}: Failed to save profile`);
-        } catch (parseError) {
-          console.error('Failed to parse error response:', parseError);
-          throw new Error(`HTTP ${profileResponse.status}: ${responseText || 'Failed to save profile'}`);
-        }
-      }
-
-      try {
-        if (responseText) JSON.parse(responseText);
-      } catch (parseError) {
-        console.error('Failed to parse success response:', parseError);
-      }
-
-      // TODO: Implement badge updates API if needed
-      if (badgeUpdates.length > 0) {
-      }
-
-      // Refresh the data instead of full page reload - do it in background
-      if (user?.id) {
-        // Don't await - let it happen in background for faster UI response
-        refreshProfile();
-        loadAthleteData(user.id, true); // Skip loading state for background refresh
-      }
-    } catch (error) {
-      console.error('Profile save error:', error);
-      throw new Error(error instanceof Error ? error.message : 'Failed to save profile changes');
-    }
-  };
-
   const handleEditSeasonHighlights = (sportKey: string, existingData?: SeasonHighlight) => {
     setEditingSportKey(sportKey);
     setEditingHighlight(existingData);
@@ -235,7 +178,7 @@ export default function AthleteProfilePage() {
         loadAthleteData(user.id, true); // Skip loading state for background refresh
       }
     } catch (error) {
-      console.error('Season highlights save error:', error);
+      // Season highlights save error
       showError('Failed to save season highlights', error instanceof Error ? error.message : 'Please try again');
       throw new Error(error instanceof Error ? error.message : 'Failed to save season highlights');
     }
@@ -280,12 +223,12 @@ export default function AthleteProfilePage() {
         // Also refresh performances specifically to maintain sort order
         AthleteService.getRecentPerformances(user.id).then(newPerformances => {
           setPerformances(newPerformances);
-        }).catch(error => {
-          console.error('Failed to refresh performances:', error);
+        }).catch(() => {
+          // Failed to refresh performances
         });
       }
     } catch (error) {
-      console.error('Performance save error:', error);
+      // Performance save error
       showError('Failed to save performance', error instanceof Error ? error.message : 'Please try again');
       throw new Error(error instanceof Error ? error.message : 'Failed to save performance');
     }
@@ -317,12 +260,12 @@ export default function AthleteProfilePage() {
         // Also refresh performances specifically to maintain sort order
         AthleteService.getRecentPerformances(user.id).then(newPerformances => {
           setPerformances(newPerformances);
-        }).catch(error => {
-          console.error('Failed to refresh performances:', error);
+        }).catch(() => {
+          // Failed to refresh performances
         });
       }
     } catch (error) {
-      console.error('Performance delete error:', error);
+      // Performance delete error
       showError('Failed to delete performance', error instanceof Error ? error.message : 'Please try again');
     }
   };
@@ -457,7 +400,6 @@ export default function AthleteProfilePage() {
       if (value > maxWeight) {
         throw new Error(`Weight must be less than ${maxWeight} ${unit}`);
       }
-      
       
       // Save both weight_display and weight_unit
       const updateData: Partial<Profile> = { 
@@ -657,38 +599,69 @@ export default function AthleteProfilePage() {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      {/* Debug Info - Remove after testing */}
-      <div className="bg-yellow-100 border border-yellow-400 text-yellow-700 px-4 py-3 rounded mb-4 mx-4">
-        <strong>Debug:</strong> Athlete Profile page loaded. 
-        <br />User ID: {profile?.id || user?.id || 'No ID'} | Display Name: {formatDisplayName(profile?.full_name, profile?.first_name, profile?.last_name)}
-        <br />Email: {profile?.email || user?.email || 'No email'} | Auth User: {typeof signOut === 'function' ? 'Connected' : 'Not connected'}
-        <br />Profile Data: first_name=&quot;{profile?.first_name || 'empty'}&quot;, last_name=&quot;{profile?.last_name || 'empty'}&quot;, full_name=&quot;{profile?.full_name || 'empty'}&quot;
-        <br />Edit Modal: {isEditModalOpen ? 'Open' : 'Closed'} | Highlights Modal: {isSeasonHighlightsModalOpen ? 'Open' : 'Closed'}
-      </div>
-      
-      {/* Header Section */}
-      <div className="bg-white shadow-sm">
-        <div className="max-w-4xl mx-auto px-4 py-section">
+      {/* Navigation Header */}
+      <header className="bg-white border-b border-gray-200 px-6 py-4">
+        <div className="max-w-7xl mx-auto flex items-center justify-between">
+          <h1 className="text-2xl font-bold text-gray-900">Athletic Profile</h1>
           
-          {/* Avatar, Name, Rating Row */}
-          <div className="flex items-start justify-between space-base">
-            <div className="flex items-center gap-base">
-              {/* Avatar with Rating Bubble */}
-              <div className="relative">
+          <div className="flex items-center gap-3">
+            <button 
+              onClick={() => setIsCreatePostModalOpen(true)}
+              className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2 text-sm font-medium"
+              aria-label="Create new post"
+            >
+              <i className="fas fa-plus"></i>
+              Create Post
+            </button>
+            <button
+              onClick={() => router.push('/feed')}
+              className="bg-gray-600 text-white px-4 py-2 rounded-lg hover:bg-gray-700 transition-colors flex items-center gap-2 text-sm font-medium"
+              aria-label="View community feed"
+            >
+              <i className="fas fa-stream"></i>
+              Feed
+            </button>
+            <button 
+              onClick={() => setIsEditModalOpen(true)}
+              className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition-colors flex items-center gap-2 text-sm font-medium"
+              aria-label="Edit athlete profile"
+            >
+              <i className="fas fa-edit"></i>
+              Edit Profile
+            </button>
+            <button
+              onClick={() => signOut()}
+              className="bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700 transition-colors flex items-center gap-2 text-sm font-medium"
+              aria-label="Sign out of account"
+            >
+              <i className="fas fa-sign-out-alt"></i>
+              Logout
+            </button>
+          </div>
+        </div>
+      </header>
+
+      <div className="max-w-7xl mx-auto px-6 py-8">
+        {/* Profile Header Section */}
+        <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden mb-8">
+          <div className="p-8">
+            <div className="flex items-start gap-8">
+              {/* Profile Picture with Rating */}
+              <div className="relative flex-shrink-0">
                 <LazyImage
                   src={profile?.avatar_url}
                   alt={`${formatDisplayName(profile?.full_name, profile?.first_name, profile?.last_name)} avatar`}
-                  className="w-20 h-20 rounded-full object-cover border-3 border-gray-300"
-                  width={80}
-                  height={80}
+                  className="w-48 h-48 rounded-full object-cover border-4 border-white shadow-lg"
+                  width={192}
+                  height={192}
                   priority
                   fallback={
                     <div 
-                      className="w-20 h-20 rounded-full bg-gray-200 flex items-center justify-center border-3 border-gray-300"
+                      className="w-48 h-48 rounded-full bg-gray-200 flex items-center justify-center border-4 border-white shadow-lg"
                       role="img"
                       aria-label={`${formatDisplayName(profile?.full_name, profile?.first_name, profile?.last_name)} avatar`}
                     >
-                      <span className="text-gray-600 font-semibold text-xl" aria-hidden="true">
+                      <span className="text-gray-600 font-semibold text-5xl" aria-hidden="true">
                         {getInitials(formatDisplayName(profile?.full_name, profile?.first_name, profile?.last_name))}
                       </span>
                     </div>
@@ -697,18 +670,18 @@ export default function AthleteProfilePage() {
                 
                 {/* Rating Bubble */}
                 <div 
-                  className="absolute -top-1 -right-1 bg-blue-500 text-white text-chip font-bold px-micro py-micro rounded-full border-2 border-white"
+                  className="absolute -top-2 -right-2 bg-blue-600 text-white text-lg font-bold px-3 py-2 rounded-full border-4 border-white shadow-lg"
                   role="img"
                   aria-label="Athlete rating"
                 >
-                  {getPlaceholder('EMPTY_VALUE')}
+                  95
                 </div>
                 
                 {/* Avatar Upload Button */}
-                <div className="absolute -bottom-1 -right-1">
+                <div className="absolute -bottom-2 -right-2">
                   <label
                     htmlFor="avatar-upload"
-                    className={`min-w-[44px] min-h-[44px] w-12 h-12 bg-blue-600 rounded-full flex items-center justify-center cursor-pointer shadow-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-colors ${
+                    className={`w-14 h-14 bg-blue-600 rounded-full flex items-center justify-center cursor-pointer shadow-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-colors ${
                       avatarUploading ? 'opacity-50 cursor-not-allowed' : ''
                     }`}
                     aria-label={avatarUploading ? 'Uploading avatar...' : 'Upload new avatar'}
@@ -716,11 +689,11 @@ export default function AthleteProfilePage() {
                   >
                     {avatarUploading ? (
                       <div 
-                        className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"
+                        className="w-6 h-6 border-3 border-white border-t-transparent rounded-full animate-spin"
                         aria-hidden="true"
                       ></div>
                     ) : (
-                      <i className="fas fa-camera icon-footer text-white" aria-hidden="true"></i>
+                      <i className="fas fa-camera text-white" aria-hidden="true"></i>
                     )}
                   </label>
                   <input
@@ -738,220 +711,248 @@ export default function AthleteProfilePage() {
                 </div>
               </div>
               
-              {/* Name and Bio */}
-              <div className="flex-1">
-                <InlineEdit
-                  field="full_name"
-                  value={formatDisplayName(profile?.full_name, profile?.first_name, profile?.last_name)}
-                  placeholder="Click to add your name"
-                  className="text-h1 text-gray-900 space-micro block"
-                  ariaLabel="Athlete name"
-                />
-                <InlineEdit
-                  field="bio"
-                  value={profile?.bio || ''}
-                  placeholder={getPlaceholder('ADD_BIO')}
-                  className="text-body text-gray-700 space-micro block"
-                  multiline={true}
-                  ariaLabel="Athlete biography"
-                />
-                
-                {/* Top Badges */}
-                <div className="flex flex-wrap gap-micro" role="list" aria-label="Athlete badges">
-                  {badges.length > 0 ? (
-                    badges.slice(0, 3).map((badge: AthleteBadge) => (
-                      <div
-                        key={badge.id}
-                        className={`inline-flex items-center px-micro py-micro rounded-full text-chip border ${getBadgeColor(badge.color_token)}`}
+              {/* Profile Information */}
+              <div className="flex-1 min-w-0">
+                <div className="mb-6">
+                  <InlineEdit
+                    field="full_name"
+                    value={formatDisplayName(profile?.full_name, profile?.first_name, profile?.last_name)}
+                    placeholder="Click to add your name"
+                    className="text-4xl font-bold text-gray-900 mb-2 block"
+                    ariaLabel="Athlete name"
+                  />
+                  
+                  {/* Badges Row */}
+                  <div className="flex flex-wrap gap-2 mb-4" role="list" aria-label="Athlete badges">
+                    {badges.length > 0 ? (
+                      badges.slice(0, 4).map((badge: AthleteBadge) => (
+                        <div
+                          key={badge.id}
+                          className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium border ${getBadgeColor(badge.color_token)}`}
+                          role="listitem"
+                          aria-label={`Badge: ${badge.label}`}
+                        >
+                          {badge.icon_url && (
+                            <LazyImage
+                              src={badge.icon_url}
+                              alt={`${badge.label} badge icon`}
+                              className="w-4 h-4 mr-2"
+                              width={16}
+                              height={16}
+                            />
+                          )}
+                          <span>{badge.label}</span>
+                        </div>
+                      ))
+                    ) : (
+                      <div 
+                        className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-gray-100 text-gray-500 border border-gray-200"
                         role="listitem"
-                        aria-label={`Badge: ${badge.label}`}
+                        aria-label="No badges earned yet"
                       >
-                        {badge.icon_url && (
-                          <LazyImage
-                            src={badge.icon_url}
-                            alt={`${badge.label} badge icon`}
-                            className="w-3 h-3 mr-1"
-                            width={12}
-                            height={12}
-                          />
-                        )}
-                        <span>{badge.label}</span>
+                        {getPlaceholder('NO_ACHIEVEMENTS')}
                       </div>
-                    ))
-                  ) : (
-                    <div 
-                      className="inline-flex items-center px-micro py-micro rounded-full text-chip bg-gray-100 text-gray-500 border border-gray-200"
-                      role="listitem"
-                      aria-label="No badges earned yet"
-                    >
-                      {getPlaceholder('NO_ACHIEVEMENTS')}
+                    )}
+                  </div>
+
+                  {/* Sport and Team Info */}
+                  <div className="grid grid-cols-2 gap-4 text-sm text-gray-600 mb-4">
+                    {profile?.sport && (
+                      <div>
+                        <span className="font-medium text-gray-900">Sport:</span>
+                        <span className="ml-1">{profile.sport}</span>
+                      </div>
+                    )}
+                    {(profile?.school || profile?.team) && (
+                      <div>
+                        <span className="font-medium text-gray-900">Team:</span>
+                        <span className="ml-1">{[profile?.school, profile?.team].filter(Boolean).join(' • ')}</span>
+                      </div>
+                    )}
+                    {profile?.position && (
+                      <div>
+                        <span className="font-medium text-gray-900">Position:</span>
+                        <span className="ml-1">{profile.position}</span>
+                      </div>
+                    )}
+                    {profile?.class_year && (
+                      <div>
+                        <span className="font-medium text-gray-900">Class:</span>
+                        <span className="ml-1">{profile.class_year}</span>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Biography */}
+                  <InlineEdit
+                    field="bio"
+                    value={profile?.bio || ''}
+                    placeholder={getPlaceholder('ADD_BIO')}
+                    className="text-gray-700 leading-relaxed mb-4 block"
+                    multiline={true}
+                    ariaLabel="Athlete biography"
+                  />
+                  
+                  {/* Stats Row */}
+                  <div className="flex items-center gap-6 text-sm">
+                    <div className="flex items-center gap-1 text-gray-600">
+                      <span className="font-semibold text-gray-900">0</span>
+                      <span>Following</span>
                     </div>
-                  )}
+                    <div className="flex items-center gap-1 text-gray-600">
+                      <span className="font-semibold text-gray-900">0</span>
+                      <span>Followers</span>
+                    </div>
+                    <div className="flex items-center gap-1 text-gray-600">
+                      <span className="font-semibold text-gray-900">{postsCount}</span>
+                      <span>Posts</span>
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>
-            
-            {/* Action Buttons */}
-            <div className="flex items-center icon-baseline icon-gap">
-              <button 
-                onClick={() => setIsCreatePostModalOpen(true)}
-                className="min-h-[44px] px-base py-micro text-sm font-semibold text-white bg-green-600 border border-transparent rounded-md hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 transition-colors shadow-md"
-                aria-label="Create new post"
-              >
-                <i className="fas fa-plus icon-edit" aria-hidden="true"></i>
-                Create Post
-              </button>
-              <button 
-                onClick={() => {
-                  setIsEditModalOpen(true);
-                }}
-                className="min-h-[44px] px-base py-micro text-sm font-semibold text-white bg-blue-600 border border-transparent rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-colors shadow-md"
-                aria-label="Edit athlete profile"
-              >
-                <i className="fas fa-edit icon-edit" aria-hidden="true"></i>
-                Edit Profile
-              </button>
-              <button
-                onClick={() => {
-                  signOut();
-                }}
-                className="min-h-[44px] px-micro py-micro text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 transition-colors"
-                aria-label="Sign out of account"
-              >
-                <i className="fas fa-sign-out-alt icon-edit" aria-hidden="true"></i>
-                Sign Out
-              </button>
-            </div>
           </div>
-
-          {/* Vitals Strip */}
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-micro space-base relative z-10">
-            <div className="text-center p-micro bg-gray-50 rounded-lg border">
-              <InlineEdit
-                field="height_cm"
-                value={formatHeight(profile?.height_cm)}
-                placeholder={getPlaceholder('NO_HEIGHT')}
-                className="text-h3 text-gray-900 block"
-                ariaLabel="Height in feet and inches"
-                inputType="text"
-              />
-              <div className="text-chip text-gray-500 uppercase tracking-wide" id="height-label">Height</div>
-            </div>
-            <div className="text-center p-micro bg-gray-50 rounded-lg border">
-              <InlineEdit
-                field="weight_display"
-                value={(() => {
-                  if (profile?.weight_display && profile?.weight_unit) {
-                    return `${profile.weight_display} ${profile.weight_unit}`;
-                  }
-                  // Fallback to old format if weight_display doesn't exist yet
-                  const formatted = formatWeightWithUnit(profile?.weight_kg, profile?.weight_unit);
-                  return formatted;
-                })()}
-                placeholder={getPlaceholder('NO_WEIGHT')}
-                className="text-h3 text-gray-900 block"
-                ariaLabel="Weight"
-                inputType="text"
-              />
-              <div className="text-chip text-gray-500 uppercase tracking-wide" id="weight-label">Weight</div>
-            </div>
-            <div className="text-center p-micro bg-gray-50 rounded-lg border">
-              <div className="text-h3 text-gray-900 block">
-                {formatAge(profile?.dob)}
+          
+          {/* Vitals Section */}
+          <div className="border-t border-gray-200 bg-gray-50 px-8 py-6">
+            <h3 className="text-lg font-semibold text-gray-900 mb-4">Vitals</h3>
+            <div className="grid grid-cols-2 md:grid-cols-5 gap-6">
+              <div className="text-center bg-white rounded-lg border border-gray-200 p-4">
+                <InlineEdit
+                  field="height_cm"
+                  value={formatHeight(profile?.height_cm)}
+                  placeholder={getPlaceholder('NO_HEIGHT')}
+                  className="text-2xl font-bold text-gray-900 block mb-1"
+                  ariaLabel="Height in feet and inches"
+                  inputType="text"
+                />
+                <div className="text-sm font-medium text-gray-500 uppercase tracking-wide">Height</div>
               </div>
-              <div className="text-chip text-gray-500 uppercase tracking-wide">Age</div>
-            </div>
-            <div className="text-center p-micro bg-gray-50 rounded-lg border">
-              <InlineEdit
-                field="location"
-                value={profile?.location || ''}
-                placeholder={getPlaceholder('NO_LOCATION')}
-                className="text-h3 text-gray-900 block"
-                ariaLabel="Location"
-              />
-              <div className="text-chip text-gray-500 uppercase tracking-wide">Location</div>
-            </div>
-            <div className="text-center p-micro bg-gray-50 rounded-lg border">
-              <InlineEdit
-                field="class_year"
-                value={profile?.class_year ? String(profile.class_year) : ''}
-                placeholder={getPlaceholder('NO_CLASS_YEAR')}
-                className="text-h3 text-gray-900 block"
-                inputType="number"
-                ariaLabel="Class year"
-              />
-              <div className="text-chip text-gray-500 uppercase tracking-wide">Class Year</div>
+              <div className="text-center bg-white rounded-lg border border-gray-200 p-4">
+                <InlineEdit
+                  field="weight_display"
+                  value={(() => {
+                    if (profile?.weight_display && profile?.weight_unit) {
+                      return `${profile.weight_display} ${profile.weight_unit}`;
+                    }
+                    const formatted = formatWeightWithUnit(profile?.weight_kg, profile?.weight_unit);
+                    return formatted;
+                  })()}
+                  placeholder={getPlaceholder('NO_WEIGHT')}
+                  className="text-2xl font-bold text-gray-900 block mb-1"
+                  ariaLabel="Weight"
+                  inputType="text"
+                />
+                <div className="text-sm font-medium text-gray-500 uppercase tracking-wide">Weight</div>
+              </div>
+              <div className="text-center bg-white rounded-lg border border-gray-200 p-4">
+                <div className="text-2xl font-bold text-gray-900 mb-1">
+                  {formatAge(profile?.dob) || getPlaceholder('NO_AGE')}
+                </div>
+                <div className="text-sm font-medium text-gray-500 uppercase tracking-wide">Age</div>
+              </div>
+              <div className="text-center bg-white rounded-lg border border-gray-200 p-4">
+                <InlineEdit
+                  field="location"
+                  value={profile?.location || ''}
+                  placeholder={getPlaceholder('NO_LOCATION')}
+                  className="text-2xl font-bold text-gray-900 block mb-1"
+                  ariaLabel="Location"
+                />
+                <div className="text-sm font-medium text-gray-500 uppercase tracking-wide">Location</div>
+              </div>
+              <div className="text-center bg-white rounded-lg border border-gray-200 p-4">
+                <InlineEdit
+                  field="class_year"
+                  value={profile?.class_year ? String(profile.class_year) : ''}
+                  placeholder={getPlaceholder('NO_CLASS_YEAR')}
+                  className="text-2xl font-bold text-gray-900 block mb-1"
+                  inputType="number"
+                  ariaLabel="Class year"
+                />
+                <div className="text-sm font-medium text-gray-500 uppercase tracking-wide">Class Year</div>
+              </div>
             </div>
           </div>
-
-          {/* Socials Row */}
-          <div className="flex items-center justify-center gap-base py-base border-t border-gray-200 relative z-10" role="list" aria-label="Social media links">
-            <div className="flex items-center gap-micro" role="listitem">
-              <i className="fab fa-twitter icon-social text-blue-400" aria-label="Twitter" aria-hidden="true"></i>
-              <InlineEdit
-                field="social_twitter"
-                value={formatSocialHandleDisplay(profile?.social_twitter)}
-                placeholder={getPlaceholder('ADD_TWITTER')}
-                className="text-label text-gray-700"
-                ariaLabel="Twitter handle"
-              />
-            </div>
-            <div className="flex items-center gap-micro" role="listitem">
-              <i className="fab fa-instagram icon-social text-pink-500" aria-label="Instagram" aria-hidden="true"></i>
-              <InlineEdit
-                field="social_instagram"
-                value={formatSocialHandleDisplay(profile?.social_instagram)}
-                placeholder={getPlaceholder('ADD_INSTAGRAM')}
-                className="text-label text-gray-700"
-                ariaLabel="Instagram handle"
-              />
-            </div>
-            <div className="flex items-center gap-micro" role="listitem">
-              <i className="fab fa-facebook icon-social text-blue-600" aria-label="Facebook" aria-hidden="true"></i>
-              <InlineEdit
-                field="social_facebook"
-                value={formatSocialHandleDisplay(profile?.social_facebook)}
-                placeholder="Add Facebook"
-                className="text-label text-gray-700"
-                ariaLabel="Facebook handle"
-              />
+          
+          {/* Social Media Section */}
+          <div className="border-t border-gray-200 px-8 py-4">
+            <div className="flex items-center justify-center gap-6" role="list" aria-label="Social media links">
+              <div className="flex items-center gap-2" role="listitem">
+                <i className="fab fa-twitter text-blue-400 text-lg" aria-label="Twitter" aria-hidden="true"></i>
+                <InlineEdit
+                  field="social_twitter"
+                  value={formatSocialHandleDisplay(profile?.social_twitter)}
+                  placeholder={getPlaceholder('ADD_TWITTER')}
+                  className="text-sm text-gray-600"
+                  ariaLabel="Twitter handle"
+                />
+              </div>
+              <div className="flex items-center gap-2" role="listitem">
+                <i className="fab fa-instagram text-pink-500 text-lg" aria-label="Instagram" aria-hidden="true"></i>
+                <InlineEdit
+                  field="social_instagram"
+                  value={formatSocialHandleDisplay(profile?.social_instagram)}
+                  placeholder={getPlaceholder('ADD_INSTAGRAM')}
+                  className="text-sm text-gray-600"
+                  ariaLabel="Instagram handle"
+                />
+              </div>
+              <div className="flex items-center gap-2" role="listitem">
+                <i className="fab fa-facebook text-blue-600 text-lg" aria-label="Facebook" aria-hidden="true"></i>
+                <InlineEdit
+                  field="social_facebook"
+                  value={formatSocialHandleDisplay(profile?.social_facebook)}
+                  placeholder="Add Facebook"
+                  className="text-sm text-gray-600"
+                  ariaLabel="Facebook handle"
+                />
+              </div>
             </div>
           </div>
         </div>
-      </div>
 
-      {/* Main content */}
-      <div className="max-w-4xl mx-auto px-micro pt-section pb-section gap-section flex flex-col">
-
-        {/* Sport Highlights */}
-        <MultiSportHighlights
-          profileId={user?.id || ''}
-          canEdit={true}
-          onEdit={handleEditSeasonHighlights}
-        />
-
-        {/* Recent Activity */}
-        <MultiSportActivity
-          profileId={user?.id || ''}
-          canEdit={true}
-          onEdit={(sportKey: string, entityId?: string) => {
-            if (sportKey === 'golf') {
-              // For golf, edit performance
-              const performance = performances.find(p => p.id === entityId);
-              handleEditPerformance(performance);
-            } else {
-              // For other sports, show "coming soon"
-            }
-          }}
-          onDelete={(sportKey: string, entityId: string) => {
-            if (sportKey === 'golf') {
-              // For golf, delete performance  
-              handleDeletePerformance(entityId);
-            } else {
-              // For other sports, show "coming soon"
-            }
-          }}
-        />
+        {/* Main content */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+          {/* Left Column - Sport Highlights */}
+          <div className="lg:col-span-2">
+            <MultiSportHighlights
+              profileId={user?.id || ''}
+              canEdit={true}
+              onEdit={handleEditSeasonHighlights}
+            />
+            
+            {/* Recent Activity */}
+            <div className="mt-8">
+              <MultiSportActivity
+                profileId={user?.id || ''}
+                canEdit={true}
+                onEdit={(sportKey: string, entityId?: string) => {
+                  if (sportKey === 'golf') {
+                    const performance = performances.find(p => p.id === entityId);
+                    handleEditPerformance(performance);
+                  }
+                }}
+                onDelete={(sportKey: string, entityId: string) => {
+                  if (sportKey === 'golf') {
+                    handleDeletePerformance(entityId);
+                  }
+                }}
+              />
+            </div>
+          </div>
+          
+          {/* Right Column - Recent Posts */}
+          <div className="lg:col-span-1">
+            <RecentPosts
+              profileId={user?.id || ''}
+              currentUserId={user?.id}
+              showCreateButton={true}
+              onCreatePost={() => setIsCreatePostModalOpen(true)}
+              onPostsLoad={(count) => setPostsCount(count)}
+            />
+          </div>
+        </div>
       </div>
 
       {/* Edit Profile Modal */}

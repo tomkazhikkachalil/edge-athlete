@@ -31,7 +31,7 @@ export default function PublicProfilePage() {
         }, 1000);
         
       } catch (error) {
-        console.error('Failed to load public profile:', error);
+        // Failed to load public profile
         setNotFound(true);
         setLoading(false);
       }

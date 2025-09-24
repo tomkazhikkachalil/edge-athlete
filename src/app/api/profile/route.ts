@@ -1,6 +1,82 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase';
 
+export async function GET(request: NextRequest) {
+  try {
+    const { searchParams } = new URL(request.url);
+    const profileId = searchParams.get('id');
+    
+    if (!profileId) {
+      return NextResponse.json({ error: 'Profile ID is required' }, { status: 400 });
+    }
+
+    if (!supabaseAdmin) {
+      return NextResponse.json({ 
+        error: 'Server configuration error - supabaseAdmin not available' 
+      }, { status: 500 });
+    }
+
+    // Fetch profile data
+    const { data: profile, error: profileError } = await supabaseAdmin
+      .from('profiles')
+      .select('*')
+      .eq('id', profileId)
+      .single();
+
+    if (profileError) {
+      console.error('Profile error:', profileError);
+      if (profileError.code === 'PGRST116') {
+        return NextResponse.json({ error: 'Profile not found' }, { status: 404 });
+      }
+      return NextResponse.json({ error: 'Failed to fetch profile' }, { status: 500 });
+    }
+
+    // Fetch badges
+    const { data: badges, error: badgesError } = await supabaseAdmin
+      .from('athlete_badges')
+      .select('*')
+      .eq('athlete_id', profileId)
+      .order('created_at', { ascending: false });
+
+    if (badgesError && badgesError.code !== 'PGRST116') {
+      console.error('Badges error:', badgesError);
+    }
+
+    // Fetch season highlights
+    const { data: seasonHighlights, error: highlightsError } = await supabaseAdmin
+      .from('season_highlights')
+      .select('*')
+      .eq('athlete_id', profileId)
+      .order('season', { ascending: false });
+
+    if (highlightsError && highlightsError.code !== 'PGRST116') {
+      console.error('Season highlights error:', highlightsError);
+    }
+
+    // Fetch performances
+    const { data: performances, error: performancesError } = await supabaseAdmin
+      .from('performances')
+      .select('*')
+      .eq('athlete_id', profileId)
+      .order('date', { ascending: false });
+
+    if (performancesError && performancesError.code !== 'PGRST116') {
+      console.error('Performances error:', performancesError);
+    }
+
+    return NextResponse.json({
+      profile,
+      badges: badges || [],
+      seasonHighlights: seasonHighlights || [],
+      performances: performances || []
+    });
+
+  } catch (error) {
+    console.error('API error:', error);
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+  }
+}
+
 export async function PUT(request: NextRequest) {
   try {
     console.log('\n=== PROFILE API DEBUG START ===');

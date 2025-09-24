@@ -35,7 +35,7 @@ export default function MultiSportActivity({ profileId, canEdit = true, onEdit, 
         [sportKey]: result.rows
       }));
     } catch (error) {
-      console.error(`Error loading ${sportKey} activity:`, error);
+      // Error loading activity
       setActivityData(prev => ({
         ...prev,
         [sportKey]: []
@@ -68,7 +68,7 @@ export default function MultiSportActivity({ profileId, canEdit = true, onEdit, 
       onEdit?.(activeSportKey);
     } else {
       // Show "coming soon" message using centralized copy
-      console.log(getComingSoonMessage(activeSportKey, 'activity'));
+      // Show coming soon message
     }
   };
 
@@ -222,7 +222,7 @@ export default function MultiSportActivity({ profileId, canEdit = true, onEdit, 
                           window.location.href = `/app/sport/golf/rounds/${row.id}`;
                         } else {
                           // For other sports, show coming soon
-                          console.log(`${sportDef.display_name} activity detail coming soon!`);
+                          // Activity detail coming soon
                         }
                       }}
                       className="text-blue-600 hover:text-blue-800 transition-colors"

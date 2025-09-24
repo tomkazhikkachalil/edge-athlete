@@ -592,7 +592,13 @@ const [selectedType, setSelectedType] = useState<string>('general');
 const [dropdownOpen, setDropdownOpen] = useState(false);
 const [searchQuery, setSearchQuery] = useState('');
 
-// Build sports list
+// Build sports list - IMPORTANT: Avoid duplicate keys!
+const enabledSportKeys = enabledSports.map(adapter => adapter.sportKey);
+const disabledSports = [
+  { display_name: 'Hockey', sportKey: 'ice_hockey', enabled: false },
+  { display_name: 'Volleyball', sportKey: 'volleyball', enabled: false }
+].filter(sport => !enabledSportKeys.includes(sport.sportKey)); // Prevent duplicates
+
 const allSports = [
   { display_name: 'Media Only', sportKey: 'general', enabled: true },
   ...enabledSports.map(adapter => ({ 
@@ -651,6 +657,87 @@ const isValidForSubmission = () => {
   return false;
 };
 ```
+
+## Athlete Profile Design Patterns
+
+### Professional Profile Layout Structure
+When implementing athlete profiles, use this polished design pattern established in `/src/app/athlete/page.tsx`:
+
+```tsx
+// Clean navigation header separated from profile content
+<header className="bg-white border-b border-gray-200 px-6 py-4">
+  <div className="max-w-7xl mx-auto flex items-center justify-between">
+    <h1 className="text-2xl font-bold text-gray-900">Athletic Profile</h1>
+    {/* Action buttons: Create Post, Feed, Edit Profile, Logout */}
+  </div>
+</header>
+
+// Professional profile card with sectioned layout
+<div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
+  {/* Main profile section */}
+  <div className="p-8">
+    {/* Large avatar (192px) with rating bubble and upload button */}
+    {/* Name, badges, sport info, bio, stats */}
+  </div>
+  
+  {/* Vitals section with gray background */}
+  <div className="border-t border-gray-200 bg-gray-50 px-8 py-6">
+    {/* Individual white cards for each vital */}
+  </div>
+  
+  {/* Social media bar */}
+  <div className="border-t border-gray-200 px-8 py-4">
+    {/* Centered social media links */}
+  </div>
+</div>
+```
+
+### Vitals Grid Pattern
+Use individual white cards for each vital statistic:
+
+```tsx
+<div className="grid grid-cols-2 md:grid-cols-5 gap-6">
+  <div className="text-center bg-white rounded-lg border border-gray-200 p-4">
+    <div className="text-2xl font-bold text-gray-900 mb-1">
+      {/* Large value */}
+    </div>
+    <div className="text-sm font-medium text-gray-500 uppercase tracking-wide">
+      {/* Small label */}
+    </div>
+  </div>
+</div>
+```
+
+### Content Layout Strategy
+Use a three-column grid for main content:
+
+```tsx
+<div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+  {/* Left side: Sport highlights and activity (2 columns) */}
+  <div className="lg:col-span-2">
+    <MultiSportHighlights />
+    <MultiSportActivity />
+  </div>
+  
+  {/* Right side: Recent posts sidebar (1 column) */}
+  <div className="lg:col-span-1">
+    <RecentPosts />
+  </div>
+</div>
+```
+
+### Key Design Principles
+1. **Visual Hierarchy**: Navigation → Profile → Vitals → Social → Content
+2. **Consistent Spacing**: Use design system tokens for spacing
+3. **Professional Colors**: White cards on gray backgrounds for depth
+4. **Responsive Design**: Grid layouts that adapt to mobile
+5. **Sectioned Cards**: Use borders and backgrounds to create clear sections
+
+### Common Pitfalls to Avoid
+- **Duplicate React Keys**: Always filter duplicate sport keys in dropdowns
+- **Inline Editing Conflicts**: Ensure proper state management for inline fields
+- **Avatar Upload UX**: Provide clear loading states and error handling
+- **Social Media Display**: Handle empty states gracefully with placeholders
 
 ## Deployment Considerations
 

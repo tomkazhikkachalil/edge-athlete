@@ -202,7 +202,7 @@ export default function EditProfileTabs({
           break;
 
         case 'vitals':
-          console.log('Vitals form data before save:', vitalsForm);
+          // Save vitals data
           // Validate height
           const heightValidation = validateHeight(vitalsForm.height_cm);
           if (vitalsForm.height_cm.trim() && heightValidation.error) {
@@ -213,16 +213,12 @@ export default function EditProfileTabs({
           let weightDisplay: number | undefined;
           if (vitalsForm.weight_kg && vitalsForm.weight_kg.trim()) {
             weightDisplay = parseFloat(vitalsForm.weight_kg);
-            console.log('Weight save:', {
-              input: vitalsForm.weight_kg,
-              unit: vitalsForm.weight_unit,
-              displayValue: weightDisplay
-            });
+            // Save weight with unit
             if (isNaN(weightDisplay) || weightDisplay <= 0) {
               throw new Error(`Please enter a valid weight`);
             }
           } else {
-            console.log('No weight entered, will clear weight_display');
+            // Clear weight if no value
             weightDisplay = undefined;
           }
           
@@ -234,7 +230,7 @@ export default function EditProfileTabs({
             location: vitalsForm.location.trim() || undefined,
             class_year: vitalsForm.class_year ? parseInt(String(vitalsForm.class_year)) : undefined,
           };
-          console.log('Vitals update data:', updateData);
+          // Update vitals in database
           hasChanges = true;
           break;
 
@@ -294,7 +290,6 @@ export default function EditProfileTabs({
         }
 
         const result = await response.json();
-        console.log('Save response:', result);
         
         showSuccess('Changes Saved', `${TABS.find(t => t.id === tabId)?.label} updated successfully!`);
         onSave(); // Refresh parent data

@@ -51,10 +51,7 @@ export function getFeatureFlag<K extends keyof typeof FEATURE_FLAGS>(key: K): ty
  */
 export function logFeatureFlags(): void {
   if (typeof window !== 'undefined' && process.env.NODE_ENV === 'development') {
-    console.group('🚩 Feature Flags Status');
-    console.log('Enabled Sports:', FEATURE_FLAGS.FEATURE_SPORTS);
-    console.log('Total Sports:', FEATURE_FLAGS.FEATURE_SPORTS.length);
-    console.groupEnd();
+    // Feature flags loaded
   }
 }
 

@@ -45,7 +45,7 @@ export default function MultiSportHighlights({ profileId, canEdit = true, onEdit
         
         setHighlightData(data);
       } catch (error) {
-        console.error('Error loading sport highlights:', error);
+        // Error loading sport highlights
       } finally {
         setLoading(false);
       }
@@ -63,7 +63,7 @@ export default function MultiSportHighlights({ profileId, canEdit = true, onEdit
       onEdit?.(sportKey);
     } else {
       // Show "coming soon" message using centralized copy
-      console.log(getComingSoonMessage(sportKey, 'editing'));
+      // Show coming soon message
     }
   };
 

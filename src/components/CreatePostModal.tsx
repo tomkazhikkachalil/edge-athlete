@@ -275,7 +275,7 @@ export default function CreatePostModal({ isOpen, onClose, userId, onPostCreated
       handleClose();
       
     } catch (error) {
-      console.error('Post creation error:', error);
+      // Post creation error
       showError('Failed to create post', error instanceof Error ? error.message : 'Please try again');
     } finally {
       setIsSubmitting(false);
@@ -283,6 +283,12 @@ export default function CreatePostModal({ isOpen, onClose, userId, onPostCreated
   };
 
   // Build sports list - combine enabled sports with placeholders
+  const enabledSportKeys = enabledSports.map(adapter => adapter.sportKey);
+  const disabledSports = [
+    { display_name: 'Hockey', sportKey: 'ice_hockey', icon_id: 'fas fa-hockey-puck', enabled: false },
+    { display_name: 'Volleyball', sportKey: 'volleyball', icon_id: 'fas fa-volleyball-ball', enabled: false }
+  ].filter(sport => !enabledSportKeys.includes(sport.sportKey)); // Only include if not already enabled
+  
   const allSports = [
     { display_name: 'Media Only', sportKey: 'general', icon_id: 'fas fa-camera', enabled: true },
     ...enabledSports.map(adapter => ({ 
@@ -290,8 +296,7 @@ export default function CreatePostModal({ isOpen, onClose, userId, onPostCreated
       sportKey: adapter.sportKey, 
       enabled: true 
     })),
-    { display_name: 'Hockey', sportKey: 'ice_hockey', icon_id: 'fas fa-hockey-puck', enabled: false },
-    { display_name: 'Volleyball', sportKey: 'volleyball', icon_id: 'fas fa-volleyball-ball', enabled: false }
+    ...disabledSports
   ];
   
   // Filter sports based on search query (show all if no query)

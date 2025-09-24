@@ -35,7 +35,7 @@ export async function POST(request: NextRequest) {
 
       // If we found any profiles with this email, it's already taken
       if (existingProfiles && existingProfiles.length > 0) {
-        console.log('Email already exists in profiles table');
+        // Email already exists in profiles table
         return NextResponse.json(
           { 
             error: 'This email is already registered. Please log in instead.' 

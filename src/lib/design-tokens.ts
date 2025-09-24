@@ -231,11 +231,9 @@ export const DESIGN_VALIDATION = {
   /**
    * Log design system usage for debugging
    */
-  logDesignUsage: (componentName: string, usedTokens: string[]) => {
+  logDesignUsage: (_componentName: string, _usedTokens: string[]) => {
     if (process.env.NODE_ENV === 'development') {
-      console.group(`🎨 Design System Usage: ${componentName}`);
-      console.log('Tokens used:', usedTokens);
-      console.groupEnd();
+      // Design system tokens used
     }
   }
 } as const;

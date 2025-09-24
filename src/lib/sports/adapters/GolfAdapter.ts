@@ -50,7 +50,7 @@ export class GolfAdapter extends BaseSportAdapter {
         }
       ];
     } catch (error) {
-      console.error('Error fetching golf highlights:', error);
+      // Error fetching golf highlights
       // Return empty tiles on error
       return await super.getHighlights(profileId, season);
     }
@@ -101,7 +101,7 @@ export class GolfAdapter extends BaseSportAdapter {
         nextCursor: sampleRounds.length > limit ? 'cursor-next' : undefined
       };
     } catch (error) {
-      console.error('Error fetching golf activity:', error);
+      // Error fetching golf activity
       return {
         rows: [],
         hasMore: false
@@ -115,10 +115,10 @@ export class GolfAdapter extends BaseSportAdapter {
       // For now, show that it's functional (unlike other sports)
       
       if (entityId) {
-        console.log(`Opening golf round editor for round: ${entityId}`);
+        // Opening golf round editor
         // Would open edit round modal here
       } else {
-        console.log('Opening new golf round dialog');
+        // Opening new golf round dialog
         // Would open new round modal here
       }
       
@@ -126,7 +126,7 @@ export class GolfAdapter extends BaseSportAdapter {
       await new Promise(resolve => setTimeout(resolve, 100));
       
     } catch (error) {
-      console.error('Error opening golf edit dialog:', error);
+      // Error opening golf edit dialog
       throw error;
     }
   }
@@ -136,7 +136,7 @@ export class GolfAdapter extends BaseSportAdapter {
       // TODO: Implement golf post composer
       // For now, show that it's functional
       
-      console.log('Opening golf post composer with context:', context);
+      // Opening golf post composer
       
       // Would open golf-specific post composer here with:
       // - Round attachment options
@@ -147,7 +147,7 @@ export class GolfAdapter extends BaseSportAdapter {
       await new Promise(resolve => setTimeout(resolve, 100));
       
     } catch (error) {
-      console.error('Error composing golf post:', error);
+      // Error composing golf post
       throw error;
     }
   }
@@ -173,10 +173,10 @@ export class GolfAdapter extends BaseSportAdapter {
       // - Average putts per round
       // - Scrambling percentage
       
-      console.log(`Updating golf aggregates for profile: ${profileId}`);
+      // Updating golf aggregates
       
     } catch (error) {
-      console.error('Error updating golf aggregates:', error);
+      // Error updating golf aggregates
     }
   }
   

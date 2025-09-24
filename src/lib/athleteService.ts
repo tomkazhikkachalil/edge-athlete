@@ -47,7 +47,7 @@ export class AthleteService {
       .order('position', { ascending: true });
 
     if (error) {
-      console.log('Badges error:', error);
+      // Badges error
     }
 
     // If no real badges exist, return sample badges for demonstration
@@ -155,7 +155,7 @@ export class AthleteService {
       .limit(limit);
 
     if (error) {
-      console.log('Season highlights error:', error);
+      // Season highlights error
     }
 
     // If no real data exists, return sample data for demonstration

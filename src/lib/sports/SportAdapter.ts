@@ -132,7 +132,7 @@ export abstract class BaseSportAdapter implements SportAdapter {
     const message = getComingSoonMessage(this.sportKey, 'editing');
     
     // This will be replaced with actual toast implementation
-    console.log(message);
+    // Debug message
     throw new Error(message);
   }
   
@@ -141,7 +141,7 @@ export abstract class BaseSportAdapter implements SportAdapter {
     // Default: show "coming soon" message using centralized copy
     const message = getComingSoonMessage(this.sportKey, 'activity');
     
-    console.log(message);
+    // Debug message
     throw new Error(message);
   }
   
