@@ -572,87 +572,175 @@ const displayValue = `${profile.weight_display} ${profile.weight_unit}`;
 - Simpler to maintain and debug
 - Better user experience
 
-## Create Post Modal Pattern (Single Screen)
+## Create Post Modal Pattern (Single Column UX)
 
 ### Design Principles
-The Create Post modal uses a single-screen design for efficiency:
+The Create Post modal uses an optimized single-column vertical flow for excellent UX:
 
 ```typescript
-// Structure
-1. Sport Selection Dropdown (always at top)
-2. Media Upload Section (always visible)
-3. Dynamic Stats Form (conditional on sport)
-4. Caption & Visibility (always at bottom)
+// Vertical Structure - Single Scroll Path
+1. Sport Selection (dropdown at top)
+2. Golf Scorecard (embedded in flow when selected)
+3. Media Upload (compact button → large preview)
+4. Caption & Hashtags (natural flow underneath)
+5. Visibility Settings (clean options at bottom)
+6. Preview System (separate modal for post preview)
 ```
 
-### Sport Dropdown Implementation
+### Modal Structure & Scrolling
 ```typescript
-// State management
-const [selectedType, setSelectedType] = useState<string>('general');
-const [dropdownOpen, setDropdownOpen] = useState(false);
-const [searchQuery, setSearchQuery] = useState('');
-
-// Build sports list - IMPORTANT: Avoid duplicate keys!
-const enabledSportKeys = enabledSports.map(adapter => adapter.sportKey);
-const disabledSports = [
-  { display_name: 'Hockey', sportKey: 'ice_hockey', enabled: false },
-  { display_name: 'Volleyball', sportKey: 'volleyball', enabled: false }
-].filter(sport => !enabledSportKeys.includes(sport.sportKey)); // Prevent duplicates
-
-const allSports = [
-  { display_name: 'Media Only', sportKey: 'general', enabled: true },
-  ...enabledSports.map(adapter => ({ 
-    ...getSportDefinition(adapter.sportKey), 
-    sportKey: adapter.sportKey, 
-    enabled: true 
-  })),
-  // Disabled sports for future
-  { display_name: 'Hockey', sportKey: 'ice_hockey', enabled: false }
-];
-
-// Filter on search
-const filteredSports = searchQuery 
-  ? allSports.filter(sport => sport.display_name?.toLowerCase().includes(searchQuery.toLowerCase()))
-  : allSports;
+// Proper scrolling implementation
+<div className="max-w-6xl w-full max-h-[95vh] flex flex-col">
+  <header className="p-6">Header Content</header>
+  <div className="flex-1 overflow-y-auto">  // Scrollable container
+    <div className="p-6">  // No height constraint
+      {/* All content flows vertically */}
+    </div>
+  </div>
+  <footer className="p-6">Footer Actions</footer>
+</div>
 ```
 
-### Dynamic Stats Form
-Stats forms appear conditionally based on sport selection:
-
+### Media Upload Pattern
 ```typescript
-{selectedType === 'golf' && (
-  <div>
-    {/* Golf-specific stats form */}
-    <GolfStatsForm 
-      mode={golfData.mode}
-      data={golfData}
-      onChange={setGolfData}
-    />
+// Compact upload button + large preview display
+<div className="mb-6">
+  {/* Small upload button */}
+  <button className="flex items-center gap-2 px-3 py-2 text-sm border-2 border-dashed">
+    <i className="fas fa-plus text-sm" />
+    Add Media
+  </button>
+
+  {/* Large primary media display */}
+  {mediaFiles.length > 0 && (
+    <div className="space-y-2">
+      <div className="relative rounded-lg overflow-hidden">
+        <div className="aspect-[4/3] relative">
+          <LazyImage className="w-full h-full object-cover" />
+          <div className="absolute top-2 left-2 bg-black/60 text-white text-xs px-2 py-1 rounded">
+            Primary
+          </div>
+        </div>
+      </div>
+
+      {/* Secondary thumbnails grid */}
+      {mediaFiles.length > 1 && (
+        <div className="grid grid-cols-4 gap-2">
+          {/* Smaller thumbnails with drag reorder */}
+        </div>
+      )}
+    </div>
+  )}
+</div>
+```
+
+### Preview Modal System
+```typescript
+// Separate preview modal for post confidence
+{showPreview && (
+  <div className="fixed inset-0 bg-black bg-opacity-75 z-[60]">
+    <div className="max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+      {/* Realistic post preview */}
+      <div className="bg-white border border-gray-200 rounded-lg">
+        {/* Mock user header */}
+        <div className="p-4 border-b">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full" />
+            <div>
+              <div className="font-semibold">Your Name</div>
+              <div className="text-sm text-gray-500">
+                Just now • {visibility === 'public' ? 'Public' : 'Private'}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Post content with media, caption, sport badges */}
+        <div className="p-4">
+          {caption && <p className="whitespace-pre-wrap">{caption}</p>}
+          {/* Media display logic */}
+          {/* Golf scorecard summary */}
+          {/* Sport category badge */}
+        </div>
+
+        {/* Mock engagement */}
+        <div className="px-4 py-3 border-t flex gap-4 text-gray-500">
+          <button>Like</button>
+          <button>Comment</button>
+          <button>Share</button>
+        </div>
+      </div>
+
+      {/* Preview actions */}
+      <div className="flex justify-between p-4">
+        <button onClick={() => setShowPreview(false)}>Edit Post</button>
+        <button onClick={handleSubmit}>Post Now</button>
+      </div>
+    </div>
   </div>
 )}
 ```
 
-### Caption Auto-Generation
-Generate captions from sport stats:
-
+### Golf Scorecard Integration
 ```typescript
-const generateCaption = () => {
-  if (selectedType === 'golf' && golfData.score) {
-    return `${golfData.score} at ${golfData.course} | FIR ${golfData.fir}% | ${golfData.putts} putts`;
-  }
-  return '';
-};
+// Embedded in vertical flow, not side panel
+{selectedType === 'golf' && (
+  <div className="mb-6">
+    <h3 className="text-sm font-semibold text-gray-700 mb-3">Golf Scorecard</h3>
+    <div className="bg-gray-50 rounded-lg border border-gray-200 p-4">
+      <GolfScorecardForm
+        onDataChange={setGolfRoundData}
+        initialData={golfRoundData}
+      />
+    </div>
+  </div>
+)}
+```
+
+### User Experience Flow
+```typescript
+// Optimized single-path user journey
+1. Select Sport → Dropdown at top
+2. Fill Golf Scorecard → Appears inline when golf selected
+3. Add Media → Compact button → Beautiful large preview
+4. Write Caption → With hashtag suggestions underneath
+5. Set Visibility → Clear privacy options
+6. Preview Post → See exactly what will be posted
+7. Submit → With confidence and validation
+```
+
+### Key UX Improvements
+- **Single Column Flow**: No confusing left/right panels
+- **Proper Scrolling**: Fixed modal height/overflow issues
+- **Large Media Preview**: Users see exactly what they're uploading
+- **Compact Upload**: Small button doesn't dominate the interface
+- **Preview System**: Confidence-building before posting
+- **Golf Integration**: Scorecard flows naturally in sequence
+- **Mobile Optimized**: Single column works perfectly on all screens
+
+### Modal Size & Spacing
+```css
+/* Generous modal sizing for less cramped feel */
+.modal-container {
+  max-width: 1536px; /* max-w-6xl */
+  max-height: 95vh;
+  padding: 1.5rem;   /* p-6 throughout */
+}
+
+/* Media display spacing optimization */
+.media-container {
+  space-y: 0.5rem;   /* Tight spacing around media */
+  /* No excess background/shadows */
+}
 ```
 
 ### Validation Pattern
-Single-step validation for submission:
-
 ```typescript
 const isValidForSubmission = () => {
   if (selectedType === 'general') {
     return mediaFiles.length > 0; // Media required
   } else if (selectedType === 'golf') {
-    return golfData.score !== undefined; // Score required
+    return golfData.courseName && golfData.score; // Golf data required
   }
   return false;
 };

@@ -51,138 +51,107 @@ export async function POST(request: NextRequest) {
     let roundId = null;
     let holeNumber = null;
     
-    // Create golf entities if provided
+    // Create golf entities if provided (comprehensive scorecard)
     if (sportKey === 'golf' && golfData) {
-      postData.golf_mode = golfData.mode;
-      
-      if (golfData.mode === 'round_recap' && golfData.roundData) {
-        // Check for existing round on same date/course
-        const { data: existingRounds } = await supabase
+      // Check for existing round on same date/course
+      const { data: existingRounds } = await supabase
+        .from('golf_rounds')
+        .select('id')
+        .eq('profile_id', userId)
+        .eq('date', golfData.date)
+        .eq('course', golfData.courseName)
+        .limit(1);
+
+      if (existingRounds && existingRounds.length > 0) {
+        // Use existing round
+        roundId = existingRounds[0].id;
+
+        // Update existing round with comprehensive data
+        await supabase
           .from('golf_rounds')
-          .select('id')
-          .eq('profile_id', userId)
-          .eq('date', golfData.roundData.date)
-          .eq('course', golfData.roundData.course)
-          .limit(1);
+          .update({
+            course_location: golfData.courseLocation,
+            tee_box: golfData.teeBox,
+            holes: parseInt(golfData.holes),
+            par: golfData.coursePar,
+            course_rating: golfData.courseRating,
+            course_slope: golfData.courseSlope,
+            weather: golfData.weather,
+            temperature: golfData.temperature,
+            wind: golfData.wind,
+            playing_partners: golfData.playingPartners,
+            handicap: golfData.handicap
+          })
+          .eq('id', roundId);
+      } else {
+        // Create new comprehensive round
+        const { data: newRound, error: roundError } = await supabase
+          .from('golf_rounds')
+          .insert({
+            profile_id: userId,
+            date: golfData.date,
+            course: golfData.courseName,
+            course_location: golfData.courseLocation,
+            tee_box: golfData.teeBox,
+            holes: parseInt(golfData.holes),
+            par: golfData.coursePar,
+            course_rating: golfData.courseRating,
+            course_slope: golfData.courseSlope,
+            weather: golfData.weather,
+            temperature: golfData.temperature,
+            wind: golfData.wind,
+            playing_partners: golfData.playingPartners,
+            handicap: golfData.handicap
+          })
+          .select()
+          .single();
 
-        if (existingRounds && existingRounds.length > 0) {
-          // Use existing round
-          roundId = existingRounds[0].id;
-          
-          // Update existing round with new data
-          await supabase
-            .from('golf_rounds')
-            .update({
-              tee: golfData.roundData.tee,
-              holes: golfData.roundData.holes,
-              gross_score: golfData.roundData.grossScore,
-              par: golfData.roundData.par,
-              fir_percentage: golfData.roundData.firPercentage,
-              gir_percentage: golfData.roundData.girPercentage,
-              total_putts: golfData.roundData.totalPutts,
-              notes: golfData.roundData.notes
-            })
-            .eq('id', roundId);
+        if (roundError) {
+          console.error('Round creation error:', roundError);
         } else {
-          // Create new round
-          const { data: newRound, error: roundError } = await supabase
-            .from('golf_rounds')
-            .insert({
-              profile_id: userId,
-              date: golfData.roundData.date,
-              course: golfData.roundData.course,
-              tee: golfData.roundData.tee,
-              holes: golfData.roundData.holes,
-              gross_score: golfData.roundData.grossScore,
-              par: golfData.roundData.par,
-              fir_percentage: golfData.roundData.firPercentage,
-              gir_percentage: golfData.roundData.girPercentage,
-              total_putts: golfData.roundData.totalPutts,
-              notes: golfData.roundData.notes
-            })
-            .select()
-            .single();
-
-          if (roundError) {
-            console.error('Round creation error:', roundError);
-          } else {
-            roundId = newRound.id;
-          }
+          roundId = newRound.id;
         }
-        
-      } else if (golfData.mode === 'hole_highlight' && golfData.holeData) {
-        holeNumber = golfData.holeData.holeNumber;
-        
-        // Check for existing round on same date/course (if course provided)
-        let existingRoundId = null;
-        if (golfData.holeData.course) {
-          const { data: existingRounds } = await supabase
-            .from('golf_rounds')
-            .select('id')
-            .eq('profile_id', userId)
-            .eq('date', golfData.holeData.date)
-            .eq('course', golfData.holeData.course)
-            .limit(1);
+      }
 
-          if (existingRounds && existingRounds.length > 0) {
-            existingRoundId = existingRounds[0].id;
-          }
-        }
-        
-        if (!existingRoundId) {
-          // Create minimal round for hole highlight
-          const { data: newRound, error: roundError } = await supabase
-            .from('golf_rounds')
-            .insert({
-              profile_id: userId,
-              date: golfData.holeData.date,
-              course: golfData.holeData.course || `Round from ${golfData.holeData.date}`,
-              holes: 18, // Default for hole highlight
-              par: 72
-            })
-            .select()
-            .single();
-
-          if (roundError) {
-            console.error('Round creation error:', roundError);
-          } else {
-            existingRoundId = newRound.id;
-          }
-        }
-        
-        roundId = existingRoundId;
-        
-        // Create or update hole record
-        if (roundId) {
-          const holeData = {
+      // Now handle hole-by-hole data
+      if (roundId && golfData.holesData && golfData.holesData.length > 0) {
+        const holeRecords = golfData.holesData
+          .filter((hole: any) => hole.score !== undefined)
+          .map((hole: any) => ({
             round_id: roundId,
-            hole_number: golfData.holeData.holeNumber,
-            par: golfData.holeData.par,
-            strokes: golfData.holeData.strokes,
-            putts: golfData.holeData.putts,
-            fairway_hit: golfData.holeData.fairwayHit,
-            green_in_regulation: golfData.holeData.greenInRegulation
-          };
-          
-          // Try to update existing hole first, then insert if doesn't exist
-          const { error: updateError } = await supabase
+            hole_number: hole.hole,
+            par: hole.par,
+            yardage: hole.yardage,
+            score: hole.score,
+            putts: hole.putts,
+            fairway: hole.fairway,
+            gir: hole.gir,
+            penalty: hole.penalty,
+            sand: hole.sand,
+            notes: hole.notes
+          }));
+
+        if (holeRecords.length > 0) {
+          // Delete existing holes for this round first
+          await supabase
             .from('golf_holes')
-            .upsert(holeData, { 
-              onConflict: 'round_id,hole_number'
-            });
-            
-          if (updateError) {
-            console.error('Hole upsert error:', updateError);
+            .delete()
+            .eq('round_id', roundId);
+
+          // Insert new hole data
+          const { error: holesError } = await supabase
+            .from('golf_holes')
+            .insert(holeRecords);
+
+          if (holesError) {
+            console.error('Holes creation error:', holesError);
           }
         }
       }
-      
+
       // Add golf references to post
       if (roundId) {
         postData.round_id = roundId;
-      }
-      if (holeNumber) {
-        postData.hole_number = holeNumber;
       }
     }
 

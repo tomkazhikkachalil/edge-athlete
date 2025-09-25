@@ -11,7 +11,7 @@ import MultiSportActivity from '@/components/MultiSportActivity';
 import SeasonHighlightsModal from '@/components/SeasonHighlightsModal';
 import PerformanceModal from '@/components/PerformanceModal';
 import LazyImage from '@/components/LazyImage';
-import CreatePostModal from '@/components/CreatePostModal';
+import EnhancedCreatePostModal from '@/components/EnhancedCreatePostModal';
 import RecentPosts from '@/components/RecentPosts';
 import type { AthleteBadge, SeasonHighlight, Performance, Profile } from '@/lib/supabase';
 import { 
@@ -53,7 +53,14 @@ export default function AthleteProfilePage() {
   
   // Posts count for stats display
   const [postsCount, setPostsCount] = useState(0);
-  
+
+  // Follow stats
+  const [followersCount, setFollowersCount] = useState(0);
+  const [followingCount, setFollowingCount] = useState(0);
+
+  // Athletic score calculation
+  const [athleticScore, setAthleticScore] = useState<number>(0);
+
   // Inline editing states
   const [editingField, setEditingField] = useState<string | null>(null);
   const [tempValues, setTempValues] = useState<Record<string, string>>({});
@@ -69,7 +76,9 @@ export default function AthleteProfilePage() {
   useEffect(() => {
     if (user?.id) {
       loadAthleteData(user.id);
+      loadFollowStats(user.id);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user]);
 
   const loadAthleteData = async (profileId: string, skipLoadingState = false) => {
@@ -77,7 +86,7 @@ export default function AthleteProfilePage() {
       if (!skipLoadingState) {
         setDataLoading(true);
       }
-      
+
       // Use Promise.allSettled for better error handling and faster responses
       const [badgesResult, highlightsResult, performancesResult] = await Promise.allSettled([
         AthleteService.getBadges(profileId),
@@ -91,17 +100,66 @@ export default function AthleteProfilePage() {
       }
       if (highlightsResult.status === 'fulfilled') {
         setHighlights(highlightsResult.value);
+        // Calculate athletic score based on highlights
+        calculateAthleticScore(highlightsResult.value);
       }
       if (performancesResult.status === 'fulfilled') {
         setPerformances(performancesResult.value);
       }
-    } catch {
-      // Error loading athlete data
+    } catch (error) {
+      console.error('Error loading athlete data:', error);
+      showError('Failed to load profile data', 'Some information may not be displayed correctly.');
     } finally {
       if (!skipLoadingState) {
         setDataLoading(false);
       }
     }
+  };
+
+  const loadFollowStats = async (profileId: string) => {
+    try {
+      const response = await fetch(`/api/follow/stats?profileId=${profileId}`);
+      if (response.ok) {
+        const data = await response.json();
+        setFollowersCount(data.followersCount || 0);
+        setFollowingCount(data.followingCount || 0);
+      }
+    } catch (error) {
+      console.error('Error loading follow stats:', error);
+      setFollowersCount(0);
+      setFollowingCount(0);
+    }
+  };
+
+  const calculateAthleticScore = (highlights: SeasonHighlight[]) => {
+    // Calculate score based on available data
+    // This is a simple algorithm that can be refined based on sport-specific metrics
+    let score = 50; // Base score
+
+    if (highlights && highlights.length > 0) {
+      // Add points for having highlights
+      score += Math.min(highlights.length * 5, 20);
+
+      // Add points based on ratings in highlights
+      const avgRating = highlights.reduce((sum, h) => sum + (h.rating || 0), 0) / highlights.length;
+      if (avgRating > 0) {
+        score = Math.min(Math.round(avgRating), 100);
+      }
+    }
+
+    // Add points for profile completeness
+    if (profile?.bio) score += 5;
+    if (profile?.avatar_url) score += 5;
+    if (profile?.location) score += 3;
+    if (profile?.height_cm) score += 2;
+    if (profile?.weight_display) score += 2;
+
+    // Add points for social engagement
+    if (followersCount > 0) score += Math.min(Math.floor(followersCount / 10), 10);
+    if (postsCount > 0) score += Math.min(Math.floor(postsCount / 5), 8);
+
+    // Cap at 100
+    setAthleticScore(Math.min(score, 100));
   };
 
   // Helper functions for display
@@ -223,8 +281,8 @@ export default function AthleteProfilePage() {
         // Also refresh performances specifically to maintain sort order
         AthleteService.getRecentPerformances(user.id).then(newPerformances => {
           setPerformances(newPerformances);
-        }).catch(() => {
-          // Failed to refresh performances
+        }).catch((error) => {
+          console.error('Failed to refresh performances:', error);
         });
       }
     } catch (error) {
@@ -260,8 +318,8 @@ export default function AthleteProfilePage() {
         // Also refresh performances specifically to maintain sort order
         AthleteService.getRecentPerformances(user.id).then(newPerformances => {
           setPerformances(newPerformances);
-        }).catch(() => {
-          // Failed to refresh performances
+        }).catch((error) => {
+          console.error('Failed to refresh performances:', error);
         });
       }
     } catch (error) {
@@ -600,43 +658,47 @@ export default function AthleteProfilePage() {
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Navigation Header */}
-      <header className="bg-white border-b border-gray-200 px-6 py-4">
-        <div className="max-w-7xl mx-auto flex items-center justify-between">
-          <h1 className="text-2xl font-bold text-gray-900">Athletic Profile</h1>
-          
-          <div className="flex items-center gap-3">
-            <button 
-              onClick={() => setIsCreatePostModalOpen(true)}
-              className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2 text-sm font-medium"
-              aria-label="Create new post"
-            >
-              <i className="fas fa-plus"></i>
-              Create Post
-            </button>
-            <button
-              onClick={() => router.push('/feed')}
-              className="bg-gray-600 text-white px-4 py-2 rounded-lg hover:bg-gray-700 transition-colors flex items-center gap-2 text-sm font-medium"
-              aria-label="View community feed"
-            >
-              <i className="fas fa-stream"></i>
-              Feed
-            </button>
-            <button 
-              onClick={() => setIsEditModalOpen(true)}
-              className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition-colors flex items-center gap-2 text-sm font-medium"
-              aria-label="Edit athlete profile"
-            >
-              <i className="fas fa-edit"></i>
-              Edit Profile
-            </button>
-            <button
-              onClick={() => signOut()}
-              className="bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700 transition-colors flex items-center gap-2 text-sm font-medium"
-              aria-label="Sign out of account"
-            >
-              <i className="fas fa-sign-out-alt"></i>
-              Logout
-            </button>
+      <header className="bg-white border-b border-gray-200 px-4 sm:px-6 py-4">
+        <div className="max-w-7xl mx-auto">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+            <h1 className="text-xl sm:text-2xl font-bold text-gray-900">Athletic Profile</h1>
+
+            <div className="flex flex-wrap items-center gap-2 sm:gap-3">
+              <button
+                onClick={() => setIsCreatePostModalOpen(true)}
+                className="bg-blue-600 text-white px-3 py-2 sm:px-4 rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2 text-xs sm:text-sm font-medium"
+                aria-label="Create new post"
+              >
+                <i className="fas fa-plus"></i>
+                <span className="hidden sm:inline">Create Post</span>
+                <span className="sm:hidden">Post</span>
+              </button>
+              <button
+                onClick={() => router.push('/feed')}
+                className="bg-gray-600 text-white px-3 py-2 sm:px-4 rounded-lg hover:bg-gray-700 transition-colors flex items-center gap-2 text-xs sm:text-sm font-medium"
+                aria-label="View community feed"
+              >
+                <i className="fas fa-stream"></i>
+                Feed
+              </button>
+              <button
+                onClick={() => setIsEditModalOpen(true)}
+                className="bg-green-600 text-white px-3 py-2 sm:px-4 rounded-lg hover:bg-green-700 transition-colors flex items-center gap-2 text-xs sm:text-sm font-medium"
+                aria-label="Edit athlete profile"
+              >
+                <i className="fas fa-edit"></i>
+                <span className="hidden sm:inline">Edit Profile</span>
+                <span className="sm:hidden">Edit</span>
+              </button>
+              <button
+                onClick={() => signOut()}
+                className="bg-red-600 text-white px-3 py-2 sm:px-4 rounded-lg hover:bg-red-700 transition-colors flex items-center gap-2 text-xs sm:text-sm font-medium"
+                aria-label="Sign out of account"
+              >
+                <i className="fas fa-sign-out-alt"></i>
+                <span className="hidden sm:inline">Logout</span>
+              </button>
+            </div>
           </div>
         </div>
       </header>
@@ -669,13 +731,15 @@ export default function AthleteProfilePage() {
                 />
                 
                 {/* Rating Bubble */}
-                <div 
-                  className="absolute -top-2 -right-2 bg-blue-600 text-white text-lg font-bold px-3 py-2 rounded-full border-4 border-white shadow-lg"
-                  role="img"
-                  aria-label="Athlete rating"
-                >
-                  95
-                </div>
+                {athleticScore > 0 && (
+                  <div
+                    className="absolute -top-2 -right-2 bg-blue-600 text-white text-lg font-bold px-3 py-2 rounded-full border-4 border-white shadow-lg"
+                    role="img"
+                    aria-label="Athlete rating"
+                  >
+                    {athleticScore}
+                  </div>
+                )}
                 
                 {/* Avatar Upload Button */}
                 <div className="absolute -bottom-2 -right-2">
@@ -796,11 +860,11 @@ export default function AthleteProfilePage() {
                   {/* Stats Row */}
                   <div className="flex items-center gap-6 text-sm">
                     <div className="flex items-center gap-1 text-gray-600">
-                      <span className="font-semibold text-gray-900">0</span>
+                      <span className="font-semibold text-gray-900">{followingCount}</span>
                       <span>Following</span>
                     </div>
                     <div className="flex items-center gap-1 text-gray-600">
-                      <span className="font-semibold text-gray-900">0</span>
+                      <span className="font-semibold text-gray-900">{followersCount}</span>
                       <span>Followers</span>
                     </div>
                     <div className="flex items-center gap-1 text-gray-600">
@@ -992,8 +1056,8 @@ export default function AthleteProfilePage() {
         onSave={handleSavePerformance}
       />
 
-      {/* Create Post Modal */}
-      <CreatePostModal
+      {/* Enhanced Create Post Modal */}
+      <EnhancedCreatePostModal
         isOpen={isCreatePostModalOpen}
         onClose={() => setIsCreatePostModalOpen(false)}
         userId={user?.id || ''}
@@ -1002,7 +1066,6 @@ export default function AthleteProfilePage() {
           if (user?.id) {
             loadAthleteData(user.id, true);
           }
-          showSuccess('Post created successfully!');
         }}
       />
     </div>

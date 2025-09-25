@@ -62,14 +62,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
         // Then verify/update with fresh data from Supabase
         const { data: { session }, error: sessionError } = await supabase.auth.getSession();
-        
-        // Handle refresh token errors
+
+        // Handle refresh token errors silently
         if (sessionError) {
           // Check for any variant of refresh token error
           const errorMessage = sessionError.message?.toLowerCase() || '';
           if (errorMessage.includes('refresh') && errorMessage.includes('token')) {
-            // Clear all auth-related storage
-            await supabase.auth.signOut();
+            // Clear all auth-related storage silently
+            await supabase.auth.signOut().catch(() => {});
             if (typeof window !== 'undefined') {
               localStorage.removeItem('edge-athlete-user-cache');
               localStorage.removeItem('edge-athlete-profile-cache');
@@ -80,6 +80,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             // Reset state immediately
             setUser(null);
             setProfile(null);
+            // Skip further processing
+            if (isMounted) {
+              setLoading(false);
+              setInitialAuthCheckComplete(true);
+            }
+            return;
           }
         }
         
@@ -145,12 +151,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const refreshInterval = setInterval(async () => {
       if (isMounted) {
         try {
+          // First check if we have a session before trying to refresh
+          const { data: { session } } = await supabase.auth.getSession();
+          if (!session) {
+            // No session to refresh, skip
+            return;
+          }
+
           const { error } = await supabase.auth.refreshSession();
           if (error) {
-            // If refresh fails due to invalid token, sign out
-            if (error.message?.includes('refresh_token_not_found') || 
-                error.message?.includes('Invalid Refresh Token') ||
-                error.message?.includes('Refresh Token Not Found')) {
+            // If refresh fails due to invalid token, sign out silently
+            const errorMessage = error.message?.toLowerCase() || '';
+            if (errorMessage.includes('refresh') && errorMessage.includes('token')) {
+              // Clear everything silently without logging the error
               await supabase.auth.signOut();
               setUser(null);
               setProfile(null);
@@ -158,11 +171,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
               if (typeof window !== 'undefined') {
                 localStorage.removeItem('edge-athlete-user-cache');
                 localStorage.removeItem('edge-athlete-profile-cache');
+                // Also clear Supabase auth storage
+                const storageKey = `sb-${process.env.NEXT_PUBLIC_SUPABASE_URL?.split('//')[1]?.split('.')[0]}-auth-token`;
+                localStorage.removeItem(storageKey);
               }
+              // Don't throw or log - this is expected behavior when token expires
+              return;
             }
           }
         } catch {
-          // Error refreshing session
+          // Silently handle refresh errors - user will be redirected to login if needed
         }
       }
     }, 5 * 60 * 1000); // Refresh every 5 minutes
