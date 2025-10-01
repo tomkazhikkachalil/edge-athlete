@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import { requireAuth } from '@/lib/auth-server';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
@@ -8,6 +9,9 @@ const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
 export async function POST(request: NextRequest) {
   try {
+    // Require authentication
+    const user = await requireAuth(request);
+
     const formData = await request.formData();
     const file = formData.get('file') as File;
     const userId = formData.get('userId') as string;
@@ -18,6 +22,11 @@ export async function POST(request: NextRequest) {
 
     if (!userId) {
       return NextResponse.json({ error: 'User ID is required' }, { status: 400 });
+    }
+
+    // Validate user ID matches authenticated user
+    if (userId !== user.id) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 403 });
     }
 
     // File validation
@@ -42,7 +51,7 @@ export async function POST(request: NextRequest) {
     const filePath = `posts/${fileName}`;
 
     // Upload file to Supabase Storage
-    const { data: uploadData, error: uploadError } = await supabase.storage
+    const { error: uploadError } = await supabase.storage
       .from('uploads')
       .upload(filePath, file, {
         cacheControl: '3600',
@@ -63,31 +72,19 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Failed to get file URL' }, { status: 500 });
     }
 
-    // Generate thumbnail for videos (placeholder for now)
-    let thumbnailUrl = null;
-    if (allowedVideoTypes.includes(file.type)) {
-      // In a real implementation, you'd generate a thumbnail here
-      // For now, we'll use a placeholder or the video URL itself
-      thumbnailUrl = urlData.publicUrl;
-    }
-
-    const fileInfo = {
-      id: uploadData.path,
-      url: urlData.publicUrl,
-      type: allowedImageTypes.includes(file.type) ? 'image' : 'video',
-      size: file.size,
-      name: file.name,
-      thumbnailUrl: thumbnailUrl
-    };
-
+    // Return simplified response that matches what modal expects
     return NextResponse.json({
-      success: true,
-      file: fileInfo,
-      message: 'File uploaded successfully!'
+      url: urlData.publicUrl,
+      type: allowedImageTypes.includes(file.type) ? 'image' : 'video'
     });
 
   } catch (error) {
     console.error('File upload error:', error);
+
+    if (error instanceof Response) {
+      return error;
+    }
+
     return NextResponse.json({ error: 'Failed to upload file' }, { status: 500 });
   }
 }

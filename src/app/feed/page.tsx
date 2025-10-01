@@ -109,17 +109,19 @@ export default function FeedPage() {
         throw new Error('Failed to like post');
       }
 
-      // Update local state
-      setPosts(prevPosts => 
+      const data = await response.json();
+      const isLiking = data.action === 'liked';
+
+      // Update local state with actual count from database
+      setPosts(prevPosts =>
         prevPosts.map(post => {
           if (post.id === postId) {
-            const isCurrentlyLiked = post.likes?.some(like => like.profile_id === user.id);
             return {
               ...post,
-              likes_count: isCurrentlyLiked ? post.likes_count - 1 : post.likes_count + 1,
-              likes: isCurrentlyLiked 
-                ? post.likes?.filter(like => like.profile_id !== user.id)
-                : [...(post.likes || []), { profile_id: user.id }]
+              likes_count: data.likesCount,
+              likes: isLiking
+                ? [...(post.likes || []), { profile_id: user.id }]
+                : post.likes?.filter(like => like.profile_id !== user.id)
             };
           }
           return post;
@@ -131,8 +133,18 @@ export default function FeedPage() {
   };
 
   const handleComment = (postId: string) => {
-    // TODO: Implement comment modal/functionality
-    showSuccess('Coming Soon', 'Comment functionality will be available soon!');
+    // Comments are handled within CommentSection component
+  };
+
+  const handleCommentCountChange = (postId: string, newCount: number) => {
+    // Update the local state with new comment count
+    setPosts(prevPosts =>
+      prevPosts.map(post =>
+        post.id === postId
+          ? { ...post, comments_count: newCount }
+          : post
+      )
+    );
   };
 
   const handlePostCreated = () => {
@@ -312,6 +324,7 @@ export default function FeedPage() {
                       currentUserId={user.id}
                       onLike={handleLike}
                       onComment={handleComment}
+                      onCommentCountChange={handleCommentCountChange}
                       showActions={true}
                     />
                   ))}

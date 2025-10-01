@@ -37,17 +37,18 @@ interface RecentPostsProps {
   onPostsLoad?: (count: number) => void;
 }
 
-export default function RecentPosts({ 
-  profileId, 
-  currentUserId, 
+export default function RecentPosts({
+  profileId,
+  currentUserId,
   showCreateButton = true,
   onCreatePost,
-  onPostsLoad 
+  onPostsLoad
 }: RecentPostsProps) {
   const [posts, setPosts] = useState<Post[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const { showError, showSuccess } = useToast();
+
 
   useEffect(() => {
     loadPosts();
@@ -56,7 +57,7 @@ export default function RecentPosts({
   const loadPosts = async () => {
     try {
       setLoading(true);
-      const response = await fetch(`/api/posts?profileId=${profileId}&limit=10`);
+      const response = await fetch(`/api/posts?userId=${profileId}&limit=10`);
       
       if (!response.ok) {
         throw new Error('Failed to load posts');
@@ -94,17 +95,19 @@ export default function RecentPosts({
         throw new Error('Failed to like post');
       }
 
-      // Update local state
-      setPosts(prevPosts => 
+      const data = await response.json();
+      const isLiking = data.action === 'liked';
+
+      // Update local state with actual count from database
+      setPosts(prevPosts =>
         prevPosts.map(post => {
           if (post.id === postId) {
-            const isCurrentlyLiked = post.likes?.some(like => like.profile_id === currentUserId);
             return {
               ...post,
-              likes_count: isCurrentlyLiked ? post.likes_count - 1 : post.likes_count + 1,
-              likes: isCurrentlyLiked 
-                ? post.likes?.filter(like => like.profile_id !== currentUserId)
-                : [...(post.likes || []), { profile_id: currentUserId }]
+              likes_count: data.likesCount,
+              likes: isLiking
+                ? [...(post.likes || []), { profile_id: currentUserId }]
+                : post.likes?.filter(like => like.profile_id !== currentUserId)
             };
           }
           return post;
@@ -116,8 +119,42 @@ export default function RecentPosts({
   };
 
   const handleComment = (postId: string) => {
-    // TODO: Implement comment modal/functionality
-    showSuccess('Coming Soon', 'Comment functionality will be available soon!');
+    // Comments are handled within CommentSection component
+  };
+
+  const handleCommentCountChange = (postId: string, newCount: number) => {
+    // Update the local state with new comment count
+    setPosts(prevPosts =>
+      prevPosts.map(post =>
+        post.id === postId
+          ? { ...post, comments_count: newCount }
+          : post
+      )
+    );
+  };
+
+  const handleDelete = async (postId: string) => {
+    try {
+      const response = await fetch(`/api/posts?postId=${postId}`, {
+        method: 'DELETE',
+        credentials: 'include'
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to delete post');
+      }
+
+      // Remove post from local state
+      setPosts(prevPosts => prevPosts.filter(post => post.id !== postId));
+      showSuccess('Success', 'Post deleted successfully');
+
+      // Notify parent of posts count change
+      onPostsLoad?.(posts.length - 1);
+    } catch (err) {
+      console.error('Delete post error:', err);
+      showError('Error', err instanceof Error ? err.message : 'Failed to delete post');
+    }
   };
 
   if (loading) {
@@ -200,6 +237,8 @@ export default function RecentPosts({
               currentUserId={currentUserId}
               onLike={handleLike}
               onComment={handleComment}
+              onDelete={handleDelete}
+              onCommentCountChange={handleCommentCountChange}
               showActions={true}
             />
           ))}

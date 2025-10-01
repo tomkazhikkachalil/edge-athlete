@@ -1,49 +1,51 @@
 import { NextRequest } from 'next/server';
-import { supabase } from './supabase';
+import { createServerClient } from '@supabase/ssr';
 
 export async function requireAuth(request: NextRequest) {
   try {
-    // Get the session token from cookies
-    const cookieHeader = request.headers.get('cookie');
-    if (!cookieHeader) {
-      throw new Response(
-        JSON.stringify({ error: 'Authentication required' }),
-        { status: 401, headers: { 'Content-Type': 'application/json' } }
-      );
-    }
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
+    const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
 
-    // Parse cookies to get supabase session
-    const cookies = Object.fromEntries(
-      cookieHeader.split('; ').map(cookie => {
-        const [key, value] = cookie.split('=');
-        return [key, decodeURIComponent(value)];
-      })
+    // Create a Supabase server client that properly handles cookies
+    const supabase = createServerClient(
+      supabaseUrl,
+      supabaseAnonKey,
+      {
+        cookies: {
+          get(name: string) {
+            const cookieHeader = request.headers.get('cookie');
+            if (!cookieHeader) return undefined;
+
+            const cookies = Object.fromEntries(
+              cookieHeader.split('; ').map(cookie => {
+                const [key, value] = cookie.split('=');
+                return [key, decodeURIComponent(value)];
+              })
+            );
+            return cookies[name];
+          },
+        },
+      }
     );
 
-    const accessToken = cookies['sb-access-token'];
+    // Get the authenticated user
+    const { data: { user }, error } = await supabase.auth.getUser();
 
-    if (!accessToken) {
+    if (error || !user) {
+      console.error('Auth failed:', error?.message || 'No user');
       throw new Response(
         JSON.stringify({ error: 'Authentication required' }),
         { status: 401, headers: { 'Content-Type': 'application/json' } }
       );
     }
 
-    // Verify the session with Supabase
-    const { data: { user }, error } = await supabase.auth.getUser(accessToken);
-
-    if (error || !user) {
-      throw new Response(
-        JSON.stringify({ error: 'Invalid authentication token' }),
-        { status: 401, headers: { 'Content-Type': 'application/json' } }
-      );
-    }
-
+    console.log('User authenticated:', user.id);
     return user;
   } catch (error) {
     if (error instanceof Response) {
       throw error;
     }
+    console.error('Auth error:', error);
     throw new Response(
       JSON.stringify({ error: 'Authentication failed' }),
       { status: 401, headers: { 'Content-Type': 'application/json' } }

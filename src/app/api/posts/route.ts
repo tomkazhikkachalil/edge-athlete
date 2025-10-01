@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import { requireAuth } from '@/lib/auth-server';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
@@ -8,29 +9,26 @@ const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
 export async function POST(request: NextRequest) {
   try {
+    // Require authentication
+    const user = await requireAuth(request);
+
     const body = await request.json();
-    const { 
-      userId,
-      sportKey = 'general',
-      postType = 'media',
+    const {
+      postType = 'general', // 'general' or 'golf'
       caption = '',
+      tags = [],
+      hashtags = [],
       visibility = 'public',
-      golfData = null,
-      mediaFiles = []
+      media = [],
+      golfData = null
     } = body;
 
-    if (!userId) {
-      return NextResponse.json({ error: 'User ID is required' }, { status: 400 });
-    }
-
-    // Validate sport key
-    const validSportKeys = ['general', 'golf', 'ice_hockey', 'volleyball', 'track_field', 'basketball', 'soccer', 'tennis', 'swimming', 'baseball', 'football'];
-    if (!validSportKeys.includes(sportKey)) {
-      return NextResponse.json({ error: 'Invalid sport key' }, { status: 400 });
-    }
+    // Use authenticated user's ID
+    const userId = user.id;
+    console.log('[POST] Creating post for authenticated user:', userId);
 
     // Validate post type
-    if (!['media', 'stats', 'mixed'].includes(postType)) {
+    if (!['general', 'golf'].includes(postType)) {
       return NextResponse.json({ error: 'Invalid post type' }, { status: 400 });
     }
 
@@ -42,17 +40,22 @@ export async function POST(request: NextRequest) {
     // Create the post record
     const postData: any = {
       profile_id: userId,
-      sport_key: sportKey,
-      post_type: postType,
+      sport_key: postType, // Use postType as sport_key for our unified approach
       caption: caption,
-      visibility: visibility
+      visibility: visibility,
+      tags: tags,
+      hashtags: hashtags,
+      likes_count: 0,
+      comments_count: 0
     };
 
-    let roundId = null;
-    let holeNumber = null;
-    
+    console.log('[POST] Creating post with tags:', tags);
+    console.log('[POST] Creating post with hashtags:', hashtags);
+
+    let roundId: string | null = null;
+
     // Create golf entities if provided (comprehensive scorecard)
-    if (sportKey === 'golf' && golfData) {
+    if (postType === 'golf' && golfData) {
       // Check for existing round on same date/course
       const { data: existingRounds } = await supabase
         .from('golf_rounds')
@@ -70,17 +73,10 @@ export async function POST(request: NextRequest) {
         await supabase
           .from('golf_rounds')
           .update({
-            course_location: golfData.courseLocation,
-            tee_box: golfData.teeBox,
-            holes: parseInt(golfData.holes),
-            par: golfData.coursePar,
-            course_rating: golfData.courseRating,
-            course_slope: golfData.courseSlope,
-            weather: golfData.weather,
-            temperature: golfData.temperature,
-            wind: golfData.wind,
-            playing_partners: golfData.playingPartners,
-            handicap: golfData.handicap
+            course_location: golfData.courseLocation || null,
+            tee: golfData.teeBox || null,
+            holes: parseInt(golfData.holes) || 18,
+            par: golfData.coursePar || 72
           })
           .eq('id', roundId);
       } else {
@@ -91,17 +87,10 @@ export async function POST(request: NextRequest) {
             profile_id: userId,
             date: golfData.date,
             course: golfData.courseName,
-            course_location: golfData.courseLocation,
-            tee_box: golfData.teeBox,
-            holes: parseInt(golfData.holes),
-            par: golfData.coursePar,
-            course_rating: golfData.courseRating,
-            course_slope: golfData.courseSlope,
-            weather: golfData.weather,
-            temperature: golfData.temperature,
-            wind: golfData.wind,
-            playing_partners: golfData.playingPartners,
-            handicap: golfData.handicap
+            course_location: golfData.courseLocation || null,
+            tee: golfData.teeBox || null,
+            holes: parseInt(golfData.holes) || 18,
+            par: golfData.coursePar || 72
           })
           .select()
           .single();
@@ -121,14 +110,12 @@ export async function POST(request: NextRequest) {
             round_id: roundId,
             hole_number: hole.hole,
             par: hole.par,
-            yardage: hole.yardage,
-            score: hole.score,
+            distance_yards: hole.yardage,
+            strokes: hole.score,
             putts: hole.putts,
-            fairway: hole.fairway,
-            gir: hole.gir,
-            penalty: hole.penalty,
-            sand: hole.sand,
-            notes: hole.notes
+            fairway_hit: hole.fairway === 'hit' ? true : hole.fairway === 'na' ? null : false,
+            green_in_regulation: hole.gir || false,
+            notes: hole.notes || null
           }));
 
         if (holeRecords.length > 0) {
@@ -146,12 +133,20 @@ export async function POST(request: NextRequest) {
           if (holesError) {
             console.error('Holes creation error:', holesError);
           }
+
+          // Calculate round stats
+          try {
+            await supabase.rpc('calculate_round_stats', { round_uuid: roundId });
+          } catch (statsError) {
+            console.error('Stats calculation error:', statsError);
+          }
         }
       }
 
       // Add golf references to post
       if (roundId) {
         postData.round_id = roundId;
+        postData.golf_mode = 'round_recap';
       }
     }
 
@@ -162,20 +157,22 @@ export async function POST(request: NextRequest) {
       .single();
 
     if (postError) {
-      console.error('Post creation error:', postError);
-      return NextResponse.json({ error: 'Failed to create post' }, { status: 500 });
+      console.error('[POST] Post creation error:', postError);
+      return NextResponse.json({
+        error: 'Failed to create post',
+        details: postError.message,
+        code: postError.code
+      }, { status: 500 });
     }
 
     // Add media files if provided
-    if (mediaFiles && mediaFiles.length > 0) {
-      const mediaRecords = mediaFiles.map((file: any, index: number) => ({
+    if (media && media.length > 0) {
+      const mediaRecords = media.map((file: any, index: number) => ({
         post_id: post.id,
-        file_url: file.url,
-        file_type: file.type,
-        file_size: file.size,
-        display_order: index + 1,
-        thumbnail_url: file.thumbnailUrl,
-        alt_text: file.altText || ''
+        media_url: file.url,
+        media_type: file.type,
+        display_order: file.sortOrder || index + 1,
+        thumbnail_url: file.thumbnailUrl || null
       }));
 
       const { error: mediaError } = await supabase
@@ -196,6 +193,11 @@ export async function POST(request: NextRequest) {
 
   } catch (error) {
     console.error('Post creation error:', error);
+
+    if (error instanceof Response) {
+      return error;
+    }
+
     return NextResponse.json({ error: 'Failed to create post' }, { status: 500 });
   }
 }
@@ -205,12 +207,8 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const userId = searchParams.get('userId');
     const sportKey = searchParams.get('sportKey');
-    const visibility = searchParams.get('visibility') || 'public';
     const limit = parseInt(searchParams.get('limit') || '20');
-
-    if (!userId && visibility !== 'public') {
-      return NextResponse.json({ error: 'User ID required for private posts' }, { status: 400 });
-    }
+    const offset = parseInt(searchParams.get('offset') || '0');
 
     let query = supabase
       .from('posts')
@@ -218,44 +216,24 @@ export async function GET(request: NextRequest) {
         *,
         post_media (
           id,
-          file_url,
-          file_type,
+          media_url,
+          media_type,
           thumbnail_url,
-          alt_text,
           display_order
         ),
-        profiles!inner (
+        profiles (
           id,
           full_name,
           first_name,
           last_name,
           avatar_url
         ),
-        golf_rounds (
-          id,
-          date,
-          course,
-          tee,
-          holes,
-          gross_score,
-          par,
-          fir_percentage,
-          gir_percentage,
-          total_putts,
-          notes
-        ),
-        golf_holes (
-          id,
-          hole_number,
-          par,
-          strokes,
-          putts,
-          fairway_hit,
-          green_in_regulation
+        post_likes (
+          profile_id
         )
       `)
       .order('created_at', { ascending: false })
-      .limit(limit);
+      .range(offset, offset + limit - 1);
 
     // Filter by user if provided
     if (userId) {
@@ -277,10 +255,130 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Failed to fetch posts' }, { status: 500 });
     }
 
-    return NextResponse.json({ posts: posts || [] });
+    // Fetch golf rounds for posts that have round_id
+    const postsWithRounds = await Promise.all(
+      (posts || []).map(async (post) => {
+        let golfRound = null;
+
+        if (post.round_id) {
+          const { data: roundData } = await supabase
+            .from('golf_rounds')
+            .select('*')
+            .eq('id', post.round_id)
+            .single();
+
+          golfRound = roundData;
+        }
+
+        return { ...post, golf_round: golfRound };
+      })
+    );
+
+    // Transform the data to match the expected format
+    const transformedPosts = postsWithRounds
+      .filter(post => post.profiles) // Filter out posts without profiles
+      .map(post => {
+        console.log('[GET] Post tags from DB:', post.id, post.tags);
+        console.log('[GET] Post hashtags from DB:', post.id, post.hashtags);
+        return {
+          id: post.id,
+          caption: post.caption,
+          sport_key: post.sport_key,
+          stats_data: post.stats_data,
+          visibility: post.visibility,
+          tags: post.tags || [],
+          hashtags: post.hashtags || [],
+          created_at: post.created_at,
+          likes_count: post.likes_count ?? 0,
+          comments_count: post.comments_count ?? 0,
+          profile: {
+          id: post.profiles.id,
+          first_name: post.profiles.first_name,
+          last_name: post.profiles.last_name,
+          full_name: post.profiles.full_name,
+          avatar_url: post.profiles.avatar_url
+        },
+        media: (post.post_media || [])
+          .sort((a: any, b: any) => a.display_order - b.display_order)
+          .map((media: any) => ({
+            id: media.id,
+            media_url: media.media_url,
+            media_type: media.media_type,
+            display_order: media.display_order
+          })),
+          likes: post.post_likes || [],
+          golf_round: post.golf_round || null
+        };
+      });
+
+    return NextResponse.json({ posts: transformedPosts });
 
   } catch (error) {
     console.error('Posts fetch error:', error);
     return NextResponse.json({ error: 'Failed to fetch posts' }, { status: 500 });
+  }
+}
+
+export async function DELETE(request: NextRequest) {
+  try {
+    // Require authentication
+    const user = await requireAuth(request);
+
+    const { searchParams } = new URL(request.url);
+    const postId = searchParams.get('postId');
+
+    if (!postId) {
+      return NextResponse.json({ error: 'Post ID is required' }, { status: 400 });
+    }
+
+    // First, verify the post belongs to the authenticated user
+    const { data: post, error: fetchError } = await supabase
+      .from('posts')
+      .select('profile_id')
+      .eq('id', postId)
+      .single();
+
+    if (fetchError || !post) {
+      return NextResponse.json({ error: 'Post not found' }, { status: 404 });
+    }
+
+    // Check ownership
+    if (post.profile_id !== user.id) {
+      return NextResponse.json({ error: 'Unauthorized to delete this post' }, { status: 403 });
+    }
+
+    // Delete associated media records first (cascade should handle this, but being explicit)
+    await supabase
+      .from('post_media')
+      .delete()
+      .eq('post_id', postId);
+
+    // Delete associated likes
+    await supabase
+      .from('post_likes')
+      .delete()
+      .eq('post_id', postId);
+
+    // Delete the post
+    const { error: deleteError } = await supabase
+      .from('posts')
+      .delete()
+      .eq('id', postId);
+
+    if (deleteError) {
+      console.error('[DELETE] Post deletion error:', deleteError);
+      return NextResponse.json({ error: 'Failed to delete post' }, { status: 500 });
+    }
+
+    return NextResponse.json({ success: true, message: 'Post deleted successfully' });
+
+  } catch (error) {
+    console.error('Post deletion error:', error);
+
+    if (error instanceof Response) {
+      return error;
+    }
+
+    return NextResponse.json({ error: 'Failed to delete post' }, { status: 500 });
   }
 }

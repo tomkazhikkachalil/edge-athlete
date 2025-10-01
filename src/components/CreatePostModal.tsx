@@ -1,15 +1,16 @@
 'use client';
 
-import { useState, useCallback } from 'react';
-import { getSportDefinition, getEnabledSports, type SportKey } from '@/lib/sports';
-import { cssClasses } from '@/lib/design-tokens';
+import { useState, useCallback, useRef, useEffect } from 'react';
 import { useToast } from '@/components/Toast';
+import LazyImage from '@/components/LazyImage';
+import GolfScorecardForm from '@/components/GolfScorecardForm';
 
 interface CreatePostModalProps {
   isOpen: boolean;
   onClose: () => void;
   userId: string;
   onPostCreated?: (post: unknown) => void;
+  defaultSportKey?: string; // Optional: pre-select a sport
 }
 
 interface MediaFile {
@@ -17,762 +18,929 @@ interface MediaFile {
   url: string;
   type: 'image' | 'video';
   size: number;
+  file?: File;
+  preview?: string;
 }
 
-// Golf specific data interfaces
-interface GolfRoundData {
-  date: string;
-  course: string;
-  tee: string;
-  holes: number;
-  grossScore?: number;
-  par: number;
-  firPercentage?: number;
-  girPercentage?: number;
-  totalPutts?: number;
-  notes: string;
-}
+// Post type options
+const POST_TYPES = [
+  { value: 'general', label: 'General Post', icon: 'fas fa-edit', description: 'Text, photos, and hashtags' },
+  { value: 'golf', label: 'Golf Round', icon: 'fas fa-golf-ball', description: 'Scorecard and round stats' }
+];
 
-interface GolfHoleData {
-  date: string;
-  course: string;
-  holeNumber: number;
-  par: number;
-  score?: number;
-  distance: number;
-  club: string;
-  notes: string;
-  fairwayInRegulation?: boolean;
-  greenInRegulation?: boolean;
-}
+// Popular hashtags suggestions
+const HASHTAG_SUGGESTIONS = {
+  general: ['#Athletics', '#SportLife', '#Training', '#Fitness', '#Athlete', '#PersonalBest', '#GameDay', '#Champions'],
+  golf: ['#Golf', '#GolfLife', '#GolfSwing', '#GolfCourse', '#Birdie', '#Eagle', '#Par', '#HoleInOne', '#PGA', '#18Holes']
+};
 
-interface GolfData {
-  mode: 'round_recap' | 'hole_highlight';
-  roundData: GolfRoundData;
-  holeData: GolfHoleData;
-}
+// Tags for categorization
+const TAG_OPTIONS = {
+  general: [
+    { value: 'training', label: 'Training', color: 'blue' },
+    { value: 'competition', label: 'Competition', color: 'red' },
+    { value: 'achievement', label: 'Achievement', color: 'green' },
+    { value: 'team', label: 'Team', color: 'purple' },
+    { value: 'lifestyle', label: 'Lifestyle', color: 'yellow' }
+  ],
+  golf: [
+    { value: 'tournament', label: 'Tournament', color: 'red' },
+    { value: 'practice', label: 'Practice Round', color: 'blue' },
+    { value: 'casual', label: 'Casual Round', color: 'green' },
+    { value: 'lesson', label: 'Lesson', color: 'purple' },
+    { value: 'achievement', label: 'Personal Best', color: 'yellow' }
+  ]
+};
 
-export default function CreatePostModal({ isOpen, onClose, userId, onPostCreated }: CreatePostModalProps) {
+export default function CreatePostModal({
+  isOpen,
+  onClose,
+  userId,
+  onPostCreated,
+  defaultSportKey = 'general'
+}: CreatePostModalProps) {
   const { showSuccess, showError } = useToast();
-  
-  // State management for single screen design
-  const [selectedType, setSelectedType] = useState<string>('general');
-  const [searchQuery, setSearchQuery] = useState('');
-  const [dropdownOpen, setDropdownOpen] = useState(false);
-  
+  const captionRef = useRef<HTMLTextAreaElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Post type and content
+  const [postType, setPostType] = useState(defaultSportKey);
+  const [caption, setCaption] = useState('');
+  const [selectedTags, setSelectedTags] = useState<string[]>([]);
+  const [hashtags, setHashtags] = useState<string[]>([]);
+  const [showHashtagSuggestions, setShowHashtagSuggestions] = useState(false);
+  const [customHashtag, setCustomHashtag] = useState('');
+
   // Media management
   const [mediaFiles, setMediaFiles] = useState<MediaFile[]>([]);
   const [uploading, setUploading] = useState(false);
-  
-  // Golf stats (sport-specific)
-  const [golfData, setGolfData] = useState<GolfData>({
-    mode: 'round_recap',
-    roundData: {
-      date: new Date().toISOString().split('T')[0],
-      course: '',
-      tee: '',
-      holes: 18,
-      grossScore: undefined,
-      par: 72,
-      firPercentage: undefined,
-      girPercentage: undefined,
-      totalPutts: undefined,
-      notes: ''
-    },
-    holeData: {
-      date: new Date().toISOString().split('T')[0],
-      course: '',
-      holeNumber: 1,
-      par: 4,
-      score: undefined,
-      distance: 150,
-      club: '',
-      notes: '',
-      fairwayInRegulation: undefined,
-      greenInRegulation: undefined
-    }
-  });
+  const [draggedOver, setDraggedOver] = useState(false);
+  const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
 
-  // Caption and visibility
-  const [caption, setCaption] = useState('');
+  // Golf specific data
+  const [golfRoundData, setGolfRoundData] = useState<any>(null);
+
+  // Visibility and submission
   const [visibility, setVisibility] = useState<'public' | 'private'>('public');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [showPreview, setShowPreview] = useState(false);
 
-  const enabledSports = getEnabledSports();
-  
+  // Character limits
+  const MAX_CAPTION_LENGTH = 500;
+  const MAX_HASHTAGS = 10;
+  const MAX_MEDIA_FILES = 10;
+
+  // Reset form
   const reset = () => {
-    setSelectedType('general');
-    setSearchQuery('');
-    setDropdownOpen(false);
-    setMediaFiles([]);
-    setGolfData({
-      mode: 'round_recap',
-      roundData: {
-        date: new Date().toISOString().split('T')[0],
-        course: '',
-        tee: '',
-        holes: 18,
-        grossScore: undefined,
-        par: 72,
-        firPercentage: undefined,
-        girPercentage: undefined,
-        totalPutts: undefined,
-        notes: ''
-      },
-      holeData: {
-        date: new Date().toISOString().split('T')[0],
-        course: '',
-        holeNumber: 1,
-        par: 4,
-        score: undefined,
-        distance: 150,
-        club: '',
-        notes: '',
-        fairwayInRegulation: undefined,
-        greenInRegulation: undefined
-      }
-    });
+    setPostType('general');
     setCaption('');
+    setSelectedTags([]);
+    setHashtags([]);
+    setMediaFiles([]);
+    setGolfRoundData(null);
     setVisibility('public');
+    setShowHashtagSuggestions(false);
+    setCustomHashtag('');
+    setShowPreview(false);
   };
 
+  // Handle close
   const handleClose = () => {
     reset();
     onClose();
   };
 
+  // Handle file upload
   const handleFileUpload = useCallback(async (files: FileList) => {
     if (files.length === 0) return;
-    
-    setUploading(true);
-    
-    try {
-      const uploadPromises = Array.from(files).map(async (file) => {
-        const formData = new FormData();
-        formData.append('file', file);
-        
-        const response = await fetch('/api/upload', {
-          method: 'POST',
-          body: formData
-        });
-        
-        if (!response.ok) {
-          const errorData = await response.json();
-          throw new Error(errorData.error || 'Upload failed');
-        }
-        
-        return await response.json();
-      });
-      
-      const uploadedFiles = await Promise.all(uploadPromises);
-      
-      setMediaFiles(prev => [
-        ...prev,
-        ...uploadedFiles.map((file, index) => ({
-          ...file,
-          id: `${Date.now()}-${index}`
-        }))
-      ]);
-      
-      showSuccess('Files uploaded successfully');
-    } catch (error) {
-      showError('Upload failed', error instanceof Error ? error.message : 'Please try again');
-    } finally {
-      setUploading(false);
+    if (mediaFiles.length + files.length > MAX_MEDIA_FILES) {
+      showError('Too many files', `Maximum ${MAX_MEDIA_FILES} files allowed`);
+      return;
     }
-  }, [showSuccess, showError]);
 
-  const generateCaption = () => {
-    if (selectedType === 'golf') {
-      const { mode, roundData, holeData } = golfData;
-      
-      if (mode === 'round_recap' && roundData.grossScore) {
-        let caption = `${roundData.grossScore}${roundData.course ? ` at ${roundData.course}` : ''}`;
-        const stats: string[] = [];
-        
-        if (roundData.firPercentage !== undefined) {
-          stats.push(`FIR ${Math.round(roundData.firPercentage)}%`);
-        }
-        if (roundData.girPercentage !== undefined) {
-          stats.push(`GIR ${Math.round(roundData.girPercentage)}%`);
-        }
-        if (roundData.totalPutts !== undefined) {
-          stats.push(`${roundData.totalPutts} putts`);
-        }
-        
-        if (stats.length > 0) {
-          caption += ` | ${stats.join(' | ')}`;
-        }
-        
-        return caption;
-      } else if (mode === 'hole_highlight' && holeData.score !== undefined) {
-        const parDiff = holeData.score - holeData.par;
-        let scoreName = '';
-        if (parDiff === -2) scoreName = 'Eagle';
-        else if (parDiff === -1) scoreName = 'Birdie';
-        else if (parDiff === 0) scoreName = 'Par';
-        else if (parDiff === 1) scoreName = 'Bogey';
-        else if (parDiff === 2) scoreName = 'Double Bogey';
-        else scoreName = `+${parDiff}`;
-        
-        return `Hole ${holeData.holeNumber}: ${scoreName} on Par ${holeData.par}`;
+    setUploading(true);
+    const newFiles: MediaFile[] = [];
+
+    for (const file of Array.from(files)) {
+      // Validate file
+      if (file.size > 5 * 1024 * 1024) {
+        showError('File too large', `${file.name} exceeds 5MB limit`);
+        continue;
       }
+
+      const isImage = file.type.startsWith('image/');
+      const isVideo = file.type.startsWith('video/');
+
+      if (!isImage && !isVideo) {
+        showError('Invalid file type', `${file.name} is not an image or video`);
+        continue;
+      }
+
+      // Create preview
+      const preview = URL.createObjectURL(file);
+
+      newFiles.push({
+        id: `${Date.now()}-${Math.random()}`,
+        url: preview,
+        type: isVideo ? 'video' : 'image',
+        size: file.size,
+        file: file,
+        preview: preview
+      });
     }
-    
-    return '';
+
+    setMediaFiles(prev => [...prev, ...newFiles]);
+    setUploading(false);
+  }, [mediaFiles.length, showError]);
+
+  // Media drag and drop handlers
+  const handleDragStart = (index: number) => {
+    setDraggedIndex(index);
   };
 
-  const isValidForSubmission = () => {
-    if (selectedType === 'general') {
-      return mediaFiles.length > 0; // Media-only requires at least one file
-    } else if (selectedType === 'golf') {
-      if (golfData.mode === 'round_recap') {
-        return golfData.roundData.grossScore !== undefined;
-      } else if (golfData.mode === 'hole_highlight') {
-        return golfData.holeData.score !== undefined;
-      }
+  const handleDragOver = (e: React.DragEvent, index: number) => {
+    e.preventDefault();
+    if (draggedIndex !== null && draggedIndex !== index) {
+      const newFiles = [...mediaFiles];
+      const draggedFile = newFiles[draggedIndex];
+      newFiles.splice(draggedIndex, 1);
+      newFiles.splice(index, 0, draggedFile);
+      setMediaFiles(newFiles);
+      setDraggedIndex(index);
     }
+  };
+
+  const handleDragEnd = () => {
+    setDraggedIndex(null);
+  };
+
+  // Remove media file
+  const removeMediaFile = (fileId: string) => {
+    const file = mediaFiles.find(f => f.id === fileId);
+    if (file?.preview) {
+      URL.revokeObjectURL(file.preview);
+    }
+    setMediaFiles(prev => prev.filter(f => f.id !== fileId));
+  };
+
+  // Toggle tag selection
+  const toggleTag = (tagValue: string) => {
+    setSelectedTags(prev =>
+      prev.includes(tagValue)
+        ? prev.filter(t => t !== tagValue)
+        : [...prev, tagValue]
+    );
+  };
+
+  // Add hashtag
+  const addHashtag = (hashtag: string) => {
+    const formattedHashtag = hashtag.startsWith('#') ? hashtag : `#${hashtag}`;
+    if (hashtags.length < MAX_HASHTAGS && !hashtags.includes(formattedHashtag)) {
+      setHashtags(prev => [...prev, formattedHashtag]);
+    }
+  };
+
+  // Remove hashtag
+  const removeHashtag = (hashtag: string) => {
+    setHashtags(prev => prev.filter(h => h !== hashtag));
+  };
+
+  // Handle custom hashtag input
+  const handleCustomHashtagSubmit = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter' && customHashtag.trim()) {
+      e.preventDefault();
+      addHashtag(customHashtag.trim());
+      setCustomHashtag('');
+    }
+  };
+
+  // Generate golf caption from stats
+  const generateGolfCaption = () => {
+    if (!golfRoundData || postType !== 'golf') return '';
+
+    const { holesData, courseName, coursePar } = golfRoundData;
+    const scoredHoles = holesData?.filter((h: any) => h.score !== undefined) || [];
+
+    if (scoredHoles.length === 0) return '';
+
+    const totalScore = scoredHoles.reduce((sum: number, h: any) => sum + (h.score || 0), 0);
+    const totalPar = scoredHoles.reduce((sum: number, h: any) => sum + h.par, 0);
+    const differential = totalScore - totalPar;
+
+    let caption = `Shot ${totalScore}`;
+    if (differential === 0) caption += ' (Even)';
+    else if (differential > 0) caption += ` (+${differential})`;
+    else caption += ` (${differential})`;
+
+    if (courseName) caption += ` at ${courseName}`;
+
+    // Add some stats if available
+    const putts = scoredHoles.reduce((sum: number, h: any) => sum + (h.putts || 0), 0);
+    if (putts > 0) caption += ` | ${putts} putts`;
+
+    const birdies = scoredHoles.filter((h: any) => h.score === h.par - 1).length;
+    if (birdies > 0) caption += ` | ${birdies} ${birdies === 1 ? 'birdie' : 'birdies'}`;
+
+    return caption;
+  };
+
+  // Upload media to server
+  const uploadMediaToServer = async (file: File): Promise<{ url: string }> => {
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('userId', userId);
+
+    const response = await fetch('/api/upload/post-media', {
+      method: 'POST',
+      body: formData
+    });
+
+    if (!response.ok) {
+      throw new Error('Upload failed');
+    }
+
+    return response.json();
+  };
+
+  // Validation
+  const isValidForSubmission = () => {
+    // General posts need either caption or media
+    if (postType === 'general') {
+      return caption.trim().length > 0 || mediaFiles.length > 0;
+    }
+
+    // Golf posts need scorecard data
+    if (postType === 'golf') {
+      return golfRoundData && golfRoundData.courseName && golfRoundData.holesData?.some((h: any) => h.score !== undefined);
+    }
+
     return false;
   };
 
+  // Submit post
   const handleSubmit = async () => {
-    if (!isValidForSubmission()) return;
-    
+    if (!isValidForSubmission()) {
+      showError('Incomplete post', 'Please add content to your post');
+      return;
+    }
+
     setIsSubmitting(true);
-    
+
     try {
-      const payload = {
-        userId,
-        sportKey: selectedType,
-        caption,
+      console.log('Starting post submission...');
+
+      // Upload media files
+      console.log('Uploading media files:', mediaFiles.length);
+      const uploadedMedia = await Promise.all(
+        mediaFiles.map(async (file) => {
+          if (file.file) {
+            console.log('Uploading file:', file.file.name);
+            const { url } = await uploadMediaToServer(file.file);
+            console.log('File uploaded:', url);
+            return { ...file, url };
+          }
+          return file;
+        })
+      );
+
+      // Prepare post data (userId comes from auth)
+      const postData = {
+        postType,
+        caption: caption.trim(),
+        tags: selectedTags,
+        hashtags,
         visibility,
-        golfData: selectedType === 'golf' ? golfData : null,
-        mediaFiles: mediaFiles.map((file, index) => ({
+        media: uploadedMedia.map((file, index) => ({
           url: file.url,
           type: file.type,
           sortOrder: index
-        }))
+        })),
+        golfData: postType === 'golf' ? golfRoundData : undefined
       };
-      
+
+      console.log('Creating post with data:', postData);
+
+      // Create post
       const response = await fetch('/api/posts', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
+        credentials: 'include', // Important: include cookies for authentication
+        body: JSON.stringify(postData)
       });
-      
+
+      console.log('Post response status:', response.status);
+
       if (!response.ok) {
         const errorData = await response.json();
+        console.error('Post creation failed:', errorData);
         throw new Error(errorData.error || 'Failed to create post');
       }
-      
+
       const result = await response.json();
-      showSuccess('Post created successfully!');
-      
+      console.log('Post created successfully:', result);
+
+      showSuccess('Post created successfully! 🎉');
+
+      // Call callback to refresh posts
       if (onPostCreated) {
         onPostCreated(result.post);
       }
-      
+
+      // Close modal
       handleClose();
-      
     } catch (error) {
-      // Post creation error
+      console.error('Post submission error:', error);
       showError('Failed to create post', error instanceof Error ? error.message : 'Please try again');
     } finally {
       setIsSubmitting(false);
     }
   };
 
-  // Build sports list - combine enabled sports with placeholders
-  const enabledSportKeys = enabledSports.map(adapter => adapter.sportKey);
-  const disabledSports = [
-    { display_name: 'Hockey', sportKey: 'ice_hockey', icon_id: 'fas fa-hockey-puck', enabled: false },
-    { display_name: 'Volleyball', sportKey: 'volleyball', icon_id: 'fas fa-volleyball-ball', enabled: false }
-  ].filter(sport => !enabledSportKeys.includes(sport.sportKey)); // Only include if not already enabled
-  
-  const allSports = [
-    { display_name: 'Media Only', sportKey: 'general', icon_id: 'fas fa-camera', enabled: true },
-    ...enabledSports.map(adapter => ({ 
-      ...getSportDefinition(adapter.sportKey), 
-      sportKey: adapter.sportKey, 
-      enabled: true 
-    })),
-    ...disabledSports
-  ];
-  
-  // Filter sports based on search query (show all if no query)
-  const filteredSports = searchQuery 
-    ? allSports.filter(sport => 
-        sport.display_name?.toLowerCase().includes(searchQuery.toLowerCase()) || 
-        sport.sportKey.toLowerCase().includes(searchQuery.toLowerCase())
-      )
-    : allSports;
+  // Clean up previews on unmount
+  useEffect(() => {
+    return () => {
+      mediaFiles.forEach(file => {
+        if (file.preview) {
+          URL.revokeObjectURL(file.preview);
+        }
+      });
+    };
+  }, [mediaFiles]);
 
   if (!isOpen) return null;
 
+  const currentTags = TAG_OPTIONS[postType as keyof typeof TAG_OPTIONS] || TAG_OPTIONS.general;
+  const currentHashtags = HASHTAG_SUGGESTIONS[postType as keyof typeof HASHTAG_SUGGESTIONS] || HASHTAG_SUGGESTIONS.general;
+
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] overflow-hidden">
+      <div className="bg-white rounded-lg shadow-xl max-w-4xl w-full max-h-[90vh] flex flex-col">
         {/* Header */}
-        <div className="flex items-center justify-between p-base border-b border-gray-200">
-          <h2 className={`${cssClasses.TYPOGRAPHY.H2} text-gray-900`}>Create Post</h2>
+        <div className="flex items-center justify-between p-6 border-b border-gray-200">
+          <h2 className="text-2xl font-bold text-gray-900">Create Post</h2>
           <button
             onClick={handleClose}
-            className="p-2 hover:bg-gray-100 rounded-md transition-colors"
+            className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
             aria-label="Close modal"
           >
-            <i className="fas fa-times text-gray-500"></i>
+            <i className="fas fa-times text-gray-500 text-lg"></i>
           </button>
         </div>
 
-        {/* Single Screen Content */}
-        <div className="p-base overflow-y-auto max-h-[calc(90vh-140px)]">
-          <div className="space-y-section">
-            {/* 1. Sport Selection Dropdown */}
-            <div>
-              <label className={`${cssClasses.TYPOGRAPHY.LABEL} text-gray-700 block mb-micro`}>
-                Post Type
-              </label>
-              <div className="relative">
-                <input
-                  type="text"
-                  placeholder="Search sports or select Media only..."
-                  value={searchQuery || (selectedType === 'general' ? 'Media Only' : getSportDefinition(selectedType as SportKey)?.display_name || '')}
-                  onChange={(e) => {
-                    setSearchQuery(e.target.value);
-                    setDropdownOpen(true);
-                  }}
-                  onFocus={() => setDropdownOpen(true)}
-                  onBlur={(e) => {
-                    // Delay to allow click on dropdown items
-                    setTimeout(() => {
-                      if (!e.currentTarget.contains(document.activeElement)) {
-                        setDropdownOpen(false);
-                      }
-                    }, 200);
-                  }}
-                  className="w-full px-base py-micro border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                />
+        {/* Content - Scrollable */}
+        <div className="flex-1 overflow-y-auto p-6">
+          {/* Post Type Selection */}
+          <div className="mb-6">
+            <label className="block text-sm font-semibold text-gray-700 mb-3">Post Type</label>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              {POST_TYPES.map(type => (
                 <button
-                  type="button"
-                  onClick={() => setDropdownOpen(!dropdownOpen)}
-                  className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                  key={type.value}
+                  onClick={() => setPostType(type.value)}
+                  className={`p-4 border-2 rounded-lg text-left transition-all ${
+                    postType === type.value
+                      ? 'border-blue-500 bg-blue-50'
+                      : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50'
+                  }`}
                 >
-                  <i className={`fas fa-chevron-${dropdownOpen ? 'up' : 'down'}`}></i>
+                  <div className="flex items-start gap-3">
+                    <i className={`${type.icon} text-lg ${
+                      postType === type.value ? 'text-blue-600' : 'text-gray-500'
+                    }`}></i>
+                    <div>
+                      <div className="font-medium text-gray-900">{type.label}</div>
+                      <div className="text-sm text-gray-500 mt-1">{type.description}</div>
+                    </div>
+                  </div>
                 </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Golf Scorecard (when golf is selected) */}
+          {postType === 'golf' && (
+            <div className="mb-6">
+              <div className="bg-green-50 rounded-lg border border-green-200 p-4">
+                <GolfScorecardForm
+                  onDataChange={(data) => setGolfRoundData(data)}
+                  initialData={golfRoundData}
+                />
               </div>
-              
-              {/* Dropdown Options */}
-              {dropdownOpen && (
-                <div className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-lg shadow-lg max-h-48 overflow-y-auto">
-                  {filteredSports.map(sport => (
+
+              {/* Generate Caption from Stats */}
+              {golfRoundData && (
+                <button
+                  onClick={() => setCaption(generateGolfCaption())}
+                  className="mt-3 text-sm text-green-600 hover:text-green-700 font-medium"
+                >
+                  <i className="fas fa-magic mr-1"></i>
+                  Generate caption from scorecard
+                </button>
+              )}
+            </div>
+          )}
+
+          {/* Caption */}
+          <div className="mb-6">
+            <div className="flex items-center justify-between mb-2">
+              <label className="text-sm font-semibold text-gray-700">
+                Caption
+              </label>
+              <span className={`text-xs ${
+                caption.length > MAX_CAPTION_LENGTH * 0.9 ? 'text-red-600' : 'text-gray-500'
+              }`}>
+                {caption.length}/{MAX_CAPTION_LENGTH}
+              </span>
+            </div>
+            <textarea
+              ref={captionRef}
+              value={caption}
+              onChange={(e) => setCaption(e.target.value.slice(0, MAX_CAPTION_LENGTH))}
+              placeholder="Share your thoughts..."
+              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 resize-none"
+              rows={4}
+            />
+          </div>
+
+          {/* Tags */}
+          <div className="mb-6">
+            <label className="block text-sm font-semibold text-gray-700 mb-3">Tags</label>
+            <div className="flex flex-wrap gap-2">
+              {currentTags.map(tag => (
+                <button
+                  key={tag.value}
+                  onClick={() => toggleTag(tag.value)}
+                  className={`px-3 py-1.5 rounded-full text-sm font-medium transition-all ${
+                    selectedTags.includes(tag.value)
+                      ? `bg-${tag.color}-100 text-${tag.color}-800 border-2 border-${tag.color}-300`
+                      : 'bg-gray-100 text-gray-600 border-2 border-gray-200 hover:bg-gray-200'
+                  }`}
+                >
+                  {selectedTags.includes(tag.value) && (
+                    <i className="fas fa-check mr-1 text-xs"></i>
+                  )}
+                  {tag.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Hashtags */}
+          <div className="mb-6">
+            <div className="flex items-center justify-between mb-3">
+              <label className="text-sm font-semibold text-gray-700">
+                Hashtags ({hashtags.length}/{MAX_HASHTAGS})
+              </label>
+              <button
+                onClick={() => setShowHashtagSuggestions(!showHashtagSuggestions)}
+                className="text-sm text-blue-600 hover:text-blue-700"
+              >
+                {showHashtagSuggestions ? 'Hide' : 'Show'} suggestions
+              </button>
+            </div>
+
+            {/* Selected hashtags */}
+            {hashtags.length > 0 && (
+              <div className="flex flex-wrap gap-2 mb-3">
+                {hashtags.map(hashtag => (
+                  <span
+                    key={hashtag}
+                    className="inline-flex items-center gap-1 px-3 py-1 bg-blue-100 text-blue-800 rounded-full text-sm"
+                  >
+                    {hashtag}
                     <button
-                      key={sport.sportKey}
-                      onClick={() => {
-                        setSelectedType(sport.sportKey);
-                        setSearchQuery('');
-                        setDropdownOpen(false);
-                        if (!sport.enabled) {
-                          showError('Coming Soon', `${sport.display_name} posting will be available soon!`);
-                        }
-                      }}
-                      disabled={!sport.enabled}
-                      className={`w-full px-base py-micro text-left hover:bg-gray-50 flex items-center space-x-micro ${
-                        !sport.enabled ? 'opacity-60 cursor-not-allowed' : ''
-                      }`}
+                      onClick={() => removeHashtag(hashtag)}
+                      className="ml-1 hover:text-blue-900"
                     >
-                      <i className={`${sport.icon_id} text-lg ${sport.enabled ? 'text-green-600' : 'text-gray-400'}`}></i>
-                      <span>{sport.display_name}</span>
-                      {!sport.enabled && <span className="text-xs text-gray-500 ml-auto">Coming Soon</span>}
+                      <i className="fas fa-times text-xs"></i>
                     </button>
+                  </span>
+                ))}
+              </div>
+            )}
+
+            {/* Custom hashtag input */}
+            <div className="flex gap-2 mb-3">
+              <input
+                type="text"
+                value={customHashtag}
+                onChange={(e) => setCustomHashtag(e.target.value)}
+                onKeyDown={handleCustomHashtagSubmit}
+                placeholder="Type a hashtag and press Enter"
+                className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                disabled={hashtags.length >= MAX_HASHTAGS}
+              />
+              <button
+                onClick={() => {
+                  if (customHashtag.trim()) {
+                    addHashtag(customHashtag.trim());
+                    setCustomHashtag('');
+                  }
+                }}
+                disabled={!customHashtag.trim() || hashtags.length >= MAX_HASHTAGS}
+                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors"
+              >
+                Add
+              </button>
+            </div>
+
+            {/* Hashtag suggestions */}
+            {showHashtagSuggestions && (
+              <div className="flex flex-wrap gap-1">
+                {currentHashtags
+                  .filter(tag => !hashtags.includes(tag))
+                  .map(hashtag => (
+                    <button
+                      key={hashtag}
+                      onClick={() => addHashtag(hashtag)}
+                      disabled={hashtags.length >= MAX_HASHTAGS}
+                      className="px-2 py-1 text-xs bg-gray-100 text-gray-700 rounded-full hover:bg-blue-100 hover:text-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                    >
+                      {hashtag}
+                    </button>
+                  ))
+                }
+              </div>
+            )}
+          </div>
+
+          {/* Media Upload */}
+          <div className="mb-6">
+            <label className="block text-sm font-semibold text-gray-700 mb-3">
+              Media ({mediaFiles.length}/{MAX_MEDIA_FILES})
+            </label>
+
+            {/* Upload area */}
+            <div
+              className={`border-2 border-dashed rounded-lg p-6 text-center transition-all ${
+                draggedOver
+                  ? 'border-blue-500 bg-blue-50'
+                  : 'border-gray-300 hover:border-gray-400'
+              }`}
+              onDrop={(e) => {
+                e.preventDefault();
+                setDraggedOver(false);
+                if (e.dataTransfer.files) {
+                  handleFileUpload(e.dataTransfer.files);
+                }
+              }}
+              onDragOver={(e) => {
+                e.preventDefault();
+                setDraggedOver(true);
+              }}
+              onDragLeave={() => setDraggedOver(false)}
+            >
+              <input
+                ref={fileInputRef}
+                type="file"
+                multiple
+                accept="image/*,video/*"
+                className="hidden"
+                onChange={(e) => e.target.files && handleFileUpload(e.target.files)}
+              />
+
+              <i className="fas fa-cloud-upload-alt text-4xl text-gray-400 mb-3"></i>
+              <p className="text-gray-600 mb-2">
+                Drag and drop files here, or{' '}
+                <button
+                  onClick={() => fileInputRef.current?.click()}
+                  className="text-blue-600 hover:text-blue-700 font-medium"
+                >
+                  browse
+                </button>
+              </p>
+              <p className="text-xs text-gray-500">
+                Images and videos up to 5MB each
+              </p>
+            </div>
+
+            {/* Media preview grid */}
+            {mediaFiles.length > 0 && (
+              <div className="mt-4 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
+                {mediaFiles.map((file, index) => (
+                  <div
+                    key={file.id}
+                    draggable
+                    onDragStart={() => handleDragStart(index)}
+                    onDragOver={(e) => handleDragOver(e, index)}
+                    onDragEnd={handleDragEnd}
+                    className={`relative aspect-square bg-gray-100 rounded-lg overflow-hidden cursor-move ${
+                      draggedIndex === index ? 'opacity-50' : ''
+                    }`}
+                  >
+                    {/* Media number badge */}
+                    <div className="absolute top-2 left-2 bg-black bg-opacity-60 text-white text-xs px-2 py-1 rounded">
+                      {index + 1}
+                    </div>
+
+                    {/* Media content */}
+                    {file.type === 'image' ? (
+                      <LazyImage
+                        src={file.url}
+                        alt=""
+                        className="w-full h-full object-cover"
+                        width={200}
+                        height={200}
+                      />
+                    ) : (
+                      <video src={file.url} className="w-full h-full object-cover" />
+                    )}
+
+                    {/* Remove button */}
+                    <button
+                      onClick={() => removeMediaFile(file.id)}
+                      className="absolute top-2 right-2 bg-red-500 text-white rounded-full w-6 h-6 flex items-center justify-center hover:bg-red-600 transition-colors"
+                    >
+                      <i className="fas fa-times text-xs"></i>
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {uploading && (
+              <div className="mt-3 text-center text-blue-600">
+                <i className="fas fa-spinner fa-spin mr-2"></i>
+                Processing media...
+              </div>
+            )}
+          </div>
+
+          {/* Visibility */}
+          <div className="mb-6">
+            <label className="block text-sm font-semibold text-gray-700 mb-3">Visibility</label>
+            <div className="flex gap-4">
+              <label className="flex items-center cursor-pointer">
+                <input
+                  type="radio"
+                  value="public"
+                  checked={visibility === 'public'}
+                  onChange={(e) => setVisibility(e.target.value as 'public' | 'private')}
+                  className="mr-2"
+                />
+                <span className="text-sm">
+                  <i className="fas fa-globe mr-1 text-gray-500"></i>
+                  Public
+                </span>
+              </label>
+              <label className="flex items-center cursor-pointer">
+                <input
+                  type="radio"
+                  value="private"
+                  checked={visibility === 'private'}
+                  onChange={(e) => setVisibility(e.target.value as 'public' | 'private')}
+                  className="mr-2"
+                />
+                <span className="text-sm">
+                  <i className="fas fa-lock mr-1 text-gray-500"></i>
+                  Private
+                </span>
+              </label>
+            </div>
+          </div>
+        </div>
+
+        {/* Footer */}
+        <div className="flex items-center justify-between p-6 border-t border-gray-200 bg-gray-50">
+          <div className="text-sm text-gray-600">
+            {!isValidForSubmission() && (
+              <span className="text-red-600">
+                <i className="fas fa-exclamation-circle mr-1"></i>
+                {postType === 'golf'
+                  ? 'Please complete the scorecard'
+                  : 'Add caption or media to post'
+                }
+              </span>
+            )}
+          </div>
+
+          <div className="flex gap-3">
+            <button
+              onClick={handleClose}
+              className="px-6 py-2 text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+            >
+              Cancel
+            </button>
+
+            <button
+              onClick={() => setShowPreview(true)}
+              disabled={!isValidForSubmission()}
+              className="px-6 py-2 text-gray-700 bg-gray-100 border border-gray-300 rounded-lg hover:bg-gray-200 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            >
+              <i className="fas fa-eye mr-2"></i>
+              Preview
+            </button>
+
+            <button
+              onClick={() => {
+                console.log('Create Post button clicked');
+                console.log('Is valid:', isValidForSubmission());
+                console.log('Is submitting:', isSubmitting);
+                handleSubmit();
+              }}
+              disabled={!isValidForSubmission() || isSubmitting}
+              className="px-6 py-2 text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            >
+              {isSubmitting ? (
+                <>
+                  <i className="fas fa-spinner fa-spin mr-2"></i>
+                  Creating...
+                </>
+              ) : (
+                <>
+                  <i className="fas fa-paper-plane mr-2"></i>
+                  Create Post
+                </>
+              )}
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* Preview Modal */}
+      {showPreview && (
+        <PostPreview
+          postType={postType}
+          caption={caption}
+          tags={selectedTags}
+          hashtags={hashtags}
+          mediaFiles={mediaFiles}
+          visibility={visibility}
+          golfData={golfRoundData}
+          onClose={() => setShowPreview(false)}
+          onPost={() => {
+            setShowPreview(false);
+            handleSubmit();
+          }}
+        />
+      )}
+    </div>
+  );
+}
+
+// Post Preview Component
+function PostPreview({
+  postType,
+  caption,
+  tags,
+  hashtags,
+  mediaFiles,
+  visibility,
+  golfData,
+  onClose,
+  onPost
+}: any) {
+  const tagOptions = TAG_OPTIONS[postType as keyof typeof TAG_OPTIONS] || TAG_OPTIONS.general;
+
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-[60] p-4">
+      <div className="bg-white rounded-lg shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+        {/* Preview Header */}
+        <div className="flex items-center justify-between p-4 border-b border-gray-200 bg-gray-50">
+          <h3 className="text-lg font-semibold text-gray-800">Post Preview</h3>
+          <button
+            onClick={onClose}
+            className="p-2 hover:bg-gray-200 rounded-lg transition-colors"
+          >
+            <i className="fas fa-times text-gray-600"></i>
+          </button>
+        </div>
+
+        {/* Mock Post */}
+        <div className="p-6">
+          <div className="bg-white border border-gray-200 rounded-lg">
+            {/* Post Header */}
+            <div className="p-4 border-b border-gray-100">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full"></div>
+                <div>
+                  <div className="font-semibold text-gray-900">Your Name</div>
+                  <div className="text-sm text-gray-500">
+                    Just now • {visibility === 'public' ? '🌍 Public' : '🔒 Private'}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Post Content */}
+            <div className="p-4">
+              {/* Caption */}
+              {caption && (
+                <p className="text-gray-900 whitespace-pre-wrap mb-3">{caption}</p>
+              )}
+
+              {/* Hashtags */}
+              {hashtags.length > 0 && (
+                <div className="flex flex-wrap gap-1 mb-3">
+                  {hashtags.map((tag: string) => (
+                    <span key={tag} className="text-blue-600 hover:underline cursor-pointer">
+                      {tag}
+                    </span>
                   ))}
                 </div>
               )}
-            </div>
 
-            {/* 2. Media Upload Section (Always Visible) */}
-            <div>
-              <label className={`${cssClasses.TYPOGRAPHY.LABEL} text-gray-700 block mb-micro`}>
-                Media {selectedType === 'general' ? '(Required)' : '(Optional)'}
-              </label>
-              
-              {/* Upload Area */}
-              <div
-                onDrop={(e) => {
-                  e.preventDefault();
-                  handleFileUpload(e.dataTransfer.files);
-                }}
-                onDragOver={(e) => e.preventDefault()}
-                className="border-2 border-dashed border-gray-300 rounded-lg p-base text-center hover:border-gray-400 transition-colors"
-              >
-                <i className="fas fa-cloud-upload-alt text-3xl text-gray-400 mb-micro"></i>
-                <p className={`${cssClasses.TYPOGRAPHY.BODY} text-gray-600`}>
-                  Drag and drop files here, or{' '}
-                  <label className="text-blue-600 hover:text-blue-700 cursor-pointer">
-                    browse
-                    <input
-                      type="file"
-                      multiple
-                      accept="image/*,video/*"
-                      className="hidden"
-                      onChange={(e) => e.target.files && handleFileUpload(e.target.files)}
-                    />
-                  </label>
-                </p>
-                <p className={`${cssClasses.TYPOGRAPHY.CHIP} text-gray-500 mt-1`}>
-                  Images and videos up to 5MB each
-                </p>
-              </div>
+              {/* Tags */}
+              {tags.length > 0 && (
+                <div className="flex flex-wrap gap-2 mb-4">
+                  {tags.map((tagValue: string) => {
+                    const tag = tagOptions.find((t: any) => t.value === tagValue);
+                    if (!tag) return null;
+                    return (
+                      <span
+                        key={tagValue}
+                        className={`px-2 py-1 bg-${tag.color}-100 text-${tag.color}-800 text-xs rounded-full font-medium`}
+                      >
+                        {tag.label}
+                      </span>
+                    );
+                  })}
+                </div>
+              )}
 
-              {/* Media Grid */}
+              {/* Golf Scorecard Summary */}
+              {postType === 'golf' && golfData && (
+                <div className="mb-4 p-4 bg-green-50 rounded-lg border border-green-200">
+                  <div className="flex items-center gap-2 mb-2">
+                    <i className="fas fa-golf-ball text-green-600"></i>
+                    <span className="font-semibold text-green-800">Golf Round</span>
+                  </div>
+                  <div className="text-sm text-green-700 space-y-1">
+                    {golfData.courseName && <div><strong>Course:</strong> {golfData.courseName}</div>}
+                    {golfData.holesData && (() => {
+                      const scored = golfData.holesData.filter((h: any) => h.score !== undefined);
+                      if (scored.length === 0) return null;
+                      const total = scored.reduce((sum: number, h: any) => sum + h.score, 0);
+                      const par = scored.reduce((sum: number, h: any) => sum + h.par, 0);
+                      return (
+                        <>
+                          <div><strong>Score:</strong> {total} ({total - par >= 0 ? '+' : ''}{total - par})</div>
+                          <div><strong>Holes Played:</strong> {scored.length}</div>
+                        </>
+                      );
+                    })()}
+                  </div>
+                </div>
+              )}
+
+              {/* Media */}
               {mediaFiles.length > 0 && (
-                <div className="mt-micro grid grid-cols-2 sm:grid-cols-3 gap-micro">
-                  {mediaFiles.map((file) => (
-                    <div key={file.id} className="relative aspect-square bg-gray-100 rounded-lg overflow-hidden">
+                <div className={`grid ${mediaFiles.length === 1 ? 'grid-cols-1' : 'grid-cols-2'} gap-1 rounded-lg overflow-hidden`}>
+                  {mediaFiles.slice(0, 4).map((file: any, index: number) => (
+                    <div key={file.id} className="relative aspect-square bg-gray-100">
                       {file.type === 'image' ? (
-                        <img src={file.url} alt="" className="w-full h-full object-cover" />
+                        <LazyImage
+                          src={file.url}
+                          alt=""
+                          className="w-full h-full object-cover"
+                          width={300}
+                          height={300}
+                        />
                       ) : (
                         <video src={file.url} className="w-full h-full object-cover" />
                       )}
-                      <button
-                        onClick={() => setMediaFiles(prev => prev.filter(f => f.id !== file.id))}
-                        className="absolute top-2 right-2 bg-red-500 text-white rounded-full w-6 h-6 flex items-center justify-center text-xs hover:bg-red-600"
-                      >
-                        <i className="fas fa-times"></i>
-                      </button>
+                      {index === 3 && mediaFiles.length > 4 && (
+                        <div className="absolute inset-0 bg-black bg-opacity-60 flex items-center justify-center">
+                          <span className="text-white text-2xl font-bold">+{mediaFiles.length - 4}</span>
+                        </div>
+                      )}
                     </div>
                   ))}
                 </div>
               )}
-
-              {uploading && (
-                <div className="mt-micro flex items-center text-blue-600">
-                  <i className="fas fa-spinner fa-spin mr-2"></i>
-                  Uploading...
-                </div>
-              )}
             </div>
 
-            {/* 3. Dynamic Stats Form (Golf Only for Now) */}
-            {selectedType === 'golf' && (
-              <div>
-                <label className={`${cssClasses.TYPOGRAPHY.LABEL} text-gray-700 block mb-micro`}>
-                  Golf Stats
-                </label>
-                
-                {/* Golf Mode Selection */}
-                <div className="flex space-x-micro mb-base">
-                  <button
-                    onClick={() => setGolfData(prev => ({ ...prev, mode: 'round_recap' }))}
-                    className={`px-base py-micro rounded-lg border-2 transition-all ${
-                      golfData.mode === 'round_recap'
-                        ? 'border-blue-500 bg-blue-50 text-blue-700'
-                        : 'border-gray-300 bg-white text-gray-700 hover:border-gray-400'
-                    }`}
-                  >
-                    Round Recap
-                  </button>
-                  <button
-                    onClick={() => setGolfData(prev => ({ ...prev, mode: 'hole_highlight' }))}
-                    className={`px-base py-micro rounded-lg border-2 transition-all ${
-                      golfData.mode === 'hole_highlight'
-                        ? 'border-blue-500 bg-blue-50 text-blue-700'
-                        : 'border-gray-300 bg-white text-gray-700 hover:border-gray-400'
-                    }`}
-                  >
-                    Hole Highlight
-                  </button>
-                </div>
-
-                {/* Golf Stats Form */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-base">
-                  {golfData.mode === 'round_recap' ? (
-                    <>
-                      <div>
-                        <label className={`${cssClasses.TYPOGRAPHY.CHIP} text-gray-600 block mb-1`}>
-                          Date *
-                        </label>
-                        <input
-                          type="date"
-                          value={golfData.roundData.date}
-                          onChange={(e) => setGolfData(prev => ({
-                            ...prev,
-                            roundData: { ...prev.roundData, date: e.target.value }
-                          }))}
-                          className="w-full px-micro py-micro border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                        />
-                      </div>
-                      <div>
-                        <label className={`${cssClasses.TYPOGRAPHY.CHIP} text-gray-600 block mb-1`}>
-                          Course
-                        </label>
-                        <input
-                          type="text"
-                          placeholder="Course name"
-                          value={golfData.roundData.course}
-                          onChange={(e) => setGolfData(prev => ({
-                            ...prev,
-                            roundData: { ...prev.roundData, course: e.target.value }
-                          }))}
-                          className="w-full px-micro py-micro border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                        />
-                      </div>
-                      <div>
-                        <label className={`${cssClasses.TYPOGRAPHY.CHIP} text-gray-600 block mb-1`}>
-                          Score *
-                        </label>
-                        <input
-                          type="number"
-                          placeholder="Total score"
-                          value={golfData.roundData.grossScore || ''}
-                          onChange={(e) => setGolfData(prev => ({
-                            ...prev,
-                            roundData: { ...prev.roundData, grossScore: e.target.value ? parseInt(e.target.value) : undefined }
-                          }))}
-                          className="w-full px-micro py-micro border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                        />
-                      </div>
-                      <div>
-                        <label className={`${cssClasses.TYPOGRAPHY.CHIP} text-gray-600 block mb-1`}>
-                          Holes
-                        </label>
-                        <select
-                          value={golfData.roundData.holes}
-                          onChange={(e) => setGolfData(prev => ({
-                            ...prev,
-                            roundData: { ...prev.roundData, holes: parseInt(e.target.value) }
-                          }))}
-                          className="w-full px-micro py-micro border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                        >
-                          <option value={9}>9 holes</option>
-                          <option value={18}>18 holes</option>
-                        </select>
-                      </div>
-                      <div>
-                        <label className={`${cssClasses.TYPOGRAPHY.CHIP} text-gray-600 block mb-1`}>
-                          FIR %
-                        </label>
-                        <input
-                          type="number"
-                          placeholder="Fairways hit %"
-                          min="0"
-                          max="100"
-                          value={golfData.roundData.firPercentage || ''}
-                          onChange={(e) => setGolfData(prev => ({
-                            ...prev,
-                            roundData: { ...prev.roundData, firPercentage: e.target.value ? parseFloat(e.target.value) : undefined }
-                          }))}
-                          className="w-full px-micro py-micro border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                        />
-                      </div>
-                      <div>
-                        <label className={`${cssClasses.TYPOGRAPHY.CHIP} text-gray-600 block mb-1`}>
-                          GIR %
-                        </label>
-                        <input
-                          type="number"
-                          placeholder="Greens hit %"
-                          min="0"
-                          max="100"
-                          value={golfData.roundData.girPercentage || ''}
-                          onChange={(e) => setGolfData(prev => ({
-                            ...prev,
-                            roundData: { ...prev.roundData, girPercentage: e.target.value ? parseFloat(e.target.value) : undefined }
-                          }))}
-                          className="w-full px-micro py-micro border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                        />
-                      </div>
-                      <div>
-                        <label className={`${cssClasses.TYPOGRAPHY.CHIP} text-gray-600 block mb-1`}>
-                          Total Putts
-                        </label>
-                        <input
-                          type="number"
-                          placeholder="Total putts"
-                          min="0"
-                          value={golfData.roundData.totalPutts || ''}
-                          onChange={(e) => setGolfData(prev => ({
-                            ...prev,
-                            roundData: { ...prev.roundData, totalPutts: e.target.value ? parseInt(e.target.value) : undefined }
-                          }))}
-                          className="w-full px-micro py-micro border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                        />
-                      </div>
-                    </>
-                  ) : (
-                    <>
-                      <div>
-                        <label className={`${cssClasses.TYPOGRAPHY.CHIP} text-gray-600 block mb-1`}>
-                          Date *
-                        </label>
-                        <input
-                          type="date"
-                          value={golfData.holeData.date}
-                          onChange={(e) => setGolfData(prev => ({
-                            ...prev,
-                            holeData: { ...prev.holeData, date: e.target.value }
-                          }))}
-                          className="w-full px-micro py-micro border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                        />
-                      </div>
-                      <div>
-                        <label className={`${cssClasses.TYPOGRAPHY.CHIP} text-gray-600 block mb-1`}>
-                          Course
-                        </label>
-                        <input
-                          type="text"
-                          placeholder="Course name"
-                          value={golfData.holeData.course}
-                          onChange={(e) => setGolfData(prev => ({
-                            ...prev,
-                            holeData: { ...prev.holeData, course: e.target.value }
-                          }))}
-                          className="w-full px-micro py-micro border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                        />
-                      </div>
-                      <div>
-                        <label className={`${cssClasses.TYPOGRAPHY.CHIP} text-gray-600 block mb-1`}>
-                          Hole # *
-                        </label>
-                        <input
-                          type="number"
-                          min="1"
-                          max="18"
-                          value={golfData.holeData.holeNumber}
-                          onChange={(e) => setGolfData(prev => ({
-                            ...prev,
-                            holeData: { ...prev.holeData, holeNumber: parseInt(e.target.value) }
-                          }))}
-                          className="w-full px-micro py-micro border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                        />
-                      </div>
-                      <div>
-                        <label className={`${cssClasses.TYPOGRAPHY.CHIP} text-gray-600 block mb-1`}>
-                          Par
-                        </label>
-                        <select
-                          value={golfData.holeData.par}
-                          onChange={(e) => setGolfData(prev => ({
-                            ...prev,
-                            holeData: { ...prev.holeData, par: parseInt(e.target.value) }
-                          }))}
-                          className="w-full px-micro py-micro border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                        >
-                          <option value={3}>Par 3</option>
-                          <option value={4}>Par 4</option>
-                          <option value={5}>Par 5</option>
-                        </select>
-                      </div>
-                      <div>
-                        <label className={`${cssClasses.TYPOGRAPHY.CHIP} text-gray-600 block mb-1`}>
-                          Score *
-                        </label>
-                        <input
-                          type="number"
-                          min="1"
-                          placeholder="Hole score"
-                          value={golfData.holeData.score || ''}
-                          onChange={(e) => setGolfData(prev => ({
-                            ...prev,
-                            holeData: { ...prev.holeData, score: e.target.value ? parseInt(e.target.value) : undefined }
-                          }))}
-                          className="w-full px-micro py-micro border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                        />
-                      </div>
-                      <div>
-                        <label className={`${cssClasses.TYPOGRAPHY.CHIP} text-gray-600 block mb-1`}>
-                          Club Used
-                        </label>
-                        <input
-                          type="text"
-                          placeholder="e.g., 7-iron, Driver"
-                          value={golfData.holeData.club}
-                          onChange={(e) => setGolfData(prev => ({
-                            ...prev,
-                            holeData: { ...prev.holeData, club: e.target.value }
-                          }))}
-                          className="w-full px-micro py-micro border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                        />
-                      </div>
-                    </>
-                  )}
-                </div>
-              </div>
-            )}
-
-            {/* 4. Caption & Visibility */}
-            <div>
-              <div className="flex items-center justify-between mb-micro">
-                <label className={`${cssClasses.TYPOGRAPHY.LABEL} text-gray-700`}>
-                  Caption
-                </label>
-                {selectedType === 'golf' && (
-                  <button
-                    onClick={() => setCaption(generateCaption())}
-                    className="text-sm text-blue-600 hover:text-blue-700"
-                  >
-                    Generate from stats
-                  </button>
-                )}
-              </div>
-              <textarea
-                placeholder="Write something..."
-                value={caption}
-                onChange={(e) => setCaption(e.target.value)}
-                rows={3}
-                className="w-full px-base py-micro border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 resize-none"
-              />
-              
-              <div className="flex items-center justify-between mt-micro">
-                <div className="flex items-center space-x-base">
-                  <label className="flex items-center">
-                    <input
-                      type="radio"
-                      name="visibility"
-                      value="public"
-                      checked={visibility === 'public'}
-                      onChange={(e) => setVisibility(e.target.value as 'public' | 'private')}
-                      className="mr-2"
-                    />
-                    <span className={`${cssClasses.TYPOGRAPHY.CHIP} text-gray-700`}>Public</span>
-                  </label>
-                  <label className="flex items-center">
-                    <input
-                      type="radio"
-                      name="visibility"
-                      value="private"
-                      checked={visibility === 'private'}
-                      onChange={(e) => setVisibility(e.target.value as 'public' | 'private')}
-                      className="mr-2"
-                    />
-                    <span className={`${cssClasses.TYPOGRAPHY.CHIP} text-gray-700`}>Private</span>
-                  </label>
-                </div>
+            {/* Mock Engagement */}
+            <div className="px-4 py-3 border-t border-gray-100 flex justify-between text-gray-500">
+              <div className="flex gap-4">
+                <button className="hover:text-blue-600 transition-colors">
+                  <i className="far fa-heart mr-1"></i> Like
+                </button>
+                <button className="hover:text-blue-600 transition-colors">
+                  <i className="far fa-comment mr-1"></i> Comment
+                </button>
+                <button className="hover:text-blue-600 transition-colors">
+                  <i className="fas fa-share mr-1"></i> Share
+                </button>
               </div>
             </div>
           </div>
         </div>
 
-        {/* Footer Buttons */}
-        <div className="flex items-center justify-between p-base border-t border-gray-200">
+        {/* Preview Actions */}
+        <div className="px-6 py-4 border-t border-gray-200 bg-gray-50 flex justify-between">
           <button
-            onClick={handleClose}
-            className="px-base py-micro text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 transition-colors"
+            onClick={onClose}
+            className="px-4 py-2 text-gray-600 hover:text-gray-800 transition-colors"
           >
-            Cancel
+            Edit Post
           </button>
           <button
-            onClick={handleSubmit}
-            disabled={!isValidForSubmission() || isSubmitting}
-            className="px-base py-micro text-sm font-medium text-white bg-blue-600 border border-transparent rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            onClick={onPost}
+            className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
           >
-            {isSubmitting ? (
-              <span className="flex items-center">
-                <i className="fas fa-spinner fa-spin mr-2"></i>
-                Creating...
-              </span>
-            ) : (
-              'Create Post'
-            )}
+            <i className="fas fa-paper-plane mr-2"></i>
+            Post Now
           </button>
         </div>
       </div>

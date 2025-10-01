@@ -11,30 +11,21 @@ if (!supabaseUrl || !supabaseAnonKey) {
 
 // Supabase configuration loaded
 
-// Client-side Supabase client (for browser use) with optimized auth settings
-export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
-  auth: {
-    autoRefreshToken: true,
-    persistSession: true,
-    detectSessionInUrl: true,
-    storage: typeof window !== 'undefined' ? window.localStorage : undefined,
-    flowType: 'pkce', // More secure and faster
-    debug: false, // Suppress auth debug logs
-  },
-  global: {
-    headers: {
-      'x-client-info': 'edge-athlete@1.0.0',
-    },
-  },
-  db: {
-    schema: 'public',
-  },
-  realtime: {
-    params: {
-      eventsPerSecond: 10,
-    },
-  },
-});
+// Client-side Supabase client (for browser use) with SSR-compatible cookie storage
+// This will automatically use cookies instead of localStorage for better SSR compatibility
+let supabaseInstance: ReturnType<typeof createBrowserClient> | null = null;
+
+export function getSupabaseBrowserClient() {
+  if (supabaseInstance) return supabaseInstance;
+
+  supabaseInstance = createBrowserClient(supabaseUrl, supabaseAnonKey);
+  return supabaseInstance;
+}
+
+// For backward compatibility, export as supabase
+export const supabase = typeof window !== 'undefined'
+  ? getSupabaseBrowserClient()
+  : createClient(supabaseUrl, supabaseAnonKey); // Fallback for SSR contexts
 
 // Server-side Supabase client with service role key (bypasses RLS)
 export const supabaseAdmin = supabaseServiceRoleKey 
@@ -60,6 +51,7 @@ export interface Profile {
   nickname?: string;
   phone?: string;
   birthday?: string;
+  birthdate?: string;
   gender?: 'male' | 'female' | 'custom';
   location?: string;
   postal_code?: string;
@@ -70,6 +62,11 @@ export interface Profile {
   username?: string;
   full_name?: string;
   bio?: string;
+  sport?: string;
+  position?: string;
+  school?: string;
+  team?: string;
+  height?: number;
   height_cm?: number;
   weight_kg?: number;
   weight_display?: number;
@@ -79,6 +76,8 @@ export interface Profile {
   social_twitter?: string;
   social_instagram?: string;
   social_facebook?: string;
+  twitter_handle?: string;
+  instagram_handle?: string;
   avatar_url?: string;
 }
 
@@ -136,4 +135,15 @@ export interface Club {
   location?: string;
   created_at: string;
   updated_at: string;
+}
+
+export interface Comment {
+  id: string;
+  post_id: string;
+  profile_id: string;
+  parent_comment_id?: string;
+  content: string;
+  created_at: string;
+  updated_at: string;
+  profile?: Profile;
 }

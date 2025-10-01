@@ -252,7 +252,7 @@ export default function AthleteProfilePage({}: AthleteProfilePageProps) {
               />
             ) : (
               <div className="w-32 h-32 rounded-full bg-blue-500 border-4 border-blue-500 flex items-center justify-center text-white text-3xl font-bold">
-                {getInitials(profile.full_name, profile.first_name, profile.last_name)}
+                {getInitials(formatDisplayName(profile.full_name, profile.first_name, profile.last_name))}
               </div>
             )}
             <div className="absolute -bottom-2 -right-2 bg-green-500 text-white rounded-full w-12 h-12 flex items-center justify-center font-bold text-xl">
@@ -307,21 +307,21 @@ export default function AthleteProfilePage({}: AthleteProfilePageProps) {
               <div className="text-center">
                 <p className="font-semibold text-gray-600">Height</p>
                 <p className="font-bold text-xl mt-1">
-                  {profile.height ? formatHeight(profile.height) : '--'}
+                  {profile.height_cm ? formatHeight(profile.height_cm) : '--'}
                 </p>
               </div>
               <div className="text-center border-l">
                 <p className="font-semibold text-gray-600">Weight</p>
                 <p className="font-bold text-xl mt-1">
-                  {profile.weight_display && profile.weight_unit 
-                    ? formatWeightWithUnit(profile.weight_display, profile.weight_unit) 
+                  {profile.weight_display && profile.weight_unit
+                    ? formatWeightWithUnit(profile.weight_display, profile.weight_unit)
                     : '--'}
                 </p>
               </div>
               <div className="text-center border-l">
                 <p className="font-semibold text-gray-600">Age</p>
                 <p className="font-bold text-xl mt-1">
-                  {profile.birthdate ? formatAge(profile.birthdate) : '--'}
+                  {profile.dob ? formatAge(profile.dob) : '--'}
                 </p>
               </div>
               <div className="text-center border-l">
@@ -349,19 +349,19 @@ export default function AthleteProfilePage({}: AthleteProfilePageProps) {
                 </div>
                 
                 {/* Social Links */}
-                {profile.twitter_handle && (
+                {profile.social_twitter && (
                   <div className="flex items-center gap-3">
                     <i className="fa-brands fa-twitter text-2xl text-blue-500"></i>
                     <span className="text-gray-700 font-medium">
-                      {formatSocialHandleDisplay(profile.twitter_handle)}
+                      {formatSocialHandleDisplay(profile.social_twitter)}
                     </span>
                   </div>
                 )}
-                {profile.instagram_handle && (
+                {profile.social_instagram && (
                   <div className="flex items-center gap-3">
                     <i className="fa-brands fa-instagram text-2xl text-pink-600"></i>
                     <span className="text-gray-700 font-medium">
-                      {formatSocialHandleDisplay(profile.instagram_handle)}
+                      {formatSocialHandleDisplay(profile.social_instagram)}
                     </span>
                   </div>
                 )}

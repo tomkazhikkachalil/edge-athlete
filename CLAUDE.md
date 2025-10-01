@@ -422,6 +422,59 @@ ADMIN_EMAIL=admin@yourdomain.com
 8. **Rate Limiting**: Login endpoint protected against abuse (5 attempts/15 min)
 9. **Session Refresh**: Automatic token refresh prevents unexpected logouts
 
+## Database Count Accuracy Pattern
+
+### Likes and Comments Count Management
+
+**Problem:** Ensuring accurate like/comment counts that sync across pages
+
+**Solution:** Database triggers + API-returned counts + callback chain
+
+```typescript
+// 1. Database: Triggers automatically maintain counts
+CREATE TRIGGER update_likes_count
+  AFTER INSERT OR DELETE ON post_likes
+  FOR EACH ROW
+  EXECUTE FUNCTION update_post_likes_count();
+
+// 2. API: Returns actual database count after mutation
+const { data: post } = await supabase
+  .from('posts')
+  .select('likes_count')
+  .eq('id', postId)
+  .single();
+
+return NextResponse.json({
+  action: 'liked',
+  likesCount: post?.likes_count ?? 0  // Actual DB value
+});
+
+// 3. Component: Separates state updates to prevent cross-contamination
+useEffect(() => {
+  setLocalLikesCount(post.likes_count);
+}, [post.likes_count]);
+
+useEffect(() => {
+  setLocalCommentsCount(post.comments_count);
+}, [post.comments_count]);
+// Note: isLiked is NOT in useEffect - managed by user interaction only
+
+// 4. Callback chain: Syncs counts across components
+// CommentSection → PostCard → Parent (Feed/RecentPosts)
+onCommentCountChange?.(newCount);
+```
+
+**Key Points:**
+- Database is single source of truth
+- Use `?? 0` not `|| 0` for number fields (0 is valid)
+- Separate state updates prevent interference
+- Optimistic updates for UX, then sync with server
+
+**Diagnostic Tools:**
+- `/api/debug/counts` - Compare stored vs actual counts
+- `check-counts.sql` - Quick database check
+- `fix-post-counts.sql` - Recalculate all counts
+
 ## Common Patterns
 
 ### Sending User Notifications

@@ -7,11 +7,10 @@ import { AthleteService } from '@/lib/athleteService';
 import EditProfileTabs from '@/components/EditProfileTabs';
 import { ToastContainer, useToast } from '@/components/Toast';
 import MultiSportHighlights from '@/components/MultiSportHighlights';
-import MultiSportActivity from '@/components/MultiSportActivity';
 import SeasonHighlightsModal from '@/components/SeasonHighlightsModal';
 import PerformanceModal from '@/components/PerformanceModal';
 import LazyImage from '@/components/LazyImage';
-import EnhancedCreatePostModal from '@/components/EnhancedCreatePostModal';
+import CreatePostModal from '@/components/CreatePostModal';
 import RecentPosts from '@/components/RecentPosts';
 import type { AthleteBadge, SeasonHighlight, Performance, Profile } from '@/lib/supabase';
 import { 
@@ -50,9 +49,12 @@ export default function AthleteProfilePage() {
   
   // Create Post Modal state
   const [isCreatePostModalOpen, setIsCreatePostModalOpen] = useState(false);
-  
+
   // Posts count for stats display
   const [postsCount, setPostsCount] = useState(0);
+
+  // Posts refresh key - increment to force RecentPosts to reload
+  const [postsRefreshKey, setPostsRefreshKey] = useState(0);
 
   // Follow stats
   const [followersCount, setFollowersCount] = useState(0);
@@ -911,7 +913,7 @@ export default function AthleteProfilePage() {
               </div>
               <div className="text-center bg-white rounded-lg border border-gray-200 p-4">
                 <div className="text-2xl font-bold text-gray-900 mb-1">
-                  {formatAge(profile?.dob) || getPlaceholder('NO_AGE')}
+                  {formatAge(profile?.dob) || '--'}
                 </div>
                 <div className="text-sm font-medium text-gray-500 uppercase tracking-wide">Age</div>
               </div>
@@ -977,45 +979,23 @@ export default function AthleteProfilePage() {
         </div>
 
         {/* Main content */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          {/* Left Column - Sport Highlights */}
-          <div className="lg:col-span-2">
-            <MultiSportHighlights
-              profileId={user?.id || ''}
-              canEdit={true}
-              onEdit={handleEditSeasonHighlights}
-            />
-            
-            {/* Recent Activity */}
-            <div className="mt-8">
-              <MultiSportActivity
-                profileId={user?.id || ''}
-                canEdit={true}
-                onEdit={(sportKey: string, entityId?: string) => {
-                  if (sportKey === 'golf') {
-                    const performance = performances.find(p => p.id === entityId);
-                    handleEditPerformance(performance);
-                  }
-                }}
-                onDelete={(sportKey: string, entityId: string) => {
-                  if (sportKey === 'golf') {
-                    handleDeletePerformance(entityId);
-                  }
-                }}
-              />
-            </div>
-          </div>
-          
-          {/* Right Column - Recent Posts */}
-          <div className="lg:col-span-1">
-            <RecentPosts
-              profileId={user?.id || ''}
-              currentUserId={user?.id}
-              showCreateButton={true}
-              onCreatePost={() => setIsCreatePostModalOpen(true)}
-              onPostsLoad={(count) => setPostsCount(count)}
-            />
-          </div>
+        <div className="space-y-8">
+          {/* Season Highlights */}
+          <MultiSportHighlights
+            profileId={user?.id || ''}
+            canEdit={true}
+            onEdit={handleEditSeasonHighlights}
+          />
+
+          {/* Posts Feed */}
+          <RecentPosts
+            key={postsRefreshKey}
+            profileId={user?.id || ''}
+            currentUserId={user?.id}
+            showCreateButton={true}
+            onCreatePost={() => setIsCreatePostModalOpen(true)}
+            onPostsLoad={(count) => setPostsCount(count)}
+          />
         </div>
       </div>
 
@@ -1056,13 +1036,16 @@ export default function AthleteProfilePage() {
         onSave={handleSavePerformance}
       />
 
-      {/* Enhanced Create Post Modal */}
-      <EnhancedCreatePostModal
+      {/* Create Post Modal */}
+      <CreatePostModal
         isOpen={isCreatePostModalOpen}
         onClose={() => setIsCreatePostModalOpen(false)}
         userId={user?.id || ''}
-        onPostCreated={() => {
-          // Refresh data to show new post
+        onPostCreated={(post) => {
+          console.log('Post created, refreshing feed...', post);
+          // Force RecentPosts to reload by changing its key
+          setPostsRefreshKey(prev => prev + 1);
+          // Refresh athlete data
           if (user?.id) {
             loadAthleteData(user.id, true);
           }

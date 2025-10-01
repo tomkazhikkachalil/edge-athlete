@@ -26,8 +26,8 @@ export default function SportActivityDetailPage() {
     const checkRoute = async () => {
       try {
         // Check if this is a valid sport
-        const sportDef = getSportDefinition(sportKey);
-        const adapter = getSportAdapter(sportKey);
+        const sportDef = getSportDefinition(sportKey as any);
+        const adapter = getSportAdapter(sportKey as any);
         
         if (!sportDef) {
           setNotFound(true);
@@ -90,8 +90,8 @@ export default function SportActivityDetailPage() {
   }
 
   // This is a future sport activity detail page
-  const sportDef = getSportDefinition(sportKey);
-  const adapter = getSportAdapter(sportKey);
+  const sportDef = getSportDefinition(sportKey as any);
+  const adapter = getSportAdapter(sportKey as any);
 
   return (
     <div className="min-h-screen bg-gray-50">

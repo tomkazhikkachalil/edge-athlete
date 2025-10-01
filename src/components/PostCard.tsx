@@ -1,9 +1,11 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { formatDistanceToNow } from 'date-fns';
 import { useRouter } from 'next/navigation';
 import LazyImage from './LazyImage';
+import ConfirmModal from './ConfirmModal';
+import CommentSection from './CommentSection';
 import { getSportName, getSportIcon, getSportColor } from '@/lib/config/sports-config';
 import { formatDisplayName, getInitials } from '@/lib/formatters';
 
@@ -34,6 +36,9 @@ interface Post {
   profile: Profile;
   media: PostMedia[];
   likes?: { profile_id: string }[];
+  tags?: string[];
+  hashtags?: string[];
+  golf_round?: any;
 }
 
 interface PostCardProps {
@@ -41,21 +46,38 @@ interface PostCardProps {
   currentUserId?: string;
   onLike?: (postId: string) => void;
   onComment?: (postId: string) => void;
+  onDelete?: (postId: string) => void;
+  onCommentCountChange?: (postId: string, newCount: number) => void;
   showActions?: boolean;
 }
 
-export default function PostCard({ 
-  post, 
-  currentUserId, 
-  onLike, 
-  onComment, 
-  showActions = true 
+export default function PostCard({
+  post,
+  currentUserId,
+  onLike,
+  onComment,
+  onDelete,
+  onCommentCountChange,
+  showActions = true
 }: PostCardProps) {
   const router = useRouter();
   const [currentMediaIndex, setCurrentMediaIndex] = useState(0);
   const [isLiked, setIsLiked] = useState(
     post.likes?.some(like => like.profile_id === currentUserId) || false
   );
+  const [localLikesCount, setLocalLikesCount] = useState(post.likes_count);
+  const [localCommentsCount, setLocalCommentsCount] = useState(post.comments_count);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+
+  // Update local likes count when post prop changes (but not isLiked - that's managed by user interaction)
+  useEffect(() => {
+    setLocalLikesCount(post.likes_count);
+  }, [post.likes_count]);
+
+  // Update local comments count when post prop changes
+  useEffect(() => {
+    setLocalCommentsCount(post.comments_count);
+  }, [post.comments_count]);
 
   const displayName = formatDisplayName(
     post.profile.full_name,
@@ -70,8 +92,13 @@ export default function PostCard({
 
   const handleLike = () => {
     if (onLike) {
+      // Optimistically update UI immediately for better UX
+      const newIsLiked = !isLiked;
+      setIsLiked(newIsLiked);
+      setLocalLikesCount(newIsLiked ? localLikesCount + 1 : localLikesCount - 1);
+
+      // Call parent handler which will update with actual count from server
       onLike(post.id);
-      setIsLiked(!isLiked);
     }
   };
 
@@ -80,6 +107,30 @@ export default function PostCard({
       onComment(post.id);
     }
   };
+
+  const handleCommentCountChange = (newCount: number) => {
+    setLocalCommentsCount(newCount);
+    if (onCommentCountChange) {
+      onCommentCountChange(post.id, newCount);
+    }
+  };
+
+  const handleDeleteClick = () => {
+    setShowDeleteConfirm(true);
+  };
+
+  const handleDeleteConfirm = () => {
+    if (onDelete) {
+      onDelete(post.id);
+    }
+    setShowDeleteConfirm(false);
+  };
+
+  const handleDeleteCancel = () => {
+    setShowDeleteConfirm(false);
+  };
+
+  const isOwner = currentUserId === post.profile.id;
 
   const nextMedia = () => {
     if (post.media.length > 1) {
@@ -97,8 +148,15 @@ export default function PostCard({
     <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
       {/* Header */}
       <div className="p-base flex items-center justify-between">
-        <button 
-          onClick={() => router.push(`/athlete/${post.profile.id}`)}
+        <button
+          onClick={() => {
+            // Navigate to own profile page if viewing own post, otherwise to athlete's profile
+            if (currentUserId === post.profile.id) {
+              router.push('/athlete');
+            } else {
+              router.push(`/athlete/${post.profile.id}`);
+            }
+          }}
           className="flex items-center gap-micro hover:bg-gray-50 p-1 rounded-lg transition-colors"
         >
           {/* Profile Avatar */}
@@ -135,30 +193,45 @@ export default function PostCard({
           </div>
         </button>
 
-        {/* Privacy indicator */}
-        {post.visibility === 'private' && (
-          <div className="text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded">
-            Private
-          </div>
-        )}
+        <div className="flex items-center gap-2">
+          {/* Privacy indicator */}
+          {post.visibility === 'private' && (
+            <div className="text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded">
+              Private
+            </div>
+          )}
+
+          {/* Delete button - only show for post owner */}
+          {isOwner && (
+            <button
+              onClick={handleDeleteClick}
+              className="text-gray-400 hover:text-red-600 transition-colors p-2 rounded-full hover:bg-red-50"
+              title="Delete post"
+            >
+              <i className="fas fa-trash text-sm"></i>
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Media */}
       {post.media && post.media.length > 0 && (
-        <div className="relative">
-          <div className="aspect-square bg-gray-100">
+        <div className="relative bg-gray-100">
+          <div className="relative w-full">
             {post.media[currentMediaIndex].media_type === 'image' ? (
               <LazyImage
                 src={post.media[currentMediaIndex].media_url}
                 alt="Post media"
-                className="w-full h-full object-cover"
+                className="w-full h-auto object-contain"
                 width={600}
                 height={600}
+                style={{ maxHeight: '600px' }}
               />
             ) : (
               <video
                 src={post.media[currentMediaIndex].media_url}
-                className="w-full h-full object-cover"
+                className="w-full h-auto"
+                style={{ maxHeight: '600px' }}
                 controls
               />
             )}
@@ -207,7 +280,7 @@ export default function PostCard({
               }`}
             >
               <i className={`${isLiked ? 'fas' : 'far'} fa-heart`}></i>
-              <span>{post.likes_count}</span>
+              <span>{localLikesCount}</span>
             </button>
             
             <button
@@ -215,7 +288,7 @@ export default function PostCard({
               className="flex items-center gap-1 text-sm text-gray-600 hover:text-blue-500 transition-colors"
             >
               <i className="far fa-comment"></i>
-              <span>{post.comments_count}</span>
+              <span>{localCommentsCount}</span>
             </button>
             
             <button className="flex items-center gap-1 text-sm text-gray-600 hover:text-green-500 transition-colors">
@@ -230,6 +303,77 @@ export default function PostCard({
         {/* Caption */}
         {post.caption && (
           <p className="text-gray-900 text-sm mb-micro">{post.caption}</p>
+        )}
+
+        {/* Hashtags */}
+        {post.hashtags && post.hashtags.length > 0 && (
+          <div className="flex flex-wrap gap-1 mb-micro">
+            {post.hashtags.map((hashtag, index) => (
+              <span
+                key={index}
+                className="text-blue-600 hover:text-blue-700 cursor-pointer text-sm"
+              >
+                {hashtag}
+              </span>
+            ))}
+          </div>
+        )}
+
+        {/* Tags */}
+        {post.tags && post.tags.length > 0 && (
+          <div className="flex flex-wrap gap-1 mb-micro">
+            {post.tags.map((tag, index) => (
+              <span
+                key={index}
+                className="px-2 py-1 bg-gray-100 text-gray-700 text-xs rounded-full font-medium"
+              >
+                {tag}
+              </span>
+            ))}
+          </div>
+        )}
+
+        {/* Golf Round Data */}
+        {post.sport_key === 'golf' && post.golf_round && (
+          <div className="bg-green-50 rounded-lg p-micro mt-micro border border-green-200">
+            <div className="flex items-center gap-1 text-xs text-green-700 mb-1">
+              <i className="fas fa-golf-ball"></i>
+              <span className="font-medium">Golf Round</span>
+            </div>
+            <div className="grid grid-cols-2 gap-2 text-xs text-green-800">
+              {post.golf_round.course && (
+                <div>
+                  <span className="font-medium">Course:</span> {post.golf_round.course}
+                </div>
+              )}
+              {post.golf_round.gross_score && (
+                <div>
+                  <span className="font-medium">Score:</span> {post.golf_round.gross_score}
+                  {post.golf_round.par && ` (${post.golf_round.gross_score - post.golf_round.par >= 0 ? '+' : ''}${post.golf_round.gross_score - post.golf_round.par})`}
+                </div>
+              )}
+              {post.golf_round.total_putts && (
+                <div>
+                  <span className="font-medium">Putts:</span> {post.golf_round.total_putts}
+                </div>
+              )}
+              {post.golf_round.fir_percentage !== null && (
+                <div>
+                  <span className="font-medium">FIR:</span> {Math.round(post.golf_round.fir_percentage)}%
+                </div>
+              )}
+              {post.golf_round.gir_percentage !== null && (
+                <div>
+                  <span className="font-medium">GIR:</span> {Math.round(post.golf_round.gir_percentage)}%
+                </div>
+              )}
+              {post.golf_round.holes && (
+                <div>
+                  <span className="font-medium">Holes:</span> {post.golf_round.holes}
+                </div>
+              )}
+            </div>
+          </div>
         )}
 
         {/* Sport Stats */}
@@ -270,6 +414,25 @@ export default function PostCard({
           </div>
         )}
       </div>
+
+      {/* Comments Section */}
+      <CommentSection
+        postId={post.id}
+        initialCommentsCount={post.comments_count}
+        onCommentCountChange={handleCommentCountChange}
+      />
+
+      {/* Delete Confirmation Modal */}
+      <ConfirmModal
+        isOpen={showDeleteConfirm}
+        title="Delete Post"
+        message="Are you sure you want to permanently delete this post? This action cannot be undone."
+        confirmText="Delete"
+        cancelText="Cancel"
+        confirmButtonClass="bg-red-600 hover:bg-red-700"
+        onConfirm={handleDeleteConfirm}
+        onCancel={handleDeleteCancel}
+      />
     </div>
   );
 }
