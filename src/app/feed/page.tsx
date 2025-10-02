@@ -6,9 +6,10 @@ import { useRouter } from 'next/navigation';
 import PostCard from '@/components/PostCard';
 import CreatePostModal from '@/components/CreatePostModal';
 import EditPostModal from '@/components/EditPostModal';
+import SearchBar from '@/components/SearchBar';
 import FollowButton from '@/components/FollowButton';
 import { ToastContainer, useToast } from '@/components/Toast';
-import { formatDisplayName } from '@/lib/formatters';
+import { formatDisplayName, getInitials } from '@/lib/formatters';
 
 interface Post {
   id: string;
@@ -195,15 +196,20 @@ export default function FeedPage() {
           <div className="flex items-center justify-between">
             {/* Left - Logo & Navigation */}
             <div className="flex items-center gap-6">
-              <button
-                onClick={() => router.push('/athlete')}
-                className="text-gray-600 hover:text-gray-900 transition-colors"
-              >
-                <i className="fas fa-arrow-left"></i>
-              </button>
               <h1 className="text-xl font-bold text-gray-900">Edge Athlete</h1>
               <nav className="hidden md:flex items-center gap-6">
-                <a href="#" className="text-gray-700 hover:text-gray-900 font-medium">Home</a>
+                <button
+                  onClick={() => router.push('/feed')}
+                  className="text-blue-600 hover:text-blue-700 font-medium border-b-2 border-blue-600"
+                >
+                  Feed
+                </button>
+                <button
+                  onClick={() => router.push('/athlete')}
+                  className="text-gray-700 hover:text-gray-900 font-medium"
+                >
+                  Profile
+                </button>
                 <a href="#" className="text-gray-700 hover:text-gray-900 font-medium">Explore</a>
                 <a href="#" className="text-gray-700 hover:text-gray-900 font-medium">Following</a>
               </nav>
@@ -211,14 +217,7 @@ export default function FeedPage() {
 
             {/* Center - Search */}
             <div className="hidden md:block flex-1 max-w-md mx-8">
-              <div className="relative">
-                <input
-                  type="text"
-                  placeholder="Search athletes, sports, events..."
-                  className="w-full pl-10 pr-4 py-2 bg-gray-100 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                />
-                <i className="fas fa-search absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400"></i>
-              </div>
+              <SearchBar />
             </div>
 
             {/* Right - Actions & Profile */}
@@ -237,11 +236,32 @@ export default function FeedPage() {
                 <i className="fas fa-plus"></i>
                 Post
               </button>
-              <div className="flex items-center gap-2">
-                <div className="w-8 h-8 bg-gray-300 rounded-full"></div>
-                <span className="hidden md:block text-sm text-gray-700">
-                  {formatDisplayName(profile?.full_name, profile?.first_name, profile?.last_name)}
-                </span>
+
+              {/* Profile Dropdown */}
+              <div className="relative">
+                <button
+                  onClick={() => router.push('/athlete')}
+                  className="flex items-center gap-2 hover:bg-gray-100 rounded-lg p-1 transition-colors"
+                  title="Go to Profile"
+                >
+                  {profile?.avatar_url ? (
+                    <img
+                      src={profile.avatar_url}
+                      alt="Profile"
+                      className="w-8 h-8 rounded-full object-cover"
+                    />
+                  ) : (
+                    <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center">
+                      <span className="text-white text-sm font-semibold">
+                        {getInitials(formatDisplayName(profile?.full_name, profile?.first_name, profile?.last_name))}
+                      </span>
+                    </div>
+                  )}
+                  <span className="hidden md:block text-sm font-medium text-gray-700">
+                    {formatDisplayName(profile?.full_name, profile?.first_name, profile?.last_name)}
+                  </span>
+                  <i className="fas fa-chevron-down text-xs text-gray-500"></i>
+                </button>
               </div>
             </div>
           </div>
