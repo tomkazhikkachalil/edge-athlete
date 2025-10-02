@@ -26,8 +26,8 @@ export default function MultiSportActivity({ profileId, canEdit = true, onEdit, 
   const loadSportActivity = async (sportKey: string) => {
     try {
       setLoading(prev => ({ ...prev, [sportKey]: true }));
-      
-      const adapter = getSportAdapter(sportKey);
+
+      const adapter = getSportAdapter(sportKey as any);
       const result = await adapter.getRecentActivity(profileId, 10);
       
       setActivityData(prev => ({
@@ -62,8 +62,8 @@ export default function MultiSportActivity({ profileId, canEdit = true, onEdit, 
   };
 
   const handleAddActivity = () => {
-    const adapter = getSportAdapter(activeSportKey);
-    
+    const adapter = getSportAdapter(activeSportKey as any);
+
     if (adapter.isEnabled()) {
       onEdit?.(activeSportKey);
     } else {
@@ -73,24 +73,24 @@ export default function MultiSportActivity({ profileId, canEdit = true, onEdit, 
   };
 
   const handleEditActivity = (entityId: string) => {
-    const adapter = getSportAdapter(activeSportKey);
-    
+    const adapter = getSportAdapter(activeSportKey as any);
+
     if (adapter.isEnabled()) {
       onEdit?.(activeSportKey, entityId);
     }
   };
 
   const handleDeleteActivity = (entityId: string) => {
-    const adapter = getSportAdapter(activeSportKey);
-    
+    const adapter = getSportAdapter(activeSportKey as any);
+
     if (adapter.isEnabled()) {
       onDelete?.(activeSportKey, entityId);
     }
   };
 
   const renderTabButton = (sportKey: string) => {
-    const sportDef = getSportDefinition(sportKey);
-    const adapter = getSportAdapter(sportKey);
+    const sportDef = getSportDefinition(sportKey as any);
+    const adapter = getSportAdapter(sportKey as any);
     const isActive = activeSportKey === sportKey;
     const isEnabled = adapter.isEnabled();
     

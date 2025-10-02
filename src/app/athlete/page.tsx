@@ -200,9 +200,10 @@ export default function AthleteProfilePage() {
   };
 
 
-  const handleEditSeasonHighlights = (sportKey: string, existingData?: SeasonHighlight) => {
+  const handleEditSeasonHighlights = (sportKey: string, entityId?: string) => {
     setEditingSportKey(sportKey);
-    setEditingHighlight(existingData);
+    // entityId can be used to fetch existing data if needed
+    setEditingHighlight(undefined);
     setIsSeasonHighlightsModalOpen(true);
   };
 

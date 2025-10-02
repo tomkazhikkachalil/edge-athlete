@@ -69,7 +69,12 @@ export default function PostCard({
   const [localCommentsCount, setLocalCommentsCount] = useState(post.comments_count);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
-  // Update local likes count when post prop changes (but not isLiked - that's managed by user interaction)
+  // Update isLiked state when post.likes array changes
+  useEffect(() => {
+    setIsLiked(post.likes?.some(like => like.profile_id === currentUserId) || false);
+  }, [post.likes, currentUserId]);
+
+  // Update local likes count when post prop changes
   useEffect(() => {
     setLocalLikesCount(post.likes_count);
   }, [post.likes_count]);
@@ -92,10 +97,9 @@ export default function PostCard({
 
   const handleLike = () => {
     if (onLike) {
-      // Optimistically update UI immediately for better UX
-      const newIsLiked = !isLiked;
-      setIsLiked(newIsLiked);
-      setLocalLikesCount(newIsLiked ? localLikesCount + 1 : localLikesCount - 1);
+      // Only optimistically update the heart icon, not the count
+      // The count will be updated from the server response via props
+      setIsLiked(!isLiked);
 
       // Call parent handler which will update with actual count from server
       onLike(post.id);
@@ -333,46 +337,332 @@ export default function PostCard({
           </div>
         )}
 
-        {/* Golf Round Data */}
+        {/* Golf Round Data - Compact View */}
         {post.sport_key === 'golf' && post.golf_round && (
-          <div className="bg-green-50 rounded-lg p-micro mt-micro border border-green-200">
-            <div className="flex items-center gap-1 text-xs text-green-700 mb-1">
-              <i className="fas fa-golf-ball"></i>
-              <span className="font-medium">Golf Round</span>
-            </div>
-            <div className="grid grid-cols-2 gap-2 text-xs text-green-800">
-              {post.golf_round.course && (
-                <div>
-                  <span className="font-medium">Course:</span> {post.golf_round.course}
+          <div className="bg-gradient-to-br from-green-50 to-green-100 rounded-lg p-3 mt-2 border border-green-200">
+            {/* Compact Header with Score */}
+            <div className="flex items-center justify-between mb-2">
+              <div className="flex-1">
+                <div className="flex items-center gap-2 mb-1">
+                  <i className="fas fa-golf-ball text-green-600 text-sm"></i>
+                  <span className="font-bold text-green-900 text-sm">{post.golf_round.course}</span>
                 </div>
-              )}
-              {post.golf_round.gross_score && (
-                <div>
-                  <span className="font-medium">Score:</span> {post.golf_round.gross_score}
-                  {post.golf_round.par && ` (${post.golf_round.gross_score - post.golf_round.par >= 0 ? '+' : ''}${post.golf_round.gross_score - post.golf_round.par})`}
+                <div className="flex items-center gap-3 text-xs text-green-700">
+                  {post.golf_round.date && (
+                    <span>{new Date(post.golf_round.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</span>
+                  )}
+                  {post.golf_round.tee && <span>• {post.golf_round.tee} Tees</span>}
+                  {post.golf_round.holes && <span>• {post.golf_round.holes} Holes</span>}
                 </div>
-              )}
-              {post.golf_round.total_putts && (
-                <div>
-                  <span className="font-medium">Putts:</span> {post.golf_round.total_putts}
-                </div>
-              )}
-              {post.golf_round.fir_percentage !== null && (
-                <div>
-                  <span className="font-medium">FIR:</span> {Math.round(post.golf_round.fir_percentage)}%
-                </div>
-              )}
-              {post.golf_round.gir_percentage !== null && (
-                <div>
-                  <span className="font-medium">GIR:</span> {Math.round(post.golf_round.gir_percentage)}%
-                </div>
-              )}
-              {post.golf_round.holes && (
-                <div>
-                  <span className="font-medium">Holes:</span> {post.golf_round.holes}
+              </div>
+
+              {/* Large Score Badge */}
+              {post.golf_round.gross_score !== null && post.golf_round.gross_score !== undefined && (
+                <div className="text-right ml-3">
+                  <div className="bg-white rounded-lg px-3 py-1 shadow-sm">
+                    <div className="text-2xl font-bold text-green-900 leading-none">{post.golf_round.gross_score}</div>
+                    {post.golf_round.par && (
+                      <div className={`text-xs font-medium ${post.golf_round.gross_score - post.golf_round.par < 0 ? 'text-blue-600' : 'text-red-600'}`}>
+                        {post.golf_round.gross_score - post.golf_round.par >= 0 ? '+' : ''}{post.golf_round.gross_score - post.golf_round.par}
+                      </div>
+                    )}
+                  </div>
                 </div>
               )}
             </div>
+
+            {/* Inline Stats Bar */}
+            {(post.golf_round.total_putts || post.golf_round.fir_percentage !== null || post.golf_round.gir_percentage !== null) && (
+              <div className="flex items-center gap-4 text-xs bg-white/50 rounded px-3 py-1.5 mb-2">
+                {post.golf_round.total_putts && (
+                  <div className="flex items-center gap-1">
+                    <span className="text-green-700">Putts:</span>
+                    <span className="font-semibold text-green-900">{post.golf_round.total_putts}</span>
+                  </div>
+                )}
+                {post.golf_round.fir_percentage !== null && post.golf_round.fir_percentage !== undefined && (
+                  <div className="flex items-center gap-1">
+                    <span className="text-green-700">FIR:</span>
+                    <span className="font-semibold text-green-900">{Math.round(post.golf_round.fir_percentage)}%</span>
+                  </div>
+                )}
+                {post.golf_round.gir_percentage !== null && post.golf_round.gir_percentage !== undefined && (
+                  <div className="flex items-center gap-1">
+                    <span className="text-green-700">GIR:</span>
+                    <span className="font-semibold text-green-900">{Math.round(post.golf_round.gir_percentage)}%</span>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Collapsible Traditional Scorecard */}
+            {post.golf_round.golf_holes && post.golf_round.golf_holes.length > 0 && (
+              <details className="group">
+                <summary className="cursor-pointer text-xs font-medium text-green-700 hover:text-green-900 flex items-center gap-1 py-1">
+                  <i className="fas fa-chevron-right group-open:rotate-90 transition-transform text-[10px]"></i>
+                  View Scorecard ({post.golf_round.golf_holes.length} holes)
+                </summary>
+                <div className="mt-3">
+                  {/* Traditional Scorecard Layout */}
+                  <div className="bg-white rounded border border-gray-300 overflow-hidden">
+                    {/* Front 9 */}
+                    {post.golf_round.golf_holes.filter((h: any) => h.hole_number <= 9).length > 0 && (
+                      <div className="border-b-2 border-gray-400">
+                        <table className="w-full text-[10px]">
+                          <thead>
+                            <tr className="bg-green-100 border-b border-gray-300">
+                              <th className="text-left py-1 px-2 font-semibold text-green-900">HOLE</th>
+                              {post.golf_round.golf_holes
+                                .filter((h: any) => h.hole_number <= 9)
+                                .map((hole: any) => (
+                                  <th key={hole.hole_number} className="text-center py-1 px-1 font-bold text-green-900">
+                                    {hole.hole_number}
+                                  </th>
+                                ))}
+                              <th className="text-center py-1 px-2 font-bold text-green-900 bg-green-200">OUT</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {/* Yardage Row */}
+                            <tr className="border-b border-gray-200 bg-gray-50">
+                              <td className="py-1 px-2 font-medium text-gray-700">YDS</td>
+                              {post.golf_round.golf_holes
+                                .filter((h: any) => h.hole_number <= 9)
+                                .map((hole: any) => (
+                                  <td key={hole.hole_number} className="text-center py-1 px-1 text-gray-600">
+                                    {hole.distance_yards || '-'}
+                                  </td>
+                                ))}
+                              <td className="text-center py-1 px-2 font-medium text-gray-700 bg-gray-100">
+                                {post.golf_round.golf_holes
+                                  .filter((h: any) => h.hole_number <= 9)
+                                  .reduce((sum: number, h: any) => sum + (h.distance_yards || 0), 0) || '-'}
+                              </td>
+                            </tr>
+                            {/* Par Row */}
+                            <tr className="border-b border-gray-300 bg-yellow-50">
+                              <td className="py-1 px-2 font-semibold text-gray-800">PAR</td>
+                              {post.golf_round.golf_holes
+                                .filter((h: any) => h.hole_number <= 9)
+                                .map((hole: any) => (
+                                  <td key={hole.hole_number} className="text-center py-1 px-1 font-semibold text-gray-800">
+                                    {hole.par}
+                                  </td>
+                                ))}
+                              <td className="text-center py-1 px-2 font-bold text-gray-800 bg-yellow-100">
+                                {post.golf_round.golf_holes
+                                  .filter((h: any) => h.hole_number <= 9)
+                                  .reduce((sum: number, h: any) => sum + (h.par || 0), 0)}
+                              </td>
+                            </tr>
+                            {/* Score Row */}
+                            <tr className="border-b-2 border-gray-400">
+                              <td className="py-1.5 px-2 font-bold text-gray-900">SCORE</td>
+                              {post.golf_round.golf_holes
+                                .filter((h: any) => h.hole_number <= 9)
+                                .map((hole: any) => {
+                                  const diff = hole.strokes - hole.par;
+                                  let bgColor = 'bg-white';
+                                  let textColor = 'text-gray-900';
+                                  let border = '';
+
+                                  if (diff === -2) { // Eagle
+                                    border = 'ring-2 ring-blue-500 ring-inset';
+                                    textColor = 'text-blue-600 font-black';
+                                  } else if (diff === -1) { // Birdie
+                                    border = 'ring-1 ring-blue-400 ring-inset';
+                                    textColor = 'text-blue-600 font-bold';
+                                  } else if (diff === 1) { // Bogey
+                                    border = 'border border-red-400';
+                                    textColor = 'text-red-600 font-semibold';
+                                  } else if (diff >= 2) { // Double+
+                                    border = 'ring-2 ring-red-500 ring-inset';
+                                    textColor = 'text-red-600 font-bold';
+                                  } else { // Par
+                                    textColor = 'text-gray-900 font-semibold';
+                                  }
+
+                                  return (
+                                    <td key={hole.hole_number} className="text-center py-1 px-1">
+                                      <div className={`${bgColor} ${textColor} ${border} rounded mx-auto w-6 h-6 flex items-center justify-center`}>
+                                        {hole.strokes}
+                                      </div>
+                                    </td>
+                                  );
+                                })}
+                              <td className="text-center py-1.5 px-2 bg-blue-50">
+                                <span className="font-bold text-blue-900 text-sm">
+                                  {post.golf_round.golf_holes
+                                    .filter((h: any) => h.hole_number <= 9)
+                                    .reduce((sum: number, h: any) => sum + (h.strokes || 0), 0)}
+                                </span>
+                              </td>
+                            </tr>
+                            {/* Putts Row */}
+                            <tr className="bg-gray-50">
+                              <td className="py-1 px-2 text-[9px] text-gray-600">Putts</td>
+                              {post.golf_round.golf_holes
+                                .filter((h: any) => h.hole_number <= 9)
+                                .map((hole: any) => (
+                                  <td key={hole.hole_number} className="text-center py-1 px-1 text-gray-600">
+                                    {hole.putts || '-'}
+                                  </td>
+                                ))}
+                              <td className="text-center py-1 px-2 text-gray-700 bg-gray-100">
+                                {post.golf_round.golf_holes
+                                  .filter((h: any) => h.hole_number <= 9)
+                                  .reduce((sum: number, h: any) => sum + (h.putts || 0), 0) || '-'}
+                              </td>
+                            </tr>
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+
+                    {/* Back 9 */}
+                    {post.golf_round.golf_holes.filter((h: any) => h.hole_number > 9).length > 0 && (
+                      <div>
+                        <table className="w-full text-[10px]">
+                          <thead>
+                            <tr className="bg-green-100 border-b border-gray-300">
+                              <th className="text-left py-1 px-2 font-semibold text-green-900">HOLE</th>
+                              {post.golf_round.golf_holes
+                                .filter((h: any) => h.hole_number > 9)
+                                .map((hole: any) => (
+                                  <th key={hole.hole_number} className="text-center py-1 px-1 font-bold text-green-900">
+                                    {hole.hole_number}
+                                  </th>
+                                ))}
+                              <th className="text-center py-1 px-2 font-bold text-green-900 bg-green-200">IN</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {/* Yardage */}
+                            <tr className="border-b border-gray-200 bg-gray-50">
+                              <td className="py-1 px-2 font-medium text-gray-700">YDS</td>
+                              {post.golf_round.golf_holes
+                                .filter((h: any) => h.hole_number > 9)
+                                .map((hole: any) => (
+                                  <td key={hole.hole_number} className="text-center py-1 px-1 text-gray-600">
+                                    {hole.distance_yards || '-'}
+                                  </td>
+                                ))}
+                              <td className="text-center py-1 px-2 font-medium text-gray-700 bg-gray-100">
+                                {post.golf_round.golf_holes
+                                  .filter((h: any) => h.hole_number > 9)
+                                  .reduce((sum: number, h: any) => sum + (h.distance_yards || 0), 0) || '-'}
+                              </td>
+                            </tr>
+                            {/* Par */}
+                            <tr className="border-b border-gray-300 bg-yellow-50">
+                              <td className="py-1 px-2 font-semibold text-gray-800">PAR</td>
+                              {post.golf_round.golf_holes
+                                .filter((h: any) => h.hole_number > 9)
+                                .map((hole: any) => (
+                                  <td key={hole.hole_number} className="text-center py-1 px-1 font-semibold text-gray-800">
+                                    {hole.par}
+                                  </td>
+                                ))}
+                              <td className="text-center py-1 px-2 font-bold text-gray-800 bg-yellow-100">
+                                {post.golf_round.golf_holes
+                                  .filter((h: any) => h.hole_number > 9)
+                                  .reduce((sum: number, h: any) => sum + (h.par || 0), 0)}
+                              </td>
+                            </tr>
+                            {/* Score */}
+                            <tr className="border-b border-gray-300">
+                              <td className="py-1.5 px-2 font-bold text-gray-900">SCORE</td>
+                              {post.golf_round.golf_holes
+                                .filter((h: any) => h.hole_number > 9)
+                                .map((hole: any) => {
+                                  const diff = hole.strokes - hole.par;
+                                  let textColor = 'text-gray-900';
+                                  let border = '';
+
+                                  if (diff === -2) {
+                                    border = 'ring-2 ring-blue-500 ring-inset';
+                                    textColor = 'text-blue-600 font-black';
+                                  } else if (diff === -1) {
+                                    border = 'ring-1 ring-blue-400 ring-inset';
+                                    textColor = 'text-blue-600 font-bold';
+                                  } else if (diff === 1) {
+                                    border = 'border border-red-400';
+                                    textColor = 'text-red-600 font-semibold';
+                                  } else if (diff >= 2) {
+                                    border = 'ring-2 ring-red-500 ring-inset';
+                                    textColor = 'text-red-600 font-bold';
+                                  } else {
+                                    textColor = 'text-gray-900 font-semibold';
+                                  }
+
+                                  return (
+                                    <td key={hole.hole_number} className="text-center py-1 px-1">
+                                      <div className={`bg-white ${textColor} ${border} rounded mx-auto w-6 h-6 flex items-center justify-center`}>
+                                        {hole.strokes}
+                                      </div>
+                                    </td>
+                                  );
+                                })}
+                              <td className="text-center py-1.5 px-2 bg-blue-50">
+                                <span className="font-bold text-blue-900 text-sm">
+                                  {post.golf_round.golf_holes
+                                    .filter((h: any) => h.hole_number > 9)
+                                    .reduce((sum: number, h: any) => sum + (h.strokes || 0), 0)}
+                                </span>
+                              </td>
+                            </tr>
+                            {/* Putts */}
+                            <tr className="bg-gray-50">
+                              <td className="py-1 px-2 text-[9px] text-gray-600">Putts</td>
+                              {post.golf_round.golf_holes
+                                .filter((h: any) => h.hole_number > 9)
+                                .map((hole: any) => (
+                                  <td key={hole.hole_number} className="text-center py-1 px-1 text-gray-600">
+                                    {hole.putts || '-'}
+                                  </td>
+                                ))}
+                              <td className="text-center py-1 px-2 text-gray-700 bg-gray-100">
+                                {post.golf_round.golf_holes
+                                  .filter((h: any) => h.hole_number > 9)
+                                  .reduce((sum: number, h: any) => sum + (h.putts || 0), 0) || '-'}
+                              </td>
+                            </tr>
+                          </tbody>
+                        </table>
+
+                        {/* Total Score Row */}
+                        <div className="bg-blue-100 border-t-2 border-blue-300 px-2 py-1.5 flex justify-between items-center">
+                          <span className="text-xs font-bold text-blue-900">TOTAL SCORE</span>
+                          <span className="text-lg font-black text-blue-900">
+                            {post.golf_round.gross_score}
+                          </span>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Legend */}
+                  <div className="mt-2 flex items-center gap-3 text-[9px] text-gray-600">
+                    <div className="flex items-center gap-1">
+                      <div className="w-4 h-4 rounded ring-2 ring-blue-500 ring-inset"></div>
+                      <span>Eagle</span>
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <div className="w-4 h-4 rounded ring-1 ring-blue-400 ring-inset"></div>
+                      <span>Birdie</span>
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <div className="w-4 h-4 rounded border border-red-400"></div>
+                      <span>Bogey</span>
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <div className="w-4 h-4 rounded ring-2 ring-red-500 ring-inset"></div>
+                      <span>Double+</span>
+                    </div>
+                  </div>
+                </div>
+              </details>
+            )}
           </div>
         )}
 

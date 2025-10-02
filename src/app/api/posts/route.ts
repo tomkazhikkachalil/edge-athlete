@@ -147,8 +147,11 @@ export async function POST(request: NextRequest) {
       if (roundId) {
         postData.round_id = roundId;
         postData.golf_mode = 'round_recap';
+        console.log('[POST] Adding round_id to post:', roundId);
       }
     }
+
+    console.log('[POST] Final postData before insert:', JSON.stringify(postData, null, 2));
 
     const { data: post, error: postError } = await supabase
       .from('posts')
@@ -158,12 +161,22 @@ export async function POST(request: NextRequest) {
 
     if (postError) {
       console.error('[POST] Post creation error:', postError);
+      console.error('[POST] Error details:', {
+        message: postError.message,
+        details: postError.details,
+        hint: postError.hint,
+        code: postError.code
+      });
       return NextResponse.json({
         error: 'Failed to create post',
         details: postError.message,
-        code: postError.code
+        code: postError.code,
+        hint: postError.hint
       }, { status: 500 });
     }
+
+    console.log('[POST] Post created successfully with ID:', post.id);
+    console.log('[POST] Post round_id:', post.round_id);
 
     // Add media files if provided
     if (media && media.length > 0) {
@@ -255,19 +268,45 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Failed to fetch posts' }, { status: 500 });
     }
 
-    // Fetch golf rounds for posts that have round_id
+    // Fetch golf rounds with hole-by-hole data for posts that have round_id
     const postsWithRounds = await Promise.all(
       (posts || []).map(async (post) => {
         let golfRound = null;
 
         if (post.round_id) {
-          const { data: roundData } = await supabase
+          console.log('[GET] Fetching golf round for post:', post.id, 'round_id:', post.round_id);
+
+          const { data: roundData, error: roundError } = await supabase
             .from('golf_rounds')
-            .select('*')
+            .select(`
+              *,
+              golf_holes (
+                hole_number,
+                par,
+                strokes,
+                putts,
+                fairway_hit,
+                green_in_regulation,
+                distance_yards,
+                club_off_tee,
+                notes
+              )
+            `)
             .eq('id', post.round_id)
             .single();
 
-          golfRound = roundData;
+          if (roundError) {
+            console.error('[GET] Error fetching golf round:', roundError);
+          } else {
+            console.log('[GET] Golf round fetched:', roundData?.id, 'holes count:', roundData?.golf_holes?.length);
+
+            if (roundData && roundData.golf_holes) {
+              // Sort holes by hole number
+              roundData.golf_holes.sort((a: any, b: any) => a.hole_number - b.hole_number);
+            }
+
+            golfRound = roundData;
+          }
         }
 
         return { ...post, golf_round: golfRound };

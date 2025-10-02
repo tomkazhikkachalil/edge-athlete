@@ -79,6 +79,16 @@ export interface Profile {
   twitter_handle?: string;
   instagram_handle?: string;
   avatar_url?: string;
+  // Golf-specific fields
+  golf_handicap?: number;
+  golf_home_course?: string;
+  golf_tee_preference?: string;
+  golf_dominant_hand?: string;
+  golf_driver_brand?: string;
+  golf_driver_loft?: number;
+  golf_irons_brand?: string;
+  golf_putter_brand?: string;
+  golf_ball_brand?: string;
 }
 
 export interface AthleteBadge {

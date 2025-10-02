@@ -25,7 +25,7 @@ interface EditProfileTabsProps {
   onSave: () => void;
 }
 
-type TabId = 'basic' | 'vitals' | 'socials' | 'golf' | 'equipment' | 'hockey' | 'volleyball';
+type TabId = 'basic' | 'vitals' | 'socials' | 'golf' | 'equipment' | 'ice_hockey' | 'volleyball';
 
 interface TabConfig {
   id: TabId;
@@ -264,11 +264,11 @@ export default function EditProfileTabs({
           hasChanges = true;
           break;
 
-        case 'hockey':
+        case 'ice_hockey':
         case 'volleyball':
           // Future sports - show coming soon
           const sportName = TABS.find(t => t.id === tabId)?.label || 'Sport';
-          showInfo(`${sportName} Settings`, getComingSoonMessage(tabId, 'settings'));
+          showInfo(`${sportName} Settings`, getComingSoonMessage(tabId as any, 'settings'));
           return;
       }
 
@@ -775,10 +775,10 @@ export default function EditProfileTabs({
         return renderGolfTab();
       case 'equipment':
         return renderEquipmentTab();
-      case 'hockey':
+      case 'ice_hockey':
       case 'volleyball':
         const currentTab = TABS.find(t => t.id === activeTab);
-        const sportDef = getSportDefinition(activeTab);
+        const sportDef = getSportDefinition(activeTab as any);
         return (
           <div className="text-center py-12 text-gray-500">
             <i className={`${sportDef.icon_id} text-4xl text-gray-300 mb-4`} aria-hidden="true"></i>

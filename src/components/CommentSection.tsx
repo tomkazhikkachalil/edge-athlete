@@ -42,9 +42,8 @@ export default function CommentSection({ postId, initialCommentsCount = 0, onCom
       const fetchedComments = data.comments || [];
       setComments(fetchedComments);
 
-      // Update the count based on actual fetched comments
-      const newCount = fetchedComments.length;
-      setCommentsCount(newCount);
+      // Don't update count here - trust the database count from props
+      // Count only updates when we add/delete comments
     } catch (err) {
       console.error('Error fetching comments:', err);
       setError('Failed to load comments');

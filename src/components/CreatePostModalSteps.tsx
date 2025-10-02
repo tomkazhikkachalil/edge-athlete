@@ -189,7 +189,8 @@ export function StepContent({
       );
     } else {
       // Future sports - coming soon
-      const sport = getSportDefinition(selectedType);
+      // Safe type assertion - selectedType is validated in parent component
+      const sport = getSportDefinition(selectedType as any);
       return (
         <div className="space-y-base">
           <div className="text-center py-base">
@@ -322,9 +323,9 @@ export function StepContent({
               {selectedType !== 'general' && (
                 <>
                   <span className={`${cssClasses.TYPOGRAPHY.CHIP} text-gray-400`}>•</span>
-                  <i className={`${getSportDefinition(selectedType).icon_id} text-sm text-blue-600`}></i>
+                  <i className={`${getSportDefinition(selectedType as any).icon_id} text-sm text-blue-600`}></i>
                   <span className={`${cssClasses.TYPOGRAPHY.CHIP} text-gray-600`}>
-                    {getSportDefinition(selectedType).display_name}
+                    {getSportDefinition(selectedType as any).display_name}
                   </span>
                 </>
               )}

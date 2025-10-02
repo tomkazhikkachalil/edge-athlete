@@ -527,6 +527,134 @@ const response = await fetch('/api/ai/image', {
 - **State**: Use React hooks and context when needed
 - **Responsive**: Mobile-first approach recommended
 
+## Golf Features Implementation
+
+### Database Schema Pattern
+
+When implementing golf rounds functionality, use this complete schema approach:
+
+**Core Tables:**
+```sql
+-- Golf Rounds: Course-level data
+CREATE TABLE golf_rounds (
+  id UUID PRIMARY KEY,
+  profile_id UUID REFERENCES profiles(id) ON DELETE CASCADE,
+  date DATE NOT NULL,
+  course TEXT NOT NULL,
+  course_location TEXT,
+  tee TEXT,
+  holes INTEGER CHECK (holes IN (9, 18)),
+  par INTEGER DEFAULT 72,
+  gross_score INTEGER,
+  fir_percentage DECIMAL(5,2),
+  gir_percentage DECIMAL(5,2),
+  total_putts INTEGER,
+  is_complete BOOLEAN DEFAULT false
+);
+
+-- Golf Holes: Hole-by-hole data
+CREATE TABLE golf_holes (
+  id UUID PRIMARY KEY,
+  round_id UUID REFERENCES golf_rounds(id) ON DELETE CASCADE,
+  hole_number INTEGER CHECK (hole_number >= 1 AND hole_number <= 18),
+  par INTEGER CHECK (par >= 3 AND par <= 6),
+  strokes INTEGER,
+  putts INTEGER,
+  fairway_hit BOOLEAN,
+  green_in_regulation BOOLEAN,
+  distance_yards INTEGER,
+  UNIQUE(round_id, hole_number)
+);
+
+-- Link posts to rounds
+ALTER TABLE posts ADD COLUMN round_id UUID REFERENCES golf_rounds(id);
+ALTER TABLE posts ADD COLUMN golf_mode TEXT CHECK (golf_mode IN ('round_recap', 'hole_highlight', null));
+```
+
+**Automatic Stats Calculation:**
+```sql
+CREATE FUNCTION calculate_round_stats(round_uuid UUID) RETURNS VOID AS $$
+  -- Calculates gross_score, total_putts, fir_percentage, gir_percentage
+  -- Updates is_complete based on holes entered
+$$;
+```
+
+**RLS for Public Golf Rounds:**
+```sql
+-- Allow viewing rounds through public posts
+CREATE POLICY "Users can view golf rounds through posts" ON golf_rounds
+  FOR SELECT USING (
+    auth.uid() = profile_id OR
+    EXISTS (
+      SELECT 1 FROM posts
+      WHERE posts.round_id = golf_rounds.id
+      AND posts.visibility = 'public'
+    )
+  );
+```
+
+### Traditional Scorecard Display Pattern
+
+When displaying golf scorecards, use the traditional course scorecard format that golfers recognize:
+
+**Layout Structure:**
+- Compact summary header (course, date, score badge, inline stats)
+- Collapsible traditional scorecard with YDS/PAR/SCORE/Putts rows
+- Front 9 and Back 9 sections with OUT/IN totals
+- Circle notation for birdies (red circles)
+- Square notation for bogeys (blue squares)
+- Mobile-responsive with horizontal scroll
+
+**Example Implementation** (PostCard.tsx):
+```tsx
+{/* Compact Summary */}
+<div className="bg-gradient-to-r from-green-50 to-emerald-50 rounded-lg p-4">
+  <div className="flex items-center justify-between">
+    <div>
+      <h3 className="font-bold text-lg">{course}</h3>
+      <p className="text-sm text-gray-600">{location}</p>
+    </div>
+    <div className="text-center">
+      <div className="text-4xl font-bold">{grossScore}</div>
+      <div className="text-sm">{differential > 0 ? `+${differential}` : differential}</div>
+    </div>
+  </div>
+  <div className="flex gap-4 mt-3 text-sm">
+    <div>⛳ {totalPutts} Putts</div>
+    <div>🎯 {firPercentage}% FIR</div>
+    <div>🏌️ {girPercentage}% GIR</div>
+  </div>
+</div>
+
+{/* Traditional Scorecard */}
+<table className="w-full text-[10px]">
+  <thead>
+    <tr className="bg-green-100">
+      <th>HOLE</th>
+      {holes.map(h => <th key={h.hole_number}>{h.hole_number}</th>)}
+      <th className="bg-green-200">OUT</th>
+    </tr>
+  </thead>
+  <tbody>
+    {/* YDS, PAR, SCORE with circle/square notation, Putts */}
+  </tbody>
+</table>
+```
+
+**Key Design Principles:**
+- Use 10px font for compact display
+- Green color scheme (golf aesthetic)
+- Birdie circles: `border-2 border-red-500 rounded-full`
+- Bogey squares: `border-2 border-blue-500`
+- Include legend explaining notation
+- Sort holes by hole_number before rendering
+
+**Files Reference:**
+- `COMPLETE_GOLF_SETUP.sql` - Full database schema
+- `src/app/api/posts/route.ts` - Golf data fetch/save
+- `src/components/PostCard.tsx` - Traditional scorecard display
+- `src/components/GolfScorecardForm.tsx` - Data input
+
 ## Spacing & Design System
 
 ### Vertical Rhythm System (12/24/48px)

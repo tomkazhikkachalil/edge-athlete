@@ -29,6 +29,7 @@ interface HoleData {
   hole: number;
   par: number;
   yardage: number;
+  handicap?: number;
   score?: number;
   putts?: number;
   fairway?: 'left' | 'right' | 'hit' | 'na';  // na for par 3s
