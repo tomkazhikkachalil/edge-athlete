@@ -93,6 +93,7 @@ export default function EditProfileTabs({
     username: '',
     bio: '',
     avatar_file: null as File | null,
+    visibility: 'public' as 'public' | 'private',
   });
 
   const [vitalsForm, setVitalsForm] = useState({
@@ -136,6 +137,7 @@ export default function EditProfileTabs({
       username: (profile?.username || '').toString(),
       bio: (profile?.bio || '').toString(),
       avatar_file: null,
+      visibility: (profile?.visibility || 'public') as 'public' | 'private',
     });
 
     // Initialize weight with user's saved values - no conversion
@@ -193,10 +195,30 @@ export default function EditProfileTabs({
             await uploadAvatar(basicForm.avatar_file);
           }
           
+          // Split full_name into first_name and last_name
+          const fullNameTrimmed = basicForm.full_name.trim();
+          let firstName = '';
+          let lastName = '';
+
+          if (fullNameTrimmed) {
+            const nameParts = fullNameTrimmed.split(' ').filter(part => part.length > 0);
+            if (nameParts.length === 1) {
+              // Single name - treat as first name
+              firstName = nameParts[0];
+            } else if (nameParts.length >= 2) {
+              // Multiple names - first word is first name, rest is last name
+              firstName = nameParts[0];
+              lastName = nameParts.slice(1).join(' ');
+            }
+          }
+
           updateData = {
-            full_name: basicForm.full_name.trim() || undefined,
+            full_name: fullNameTrimmed || undefined,
+            first_name: firstName || undefined,
+            last_name: lastName || undefined,
             username: basicForm.username.trim() || undefined,
             bio: basicForm.bio.trim() || undefined,
+            visibility: basicForm.visibility,
           };
           hasChanges = true;
           break;
@@ -438,6 +460,74 @@ export default function EditProfileTabs({
         />
         <p className="mt-1 text-xs text-gray-500">
           {basicForm.bio.length}/500 characters
+        </p>
+      </div>
+
+      {/* Privacy Toggle */}
+      <div className="pt-4 border-t border-gray-200">
+        <label className="flex items-center justify-between p-4 border-2 border-gray-200 rounded-lg cursor-pointer hover:bg-gray-50 transition-colors">
+          <div className="flex-1">
+            <div className="font-medium text-gray-900 mb-1">Profile Visibility</div>
+            <div className="text-sm text-gray-500">
+              {basicForm.visibility === 'public'
+                ? 'Anyone can view your profile, posts, and stats'
+                : 'Only approved followers can view your profile, posts, and stats'
+              }
+            </div>
+          </div>
+          <div className="ml-4 flex-shrink-0">
+            <button
+              type="button"
+              onClick={() => setBasicForm(prev => ({
+                ...prev,
+                visibility: prev.visibility === 'public' ? 'private' : 'public'
+              }))}
+              className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 ${
+                basicForm.visibility === 'public' ? 'bg-green-600' : 'bg-gray-300'
+              }`}
+              aria-label={`Toggle profile visibility. Currently ${basicForm.visibility}`}
+            >
+              <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                basicForm.visibility === 'public' ? 'translate-x-6' : 'translate-x-1'
+              }`} />
+            </button>
+          </div>
+        </label>
+
+        {/* Visual indicator */}
+        <div className="mt-3 text-center">
+          <span className={`inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-medium ${
+            basicForm.visibility === 'public'
+              ? 'bg-green-100 text-green-700 border border-green-200'
+              : 'bg-orange-100 text-orange-700 border border-orange-200'
+          }`}>
+            <i className={`fas fa-${basicForm.visibility === 'public' ? 'globe' : 'lock'}`}></i>
+            {basicForm.visibility === 'public' ? 'Public Profile' : 'Private Profile'}
+          </span>
+        </div>
+
+        {/* Explanation */}
+        <div className="mt-3 p-3 bg-blue-50 border border-blue-100 rounded-lg">
+          <div className="flex items-start gap-2">
+            <i className="fas fa-info-circle text-blue-600 mt-0.5"></i>
+            <div className="text-xs text-blue-900">
+              {basicForm.visibility === 'public' ? (
+                <>
+                  <strong>Public profiles</strong> help you get discovered by coaches, scouts, and other athletes.
+                  All your content will be visible to anyone who is logged in.
+                </>
+              ) : (
+                <>
+                  <strong>Private profiles</strong> give you control over who sees your content.
+                  Only followers you approve will be able to view your profile, posts, and stats.
+                </>
+              )}
+            </div>
+          </div>
+        </div>
+
+        <p className="mt-2 text-xs text-gray-500 text-center">
+          You can change this setting anytime
         </p>
       </div>
     </div>

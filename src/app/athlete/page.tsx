@@ -200,9 +200,8 @@ export default function AthleteProfilePage() {
   };
 
 
-  const handleEditSeasonHighlights = (sportKey: string, entityId?: string) => {
+  const handleEditSeasonHighlights = (sportKey: string) => {
     setEditingSportKey(sportKey);
-    // entityId can be used to fetch existing data if needed
     setEditingHighlight(undefined);
     setIsSeasonHighlightsModalOpen(true);
   };
@@ -245,10 +244,11 @@ export default function AthleteProfilePage() {
     }
   };
 
-  const handleEditPerformance = (existingData?: Performance) => {
-    setEditingPerformance(existingData);
-    setIsPerformanceModalOpen(true);
-  };
+  // Performance editing temporarily disabled - keeping handlers for future use
+  // const handleEditPerformance = (existingData?: Performance) => {
+  //   setEditingPerformance(existingData);
+  //   setIsPerformanceModalOpen(true);
+  // };
 
   const handleSavePerformance = async (data: Partial<Performance>) => {
     try {
@@ -295,41 +295,42 @@ export default function AthleteProfilePage() {
     }
   };
 
-  const handleDeletePerformance = async (performanceId: string) => {
-    if (!window.confirm('Are you sure you want to delete this performance? This action cannot be undone.')) {
-      return;
-    }
+  // Performance deletion temporarily disabled - keeping handler for future use
+  // const handleDeletePerformance = async (performanceId: string) => {
+  //   if (!window.confirm('Are you sure you want to delete this performance? This action cannot be undone.')) {
+  //     return;
+  //   }
 
-    try {
-      const response = await fetch(`/api/performances/${performanceId}`, {
-        method: 'DELETE',
-      });
+  //   try {
+  //     const response = await fetch(`/api/performances/${performanceId}`, {
+  //       method: 'DELETE',
+  //     });
 
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.error || 'Failed to delete performance');
-      }
+  //     if (!response.ok) {
+  //       const error = await response.json();
+  //       throw new Error(error.error || 'Failed to delete performance');
+  //     }
 
-      // Show success toast
-      showSuccess('Performance deleted successfully!');
+  //     // Show success toast
+  //     showSuccess('Performance deleted successfully!');
 
-      // Refresh the data
-      if (user?.id) {
-        refreshProfile();
-        loadAthleteData(user.id, true);
-        
-        // Also refresh performances specifically to maintain sort order
-        AthleteService.getRecentPerformances(user.id).then(newPerformances => {
-          setPerformances(newPerformances);
-        }).catch((error) => {
-          console.error('Failed to refresh performances:', error);
-        });
-      }
-    } catch (error) {
-      // Performance delete error
-      showError('Failed to delete performance', error instanceof Error ? error.message : 'Please try again');
-    }
-  };
+  //     // Refresh the data
+  //     if (user?.id) {
+  //       refreshProfile();
+  //       loadAthleteData(user.id, true);
+
+  //       // Also refresh performances specifically to maintain sort order
+  //       AthleteService.getRecentPerformances(user.id).then(newPerformances => {
+  //         setPerformances(newPerformances);
+  //       }).catch((error) => {
+  //         console.error('Failed to refresh performances:', error);
+  //       });
+  //     }
+  //   } catch (error) {
+  //     // Performance delete error
+  //     showError('Failed to delete performance', error instanceof Error ? error.message : 'Please try again');
+  //   }
+  // };
 
   const handleAvatarUpload = withSubmitProtection('avatar-upload', async () => {
     const fileInput = document.getElementById('avatar-upload') as HTMLInputElement;
@@ -493,6 +494,51 @@ export default function AthleteProfilePage() {
     } else if (field === 'class_year') {
       const numValue = parseFloat(newValue as string);
       newValue = isNaN(numValue) || numValue <= 0 ? null : numValue;
+    } else if (field === 'full_name') {
+      // Split full_name into first_name and last_name
+      const fullNameTrimmed = (newValue as string).trim();
+      let firstName = '';
+      let lastName = '';
+
+      if (fullNameTrimmed) {
+        const nameParts = fullNameTrimmed.split(' ').filter(part => part.length > 0);
+        if (nameParts.length === 1) {
+          // Single name - treat as first name
+          firstName = nameParts[0];
+        } else if (nameParts.length >= 2) {
+          // Multiple names - first word is first name, rest is last name
+          firstName = nameParts[0];
+          lastName = nameParts.slice(1).join(' ');
+        }
+      }
+
+      // Cancel editing immediately for better UX
+      cancelEditing();
+
+      // Save all three name fields
+      const response = await fetch('/api/profile', {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          profileData: {
+            full_name: fullNameTrimmed || null,
+            first_name: firstName || null,
+            last_name: lastName || null
+          },
+          userId: user.id
+        }),
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Failed to save changes. Please try again.');
+      }
+
+      // Refresh the data to confirm the update
+      await refreshProfile();
+      return; // Exit early since we handled the save
     }
 
     const updateData: Partial<Profile> = { [field]: newValue };

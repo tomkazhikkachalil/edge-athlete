@@ -59,16 +59,16 @@ export async function POST(request: NextRequest) {
     const buffer = Buffer.from(arrayBuffer);
     
     // Upload to Supabase Storage
-    const { data, error } = await supabase.storage
+    const { error: uploadError } = await supabase.storage
       .from('uploads')
       .upload(filePath, buffer, {
         contentType: fileType,
         cacheControl: '3600',
         upsert: false
       });
-    
-    if (error) {
-      // Upload error
+
+    if (uploadError) {
+      console.error('Upload error:', uploadError);
       return NextResponse.json({ error: 'Failed to upload file' }, { status: 500 });
     }
     
@@ -86,8 +86,8 @@ export async function POST(request: NextRequest) {
       path: filePath
     });
     
-  } catch (error) {
-    // Upload error
+  } catch (err) {
+    console.error('Upload processing error:', err);
     return NextResponse.json({ error: 'Failed to process upload' }, { status: 500 });
   }
 }

@@ -7,7 +7,7 @@ import { ToastContainer, useToast } from '@/components/Toast';
 import LazyImage from '@/components/LazyImage';
 import RecentPosts from '@/components/RecentPosts';
 import FollowButton from '@/components/FollowButton';
-import type { Profile, AthleteBadge, SeasonHighlight, Performance } from '@/lib/supabase';
+import type { Profile, AthleteBadge } from '@/lib/supabase';
 import { 
   formatHeight, 
   formatWeightWithUnit, 
@@ -17,9 +17,7 @@ import {
   formatSocialHandleDisplay
 } from '@/lib/formatters';
 
-interface AthleteProfilePageProps {}
-
-export default function AthleteProfilePage({}: AthleteProfilePageProps) {
+export default function AthleteProfilePage() {
   const { user, loading: authLoading } = useAuth();
   const router = useRouter();
   const params = useParams();
@@ -28,8 +26,6 @@ export default function AthleteProfilePage({}: AthleteProfilePageProps) {
   // Profile data
   const [profile, setProfile] = useState<Profile | null>(null);
   const [badges, setBadges] = useState<AthleteBadge[]>([]);
-  const [seasonHighlights, setSeasonHighlights] = useState<SeasonHighlight[]>([]);
-  const [performances, setPerformances] = useState<Performance[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [postsCount, setPostsCount] = useState(0);
@@ -38,8 +34,11 @@ export default function AthleteProfilePage({}: AthleteProfilePageProps) {
     followingCount: 0,
     isFollowing: false
   });
-  
-  const { toasts, dismissToast, showError } = useToast();
+
+  const { toasts, dismissToast } = useToast();
+
+  // Note: seasonHighlights and performances are fetched but not currently displayed
+  // These can be added to the UI in future updates
 
   // Redirect to login if not authenticated
   useEffect(() => {
@@ -53,6 +52,7 @@ export default function AthleteProfilePage({}: AthleteProfilePageProps) {
     if (athleteId && user) {
       loadAthleteProfile();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [athleteId, user]);
 
   const loadAthleteProfile = async () => {
@@ -73,8 +73,9 @@ export default function AthleteProfilePage({}: AthleteProfilePageProps) {
       const profileData = await response.json();
       setProfile(profileData.profile);
       setBadges(profileData.badges || []);
-      setSeasonHighlights(profileData.seasonHighlights || []);
-      setPerformances(profileData.performances || []);
+      // Note: seasonHighlights and performances are fetched by API but not displayed yet
+      // Can be added to UI in future: setSeasonHighlights(profileData.seasonHighlights || []);
+      // Can be added to UI in future: setPerformances(profileData.performances || []);
 
       // Load follow stats
       await loadFollowStats();
@@ -106,17 +107,18 @@ export default function AthleteProfilePage({}: AthleteProfilePageProps) {
     }
   };
 
-  const getBadgeColor = (colorToken: string) => {
-    const colorMap: Record<string, string> = {
-      'blue': 'border-blue-200 bg-blue-50 text-blue-700',
-      'green': 'border-green-200 bg-green-50 text-green-700',
-      'yellow': 'border-yellow-200 bg-yellow-50 text-yellow-700',
-      'red': 'border-red-200 bg-red-50 text-red-700',
-      'purple': 'border-purple-200 bg-purple-50 text-purple-700',
-      'gray': 'border-gray-200 bg-gray-50 text-gray-700',
-    };
-    return colorMap[colorToken] || colorMap['gray'];
-  };
+  // Badge color mapping helper (currently unused but kept for future feature)
+  // const getBadgeColor = (colorToken: string) => {
+  //   const colorMap: Record<string, string> = {
+  //     'blue': 'border-blue-200 bg-blue-50 text-blue-700',
+  //     'green': 'border-green-200 bg-green-50 text-green-700',
+  //     'yellow': 'border-yellow-200 bg-yellow-50 text-yellow-700',
+  //     'red': 'border-red-200 bg-red-50 text-red-700',
+  //     'purple': 'border-purple-200 bg-purple-50 text-purple-700',
+  //     'gray': 'border-gray-200 bg-gray-50 text-gray-700',
+  //   };
+  //   return colorMap[colorToken] || colorMap['gray'];
+  // };
 
   const handleFollowChange = (isFollowing: boolean, followersCount: number) => {
     setFollowStats(prev => ({

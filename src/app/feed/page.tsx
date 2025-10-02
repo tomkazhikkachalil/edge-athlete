@@ -61,6 +61,7 @@ export default function FeedPage() {
     if (user) {
       loadFeed();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user]);
 
   const loadFeed = async (loadMore = false) => {
@@ -91,7 +92,8 @@ export default function FeedPage() {
       
       setHasMore(newPosts.length === 20);
       
-    } catch (err) {
+    } catch (error) {
+      console.error('Feed load error:', error);
       showError('Error', 'Failed to load feed');
     } finally {
       setFeedLoading(false);
@@ -103,6 +105,8 @@ export default function FeedPage() {
       showError('Authentication Required', 'Please log in to like posts');
       return;
     }
+
+    console.log(`[FEED] handleLike called for post ${postId}`);
 
     try {
       const response = await fetch('/api/posts/like', {
@@ -118,10 +122,13 @@ export default function FeedPage() {
       const data = await response.json();
       const isLiking = data.action === 'liked';
 
+      console.log(`[FEED] API returned action: ${data.action}, count: ${data.likesCount}`);
+
       // Update local state with actual count from database
       setPosts(prevPosts =>
         prevPosts.map(post => {
           if (post.id === postId) {
+            console.log(`[FEED] Updating post ${postId}: old count ${post.likes_count} -> new count ${data.likesCount}`);
             return {
               ...post,
               likes_count: data.likesCount,
@@ -133,14 +140,16 @@ export default function FeedPage() {
           return post;
         })
       );
-    } catch (err) {
+    } catch (error) {
+      console.error('Like error:', error);
       showError('Error', 'Failed to like post');
     }
   };
 
-  const handleComment = (postId: string) => {
-    // Comments are handled within CommentSection component
-  };
+  // Comments are handled within CommentSection component
+  // const handleComment = (postId: string) => {
+  //   // Reserved for future use
+  // };
 
   const handleCommentCountChange = (postId: string, newCount: number) => {
     // Update the local state with new comment count
@@ -245,6 +254,7 @@ export default function FeedPage() {
                   title="Go to Profile"
                 >
                   {profile?.avatar_url ? (
+                    // eslint-disable-next-line @next/next/no-img-element
                     <img
                       src={profile.avatar_url}
                       alt="Profile"
@@ -301,7 +311,7 @@ export default function FeedPage() {
                   onClick={() => setIsCreatePostModalOpen(true)}
                   className="flex-1 bg-gray-100 rounded-full px-4 py-2 text-left text-gray-500 hover:bg-gray-200 transition-colors"
                 >
-                  What's on your mind, {profile?.first_name || 'Athlete'}?
+                  What&apos;s on your mind, {profile?.first_name || 'Athlete'}?
                 </button>
               </div>
               <div className="flex items-center justify-between mt-3 pt-3 border-t border-gray-100">
@@ -364,7 +374,7 @@ export default function FeedPage() {
                       post={post}
                       currentUserId={user.id}
                       onLike={handleLike}
-                      onComment={handleComment}
+                      onComment={() => {}}
                       onEdit={handleEdit}
                       onCommentCountChange={handleCommentCountChange}
                       showActions={true}

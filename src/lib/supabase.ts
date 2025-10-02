@@ -79,6 +79,8 @@ export interface Profile {
   twitter_handle?: string;
   instagram_handle?: string;
   avatar_url?: string;
+  // Privacy settings
+  visibility?: 'public' | 'private';
   // Golf-specific fields
   golf_handicap?: number;
   golf_home_course?: string;
