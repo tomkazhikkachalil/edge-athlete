@@ -47,6 +47,7 @@ interface PostCardProps {
   onLike?: (postId: string) => void;
   onComment?: (postId: string) => void;
   onDelete?: (postId: string) => void;
+  onEdit?: (postId: string) => void;
   onCommentCountChange?: (postId: string, newCount: number) => void;
   showActions?: boolean;
 }
@@ -57,6 +58,7 @@ export default function PostCard({
   onLike,
   onComment,
   onDelete,
+  onEdit,
   onCommentCountChange,
   showActions = true
 }: PostCardProps) {
@@ -149,7 +151,7 @@ export default function PostCard({
   };
 
   return (
-    <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
+    <div className="bg-white rounded-lg shadow-md border-2 border-gray-300 overflow-hidden mb-6">
       {/* Header */}
       <div className="p-base flex items-center justify-between">
         <button
@@ -205,37 +207,46 @@ export default function PostCard({
             </div>
           )}
 
-          {/* Delete button - only show for post owner */}
+          {/* Edit and Delete buttons - only show for post owner */}
           {isOwner && (
-            <button
-              onClick={handleDeleteClick}
-              className="text-gray-400 hover:text-red-600 transition-colors p-2 rounded-full hover:bg-red-50"
-              title="Delete post"
-            >
-              <i className="fas fa-trash text-sm"></i>
-            </button>
+            <>
+              <button
+                onClick={() => onEdit?.(post.id)}
+                className="text-gray-400 hover:text-blue-600 transition-colors p-2 rounded-full hover:bg-blue-50"
+                title="Edit post"
+              >
+                <i className="fas fa-edit text-sm"></i>
+              </button>
+              <button
+                onClick={handleDeleteClick}
+                className="text-gray-400 hover:text-red-600 transition-colors p-2 rounded-full hover:bg-red-50"
+                title="Delete post"
+              >
+                <i className="fas fa-trash text-sm"></i>
+              </button>
+            </>
           )}
         </div>
       </div>
 
       {/* Media */}
       {post.media && post.media.length > 0 && (
-        <div className="relative bg-gray-100">
-          <div className="relative w-full">
+        <div className="relative bg-black">
+          <div className="relative w-full flex items-center justify-center">
             {post.media[currentMediaIndex].media_type === 'image' ? (
               <LazyImage
                 src={post.media[currentMediaIndex].media_url}
                 alt="Post media"
-                className="w-full h-auto object-contain"
+                className="w-full h-auto object-cover mx-auto"
                 width={600}
                 height={600}
-                style={{ maxHeight: '600px' }}
+                style={{ maxHeight: '500px' }}
               />
             ) : (
               <video
                 src={post.media[currentMediaIndex].media_url}
-                className="w-full h-auto"
-                style={{ maxHeight: '600px' }}
+                className="w-full h-auto mx-auto"
+                style={{ maxHeight: '500px' }}
                 controls
               />
             )}

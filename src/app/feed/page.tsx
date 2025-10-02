@@ -5,6 +5,7 @@ import { useAuth } from '@/lib/auth';
 import { useRouter } from 'next/navigation';
 import PostCard from '@/components/PostCard';
 import CreatePostModal from '@/components/CreatePostModal';
+import EditPostModal from '@/components/EditPostModal';
 import FollowButton from '@/components/FollowButton';
 import { ToastContainer, useToast } from '@/components/Toast';
 import { formatDisplayName } from '@/lib/formatters';
@@ -32,6 +33,8 @@ interface Post {
     display_order: number;
   }[];
   likes?: { profile_id: string }[];
+  tags?: string[];
+  hashtags?: string[];
 }
 
 export default function FeedPage() {
@@ -40,6 +43,8 @@ export default function FeedPage() {
   const [posts, setPosts] = useState<Post[]>([]);
   const [feedLoading, setFeedLoading] = useState(true);
   const [isCreatePostModalOpen, setIsCreatePostModalOpen] = useState(false);
+  const [isEditPostModalOpen, setIsEditPostModalOpen] = useState(false);
+  const [editingPost, setEditingPost] = useState<Post | null>(null);
   const [hasMore, setHasMore] = useState(true);
   const [page, setPage] = useState(0);
   const { toasts, dismissToast, showError, showSuccess } = useToast();
@@ -152,6 +157,22 @@ export default function FeedPage() {
     loadFeed();
     setIsCreatePostModalOpen(false);
     showSuccess('Success', 'Post created successfully!');
+  };
+
+  const handleEdit = (postId: string) => {
+    const post = posts.find(p => p.id === postId);
+    if (post) {
+      setEditingPost(post);
+      setIsEditPostModalOpen(true);
+    }
+  };
+
+  const handlePostUpdated = () => {
+    // Refresh the feed when a post is updated
+    loadFeed();
+    setIsEditPostModalOpen(false);
+    setEditingPost(null);
+    showSuccess('Success', 'Post updated successfully!');
   };
 
   // Show loading state
@@ -282,11 +303,11 @@ export default function FeedPage() {
             </div>
 
             {/* Posts Feed */}
-            <div className="space-y-6">
+            <div className="space-y-6 bg-white rounded-lg border-2 border-gray-300 p-6">
               {feedLoading ? (
                 <div className="space-y-6">
                   {[1, 2, 3].map(i => (
-                    <div key={i} className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 animate-pulse">
+                    <div key={i} className="bg-white rounded-lg shadow-md border-2 border-gray-300 p-4 animate-pulse mb-6">
                       <div className="flex items-center gap-3 mb-4">
                         <div className="w-10 h-10 bg-gray-200 rounded-full"></div>
                         <div className="flex-1">
@@ -300,7 +321,7 @@ export default function FeedPage() {
                   ))}
                 </div>
               ) : posts.length === 0 ? (
-                <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-8 text-center">
+                <div className="bg-white rounded-lg shadow-md border-2 border-gray-300 p-8 text-center">
                   <div className="text-gray-400 mb-4">
                     <i className="fas fa-users text-4xl"></i>
                   </div>
@@ -324,6 +345,7 @@ export default function FeedPage() {
                       currentUserId={user.id}
                       onLike={handleLike}
                       onComment={handleComment}
+                      onEdit={handleEdit}
                       onCommentCountChange={handleCommentCountChange}
                       showActions={true}
                     />
@@ -454,6 +476,19 @@ export default function FeedPage() {
         userId={user?.id || ''}
         onPostCreated={handlePostCreated}
       />
+
+      {/* Edit Post Modal */}
+      {editingPost && (
+        <EditPostModal
+          isOpen={isEditPostModalOpen}
+          onClose={() => {
+            setIsEditPostModalOpen(false);
+            setEditingPost(null);
+          }}
+          post={editingPost}
+          onPostUpdated={handlePostUpdated}
+        />
+      )}
 
       {/* Toast Container */}
       <ToastContainer toasts={toasts} onDismiss={dismissToast} />

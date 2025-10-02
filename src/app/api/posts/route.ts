@@ -358,6 +358,88 @@ export async function GET(request: NextRequest) {
   }
 }
 
+export async function PUT(request: NextRequest) {
+  try {
+    // Require authentication
+    const user = await requireAuth(request);
+
+    const body = await request.json();
+    const {
+      postId,
+      caption = '',
+      tags = [],
+      hashtags = [],
+      visibility = 'public'
+    } = body;
+
+    if (!postId) {
+      return NextResponse.json({ error: 'Post ID is required' }, { status: 400 });
+    }
+
+    console.log('[PUT] Updating post:', postId, 'for user:', user.id);
+
+    // Validate visibility
+    if (!['public', 'private'].includes(visibility)) {
+      return NextResponse.json({ error: 'Invalid visibility setting' }, { status: 400 });
+    }
+
+    // First, verify the post belongs to the authenticated user
+    const { data: existingPost, error: fetchError } = await supabase
+      .from('posts')
+      .select('profile_id, sport_key')
+      .eq('id', postId)
+      .single();
+
+    if (fetchError || !existingPost) {
+      return NextResponse.json({ error: 'Post not found' }, { status: 404 });
+    }
+
+    // Check ownership
+    if (existingPost.profile_id !== user.id) {
+      return NextResponse.json({ error: 'Unauthorized to edit this post' }, { status: 403 });
+    }
+
+    // Update the post
+    const { data: updatedPost, error: updateError } = await supabase
+      .from('posts')
+      .update({
+        caption: caption,
+        visibility: visibility,
+        tags: tags,
+        hashtags: hashtags,
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', postId)
+      .select()
+      .single();
+
+    if (updateError) {
+      console.error('[PUT] Post update error:', updateError);
+      return NextResponse.json({
+        error: 'Failed to update post',
+        details: updateError.message
+      }, { status: 500 });
+    }
+
+    console.log('[PUT] Post updated successfully:', postId);
+
+    return NextResponse.json({
+      success: true,
+      post: updatedPost,
+      message: 'Post updated successfully!'
+    });
+
+  } catch (error) {
+    console.error('Post update error:', error);
+
+    if (error instanceof Response) {
+      return error;
+    }
+
+    return NextResponse.json({ error: 'Failed to update post' }, { status: 500 });
+  }
+}
+
 export async function DELETE(request: NextRequest) {
   try {
     // Require authentication

@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import PostCard from './PostCard';
+import EditPostModal from './EditPostModal';
 import { useToast } from './Toast';
 
 interface Post {
@@ -27,6 +28,8 @@ interface Post {
     display_order: number;
   }[];
   likes?: { profile_id: string }[];
+  tags?: string[];
+  hashtags?: string[];
 }
 
 interface RecentPostsProps {
@@ -47,6 +50,8 @@ export default function RecentPosts({
   const [posts, setPosts] = useState<Post[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [isEditPostModalOpen, setIsEditPostModalOpen] = useState(false);
+  const [editingPost, setEditingPost] = useState<Post | null>(null);
   const { showError, showSuccess } = useToast();
 
 
@@ -133,6 +138,22 @@ export default function RecentPosts({
     );
   };
 
+  const handleEdit = (postId: string) => {
+    const post = posts.find(p => p.id === postId);
+    if (post) {
+      setEditingPost(post);
+      setIsEditPostModalOpen(true);
+    }
+  };
+
+  const handlePostUpdated = () => {
+    // Refresh posts when a post is updated
+    loadPosts();
+    setIsEditPostModalOpen(false);
+    setEditingPost(null);
+    showSuccess('Success', 'Post updated successfully!');
+  };
+
   const handleDelete = async (postId: string) => {
     try {
       const response = await fetch(`/api/posts?postId=${postId}`, {
@@ -209,7 +230,7 @@ export default function RecentPosts({
       </div>
 
       {posts.length === 0 ? (
-        <div className="bg-white rounded-lg border border-gray-200 p-section text-center">
+        <div className="bg-white rounded-lg shadow-md border-2 border-gray-300 p-section text-center">
           <div className="text-gray-400 mb-4">
             <i className="fas fa-camera text-4xl"></i>
           </div>
@@ -229,28 +250,44 @@ export default function RecentPosts({
           )}
         </div>
       ) : (
-        <div className="space-y-base">
-          {posts.map(post => (
-            <PostCard
-              key={post.id}
-              post={post}
-              currentUserId={currentUserId}
-              onLike={handleLike}
-              onComment={handleComment}
-              onDelete={handleDelete}
-              onCommentCountChange={handleCommentCountChange}
-              showActions={true}
-            />
-          ))}
-          
-          {posts.length >= 10 && (
-            <div className="text-center py-4">
-              <button className="text-blue-600 hover:text-blue-700 text-sm font-medium">
-                Load More Posts
-              </button>
-            </div>
-          )}
+        <div className="bg-white rounded-lg border-2 border-gray-300 p-6">
+          <div className="space-y-base">
+            {posts.map(post => (
+              <PostCard
+                key={post.id}
+                post={post}
+                currentUserId={currentUserId}
+                onLike={handleLike}
+                onComment={handleComment}
+                onEdit={handleEdit}
+                onDelete={handleDelete}
+                onCommentCountChange={handleCommentCountChange}
+                showActions={true}
+              />
+            ))}
+
+            {posts.length >= 10 && (
+              <div className="text-center py-4">
+                <button className="text-blue-600 hover:text-blue-700 text-sm font-medium">
+                  Load More Posts
+                </button>
+              </div>
+            )}
+          </div>
         </div>
+      )}
+
+      {/* Edit Post Modal */}
+      {editingPost && (
+        <EditPostModal
+          isOpen={isEditPostModalOpen}
+          onClose={() => {
+            setIsEditPostModalOpen(false);
+            setEditingPost(null);
+          }}
+          post={editingPost}
+          onPostUpdated={handlePostUpdated}
+        />
       )}
     </div>
   );
