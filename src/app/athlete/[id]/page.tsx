@@ -7,11 +7,13 @@ import { ToastContainer, useToast } from '@/components/Toast';
 import LazyImage from '@/components/LazyImage';
 import RecentPosts from '@/components/RecentPosts';
 import FollowButton from '@/components/FollowButton';
+import PrivateProfileView from '@/components/PrivateProfileView';
 import type { Profile, AthleteBadge } from '@/lib/supabase';
-import { 
-  formatHeight, 
-  formatWeightWithUnit, 
-  formatAge, 
+// Privacy checks moved to API route
+import {
+  formatHeight,
+  formatWeightWithUnit,
+  formatAge,
   formatDisplayName,
   getInitials,
   formatSocialHandleDisplay
@@ -34,6 +36,7 @@ export default function AthleteProfilePage() {
     followingCount: 0,
     isFollowing: false
   });
+  const [hasAccess, setHasAccess] = useState(true); // Privacy check result
 
   const { toasts, dismissToast } = useToast();
 
@@ -69,7 +72,7 @@ export default function AthleteProfilePage() {
         }
         throw new Error('Failed to load profile');
       }
-      
+
       const profileData = await response.json();
       setProfile(profileData.profile);
       setBadges(profileData.badges || []);
@@ -77,8 +80,23 @@ export default function AthleteProfilePage() {
       // Can be added to UI in future: setSeasonHighlights(profileData.seasonHighlights || []);
       // Can be added to UI in future: setPerformances(profileData.performances || []);
 
-      // Load follow stats
-      await loadFollowStats();
+      // Check privacy access via API
+      const privacyResponse = await fetch(`/api/privacy/check?profileId=${athleteId}`);
+      let canView = false;
+      if (privacyResponse.ok) {
+        const privacyCheck = await privacyResponse.json();
+        canView = privacyCheck.canView;
+        setHasAccess(canView);
+      } else {
+        // If privacy check fails, default to no access
+        setHasAccess(false);
+      }
+
+      // Only load additional data if user has access
+      if (canView) {
+        // Load follow stats
+        await loadFollowStats();
+      }
 
     } catch (err) {
       console.error('Error loading athlete profile:', err);
@@ -140,6 +158,23 @@ export default function AthleteProfilePage() {
     );
   }
 
+  // Show private profile view if access is denied
+  if (!hasAccess && profile) {
+    return (
+      <div className="min-h-screen bg-gray-50">
+        <PrivateProfileView
+          profile={profile}
+          onFollow={(isFollowing) => {
+            if (isFollowing) {
+              // Refresh profile to check if access granted
+              loadAthleteProfile();
+            }
+          }}
+        />
+      </div>
+    );
+  }
+
   // Show error state
   if (error) {
     return (
@@ -150,7 +185,7 @@ export default function AthleteProfilePage() {
           </div>
           <h1 className="text-xl font-bold text-gray-900 mb-2">{error}</h1>
           <p className="text-gray-600 mb-4">
-            {error === 'Athlete not found' 
+            {error === 'Athlete not found'
               ? 'This athlete profile could not be found or may not be public.'
               : 'There was an error loading the athlete profile.'}
           </p>

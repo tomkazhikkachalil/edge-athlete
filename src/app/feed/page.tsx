@@ -8,6 +8,8 @@ import CreatePostModal from '@/components/CreatePostModal';
 import EditPostModal from '@/components/EditPostModal';
 import SearchBar from '@/components/SearchBar';
 import FollowButton from '@/components/FollowButton';
+import NotificationsDropdown from '@/components/NotificationsDropdown';
+import ConnectionSuggestions from '@/components/ConnectionSuggestions';
 import { ToastContainer, useToast } from '@/components/Toast';
 import { formatDisplayName, getInitials } from '@/lib/formatters';
 
@@ -231,12 +233,13 @@ export default function FeedPage() {
 
             {/* Right - Actions & Profile */}
             <div className="flex items-center gap-4">
-              <button className="text-gray-600 hover:text-gray-900 relative">
-                <i className="fas fa-bell text-lg"></i>
-                <span className="absolute -top-1 -right-1 w-3 h-3 bg-red-500 rounded-full"></span>
-              </button>
-              <button className="text-gray-600 hover:text-gray-900">
-                <i className="fas fa-envelope text-lg"></i>
+              <NotificationsDropdown />
+              <button
+                onClick={() => router.push('/app/followers')}
+                className="text-gray-600 hover:text-gray-900"
+                title="Followers & Connections"
+              >
+                <i className="fas fa-user-friends text-lg"></i>
               </button>
               <button
                 onClick={() => setIsCreatePostModalOpen(true)}
@@ -398,34 +401,10 @@ export default function FeedPage() {
 
           {/* Sidebar */}
           <div className="lg:col-span-4 space-y-6">
-            {/* Trending Athletes */}
-            <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="font-bold text-gray-900">Trending Athletes</h3>
-                <button className="text-blue-600 text-sm hover:text-blue-700">See All</button>
-              </div>
-              <div className="space-y-3">
-                {[1, 2, 3, 4, 5].map((i) => (
-                  <div key={i} className="flex items-center justify-between">
-                    <button 
-                      onClick={() => router.push(`/athlete/demo-athlete-${i}`)}
-                      className="flex items-center gap-3 hover:bg-gray-50 p-1 rounded-lg transition-colors"
-                    >
-                      <div className="w-8 h-8 bg-gray-200 rounded-full"></div>
-                      <div>
-                        <p className="font-medium text-sm text-gray-900">Athlete Name</p>
-                        <p className="text-xs text-gray-500">Sport • Team</p>
-                      </div>
-                    </button>
-                    <FollowButton
-                      profileId={`demo-athlete-${i}`}
-                      currentUserId={user?.id}
-                      size="sm"
-                    />
-                  </div>
-                ))}
-              </div>
-            </div>
+            {/* Connection Suggestions */}
+            {user && (
+              <ConnectionSuggestions profileId={user.id} limit={5} compact={true} />
+            )}
 
             {/* Upcoming Events */}
             <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">

@@ -12,6 +12,7 @@ import PerformanceModal from '@/components/PerformanceModal';
 import LazyImage from '@/components/LazyImage';
 import CreatePostModal from '@/components/CreatePostModal';
 import RecentPosts from '@/components/RecentPosts';
+import NotificationsDropdown from '@/components/NotificationsDropdown';
 import type { AthleteBadge, SeasonHighlight, Performance, Profile } from '@/lib/supabase';
 import { 
   formatHeight, 
@@ -389,7 +390,7 @@ export default function AthleteProfilePage() {
   // Inline editing functions
   const startEditing = (field: string, currentValue: string) => {
     setEditingField(field);
-    
+
     // For height and weight fields, show user-friendly format for editing
     let editValue = currentValue;
     if (field === 'height_cm') {
@@ -413,11 +414,14 @@ export default function AthleteProfilePage() {
         // Use the current formatted value as-is
         editValue = currentValue;
       }
+    } else if (field === 'bio') {
+      // For bio, use the actual profile bio value directly
+      editValue = profile?.bio || '';
     } else if (!currentValue || currentValue === PLACEHOLDERS.EMPTY_VALUE) {
       // If no value or placeholder, start with empty string
       editValue = '';
     }
-    
+
     setTempValues({ [field]: editValue });
   };
 
@@ -609,6 +613,8 @@ export default function AthleteProfilePage() {
                     value={tempValues[field] || ''}
                     onChange={(e) => setTempValues({ ...tempValues, [field]: e.target.value })}
                     className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none min-h-[44px]"
+                    style={{ direction: 'ltr', unicodeBidi: 'normal' }}
+                    dir="ltr"
                     rows={3}
                     autoFocus
                     aria-label={ariaLabel || `Edit ${field}`}
@@ -729,6 +735,14 @@ export default function AthleteProfilePage() {
             </div>
 
             <div className="flex flex-wrap items-center gap-2 sm:gap-3">
+              <NotificationsDropdown />
+              <button
+                onClick={() => router.push('/app/followers')}
+                className="text-gray-600 hover:text-gray-900 p-2"
+                title="Followers & Connections"
+              >
+                <i className="fas fa-user-friends text-lg"></i>
+              </button>
               <button
                 onClick={() => setIsCreatePostModalOpen(true)}
                 className="bg-blue-600 text-white px-3 py-2 sm:px-4 rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2 text-xs sm:text-sm font-medium"
@@ -912,15 +926,12 @@ export default function AthleteProfilePage() {
                     )}
                   </div>
 
-                  {/* Biography */}
-                  <InlineEdit
-                    field="bio"
-                    value={profile?.bio || ''}
-                    placeholder={getPlaceholder('ADD_BIO')}
-                    className="text-gray-700 leading-relaxed mb-4 block"
-                    multiline={true}
-                    ariaLabel="Athlete biography"
-                  />
+                  {/* Biography - View only, edit in modal */}
+                  <div className="text-gray-700 leading-relaxed mb-4 block">
+                    {profile?.bio || (
+                      <span className="text-gray-400 italic">{getPlaceholder('ADD_BIO')}</span>
+                    )}
+                  </div>
                   
                   {/* Stats Row */}
                   <div className="flex items-center gap-6 text-sm">
