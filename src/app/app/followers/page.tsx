@@ -38,7 +38,7 @@ export default function FollowersPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [activeTab, setActiveTab] = useState<'followers' | 'following' | 'requests'>(
-    (searchParams.get('tab') as any) || 'followers'
+    (searchParams.get('tab') as 'followers' | 'following' | 'requests') || 'followers'
   );
   const [followers, setFollowers] = useState<Follower[]>([]);
   const [following, setFollowing] = useState<Follower[]>([]);
@@ -92,8 +92,10 @@ export default function FollowersPage() {
       });
 
       if (activeTab === 'followers') {
+        console.log('[FOLLOWERS PAGE] Setting followers:', data.followers);
         setFollowers(data.followers || []);
       } else if (activeTab === 'following') {
+        console.log('[FOLLOWERS PAGE] Setting following:', data.following);
         setFollowing(data.following || []);
       } else if (activeTab === 'requests') {
         console.log('[FOLLOWERS PAGE] Setting requests:', data.requests);
@@ -148,9 +150,56 @@ export default function FollowersPage() {
     return null;
   }
 
-  const renderProfileCard = (profile: FollowerProfile, showFollowButton = false) => {
+  const handleUnfollow = async (profileId: string) => {
+    if (!user) return;
+
+    try {
+      const response = await fetch('/api/follow', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          followerId: user.id,
+          followingId: profileId
+        })
+      });
+
+      if (!response.ok) throw new Error('Failed to unfollow');
+
+      showSuccess('Success', 'Unfollowed successfully');
+      loadData(); // Reload the lists
+    } catch (error) {
+      console.error('Error unfollowing:', error);
+      showError('Error', 'Failed to unfollow');
+    }
+  };
+
+  const handleRemoveFollower = async (profileId: string) => {
+    if (!user) return;
+
+    try {
+      // Remove means deleting their follow of you
+      const response = await fetch('/api/follow', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          followerId: profileId,  // They are the follower
+          followingId: user.id    // You are being followed
+        })
+      });
+
+      if (!response.ok) throw new Error('Failed to remove follower');
+
+      showSuccess('Success', 'Follower removed');
+      loadData(); // Reload the lists
+    } catch (error) {
+      console.error('Error removing follower:', error);
+      showError('Error', 'Failed to remove follower');
+    }
+  };
+
+  const renderProfileCard = (profile: FollowerProfile, showRemoveButton = false, showUnfollowButton = false) => {
     return (
-      <div key={profile.id} className="bg-white rounded-lg border border-gray-200 p-4 hover:shadow-md transition-shadow">
+      <div className="bg-white rounded-lg border border-gray-200 p-4 hover:shadow-md transition-shadow">
         <div className="flex items-center gap-4">
           <button onClick={() => router.push(`/athlete/${profile.id}`)} className="flex-shrink-0">
             {profile.avatar_url ? (
@@ -186,11 +235,22 @@ export default function FollowersPage() {
             )}
           </div>
 
-          {showFollowButton && (
-            <FollowButton
-              profileId={profile.id}
-              size="sm"
-            />
+          {showRemoveButton && (
+            <button
+              onClick={() => handleRemoveFollower(profile.id)}
+              className="px-4 py-2 text-sm font-medium text-red-600 bg-red-50 rounded-lg hover:bg-red-100 transition-colors"
+            >
+              Remove
+            </button>
+          )}
+
+          {showUnfollowButton && (
+            <button
+              onClick={() => handleUnfollow(profile.id)}
+              className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
+            >
+              Unfollow
+            </button>
           )}
         </div>
       </div>
@@ -267,14 +327,27 @@ export default function FollowersPage() {
             {/* Followers Tab */}
             {activeTab === 'followers' && (
               <div className="space-y-3">
+                {console.log('[FOLLOWERS TAB] followers.length =', followers.length, 'followers array:', followers)}
                 {followers.length === 0 ? (
                   <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-12 text-center">
                     <i className="fas fa-users text-6xl text-gray-300 mb-4"></i>
                     <h3 className="text-xl font-bold text-gray-900 mb-2">No followers yet</h3>
                     <p className="text-gray-600">When people follow you, they&apos;ll appear here.</p>
+                    <p className="text-xs text-gray-400 mt-2">Debug: {followers.length} followers in state</p>
                   </div>
                 ) : (
-                  followers.map(f => f.follower && renderProfileCard(f.follower, true))
+                  <div className="space-y-3">
+                    {console.log('[FOLLOWERS RENDER] About to render', followers.length, 'items')}
+                    {followers.map((f, index) => {
+                      console.log(`[FOLLOWERS RENDER] Item ${index}:`, f);
+                      if (!f.follower) {
+                        console.error('[FOLLOWERS PAGE] Follower missing profile data at index', index, ':', f);
+                        return <div key={f.id} className="bg-red-100 p-4 rounded">Missing follower data for ID: {f.id}</div>;
+                      }
+                      console.log(`[FOLLOWERS RENDER] Rendering follower ${index}:`, f.follower.first_name, f.follower.last_name);
+                      return <div key={f.id}>{renderProfileCard(f.follower, true, false)}</div>;
+                    })}
+                  </div>
                 )}
               </div>
             )}
@@ -289,7 +362,16 @@ export default function FollowersPage() {
                     <p className="text-gray-600">Find athletes to follow and see their activity.</p>
                   </div>
                 ) : (
-                  following.map(f => f.following && renderProfileCard(f.following, true))
+                  <>
+                    {console.log('[FOLLOWING RENDER] Rendering', following.length, 'following:', following)}
+                    {following.map(f => {
+                      if (!f.following) {
+                        console.warn('[FOLLOWERS PAGE] Following missing profile data:', f);
+                        return null;
+                      }
+                      return <div key={f.id}>{renderProfileCard(f.following, false, true)}</div>;
+                    })}
+                  </>
                 )}
               </div>
             )}

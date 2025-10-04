@@ -51,8 +51,13 @@ export async function GET(request: NextRequest) {
     console.log('[FOLLOWERS API] Request params:', { type, profileId });
 
     if (type === 'followers') {
-      // Get list of followers
-      const { data: followers, error } = await supabase
+      // Get list of followers - use admin client to bypass RLS for profile data
+      const supabaseAdmin = createClient(
+        process.env.NEXT_PUBLIC_SUPABASE_URL!,
+        process.env.SUPABASE_SERVICE_ROLE_KEY!
+      );
+
+      const { data: followers, error } = await supabaseAdmin
         .from('follows')
         .select(`
           id,
@@ -87,8 +92,13 @@ export async function GET(request: NextRequest) {
     }
 
     if (type === 'following') {
-      // Get list of people this user follows
-      const { data: following, error } = await supabase
+      // Get list of people this user follows - use admin client to bypass RLS
+      const supabaseAdmin = createClient(
+        process.env.NEXT_PUBLIC_SUPABASE_URL!,
+        process.env.SUPABASE_SERVICE_ROLE_KEY!
+      );
+
+      const { data: following, error } = await supabaseAdmin
         .from('follows')
         .select(`
           id,
