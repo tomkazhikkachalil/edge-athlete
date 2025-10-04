@@ -7,8 +7,9 @@ import FollowButton from './FollowButton';
 interface PrivateProfileViewProps {
   profile: {
     id: string;
-    full_name?: string;
+    full_name?: string; // username/handle
     first_name?: string;
+    middle_name?: string;
     last_name?: string;
     avatar_url?: string;
     sport?: string;
@@ -40,7 +41,7 @@ export default function PrivateProfileView({ profile, onFollow }: PrivateProfile
           {profile.avatar_url ? (
             <LazyImage
               src={profile.avatar_url}
-              alt={formatDisplayName(profile.full_name, profile.first_name, profile.last_name)}
+              alt={formatDisplayName(profile.first_name, profile.middle_name, profile.last_name, profile.full_name)}
               className="w-16 h-16 rounded-full object-cover"
               width={64}
               height={64}
@@ -48,14 +49,14 @@ export default function PrivateProfileView({ profile, onFollow }: PrivateProfile
           ) : (
             <div className="w-16 h-16 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center">
               <span className="text-white text-xl font-semibold">
-                {getInitials(formatDisplayName(profile.full_name, profile.first_name, profile.last_name))}
+                {getInitials(formatDisplayName(profile.first_name, profile.middle_name, profile.last_name, profile.full_name))}
               </span>
             </div>
           )}
 
           <div className="text-left">
             <div className="font-bold text-lg text-gray-900">
-              {formatDisplayName(profile.full_name, profile.first_name, profile.last_name)}
+              {formatDisplayName(profile.first_name, profile.middle_name, profile.last_name, profile.full_name)}
             </div>
             {profile.sport && (
               <div className="text-gray-600 text-sm">
@@ -70,13 +71,9 @@ export default function PrivateProfileView({ profile, onFollow }: PrivateProfile
         <div className="flex justify-center">
           <FollowButton
             profileId={profile.id}
-            initialFollowing={false}
-            initialFollowersCount={0}
-            onFollowChange={(following) => {
-              if (following) {
-                alert('Follow request sent! You\'ll see their content when they approve');
-              }
-              onFollow?.(following);
+            size="lg"
+            onFollowChange={(isFollowing) => {
+              onFollow?.(isFollowing);
             }}
           />
         </div>

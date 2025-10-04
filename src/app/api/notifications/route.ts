@@ -1,26 +1,32 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServerClient } from '@supabase/ssr';
-import { cookies } from 'next/headers';
+
+function createSupabaseClient(request: NextRequest) {
+  return createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    {
+      cookies: {
+        get(name: string) {
+          const cookieHeader = request.headers.get('cookie');
+          if (!cookieHeader) return undefined;
+
+          const cookies = Object.fromEntries(
+            cookieHeader.split('; ').map(cookie => {
+              const [key, value] = cookie.split('=');
+              return [key, decodeURIComponent(value)];
+            })
+          );
+          return cookies[name];
+        },
+      },
+    }
+  );
+}
 
 export async function GET(request: NextRequest) {
   try {
-    const cookieStore = await cookies();
-    const supabase = createServerClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-      {
-        cookies: {
-          getAll() {
-            return cookieStore.getAll();
-          },
-          setAll(cookiesToSet) {
-            cookiesToSet.forEach(({ name, value, options }) =>
-              cookieStore.set(name, value, options)
-            );
-          },
-        },
-      }
-    );
+    const supabase = createSupabaseClient(request);
 
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) {
@@ -32,7 +38,7 @@ export async function GET(request: NextRequest) {
     const offset = parseInt(searchParams.get('offset') || '0');
     const unreadOnly = searchParams.get('unreadOnly') === 'true';
 
-    // Build query
+    // Build query - simplified to avoid foreign key relationship errors
     let query = supabase
       .from('notifications')
       .select(`
@@ -42,26 +48,10 @@ export async function GET(request: NextRequest) {
         read,
         read_at,
         created_at,
-        actor:actor_id (
-          id,
-          full_name,
-          first_name,
-          last_name,
-          avatar_url
-        ),
-        related_post:related_post_id (
-          id,
-          caption
-        ),
-        related_comment:related_comment_id (
-          id,
-          content
-        ),
-        related_follow:related_follow_id (
-          id,
-          status,
-          message
-        )
+        actor_id,
+        related_post_id,
+        related_comment_id,
+        related_follow_id
       `)
       .eq('recipient_id', user.id)
       .order('created_at', { ascending: false });
@@ -102,23 +92,7 @@ export async function GET(request: NextRequest) {
 
 export async function PUT(request: NextRequest) {
   try {
-    const cookieStore = await cookies();
-    const supabase = createServerClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-      {
-        cookies: {
-          getAll() {
-            return cookieStore.getAll();
-          },
-          setAll(cookiesToSet) {
-            cookiesToSet.forEach(({ name, value, options }) =>
-              cookieStore.set(name, value, options)
-            );
-          },
-        },
-      }
-    );
+    const supabase = createSupabaseClient(request);
 
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) {

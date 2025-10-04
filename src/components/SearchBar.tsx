@@ -48,15 +48,22 @@ export default function SearchBar() {
   const performSearch = async () => {
     setIsLoading(true);
     try {
+      console.log('[SEARCH BAR] Searching for:', query);
       const response = await fetch(`/api/search?q=${encodeURIComponent(query)}`);
       const data = await response.json();
 
+      console.log('[SEARCH BAR] Response:', data);
+
       if (response.ok) {
-        setResults(data.results);
+        setResults(data.results || { athletes: [], posts: [], clubs: [] });
         setShowResults(true);
+      } else {
+        console.error('[SEARCH BAR] Error response:', data);
+        setResults({ athletes: [], posts: [], clubs: [] });
       }
     } catch (error) {
-      console.error('Search error:', error);
+      console.error('[SEARCH BAR] Search error:', error);
+      setResults({ athletes: [], posts: [], clubs: [] });
     } finally {
       setIsLoading(false);
     }
@@ -95,8 +102,22 @@ export default function SearchBar() {
       </div>
 
       {/* Search Results Dropdown */}
-      {showResults && totalResults > 0 && (
+      {showResults && query.length >= 2 && (
         <div className="absolute top-full mt-2 w-full bg-white rounded-lg shadow-lg border border-gray-200 max-h-96 overflow-y-auto z-50">
+          {/* No Results Message */}
+          {!isLoading && totalResults === 0 && (
+            <div className="p-8 text-center">
+              <i className="fas fa-search text-4xl text-gray-300 mb-3"></i>
+              <h3 className="text-lg font-semibold text-gray-900 mb-1">No results found</h3>
+              <p className="text-sm text-gray-500">
+                Try searching for athlete names, schools, sports, or locations
+              </p>
+            </div>
+          )}
+
+          {/* Results */}
+          {totalResults > 0 && (
+            <>
           {/* Athletes */}
           {results.athletes.length > 0 && (
             <div className="p-2">
@@ -116,16 +137,16 @@ export default function SearchBar() {
                   ) : (
                     <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center">
                       <span className="text-white text-sm font-semibold">
-                        {getInitials(formatDisplayName(athlete.full_name, athlete.first_name, athlete.last_name))}
+                        {getInitials(formatDisplayName(athlete.first_name, athlete.middle_name, athlete.last_name, athlete.full_name))}
                       </span>
                     </div>
                   )}
                   <div className="flex-1 min-w-0">
                     <div className="font-medium text-gray-900 truncate">
-                      {formatDisplayName(athlete.full_name, athlete.first_name, athlete.last_name)}
+                      {formatDisplayName(athlete.first_name, athlete.middle_name, athlete.last_name, athlete.full_name)}
                     </div>
                     <div className="text-sm text-gray-500 truncate">
-                      {[athlete.sport, athlete.position, athlete.school].filter(Boolean).join(' • ')}
+                      {[athlete.sport, athlete.school, athlete.location].filter(Boolean).join(' • ')}
                     </div>
                   </div>
                   <i className="fas fa-arrow-right text-gray-400 text-sm"></i>
@@ -161,9 +182,10 @@ export default function SearchBar() {
                       <div className="flex items-center gap-2">
                         <span className="font-medium text-gray-900 text-sm">
                           {formatDisplayName(
-                            post.profiles?.full_name,
-                            post.profiles?.first_name,
-                            post.profiles?.last_name
+                            post.profile?.first_name,
+                            post.profile?.middle_name,
+                            post.profile?.last_name,
+                            post.profile?.full_name
                           )}
                         </span>
                         {SportIcon && (
@@ -198,17 +220,9 @@ export default function SearchBar() {
                   }}
                   className="w-full flex items-center gap-3 p-3 hover:bg-gray-50 rounded-lg transition-colors text-left"
                 >
-                  {club.logo_url ? (
-                    <img
-                      src={club.logo_url}
-                      alt={club.name}
-                      className="w-10 h-10 rounded object-cover"
-                    />
-                  ) : (
-                    <div className="w-10 h-10 bg-gray-200 rounded flex items-center justify-center">
-                      <i className="fas fa-users text-gray-400"></i>
-                    </div>
-                  )}
+                  <div className="w-10 h-10 bg-gray-200 rounded flex items-center justify-center">
+                    <i className="fas fa-users text-gray-400"></i>
+                  </div>
                   <div className="flex-1 min-w-0">
                     <div className="font-medium text-gray-900 truncate">{club.name}</div>
                     <div className="text-sm text-gray-500 truncate">
@@ -220,15 +234,8 @@ export default function SearchBar() {
               ))}
             </div>
           )}
-        </div>
-      )}
-
-      {/* No Results */}
-      {showResults && query.length >= 2 && totalResults === 0 && !isLoading && (
-        <div className="absolute top-full mt-2 w-full bg-white rounded-lg shadow-lg border border-gray-200 p-6 text-center z-50">
-          <i className="fas fa-search text-3xl text-gray-300 mb-2"></i>
-          <p className="text-gray-600">No results found for "{query}"</p>
-          <p className="text-sm text-gray-500 mt-1">Try different keywords</p>
+            </>
+          )}
         </div>
       )}
     </div>

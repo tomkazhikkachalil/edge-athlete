@@ -87,9 +87,10 @@ export default function PostCard({
   }, [post.comments_count]);
 
   const displayName = formatDisplayName(
-    post.profile.full_name,
     post.profile.first_name,
-    post.profile.last_name
+    post.profile.middle_name,
+    post.profile.last_name,
+    post.profile.full_name
   );
 
   const timeAgo = formatDistanceToNow(new Date(post.created_at), { addSuffix: true });

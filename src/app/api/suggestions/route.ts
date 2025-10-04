@@ -15,19 +15,46 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Profile ID required' }, { status: 400 });
     }
 
-    // Call the database function to generate suggestions
-    const { data: suggestions, error } = await supabase
+    // Try to call the database function, fallback to simple query if it doesn't exist
+    let suggestions: any[] = [];
+
+    const { data: rpcSuggestions, error: rpcError } = await supabase
       .rpc('generate_connection_suggestions', {
         user_profile_id: profileId,
         suggestion_limit: limit
       });
 
-    if (error) {
-      console.error('Error generating suggestions:', error);
-      return NextResponse.json({ error: error.message }, { status: 500 });
+    if (rpcError) {
+      console.error('Error generating suggestions:', rpcError);
+
+      // Fallback: Get random profiles that user doesn't follow
+      const { data: fallbackSuggestions, error: fallbackError } = await supabase
+        .from('profiles')
+        .select('id, full_name, first_name, middle_name, last_name, avatar_url, sport, school, location')
+        .neq('id', profileId)
+        .eq('visibility', 'public')
+        .limit(limit);
+
+      if (fallbackError) {
+        console.error('Fallback suggestions error:', fallbackError);
+        return NextResponse.json({ suggestions: [] });
+      }
+
+      // Normalize fallback data to match expected format
+      suggestions = (fallbackSuggestions || []).map(profile => ({
+        suggested_id: profile.id,
+        suggested_name: profile.full_name || `${profile.first_name || ''} ${profile.last_name || ''}`.trim(),
+        suggested_avatar: profile.avatar_url,
+        suggested_sport: profile.sport,
+        suggested_school: profile.school,
+        similarity_score: 0,
+        reason: 'You might know them'
+      }));
+    } else {
+      suggestions = rpcSuggestions || [];
     }
 
-    return NextResponse.json({ suggestions: suggestions || [] });
+    return NextResponse.json({ suggestions });
 
   } catch (error) {
     console.error('Suggestions fetch error:', error);

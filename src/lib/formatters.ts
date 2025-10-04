@@ -95,15 +95,43 @@ export const formatScore = (score: number | null | undefined): string => {
 };
 
 // Display name with fallback
+// NEW: Now uses first_name + middle_name + last_name for display
+// full_name is used as username/handle
 export const formatDisplayName = (
-  fullName?: string | null, 
-  firstName?: string | null, 
+  firstName?: string | null,
+  middleName?: string | null,
+  lastName?: string | null,
+  username?: string | null
+): string => {
+  // Build full name from parts
+  const nameParts = [
+    firstName?.trim(),
+    middleName?.trim(),
+    lastName?.trim()
+  ].filter(Boolean);
+
+  if (nameParts.length > 0) {
+    return nameParts.join(' ');
+  }
+
+  // Fallback to username if available
+  if (username?.trim()) {
+    return username.trim();
+  }
+
+  return 'Unknown User';
+};
+
+// Legacy function for backwards compatibility with old code
+export const formatDisplayNameLegacy = (
+  fullName?: string | null,
+  firstName?: string | null,
   lastName?: string | null
 ): string => {
   if (fullName?.trim()) return fullName.trim();
   if (firstName && lastName) return `${firstName.trim()} ${lastName.trim()}`;
   if (firstName) return firstName.trim();
-  return 'Unnamed Athlete';
+  return 'Unknown User';
 };
 
 // Get initials for avatar fallback

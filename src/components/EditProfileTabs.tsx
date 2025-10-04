@@ -89,8 +89,10 @@ export default function EditProfileTabs({
 
   // Form states - Initialize with empty strings to prevent controlled/uncontrolled warnings
   const [basicForm, setBasicForm] = useState({
-    full_name: '',
-    username: '',
+    first_name: '',
+    middle_name: '',
+    last_name: '',
+    full_name: '', // This is now the username/handle
     bio: '',
     avatar_file: null as File | null,
     visibility: 'public' as 'public' | 'private',
@@ -130,11 +132,11 @@ export default function EditProfileTabs({
 
   // Initialize forms when profile changes
   useEffect(() => {
-    const displayName = profile ? formatDisplayName(profile.full_name, profile.first_name, profile.last_name) : '';
-    
     setBasicForm({
-      full_name: (profile?.full_name || displayName || '').toString(),
-      username: (profile?.username || '').toString(),
+      first_name: (profile?.first_name || '').toString(),
+      middle_name: (profile?.middle_name || '').toString(),
+      last_name: (profile?.last_name || '').toString(),
+      full_name: (profile?.full_name || '').toString(), // username/handle
       bio: (profile?.bio || '').toString(),
       avatar_file: null,
       visibility: (profile?.visibility || 'public') as 'public' | 'private',
@@ -194,29 +196,17 @@ export default function EditProfileTabs({
           if (basicForm.avatar_file) {
             await uploadAvatar(basicForm.avatar_file);
           }
-          
-          // Split full_name into first_name and last_name
-          const fullNameTrimmed = basicForm.full_name.trim();
-          let firstName = '';
-          let lastName = '';
 
-          if (fullNameTrimmed) {
-            const nameParts = fullNameTrimmed.split(' ').filter(part => part.length > 0);
-            if (nameParts.length === 1) {
-              // Single name - treat as first name
-              firstName = nameParts[0];
-            } else if (nameParts.length >= 2) {
-              // Multiple names - first word is first name, rest is last name
-              firstName = nameParts[0];
-              lastName = nameParts.slice(1).join(' ');
-            }
+          // Validate required fields
+          if (!basicForm.first_name.trim() || !basicForm.last_name.trim()) {
+            throw new Error('First name and last name are required');
           }
 
           updateData = {
-            full_name: fullNameTrimmed || undefined,
-            first_name: firstName || undefined,
-            last_name: lastName || undefined,
-            username: basicForm.username.trim() || undefined,
+            first_name: basicForm.first_name.trim(),
+            middle_name: basicForm.middle_name.trim() || undefined,
+            last_name: basicForm.last_name.trim(),
+            full_name: basicForm.full_name.trim() || undefined, // username/handle
             bio: basicForm.bio.trim() || undefined,
             visibility: basicForm.visibility,
           };
@@ -411,37 +401,72 @@ export default function EditProfileTabs({
       </div>
 
       {/* Name Fields */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div>
+          <label htmlFor="first_name" className="block text-sm font-medium text-gray-700 mb-1">
+            First Name <span className="text-red-500">*</span>
+          </label>
+          <input
+            id="first_name"
+            type="text"
+            value={basicForm.first_name || ''}
+            onChange={(e) => setBasicForm(prev => ({ ...prev, first_name: e.target.value }))}
+            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            placeholder="John"
+            required
+          />
+        </div>
+
+        <div>
+          <label htmlFor="last_name" className="block text-sm font-medium text-gray-700 mb-1">
+            Last Name <span className="text-red-500">*</span>
+          </label>
+          <input
+            id="last_name"
+            type="text"
+            value={basicForm.last_name || ''}
+            onChange={(e) => setBasicForm(prev => ({ ...prev, last_name: e.target.value }))}
+            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            placeholder="Doe"
+            required
+          />
+        </div>
+      </div>
+
+      <div>
+        <label htmlFor="middle_name" className="block text-sm font-medium text-gray-700 mb-1">
+          Middle Name <span className="text-gray-400 text-xs">(Optional)</span>
+        </label>
+        <input
+          id="middle_name"
+          type="text"
+          value={basicForm.middle_name || ''}
+          onChange={(e) => setBasicForm(prev => ({ ...prev, middle_name: e.target.value }))}
+          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+          placeholder="Michael"
+        />
+      </div>
+
       <div>
         <label htmlFor="full_name" className="block text-sm font-medium text-gray-700 mb-1">
-          Full Name
+          Username/Handle
         </label>
         <input
           id="full_name"
           type="text"
           value={basicForm.full_name || ''}
           onChange={(e) => setBasicForm(prev => ({ ...prev, full_name: e.target.value }))}
-          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-          placeholder="Enter your full name"
-        />
-      </div>
-
-      <div>
-        <label htmlFor="username" className="block text-sm font-medium text-gray-700 mb-1">
-          Username
-        </label>
-        <input
-          id="username"
-          type="text"
-          value={basicForm.username || ''}
-          onChange={(e) => setBasicForm(prev => ({ ...prev, username: e.target.value }))}
           className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
-            errors.username ? 'border-red-500' : 'border-gray-300'
+            errors.full_name ? 'border-red-500' : 'border-gray-300'
           }`}
-          placeholder="Enter a unique username"
+          placeholder="johndoe or john_doe"
         />
-        {errors.username && (
+        <p className="mt-1 text-xs text-gray-500">
+          This is your unique identifier on the platform (e.g., @johndoe)
+        </p>
+        {errors.full_name && (
           <p className="mt-1 text-sm text-red-600" role="alert">
-            {errors.username}
+            {errors.full_name}
           </p>
         )}
       </div>

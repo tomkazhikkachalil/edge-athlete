@@ -1,11 +1,12 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { useAuth } from '@/lib/auth';
 import { useToast } from './Toast';
 
 interface FollowButtonProps {
   profileId: string;
-  currentUserId?: string;
+  currentUserId?: string; // Optional - will use auth hook if not provided
   onFollowChange?: (isFollowing: boolean, followersCount: number) => void;
   size?: 'sm' | 'md' | 'lg';
   showCount?: boolean;
@@ -14,13 +15,17 @@ interface FollowButtonProps {
 
 export default function FollowButton({
   profileId,
-  currentUserId,
+  currentUserId: propCurrentUserId,
   onFollowChange,
   size = 'md',
   showCount = false,
   className = ''
 }: FollowButtonProps) {
+  const { user } = useAuth();
+  const currentUserId = propCurrentUserId || user?.id;
+
   const [isFollowing, setIsFollowing] = useState(false);
+  const [followStatus, setFollowStatus] = useState<string | null>(null);
   const [followersCount, setFollowersCount] = useState(0);
   const [loading, setLoading] = useState(false);
   const [statsLoading, setStatsLoading] = useState(true);
@@ -37,7 +42,7 @@ export default function FollowButton({
 
   // Load follow stats on component mount
   useEffect(() => {
-    if (profileId) {
+    if (profileId && currentUserId) {
       loadFollowStats();
     }
   }, [profileId, currentUserId]);
@@ -51,27 +56,30 @@ export default function FollowButton({
       }
 
       const response = await fetch(`/api/follow/stats?${params}`);
-      
+
       if (response.ok) {
         const data = await response.json();
         setFollowersCount(data.followersCount);
         setIsFollowing(data.isFollowing);
+        setFollowStatus(data.followStatus);
       } else {
         // If the table doesn't exist yet, just show default values
         setFollowersCount(0);
         setIsFollowing(false);
+        setFollowStatus(null);
       }
     } catch (err) {
       // Silently handle errors for now (table might not exist yet)
       setFollowersCount(0);
       setIsFollowing(false);
+      setFollowStatus(null);
     } finally {
       setStatsLoading(false);
     }
   };
 
   const handleFollowClick = () => {
-    console.log('[FOLLOW BUTTON] Button clicked!', { currentUserId, profileId, isFollowing });
+    console.log('[FOLLOW BUTTON] Button clicked!', { currentUserId, profileId, isFollowing, followStatus });
 
     if (!currentUserId) {
       console.log('[FOLLOW BUTTON] No currentUserId, showing error');
@@ -85,9 +93,9 @@ export default function FollowButton({
       return;
     }
 
-    // If already following, unfollow directly
+    // If already following or pending, unfollow/cancel directly
     if (isFollowing) {
-      console.log('[FOLLOW BUTTON] Already following, unfollowing');
+      console.log('[FOLLOW BUTTON] Already following/pending, unfollowing/canceling');
       handleFollow();
     } else {
       // Show message modal for new follow requests
@@ -165,6 +173,38 @@ export default function FollowButton({
     );
   }
 
+  // Button text based on status
+  const getButtonContent = () => {
+    if (loading) {
+      return <i className="fas fa-spinner fa-spin"></i>;
+    }
+
+    if (followStatus === 'pending') {
+      return (
+        <>
+          <i className="fas fa-clock mr-1"></i>
+          Requested
+        </>
+      );
+    }
+
+    if (isFollowing) {
+      return (
+        <>
+          <i className="fas fa-check mr-1"></i>
+          Following
+        </>
+      );
+    }
+
+    return (
+      <>
+        <i className="fas fa-plus mr-1"></i>
+        Follow
+      </>
+    );
+  };
+
   return (
     <>
       <div className="flex items-center gap-2">
@@ -173,27 +213,17 @@ export default function FollowButton({
           disabled={loading}
           className={`
             font-medium rounded-full transition-colors disabled:opacity-50 disabled:cursor-not-allowed
-            ${isFollowing
-              ? 'bg-gray-200 text-gray-700 hover:bg-gray-300'
-              : 'bg-blue-600 text-white hover:bg-blue-700'
+            ${followStatus === 'pending'
+              ? 'bg-yellow-100 text-yellow-700 hover:bg-yellow-200'
+              : isFollowing
+                ? 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                : 'bg-blue-600 text-white hover:bg-blue-700'
             }
             ${sizeClasses[size]}
             ${className}
           `}
         >
-          {loading ? (
-            <i className="fas fa-spinner fa-spin"></i>
-          ) : isFollowing ? (
-            <>
-              <i className="fas fa-check mr-1"></i>
-              Following
-            </>
-          ) : (
-            <>
-              <i className="fas fa-plus mr-1"></i>
-              Follow
-            </>
-          )}
+          {getButtonContent()}
         </button>
 
         {showCount && (

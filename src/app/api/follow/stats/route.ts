@@ -16,49 +16,54 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Profile ID is required' }, { status: 400 });
     }
     
-    // Get follower count (people following this profile)
+    // Get follower count (people following this profile) - only count accepted
     const { data: followers, error: followersError } = await supabase
       .from('follows')
       .select('id')
-      .eq('following_id', profileId);
-    
+      .eq('following_id', profileId)
+      .eq('status', 'accepted');
+
     if (followersError) {
       console.error('Followers error:', followersError);
       return NextResponse.json({ error: 'Failed to get followers' }, { status: 500 });
     }
-    
-    // Get following count (people this profile follows)
+
+    // Get following count (people this profile follows) - only count accepted
     const { data: following, error: followingError } = await supabase
       .from('follows')
       .select('id')
-      .eq('follower_id', profileId);
-    
+      .eq('follower_id', profileId)
+      .eq('status', 'accepted');
+
     if (followingError) {
       console.error('Following error:', followingError);
       return NextResponse.json({ error: 'Failed to get following' }, { status: 500 });
     }
-    
-    // Check if current user follows this profile
+
+    // Check if current user follows this profile (any status)
     let isFollowing = false;
+    let followStatus = null;
     if (currentUserId && currentUserId !== profileId) {
-      const { data: followStatus, error: statusError } = await supabase
+      const { data: follow, error: statusError } = await supabase
         .from('follows')
-        .select('id')
+        .select('id, status')
         .eq('follower_id', currentUserId)
         .eq('following_id', profileId)
-        .single();
-      
-      if (statusError && statusError.code !== 'PGRST116') {
+        .maybeSingle();
+
+      if (statusError) {
         console.error('Follow status error:', statusError);
-      } else if (followStatus) {
+      } else if (follow) {
         isFollowing = true;
+        followStatus = follow.status;
       }
     }
     
     return NextResponse.json({
       followersCount: followers?.length || 0,
       followingCount: following?.length || 0,
-      isFollowing
+      isFollowing,
+      followStatus
     });
     
   } catch (error) {

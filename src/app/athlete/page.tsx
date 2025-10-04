@@ -791,19 +791,19 @@ export default function AthleteProfilePage() {
               <div className="relative flex-shrink-0">
                 <LazyImage
                   src={profile?.avatar_url}
-                  alt={`${formatDisplayName(profile?.full_name, profile?.first_name, profile?.last_name)} avatar`}
+                  alt={`${formatDisplayName(profile?.first_name, profile?.middle_name, profile?.last_name, profile?.full_name)} avatar`}
                   className="w-48 h-48 rounded-full object-cover border-4 border-white shadow-lg"
                   width={192}
                   height={192}
                   priority
                   fallback={
-                    <div 
+                    <div
                       className="w-48 h-48 rounded-full bg-gray-200 flex items-center justify-center border-4 border-white shadow-lg"
                       role="img"
-                      aria-label={`${formatDisplayName(profile?.full_name, profile?.first_name, profile?.last_name)} avatar`}
+                      aria-label={`${formatDisplayName(profile?.first_name, profile?.middle_name, profile?.last_name, profile?.full_name)} avatar`}
                     >
                       <span className="text-gray-600 font-semibold text-5xl" aria-hidden="true">
-                        {getInitials(formatDisplayName(profile?.full_name, profile?.first_name, profile?.last_name))}
+                        {getInitials(formatDisplayName(profile?.first_name, profile?.middle_name, profile?.last_name, profile?.full_name))}
                       </span>
                     </div>
                   }
@@ -859,7 +859,7 @@ export default function AthleteProfilePage() {
                 <div className="mb-6">
                   <InlineEdit
                     field="full_name"
-                    value={formatDisplayName(profile?.full_name, profile?.first_name, profile?.last_name)}
+                    value={formatDisplayName(profile?.first_name, profile?.middle_name, profile?.last_name, profile?.full_name)}
                     placeholder="Click to add your name"
                     className="text-4xl font-bold text-gray-900 mb-2 block"
                     ariaLabel="Athlete name"

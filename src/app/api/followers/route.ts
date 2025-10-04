@@ -1,28 +1,35 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServerClient } from '@supabase/ssr';
-import { cookies } from 'next/headers';
+import { createClient } from '@supabase/supabase-js';
+
+function createSupabaseClient(request: NextRequest) {
+  return createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    {
+      cookies: {
+        get(name: string) {
+          const cookieHeader = request.headers.get('cookie');
+          if (!cookieHeader) return undefined;
+
+          const cookies = Object.fromEntries(
+            cookieHeader.split('; ').map(cookie => {
+              const [key, value] = cookie.split('=');
+              return [key, decodeURIComponent(value)];
+            })
+          );
+          return cookies[name];
+        },
+      },
+    }
+  );
+}
 
 export async function GET(request: NextRequest) {
   console.log('[FOLLOWERS API] GET request received');
 
   try {
-    const cookieStore = await cookies();
-    const supabase = createServerClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-      {
-        cookies: {
-          getAll() {
-            return cookieStore.getAll();
-          },
-          setAll(cookiesToSet) {
-            cookiesToSet.forEach(({ name, value, options }) =>
-              cookieStore.set(name, value, options)
-            );
-          },
-        },
-      }
-    );
+    const supabase = createSupabaseClient(request);
 
     const { data: { user }, error: authError } = await supabase.auth.getUser();
 
@@ -54,6 +61,7 @@ export async function GET(request: NextRequest) {
             id,
             full_name,
             first_name,
+            middle_name,
             last_name,
             avatar_url,
             sport,
@@ -89,6 +97,7 @@ export async function GET(request: NextRequest) {
             id,
             full_name,
             first_name,
+            middle_name,
             last_name,
             avatar_url,
             sport,
@@ -112,31 +121,84 @@ export async function GET(request: NextRequest) {
         return NextResponse.json({ error: 'Cannot view other users requests' }, { status: 403 });
       }
 
-      const { data: requests, error } = await supabase
+      console.log('[FOLLOWERS API] Fetching requests for user:', user.id);
+
+      // First get the follow requests
+      const { data: followRequests, error: followError } = await supabase
         .from('follows')
-        .select(`
-          id,
-          message,
-          created_at,
-          follower:follower_id (
-            id,
-            full_name,
-            first_name,
-            last_name,
-            avatar_url,
-            sport,
-            school
-          )
-        `)
+        .select('id, message, created_at, follower_id')
         .eq('following_id', user.id)
         .eq('status', 'pending')
         .order('created_at', { ascending: false });
 
-      if (error) {
-        return NextResponse.json({ error: error.message }, { status: 500 });
+      if (followError) {
+        console.error('[FOLLOWERS API] Error fetching follow requests:', followError);
+        return NextResponse.json({ error: followError.message }, { status: 500 });
       }
 
-      return NextResponse.json({ requests: requests || [] });
+      console.log('[FOLLOWERS API] Follow requests found:', followRequests?.length || 0);
+
+      if (!followRequests || followRequests.length === 0) {
+        return NextResponse.json({ requests: [] });
+      }
+
+      // Then get the follower profiles using service role to bypass RLS
+      const followerIds = followRequests.map(r => r.follower_id);
+      console.log('[FOLLOWERS API] Fetching profiles for follower IDs:', followerIds);
+
+      // Use service role client to bypass RLS and read any profile
+      const supabaseAdmin = createClient(
+        process.env.NEXT_PUBLIC_SUPABASE_URL!,
+        process.env.SUPABASE_SERVICE_ROLE_KEY!,
+        {
+          auth: {
+            autoRefreshToken: false,
+            persistSession: false
+          }
+        }
+      );
+
+      const { data: profiles, error: profileError } = await supabaseAdmin
+        .from('profiles')
+        .select('id, first_name, middle_name, last_name, full_name, avatar_url, sport, school')
+        .in('id', followerIds);
+
+      if (profileError) {
+        console.error('[FOLLOWERS API] Error fetching profiles:', profileError);
+        return NextResponse.json({ error: profileError.message }, { status: 500 });
+      }
+
+      console.log('[FOLLOWERS API] Profiles fetched:', {
+        count: profiles?.length || 0,
+        profiles: profiles
+      });
+
+      // Combine the data
+      const requests = followRequests.map(req => {
+        const follower = profiles?.find(p => p.id === req.follower_id);
+        return {
+          id: req.id,
+          message: req.message,
+          created_at: req.created_at,
+          follower: follower || {
+            id: req.follower_id,
+            first_name: 'Unknown',
+            middle_name: null,
+            last_name: 'User',
+            full_name: 'unknown_user',
+            avatar_url: null,
+            sport: null,
+            school: null
+          }
+        };
+      });
+
+      console.log('[FOLLOWERS API] Returning requests:', {
+        count: requests.length,
+        hasFollowerData: requests.every(r => r.follower !== null)
+      });
+
+      return NextResponse.json({ requests });
     }
 
     return NextResponse.json({ error: 'Invalid type parameter' }, { status: 400 });
@@ -153,23 +215,7 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    const cookieStore = await cookies();
-    const supabase = createServerClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-      {
-        cookies: {
-          getAll() {
-            return cookieStore.getAll();
-          },
-          setAll(cookiesToSet) {
-            cookiesToSet.forEach(({ name, value, options }) =>
-              cookieStore.set(name, value, options)
-            );
-          },
-        },
-      }
-    );
+    const supabase = createSupabaseClient(request);
 
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) {

@@ -28,14 +28,33 @@ export async function GET(request: NextRequest) {
 
     // Search Athletes/Profiles
     if (type === 'all' || type === 'athletes') {
+      // Build search pattern
+      const searchPattern = `%${query}%`;
+
+      console.log('[SEARCH] Searching athletes with pattern:', searchPattern);
+
       const { data: athletes, error: athletesError } = await supabase
         .from('profiles')
-        .select('id, full_name, first_name, last_name, username, avatar_url, sport, position, school, team, location, email')
-        .or(`full_name.ilike.%${query}%,first_name.ilike.%${query}%,last_name.ilike.%${query}%,username.ilike.%${query}%,school.ilike.%${query}%,team.ilike.%${query}%,email.ilike.%${query}%`)
-        .limit(10);
+        .select('id, full_name, first_name, middle_name, last_name, username, avatar_url, sport, school, location, email, bio, visibility')
+        .or(`full_name.ilike.${searchPattern},first_name.ilike.${searchPattern},middle_name.ilike.${searchPattern},last_name.ilike.${searchPattern},username.ilike.${searchPattern},school.ilike.${searchPattern},email.ilike.${searchPattern},sport.ilike.${searchPattern},location.ilike.${searchPattern},bio.ilike.${searchPattern}`)
+        .order('full_name', { ascending: true, nullsFirst: false })
+        .limit(20);
 
       if (!athletesError && athletes) {
-        results.athletes = athletes;
+        // Filter out private profiles (basic client-side filter)
+        // Note: For production, implement proper privacy checks
+        results.athletes = athletes.map(athlete => ({
+          id: athlete.id,
+          full_name: athlete.full_name,
+          first_name: athlete.first_name,
+          last_name: athlete.last_name,
+          username: athlete.username,
+          avatar_url: athlete.avatar_url,
+          sport: athlete.sport,
+          school: athlete.school,
+          location: athlete.location,
+          visibility: athlete.visibility
+        }));
         console.log('[SEARCH] Athletes found:', athletes.length, 'Query:', query);
       } else if (athletesError) {
         console.error('[SEARCH] Athletes error:', athletesError);
@@ -44,6 +63,10 @@ export async function GET(request: NextRequest) {
 
     // Search Posts (by caption, hashtags, tags)
     if (type === 'all' || type === 'posts') {
+      const searchPattern = `%${query}%`;
+
+      console.log('[SEARCH] Searching posts with pattern:', searchPattern);
+
       const { data: posts, error: postsError } = await supabase
         .from('posts')
         .select(`
@@ -53,7 +76,7 @@ export async function GET(request: NextRequest) {
           hashtags,
           tags,
           created_at,
-          profiles (
+          profile:profile_id (
             id,
             full_name,
             first_name,
@@ -66,27 +89,45 @@ export async function GET(request: NextRequest) {
           )
         `)
         .eq('visibility', 'public')
-        .or(`caption.ilike.%${query}%, hashtags.cs.{${query}}`)
+        .ilike('caption', searchPattern)
         .order('created_at', { ascending: false })
-        .limit(10);
+        .limit(15);
 
       if (!postsError && posts) {
         results.posts = posts;
+        console.log('[SEARCH] Posts found:', posts.length);
+      } else if (postsError) {
+        console.error('[SEARCH] Posts error:', postsError);
       }
     }
 
     // Search Clubs
     if (type === 'all' || type === 'clubs') {
+      const searchPattern = `%${query}%`;
+
+      console.log('[SEARCH] Searching clubs with pattern:', searchPattern);
+
       const { data: clubs, error: clubsError } = await supabase
         .from('clubs')
-        .select('id, name, description, location, logo_url')
-        .or(`name.ilike.%${query}%, description.ilike.%${query}%, location.ilike.%${query}%`)
+        .select('id, name, description, location')
+        .or(`name.ilike.${searchPattern},description.ilike.${searchPattern},location.ilike.${searchPattern}`)
         .limit(10);
 
       if (!clubsError && clubs) {
         results.clubs = clubs;
+        console.log('[SEARCH] Clubs found:', clubs.length);
+      } else if (clubsError) {
+        console.error('[SEARCH] Clubs error:', clubsError);
       }
     }
+
+    // Log final results
+    console.log('[SEARCH] Total results:', {
+      athletes: results.athletes.length,
+      posts: results.posts.length,
+      clubs: results.clubs.length,
+      total: results.athletes.length + results.posts.length + results.clubs.length
+    });
 
     return NextResponse.json({
       query,

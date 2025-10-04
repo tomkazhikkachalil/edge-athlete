@@ -1,7 +1,29 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { canViewProfile } from '@/lib/privacy';
 import { createServerClient } from '@supabase/ssr';
-import { cookies } from 'next/headers';
+
+function createSupabaseClient(request: NextRequest) {
+  return createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    {
+      cookies: {
+        get(name: string) {
+          const cookieHeader = request.headers.get('cookie');
+          if (!cookieHeader) return undefined;
+
+          const cookies = Object.fromEntries(
+            cookieHeader.split('; ').map(cookie => {
+              const [key, value] = cookie.split('=');
+              return [key, decodeURIComponent(value)];
+            })
+          );
+          return cookies[name];
+        },
+      },
+    }
+  );
+}
 
 export async function GET(request: NextRequest) {
   try {
@@ -13,23 +35,7 @@ export async function GET(request: NextRequest) {
     }
 
     // Get current user from session
-    const cookieStore = await cookies();
-    const supabase = createServerClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-      {
-        cookies: {
-          getAll() {
-            return cookieStore.getAll();
-          },
-          setAll(cookiesToSet) {
-            cookiesToSet.forEach(({ name, value, options }) =>
-              cookieStore.set(name, value, options)
-            );
-          },
-        },
-      }
-    );
+    const supabase = createSupabaseClient(request);
 
     const { data: { user } } = await supabase.auth.getUser();
     const currentUserId = user?.id || null;

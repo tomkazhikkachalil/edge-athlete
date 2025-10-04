@@ -266,12 +266,12 @@ export default function FeedPage() {
                   ) : (
                     <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center">
                       <span className="text-white text-sm font-semibold">
-                        {getInitials(formatDisplayName(profile?.full_name, profile?.first_name, profile?.last_name))}
+                        {getInitials(formatDisplayName(profile?.first_name, profile?.middle_name, profile?.last_name, profile?.full_name))}
                       </span>
                     </div>
                   )}
                   <span className="hidden md:block text-sm font-medium text-gray-700">
-                    {formatDisplayName(profile?.full_name, profile?.first_name, profile?.last_name)}
+                    {formatDisplayName(profile?.first_name, profile?.middle_name, profile?.last_name, profile?.full_name)}
                   </span>
                   <i className="fas fa-chevron-down text-xs text-gray-500"></i>
                 </button>

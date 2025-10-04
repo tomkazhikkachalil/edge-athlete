@@ -59,8 +59,9 @@ export interface Profile {
   created_at: string;
   updated_at: string;
   // Extended athlete profile fields
+  middle_name?: string;
   username?: string;
-  full_name?: string;
+  full_name?: string; // This is now the username/handle
   bio?: string;
   sport?: string;
   position?: string;
