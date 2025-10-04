@@ -7,7 +7,6 @@ import PostCard from '@/components/PostCard';
 import CreatePostModal from '@/components/CreatePostModal';
 import EditPostModal from '@/components/EditPostModal';
 import SearchBar from '@/components/SearchBar';
-import FollowButton from '@/components/FollowButton';
 import NotificationsDropdown from '@/components/NotificationsDropdown';
 import ConnectionSuggestions from '@/components/ConnectionSuggestions';
 import { ToastContainer, useToast } from '@/components/Toast';
@@ -17,7 +16,7 @@ interface Post {
   id: string;
   caption: string | null;
   sport_key: string | null;
-  stats_data: any;
+  stats_data: Record<string, unknown> | null;
   visibility: string;
   created_at: string;
   likes_count: number;
@@ -226,11 +225,6 @@ export default function FeedPage() {
               </nav>
             </div>
 
-            {/* Center - Search */}
-            <div className="hidden md:block flex-1 max-w-md mx-8">
-              <SearchBar />
-            </div>
-
             {/* Right - Actions & Profile */}
             <div className="flex items-center gap-4">
               <NotificationsDropdown />
@@ -280,6 +274,15 @@ export default function FeedPage() {
           </div>
         </div>
       </header>
+
+      {/* Search Bar - Below Header */}
+      <div className="bg-white border-b border-gray-200">
+        <div className="max-w-7xl mx-auto px-4 py-4">
+          <div className="max-w-2xl">
+            <SearchBar />
+          </div>
+        </div>
+      </div>
 
       {/* Main Layout */}
       <div className="max-w-7xl mx-auto px-4 py-6">
