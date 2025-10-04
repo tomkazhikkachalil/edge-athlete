@@ -44,6 +44,7 @@ SMTP_PASS=
   - **`athlete/[id]/`** - Individual athlete profile pages (by user ID)
   - **`u/[username]/`** - Profile pages accessible by username
   - **`app/profile/`** - Logged-in user's own profile editor
+  - **`app/followers/`** - Followers, following, and follow requests management
   - **`app/sport/[sport_key]/`** - Sport-specific pages and forms
   - **`dashboard/`** - Admin dashboard
   - **`api/`** - API routes (posts, comments, likes, search, upload, etc.)

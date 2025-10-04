@@ -1,5 +1,58 @@
 # Development Log
 
+## 2025-10-04 - Followers Management and UI Improvements
+
+### Latest Changes
+
+#### 1. Unfollow and Remove Follower Functionality
+**Feature**: Added ability to manage followers/following directly from connections page.
+
+**Implementation**:
+- Added `handleUnfollow()` function to unfollow users from Following tab
+- Added `handleRemoveFollower()` function to remove followers from Followers tab
+- Updated `renderProfileCard()` to conditionally show Remove/Unfollow buttons
+- Both actions call `/api/follow` endpoint to DELETE relationships from database
+- Automatic data reload after follow/unfollow actions
+
+**Files Modified**:
+- `src/app/app/followers/page.tsx` - Added unfollow/remove handlers and button rendering
+- `src/app/api/followers/route.ts` - Fixed RLS issue using admin client for profile lookups
+
+**Database Impact**:
+- Unfollow: DELETES row from `follows` table
+- Remove follower: DELETES their follow of you from `follows` table
+- All changes persist permanently in database
+
+#### 2. RLS Fix for Followers/Following Data
+**Problem**: Row Level Security was blocking nested profile data in followers queries, returning empty `{}` objects.
+
+**Solution**:
+- Modified `/api/followers` to use admin client (service role key) for profile data
+- Maintains authentication requirements while bypassing RLS for nested queries
+- Applied to both `followers` and `following` endpoints
+
+**Impact**: Followers and following lists now properly display profile information (names, avatars, etc.)
+
+#### 3. Search Bar UI Relocation
+**Improvement**: Moved search bar from header center to dedicated section below header.
+
+**Changes**:
+- Removed search bar from header (between logo and profile)
+- Added new section below header with white background and border
+- Search bar now spans wider (max-w-2xl) for better visibility
+- Positioned within same max-w-7xl container as posts for alignment
+- Cleaner header layout with more space for navigation
+
+**Files Modified**:
+- `src/app/feed/page.tsx` - Relocated search bar, removed unused FollowButton import
+
+### Build Status
+- ✅ ESLint: ~50 warnings (non-critical, mostly TypeScript `any` types and React Hook dependencies)
+- ✅ Production build: Successful compilation
+- ✅ No errors, only warnings
+
+---
+
 ## 2025-10-04 - Name Structure Refactor and Follow System Improvements
 
 ### Major Changes
