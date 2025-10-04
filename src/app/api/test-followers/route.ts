@@ -1,8 +1,8 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextResponse } from 'next/server';
 import { createServerClient } from '@supabase/ssr';
 import { cookies } from 'next/headers';
 
-export async function GET(request: NextRequest) {
+export async function GET() {
   console.log('========================================');
   console.log('[TEST FOLLOWERS API] Starting test...');
 
@@ -54,7 +54,7 @@ export async function GET(request: NextRequest) {
 
     // Test 4: Check follows table exists
     console.log('[TEST] Step 4: Checking follows table');
-    const { data: followsTest, error: followsError } = await supabase
+    const { error: followsError } = await supabase
       .from('follows')
       .select('id')
       .limit(1);
@@ -80,7 +80,7 @@ export async function GET(request: NextRequest) {
 
     // Test 5: Check follows table has status column
     console.log('[TEST] Step 5: Testing status column query');
-    const { data: statusTest, error: statusError } = await supabase
+    const { error: statusError } = await supabase
       .from('follows')
       .select('id, status')
       .limit(1);

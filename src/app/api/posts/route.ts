@@ -38,7 +38,18 @@ export async function POST(request: NextRequest) {
     }
 
     // Create the post record
-    const postData: any = {
+    const postData: {
+      profile_id: string;
+      sport_key: string;
+      caption: string;
+      visibility: string;
+      tags: string[];
+      hashtags: string[];
+      likes_count: number;
+      comments_count: number;
+      round_id?: string;
+      stats_data?: Record<string, unknown>;
+    } = {
       profile_id: userId,
       sport_key: postType, // Use postType as sport_key for our unified approach
       caption: caption,
@@ -105,8 +116,8 @@ export async function POST(request: NextRequest) {
       // Now handle hole-by-hole data
       if (roundId && golfData.holesData && golfData.holesData.length > 0) {
         const holeRecords = golfData.holesData
-          .filter((hole: any) => hole.score !== undefined)
-          .map((hole: any) => ({
+          .filter((hole: { score?: number }) => hole.score !== undefined)
+          .map((hole: { hole: number; par: number; yardage?: number; score: number; putts?: number }) => ({
             round_id: roundId,
             hole_number: hole.hole,
             par: hole.par,
@@ -180,7 +191,7 @@ export async function POST(request: NextRequest) {
 
     // Add media files if provided
     if (media && media.length > 0) {
-      const mediaRecords = media.map((file: any, index: number) => ({
+      const mediaRecords = media.map((file: { url: string; type: string; sortOrder?: number; thumbnailUrl?: string }, index: number) => ({
         post_id: post.id,
         media_url: file.url,
         media_type: file.type,
@@ -302,7 +313,7 @@ export async function GET(request: NextRequest) {
 
             if (roundData && roundData.golf_holes) {
               // Sort holes by hole number
-              roundData.golf_holes.sort((a: any, b: any) => a.hole_number - b.hole_number);
+              roundData.golf_holes.sort((a: { hole_number: number }, b: { hole_number: number }) => a.hole_number - b.hole_number);
             }
 
             golfRound = roundData;
@@ -338,8 +349,8 @@ export async function GET(request: NextRequest) {
           avatar_url: post.profiles.avatar_url
         },
         media: (post.post_media || [])
-          .sort((a: any, b: any) => a.display_order - b.display_order)
-          .map((media: any) => ({
+          .sort((a: { display_order: number }, b: { display_order: number }) => a.display_order - b.display_order)
+          .map((media: { id: string; media_url: string; media_type: string; display_order: number }) => ({
             id: media.id,
             media_url: media.media_url,
             media_type: media.media_type,

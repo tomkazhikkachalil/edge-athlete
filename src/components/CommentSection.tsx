@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Comment } from '@/lib/supabase';
 import { useAuth } from '@/lib/auth';
 
@@ -20,18 +20,7 @@ export default function CommentSection({ postId, initialCommentsCount = 0, onCom
   const [showComments, setShowComments] = useState(false);
   const [error, setError] = useState('');
 
-  useEffect(() => {
-    if (showComments) {
-      fetchComments();
-    }
-  }, [showComments, postId]);
-
-  // Update count when initialCommentsCount prop changes
-  useEffect(() => {
-    setCommentsCount(initialCommentsCount);
-  }, [initialCommentsCount]);
-
-  const fetchComments = async () => {
+  const fetchComments = useCallback(async () => {
     setIsLoading(true);
     setError('');
     try {
@@ -50,7 +39,18 @@ export default function CommentSection({ postId, initialCommentsCount = 0, onCom
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [postId]);
+
+  useEffect(() => {
+    if (showComments) {
+      fetchComments();
+    }
+  }, [showComments, fetchComments]);
+
+  // Update count when initialCommentsCount prop changes
+  useEffect(() => {
+    setCommentsCount(initialCommentsCount);
+  }, [initialCommentsCount]);
 
   const handleSubmitComment = async (e: React.FormEvent) => {
     e.preventDefault();

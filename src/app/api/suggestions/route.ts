@@ -16,7 +16,7 @@ export async function GET(request: NextRequest) {
     }
 
     // Try to call the database function, fallback to simple query if it doesn't exist
-    let suggestions: any[] = [];
+    let suggestions: unknown[] = [];
 
     const { data: rpcSuggestions, error: rpcError } = await supabase
       .rpc('generate_connection_suggestions', {

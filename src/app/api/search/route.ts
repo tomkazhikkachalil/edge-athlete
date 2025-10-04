@@ -20,7 +20,11 @@ export async function GET(request: NextRequest) {
       }, { status: 400 });
     }
 
-    const results: any = {
+    const results: {
+      athletes: unknown[];
+      posts: unknown[];
+      clubs: unknown[];
+    } = {
       athletes: [],
       posts: [],
       clubs: []

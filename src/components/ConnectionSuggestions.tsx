@@ -1,8 +1,8 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
-import { formatDisplayName, getInitials } from '@/lib/formatters';
+import { getInitials } from '@/lib/formatters';
 import LazyImage from './LazyImage';
 import FollowButton from './FollowButton';
 
@@ -32,13 +32,7 @@ export default function ConnectionSuggestions({
   const [loading, setLoading] = useState(true);
   const [dismissedIds, setDismissedIds] = useState<Set<string>>(new Set());
 
-  useEffect(() => {
-    if (profileId) {
-      loadSuggestions();
-    }
-  }, [profileId, limit]);
-
-  const loadSuggestions = async () => {
+  const loadSuggestions = useCallback(async () => {
     try {
       setLoading(true);
       const response = await fetch(`/api/suggestions?profileId=${profileId}&limit=${limit}`);
@@ -52,7 +46,13 @@ export default function ConnectionSuggestions({
     } finally {
       setLoading(false);
     }
-  };
+  }, [profileId, limit]);
+
+  useEffect(() => {
+    if (profileId) {
+      loadSuggestions();
+    }
+  }, [profileId, loadSuggestions]);
 
   const handleDismiss = async (suggestedId: string) => {
     try {
