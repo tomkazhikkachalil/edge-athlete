@@ -174,6 +174,7 @@ See [PRIVACY_ARCHITECTURE.md](PRIVACY_ARCHITECTURE.md) and [SECURITY_ARCHITECTUR
 - `implement-privacy-system.sql` - Privacy implementation
 - `COMPLETE_GOLF_SETUP.sql` - Golf schema
 - `fix-likes-comments-issues.sql` - Latest count fixes
+- `COMPLETE_NAME_MIGRATION.sql` - Name structure refactor (separate first/middle/last names)
 
 ### Feature Flags
 
@@ -211,17 +212,39 @@ Toggle sports here to enable/disable throughout UI.
 
 **API Routes (`src/app/api/`):**
 
-All routes follow this pattern:
-```typescript
-import { createServerClient } from '@supabase/ssr';
-import { cookies } from 'next/headers';
+**IMPORTANT: Next.js 15 Cookie Authentication Pattern**
 
-export async function GET/POST(request: Request) {
-  const supabase = createServerClient(
+All routes must use the cookie header reading pattern (NOT `await cookies()`):
+
+```typescript
+import { NextRequest, NextResponse } from 'next/server';
+import { createServerClient } from '@supabase/ssr';
+
+// Helper function for cookie authentication
+function createSupabaseClient(request: NextRequest) {
+  return createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    { cookies }
+    {
+      cookies: {
+        get(name: string) {
+          const cookieHeader = request.headers.get('cookie');
+          if (!cookieHeader) return undefined;
+          const cookies = Object.fromEntries(
+            cookieHeader.split('; ').map(cookie => {
+              const [key, value] = cookie.split('=');
+              return [key, decodeURIComponent(value)];
+            })
+          );
+          return cookies[name];
+        },
+      },
+    }
   );
+}
+
+export async function GET(request: NextRequest) {
+  const supabase = createSupabaseClient(request);
 
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -229,6 +252,28 @@ export async function GET/POST(request: Request) {
   // RLS automatically enforces access control
   // ...
 }
+```
+
+**When to use Admin Client:**
+
+For operations that need to bypass RLS (e.g., viewing follow request sender profiles):
+
+```typescript
+import { createClient } from '@supabase/supabase-js';
+
+const supabaseAdmin = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.SUPABASE_SERVICE_ROLE_KEY!,
+  {
+    auth: {
+      autoRefreshToken: false,
+      persistSession: false
+    }
+  }
+);
+
+// Use sparingly - bypasses all RLS policies
+const { data } = await supabaseAdmin.from('profiles').select('*');
 ```
 
 **Key endpoints:**
@@ -240,6 +285,100 @@ export async function GET/POST(request: Request) {
 - `/api/follow` - Follow/unfollow
 - `/api/golf/*` - Golf-specific endpoints
 - `/api/debug/counts` - Debug endpoint for like/comment counts
+- `/api/followers` - Followers, following, and follow requests (uses admin client for requests)
+
+### Profile Name Structure
+
+**IMPORTANT: Name fields changed in October 2024**
+
+The profile name structure uses separate fields:
+
+**Database Schema:**
+```typescript
+interface Profile {
+  first_name?: string;      // User's first/given name (required for display)
+  middle_name?: string;      // User's middle name (optional)
+  last_name?: string;        // User's last/family name (required for display)
+  full_name?: string;        // Username/handle (e.g., "johndoe")
+  username?: string;         // Alternative username (legacy)
+}
+```
+
+**Display Name Function:**
+
+ALWAYS use the correct signature when displaying names:
+
+```typescript
+import { formatDisplayName, getInitials } from '@/lib/formatters';
+
+// CORRECT - New signature
+const displayName = formatDisplayName(
+  profile.first_name,
+  profile.middle_name,
+  profile.last_name,
+  profile.full_name  // username fallback
+);
+
+// WRONG - Old signature (causes duplicate names)
+const displayName = formatDisplayName(
+  profile.full_name,
+  profile.first_name,
+  profile.last_name
+);
+
+// For initials
+const initials = getInitials(displayName);
+```
+
+**API Query Pattern:**
+
+When querying profiles, ALWAYS include `middle_name`:
+
+```typescript
+// CORRECT
+const { data } = await supabase
+  .from('profiles')
+  .select('id, first_name, middle_name, last_name, full_name, avatar_url, sport, school');
+
+// WRONG - Missing middle_name
+const { data } = await supabase
+  .from('profiles')
+  .select('id, first_name, last_name, full_name, avatar_url');
+```
+
+**Foreign Key Queries:**
+
+```typescript
+// For followers/following with nested profiles
+.select(`
+  id,
+  created_at,
+  follower:follower_id (
+    id,
+    full_name,
+    first_name,
+    middle_name,
+    last_name,
+    avatar_url,
+    sport,
+    school
+  )
+`)
+```
+
+**Handling Missing Name Data:**
+
+- Users without `first_name`/`last_name` will show as "Unknown User"
+- This is expected for users who haven't updated their profiles yet
+- `formatDisplayName()` handles nulls gracefully with fallback to username
+
+**Profile Editing:**
+
+The `EditProfileTabs` component now has separate fields:
+- First Name (required)
+- Last Name (required)
+- Middle Name (optional)
+- Username/Handle (what was previously "Full Name")
 
 ### Golf Implementation
 
