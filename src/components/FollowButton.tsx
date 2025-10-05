@@ -138,6 +138,10 @@ export default function FollowButton({
       setFollowersCount(newFollowersCount);
       setFollowMessage(''); // Reset message
 
+      // Reload stats from server to ensure accurate state
+      // This is crucial when a follow request is rejected - we need fresh data
+      await loadFollowStats();
+
       // Notify parent component
       onFollowChange?.(newFollowingStatus, newFollowersCount);
 

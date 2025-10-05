@@ -30,7 +30,7 @@ export async function GET(request: NextRequest) {
       // Fallback: Get random profiles that user doesn't follow
       const { data: fallbackSuggestions, error: fallbackError } = await supabase
         .from('profiles')
-        .select('id, full_name, first_name, middle_name, last_name, avatar_url, sport, school, location')
+        .select('id, full_name, first_name, middle_name, last_name, avatar_url, location')
         .neq('id', profileId)
         .eq('visibility', 'public')
         .limit(limit);
@@ -45,8 +45,6 @@ export async function GET(request: NextRequest) {
         suggested_id: profile.id,
         suggested_name: profile.full_name || `${profile.first_name || ''} ${profile.last_name || ''}`.trim(),
         suggested_avatar: profile.avatar_url,
-        suggested_sport: profile.sport,
-        suggested_school: profile.school,
         similarity_score: 0,
         reason: 'You might know them'
       }));

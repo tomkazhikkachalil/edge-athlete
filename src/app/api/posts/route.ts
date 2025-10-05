@@ -49,6 +49,7 @@ export async function POST(request: NextRequest) {
       comments_count: number;
       round_id?: string;
       stats_data?: Record<string, unknown>;
+      golf_mode?: string;
     } = {
       profile_id: userId,
       sport_key: postType, // Use postType as sport_key for our unified approach
@@ -234,6 +235,17 @@ export async function GET(request: NextRequest) {
     const limit = parseInt(searchParams.get('limit') || '20');
     const offset = parseInt(searchParams.get('offset') || '0');
 
+    // Get current authenticated user (for privacy checks)
+    let currentUserId: string | null = null;
+    try {
+      const user = await requireAuth(request);
+      currentUserId = user.id;
+    } catch {
+      // Not authenticated - will only see public content
+      currentUserId = null;
+    }
+
+    // Fetch posts with profile and follow relationship info
     let query = supabase
       .from('posts')
       .select(`
@@ -245,12 +257,14 @@ export async function GET(request: NextRequest) {
           thumbnail_url,
           display_order
         ),
-        profiles (
+        profiles:profile_id (
           id,
           full_name,
           first_name,
+          middle_name,
           last_name,
-          avatar_url
+          avatar_url,
+          visibility
         ),
         post_likes (
           profile_id
@@ -262,9 +276,6 @@ export async function GET(request: NextRequest) {
     // Filter by user if provided
     if (userId) {
       query = query.eq('profile_id', userId);
-    } else {
-      // Only show public posts for non-user queries
-      query = query.eq('visibility', 'public');
     }
 
     // Filter by sport if provided
@@ -279,9 +290,54 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Failed to fetch posts' }, { status: 500 });
     }
 
+    // Get follow relationships for current user (if authenticated)
+    let followingIds: Set<string> = new Set();
+    if (currentUserId) {
+      const { data: following } = await supabase
+        .from('follows')
+        .select('following_id')
+        .eq('follower_id', currentUserId)
+        .eq('status', 'accepted');
+
+      if (following) {
+        followingIds = new Set(following.map(f => f.following_id));
+      }
+    }
+
+    // Filter posts based on privacy rules
+    const visiblePosts = (posts || []).filter(post => {
+      if (!post.profiles) return false;
+
+      const postOwner = post.profiles;
+      const isOwnPost = currentUserId === post.profile_id;
+
+      // Rule 1: User can always see their own posts
+      if (isOwnPost) {
+        return true;
+      }
+
+      // Rule 2: Post is public AND profile is public
+      if (post.visibility === 'public' && postOwner.visibility === 'public') {
+        return true;
+      }
+
+      // Rule 3: Viewer is connected (following the poster with accepted status)
+      if (currentUserId && followingIds.has(post.profile_id)) {
+        return true;
+      }
+
+      // If none of the above conditions are met, hide the post
+      return false;
+    });
+
+    // Apply final visibility filter (organization-based features not yet implemented)
+    const finalVisiblePosts = visiblePosts;
+
+    console.log(`[PRIVACY] Total posts fetched: ${posts?.length || 0}, Visible after filtering: ${finalVisiblePosts.length}`);
+
     // Fetch golf rounds with hole-by-hole data for posts that have round_id
     const postsWithRounds = await Promise.all(
-      (posts || []).map(async (post) => {
+      finalVisiblePosts.map(async (post) => {
         let golfRound = null;
 
         if (post.round_id) {
@@ -344,6 +400,7 @@ export async function GET(request: NextRequest) {
           profile: {
           id: post.profiles.id,
           first_name: post.profiles.first_name,
+          middle_name: post.profiles.middle_name,
           last_name: post.profiles.last_name,
           full_name: post.profiles.full_name,
           avatar_url: post.profiles.avatar_url

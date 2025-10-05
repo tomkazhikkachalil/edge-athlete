@@ -1,48 +1,24 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createServerClient } from '@supabase/ssr';
 import { createClient } from '@supabase/supabase-js';
-
-function createSupabaseClient(request: NextRequest) {
-  return createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      cookies: {
-        get(name: string) {
-          const cookieHeader = request.headers.get('cookie');
-          if (!cookieHeader) return undefined;
-
-          const cookies = Object.fromEntries(
-            cookieHeader.split('; ').map(cookie => {
-              const [key, value] = cookie.split('=');
-              return [key, decodeURIComponent(value)];
-            })
-          );
-          return cookies[name];
-        },
-      },
-    }
-  );
-}
+import { requireAuth } from '@/lib/auth-server';
 
 export async function GET(request: NextRequest) {
   console.log('[FOLLOWERS API] GET request received');
 
   try {
-    const supabase = createSupabaseClient(request);
-
-    const { data: { user }, error: authError } = await supabase.auth.getUser();
-
-    console.log('[FOLLOWERS API] Auth check:', {
-      hasUser: !!user,
-      userId: user?.id,
-      authError: authError?.message
-    });
-
-    if (!user) {
-      console.log('[FOLLOWERS API] No user found - returning 401');
+    // Use requireAuth helper for consistent authentication
+    let user;
+    try {
+      user = await requireAuth(request);
+    } catch (authError) {
+      if (authError instanceof Response) {
+        return authError;
+      }
+      console.log('[FOLLOWERS API] Auth failed');
       return NextResponse.json({ error: 'Unauthorized', message: 'Please log in' }, { status: 401 });
     }
+
+    console.log('[FOLLOWERS API] User authenticated:', user.id);
 
     const { searchParams } = new URL(request.url);
     const type = searchParams.get('type') || 'followers'; // 'followers', 'following', 'requests'
@@ -68,9 +44,7 @@ export async function GET(request: NextRequest) {
             first_name,
             middle_name,
             last_name,
-            avatar_url,
-            sport,
-            school
+            avatar_url
           )
         `)
         .eq('following_id', profileId)
@@ -109,9 +83,7 @@ export async function GET(request: NextRequest) {
             first_name,
             middle_name,
             last_name,
-            avatar_url,
-            sport,
-            school
+            avatar_url
           )
         `)
         .eq('follower_id', profileId)
@@ -133,8 +105,20 @@ export async function GET(request: NextRequest) {
 
       console.log('[FOLLOWERS API] Fetching requests for user:', user.id);
 
+      // Use service role client to bypass RLS and read follow requests + profiles
+      const supabaseAdmin = createClient(
+        process.env.NEXT_PUBLIC_SUPABASE_URL!,
+        process.env.SUPABASE_SERVICE_ROLE_KEY!,
+        {
+          auth: {
+            autoRefreshToken: false,
+            persistSession: false
+          }
+        }
+      );
+
       // First get the follow requests
-      const { data: followRequests, error: followError } = await supabase
+      const { data: followRequests, error: followError } = await supabaseAdmin
         .from('follows')
         .select('id, message, created_at, follower_id')
         .eq('following_id', user.id)
@@ -152,25 +136,13 @@ export async function GET(request: NextRequest) {
         return NextResponse.json({ requests: [] });
       }
 
-      // Then get the follower profiles using service role to bypass RLS
+      // Then get the follower profiles
       const followerIds = followRequests.map(r => r.follower_id);
       console.log('[FOLLOWERS API] Fetching profiles for follower IDs:', followerIds);
 
-      // Use service role client to bypass RLS and read any profile
-      const supabaseAdmin = createClient(
-        process.env.NEXT_PUBLIC_SUPABASE_URL!,
-        process.env.SUPABASE_SERVICE_ROLE_KEY!,
-        {
-          auth: {
-            autoRefreshToken: false,
-            persistSession: false
-          }
-        }
-      );
-
       const { data: profiles, error: profileError } = await supabaseAdmin
         .from('profiles')
-        .select('id, first_name, middle_name, last_name, full_name, avatar_url, sport, school')
+        .select('id, first_name, middle_name, last_name, full_name, avatar_url')
         .in('id', followerIds);
 
       if (profileError) {
@@ -196,9 +168,7 @@ export async function GET(request: NextRequest) {
             middle_name: null,
             last_name: 'User',
             full_name: 'unknown_user',
-            avatar_url: null,
-            sport: null,
-            school: null
+            avatar_url: null
           }
         };
       });
@@ -224,20 +194,35 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
-  try {
-    const supabase = createSupabaseClient(request);
+  console.log('[FOLLOWERS API] POST request received');
 
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) {
+  try {
+    // Use requireAuth helper for consistent authentication
+    let user;
+    try {
+      user = await requireAuth(request);
+    } catch (authError) {
+      if (authError instanceof Response) {
+        return authError;
+      }
+      console.log('[FOLLOWERS API] POST - Auth failed');
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
+
+    console.log('[FOLLOWERS API] POST - User authenticated:', user.id);
 
     const body = await request.json();
     const { action, followId } = body;
 
+    // Use admin client for database operations
+    const supabaseAdmin = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.SUPABASE_SERVICE_ROLE_KEY!
+    );
+
     if (action === 'accept') {
       // Accept a follow request
-      const { error } = await supabase
+      const { error } = await supabaseAdmin
         .from('follows')
         .update({ status: 'accepted' })
         .eq('id', followId)
@@ -252,19 +237,41 @@ export async function POST(request: NextRequest) {
     }
 
     if (action === 'reject') {
-      // Reject a follow request (delete it)
-      const { error } = await supabase
+      // Reject a follow request (completely delete it from the system)
+      // This allows the same person to send a new follow request in the future
+      console.log('[FOLLOWERS API] Rejecting (deleting) follow request:', followId);
+
+      const { data: deletedRows, error } = await supabaseAdmin
         .from('follows')
         .delete()
         .eq('id', followId)
         .eq('following_id', user.id) // Ensure user owns this request
-        .eq('status', 'pending');
+        .eq('status', 'pending')
+        .select(); // Return deleted rows for verification
 
       if (error) {
+        console.error('[FOLLOWERS API] Error deleting follow request:', error);
         return NextResponse.json({ error: error.message }, { status: 500 });
       }
 
-      return NextResponse.json({ success: true, message: 'Follow request rejected' });
+      if (!deletedRows || deletedRows.length === 0) {
+        console.warn('[FOLLOWERS API] No rows deleted - request may not exist or already processed');
+        return NextResponse.json({
+          error: 'Follow request not found or already processed'
+        }, { status: 404 });
+      }
+
+      console.log('[FOLLOWERS API] Successfully deleted follow request:', {
+        followId,
+        follower: deletedRows[0].follower_id,
+        deletedCount: deletedRows.length
+      });
+
+      return NextResponse.json({
+        success: true,
+        message: 'Follow request rejected and removed. User can send a new request in the future.',
+        deletedCount: deletedRows.length
+      });
     }
 
     return NextResponse.json({ error: 'Invalid action' }, { status: 400 });

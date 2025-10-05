@@ -12,7 +12,14 @@ export async function GET(request: NextRequest) {
     const query = searchParams.get('q')?.trim();
     const type = searchParams.get('type') || 'all'; // all, athletes, posts, clubs
 
-    console.log('[SEARCH] Query received:', query, 'Type:', type);
+    // Advanced filters
+    const sport = searchParams.get('sport')?.trim();
+    const school = searchParams.get('school')?.trim();
+    const league = searchParams.get('league')?.trim();
+    const dateFrom = searchParams.get('dateFrom')?.trim();
+    const dateTo = searchParams.get('dateTo')?.trim();
+
+    console.log('[SEARCH] Query received:', query, 'Type:', type, 'Filters:', { sport, school, league, dateFrom, dateTo });
 
     if (!query || query.length < 2) {
       return NextResponse.json({
@@ -37,25 +44,32 @@ export async function GET(request: NextRequest) {
 
       console.log('[SEARCH] Searching athletes with pattern:', searchPattern);
 
-      const { data: athletes, error: athletesError } = await supabase
+      // Start building the query (only using fields that exist in all profile schemas)
+      let athleteQuery = supabase
         .from('profiles')
-        .select('id, full_name, first_name, middle_name, last_name, username, avatar_url, sport, school, location, email, bio, visibility')
-        .or(`full_name.ilike.${searchPattern},first_name.ilike.${searchPattern},middle_name.ilike.${searchPattern},last_name.ilike.${searchPattern},username.ilike.${searchPattern},school.ilike.${searchPattern},email.ilike.${searchPattern},sport.ilike.${searchPattern},location.ilike.${searchPattern},bio.ilike.${searchPattern}`)
+        .select('id, full_name, first_name, middle_name, last_name, avatar_url, visibility, location')
+        .or(`full_name.ilike.${searchPattern},first_name.ilike.${searchPattern},middle_name.ilike.${searchPattern},last_name.ilike.${searchPattern},location.ilike.${searchPattern}`);
+
+      // Sport and school filters are temporarily disabled until schema is fully migrated
+      // if (sport) {
+      //   athleteQuery = athleteQuery.eq('sport', sport);
+      // }
+      // if (school) {
+      //   athleteQuery = athleteQuery.ilike('school', `%${school}%`);
+      // }
+
+      const { data: athletes, error: athletesError } = await athleteQuery
         .order('full_name', { ascending: true, nullsFirst: false })
         .limit(20);
 
       if (!athletesError && athletes) {
-        // Filter out private profiles (basic client-side filter)
-        // Note: For production, implement proper privacy checks
         results.athletes = athletes.map(athlete => ({
           id: athlete.id,
           full_name: athlete.full_name,
           first_name: athlete.first_name,
+          middle_name: athlete.middle_name,
           last_name: athlete.last_name,
-          username: athlete.username,
           avatar_url: athlete.avatar_url,
-          sport: athlete.sport,
-          school: athlete.school,
           location: athlete.location,
           visibility: athlete.visibility
         }));
@@ -71,7 +85,8 @@ export async function GET(request: NextRequest) {
 
       console.log('[SEARCH] Searching posts with pattern:', searchPattern);
 
-      const { data: posts, error: postsError } = await supabase
+      // Start building the query
+      let postQuery = supabase
         .from('posts')
         .select(`
           id,
@@ -84,6 +99,7 @@ export async function GET(request: NextRequest) {
             id,
             full_name,
             first_name,
+            middle_name,
             last_name,
             avatar_url
           ),
@@ -93,13 +109,28 @@ export async function GET(request: NextRequest) {
           )
         `)
         .eq('visibility', 'public')
-        .ilike('caption', searchPattern)
+        .ilike('caption', searchPattern);
+
+      // Apply sport filter
+      if (sport) {
+        postQuery = postQuery.eq('sport_key', sport);
+      }
+
+      // Apply date range filters
+      if (dateFrom) {
+        postQuery = postQuery.gte('created_at', dateFrom);
+      }
+      if (dateTo) {
+        postQuery = postQuery.lte('created_at', `${dateTo}T23:59:59.999Z`);
+      }
+
+      const { data: posts, error: postsError } = await postQuery
         .order('created_at', { ascending: false })
         .limit(15);
 
       if (!postsError && posts) {
         results.posts = posts;
-        console.log('[SEARCH] Posts found:', posts.length);
+        console.log('[SEARCH] Posts found:', posts.length, 'Filters applied:', { sport, dateFrom, dateTo });
       } else if (postsError) {
         console.error('[SEARCH] Posts error:', postsError);
       }

@@ -6,11 +6,12 @@ import { useRouter } from 'next/navigation';
 import PostCard from '@/components/PostCard';
 import CreatePostModal from '@/components/CreatePostModal';
 import EditPostModal from '@/components/EditPostModal';
-import SearchBar from '@/components/SearchBar';
-import NotificationsDropdown from '@/components/NotificationsDropdown';
+import AdvancedSearchBar from '@/components/AdvancedSearchBar';
+import NotificationBell from '@/components/NotificationBell';
 import ConnectionSuggestions from '@/components/ConnectionSuggestions';
 import { ToastContainer, useToast } from '@/components/Toast';
 import { formatDisplayName, getInitials } from '@/lib/formatters';
+import { getSupabaseBrowserClient } from '@/lib/supabase';
 
 interface Post {
   id: string;
@@ -58,11 +59,121 @@ export default function FeedPage() {
     }
   }, [user, loading, router]);
 
+  // Load feed on mount
   useEffect(() => {
     if (user) {
       loadFeed();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user]);
+
+  // Real-time subscription for new posts
+  useEffect(() => {
+    if (!user) return;
+
+    const supabase = getSupabaseBrowserClient();
+
+    console.log('[REALTIME] Setting up posts subscription');
+
+    // Subscribe to INSERT events on posts table
+    const channel = supabase
+      .channel('feed-posts')
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'posts',
+          filter: `visibility=eq.public`
+        },
+        async (payload) => {
+          console.log('[REALTIME] New post detected:', payload.new);
+
+          // Fetch the complete post with profile and media
+          const { data: newPost } = await supabase
+            .from('posts')
+            .select(`
+              id,
+              caption,
+              sport_key,
+              stats_data,
+              visibility,
+              created_at,
+              likes_count,
+              comments_count,
+              profile:profile_id (
+                id,
+                first_name,
+                middle_name,
+                last_name,
+                full_name,
+                avatar_url
+              ),
+              media:post_media (
+                id,
+                media_url,
+                media_type,
+                display_order
+              )
+            `)
+            .eq('id', payload.new.id)
+            .single();
+
+          if (newPost) {
+            setPosts(prev => [newPost as Post, ...prev]);
+            showSuccess('New Post', 'A new post has been added to your feed');
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      console.log('[REALTIME] Cleaning up posts subscription');
+      supabase.removeChannel(channel);
+    };
+  }, [user, showSuccess]);
+
+  // Real-time subscription for post updates (likes, comments)
+  useEffect(() => {
+    if (!user) return;
+
+    const supabase = getSupabaseBrowserClient();
+
+    console.log('[REALTIME] Setting up post updates subscription');
+
+    const channel = supabase
+      .channel('feed-updates')
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'posts'
+        },
+        (payload) => {
+          console.log('[REALTIME] Post updated:', payload.new);
+
+          setPosts(prev =>
+            prev.map(post =>
+              post.id === payload.new.id
+                ? {
+                    ...post,
+                    likes_count: payload.new.likes_count,
+                    comments_count: payload.new.comments_count,
+                    caption: payload.new.caption,
+                    stats_data: payload.new.stats_data
+                  }
+                : post
+            )
+          );
+        }
+      )
+      .subscribe();
+
+    return () => {
+      console.log('[REALTIME] Cleaning up updates subscription');
+      supabase.removeChannel(channel);
+    };
   }, [user]);
 
   const loadFeed = async (loadMore = false) => {
@@ -227,7 +338,7 @@ export default function FeedPage() {
 
             {/* Right - Actions & Profile */}
             <div className="flex items-center gap-4">
-              <NotificationsDropdown />
+              <NotificationBell />
               <button
                 onClick={() => router.push('/app/followers')}
                 className="text-gray-600 hover:text-gray-900"
@@ -279,7 +390,7 @@ export default function FeedPage() {
       <div className="bg-white border-b border-gray-200">
         <div className="max-w-7xl mx-auto px-4 py-4">
           <div className="max-w-2xl">
-            <SearchBar />
+            <AdvancedSearchBar />
           </div>
         </div>
       </div>

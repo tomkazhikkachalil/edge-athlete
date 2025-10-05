@@ -1,5 +1,6 @@
 import { NextRequest } from 'next/server';
 import { createServerClient } from '@supabase/ssr';
+import { createClient } from '@supabase/supabase-js';
 
 export async function requireAuth(request: NextRequest) {
   try {
@@ -23,6 +24,12 @@ export async function requireAuth(request: NextRequest) {
               })
             );
             return cookies[name];
+          },
+          set() {
+            // Not used in API routes - cookies are set client-side
+          },
+          remove() {
+            // Not used in API routes - cookies are removed client-side
           },
         },
       }
@@ -55,9 +62,15 @@ export async function requireAuth(request: NextRequest) {
 
 export async function requireAdmin(request: NextRequest) {
   const user = await requireAuth(request);
-  
+
+  // Create admin client to check role
+  const supabaseAdmin = createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!
+  );
+
   // Check if user has admin role
-  const { data: profile } = await supabase
+  const { data: profile } = await supabaseAdmin
     .from('profiles')
     .select('role')
     .eq('id', user.id)
