@@ -4,6 +4,7 @@ import { useState, useRef, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useNotifications } from '@/lib/notifications';
 import { formatDisplayName, getInitials } from '@/lib/formatters';
+import { AvatarImage } from '@/components/OptimizedImage';
 
 export default function NotificationBell() {
   const router = useRouter();
@@ -130,8 +131,8 @@ export default function NotificationBell() {
                   >
                     <div className="flex items-start gap-3">
                       {/* Actor Avatar or Icon */}
-                      {notification.actor?.avatar_url ? (
-                        <img
+                      {notification.actor ? (
+                        <AvatarImage
                           src={notification.actor.avatar_url}
                           alt={formatDisplayName(
                             notification.actor.first_name,
@@ -139,21 +140,16 @@ export default function NotificationBell() {
                             notification.actor.last_name,
                             notification.actor.full_name
                           )}
-                          className="w-10 h-10 rounded-full object-cover"
+                          size={40}
+                          fallbackInitials={getInitials(
+                            formatDisplayName(
+                              notification.actor.first_name,
+                              notification.actor.middle_name,
+                              notification.actor.last_name,
+                              notification.actor.full_name
+                            )
+                          )}
                         />
-                      ) : notification.actor ? (
-                        <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center">
-                          <span className="text-white text-sm font-semibold">
-                            {getInitials(
-                              formatDisplayName(
-                                notification.actor.first_name,
-                                notification.actor.middle_name,
-                                notification.actor.last_name,
-                                notification.actor.full_name
-                              )
-                            )}
-                          </span>
-                        </div>
                       ) : (
                         <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center">
                           <i className={`fas ${getNotificationIcon(notification.type)} text-blue-600`}></i>

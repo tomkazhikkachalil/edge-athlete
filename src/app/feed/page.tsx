@@ -8,6 +8,7 @@ import CreatePostModal from '@/components/CreatePostModal';
 import EditPostModal from '@/components/EditPostModal';
 import AdvancedSearchBar from '@/components/AdvancedSearchBar';
 import NotificationBell from '@/components/NotificationBell';
+import MobileNav from '@/components/MobileNav';
 import ConnectionSuggestions from '@/components/ConnectionSuggestions';
 import { ToastContainer, useToast } from '@/components/Toast';
 import { formatDisplayName, getInitials } from '@/lib/formatters';
@@ -314,11 +315,11 @@ export default function FeedPage() {
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
       <header className="bg-white shadow-sm border-b border-gray-200 sticky top-0 z-10">
-        <div className="max-w-7xl mx-auto px-4 py-3">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 py-3">
           <div className="flex items-center justify-between">
             {/* Left - Logo & Navigation */}
-            <div className="flex items-center gap-6">
-              <h1 className="text-xl font-bold text-gray-900">Edge Athlete</h1>
+            <div className="flex items-center gap-3 sm:gap-6">
+              <h1 className="text-lg sm:text-xl font-bold text-gray-900">Edge Athlete</h1>
               <nav className="hidden md:flex items-center gap-6">
                 <button
                   onClick={() => router.push('/feed')}
@@ -338,25 +339,25 @@ export default function FeedPage() {
             </div>
 
             {/* Right - Actions & Profile */}
-            <div className="flex items-center gap-4">
+            <div className="flex items-center gap-2 sm:gap-4">
               <NotificationBell />
               <button
                 onClick={() => router.push('/app/followers')}
-                className="text-gray-600 hover:text-gray-900"
+                className="hidden sm:block text-gray-600 hover:text-gray-900"
                 title="Followers & Connections"
               >
                 <i className="fas fa-user-friends text-lg"></i>
               </button>
               <button
                 onClick={() => setIsCreatePostModalOpen(true)}
-                className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2 text-sm font-medium"
+                className="bg-blue-600 text-white px-3 sm:px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2 text-sm font-medium"
               >
                 <i className="fas fa-plus"></i>
-                Post
+                <span className="hidden sm:inline">Post</span>
               </button>
 
-              {/* Profile Dropdown */}
-              <div className="relative">
+              {/* Profile Dropdown - Desktop Only */}
+              <div className="hidden md:block relative">
                 <button
                   onClick={() => router.push('/athlete')}
                   className="flex items-center gap-2 hover:bg-gray-100 rounded-lg p-1 transition-colors"
@@ -368,12 +369,15 @@ export default function FeedPage() {
                     size={32}
                     fallbackInitials={getInitials(formatDisplayName(profile?.first_name, profile?.middle_name, profile?.last_name, profile?.full_name))}
                   />
-                  <span className="hidden md:block text-sm font-medium text-gray-700">
+                  <span className="text-sm font-medium text-gray-700">
                     {formatDisplayName(profile?.first_name, profile?.middle_name, profile?.last_name, profile?.full_name)}
                   </span>
                   <i className="fas fa-chevron-down text-xs text-gray-500"></i>
                 </button>
               </div>
+
+              {/* Mobile Menu */}
+              <MobileNav />
             </div>
           </div>
         </div>
@@ -389,24 +393,24 @@ export default function FeedPage() {
       </div>
 
       {/* Main Layout */}
-      <div className="max-w-7xl mx-auto px-4 py-6">
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 py-4 sm:py-6">
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 sm:gap-6">
           {/* Main Content */}
           <div className="lg:col-span-8">
             {/* Stories Section */}
-            <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 mb-6">
-              <div className="flex items-center gap-4 overflow-x-auto">
+            <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-3 sm:p-4 mb-4 sm:mb-6">
+              <div className="flex items-center gap-3 sm:gap-4 overflow-x-auto">
                 {/* Add Story */}
                 <div className="flex-shrink-0 text-center">
-                  <div className="w-16 h-16 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center cursor-pointer">
-                    <i className="fas fa-plus text-white text-lg"></i>
+                  <div className="w-14 h-14 sm:w-16 sm:h-16 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center cursor-pointer">
+                    <i className="fas fa-plus text-white text-base sm:text-lg"></i>
                   </div>
                   <p className="text-xs text-gray-600 mt-1">Add Story</p>
                 </div>
                 {/* Story placeholders */}
                 {[1, 2, 3, 4, 5, 6].map((i) => (
                   <div key={i} className="flex-shrink-0 text-center">
-                    <div className="w-16 h-16 bg-gray-200 rounded-full cursor-pointer"></div>
+                    <div className="w-14 h-14 sm:w-16 sm:h-16 bg-gray-200 rounded-full cursor-pointer"></div>
                     <p className="text-xs text-gray-600 mt-1">Athlete {i}</p>
                   </div>
                 ))}
@@ -414,36 +418,36 @@ export default function FeedPage() {
             </div>
 
             {/* Post Creation Form */}
-            <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 mb-6">
-              <div className="flex items-center gap-3">
+            <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-3 sm:p-4 mb-4 sm:mb-6">
+              <div className="flex items-center gap-2 sm:gap-3">
                 <div className="w-10 h-10 bg-gray-300 rounded-full"></div>
                 <button
                   onClick={() => setIsCreatePostModalOpen(true)}
-                  className="flex-1 bg-gray-100 rounded-full px-4 py-2 text-left text-gray-500 hover:bg-gray-200 transition-colors"
+                  className="flex-1 bg-gray-100 rounded-full px-3 sm:px-4 py-2 text-left text-gray-500 hover:bg-gray-200 transition-colors text-sm sm:text-base"
                 >
                   What&apos;s on your mind, {profile?.first_name || 'Athlete'}?
                 </button>
               </div>
               <div className="flex items-center justify-between mt-3 pt-3 border-t border-gray-100">
-                <div className="flex items-center gap-4">
-                  <button className="flex items-center gap-2 text-gray-600 hover:text-blue-600 transition-colors">
+                <div className="flex items-center gap-2 sm:gap-4">
+                  <button className="flex items-center gap-1 sm:gap-2 text-gray-600 hover:text-blue-600 transition-colors">
                     <i className="fas fa-image text-green-500"></i>
-                    <span className="text-sm">Photo/Video</span>
+                    <span className="text-xs sm:text-sm">Photo/Video</span>
                   </button>
-                  <button className="flex items-center gap-2 text-gray-600 hover:text-blue-600 transition-colors">
+                  <button className="flex items-center gap-1 sm:gap-2 text-gray-600 hover:text-blue-600 transition-colors">
                     <i className="fas fa-chart-line text-blue-500"></i>
-                    <span className="text-sm">Stats</span>
+                    <span className="text-xs sm:text-sm hidden sm:inline">Stats</span>
                   </button>
-                  <button className="flex items-center gap-2 text-gray-600 hover:text-blue-600 transition-colors">
+                  <button className="flex items-center gap-1 sm:gap-2 text-gray-600 hover:text-blue-600 transition-colors">
                     <i className="fas fa-trophy text-yellow-500"></i>
-                    <span className="text-sm">Achievement</span>
+                    <span className="text-xs sm:text-sm hidden sm:inline">Achievement</span>
                   </button>
                 </div>
               </div>
             </div>
 
             {/* Posts Feed */}
-            <div className="space-y-6 bg-white rounded-lg border-2 border-gray-300 p-6">
+            <div className="space-y-4 sm:space-y-6 bg-white rounded-lg border-2 border-gray-300 p-3 sm:p-6">
               {feedLoading ? (
                 <div className="space-y-6">
                   {[1, 2, 3].map(i => (

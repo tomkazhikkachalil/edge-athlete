@@ -158,6 +158,7 @@ See [PRIVACY_ARCHITECTURE.md](PRIVACY_ARCHITECTURE.md) and [SECURITY_ARCHITECTUR
 - `post_comments` - Post comments with threading and likes_count
 - `post_likes` - Post likes (unique constraint per user)
 - `comment_likes` - Comment likes (unique constraint per user/comment)
+- `saved_posts` - Bookmarked posts (unique constraint per user/post)
 - `follows` - Follow relationships with status (pending/accepted)
 - `notifications` - User notifications with type, actor, and metadata
 - `notification_preferences` - User notification preferences (11 types)
@@ -170,12 +171,13 @@ See [PRIVACY_ARCHITECTURE.md](PRIVACY_ARCHITECTURE.md) and [SECURITY_ARCHITECTUR
 **Important Patterns:**
 - Foreign keys cascade on delete
 - `updated_at` triggers auto-update timestamps
-- Counts cached in `posts` table (likes_count, comments_count)
+- Counts cached in `posts` table (likes_count, comments_count, saves_count)
 - Visibility column controls privacy ('public' or 'private')
 
 **SQL Files:** Root directory contains many `.sql` migration files. Key ones:
 - `supabase-setup.sql` - Initial setup
 - `implement-privacy-system.sql` - Privacy implementation
+- `setup-saved-posts.sql` - Saved posts functionality
 - `COMPLETE_GOLF_SETUP.sql` - Golf schema
 - `fix-likes-comments-issues.sql` - Latest count fixes
 - `COMPLETE_NAME_MIGRATION.sql` - Name structure refactor (separate first/middle/last names)
@@ -203,7 +205,7 @@ Toggle sports here to enable/disable throughout UI.
 
 **Location:** `src/components/`
 
-- **PostCard.tsx** - Main post display with likes, comments, media carousel
+- **PostCard.tsx** - Main post display with likes, comments, saves, shares, media carousel
 - **CreatePostModal.tsx** - Multi-step post creation wizard
 - **EditPostModal.tsx** - Post editing modal
 - **EditProfileTabs.tsx** - Profile editor with Basic Info/Sports/Achievements tabs
@@ -287,6 +289,7 @@ const { data } = await supabaseAdmin.from('profiles').select('*');
 **Key endpoints:**
 - `/api/posts` - CRUD for posts
 - `/api/posts/like` - Toggle likes
+- `/api/posts/save` - Toggle save/bookmark posts
 - `/api/comments` - CRUD for comments
 - `/api/comments/like` - Toggle comment likes with notifications
 - `/api/search` - Global search

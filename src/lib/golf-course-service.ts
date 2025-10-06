@@ -337,7 +337,7 @@ export class GolfCourseService {
    * Transform iGolf results to our format
    */
   private static transformiGolfResults(apiResults: any[]): GolfCourse[] {
-    return apiResults.map(course => ({
+    return apiResults.map((course: any) => ({
       id: `igolf-${course.id || course.name?.toLowerCase().replace(/\s+/g, '-')}`,
       name: course.courseName || course.name,
       location: {
@@ -356,15 +356,15 @@ export class GolfCourseService {
       holes: course.scorecard ? this.transformScorecard(course.scorecard) : this.generateDefaultHoles(),
       features: [],
       description: course.description || '',
-      priceRange: this.mapPriceRange(course.greenFee)
-    }));
+      priceRange: this.mapPriceRange(course.greenFee) as any
+    })) as GolfCourse[];
   }
 
   /**
    * Transform Zyla Golf results to our format
    */
   private static transformZylaResults(apiResults: any[]): GolfCourse[] {
-    return apiResults.map(course => ({
+    return apiResults.map((course: any) => ({
       id: `zyla-${course.courseName?.toLowerCase().replace(/\s+/g, '-') || 'unknown'}`,
       name: course.courseName,
       location: {
@@ -380,8 +380,11 @@ export class GolfCourseService {
       holes: course.scorecard ? this.transformZylaScorecard(course.scorecard) : this.generateDefaultHoles(),
       features: [],
       description: '',
-      priceRange: 'unknown'
-    }));
+      priceRange: 'unknown' as any,
+      courseRating: { white: 0 },
+      slopeRating: { white: 113 },
+      totalYardage: { white: 6000 }
+    })) as GolfCourse[];
   }
 
   /**

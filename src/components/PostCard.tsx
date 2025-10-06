@@ -19,6 +19,7 @@ interface PostMedia {
 interface Profile {
   id: string;
   first_name: string | null;
+  middle_name?: string | null;
   last_name: string | null;
   full_name: string | null;
   avatar_url: string | null;
@@ -33,9 +34,11 @@ interface Post {
   created_at: string;
   likes_count: number;
   comments_count: number;
+  saves_count?: number;
   profile: Profile;
   media: PostMedia[];
   likes?: { profile_id: string }[];
+  saved_posts?: { profile_id: string }[];
   tags?: string[];
   hashtags?: string[];
   golf_round?: any;
@@ -67,14 +70,23 @@ export default function PostCard({
   const [isLiked, setIsLiked] = useState(
     post.likes?.some(like => like.profile_id === currentUserId) || false
   );
+  const [isSaved, setIsSaved] = useState(
+    post.saved_posts?.some(save => save.profile_id === currentUserId) || false
+  );
   const [localLikesCount, setLocalLikesCount] = useState(post.likes_count);
   const [localCommentsCount, setLocalCommentsCount] = useState(post.comments_count);
+  const [localSavesCount, setLocalSavesCount] = useState(post.saves_count || 0);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
   // Update isLiked state when post.likes array changes
   useEffect(() => {
     setIsLiked(post.likes?.some(like => like.profile_id === currentUserId) || false);
   }, [post.likes, currentUserId]);
+
+  // Update isSaved state when post.saved_posts array changes
+  useEffect(() => {
+    setIsSaved(post.saved_posts?.some(save => save.profile_id === currentUserId) || false);
+  }, [post.saved_posts, currentUserId]);
 
   // Update local likes count when post prop changes
   useEffect(() => {
@@ -85,6 +97,11 @@ export default function PostCard({
   useEffect(() => {
     setLocalCommentsCount(post.comments_count);
   }, [post.comments_count]);
+
+  // Update local saves count when post prop changes
+  useEffect(() => {
+    setLocalSavesCount(post.saves_count || 0);
+  }, [post.saves_count]);
 
   const displayName = formatDisplayName(
     post.profile.first_name,
@@ -119,6 +136,118 @@ export default function PostCard({
     setLocalCommentsCount(newCount);
     if (onCommentCountChange) {
       onCommentCountChange(post.id, newCount);
+    }
+  };
+
+  const handleSave = async () => {
+    if (!currentUserId) return;
+
+    // Optimistic update
+    setIsSaved(!isSaved);
+
+    try {
+      const response = await fetch('/api/posts/save', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ postId: post.id })
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        // Revert on error
+        setIsSaved(isSaved);
+        console.error('Failed to save/unsave post:', data.error);
+        return;
+      }
+
+      // Update counts from server
+      setLocalSavesCount(data.savesCount);
+      setIsSaved(data.isSaved);
+    } catch (error) {
+      // Revert on error
+      setIsSaved(isSaved);
+      console.error('Error saving/unsaving post:', error);
+    }
+  };
+
+  const handleShare = async () => {
+    const shareUrl = `${window.location.origin}/athlete/${post.profile.id}?post=${post.id}`;
+    const shareText = post.caption ? `${post.caption.substring(0, 100)}${post.caption.length > 100 ? '...' : ''}` : 'Check out this post!';
+
+    // Check if Web Share API is available and can be used
+    if (navigator.share && navigator.canShare) {
+      try {
+        const shareData = {
+          title: `Post by ${displayName}`,
+          text: shareText,
+          url: shareUrl
+        };
+
+        // Check if we can share this data
+        if (navigator.canShare(shareData)) {
+          await navigator.share(shareData);
+          return;
+        }
+      } catch (error) {
+        // User cancelled or error occurred
+        const err = error as Error;
+        if (err.name !== 'AbortError') {
+          console.error('Error sharing:', error);
+          // Fall through to clipboard fallback
+        } else {
+          // User cancelled, don't show error
+          return;
+        }
+      }
+    }
+
+    // Fallback: Copy to clipboard using modern API
+    try {
+      await navigator.clipboard.writeText(shareUrl);
+      showShareSuccess();
+      return;
+    } catch (clipboardError) {
+      // Clipboard API blocked, use legacy method
+      console.log('Clipboard API blocked, using legacy method');
+    }
+
+    // Final fallback: Use legacy execCommand method
+    try {
+      const textArea = document.createElement('textarea');
+      textArea.value = shareUrl;
+      textArea.style.position = 'fixed';
+      textArea.style.left = '-999999px';
+      textArea.style.top = '-999999px';
+      document.body.appendChild(textArea);
+      textArea.focus();
+      textArea.select();
+
+      const successful = document.execCommand('copy');
+      document.body.removeChild(textArea);
+
+      if (successful) {
+        showShareSuccess();
+      } else {
+        throw new Error('Copy command failed');
+      }
+    } catch (error) {
+      console.error('Error copying to clipboard:', error);
+      // Show input field for manual copy as last resort
+      alert(`Copy this link:\n\n${shareUrl}`);
+    }
+  };
+
+  const showShareSuccess = () => {
+    const button = document.activeElement as HTMLElement;
+    if (button) {
+      const originalHTML = button.innerHTML;
+      button.innerHTML = '<i class="fas fa-check"></i>';
+      button.classList.add('text-green-500');
+      setTimeout(() => {
+        button.innerHTML = originalHTML;
+        button.classList.remove('text-green-500');
+      }, 2000);
     }
   };
 
@@ -241,7 +370,6 @@ export default function PostCard({
                 className="w-full h-auto object-cover mx-auto"
                 width={600}
                 height={600}
-                style={{ maxHeight: '500px' }}
               />
             ) : (
               <video
@@ -298,7 +426,7 @@ export default function PostCard({
               <i className={`${isLiked ? 'fas' : 'far'} fa-heart`}></i>
               <span>{localLikesCount}</span>
             </button>
-            
+
             <button
               onClick={handleComment}
               className="flex items-center gap-1 text-sm text-gray-600 hover:text-blue-500 transition-colors"
@@ -306,9 +434,23 @@ export default function PostCard({
               <i className="far fa-comment"></i>
               <span>{localCommentsCount}</span>
             </button>
-            
-            <button className="flex items-center gap-1 text-sm text-gray-600 hover:text-green-500 transition-colors">
-              <i className="far fa-share"></i>
+
+            <button
+              onClick={handleShare}
+              className="flex items-center gap-1 text-sm text-gray-600 hover:text-green-500 transition-colors"
+              title="Share post"
+            >
+              <i className="far fa-share-square"></i>
+            </button>
+
+            <button
+              onClick={handleSave}
+              className={`flex items-center gap-1 text-sm transition-colors ml-auto ${
+                isSaved ? 'text-yellow-500' : 'text-gray-600 hover:text-yellow-500'
+              }`}
+              title={isSaved ? 'Unsave post' : 'Save post'}
+            >
+              <i className={`${isSaved ? 'fas' : 'far'} fa-bookmark`}></i>
             </button>
           </div>
         </div>

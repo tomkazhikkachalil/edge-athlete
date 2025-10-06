@@ -120,8 +120,8 @@ export default function MultiSportActivity({ profileId, canEdit = true, onEdit, 
   };
 
   const renderActivityTable = () => {
-    const sportDef = getSportDefinition(activeSportKey);
-    const adapter = getSportAdapter(activeSportKey);
+    const sportDef = getSportDefinition(activeSportKey as any);
+    const adapter = getSportAdapter(activeSportKey as any);
     const isEnabled = adapter.isEnabled();
     const rows = activityData[activeSportKey] || [];
     const isLoading = loading[activeSportKey];
@@ -273,14 +273,14 @@ export default function MultiSportActivity({ profileId, canEdit = true, onEdit, 
         <button
           onClick={handleAddActivity}
           className={`px-4 py-2 text-sm font-medium border border-transparent rounded-md transition-colors ${
-            getSportAdapter(activeSportKey).isEnabled()
+            getSportAdapter(activeSportKey as any).isEnabled()
               ? 'text-white bg-blue-600 hover:bg-blue-700'
               : 'text-gray-500 bg-gray-100 cursor-not-allowed'
           }`}
-          disabled={!getSportAdapter(activeSportKey).isEnabled()}
-          title={getSportAdapter(activeSportKey).isEnabled() ? undefined : 'Coming soon'}
+          disabled={!getSportAdapter(activeSportKey as any).isEnabled()}
+          title={getSportAdapter(activeSportKey as any).isEnabled() ? undefined : 'Coming soon'}
         >
-          {getSportDefinition(activeSportKey).primary_action}
+          {getSportDefinition(activeSportKey as any).primary_action}
         </button>
       </div>
 

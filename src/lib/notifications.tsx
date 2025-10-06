@@ -236,7 +236,7 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
         schema: 'public',
         table: 'notifications',
         filter: `user_id=eq.${user.id}`
-      }, (payload) => {
+      }, (payload: any) => {
         console.log('[NOTIFICATIONS] New notification received:', payload);
 
         // Add new notification to the beginning of the list

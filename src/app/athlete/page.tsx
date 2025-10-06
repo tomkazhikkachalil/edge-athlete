@@ -782,27 +782,27 @@ export default function AthleteProfilePage() {
         </div>
       </header>
 
-      <div className="max-w-7xl mx-auto px-6 py-8">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 py-4 sm:py-8">
         {/* Profile Header Section */}
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden mb-8">
-          <div className="p-8">
-            <div className="flex items-start gap-8">
+        <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden mb-6 sm:mb-8">
+          <div className="p-4 sm:p-6 lg:p-8">
+            <div className="flex flex-col sm:flex-row items-start gap-4 sm:gap-6 lg:gap-8">
               {/* Profile Picture with Rating */}
-              <div className="relative flex-shrink-0">
+              <div className="relative flex-shrink-0 mx-auto sm:mx-0">
                 <LazyImage
                   src={profile?.avatar_url}
                   alt={`${formatDisplayName(profile?.first_name, profile?.middle_name, profile?.last_name, profile?.full_name)} avatar`}
-                  className="w-48 h-48 rounded-full object-cover border-4 border-white shadow-lg"
+                  className="w-32 h-32 sm:w-40 sm:h-40 lg:w-48 lg:h-48 rounded-full object-cover border-4 border-white shadow-lg"
                   width={192}
                   height={192}
                   priority
                   fallback={
                     <div
-                      className="w-48 h-48 rounded-full bg-gray-200 flex items-center justify-center border-4 border-white shadow-lg"
+                      className="w-32 h-32 sm:w-40 sm:h-40 lg:w-48 lg:h-48 rounded-full bg-gray-200 flex items-center justify-center border-4 border-white shadow-lg"
                       role="img"
                       aria-label={`${formatDisplayName(profile?.first_name, profile?.middle_name, profile?.last_name, profile?.full_name)} avatar`}
                     >
-                      <span className="text-gray-600 font-semibold text-5xl" aria-hidden="true">
+                      <span className="text-gray-600 font-semibold text-3xl sm:text-4xl lg:text-5xl" aria-hidden="true">
                         {getInitials(formatDisplayName(profile?.first_name, profile?.middle_name, profile?.last_name, profile?.full_name))}
                       </span>
                     </div>

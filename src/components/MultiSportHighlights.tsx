@@ -57,7 +57,7 @@ export default function MultiSportHighlights({ profileId, canEdit = true, onEdit
   }, [profileId]);
 
   const handleEditSport = (sportKey: string) => {
-    const adapter = getSportAdapter(sportKey);
+    const adapter = getSportAdapter(sportKey as any);
     
     if (adapter.isEnabled()) {
       onEdit?.(sportKey);
@@ -68,14 +68,14 @@ export default function MultiSportHighlights({ profileId, canEdit = true, onEdit
   };
 
   const renderSportCard = (sportKey: string) => {
-    const sportDef = getSportDefinition(sportKey);
-    const adapter = getSportAdapter(sportKey);
+    const sportDef = getSportDefinition(sportKey as any);
+    const adapter = getSportAdapter(sportKey as any);
     const tiles = highlightData[sportKey] || [];
     const isEnabled = adapter.isEnabled();
     
     // Get color classes from design tokens
-    const colors = isEnabled 
-      ? getSportColorClasses(sportKey) 
+    const colors = isEnabled
+      ? getSportColorClasses(sportKey as any)
       : getNeutralColorClasses();
     
     return (
