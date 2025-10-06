@@ -155,9 +155,12 @@ See [PRIVACY_ARCHITECTURE.md](PRIVACY_ARCHITECTURE.md) and [SECURITY_ARCHITECTUR
 - `profiles` - User profiles (extends auth.users)
 - `posts` - Social posts with media, stats, visibility
 - `post_media` - Media attachments (images/videos)
-- `comments` - Post comments with threading
-- `likes` - Post likes (unique constraint per user)
+- `post_comments` - Post comments with threading and likes_count
+- `post_likes` - Post likes (unique constraint per user)
+- `comment_likes` - Comment likes (unique constraint per user/comment)
 - `follows` - Follow relationships with status (pending/accepted)
+- `notifications` - User notifications with type, actor, and metadata
+- `notification_preferences` - User notification preferences (11 types)
 - `golf_rounds` - Golf-specific round data
 - `golf_holes` - Individual hole scores
 - `season_highlights` - Sport performance highlights per season
@@ -176,6 +179,8 @@ See [PRIVACY_ARCHITECTURE.md](PRIVACY_ARCHITECTURE.md) and [SECURITY_ARCHITECTUR
 - `COMPLETE_GOLF_SETUP.sql` - Golf schema
 - `fix-likes-comments-issues.sql` - Latest count fixes
 - `COMPLETE_NAME_MIGRATION.sql` - Name structure refactor (separate first/middle/last names)
+- `setup-all-notifications-complete.sql` - Comprehensive notification system setup
+- `add-comment-likes.sql` - Comment likes feature with triggers
 
 ### Feature Flags
 
@@ -207,6 +212,8 @@ Toggle sports here to enable/disable throughout UI.
 - **PrivateProfileView.tsx** - Restricted view for private profiles
 - **GolfScorecardForm.tsx** - Golf round entry with hole-by-hole scoring
 - **SeasonHighlights.tsx / SeasonHighlightsModal.tsx** - Sport performance tracking
+- **NotificationBell.tsx** - Notification dropdown in header with unread badge
+- **notifications.tsx** - NotificationsProvider context for global state
 - **Toast.tsx** - Toast notification system
 
 ### API Patterns
@@ -281,12 +288,18 @@ const { data } = await supabaseAdmin.from('profiles').select('*');
 - `/api/posts` - CRUD for posts
 - `/api/posts/like` - Toggle likes
 - `/api/comments` - CRUD for comments
+- `/api/comments/like` - Toggle comment likes with notifications
 - `/api/search` - Global search
 - `/api/upload/post-media` - Media uploads
 - `/api/follow` - Follow/unfollow
 - `/api/golf/*` - Golf-specific endpoints
 - `/api/debug/counts` - Debug endpoint for like/comment counts
 - `/api/followers` - Followers, following, and follow requests (uses admin client for requests)
+- `/api/notifications` - Fetch/delete notifications with filtering
+- `/api/notifications/unread-count` - Get unread notification count
+- `/api/notifications/[id]` - Mark individual notification as read/unread
+- `/api/notifications/mark-all-read` - Bulk mark all as read
+- `/api/notifications/preferences` - Get/update notification preferences
 
 ### Profile Name Structure
 
@@ -424,6 +437,65 @@ Golf is the reference implementation for the sport adapter pattern:
 .season-card, .season-card-header, .season-card-stats, .season-card-footer
 ```
 
+### Notification System
+
+**Implementation:** Comprehensive notification system with real-time updates (October 2025)
+
+**Notification Types:**
+- `follow_request` - Someone sends a follow request (private profiles)
+- `follow_accepted` - Your follow request is accepted
+- `new_follower` - Someone follows you (public profiles)
+- `post_like` - Someone likes your post
+- `post_comment` - Someone comments on your post
+- `comment_like` - Someone likes your comment
+
+**Database Triggers:**
+```sql
+-- Follow notifications
+trigger_notify_follow_request    -- On INSERT to follows (status='pending')
+trigger_notify_follow_accepted   -- On UPDATE to follows (pending→accepted)
+trigger_notify_new_follower      -- On INSERT to follows (status='accepted')
+
+-- Engagement notifications
+trigger_notify_post_like         -- On INSERT to post_likes
+trigger_notify_post_comment      -- On INSERT to post_comments
+trigger_notify_comment_like      -- On INSERT to comment_likes
+
+-- Automatic count management
+trigger_increment_comment_likes_count  -- Auto-increment on like
+trigger_decrement_comment_likes_count  -- Auto-decrement on unlike
+```
+
+**Features:**
+- Cursor-based pagination for performance
+- Real-time subscription support (when Realtime enabled)
+- Notification preferences with 11 toggleable types
+- Desktop notifications (with browser permission)
+- Time grouping (Today, Yesterday, This Week, Earlier)
+- Filter by type (All, Unread, Follows, Engagement, System)
+- Automatic cleanup of old read notifications (90 days)
+- Self-notification prevention (no alerts for own actions)
+
+**Usage:**
+```typescript
+// Wrap app with NotificationsProvider
+import { NotificationsProvider } from '@/components/notifications';
+
+<NotificationsProvider>
+  <YourApp />
+</NotificationsProvider>
+
+// Use notification context
+import { useNotifications } from '@/components/notifications';
+
+const { notifications, unreadCount, markAsRead, markAllAsRead } = useNotifications();
+```
+
+**Setup:**
+1. Run `setup-all-notifications-complete.sql` in Supabase SQL Editor
+2. Run `add-comment-likes.sql` for comment likes feature
+3. Enable Realtime replication for `notifications` table (optional)
+
 ### Important Patterns & Conventions
 
 1. **Always use `useAuth()` for user/profile access** - Never fetch separately
@@ -435,6 +507,7 @@ Golf is the reference implementation for the sport adapter pattern:
 7. **Optimistic updates** - Update UI immediately, sync with server after
 8. **Media uploads** - Use `/api/upload/post-media` with FormData
 9. **Search** - Use `/api/search?q=` for global search across athletes/posts/clubs
+10. **Notifications** - Wrap app with `NotificationsProvider` for global notification state
 
 ### Common Tasks
 
