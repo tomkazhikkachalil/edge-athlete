@@ -12,6 +12,7 @@ import ConnectionSuggestions from '@/components/ConnectionSuggestions';
 import { ToastContainer, useToast } from '@/components/Toast';
 import { formatDisplayName, getInitials } from '@/lib/formatters';
 import { getSupabaseBrowserClient } from '@/lib/supabase';
+import { AvatarImage } from '@/components/OptimizedImage';
 
 interface Post {
   id: string;
@@ -361,20 +362,12 @@ export default function FeedPage() {
                   className="flex items-center gap-2 hover:bg-gray-100 rounded-lg p-1 transition-colors"
                   title="Go to Profile"
                 >
-                  {profile?.avatar_url ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img
-                      src={profile.avatar_url}
-                      alt="Profile"
-                      className="w-8 h-8 rounded-full object-cover"
-                    />
-                  ) : (
-                    <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center">
-                      <span className="text-white text-sm font-semibold">
-                        {getInitials(formatDisplayName(profile?.first_name, profile?.middle_name, profile?.last_name, profile?.full_name))}
-                      </span>
-                    </div>
-                  )}
+                  <AvatarImage
+                    src={profile?.avatar_url}
+                    alt="Profile"
+                    size={32}
+                    fallbackInitials={getInitials(formatDisplayName(profile?.first_name, profile?.middle_name, profile?.last_name, profile?.full_name))}
+                  />
                   <span className="hidden md:block text-sm font-medium text-gray-700">
                     {formatDisplayName(profile?.first_name, profile?.middle_name, profile?.last_name, profile?.full_name)}
                   </span>

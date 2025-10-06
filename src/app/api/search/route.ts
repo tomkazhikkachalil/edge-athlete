@@ -6,6 +6,9 @@ const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
 
 const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
+// Feature flag for full-text search (set to false to use old ILIKE method)
+const USE_FULLTEXT_SEARCH = true;
+
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
@@ -39,120 +42,261 @@ export async function GET(request: NextRequest) {
 
     // Search Athletes/Profiles
     if (type === 'all' || type === 'athletes') {
-      // Build search pattern
-      const searchPattern = `%${query}%`;
+      try {
+        if (USE_FULLTEXT_SEARCH) {
+          // Use optimized full-text search function
+          console.log('[SEARCH] Using full-text search for athletes');
 
-      console.log('[SEARCH] Searching athletes with pattern:', searchPattern);
+          const { data: athletes, error: athletesError } = await supabase
+            .rpc('search_profiles', {
+              search_query: query,
+              max_results: 20
+            });
 
-      // Start building the query (only using fields that exist in all profile schemas)
-      const athleteQuery = supabase
-        .from('profiles')
-        .select('id, full_name, first_name, middle_name, last_name, avatar_url, visibility, location')
-        .or(`full_name.ilike.${searchPattern},first_name.ilike.${searchPattern},middle_name.ilike.${searchPattern},last_name.ilike.${searchPattern},location.ilike.${searchPattern}`);
+          if (!athletesError && athletes) {
+            // Apply additional filters (sport, school) client-side for now
+            let filtered = athletes;
+            if (sport) {
+              filtered = filtered.filter((a: { sport?: string }) => a.sport === sport);
+            }
+            if (school) {
+              filtered = filtered.filter((a: { school?: string }) =>
+                a.school?.toLowerCase().includes(school.toLowerCase())
+              );
+            }
 
-      // Sport and school filters are temporarily disabled until schema is fully migrated
-      // if (sport) {
-      //   athleteQuery = athleteQuery.eq('sport', sport);
-      // }
-      // if (school) {
-      //   athleteQuery = athleteQuery.ilike('school', `%${school}%`);
-      // }
+            results.athletes = filtered.map((athlete: {
+              id: string;
+              full_name: string | null;
+              first_name: string | null;
+              middle_name: string | null;
+              last_name: string | null;
+              avatar_url: string | null;
+              location: string | null;
+              sport: string | null;
+              school: string | null;
+              visibility: string | null;
+            }) => ({
+              id: athlete.id,
+              full_name: athlete.full_name,
+              first_name: athlete.first_name,
+              middle_name: athlete.middle_name,
+              last_name: athlete.last_name,
+              avatar_url: athlete.avatar_url,
+              location: athlete.location,
+              sport: athlete.sport,
+              school: athlete.school,
+              visibility: athlete.visibility
+            }));
+            console.log('[SEARCH] Athletes found:', athletes.length, 'After filters:', results.athletes.length);
+          } else if (athletesError) {
+            console.error('[SEARCH] Athletes full-text error:', athletesError);
+            // Fallback to ILIKE on error
+            throw athletesError;
+          }
+        } else {
+          throw new Error('Fallback to ILIKE');
+        }
+      } catch (error) {
+        // Fallback to ILIKE search if full-text search fails
+        console.log('[SEARCH] Falling back to ILIKE search for athletes');
+        const searchPattern = `%${query}%`;
 
-      const { data: athletes, error: athletesError } = await athleteQuery
-        .order('full_name', { ascending: true, nullsFirst: false })
-        .limit(20);
+        const athleteQuery = supabase
+          .from('profiles')
+          .select('id, full_name, first_name, middle_name, last_name, avatar_url, visibility, location, sport, school')
+          .or(`full_name.ilike.${searchPattern},first_name.ilike.${searchPattern},middle_name.ilike.${searchPattern},last_name.ilike.${searchPattern},location.ilike.${searchPattern}`);
 
-      if (!athletesError && athletes) {
-        results.athletes = athletes.map(athlete => ({
-          id: athlete.id,
-          full_name: athlete.full_name,
-          first_name: athlete.first_name,
-          middle_name: athlete.middle_name,
-          last_name: athlete.last_name,
-          avatar_url: athlete.avatar_url,
-          location: athlete.location,
-          visibility: athlete.visibility
-        }));
-        console.log('[SEARCH] Athletes found:', athletes.length, 'Query:', query);
-      } else if (athletesError) {
-        console.error('[SEARCH] Athletes error:', athletesError);
+        if (sport) {
+          athleteQuery.eq('sport', sport);
+        }
+        if (school) {
+          athleteQuery.ilike('school', `%${school}%`);
+        }
+
+        const { data: athletes, error: athletesError } = await athleteQuery
+          .order('full_name', { ascending: true, nullsFirst: false })
+          .limit(20);
+
+        if (!athletesError && athletes) {
+          results.athletes = athletes.map(athlete => ({
+            id: athlete.id,
+            full_name: athlete.full_name,
+            first_name: athlete.first_name,
+            middle_name: athlete.middle_name,
+            last_name: athlete.last_name,
+            avatar_url: athlete.avatar_url,
+            location: athlete.location,
+            sport: athlete.sport,
+            school: athlete.school,
+            visibility: athlete.visibility
+          }));
+          console.log('[SEARCH] Athletes found (ILIKE):', athletes.length);
+        } else if (athletesError) {
+          console.error('[SEARCH] Athletes ILIKE error:', athletesError);
+        }
       }
     }
 
     // Search Posts (by caption, hashtags, tags)
     if (type === 'all' || type === 'posts') {
-      const searchPattern = `%${query}%`;
+      try {
+        if (USE_FULLTEXT_SEARCH) {
+          // Use optimized full-text search function
+          console.log('[SEARCH] Using full-text search for posts');
 
-      console.log('[SEARCH] Searching posts with pattern:', searchPattern);
+          const { data: postsBasic, error: postsError } = await supabase
+            .rpc('search_posts', {
+              search_query: query,
+              max_results: 15
+            });
 
-      // Start building the query
-      let postQuery = supabase
-        .from('posts')
-        .select(`
-          id,
-          caption,
-          sport_key,
-          hashtags,
-          tags,
-          created_at,
-          profile:profile_id (
+          if (!postsError && postsBasic) {
+            // Fetch full post details with profile and media
+            const postIds = postsBasic.map((p: { id: string }) => p.id);
+
+            if (postIds.length > 0) {
+              let postQuery = supabase
+                .from('posts')
+                .select(`
+                  id,
+                  caption,
+                  sport_key,
+                  hashtags,
+                  tags,
+                  created_at,
+                  profile:profile_id (
+                    id,
+                    full_name,
+                    first_name,
+                    middle_name,
+                    last_name,
+                    avatar_url
+                  ),
+                  post_media (
+                    media_url,
+                    media_type
+                  )
+                `)
+                .in('id', postIds);
+
+              // Apply filters
+              if (sport) {
+                postQuery = postQuery.eq('sport_key', sport);
+              }
+              if (dateFrom) {
+                postQuery = postQuery.gte('created_at', dateFrom);
+              }
+              if (dateTo) {
+                postQuery = postQuery.lte('created_at', `${dateTo}T23:59:59.999Z`);
+              }
+
+              const { data: posts } = await postQuery
+                .order('created_at', { ascending: false });
+
+              results.posts = posts || [];
+              console.log('[SEARCH] Posts found:', posts?.length || 0);
+            }
+          } else if (postsError) {
+            console.error('[SEARCH] Posts full-text error:', postsError);
+            throw postsError;
+          }
+        } else {
+          throw new Error('Fallback to ILIKE');
+        }
+      } catch (error) {
+        // Fallback to ILIKE search if full-text search fails
+        console.log('[SEARCH] Falling back to ILIKE search for posts');
+        const searchPattern = `%${query}%`;
+
+        let postQuery = supabase
+          .from('posts')
+          .select(`
             id,
-            full_name,
-            first_name,
-            middle_name,
-            last_name,
-            avatar_url
-          ),
-          post_media (
-            media_url,
-            media_type
-          )
-        `)
-        .eq('visibility', 'public')
-        .ilike('caption', searchPattern);
+            caption,
+            sport_key,
+            hashtags,
+            tags,
+            created_at,
+            profile:profile_id (
+              id,
+              full_name,
+              first_name,
+              middle_name,
+              last_name,
+              avatar_url
+            ),
+            post_media (
+              media_url,
+              media_type
+            )
+          `)
+          .eq('visibility', 'public')
+          .ilike('caption', searchPattern);
 
-      // Apply sport filter
-      if (sport) {
-        postQuery = postQuery.eq('sport_key', sport);
-      }
+        if (sport) {
+          postQuery = postQuery.eq('sport_key', sport);
+        }
+        if (dateFrom) {
+          postQuery = postQuery.gte('created_at', dateFrom);
+        }
+        if (dateTo) {
+          postQuery = postQuery.lte('created_at', `${dateTo}T23:59:59.999Z`);
+        }
 
-      // Apply date range filters
-      if (dateFrom) {
-        postQuery = postQuery.gte('created_at', dateFrom);
-      }
-      if (dateTo) {
-        postQuery = postQuery.lte('created_at', `${dateTo}T23:59:59.999Z`);
-      }
+        const { data: posts, error: postsError } = await postQuery
+          .order('created_at', { ascending: false })
+          .limit(15);
 
-      const { data: posts, error: postsError } = await postQuery
-        .order('created_at', { ascending: false })
-        .limit(15);
-
-      if (!postsError && posts) {
-        results.posts = posts;
-        console.log('[SEARCH] Posts found:', posts.length, 'Filters applied:', { sport, dateFrom, dateTo });
-      } else if (postsError) {
-        console.error('[SEARCH] Posts error:', postsError);
+        if (!postsError && posts) {
+          results.posts = posts;
+          console.log('[SEARCH] Posts found (ILIKE):', posts.length);
+        } else if (postsError) {
+          console.error('[SEARCH] Posts ILIKE error:', postsError);
+        }
       }
     }
 
     // Search Clubs
     if (type === 'all' || type === 'clubs') {
-      const searchPattern = `%${query}%`;
+      try {
+        if (USE_FULLTEXT_SEARCH) {
+          // Use optimized full-text search function
+          console.log('[SEARCH] Using full-text search for clubs');
 
-      console.log('[SEARCH] Searching clubs with pattern:', searchPattern);
+          const { data: clubs, error: clubsError } = await supabase
+            .rpc('search_clubs', {
+              search_query: query,
+              max_results: 10
+            });
 
-      const { data: clubs, error: clubsError } = await supabase
-        .from('clubs')
-        .select('id, name, description, location')
-        .or(`name.ilike.${searchPattern},description.ilike.${searchPattern},location.ilike.${searchPattern}`)
-        .limit(10);
+          if (!clubsError && clubs) {
+            results.clubs = clubs;
+            console.log('[SEARCH] Clubs found:', clubs.length);
+          } else if (clubsError) {
+            console.error('[SEARCH] Clubs full-text error:', clubsError);
+            throw clubsError;
+          }
+        } else {
+          throw new Error('Fallback to ILIKE');
+        }
+      } catch (error) {
+        // Fallback to ILIKE search if full-text search fails
+        console.log('[SEARCH] Falling back to ILIKE search for clubs');
+        const searchPattern = `%${query}%`;
 
-      if (!clubsError && clubs) {
-        results.clubs = clubs;
-        console.log('[SEARCH] Clubs found:', clubs.length);
-      } else if (clubsError) {
-        console.error('[SEARCH] Clubs error:', clubsError);
+        const { data: clubs, error: clubsError } = await supabase
+          .from('clubs')
+          .select('id, name, description, location')
+          .or(`name.ilike.${searchPattern},description.ilike.${searchPattern},location.ilike.${searchPattern}`)
+          .limit(10);
+
+        if (!clubsError && clubs) {
+          results.clubs = clubs;
+          console.log('[SEARCH] Clubs found (ILIKE):', clubs.length);
+        } else if (clubsError) {
+          console.error('[SEARCH] Clubs ILIKE error:', clubsError);
+        }
       }
     }
 
