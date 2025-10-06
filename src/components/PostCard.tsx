@@ -474,7 +474,7 @@ export default function PostCard({
                                 .filter((h: any) => h.hole_number <= 9)
                                 .map((hole: any) => {
                                   const diff = hole.strokes - hole.par;
-                                  let bgColor = 'bg-white';
+                                  const bgColor = 'bg-white';
                                   let textColor = 'text-gray-900';
                                   let border = '';
 

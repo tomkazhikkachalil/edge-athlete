@@ -19,6 +19,7 @@ interface Notification {
     id: string;
     full_name?: string;
     first_name?: string;
+    middle_name?: string;
     last_name?: string;
     avatar_url?: string;
   };

@@ -86,7 +86,7 @@ export default function FeedPage() {
           table: 'posts',
           filter: `visibility=eq.public`
         },
-        async (payload) => {
+        async (payload: any) => {
           console.log('[REALTIME] New post detected:', payload.new);
 
           // Fetch the complete post with profile and media
@@ -150,7 +150,7 @@ export default function FeedPage() {
           schema: 'public',
           table: 'posts'
         },
-        (payload) => {
+        (payload: any) => {
           console.log('[REALTIME] Post updated:', payload.new);
 
           setPosts(prev =>

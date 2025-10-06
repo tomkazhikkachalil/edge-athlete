@@ -327,7 +327,6 @@ export default function FollowersPage() {
             {/* Followers Tab */}
             {activeTab === 'followers' && (
               <div className="space-y-3">
-                {console.log('[FOLLOWERS TAB] followers.length =', followers.length, 'followers array:', followers)}
                 {followers.length === 0 ? (
                   <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-12 text-center">
                     <i className="fas fa-users text-6xl text-gray-300 mb-4"></i>
@@ -337,14 +336,11 @@ export default function FollowersPage() {
                   </div>
                 ) : (
                   <div className="space-y-3">
-                    {console.log('[FOLLOWERS RENDER] About to render', followers.length, 'items')}
                     {followers.map((f, index) => {
-                      console.log(`[FOLLOWERS RENDER] Item ${index}:`, f);
                       if (!f.follower) {
                         console.error('[FOLLOWERS PAGE] Follower missing profile data at index', index, ':', f);
                         return <div key={f.id} className="bg-red-100 p-4 rounded">Missing follower data for ID: {f.id}</div>;
                       }
-                      console.log(`[FOLLOWERS RENDER] Rendering follower ${index}:`, f.follower.first_name, f.follower.last_name);
                       return <div key={f.id}>{renderProfileCard(f.follower, true, false)}</div>;
                     })}
                   </div>
@@ -363,7 +359,6 @@ export default function FollowersPage() {
                   </div>
                 ) : (
                   <>
-                    {console.log('[FOLLOWING RENDER] Rendering', following.length, 'following:', following)}
                     {following.map(f => {
                       if (!f.following) {
                         console.warn('[FOLLOWERS PAGE] Following missing profile data:', f);

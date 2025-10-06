@@ -118,7 +118,7 @@ export async function POST(request: NextRequest) {
       if (roundId && golfData.holesData && golfData.holesData.length > 0) {
         const holeRecords = golfData.holesData
           .filter((hole: { score?: number }) => hole.score !== undefined)
-          .map((hole: { hole: number; par: number; yardage?: number; score: number; putts?: number }) => ({
+          .map((hole: { hole: number; par: number; yardage?: number; score: number; putts?: number; fairway?: string; gir?: boolean; notes?: string }) => ({
             round_id: roundId,
             hole_number: hole.hole,
             par: hole.par,

@@ -45,7 +45,7 @@ export async function GET(request: NextRequest) {
       console.log('[SEARCH] Searching athletes with pattern:', searchPattern);
 
       // Start building the query (only using fields that exist in all profile schemas)
-      let athleteQuery = supabase
+      const athleteQuery = supabase
         .from('profiles')
         .select('id, full_name, first_name, middle_name, last_name, avatar_url, visibility, location')
         .or(`full_name.ilike.${searchPattern},first_name.ilike.${searchPattern},middle_name.ilike.${searchPattern},last_name.ilike.${searchPattern},location.ilike.${searchPattern}`);
