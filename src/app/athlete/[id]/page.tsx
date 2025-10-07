@@ -8,6 +8,7 @@ import LazyImage from '@/components/LazyImage';
 import RecentPosts from '@/components/RecentPosts';
 import FollowButton from '@/components/FollowButton';
 import PrivateProfileView from '@/components/PrivateProfileView';
+import ProfileMediaTabs from '@/components/ProfileMediaTabs';
 import type { Profile, AthleteBadge } from '@/lib/supabase';
 // Privacy checks moved to API route
 import {
@@ -593,23 +594,16 @@ export default function AthleteProfilePage() {
         </div>
       </div>
 
-      {/* Recent Posts Section */}
+      {/* Media Section with Segmented Tabs */}
       <div className="bg-white rounded-lg shadow-md p-6">
-        <div className="flex justify-between items-center mb-4">
-          <h2 className="text-2xl font-bold">Athletic Profile</h2>
+        <div className="flex justify-between items-center mb-6">
+          <h2 className="text-2xl font-bold">Athletic Profile & Media</h2>
         </div>
-        <div className="flex space-x-4 mb-4">
-          <button className="bg-blue-500 text-white px-4 py-2 rounded-lg hover:bg-blue-600">Posts</button>
-          <button className="bg-gray-300 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-400">Media</button>
-          <button className="bg-gray-300 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-400">Stats</button>
-          <button className="bg-gray-300 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-400">Achievements</button>
-        </div>
-        
-        <RecentPosts
+
+        <ProfileMediaTabs
           profileId={athleteId}
           currentUserId={user?.id}
-          showCreateButton={false}
-          onPostsLoad={(count) => setPostsCount(count)}
+          isOwnProfile={isOwnProfile}
         />
       </div>
 

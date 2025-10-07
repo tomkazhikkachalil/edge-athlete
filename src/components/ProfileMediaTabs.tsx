@@ -1,0 +1,434 @@
+'use client';
+
+import { useState, useEffect, useCallback, useRef } from 'react';
+import { formatDistanceToNow } from 'date-fns';
+import OptimizedImage from './OptimizedImage';
+import PostDetailModal from './PostDetailModal';
+
+type TabType = 'all' | 'stats' | 'tagged';
+type SortType = 'newest' | 'most_engaged';
+type MediaFilterType = 'all' | 'photos' | 'videos' | 'posts';
+
+interface MediaItem {
+  id: string;
+  caption: string | null;
+  sport_key: string | null;
+  stats_data: Record<string, unknown> | null;
+  visibility: string;
+  created_at: string;
+  profile_id: string;
+  profile_first_name: string | null;
+  profile_last_name: string | null;
+  profile_full_name: string | null;
+  profile_avatar_url: string | null;
+  media_count: number;
+  likes_count: number;
+  comments_count: number;
+  saves_count: number;
+  tags: string[] | null;
+  hashtags: string[] | null;
+  is_own_post: boolean;
+  is_tagged: boolean;
+  media?: Array<{
+    id: string;
+    media_url: string;
+    media_type: 'image' | 'video';
+    display_order: number;
+  }>;
+}
+
+interface TabCounts {
+  all: number;
+  stats: number;
+  tagged: number;
+}
+
+interface ProfileMediaTabsProps {
+  profileId: string;
+  currentUserId?: string;
+  isOwnProfile?: boolean;
+}
+
+export default function ProfileMediaTabs({ profileId, currentUserId, isOwnProfile = false }: ProfileMediaTabsProps) {
+  const [activeTab, setActiveTab] = useState<TabType>('all');
+  const [sort, setSort] = useState<SortType>('newest');
+  const [mediaFilter, setMediaFilter] = useState<MediaFilterType>('all');
+  const [items, setItems] = useState<MediaItem[]>([]);
+  const [counts, setCounts] = useState<TabCounts>({ all: 0, stats: 0, tagged: 0 });
+  const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [hasMore, setHasMore] = useState(false);
+  const [offset, setOffset] = useState(0);
+  const observerTarget = useRef<HTMLDivElement>(null);
+
+  // Modal state
+  const [selectedPostIndex, setSelectedPostIndex] = useState<number | null>(null);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+
+  // Fetch counts for tab badges
+  const fetchCounts = useCallback(async () => {
+    try {
+      const response = await fetch(`/api/profile/${profileId}/media`, {
+        method: 'POST'
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        setCounts(data);
+      }
+    } catch (error) {
+      console.error('Error fetching media counts:', error);
+    }
+  }, [profileId]);
+
+  // Fetch media items
+  const fetchMedia = useCallback(async (resetItems = false) => {
+    try {
+      if (resetItems) {
+        setLoading(true);
+        setOffset(0);
+      } else {
+        setLoadingMore(true);
+      }
+
+      const currentOffset = resetItems ? 0 : offset;
+      const params = new URLSearchParams({
+        tab: activeTab,
+        sort,
+        mediaType: mediaFilter,
+        limit: '20',
+        offset: currentOffset.toString()
+      });
+
+      const response = await fetch(`/api/profile/${profileId}/media?${params}`);
+
+      if (!response.ok) {
+        throw new Error('Failed to fetch media');
+      }
+
+      const data = await response.json();
+
+      if (resetItems) {
+        setItems(data.items);
+      } else {
+        setItems(prev => [...prev, ...data.items]);
+      }
+
+      setHasMore(data.hasMore);
+      setOffset(data.nextOffset);
+    } catch (error) {
+      console.error('Error fetching media:', error);
+    } finally {
+      setLoading(false);
+      setLoadingMore(false);
+    }
+  }, [profileId, activeTab, sort, mediaFilter, offset]);
+
+  // Load counts on mount
+  useEffect(() => {
+    fetchCounts();
+  }, [fetchCounts]);
+
+  // Load media when tab/filter/sort changes
+  useEffect(() => {
+    fetchMedia(true);
+  }, [activeTab, sort, mediaFilter, profileId]);
+
+  // Infinite scroll observer
+  useEffect(() => {
+    const observer = new IntersectionObserver(
+      entries => {
+        if (entries[0].isIntersecting && hasMore && !loadingMore) {
+          fetchMedia(false);
+        }
+      },
+      { threshold: 0.1 }
+    );
+
+    const currentTarget = observerTarget.current;
+    if (currentTarget) {
+      observer.observe(currentTarget);
+    }
+
+    return () => {
+      if (currentTarget) {
+        observer.unobserve(currentTarget);
+      }
+    };
+  }, [hasMore, loadingMore, fetchMedia]);
+
+  const handleItemClick = (index: number) => {
+    setSelectedPostIndex(index);
+    setIsModalOpen(true);
+  };
+
+  const handleCloseModal = () => {
+    setIsModalOpen(false);
+    setSelectedPostIndex(null);
+  };
+
+  const handleNavigate = (direction: 'prev' | 'next') => {
+    if (selectedPostIndex === null) return;
+
+    if (direction === 'prev' && selectedPostIndex > 0) {
+      setSelectedPostIndex(selectedPostIndex - 1);
+    } else if (direction === 'next' && selectedPostIndex < items.length - 1) {
+      setSelectedPostIndex(selectedPostIndex + 1);
+    }
+  };
+
+  const handleTabChange = (tab: TabType) => {
+    setActiveTab(tab);
+    setItems([]);
+    setOffset(0);
+    setSelectedPostIndex(null);
+    setIsModalOpen(false);
+  };
+
+  return (
+    <div className="w-full space-y-4">
+      {/* Tabs */}
+      <div className="border-b border-gray-200">
+        <div className="flex items-center justify-between mb-2">
+          <nav className="flex space-x-6" aria-label="Media tabs">
+            <button
+              onClick={() => handleTabChange('all')}
+              className={`pb-3 px-1 border-b-2 font-medium text-sm transition-colors ${
+                activeTab === 'all'
+                  ? 'border-blue-600 text-blue-600'
+                  : 'border-transparent text-gray-600 hover:text-gray-800 hover:border-gray-300'
+              }`}
+            >
+              All Media
+              <span className="ml-2 py-0.5 px-2 rounded-full text-xs bg-gray-100 text-gray-700">
+                {counts.all}
+              </span>
+            </button>
+            <button
+              onClick={() => handleTabChange('stats')}
+              className={`pb-3 px-1 border-b-2 font-medium text-sm transition-colors ${
+                activeTab === 'stats'
+                  ? 'border-blue-600 text-blue-600'
+                  : 'border-transparent text-gray-600 hover:text-gray-800 hover:border-gray-300'
+              }`}
+            >
+              Media with Stats
+              <span className="ml-2 py-0.5 px-2 rounded-full text-xs bg-gray-100 text-gray-700">
+                {counts.stats}
+              </span>
+            </button>
+            <button
+              onClick={() => handleTabChange('tagged')}
+              className={`pb-3 px-1 border-b-2 font-medium text-sm transition-colors ${
+                activeTab === 'tagged'
+                  ? 'border-blue-600 text-blue-600'
+                  : 'border-transparent text-gray-600 hover:text-gray-800 hover:border-gray-300'
+              }`}
+            >
+              Tagged in Media
+              <span className="ml-2 py-0.5 px-2 rounded-full text-xs bg-gray-100 text-gray-700">
+                {counts.tagged}
+              </span>
+            </button>
+          </nav>
+        </div>
+      </div>
+
+      {/* Filters */}
+      <div className="flex items-center justify-between gap-4 flex-wrap">
+        <div className="flex items-center gap-3">
+          {/* Sort dropdown */}
+          <select
+            value={sort}
+            onChange={(e) => setSort(e.target.value as SortType)}
+            className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+          >
+            <option value="newest">Newest First</option>
+            <option value="most_engaged">Most Engaged</option>
+          </select>
+
+          {/* Media type filter */}
+          <select
+            value={mediaFilter}
+            onChange={(e) => setMediaFilter(e.target.value as MediaFilterType)}
+            className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+          >
+            <option value="all">All Types</option>
+            <option value="photos">Photos Only</option>
+            <option value="videos">Videos Only</option>
+            <option value="posts">Posts Only</option>
+          </select>
+        </div>
+
+        <div className="text-sm text-gray-600">
+          {items.length} {items.length === 1 ? 'item' : 'items'}
+        </div>
+      </div>
+
+      {/* Loading state */}
+      {loading && (
+        <div className="flex justify-center items-center py-12">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+        </div>
+      )}
+
+      {/* Empty state */}
+      {!loading && items.length === 0 && (
+        <div className="text-center py-12 px-4">
+          <div className="w-16 h-16 mx-auto mb-4 text-gray-400">
+            <i className="fas fa-images text-5xl"></i>
+          </div>
+          <h3 className="text-lg font-semibold text-gray-900 mb-2">
+            {activeTab === 'all' && 'No posts yet'}
+            {activeTab === 'stats' && 'No stat-attached posts yet'}
+            {activeTab === 'tagged' && 'No media tags yet'}
+          </h3>
+          <p className="text-gray-600 mb-4">
+            {activeTab === 'all' && isOwnProfile && 'Start sharing your athletic journey'}
+            {activeTab === 'all' && !isOwnProfile && 'This athlete hasn\'t posted yet'}
+            {activeTab === 'stats' && isOwnProfile && 'Add stats to your posts to track performance'}
+            {activeTab === 'stats' && !isOwnProfile && 'No performance stats available'}
+            {activeTab === 'tagged' && isOwnProfile && 'You haven\'t been tagged in any media yet'}
+            {activeTab === 'tagged' && !isOwnProfile && 'Not tagged in any media yet'}
+          </p>
+        </div>
+      )}
+
+      {/* Media grid */}
+      {!loading && items.length > 0 && (
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-2">
+          {items.map((item, index) => (
+            <MediaGridItem
+              key={item.id}
+              item={item}
+              onClick={() => handleItemClick(index)}
+            />
+          ))}
+        </div>
+      )}
+
+      {/* Loading more indicator */}
+      {loadingMore && (
+        <div className="flex justify-center items-center py-6">
+          <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600"></div>
+        </div>
+      )}
+
+      {/* Intersection observer target */}
+      <div ref={observerTarget} className="h-4" />
+
+      {/* Post Detail Modal */}
+      <PostDetailModal
+        postId={selectedPostIndex !== null ? items[selectedPostIndex]?.id : null}
+        isOpen={isModalOpen}
+        onClose={handleCloseModal}
+        onNavigate={handleNavigate}
+        currentUserId={currentUserId}
+        showNavigation={items.length > 1}
+      />
+    </div>
+  );
+}
+
+// Media grid item component
+interface MediaGridItemProps {
+  item: MediaItem;
+  onClick: () => void;
+}
+
+function MediaGridItem({ item, onClick }: MediaGridItemProps) {
+  const hasStats = item.stats_data && Object.keys(item.stats_data).length > 0;
+  const hasMedia = item.media && item.media.length > 0;
+  const firstMedia = hasMedia ? item.media![0] : null;
+  const isVideo = firstMedia?.media_type === 'video';
+  const mediaCount = item.media_count;
+
+  return (
+    <button
+      onClick={onClick}
+      className="relative aspect-square bg-gray-100 rounded-lg overflow-hidden hover:opacity-90 transition-opacity group"
+    >
+      {/* Media thumbnail */}
+      {hasMedia && firstMedia ? (
+        <div className="w-full h-full">
+          {isVideo ? (
+            <div className="relative w-full h-full">
+              <video
+                src={firstMedia.media_url}
+                className="w-full h-full object-cover"
+                preload="metadata"
+              />
+              <div className="absolute inset-0 flex items-center justify-center">
+                <div className="w-12 h-12 bg-black bg-opacity-50 rounded-full flex items-center justify-center">
+                  <i className="fas fa-play text-white text-lg ml-1"></i>
+                </div>
+              </div>
+            </div>
+          ) : (
+            <OptimizedImage
+              src={firstMedia.media_url}
+              alt={item.caption || 'Media'}
+              width={300}
+              height={300}
+              className="w-full h-full object-cover"
+            />
+          )}
+        </div>
+      ) : (
+        // Text post (no media)
+        <div className="w-full h-full flex items-center justify-center p-4 bg-gradient-to-br from-blue-50 to-purple-50">
+          <p className="text-sm text-gray-700 line-clamp-4 text-center">
+            {item.caption || 'Post'}
+          </p>
+        </div>
+      )}
+
+      {/* Overlay with indicators */}
+      <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-30 transition-all">
+        {/* Top indicators */}
+        <div className="absolute top-2 right-2 flex gap-1">
+          {hasStats && (
+            <span className="px-2 py-1 bg-blue-600 text-white text-xs font-semibold rounded-full">
+              + Stats
+            </span>
+          )}
+          {mediaCount > 1 && (
+            <span className="px-2 py-1 bg-black bg-opacity-60 text-white text-xs font-semibold rounded-full">
+              <i className="fas fa-layer-group mr-1"></i>
+              {mediaCount}
+            </span>
+          )}
+        </div>
+
+        {/* Bottom info on hover */}
+        <div className="absolute bottom-0 left-0 right-0 p-2 bg-gradient-to-t from-black to-transparent opacity-0 group-hover:opacity-100 transition-opacity">
+          <div className="flex items-center justify-between text-white text-xs">
+            <div className="flex items-center gap-2">
+              <span>
+                <i className="fas fa-heart mr-1"></i>
+                {item.likes_count}
+              </span>
+              <span>
+                <i className="fas fa-comment mr-1"></i>
+                {item.comments_count}
+              </span>
+            </div>
+            <span className="text-gray-200">
+              {formatDistanceToNow(new Date(item.created_at), { addSuffix: true })}
+            </span>
+          </div>
+        </div>
+      </div>
+
+      {/* Tagged indicator */}
+      {item.is_tagged && !item.is_own_post && (
+        <div className="absolute top-2 left-2">
+          <span className="px-2 py-1 bg-green-600 text-white text-xs font-semibold rounded-full">
+            <i className="fas fa-user-tag mr-1"></i>
+            Tagged
+          </span>
+        </div>
+      )}
+    </button>
+  );
+}

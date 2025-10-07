@@ -12,6 +12,7 @@ import PerformanceModal from '@/components/PerformanceModal';
 import LazyImage from '@/components/LazyImage';
 import CreatePostModal from '@/components/CreatePostModal';
 import RecentPosts from '@/components/RecentPosts';
+import ProfileMediaTabs from '@/components/ProfileMediaTabs';
 import NotificationsDropdown from '@/components/NotificationsDropdown';
 import type { AthleteBadge, SeasonHighlight, Performance, Profile } from '@/lib/supabase';
 import {
@@ -1063,15 +1064,24 @@ export default function AthleteProfilePage() {
             onEdit={handleEditSeasonHighlights}
           />
 
-          {/* Posts Feed */}
-          <RecentPosts
-            key={postsRefreshKey}
-            profileId={user?.id || ''}
-            currentUserId={user?.id}
-            showCreateButton={true}
-            onCreatePost={() => setIsCreatePostModalOpen(true)}
-            onPostsLoad={(count) => setPostsCount(count)}
-          />
+          {/* Media Tabs */}
+          <div className="bg-white rounded-lg shadow-md p-6">
+            <div className="flex justify-between items-center mb-6">
+              <h2 className="text-2xl font-bold">My Media</h2>
+              <button
+                onClick={() => setIsCreatePostModalOpen(true)}
+                className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2"
+              >
+                <i className="fas fa-plus"></i>
+                Create Post
+              </button>
+            </div>
+            <ProfileMediaTabs
+              profileId={user?.id || ''}
+              currentUserId={user?.id}
+              isOwnProfile={true}
+            />
+          </div>
         </div>
       </div>
 
