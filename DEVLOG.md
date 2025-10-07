@@ -1,5 +1,52 @@
 # Development Log
 
+## 2025-10-07 - Display Name Consistency and UI Polish
+
+### Latest Changes
+
+#### 1. Display Name Standardization
+**Feature**: Standardized display name formatting across the entire application.
+
+**Changes**:
+- Removed middle name from all display name formatting
+- Updated `formatDisplayName` calls to use `null` instead of `middle_name` parameter
+- Ensured consistent "First Last" format matching profile pages
+- Applied changes across 9 components and 2 API routes
+
+**Affected Components**:
+- PostCard.tsx - Main post display
+- SearchBar.tsx, AdvancedSearchBar.tsx - Search results
+- NotificationsDropdown.tsx, notifications page - Notification displays
+- followers page, athlete pages, feed page - Profile name displays
+- PrivateProfileView.tsx - Private profile view
+
+**Migration Tools Created**:
+- `src/lib/name-resolver.ts` - Centralized name resolution utility (for future migration)
+- `add-display-name-field.sql` - Database migration for display_name field
+- `DISPLAY-NAME-CONSISTENCY-PLAN.md` - Comprehensive migration plan
+- `DISPLAY-NAME-SYSTEM-READY.md` - Quick start guide
+
+#### 2. PostCard UI Improvements
+**Feature**: Improved visual consistency and spacing in post headers.
+
+**Changes**:
+- Updated avatar-to-name spacing from `gap-micro` (12px) to `gap-4` (16px)
+- Aligned post header content inline (name, time, sport on same line)
+- Added `flex-shrink-0` to avatars to prevent spacing inconsistencies
+- Added `flex-1 min-w-0` to text container for proper flex behavior
+
+**Visual Impact**:
+- All posts now have identical spacing between avatar and name
+- Consistent layout regardless of name length or avatar type
+- Better alignment matching profile page design patterns
+
+**Files Modified**:
+- PostCard.tsx:296 - Spacing update
+- PostCard.tsx:303,308 - Avatar flex-shrink-0
+- PostCard.tsx:315-329 - Inline header layout
+
+---
+
 ## 2025-10-06 - Post Save and Share Functionality
 
 ### Latest Changes

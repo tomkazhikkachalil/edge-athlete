@@ -205,7 +205,7 @@ Toggle sports here to enable/disable throughout UI.
 
 **Location:** `src/components/`
 
-- **PostCard.tsx** - Main post display with likes, comments, saves, shares, media carousel
+- **PostCard.tsx** - Main post display with likes, comments, saves, shares, media carousel. Uses inline header layout with consistent gap-4 spacing between avatar and name
 - **CreatePostModal.tsx** - Multi-step post creation wizard
 - **EditPostModal.tsx** - Post editing modal
 - **EditProfileTabs.tsx** - Profile editor with Basic Info/Sports/Achievements tabs
@@ -323,24 +323,25 @@ interface Profile {
 
 **Display Name Function:**
 
-ALWAYS use the correct signature when displaying names:
+ALWAYS use the correct signature when displaying names. **As of October 2025, middle names are NOT displayed** to maintain consistent "First Last" formatting:
 
 ```typescript
 import { formatDisplayName, getInitials } from '@/lib/formatters';
 
-// CORRECT - New signature
+// CORRECT - Current standard (no middle name)
 const displayName = formatDisplayName(
   profile.first_name,
-  profile.middle_name,
+  null,  // Don't include middle name in display
   profile.last_name,
   profile.full_name  // username fallback
 );
 
-// WRONG - Old signature (causes duplicate names)
+// WRONG - Including middle name (old pattern, removed October 2025)
 const displayName = formatDisplayName(
-  profile.full_name,
   profile.first_name,
-  profile.last_name
+  profile.middle_name,  // ❌ Don't use middle_name
+  profile.last_name,
+  profile.full_name
 );
 
 // For initials
@@ -349,18 +350,21 @@ const initials = getInitials(displayName);
 
 **API Query Pattern:**
 
-When querying profiles, ALWAYS include `middle_name`:
+When querying profiles, include `middle_name` in the query (for database compatibility) but **do not display it**:
 
 ```typescript
-// CORRECT
+// CORRECT - Query includes middle_name but won't be displayed
 const { data } = await supabase
   .from('profiles')
   .select('id, first_name, middle_name, last_name, full_name, avatar_url, sport, school');
 
-// WRONG - Missing middle_name
-const { data } = await supabase
-  .from('profiles')
-  .select('id, first_name, last_name, full_name, avatar_url');
+// Then display without middle name
+const displayName = formatDisplayName(
+  profile.first_name,
+  null,  // Don't display middle_name even though it's in the data
+  profile.last_name,
+  profile.full_name
+);
 ```
 
 **Foreign Key Queries:**
