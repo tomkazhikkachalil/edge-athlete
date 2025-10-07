@@ -164,7 +164,7 @@ export default function NotificationsPage() {
 
   const getNotificationText = (notification: Notification) => {
     const actorName = notification.actor
-      ? formatDisplayName(notification.actor.first_name, notification.actor.middle_name, notification.actor.last_name, notification.actor.full_name)
+      ? formatDisplayName(notification.actor.first_name, null, notification.actor.last_name, notification.actor.full_name)
       : 'Someone';
 
     switch (notification.type) {
@@ -274,7 +274,7 @@ export default function NotificationsPage() {
                   {notification.actor?.avatar_url ? (
                     <LazyImage
                       src={notification.actor.avatar_url}
-                      alt={formatDisplayName(notification.actor.first_name, notification.actor.middle_name, notification.actor.last_name, notification.actor.full_name)}
+                      alt={formatDisplayName(notification.actor.first_name, null, notification.actor.last_name, notification.actor.full_name)}
                       className="w-12 h-12 rounded-full object-cover flex-shrink-0"
                       width={48}
                       height={48}
@@ -282,7 +282,7 @@ export default function NotificationsPage() {
                   ) : notification.actor ? (
                     <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center flex-shrink-0">
                       <span className="text-white text-sm font-semibold">
-                        {getInitials(formatDisplayName(notification.actor.first_name, notification.actor.middle_name, notification.actor.last_name, notification.actor.full_name))}
+                        {getInitials(formatDisplayName(notification.actor.first_name, null, notification.actor.last_name, notification.actor.full_name))}
                       </span>
                     </div>
                   ) : (

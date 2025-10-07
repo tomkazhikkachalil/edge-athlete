@@ -1,0 +1,111 @@
+'use client';
+
+import { useState, useEffect } from 'react';
+import PostCard from './PostCard';
+import { useAuth } from '@/lib/auth';
+
+interface TaggedPostsProps {
+  profileId: string;
+  currentUserId?: string;
+}
+
+export default function TaggedPosts({ profileId, currentUserId }: TaggedPostsProps) {
+  const [posts, setPosts] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    loadTaggedPosts();
+  }, [profileId]);
+
+  const loadTaggedPosts = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+
+      // First, get all tags for this profile
+      const tagsResponse = await fetch(`/api/tags?profileId=${profileId}`);
+      if (!tagsResponse.ok) {
+        throw new Error('Failed to load tags');
+      }
+
+      const { tags } = await tagsResponse.json();
+
+      if (!tags || tags.length === 0) {
+        setPosts([]);
+        setLoading(false);
+        return;
+      }
+
+      // Get unique post IDs from tags
+      const postIds = [...new Set(tags.map((tag: any) => tag.post_id))] as string[];
+
+      // Fetch posts for these IDs
+      const postsPromises = postIds.map(async (postId: string) => {
+        const response = await fetch(`/api/posts/${postId}`);
+        if (response.ok) {
+          const { post } = await response.json();
+          return post;
+        }
+        return null;
+      });
+
+      const fetchedPosts = await Promise.all(postsPromises);
+      const validPosts = fetchedPosts.filter(post => post !== null);
+
+      setPosts(validPosts);
+    } catch (err) {
+      console.error('Error loading tagged posts:', err);
+      setError('Failed to load tagged posts');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="flex justify-center items-center py-12">
+        <i className="fas fa-spinner fa-spin text-3xl text-gray-400"></i>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="text-center py-12">
+        <p className="text-gray-600">{error}</p>
+      </div>
+    );
+  }
+
+  if (posts.length === 0) {
+    return (
+      <div className="text-center py-12">
+        <i className="fas fa-tag text-4xl text-gray-300 mb-4"></i>
+        <p className="text-gray-600 font-medium">No tagged posts yet</p>
+        <p className="text-gray-500 text-sm mt-2">Posts where this user is tagged will appear here</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-6">
+      <div className="flex items-center justify-between mb-4">
+        <h2 className="text-xl font-bold text-gray-900">
+          Tagged Posts ({posts.length})
+        </h2>
+      </div>
+
+      <div className="space-y-6">
+        {posts.map((post) => (
+          <PostCard
+            key={post.id}
+            post={post}
+            currentUserId={currentUserId}
+            showActions={true}
+          />
+        ))}
+      </div>
+    </div>
+  );
+}

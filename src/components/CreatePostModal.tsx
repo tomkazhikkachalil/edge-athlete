@@ -4,6 +4,7 @@ import { useState, useCallback, useRef, useEffect } from 'react';
 import { useToast } from '@/components/Toast';
 import LazyImage from '@/components/LazyImage';
 import GolfScorecardForm from '@/components/GolfScorecardForm';
+import TagPeopleModal from '@/components/TagPeopleModal';
 
 interface CreatePostModalProps {
   isOpen: boolean;
@@ -85,6 +86,11 @@ export default function CreatePostModal({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showPreview, setShowPreview] = useState(false);
 
+  // Tagging people
+  const [taggedProfiles, setTaggedProfiles] = useState<string[]>([]);
+  const [taggedProfilesData, setTaggedProfilesData] = useState<{id: string; name: string}[]>([]);
+  const [showTagModal, setShowTagModal] = useState(false);
+
   // Character limits
   const MAX_CAPTION_LENGTH = 500;
   const MAX_HASHTAGS = 10;
@@ -102,6 +108,9 @@ export default function CreatePostModal({
     setShowHashtagSuggestions(false);
     setCustomHashtag('');
     setShowPreview(false);
+    setTaggedProfiles([]);
+    setTaggedProfilesData([]);
+    setShowTagModal(false);
   };
 
   // Handle close
@@ -203,6 +212,28 @@ export default function CreatePostModal({
   // Remove hashtag
   const removeHashtag = (hashtag: string) => {
     setHashtags(prev => prev.filter(h => h !== hashtag));
+  };
+
+  // Handle tag people selection
+  const handleTagPeopleComplete = (selectedIds: string[], selectedProfiles?: any[]) => {
+    setTaggedProfiles(selectedIds);
+
+    // Use the profile data passed from the modal
+    if (selectedProfiles && selectedProfiles.length > 0) {
+      const profilesData = selectedProfiles.map(profile => {
+        const name = profile.first_name && profile.last_name
+          ? `${profile.first_name} ${profile.last_name}`
+          : profile.full_name || 'Unknown User';
+        return { id: profile.id, name };
+      });
+      setTaggedProfilesData(profilesData);
+    }
+  };
+
+  // Remove tagged person
+  const removeTaggedPerson = (profileId: string) => {
+    setTaggedProfiles(prev => prev.filter(id => id !== profileId));
+    setTaggedProfilesData(prev => prev.filter(p => p.id !== profileId));
   };
 
   // Handle custom hashtag input
@@ -315,7 +346,8 @@ export default function CreatePostModal({
           type: file.type,
           sortOrder: index
         })),
-        golfData: postType === 'golf' ? golfRoundData : undefined
+        golfData: postType === 'golf' ? golfRoundData : undefined,
+        taggedProfiles: taggedProfiles // Add tagged people
       };
 
       console.log('Creating post with data:', postData);
@@ -564,6 +596,48 @@ export default function CreatePostModal({
             )}
           </div>
 
+          {/* Tag People */}
+          <div className="mb-6">
+            <div className="flex items-center justify-between mb-3">
+              <label className="text-sm font-semibold text-gray-700">Tag People</label>
+              <button
+                onClick={() => setShowTagModal(true)}
+                className="flex items-center gap-2 px-3 py-1.5 text-sm text-blue-600 hover:text-blue-700 hover:bg-blue-50 rounded-lg transition-colors"
+              >
+                <i className="fas fa-user-tag"></i>
+                {taggedProfiles.length > 0 ? `Tagged (${taggedProfiles.length})` : 'Add Tags'}
+              </button>
+            </div>
+
+            {/* Tagged people chips */}
+            {taggedProfilesData.length > 0 && (
+              <div className="flex flex-wrap gap-2">
+                {taggedProfilesData.map(profile => (
+                  <span
+                    key={profile.id}
+                    className="inline-flex items-center gap-2 px-3 py-1.5 bg-blue-100 text-blue-800 rounded-full text-sm font-medium border border-blue-300"
+                  >
+                    <i className="fas fa-user text-xs"></i>
+                    {profile.name}
+                    <button
+                      onClick={() => removeTaggedPerson(profile.id)}
+                      className="ml-1 hover:text-blue-900"
+                    >
+                      <i className="fas fa-times text-xs"></i>
+                    </button>
+                  </span>
+                ))}
+              </div>
+            )}
+
+            {taggedProfilesData.length === 0 && (
+              <p className="text-sm text-gray-500">
+                <i className="fas fa-info-circle mr-1"></i>
+                Tag people who are in your photos or videos
+              </p>
+            )}
+          </div>
+
           {/* Media Upload */}
           <div className="mb-6">
             <label className="block text-sm font-semibold text-gray-700 mb-3">
@@ -774,6 +848,15 @@ export default function CreatePostModal({
           }}
         />
       )}
+
+      {/* Tag People Modal */}
+      <TagPeopleModal
+        isOpen={showTagModal}
+        onClose={() => setShowTagModal(false)}
+        existingTags={taggedProfiles}
+        onSelectionComplete={handleTagPeopleComplete}
+        selectionMode={true}
+      />
     </div>
   );
 }

@@ -54,6 +54,7 @@ export async function GET(request: NextRequest) {
             });
 
           if (!athletesError && athletes) {
+            console.log('[SEARCH] Full-text search returned:', athletes.length, 'athletes');
             // Apply additional filters (sport, school) client-side for now
             let filtered = athletes;
             if (sport) {
@@ -119,6 +120,7 @@ export async function GET(request: NextRequest) {
           .limit(20);
 
         if (!athletesError && athletes) {
+          console.log('[SEARCH] ILIKE fallback returned:', athletes.length, 'athletes');
           results.athletes = athletes.map(athlete => ({
             id: athlete.id,
             full_name: athlete.full_name,

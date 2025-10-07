@@ -289,7 +289,7 @@ export default function AthleteProfilePage() {
               />
             ) : (
               <div className="w-32 h-32 rounded-full bg-blue-500 border-4 border-blue-500 flex items-center justify-center text-white text-3xl font-bold">
-                {getInitials(formatDisplayName(profile.first_name, profile.middle_name, profile.last_name, profile.full_name))}
+                {getInitials(formatDisplayName(profile.first_name, null, profile.last_name, profile.full_name))}
               </div>
             )}
             <div className="absolute -bottom-2 -right-2 bg-green-500 text-white rounded-full w-12 h-12 flex items-center justify-center font-bold text-xl">
@@ -300,7 +300,7 @@ export default function AthleteProfilePage() {
           <div className="flex-1">
             <div className="flex items-center gap-4 mb-3">
               <h1 className="text-3xl font-bold">
-                {formatDisplayName(profile.first_name, profile.middle_name, profile.last_name, profile.full_name)}
+                {formatDisplayName(profile.first_name, null, profile.last_name, profile.full_name)}
               </h1>
               
               {/* Badges */}

@@ -791,7 +791,7 @@ export default function AthleteProfilePage() {
               <div className="relative flex-shrink-0 mx-auto sm:mx-0">
                 <LazyImage
                   src={profile?.avatar_url}
-                  alt={`${formatDisplayName(profile?.first_name, profile?.middle_name, profile?.last_name, profile?.full_name)} avatar`}
+                  alt={`${formatDisplayName(profile?.first_name, null, profile?.last_name, profile?.full_name)} avatar`}
                   className="w-32 h-32 sm:w-40 sm:h-40 lg:w-48 lg:h-48 rounded-full object-cover border-4 border-white shadow-lg"
                   width={192}
                   height={192}
@@ -800,10 +800,10 @@ export default function AthleteProfilePage() {
                     <div
                       className="w-32 h-32 sm:w-40 sm:h-40 lg:w-48 lg:h-48 rounded-full bg-gray-200 flex items-center justify-center border-4 border-white shadow-lg"
                       role="img"
-                      aria-label={`${formatDisplayName(profile?.first_name, profile?.middle_name, profile?.last_name, profile?.full_name)} avatar`}
+                      aria-label={`${formatDisplayName(profile?.first_name, null, profile?.last_name, profile?.full_name)} avatar`}
                     >
                       <span className="text-gray-600 font-semibold text-3xl sm:text-4xl lg:text-5xl" aria-hidden="true">
-                        {getInitials(formatDisplayName(profile?.first_name, profile?.middle_name, profile?.last_name, profile?.full_name))}
+                        {getInitials(formatDisplayName(profile?.first_name, null, profile?.last_name, profile?.full_name))}
                       </span>
                     </div>
                   }
@@ -857,13 +857,9 @@ export default function AthleteProfilePage() {
               {/* Profile Information */}
               <div className="flex-1 min-w-0">
                 <div className="mb-6">
-                  <InlineEdit
-                    field="full_name"
-                    value={formatDisplayName(profile?.first_name, profile?.middle_name, profile?.last_name, profile?.full_name)}
-                    placeholder="Click to add your name"
-                    className="text-4xl font-bold text-gray-900 mb-2 block"
-                    ariaLabel="Athlete name"
-                  />
+                  <h1 className="text-4xl font-bold text-gray-900 mb-2">
+                    {formatDisplayName(profile?.first_name, null, profile?.last_name, profile?.full_name) || 'Add your name in Edit Profile'}
+                  </h1>
                   
                   {/* Badges Row */}
                   <div className="flex flex-wrap gap-2 mb-4" role="list" aria-label="Athlete badges">

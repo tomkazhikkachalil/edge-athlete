@@ -137,13 +137,13 @@ export default function SearchBar() {
                   ) : (
                     <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center">
                       <span className="text-white text-sm font-semibold">
-                        {getInitials(formatDisplayName(athlete.first_name, athlete.middle_name, athlete.last_name, athlete.full_name))}
+                        {getInitials(formatDisplayName(athlete.first_name, null, athlete.last_name, athlete.full_name))}
                       </span>
                     </div>
                   )}
                   <div className="flex-1 min-w-0">
                     <div className="font-medium text-gray-900 truncate">
-                      {formatDisplayName(athlete.first_name, athlete.middle_name, athlete.last_name, athlete.full_name)}
+                      {formatDisplayName(athlete.first_name, null, athlete.last_name, athlete.full_name)}
                     </div>
                     <div className="text-sm text-gray-500 truncate">
                       {[athlete.sport, athlete.school, athlete.location].filter(Boolean).join(' • ')}

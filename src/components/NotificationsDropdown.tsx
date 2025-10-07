@@ -143,7 +143,7 @@ export default function NotificationsDropdown() {
 
   const getNotificationText = (notification: Notification) => {
     const actorName = notification.actor
-      ? formatDisplayName(notification.actor.first_name, notification.actor.middle_name, notification.actor.last_name, notification.actor.full_name)
+      ? formatDisplayName(notification.actor.first_name, null, notification.actor.last_name, notification.actor.full_name)
       : 'Someone';
 
     switch (notification.type) {
@@ -223,7 +223,7 @@ export default function NotificationsDropdown() {
                       {notification.actor?.avatar_url ? (
                         <LazyImage
                           src={notification.actor.avatar_url}
-                          alt={formatDisplayName(notification.actor.first_name, notification.actor.middle_name, notification.actor.last_name, notification.actor.full_name)}
+                          alt={formatDisplayName(notification.actor.first_name, null, notification.actor.last_name, notification.actor.full_name)}
                           className="w-10 h-10 rounded-full object-cover flex-shrink-0"
                           width={40}
                           height={40}
@@ -231,7 +231,7 @@ export default function NotificationsDropdown() {
                       ) : notification.actor ? (
                         <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center flex-shrink-0">
                           <span className="text-white text-sm font-semibold">
-                            {getInitials(formatDisplayName(notification.actor.first_name, notification.actor.middle_name, notification.actor.last_name, notification.actor.full_name))}
+                            {getInitials(formatDisplayName(notification.actor.first_name, null, notification.actor.last_name, notification.actor.full_name))}
                           </span>
                         </div>
                       ) : (

@@ -41,7 +41,7 @@ export default function PrivateProfileView({ profile, onFollow }: PrivateProfile
           {profile.avatar_url ? (
             <LazyImage
               src={profile.avatar_url}
-              alt={formatDisplayName(profile.first_name, profile.middle_name, profile.last_name, profile.full_name)}
+              alt={formatDisplayName(profile.first_name, null, profile.last_name, profile.full_name)}
               className="w-16 h-16 rounded-full object-cover"
               width={64}
               height={64}
@@ -49,14 +49,14 @@ export default function PrivateProfileView({ profile, onFollow }: PrivateProfile
           ) : (
             <div className="w-16 h-16 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center">
               <span className="text-white text-xl font-semibold">
-                {getInitials(formatDisplayName(profile.first_name, profile.middle_name, profile.last_name, profile.full_name))}
+                {getInitials(formatDisplayName(profile.first_name, null, profile.last_name, profile.full_name))}
               </span>
             </div>
           )}
 
           <div className="text-left">
             <div className="font-bold text-lg text-gray-900">
-              {formatDisplayName(profile.first_name, profile.middle_name, profile.last_name, profile.full_name)}
+              {formatDisplayName(profile.first_name, null, profile.last_name, profile.full_name)}
             </div>
             {profile.sport && (
               <div className="text-gray-600 text-sm">

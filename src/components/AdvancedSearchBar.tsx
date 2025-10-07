@@ -276,13 +276,13 @@ export default function AdvancedSearchBar() {
                       ) : (
                         <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center">
                           <span className="text-white text-sm font-semibold">
-                            {getInitials(formatDisplayName(athlete.first_name, athlete.middle_name, athlete.last_name, athlete.full_name))}
+                            {getInitials(formatDisplayName(athlete.first_name, null, athlete.last_name, athlete.full_name))}
                           </span>
                         </div>
                       )}
                       <div className="flex-1">
                         <p className="font-medium text-gray-900">
-                          {formatDisplayName(athlete.first_name, athlete.middle_name, athlete.last_name, athlete.full_name)}
+                          {formatDisplayName(athlete.first_name, null, athlete.last_name, athlete.full_name)}
                         </p>
                         <div className="flex items-center gap-2 text-sm text-gray-500">
                           {athlete.sport && (
@@ -332,7 +332,7 @@ export default function AdvancedSearchBar() {
                           {post.caption || 'Post without caption'}
                         </p>
                         <p className="text-xs text-gray-500 mt-1">
-                          by {formatDisplayName(post.profile?.first_name, post.profile?.middle_name, post.profile?.last_name, post.profile?.full_name)}
+                          by {formatDisplayName(post.profile?.first_name, null, post.profile?.last_name, post.profile?.full_name)}
                         </p>
                       </div>
                     </div>

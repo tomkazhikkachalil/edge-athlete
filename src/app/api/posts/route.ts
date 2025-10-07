@@ -20,7 +20,8 @@ export async function POST(request: NextRequest) {
       hashtags = [],
       visibility = 'public',
       media = [],
-      golfData = null
+      golfData = null,
+      taggedProfiles = [] // Array of profile IDs to tag in this post
     } = body;
 
     // Use authenticated user's ID
@@ -88,7 +89,12 @@ export async function POST(request: NextRequest) {
             course_location: golfData.courseLocation || null,
             tee: golfData.teeBox || null,
             holes: parseInt(golfData.holes) || 18,
-            par: golfData.coursePar || 72
+            par: golfData.coursePar || 72,
+            weather: golfData.weather || null,
+            temperature: golfData.temperature || null,
+            wind: golfData.wind || null,
+            course_rating: golfData.courseRating || null,
+            slope_rating: golfData.courseSlope || null
           })
           .eq('id', roundId);
       } else {
@@ -102,7 +108,12 @@ export async function POST(request: NextRequest) {
             course_location: golfData.courseLocation || null,
             tee: golfData.teeBox || null,
             holes: parseInt(golfData.holes) || 18,
-            par: golfData.coursePar || 72
+            par: golfData.coursePar || 72,
+            weather: golfData.weather || null,
+            temperature: golfData.temperature || null,
+            wind: golfData.wind || null,
+            course_rating: golfData.courseRating || null,
+            slope_rating: golfData.courseSlope || null
           })
           .select()
           .single();
@@ -210,8 +221,27 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    return NextResponse.json({ 
-      success: true, 
+    // Create tags if taggedProfiles provided
+    if (taggedProfiles && taggedProfiles.length > 0) {
+      const tagRecords = taggedProfiles.map((profileId: string) => ({
+        post_id: post.id,
+        tagged_profile_id: profileId,
+        created_by_profile_id: userId,
+        status: 'active'
+      }));
+
+      const { error: tagError } = await supabase
+        .from('post_tags')
+        .insert(tagRecords);
+
+      if (tagError) {
+        console.error('Tag creation error during post creation:', tagError);
+        // Don't fail the post creation if tags fail
+      }
+    }
+
+    return NextResponse.json({
+      success: true,
       post: post,
       message: 'Post created successfully!'
     });

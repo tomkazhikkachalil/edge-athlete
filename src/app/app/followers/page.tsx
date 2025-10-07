@@ -1,11 +1,10 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, Suspense } from 'react';
 import { useAuth } from '@/lib/auth';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { formatDisplayName, getInitials } from '@/lib/formatters';
 import LazyImage from '@/components/LazyImage';
-import FollowButton from '@/components/FollowButton';
 import { ToastContainer, useToast } from '@/components/Toast';
 
 interface FollowerProfile {
@@ -33,7 +32,7 @@ interface FollowRequest {
   follower: FollowerProfile;
 }
 
-export default function FollowersPage() {
+function FollowersContent() {
   const { user, loading: authLoading } = useAuth();
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -205,7 +204,7 @@ export default function FollowersPage() {
             {profile.avatar_url ? (
               <LazyImage
                 src={profile.avatar_url}
-                alt={formatDisplayName(profile.first_name, profile.middle_name, profile.last_name, profile.full_name)}
+                alt={formatDisplayName(profile.first_name, null, profile.last_name, profile.full_name)}
                 className="w-16 h-16 rounded-full object-cover"
                 width={64}
                 height={64}
@@ -213,7 +212,7 @@ export default function FollowersPage() {
             ) : (
               <div className="w-16 h-16 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center">
                 <span className="text-white text-xl font-semibold">
-                  {getInitials(formatDisplayName(profile.first_name, profile.middle_name, profile.last_name, profile.full_name))}
+                  {getInitials(formatDisplayName(profile.first_name, null, profile.last_name, profile.full_name))}
                 </span>
               </div>
             )}
@@ -224,7 +223,7 @@ export default function FollowersPage() {
               onClick={() => router.push(`/athlete/${profile.id}`)}
               className="font-bold text-gray-900 hover:text-blue-600 truncate block"
             >
-              {formatDisplayName(profile.first_name, profile.middle_name, profile.last_name, profile.full_name)}
+              {formatDisplayName(profile.first_name, null, profile.last_name, profile.full_name)}
             </button>
             {(profile.sport || profile.school) && (
               <p className="text-sm text-gray-600 truncate">
@@ -395,7 +394,7 @@ export default function FollowersPage() {
                             {request.follower.avatar_url ? (
                               <LazyImage
                                 src={request.follower.avatar_url}
-                                alt={formatDisplayName(request.follower.first_name, request.follower.middle_name, request.follower.last_name, request.follower.full_name)}
+                                alt={formatDisplayName(request.follower.first_name, null, request.follower.last_name, request.follower.full_name)}
                                 className="w-16 h-16 rounded-full object-cover"
                                 width={64}
                                 height={64}
@@ -403,7 +402,7 @@ export default function FollowersPage() {
                             ) : (
                               <div className="w-16 h-16 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center">
                                 <span className="text-white text-xl font-semibold">
-                                  {getInitials(formatDisplayName(request.follower.first_name, request.follower.middle_name, request.follower.last_name, request.follower.full_name))}
+                                  {getInitials(formatDisplayName(request.follower.first_name, null, request.follower.last_name, request.follower.full_name))}
                                 </span>
                               </div>
                             )}
@@ -414,7 +413,7 @@ export default function FollowersPage() {
                               onClick={() => router.push(`/athlete/${request.follower.id}`)}
                               className="font-bold text-gray-900 hover:text-blue-600 truncate block"
                             >
-                              {formatDisplayName(request.follower.first_name, request.follower.middle_name, request.follower.last_name, request.follower.full_name)}
+                              {formatDisplayName(request.follower.first_name, null, request.follower.last_name, request.follower.full_name)}
                             </button>
                             {(request.follower.sport || request.follower.school) && (
                               <p className="text-sm text-gray-600 truncate">
@@ -456,5 +455,17 @@ export default function FollowersPage() {
         )}
       </div>
     </div>
+  );
+}
+
+export default function FollowersPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <i className="fas fa-spinner fa-spin text-3xl text-gray-400"></i>
+      </div>
+    }>
+      <FollowersContent />
+    </Suspense>
   );
 }

@@ -105,7 +105,7 @@ export default function PostCard({
 
   const displayName = formatDisplayName(
     post.profile.first_name,
-    post.profile.middle_name,
+    null,  // Don't include middle name in display
     post.profile.last_name,
     post.profile.full_name
   );
@@ -293,35 +293,36 @@ export default function PostCard({
               router.push(`/athlete/${post.profile.id}`);
             }
           }}
-          className="flex items-center gap-micro hover:bg-gray-50 p-1 rounded-lg transition-colors"
+          className="flex items-center gap-4 hover:bg-gray-50 p-1 rounded-lg transition-colors"
         >
           {/* Profile Avatar */}
           {post.profile.avatar_url ? (
             <LazyImage
               src={post.profile.avatar_url}
               alt={`${displayName} avatar`}
-              className="w-10 h-10 rounded-full object-cover"
+              className="w-10 h-10 rounded-full object-cover flex-shrink-0"
               width={40}
               height={40}
             />
           ) : (
-            <div className="w-10 h-10 rounded-full bg-gray-200 flex items-center justify-center">
+            <div className="w-10 h-10 rounded-full bg-gray-200 flex items-center justify-center flex-shrink-0">
               <span className="text-sm font-medium text-gray-600">
                 {getInitials(displayName)}
               </span>
             </div>
           )}
-          
-          <div>
-            <h3 className="font-semibold text-gray-900 text-sm hover:text-blue-600 transition-colors">{displayName}</h3>
-            <div className="flex items-center gap-2 text-xs text-gray-500">
-              <span>{timeAgo}</span>
+
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-2 flex-wrap">
+              <h3 className="font-bold text-gray-900 text-base hover:text-blue-600 transition-colors">{displayName}</h3>
+              <span className="text-sm text-gray-700 font-medium">•</span>
+              <span className="text-sm text-gray-700 font-medium">{timeAgo}</span>
               {post.sport_key && (
                 <>
-                  <span>•</span>
+                  <span className="text-sm text-gray-700 font-medium">•</span>
                   <div className="flex items-center gap-1">
-                    {SportIcon && <SportIcon size={12} style={{ color: sportColor }} />}
-                    <span>{getSportName(post.sport_key)}</span>
+                    {SportIcon && <SportIcon size={14} style={{ color: sportColor }} />}
+                    <span className="text-sm text-gray-700 font-semibold">{getSportName(post.sport_key)}</span>
                   </div>
                 </>
               )}
@@ -419,57 +420,57 @@ export default function PostCard({
           <div className="flex items-center gap-base">
             <button
               onClick={handleLike}
-              className={`flex items-center gap-1 text-sm transition-colors ${
-                isLiked ? 'text-red-500' : 'text-gray-600 hover:text-red-500'
+              className={`flex items-center gap-2 text-base font-bold transition-colors ${
+                isLiked ? 'text-red-600' : 'text-gray-800 hover:text-red-600'
               }`}
             >
-              <i className={`${isLiked ? 'fas' : 'far'} fa-heart`}></i>
+              <i className={`${isLiked ? 'fas' : 'far'} fa-heart text-lg`}></i>
               <span>{localLikesCount}</span>
             </button>
 
             <button
               onClick={handleComment}
-              className="flex items-center gap-1 text-sm text-gray-600 hover:text-blue-500 transition-colors"
+              className="flex items-center gap-2 text-base font-bold text-gray-800 hover:text-blue-600 transition-colors"
             >
-              <i className="far fa-comment"></i>
+              <i className="far fa-comment text-lg"></i>
               <span>{localCommentsCount}</span>
             </button>
 
             <button
               onClick={handleShare}
-              className="flex items-center gap-1 text-sm text-gray-600 hover:text-green-500 transition-colors"
+              className="flex items-center gap-2 text-base font-bold text-gray-800 hover:text-green-600 transition-colors"
               title="Share post"
             >
-              <i className="far fa-share-square"></i>
+              <i className="far fa-share-square text-lg"></i>
             </button>
 
             <button
               onClick={handleSave}
-              className={`flex items-center gap-1 text-sm transition-colors ml-auto ${
-                isSaved ? 'text-yellow-500' : 'text-gray-600 hover:text-yellow-500'
+              className={`flex items-center gap-2 text-base font-bold transition-colors ml-auto ${
+                isSaved ? 'text-yellow-600' : 'text-gray-800 hover:text-yellow-600'
               }`}
               title={isSaved ? 'Unsave post' : 'Save post'}
             >
-              <i className={`${isSaved ? 'fas' : 'far'} fa-bookmark`}></i>
+              <i className={`${isSaved ? 'fas' : 'far'} fa-bookmark text-lg`}></i>
             </button>
           </div>
         </div>
       )}
 
       {/* Content */}
-      <div className="p-base">
+      <div className="px-6 py-4">
         {/* Caption */}
         {post.caption && (
-          <p className="text-gray-900 text-sm mb-micro">{post.caption}</p>
+          <p className="text-gray-900 text-base font-medium leading-relaxed mb-3">{post.caption}</p>
         )}
 
         {/* Hashtags */}
         {post.hashtags && post.hashtags.length > 0 && (
-          <div className="flex flex-wrap gap-1 mb-micro">
+          <div className="flex flex-wrap gap-2 mb-3">
             {post.hashtags.map((hashtag, index) => (
               <span
                 key={index}
-                className="text-blue-600 hover:text-blue-700 cursor-pointer text-sm"
+                className="text-blue-600 hover:text-blue-700 cursor-pointer text-base font-bold"
               >
                 {hashtag}
               </span>
@@ -479,11 +480,11 @@ export default function PostCard({
 
         {/* Tags */}
         {post.tags && post.tags.length > 0 && (
-          <div className="flex flex-wrap gap-1 mb-micro">
+          <div className="flex flex-wrap gap-2 mb-3">
             {post.tags.map((tag, index) => (
               <span
                 key={index}
-                className="px-2 py-1 bg-gray-100 text-gray-700 text-xs rounded-full font-medium"
+                className="px-3 py-1.5 bg-gray-200 text-gray-900 text-sm rounded-full font-bold border border-gray-300"
               >
                 {tag}
               </span>
@@ -498,14 +499,14 @@ export default function PostCard({
             <div className="flex items-center justify-between mb-2">
               <div className="flex-1">
                 <div className="flex items-center gap-2 mb-1">
-                  <i className="fas fa-golf-ball text-green-600 text-sm"></i>
-                  <span className="font-bold text-green-900 text-sm">{post.golf_round.course}</span>
+                  <i className="fas fa-golf-ball text-green-600 text-base"></i>
+                  <span className="font-bold text-green-900 text-base">{post.golf_round.course}</span>
                 </div>
-                <div className="flex items-center gap-3 text-xs text-green-700">
+                <div className="flex items-center gap-3 text-sm text-green-800 font-semibold">
                   {post.golf_round.date && (
                     <span>{new Date(post.golf_round.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</span>
                   )}
-                  {post.golf_round.tee && <span>• {post.golf_round.tee} Tees</span>}
+                  {post.golf_round.tee && <span>• {post.golf_round.tee.charAt(0).toUpperCase() + post.golf_round.tee.slice(1)} Tees</span>}
                   {post.golf_round.holes && <span>• {post.golf_round.holes} Holes</span>}
                 </div>
               </div>
@@ -513,10 +514,10 @@ export default function PostCard({
               {/* Large Score Badge */}
               {post.golf_round.gross_score !== null && post.golf_round.gross_score !== undefined && (
                 <div className="text-right ml-3">
-                  <div className="bg-white rounded-lg px-3 py-1 shadow-sm">
-                    <div className="text-2xl font-bold text-green-900 leading-none">{post.golf_round.gross_score}</div>
+                  <div className="bg-white rounded-lg px-4 py-2 shadow-md border-2 border-green-300">
+                    <div className="text-3xl font-black text-green-900 leading-none">{post.golf_round.gross_score}</div>
                     {post.golf_round.par && (
-                      <div className={`text-xs font-medium ${post.golf_round.gross_score - post.golf_round.par < 0 ? 'text-blue-600' : 'text-red-600'}`}>
+                      <div className={`text-sm font-bold ${post.golf_round.gross_score - post.golf_round.par < 0 ? 'text-blue-600' : 'text-red-600'}`}>
                         {post.golf_round.gross_score - post.golf_round.par >= 0 ? '+' : ''}{post.golf_round.gross_score - post.golf_round.par}
                       </div>
                     )}
@@ -527,23 +528,59 @@ export default function PostCard({
 
             {/* Inline Stats Bar */}
             {(post.golf_round.total_putts || post.golf_round.fir_percentage !== null || post.golf_round.gir_percentage !== null) && (
-              <div className="flex items-center gap-4 text-xs bg-white/50 rounded px-3 py-1.5 mb-2">
+              <div className="flex items-center gap-5 text-sm bg-white/60 rounded px-3 py-2 mb-2">
                 {post.golf_round.total_putts && (
-                  <div className="flex items-center gap-1">
-                    <span className="text-green-700">Putts:</span>
-                    <span className="font-semibold text-green-900">{post.golf_round.total_putts}</span>
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-green-800 font-semibold">Putts:</span>
+                    <span className="font-bold text-green-900">{post.golf_round.total_putts}</span>
                   </div>
                 )}
                 {post.golf_round.fir_percentage !== null && post.golf_round.fir_percentage !== undefined && (
-                  <div className="flex items-center gap-1">
-                    <span className="text-green-700">FIR:</span>
-                    <span className="font-semibold text-green-900">{Math.round(post.golf_round.fir_percentage)}%</span>
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-green-800 font-semibold">FIR:</span>
+                    <span className="font-bold text-green-900">{Math.round(post.golf_round.fir_percentage)}%</span>
                   </div>
                 )}
                 {post.golf_round.gir_percentage !== null && post.golf_round.gir_percentage !== undefined && (
-                  <div className="flex items-center gap-1">
-                    <span className="text-green-700">GIR:</span>
-                    <span className="font-semibold text-green-900">{Math.round(post.golf_round.gir_percentage)}%</span>
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-green-800 font-semibold">GIR:</span>
+                    <span className="font-bold text-green-900">{Math.round(post.golf_round.gir_percentage)}%</span>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Additional Round Details - Weather, Conditions, Rating */}
+            {(post.golf_round.weather || post.golf_round.temperature || post.golf_round.wind || post.golf_round.course_rating || post.golf_round.slope_rating) && (
+              <div className="flex flex-wrap items-center gap-4 text-xs bg-white/40 rounded px-3 py-1.5 mb-2">
+                {post.golf_round.weather && (
+                  <div className="flex items-center gap-1.5">
+                    <i className="fas fa-cloud-sun text-green-700"></i>
+                    <span className="font-semibold text-green-900">{post.golf_round.weather}</span>
+                  </div>
+                )}
+                {post.golf_round.temperature && (
+                  <div className="flex items-center gap-1.5">
+                    <i className="fas fa-thermometer-half text-green-700"></i>
+                    <span className="font-semibold text-green-900">{post.golf_round.temperature}°F</span>
+                  </div>
+                )}
+                {post.golf_round.wind && (
+                  <div className="flex items-center gap-1.5">
+                    <i className="fas fa-wind text-green-700"></i>
+                    <span className="font-semibold text-green-900">{post.golf_round.wind}</span>
+                  </div>
+                )}
+                {post.golf_round.course_rating && (
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-green-800 font-medium">Rating:</span>
+                    <span className="font-bold text-green-900">{post.golf_round.course_rating}</span>
+                  </div>
+                )}
+                {post.golf_round.slope_rating && (
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-green-800 font-medium">Slope:</span>
+                    <span className="font-bold text-green-900">{post.golf_round.slope_rating}</span>
                   </div>
                 )}
               </div>
@@ -562,32 +599,32 @@ export default function PostCard({
                     {/* Front 9 */}
                     {post.golf_round.golf_holes.filter((h: any) => h.hole_number <= 9).length > 0 && (
                       <div className="border-b-2 border-gray-400">
-                        <table className="w-full text-[10px]">
+                        <table className="w-full text-xs">
                           <thead>
                             <tr className="bg-green-100 border-b border-gray-300">
-                              <th className="text-left py-1 px-2 font-semibold text-green-900">HOLE</th>
+                              <th className="text-left py-1.5 px-2 font-bold text-green-900">HOLE</th>
                               {post.golf_round.golf_holes
                                 .filter((h: any) => h.hole_number <= 9)
                                 .map((hole: any) => (
-                                  <th key={hole.hole_number} className="text-center py-1 px-1 font-bold text-green-900">
+                                  <th key={hole.hole_number} className="text-center py-1.5 px-1 font-black text-green-900">
                                     {hole.hole_number}
                                   </th>
                                 ))}
-                              <th className="text-center py-1 px-2 font-bold text-green-900 bg-green-200">OUT</th>
+                              <th className="text-center py-1.5 px-2 font-black text-green-900 bg-green-200">OUT</th>
                             </tr>
                           </thead>
                           <tbody>
                             {/* Yardage Row */}
                             <tr className="border-b border-gray-200 bg-gray-50">
-                              <td className="py-1 px-2 font-medium text-gray-700">YDS</td>
+                              <td className="py-1.5 px-2 font-bold text-gray-800">YDS</td>
                               {post.golf_round.golf_holes
                                 .filter((h: any) => h.hole_number <= 9)
                                 .map((hole: any) => (
-                                  <td key={hole.hole_number} className="text-center py-1 px-1 text-gray-600">
+                                  <td key={hole.hole_number} className="text-center py-1.5 px-1 font-semibold text-gray-700">
                                     {hole.distance_yards || '-'}
                                   </td>
                                 ))}
-                              <td className="text-center py-1 px-2 font-medium text-gray-700 bg-gray-100">
+                              <td className="text-center py-1.5 px-2 font-bold text-gray-800 bg-gray-100">
                                 {post.golf_round.golf_holes
                                   .filter((h: any) => h.hole_number <= 9)
                                   .reduce((sum: number, h: any) => sum + (h.distance_yards || 0), 0) || '-'}
@@ -595,15 +632,15 @@ export default function PostCard({
                             </tr>
                             {/* Par Row */}
                             <tr className="border-b border-gray-300 bg-yellow-50">
-                              <td className="py-1 px-2 font-semibold text-gray-800">PAR</td>
+                              <td className="py-1.5 px-2 font-bold text-gray-900">PAR</td>
                               {post.golf_round.golf_holes
                                 .filter((h: any) => h.hole_number <= 9)
                                 .map((hole: any) => (
-                                  <td key={hole.hole_number} className="text-center py-1 px-1 font-semibold text-gray-800">
+                                  <td key={hole.hole_number} className="text-center py-1.5 px-1 font-bold text-gray-900">
                                     {hole.par}
                                   </td>
                                 ))}
-                              <td className="text-center py-1 px-2 font-bold text-gray-800 bg-yellow-100">
+                              <td className="text-center py-1.5 px-2 font-black text-gray-900 bg-yellow-100">
                                 {post.golf_round.golf_holes
                                   .filter((h: any) => h.hole_number <= 9)
                                   .reduce((sum: number, h: any) => sum + (h.par || 0), 0)}
@@ -611,7 +648,7 @@ export default function PostCard({
                             </tr>
                             {/* Score Row */}
                             <tr className="border-b-2 border-gray-400">
-                              <td className="py-1.5 px-2 font-bold text-gray-900">SCORE</td>
+                              <td className="py-2 px-2 font-black text-gray-900">SCORE</td>
                               {post.golf_round.golf_holes
                                 .filter((h: any) => h.hole_number <= 9)
                                 .map((hole: any) => {
@@ -637,15 +674,15 @@ export default function PostCard({
                                   }
 
                                   return (
-                                    <td key={hole.hole_number} className="text-center py-1 px-1">
-                                      <div className={`${bgColor} ${textColor} ${border} rounded mx-auto w-6 h-6 flex items-center justify-center`}>
+                                    <td key={hole.hole_number} className="text-center py-1.5 px-1">
+                                      <div className={`${bgColor} ${textColor} ${border} rounded mx-auto w-7 h-7 flex items-center justify-center text-sm`}>
                                         {hole.strokes}
                                       </div>
                                     </td>
                                   );
                                 })}
-                              <td className="text-center py-1.5 px-2 bg-blue-50">
-                                <span className="font-bold text-blue-900 text-sm">
+                              <td className="text-center py-2 px-2 bg-blue-50">
+                                <span className="font-black text-blue-900 text-base">
                                   {post.golf_round.golf_holes
                                     .filter((h: any) => h.hole_number <= 9)
                                     .reduce((sum: number, h: any) => sum + (h.strokes || 0), 0)}
@@ -654,15 +691,15 @@ export default function PostCard({
                             </tr>
                             {/* Putts Row */}
                             <tr className="bg-gray-50">
-                              <td className="py-1 px-2 text-[9px] text-gray-600">Putts</td>
+                              <td className="py-1.5 px-2 text-xs font-semibold text-gray-700">Putts</td>
                               {post.golf_round.golf_holes
                                 .filter((h: any) => h.hole_number <= 9)
                                 .map((hole: any) => (
-                                  <td key={hole.hole_number} className="text-center py-1 px-1 text-gray-600">
+                                  <td key={hole.hole_number} className="text-center py-1.5 px-1 text-xs font-medium text-gray-700">
                                     {hole.putts || '-'}
                                   </td>
                                 ))}
-                              <td className="text-center py-1 px-2 text-gray-700 bg-gray-100">
+                              <td className="text-center py-1.5 px-2 font-bold text-gray-800 bg-gray-100">
                                 {post.golf_round.golf_holes
                                   .filter((h: any) => h.hole_number <= 9)
                                   .reduce((sum: number, h: any) => sum + (h.putts || 0), 0) || '-'}
@@ -676,32 +713,32 @@ export default function PostCard({
                     {/* Back 9 */}
                     {post.golf_round.golf_holes.filter((h: any) => h.hole_number > 9).length > 0 && (
                       <div>
-                        <table className="w-full text-[10px]">
+                        <table className="w-full text-xs">
                           <thead>
                             <tr className="bg-green-100 border-b border-gray-300">
-                              <th className="text-left py-1 px-2 font-semibold text-green-900">HOLE</th>
+                              <th className="text-left py-1.5 px-2 font-bold text-green-900">HOLE</th>
                               {post.golf_round.golf_holes
                                 .filter((h: any) => h.hole_number > 9)
                                 .map((hole: any) => (
-                                  <th key={hole.hole_number} className="text-center py-1 px-1 font-bold text-green-900">
+                                  <th key={hole.hole_number} className="text-center py-1.5 px-1 font-black text-green-900">
                                     {hole.hole_number}
                                   </th>
                                 ))}
-                              <th className="text-center py-1 px-2 font-bold text-green-900 bg-green-200">IN</th>
+                              <th className="text-center py-1.5 px-2 font-black text-green-900 bg-green-200">IN</th>
                             </tr>
                           </thead>
                           <tbody>
                             {/* Yardage */}
                             <tr className="border-b border-gray-200 bg-gray-50">
-                              <td className="py-1 px-2 font-medium text-gray-700">YDS</td>
+                              <td className="py-1.5 px-2 font-bold text-gray-800">YDS</td>
                               {post.golf_round.golf_holes
                                 .filter((h: any) => h.hole_number > 9)
                                 .map((hole: any) => (
-                                  <td key={hole.hole_number} className="text-center py-1 px-1 text-gray-600">
+                                  <td key={hole.hole_number} className="text-center py-1.5 px-1 font-semibold text-gray-700">
                                     {hole.distance_yards || '-'}
                                   </td>
                                 ))}
-                              <td className="text-center py-1 px-2 font-medium text-gray-700 bg-gray-100">
+                              <td className="text-center py-1.5 px-2 font-bold text-gray-800 bg-gray-100">
                                 {post.golf_round.golf_holes
                                   .filter((h: any) => h.hole_number > 9)
                                   .reduce((sum: number, h: any) => sum + (h.distance_yards || 0), 0) || '-'}
@@ -709,15 +746,15 @@ export default function PostCard({
                             </tr>
                             {/* Par */}
                             <tr className="border-b border-gray-300 bg-yellow-50">
-                              <td className="py-1 px-2 font-semibold text-gray-800">PAR</td>
+                              <td className="py-1.5 px-2 font-bold text-gray-900">PAR</td>
                               {post.golf_round.golf_holes
                                 .filter((h: any) => h.hole_number > 9)
                                 .map((hole: any) => (
-                                  <td key={hole.hole_number} className="text-center py-1 px-1 font-semibold text-gray-800">
+                                  <td key={hole.hole_number} className="text-center py-1.5 px-1 font-bold text-gray-900">
                                     {hole.par}
                                   </td>
                                 ))}
-                              <td className="text-center py-1 px-2 font-bold text-gray-800 bg-yellow-100">
+                              <td className="text-center py-1.5 px-2 font-black text-gray-900 bg-yellow-100">
                                 {post.golf_round.golf_holes
                                   .filter((h: any) => h.hole_number > 9)
                                   .reduce((sum: number, h: any) => sum + (h.par || 0), 0)}
@@ -725,7 +762,7 @@ export default function PostCard({
                             </tr>
                             {/* Score */}
                             <tr className="border-b border-gray-300">
-                              <td className="py-1.5 px-2 font-bold text-gray-900">SCORE</td>
+                              <td className="py-2 px-2 font-black text-gray-900">SCORE</td>
                               {post.golf_round.golf_holes
                                 .filter((h: any) => h.hole_number > 9)
                                 .map((hole: any) => {
@@ -750,15 +787,15 @@ export default function PostCard({
                                   }
 
                                   return (
-                                    <td key={hole.hole_number} className="text-center py-1 px-1">
-                                      <div className={`bg-white ${textColor} ${border} rounded mx-auto w-6 h-6 flex items-center justify-center`}>
+                                    <td key={hole.hole_number} className="text-center py-1.5 px-1">
+                                      <div className={`bg-white ${textColor} ${border} rounded mx-auto w-7 h-7 flex items-center justify-center text-sm`}>
                                         {hole.strokes}
                                       </div>
                                     </td>
                                   );
                                 })}
-                              <td className="text-center py-1.5 px-2 bg-blue-50">
-                                <span className="font-bold text-blue-900 text-sm">
+                              <td className="text-center py-2 px-2 bg-blue-50">
+                                <span className="font-black text-blue-900 text-base">
                                   {post.golf_round.golf_holes
                                     .filter((h: any) => h.hole_number > 9)
                                     .reduce((sum: number, h: any) => sum + (h.strokes || 0), 0)}
@@ -767,15 +804,15 @@ export default function PostCard({
                             </tr>
                             {/* Putts */}
                             <tr className="bg-gray-50">
-                              <td className="py-1 px-2 text-[9px] text-gray-600">Putts</td>
+                              <td className="py-1.5 px-2 text-xs font-semibold text-gray-700">Putts</td>
                               {post.golf_round.golf_holes
                                 .filter((h: any) => h.hole_number > 9)
                                 .map((hole: any) => (
-                                  <td key={hole.hole_number} className="text-center py-1 px-1 text-gray-600">
+                                  <td key={hole.hole_number} className="text-center py-1.5 px-1 text-xs font-medium text-gray-700">
                                     {hole.putts || '-'}
                                   </td>
                                 ))}
-                              <td className="text-center py-1 px-2 text-gray-700 bg-gray-100">
+                              <td className="text-center py-1.5 px-2 font-bold text-gray-800 bg-gray-100">
                                 {post.golf_round.golf_holes
                                   .filter((h: any) => h.hole_number > 9)
                                   .reduce((sum: number, h: any) => sum + (h.putts || 0), 0) || '-'}

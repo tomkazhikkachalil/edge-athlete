@@ -367,10 +367,10 @@ export default function FeedPage() {
                     src={profile?.avatar_url}
                     alt="Profile"
                     size={32}
-                    fallbackInitials={getInitials(formatDisplayName(profile?.first_name, profile?.middle_name, profile?.last_name, profile?.full_name))}
+                    fallbackInitials={getInitials(formatDisplayName(profile?.first_name, null, profile?.last_name, profile?.full_name))}
                   />
                   <span className="text-sm font-medium text-gray-700">
-                    {formatDisplayName(profile?.first_name, profile?.middle_name, profile?.last_name, profile?.full_name)}
+                    {formatDisplayName(profile?.first_name, null, profile?.last_name, profile?.full_name)}
                   </span>
                   <i className="fas fa-chevron-down text-xs text-gray-500"></i>
                 </button>
