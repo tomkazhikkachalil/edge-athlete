@@ -92,7 +92,8 @@ export default function EditProfileTabs({
     first_name: '',
     middle_name: '',
     last_name: '',
-    full_name: '', // This is now the username/handle
+    full_name: '', // Legacy username field
+    handle: '', // Unique @handle identifier
     bio: '',
     avatar_file: null as File | null,
     visibility: 'public' as 'public' | 'private',
@@ -136,7 +137,8 @@ export default function EditProfileTabs({
       first_name: (profile?.first_name || '').toString(),
       middle_name: (profile?.middle_name || '').toString(),
       last_name: (profile?.last_name || '').toString(),
-      full_name: (profile?.full_name || '').toString(), // username/handle
+      full_name: (profile?.full_name || '').toString(), // legacy username
+      handle: (profile?.handle || '').toString(), // unique @handle identifier
       bio: (profile?.bio || '').toString(),
       avatar_file: null,
       visibility: (profile?.visibility || 'public') as 'public' | 'private',
@@ -206,7 +208,8 @@ export default function EditProfileTabs({
             first_name: basicForm.first_name.trim(),
             middle_name: basicForm.middle_name.trim() || undefined,
             last_name: basicForm.last_name.trim(),
-            full_name: basicForm.full_name.trim() || undefined, // username/handle
+            full_name: basicForm.full_name.trim() || undefined, // legacy username
+            handle: basicForm.handle.trim() || undefined, // unique @handle identifier
             bio: basicForm.bio.trim() || undefined,
             visibility: basicForm.visibility,
           };
@@ -448,25 +451,38 @@ export default function EditProfileTabs({
       </div>
 
       <div>
-        <label htmlFor="full_name" className="block text-sm font-medium text-gray-700 mb-1">
-          Username/Handle
+        <label htmlFor="handle" className="block text-sm font-medium text-gray-700 mb-1">
+          Handle (Username) <span className="text-red-500">*</span>
         </label>
-        <input
-          id="full_name"
-          type="text"
-          value={basicForm.full_name || ''}
-          onChange={(e) => setBasicForm(prev => ({ ...prev, full_name: e.target.value }))}
-          className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
-            errors.full_name ? 'border-red-500' : 'border-gray-300'
-          }`}
-          placeholder="johndoe or john_doe"
-        />
+        <div className="relative">
+          <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+            <span className="text-gray-500">@</span>
+          </div>
+          <input
+            id="handle"
+            type="text"
+            value={basicForm.handle || ''}
+            onChange={(e) => {
+              // Remove @ prefix if user types it, remove spaces, convert to lowercase
+              let value = e.target.value.replace(/^@/, '').replace(/\s/g, '').toLowerCase();
+              setBasicForm(prev => ({ ...prev, handle: value }));
+            }}
+            className={`w-full pl-8 pr-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
+              errors.handle ? 'border-red-500' : 'border-gray-300'
+            }`}
+            placeholder="yourhandle"
+            required
+            minLength={3}
+            maxLength={20}
+            pattern="[a-z0-9][a-z0-9._]*[a-z0-9]"
+          />
+        </div>
         <p className="mt-1 text-xs text-gray-500">
-          This is your unique identifier on the platform (e.g., @johndoe)
+          Your unique identifier (3-20 characters, letters/numbers/dots/underscores, no spaces)
         </p>
-        {errors.full_name && (
+        {errors.handle && (
           <p className="mt-1 text-sm text-red-600" role="alert">
-            {errors.full_name}
+            {errors.handle}
           </p>
         )}
       </div>

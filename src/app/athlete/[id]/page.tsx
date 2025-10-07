@@ -18,6 +18,7 @@ import {
   getInitials,
   formatSocialHandleDisplay
 } from '@/lib/formatters';
+import { getHandle } from '@/lib/profile-display';
 
 export default function AthleteProfilePage() {
   const { user, loading: authLoading } = useAuth();
@@ -298,13 +299,18 @@ export default function AthleteProfilePage() {
           </div>
 
           <div className="flex-1">
-            <div className="flex items-center gap-4 mb-3">
-              <h1 className="text-3xl font-bold">
-                {formatDisplayName(profile.first_name, null, profile.last_name, profile.full_name)}
-              </h1>
-              
+            <div className="mb-3">
+              <div className="flex items-center gap-2 mb-1">
+                <h1 className="text-3xl font-bold">
+                  {formatDisplayName(profile.first_name, null, profile.last_name, profile.full_name)}
+                </h1>
+                {getHandle(profile) && (
+                  <span className="text-lg text-gray-500">{getHandle(profile)}</span>
+                )}
+              </div>
+
               {/* Badges */}
-              <div className="flex gap-3">
+              <div className="flex gap-3 mt-2">
                 {badges.slice(0, 2).map((badge, index) => (
                   <div
                     key={badge.id}

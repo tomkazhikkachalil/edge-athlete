@@ -105,7 +105,7 @@ export async function GET(request: NextRequest) {
 
         const athleteQuery = supabase
           .from('profiles')
-          .select('id, full_name, first_name, middle_name, last_name, avatar_url, visibility, location, sport, school')
+          .select('id, full_name, first_name, middle_name, last_name, avatar_url, visibility, location, sport, school, handle')
           .or(`full_name.ilike.${searchPattern},first_name.ilike.${searchPattern},middle_name.ilike.${searchPattern},last_name.ilike.${searchPattern},location.ilike.${searchPattern}`);
 
         if (sport) {
@@ -131,7 +131,8 @@ export async function GET(request: NextRequest) {
             location: athlete.location,
             sport: athlete.sport,
             school: athlete.school,
-            visibility: athlete.visibility
+            visibility: athlete.visibility,
+            handle: athlete.handle
           }));
           console.log('[SEARCH] Athletes found (ILIKE):', athletes.length);
         } else if (athletesError) {

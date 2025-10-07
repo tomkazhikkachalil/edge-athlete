@@ -158,5 +158,7 @@ export interface Comment {
   content: string;
   created_at: string;
   updated_at: string;
+  likes_count?: number;
   profile?: Profile;
+  comment_likes?: { profile_id: string }[];
 }

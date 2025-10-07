@@ -129,12 +129,15 @@ export async function POST(request: NextRequest) {
           location: profileData.location,
           postal_code: profileData.postal_code,
           user_type: profileData.user_type || 'athlete',
-          
+
           // Athlete-specific fields
           full_name: fullName,
           // Use birthday as DOB if provided
           dob: profileData.birthday,
           // We can derive bio from other info later, for now keep it empty for user to fill
+
+          // Handle (unique identifier)
+          handle: profileData.handle,
         })
         .eq('id', data.user.id);
 

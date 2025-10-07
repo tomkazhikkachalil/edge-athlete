@@ -8,6 +8,7 @@ import ConfirmModal from './ConfirmModal';
 import CommentSection from './CommentSection';
 import { getSportName, getSportIcon, getSportColor } from '@/lib/config/sports-config';
 import { formatDisplayName, getInitials } from '@/lib/formatters';
+import { getHandle } from '@/lib/profile-display';
 
 interface PostMedia {
   id: string;
@@ -23,6 +24,7 @@ interface Profile {
   last_name: string | null;
   full_name: string | null;
   avatar_url: string | null;
+  handle?: string | null;
 }
 
 interface Post {
@@ -313,19 +315,25 @@ export default function PostCard({
           )}
 
           <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-2 flex-wrap">
-              <h3 className="font-bold text-gray-900 text-base hover:text-blue-600 transition-colors">{displayName}</h3>
-              <span className="text-sm text-gray-700 font-medium">•</span>
-              <span className="text-sm text-gray-700 font-medium">{timeAgo}</span>
-              {post.sport_key && (
-                <>
-                  <span className="text-sm text-gray-700 font-medium">•</span>
-                  <div className="flex items-center gap-1">
-                    {SportIcon && <SportIcon size={14} style={{ color: sportColor }} />}
-                    <span className="text-sm text-gray-700 font-semibold">{getSportName(post.sport_key)}</span>
-                  </div>
-                </>
-              )}
+            <div className="flex flex-col">
+              <div className="flex items-center gap-2">
+                <h3 className="font-bold text-gray-900 text-base hover:text-blue-600 transition-colors">{displayName}</h3>
+                {getHandle(post.profile) && (
+                  <span className="text-sm text-gray-500">{getHandle(post.profile)}</span>
+                )}
+              </div>
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="text-sm text-gray-700 font-medium">{timeAgo}</span>
+                {post.sport_key && (
+                  <>
+                    <span className="text-sm text-gray-700 font-medium">•</span>
+                    <div className="flex items-center gap-1">
+                      {SportIcon && <SportIcon size={14} style={{ color: sportColor }} />}
+                      <span className="text-sm text-gray-700 font-semibold">{getSportName(post.sport_key)}</span>
+                    </div>
+                  </>
+                )}
+              </div>
             </div>
           </div>
         </button>

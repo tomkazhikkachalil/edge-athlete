@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { useAuth } from '@/lib/auth';
 import { useRouter } from 'next/navigation';
 import WaitlistPopup from '@/components/WaitlistPopup';
+import HandleSelector from '@/components/HandleSelector';
 
 export default function Home() {
   const [showAthleteRegistration, setShowAthleteRegistration] = useState(false);
@@ -19,6 +20,7 @@ export default function Home() {
     postalCode: '',
     password: '',
     confirmPassword: '',
+    handle: '',
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState('');
@@ -92,6 +94,7 @@ export default function Home() {
       postalCode: '',
       password: '',
       confirmPassword: '',
+      handle: '',
     });
   };
 
@@ -118,8 +121,8 @@ export default function Home() {
     }
 
     // Validate required fields
-    if (!formData.email || !formData.password || !formData.firstName || !formData.lastName) {
-      setError('Please fill in all required fields');
+    if (!formData.email || !formData.password || !formData.firstName || !formData.lastName || !formData.handle) {
+      setError('Please fill in all required fields including your handle');
       setIsSubmitting(false);
       return;
     }
@@ -145,6 +148,7 @@ export default function Home() {
             location: formData.location,
             postal_code: formData.postalCode,
             user_type: 'athlete',
+            handle: formData.handle,
           }
         }),
       });
@@ -168,6 +172,7 @@ export default function Home() {
           postalCode: '',
           password: '',
           confirmPassword: '',
+          handle: '',
         });
         // Switch back to login view after successful registration
         setTimeout(() => {
@@ -258,6 +263,12 @@ export default function Home() {
                     />
                   </div>
                 </div>
+                <HandleSelector
+                  firstName={formData.firstName}
+                  lastName={formData.lastName}
+                  onHandleSelected={(handle) => setFormData(prev => ({ ...prev, handle }))}
+                  required={true}
+                />
                 <div>
                   <label htmlFor="nickname" className="block text-sm font-medium text-gray-700 mb-1">Nickname</label>
                   <input 

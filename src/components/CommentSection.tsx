@@ -19,6 +19,7 @@ export default function CommentSection({ postId, initialCommentsCount = 0, onCom
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showComments, setShowComments] = useState(false);
   const [error, setError] = useState('');
+  const [likingComments, setLikingComments] = useState<Set<string>>(new Set());
 
   const fetchComments = useCallback(async () => {
     setIsLoading(true);
@@ -107,6 +108,48 @@ export default function CommentSection({ postId, initialCommentsCount = 0, onCom
     } catch (err) {
       console.error('Error deleting comment:', err);
       setError('Failed to delete comment');
+    }
+  };
+
+  const handleLikeComment = async (commentId: string) => {
+    if (!user || likingComments.has(commentId)) return;
+
+    setLikingComments(prev => new Set(prev).add(commentId));
+
+    try {
+      const response = await fetch('/api/comments/like', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ commentId })
+      });
+
+      if (!response.ok) throw new Error('Failed to like comment');
+
+      const data = await response.json();
+
+      // Update comment in state with new like count and liked status
+      setComments(prevComments =>
+        prevComments.map(comment =>
+          comment.id === commentId
+            ? {
+                ...comment,
+                likes_count: data.likes_count,
+                comment_likes: data.isLiked
+                  ? [...(comment.comment_likes || []), { profile_id: user.id }]
+                  : (comment.comment_likes || []).filter(like => like.profile_id !== user.id)
+              }
+            : comment
+        )
+      );
+    } catch (err) {
+      console.error('Error liking comment:', err);
+      setError('Failed to like comment');
+    } finally {
+      setLikingComments(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(commentId);
+        return newSet;
+      });
     }
   };
 
@@ -225,8 +268,29 @@ export default function CommentSection({ postId, initialCommentsCount = 0, onCom
                         {comment.content}
                       </p>
                     </div>
-                    <div className="mt-1 px-3 text-xs text-gray-500">
-                      {formatTimeAgo(comment.created_at)}
+                    <div className="mt-1 px-3 flex items-center gap-3 text-xs text-gray-500">
+                      <span>{formatTimeAgo(comment.created_at)}</span>
+                      {user && (
+                        <button
+                          onClick={() => handleLikeComment(comment.id)}
+                          disabled={likingComments.has(comment.id)}
+                          className={`flex items-center gap-1 transition-colors ${
+                            comment.comment_likes?.some(like => like.profile_id === user.id)
+                              ? 'text-red-600 hover:text-red-700'
+                              : 'text-gray-500 hover:text-red-600'
+                          } disabled:opacity-50`}
+                          title="Like comment"
+                        >
+                          <i className={`${
+                            comment.comment_likes?.some(like => like.profile_id === user.id)
+                              ? 'fas fa-heart'
+                              : 'far fa-heart'
+                          }`} />
+                          {comment.likes_count ? (
+                            <span className="font-medium">{comment.likes_count}</span>
+                          ) : null}
+                        </button>
+                      )}
                     </div>
                   </div>
                 </div>

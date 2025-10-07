@@ -294,7 +294,8 @@ export async function GET(request: NextRequest) {
           middle_name,
           last_name,
           avatar_url,
-          visibility
+          visibility,
+          handle
         ),
         post_likes (
           profile_id

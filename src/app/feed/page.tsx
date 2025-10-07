@@ -109,7 +109,8 @@ export default function FeedPage() {
                 middle_name,
                 last_name,
                 full_name,
-                avatar_url
+                avatar_url,
+                handle
               ),
               media:post_media (
                 id,

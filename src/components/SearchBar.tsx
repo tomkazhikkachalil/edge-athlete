@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { formatDisplayName, getInitials } from '@/lib/formatters';
 import { getSportIcon, getSportName } from '@/lib/config/sports-config';
+import { getHandle } from '@/lib/profile-display';
 
 interface SearchResult {
   athletes: any[];
@@ -142,8 +143,13 @@ export default function SearchBar() {
                     </div>
                   )}
                   <div className="flex-1 min-w-0">
-                    <div className="font-medium text-gray-900 truncate">
-                      {formatDisplayName(athlete.first_name, null, athlete.last_name, athlete.full_name)}
+                    <div className="flex items-center gap-2">
+                      <span className="font-medium text-gray-900 truncate">
+                        {formatDisplayName(athlete.first_name, null, athlete.last_name, athlete.full_name)}
+                      </span>
+                      {getHandle(athlete) && (
+                        <span className="text-sm text-gray-500">{getHandle(athlete)}</span>
+                      )}
                     </div>
                     <div className="text-sm text-gray-500 truncate">
                       {[athlete.sport, athlete.school, athlete.location].filter(Boolean).join(' • ')}

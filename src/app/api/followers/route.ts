@@ -44,7 +44,8 @@ export async function GET(request: NextRequest) {
             first_name,
             middle_name,
             last_name,
-            avatar_url
+            avatar_url,
+            handle
           )
         `)
         .eq('following_id', profileId)
@@ -83,7 +84,8 @@ export async function GET(request: NextRequest) {
             first_name,
             middle_name,
             last_name,
-            avatar_url
+            avatar_url,
+            handle
           )
         `)
         .eq('follower_id', profileId)
@@ -142,7 +144,7 @@ export async function GET(request: NextRequest) {
 
       const { data: profiles, error: profileError } = await supabaseAdmin
         .from('profiles')
-        .select('id, first_name, middle_name, last_name, full_name, avatar_url')
+        .select('id, first_name, middle_name, last_name, full_name, avatar_url, handle')
         .in('id', followerIds);
 
       if (profileError) {

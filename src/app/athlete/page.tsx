@@ -14,15 +14,16 @@ import CreatePostModal from '@/components/CreatePostModal';
 import RecentPosts from '@/components/RecentPosts';
 import NotificationsDropdown from '@/components/NotificationsDropdown';
 import type { AthleteBadge, SeasonHighlight, Performance, Profile } from '@/lib/supabase';
-import { 
-  formatHeight, 
-  formatWeightWithUnit, 
-  formatAge, 
+import {
+  formatHeight,
+  formatWeightWithUnit,
+  formatAge,
   formatDisplayName,
   getInitials,
   formatSocialHandleDisplay,
   validateHeight
 } from '@/lib/formatters';
+import { getHandle } from '@/lib/profile-display';
 import { 
   PLACEHOLDERS,
   getPlaceholder
@@ -860,7 +861,12 @@ export default function AthleteProfilePage() {
                   <h1 className="text-4xl font-bold text-gray-900 mb-2">
                     {formatDisplayName(profile?.first_name, null, profile?.last_name, profile?.full_name) || 'Add your name in Edit Profile'}
                   </h1>
-                  
+                  {profile && getHandle(profile) && (
+                    <p className="text-xl text-gray-500 mb-2">
+                      {getHandle(profile)}
+                    </p>
+                  )}
+
                   {/* Badges Row */}
                   <div className="flex flex-wrap gap-2 mb-4" role="list" aria-label="Athlete badges">
                     {badges.length > 0 ? (

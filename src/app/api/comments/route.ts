@@ -43,7 +43,10 @@ export async function GET(request: NextRequest) {
 
     const supabase = createSupabaseServerClient(request);
 
-    // Fetch comments with profile data
+    // Get current user for like status
+    const { data: { user } } = await supabase.auth.getUser();
+
+    // Fetch comments with profile data and likes
     const { data: comments, error } = await supabase
       .from('post_comments')
       .select(`
@@ -53,7 +56,8 @@ export async function GET(request: NextRequest) {
           full_name,
           username,
           avatar_url
-        )
+        ),
+        comment_likes(profile_id)
       `)
       .eq('post_id', postId)
       .order('created_at', { ascending: true });
