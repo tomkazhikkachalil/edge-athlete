@@ -1080,6 +1080,7 @@ export default function AthleteProfilePage() {
               profileId={user?.id || ''}
               currentUserId={user?.id}
               isOwnProfile={true}
+              onCountsChange={(counts) => setPostsCount(counts.all)}
             />
           </div>
         </div>

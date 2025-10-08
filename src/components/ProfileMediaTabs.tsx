@@ -49,9 +49,10 @@ interface ProfileMediaTabsProps {
   profileId: string;
   currentUserId?: string;
   isOwnProfile?: boolean;
+  onCountsChange?: (counts: TabCounts) => void;
 }
 
-export default function ProfileMediaTabs({ profileId, currentUserId, isOwnProfile = false }: ProfileMediaTabsProps) {
+export default function ProfileMediaTabs({ profileId, currentUserId, isOwnProfile = false, onCountsChange }: ProfileMediaTabsProps) {
   const [activeTab, setActiveTab] = useState<TabType>('all');
   const [sort, setSort] = useState<SortType>('newest');
   const [mediaFilter, setMediaFilter] = useState<MediaFilterType>('all');
@@ -82,11 +83,15 @@ export default function ProfileMediaTabs({ profileId, currentUserId, isOwnProfil
       if (response.ok) {
         const data = await response.json();
         setCounts(data);
+        // Notify parent component of count changes
+        if (onCountsChange) {
+          onCountsChange(data);
+        }
       }
     } catch (error) {
       console.error('Error fetching media counts:', error);
     }
-  }, [profileId]);
+  }, [profileId, onCountsChange]);
 
   // Fetch media items
   const fetchMedia = useCallback(async (resetItems = false) => {
@@ -110,7 +115,9 @@ export default function ProfileMediaTabs({ profileId, currentUserId, isOwnProfil
       const response = await fetch(`/api/profile/${profileId}/media?${params}`);
 
       if (!response.ok) {
-        throw new Error('Failed to fetch media');
+        const errorText = await response.text();
+        console.error('[ProfileMediaTabs] API error:', response.status, errorText);
+        throw new Error(`Failed to fetch media: ${response.status} - ${errorText}`);
       }
 
       const data = await response.json();
