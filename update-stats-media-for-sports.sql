@@ -79,9 +79,12 @@ BEGIN
       OR
       -- Golf rounds
       p.round_id IS NOT NULL
-      -- Future: Add other sports here
-      -- OR p.game_id IS NOT NULL  -- Basketball, Hockey
-      -- OR p.match_id IS NOT NULL -- Soccer
+      -- Team sports (basketball, hockey, football, baseball)
+      OR p.game_id IS NOT NULL
+      -- Match sports (soccer, tennis, volleyball)
+      OR p.match_id IS NOT NULL
+      -- Racing sports (track & field, swimming)
+      OR p.race_id IS NOT NULL
     )
   )
   AND (
@@ -164,9 +167,9 @@ BEGIN
         (p.stats_data IS NOT NULL AND p.stats_data != '{}'::jsonb)
         OR
         p.round_id IS NOT NULL
-        -- Future: Add other sports here
-        -- OR p.game_id IS NOT NULL
-        -- OR p.match_id IS NOT NULL
+        OR p.game_id IS NOT NULL
+        OR p.match_id IS NOT NULL
+        OR p.race_id IS NOT NULL
       )
       AND (
         p.visibility = 'public'
@@ -217,10 +220,16 @@ $$ LANGUAGE plpgsql STABLE SECURITY DEFINER;
 
 DROP INDEX IF EXISTS idx_posts_stats_data_exists;
 
--- New index for stats queries (includes both stats_data and round_id)
+-- New index for stats queries (includes all sport-specific foreign keys)
 CREATE INDEX IF NOT EXISTS idx_posts_stats_media
 ON posts(profile_id, created_at DESC)
-WHERE (stats_data IS NOT NULL AND stats_data != '{}'::jsonb) OR round_id IS NOT NULL;
+WHERE (
+  (stats_data IS NOT NULL AND stats_data != '{}'::jsonb)
+  OR round_id IS NOT NULL
+  OR game_id IS NOT NULL
+  OR match_id IS NOT NULL
+  OR race_id IS NOT NULL
+);
 
 -- =====================================================
 -- VERIFICATION
@@ -238,14 +247,17 @@ BEGIN
   RAISE NOTICE '  ✓ get_profile_media_counts() - stats count includes round_id';
   RAISE NOTICE '';
   RAISE NOTICE 'What this means:';
-  RAISE NOTICE '  • Posts with golf rounds now appear in "Media with Stats"';
-  RAISE NOTICE '  • Stats tab count now includes golf posts';
-  RAISE NOTICE '  • Ready for future sports (game_id, match_id)';
+  RAISE NOTICE '  • Posts with any sport-specific data appear in "Media with Stats"';
+  RAISE NOTICE '  • Golf: round_id (implemented)';
+  RAISE NOTICE '  • Team Sports: game_id (ready for basketball, hockey, football, baseball)';
+  RAISE NOTICE '  • Match Sports: match_id (ready for soccer, tennis, volleyball)';
+  RAISE NOTICE '  • Racing Sports: race_id (ready for track & field, swimming)';
   RAISE NOTICE '';
-  RAISE NOTICE 'Future sports to add:';
-  RAISE NOTICE '  • Uncomment game_id checks for basketball/hockey';
-  RAISE NOTICE '  • Uncomment match_id checks for soccer';
-  RAISE NOTICE '  • Update index when adding new sports';
+  RAISE NOTICE 'Next steps for new sports:';
+  RAISE NOTICE '  1. Create sport-specific tables (e.g., basketball_games)';
+  RAISE NOTICE '  2. Add foreign key constraints to posts table';
+  RAISE NOTICE '  3. Implement sport adapter in /lib/sports/adapters/';
+  RAISE NOTICE '  4. Enable in SportRegistry.ts and features.ts';
   RAISE NOTICE '';
   RAISE NOTICE 'Test with:';
   RAISE NOTICE '  SELECT * FROM get_profile_media_counts(''user-uuid'', ''viewer-uuid'');';

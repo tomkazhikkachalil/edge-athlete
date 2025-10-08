@@ -300,6 +300,27 @@ export default function FeedPage() {
     showSuccess('Success', 'Post updated successfully!');
   };
 
+  const handleDelete = async (postId: string) => {
+    try {
+      const response = await fetch(`/api/posts?postId=${postId}`, {
+        method: 'DELETE',
+        credentials: 'include'
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to delete post');
+      }
+
+      // Remove post from local state
+      setPosts(prevPosts => prevPosts.filter(post => post.id !== postId));
+      showSuccess('Success', 'Post deleted successfully');
+    } catch (err) {
+      console.error('Delete post error:', err);
+      showError('Error', err instanceof Error ? err.message : 'Failed to delete post');
+    }
+  };
+
   // Show loading state
   if (loading || !user) {
     return (
@@ -491,6 +512,7 @@ export default function FeedPage() {
                       onLike={handleLike}
                       onComment={() => {}}
                       onEdit={handleEdit}
+                      onDelete={handleDelete}
                       onCommentCountChange={handleCommentCountChange}
                       showActions={true}
                     />

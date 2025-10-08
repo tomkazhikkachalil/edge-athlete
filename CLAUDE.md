@@ -537,6 +537,19 @@ const { notifications, unreadCount, markAsRead, markAllAsRead } = useNotificatio
 3. Verify triggers are active: `check-triggers.sql`
 4. Re-run count fix: `fix-likes-comments-issues.sql`
 
+**Edit/Delete posts:**
+- Edit and delete work on both feed page and profile pages
+- PostCard accepts `onEdit` and `onDelete` props
+- PostDetailModal passes through edit/delete handlers to PostCard
+- ProfileMediaTabs has full edit/delete support with EditPostModal
+- Always show confirmation dialog before delete (handled by PostCard)
+
+**Profile media sorting:**
+- All profile media tabs show newest posts first by default
+- SQL functions use subquery pattern to order by created_at DESC
+- Run `fix-profile-media-sorting.sql` if posts show in wrong order
+- Functions: get_profile_all_media, get_profile_stats_media, get_profile_tagged_media
+
 ### Known Issues & Workarounds
 
 - **Like/comment counts** - If counts are off, run `fix-likes-comments-issues.sql`

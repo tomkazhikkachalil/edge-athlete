@@ -61,7 +61,7 @@ interface MediaItem {
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { profileId: string } }
+  { params }: { params: Promise<{ profileId: string }> }
 ) {
   try {
     const supabase = createSupabaseClient(request);
@@ -71,8 +71,8 @@ export async function GET(
     const { data: { user } } = await supabase.auth.getUser();
     const viewerId = user?.id || null;
 
-    // Parameters
-    const { profileId } = params;
+    // Parameters (await params in Next.js 15)
+    const { profileId } = await params;
     const tab = searchParams.get('tab') || 'all'; // all | stats | tagged
     const limit = parseInt(searchParams.get('limit') || '20', 10);
     const offset = parseInt(searchParams.get('offset') || '0', 10);
@@ -160,9 +160,11 @@ export async function GET(
     }
     // 'newest' is already sorted by created_at DESC in SQL
 
-    // Fetch media attachments for each post
+    // Fetch media attachments and tagged profiles for each post
     if (items.length > 0) {
       const postIds = items.map((item: MediaItem) => item.id);
+
+      // Fetch media attachments
       const { data: media } = await supabase
         .from('post_media')
         .select('id, post_id, media_url, media_type, display_order')
@@ -170,9 +172,9 @@ export async function GET(
         .order('display_order', { ascending: true });
 
       // Attach media to posts
-      const mediaMap = new Map<string, typeof media>();
+      const mediaMap = new Map<string, any[]>();
       if (media) {
-        media.forEach((m: { post_id: string }) => {
+        media.forEach((m: any) => {
           if (!mediaMap.has(m.post_id)) {
             mediaMap.set(m.post_id, []);
           }
@@ -180,9 +182,42 @@ export async function GET(
         });
       }
 
+      // Fetch tagged profiles for posts that have tags
+      const taggedProfilesMap = new Map<string, any[]>();
+
+      // Collect all unique profile IDs from tags
+      const allTagIds = new Set<string>();
+      items.forEach((item: MediaItem) => {
+        if (item.tags && item.tags.length > 0) {
+          item.tags.forEach(tagId => allTagIds.add(tagId));
+        }
+      });
+
+      // Fetch all tagged profiles in one query if there are any tags
+      if (allTagIds.size > 0) {
+        const { data: profiles } = await supabase
+          .from('profiles')
+          .select('id, first_name, middle_name, last_name, full_name, avatar_url, handle')
+          .in('id', Array.from(allTagIds));
+
+        // Create a map of profile ID -> profile data
+        const profileMap = new Map(profiles?.map(p => [p.id, p]) || []);
+
+        // Build tagged profiles map for each post
+        items.forEach((item: MediaItem) => {
+          if (item.tags && item.tags.length > 0) {
+            const taggedProfiles = item.tags
+              .map(tagId => profileMap.get(tagId))
+              .filter(Boolean); // Remove any undefined profiles
+            taggedProfilesMap.set(item.id, taggedProfiles);
+          }
+        });
+      }
+
       items = items.map((item: MediaItem) => ({
         ...item,
-        media: mediaMap.get(item.id) || []
+        media: mediaMap.get(item.id) || [],
+        tagged_profiles: taggedProfilesMap.get(item.id) || []
       }));
     }
 
@@ -204,7 +239,7 @@ export async function GET(
 // GET counts for tab badges
 export async function POST(
   request: NextRequest,
-  { params }: { params: { profileId: string } }
+  { params }: { params: Promise<{ profileId: string }> }
 ) {
   try {
     const supabase = createSupabaseClient(request);
@@ -213,7 +248,7 @@ export async function POST(
     const { data: { user } } = await supabase.auth.getUser();
     const viewerId = user?.id || null;
 
-    const { profileId } = params;
+    const { profileId } = await params;
 
     if (!profileId) {
       return NextResponse.json({ error: 'Profile ID is required' }, { status: 400 });

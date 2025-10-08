@@ -464,7 +464,7 @@ export default function EditProfileTabs({
             value={basicForm.handle || ''}
             onChange={(e) => {
               // Remove @ prefix if user types it, remove spaces, convert to lowercase
-              let value = e.target.value.replace(/^@/, '').replace(/\s/g, '').toLowerCase();
+              const value = e.target.value.replace(/^@/, '').replace(/\s/g, '').toLowerCase();
               setBasicForm(prev => ({ ...prev, handle: value }));
             }}
             className={`w-full pl-8 pr-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent ${

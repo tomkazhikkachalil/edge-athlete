@@ -56,14 +56,15 @@ export async function POST(request: NextRequest) {
       sport_key: postType, // Use postType as sport_key for our unified approach
       caption: caption,
       visibility: visibility,
-      tags: tags,
+      tags: taggedProfiles, // Store tagged people IDs (not category tags)
       hashtags: hashtags,
       likes_count: 0,
       comments_count: 0
     };
 
-    console.log('[POST] Creating post with tags:', tags);
+    console.log('[POST] Creating post with tagged profile IDs:', taggedProfiles);
     console.log('[POST] Creating post with hashtags:', hashtags);
+    console.log('[POST] Category tags (not stored):', tags);
 
     let roundId: string | null = null;
 
@@ -367,9 +368,11 @@ export async function GET(request: NextRequest) {
     console.log(`[PRIVACY] Total posts fetched: ${posts?.length || 0}, Visible after filtering: ${finalVisiblePosts.length}`);
 
     // Fetch golf rounds with hole-by-hole data for posts that have round_id
+    // AND fetch tagged profiles for posts with tags
     const postsWithRounds = await Promise.all(
       finalVisiblePosts.map(async (post) => {
         let golfRound = null;
+        let taggedProfiles: any[] = [];
 
         if (post.round_id) {
           console.log('[GET] Fetching golf round for post:', post.id, 'round_id:', post.round_id);
@@ -407,7 +410,24 @@ export async function GET(request: NextRequest) {
           }
         }
 
-        return { ...post, golf_round: golfRound };
+        // Fetch tagged profiles if post has tags
+        if (post.tags && post.tags.length > 0) {
+          console.log('[GET] Fetching tagged profiles for post:', post.id, 'tags:', post.tags);
+
+          const { data: profiles, error: profilesError } = await supabase
+            .from('profiles')
+            .select('id, first_name, middle_name, last_name, full_name, avatar_url, handle')
+            .in('id', post.tags);
+
+          if (profilesError) {
+            console.error('[GET] Error fetching tagged profiles:', profilesError);
+          } else if (profiles) {
+            taggedProfiles = profiles;
+            console.log('[GET] Tagged profiles fetched:', profiles.length);
+          }
+        }
+
+        return { ...post, golf_round: golfRound, tagged_profiles: taggedProfiles };
       })
     );
 
@@ -445,7 +465,8 @@ export async function GET(request: NextRequest) {
             display_order: media.display_order
           })),
           likes: post.post_likes || [],
-          golf_round: post.golf_round || null
+          golf_round: post.golf_round || null,
+          tagged_profiles: post.tagged_profiles || []
         };
       });
 
@@ -467,6 +488,7 @@ export async function PUT(request: NextRequest) {
       postId,
       caption = '',
       tags = [],
+      taggedProfiles = [],
       hashtags = [],
       visibility = 'public'
     } = body;
@@ -504,7 +526,7 @@ export async function PUT(request: NextRequest) {
       .update({
         caption: caption,
         visibility: visibility,
-        tags: tags,
+        tags: taggedProfiles, // Store tagged people IDs (not category tags)
         hashtags: hashtags,
         updated_at: new Date().toISOString()
       })

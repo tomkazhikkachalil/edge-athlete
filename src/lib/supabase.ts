@@ -62,6 +62,7 @@ export interface Profile {
   middle_name?: string;
   username?: string;
   full_name?: string; // This is now the username/handle
+  handle?: string; // Unique @handle identifier
   bio?: string;
   sport?: string;
   position?: string;

@@ -27,6 +27,16 @@ interface Profile {
   handle?: string | null;
 }
 
+interface TaggedProfile {
+  id: string;
+  first_name: string | null;
+  middle_name?: string | null;
+  last_name: string | null;
+  full_name: string | null;
+  avatar_url: string | null;
+  handle?: string | null;
+}
+
 interface Post {
   id: string;
   caption: string | null;
@@ -44,6 +54,7 @@ interface Post {
   tags?: string[];
   hashtags?: string[];
   golf_round?: any;
+  tagged_profiles?: TaggedProfile[];
 }
 
 interface PostCardProps {
@@ -486,17 +497,47 @@ export default function PostCard({
           </div>
         )}
 
-        {/* Tags */}
-        {post.tags && post.tags.length > 0 && (
-          <div className="flex flex-wrap gap-2 mb-3">
-            {post.tags.map((tag, index) => (
-              <span
-                key={index}
-                className="px-3 py-1.5 bg-gray-200 text-gray-900 text-sm rounded-full font-bold border border-gray-300"
-              >
-                {tag}
-              </span>
-            ))}
+        {/* Tags - Display tagged users/organizations */}
+        {post.tagged_profiles && post.tagged_profiles.length > 0 && (
+          <div className="flex flex-wrap gap-2 mb-3 items-center">
+            <span className="text-sm text-gray-600">with</span>
+            {post.tagged_profiles.map((taggedProfile, index) => {
+              const taggedDisplayName = formatDisplayName(
+                taggedProfile.first_name,
+                null,
+                taggedProfile.last_name,
+                taggedProfile.full_name
+              );
+              const taggedHandle = getHandle(taggedProfile);
+
+              return (
+                <button
+                  key={taggedProfile.id}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    router.push(`/athlete/${taggedProfile.id}`);
+                  }}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-700 text-sm rounded-full font-semibold border border-blue-200 transition-colors"
+                >
+                  {taggedProfile.avatar_url ? (
+                    <LazyImage
+                      src={taggedProfile.avatar_url}
+                      alt={taggedDisplayName}
+                      className="w-4 h-4 rounded-full object-cover"
+                      width={16}
+                      height={16}
+                    />
+                  ) : (
+                    <div className="w-4 h-4 rounded-full bg-blue-200 flex items-center justify-center">
+                      <span className="text-[8px] font-medium text-blue-700">
+                        {getInitials(taggedDisplayName)}
+                      </span>
+                    </div>
+                  )}
+                  <span>{taggedHandle || taggedDisplayName}</span>
+                </button>
+              );
+            })}
           </div>
         )}
 

@@ -11,6 +11,8 @@ interface PostDetailModalProps {
   onNavigate?: (direction: 'prev' | 'next') => void;
   currentUserId?: string;
   showNavigation?: boolean;
+  onEdit?: (postId: string) => void;
+  onDelete?: (postId: string) => void;
 }
 
 export default function PostDetailModal({
@@ -19,7 +21,9 @@ export default function PostDetailModal({
   onClose,
   onNavigate,
   currentUserId,
-  showNavigation = false
+  showNavigation = false,
+  onEdit,
+  onDelete
 }: PostDetailModalProps) {
   const [post, setPost] = useState<any>(null);
   const [loading, setLoading] = useState(false);
@@ -136,12 +140,51 @@ export default function PostDetailModal({
       //   basketballGame = gameData;
       // }
 
+      // Fetch tagged profiles if post has tags
+      let taggedProfiles: any[] = [];
+      if (data.tags && Array.isArray(data.tags) && data.tags.length > 0) {
+        console.log('[PostDetailModal] Raw tags from post:', data.tags);
+
+        // UUID regex pattern for validation
+        const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+        // Filter to only valid UUIDs (exclude category tags like 'casual', 'lifestyle')
+        const validUUIDs = data.tags.filter((tag: any) =>
+          typeof tag === 'string' && uuidPattern.test(tag)
+        );
+
+        if (validUUIDs.length > 0) {
+          console.log('[PostDetailModal] Valid UUIDs to fetch:', validUUIDs);
+
+          const { data: profiles, error: profilesError } = await supabase
+            .from('profiles')
+            .select('id, first_name, middle_name, last_name, full_name, avatar_url, handle')
+            .in('id', validUUIDs);
+
+          if (profilesError) {
+            console.error('[PostDetailModal] Error fetching tagged profiles:', profilesError);
+          } else if (profiles) {
+            taggedProfiles = profiles;
+            console.log('[PostDetailModal] Tagged profiles fetched:', profiles.length);
+          }
+        } else {
+          // Log non-UUID tags (old category tags) but don't error
+          const nonUUIDs = data.tags.filter((tag: any) =>
+            typeof tag === 'string' && !uuidPattern.test(tag)
+          );
+          if (nonUUIDs.length > 0) {
+            console.log('[PostDetailModal] Skipping non-UUID category tags (old data):', nonUUIDs);
+          }
+        }
+      }
+
       // Transform data to match PostCard interface
       const transformedPost = {
         ...data,
         profile: data.profiles, // Rename profiles -> profile
         media: data.post_media || [], // Rename post_media -> media
         golf_round: golfRound,
+        tagged_profiles: taggedProfiles,
         // Remove old properties
         profiles: undefined,
         post_media: undefined
@@ -272,10 +315,10 @@ export default function PostDetailModal({
         {/* Close Button */}
         <button
           onClick={onClose}
-          className="absolute top-4 right-4 z-10 w-10 h-10 bg-black bg-opacity-50 hover:bg-opacity-70 text-white rounded-full flex items-center justify-center transition-colors"
+          className="absolute top-2 right-2 z-10 w-8 h-8 bg-black bg-opacity-50 hover:bg-opacity-70 text-white rounded-full flex items-center justify-center transition-colors"
           aria-label="Close"
         >
-          <i className="fas fa-times text-xl"></i>
+          <i className="fas fa-times text-sm"></i>
         </button>
 
         {/* Navigation Buttons */}
@@ -326,6 +369,8 @@ export default function PostDetailModal({
               post={post}
               currentUserId={currentUserId}
               onLike={handleLike}
+              onEdit={onEdit}
+              onDelete={onDelete}
               onCommentCountChange={handleCommentCountChange}
               showActions={true}
             />

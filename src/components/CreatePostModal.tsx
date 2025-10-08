@@ -841,6 +841,7 @@ export default function CreatePostModal({
           mediaFiles={mediaFiles}
           visibility={visibility}
           golfData={golfRoundData}
+          taggedPeople={taggedProfilesData}
           onClose={() => setShowPreview(false)}
           onPost={() => {
             setShowPreview(false);
@@ -870,6 +871,7 @@ function PostPreview({
   mediaFiles,
   visibility,
   golfData,
+  taggedPeople = [],
   onClose,
   onPost
 }: any) {
@@ -918,6 +920,22 @@ function PostPreview({
                   {hashtags.map((tag: string) => (
                     <span key={tag} className="text-blue-600 hover:underline cursor-pointer">
                       {tag}
+                    </span>
+                  ))}
+                </div>
+              )}
+
+              {/* Tagged People */}
+              {taggedPeople.length > 0 && (
+                <div className="flex flex-wrap gap-2 mb-3 items-center">
+                  <span className="text-sm text-gray-600">with</span>
+                  {taggedPeople.map((person: {id: string; name: string}) => (
+                    <span
+                      key={person.id}
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 text-blue-700 text-sm rounded-full font-semibold border border-blue-200"
+                    >
+                      <i className="fas fa-user text-xs"></i>
+                      {person.name}
                     </span>
                   ))}
                 </div>

@@ -4,6 +4,8 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { formatDistanceToNow } from 'date-fns';
 import OptimizedImage from './OptimizedImage';
 import PostDetailModal from './PostDetailModal';
+import EditPostModal from './EditPostModal';
+import { useToast } from './Toast';
 
 type TabType = 'all' | 'stats' | 'tagged';
 type SortType = 'newest' | 'most_engaged';
@@ -64,6 +66,11 @@ export default function ProfileMediaTabs({ profileId, currentUserId, isOwnProfil
   // Modal state
   const [selectedPostIndex, setSelectedPostIndex] = useState<number | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isEditPostModalOpen, setIsEditPostModalOpen] = useState(false);
+  const [editingPost, setEditingPost] = useState<any>(null);
+
+  // Toast notifications
+  const { showSuccess, showError } = useToast();
 
   // Fetch counts for tab badges
   const fetchCounts = useCallback(async () => {
@@ -183,6 +190,61 @@ export default function ProfileMediaTabs({ profileId, currentUserId, isOwnProfil
     setOffset(0);
     setSelectedPostIndex(null);
     setIsModalOpen(false);
+  };
+
+  const handleEdit = async (postId: string) => {
+    try {
+      // Fetch full post data for editing
+      const response = await fetch(`/api/posts?postId=${postId}`);
+      if (!response.ok) {
+        throw new Error('Failed to fetch post');
+      }
+      const data = await response.json();
+      setEditingPost(data.post);
+      setIsEditPostModalOpen(true);
+      setIsModalOpen(false); // Close detail modal
+    } catch (error) {
+      console.error('Error fetching post for edit:', error);
+      showError('Error', 'Failed to load post for editing');
+    }
+  };
+
+  const handleDelete = async (postId: string) => {
+    try {
+      const response = await fetch(`/api/posts?postId=${postId}`, {
+        method: 'DELETE',
+        credentials: 'include'
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to delete post');
+      }
+
+      // Remove post from local state
+      setItems(prevItems => prevItems.filter(item => item.id !== postId));
+
+      // Close modals
+      setIsModalOpen(false);
+      setSelectedPostIndex(null);
+
+      // Refresh counts
+      fetchCounts();
+
+      showSuccess('Success', 'Post deleted successfully');
+    } catch (err) {
+      console.error('Delete post error:', err);
+      showError('Error', err instanceof Error ? err.message : 'Failed to delete post');
+    }
+  };
+
+  const handlePostUpdated = () => {
+    // Refresh media when a post is updated
+    fetchMedia(true);
+    fetchCounts();
+    setIsEditPostModalOpen(false);
+    setEditingPost(null);
+    showSuccess('Success', 'Post updated successfully!');
   };
 
   return (
@@ -325,7 +387,22 @@ export default function ProfileMediaTabs({ profileId, currentUserId, isOwnProfil
         onNavigate={handleNavigate}
         currentUserId={currentUserId}
         showNavigation={items.length > 1}
+        onEdit={handleEdit}
+        onDelete={handleDelete}
       />
+
+      {/* Edit Post Modal */}
+      {editingPost && (
+        <EditPostModal
+          isOpen={isEditPostModalOpen}
+          onClose={() => {
+            setIsEditPostModalOpen(false);
+            setEditingPost(null);
+          }}
+          post={editingPost}
+          onPostUpdated={handlePostUpdated}
+        />
+      )}
     </div>
   );
 }

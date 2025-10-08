@@ -1,5 +1,95 @@
 # Development Log
 
+## 2025-10-08 - Edit/Delete Functionality and Profile Media Sorting
+
+### Latest Changes
+
+#### 1. Edit and Delete Post Functionality
+**Feature**: Complete edit and delete functionality for posts across all views.
+
+**Issues Fixed**:
+- Delete button was non-functional on feed page (missing handler)
+- Edit and delete buttons didn't work on profile pages (props not passed through modals)
+- Delete button overlapped with modal close button (UI collision)
+
+**Implementation**:
+- **Feed Page** (`src/app/feed/page.tsx`):
+  - Added `handleDelete` function with API integration
+  - Passed `onDelete` prop to PostCard
+  - Confirmation dialog and toast notifications
+
+- **PostDetailModal** (`src/components/PostDetailModal.tsx`):
+  - Added `onEdit` and `onDelete` props to interface
+  - Pass-through to internal PostCard rendering
+  - Smaller close button (32px → 8px, repositioned to top-2 right-2)
+
+- **ProfileMediaTabs** (`src/components/ProfileMediaTabs.tsx`):
+  - Full edit/delete implementation with EditPostModal
+  - Fetches post data for editing via API
+  - Refreshes grid and counts after edit/delete
+  - Toast notifications for user feedback
+
+**User Experience**:
+- ✅ Edit works on feed and profile pages
+- ✅ Delete works on feed and profile pages
+- ✅ Confirmation dialogs prevent accidental deletions
+- ✅ Optimistic UI updates for immediate feedback
+- ✅ Success/error toast notifications
+
+**Files Modified**:
+- `src/app/feed/page.tsx` - Added delete handler
+- `src/components/PostDetailModal.tsx` - Edit/delete props + smaller close button
+- `src/components/ProfileMediaTabs.tsx` - Full edit/delete support
+
+**Documentation**:
+- `FIX_EDIT_DELETE_FUNCTIONALITY.md` - Complete technical documentation
+
+#### 2. Profile Media Sorting Fix
+**Feature**: Profile media tabs now show newest posts first (chronological order).
+
+**Issue**:
+- All profile media tabs (All Media, Media with Stats, Tagged in Media) were showing posts in random order, often oldest first
+- Root cause: SQL functions ordering by UUID (random) instead of created_at
+
+**Solution**:
+- Refactored all three SQL functions to use subquery pattern:
+  1. Inner query: Get distinct posts (required for DISTINCT ON)
+  2. Outer query: Re-order by `created_at DESC` for newest-first display
+
+**SQL Functions Updated**:
+- `get_profile_all_media()` - All user posts + tagged posts
+- `get_profile_stats_media()` - Posts with sports stats
+- `get_profile_tagged_media()` - Posts where user is tagged
+
+**Impact**:
+- ✅ All Media tab shows newest posts first
+- ✅ Media with Stats tab shows newest stats posts first
+- ✅ Tagged in Media tab shows newest tagged posts first
+- ✅ Pagination still works correctly
+- ✅ All privacy filtering unchanged
+
+**Migration Script**:
+- `fix-profile-media-sorting.sql` - Updates all three functions
+
+**Documentation**:
+- `FIX_PROFILE_MEDIA_SORTING.md` - Technical details and migration guide
+
+#### 3. UI Polish
+**Feature**: Improved modal usability and button accessibility.
+
+**Changes**:
+- PostDetailModal close button reduced from 40px to 32px
+- Repositioned from `top-4 right-4` to `top-2 right-2`
+- Icon size reduced from `text-xl` to `text-sm`
+- Prevents overlap with edit/delete buttons in post header
+
+**User Experience**:
+- ✅ Easier to click delete button without close button interference
+- ✅ Cleaner modal appearance
+- ✅ Better use of screen space
+
+---
+
 ## 2025-10-07 - Display Name Consistency and UI Polish
 
 ### Latest Changes
