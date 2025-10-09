@@ -296,6 +296,7 @@ const { data } = await supabaseAdmin.from('profiles').select('*');
 - `/api/upload/post-media` - Media uploads
 - `/api/follow` - Follow/unfollow
 - `/api/golf/*` - Golf-specific endpoints
+- `/api/sport-settings` - **NEW** Get/update sport-specific settings (golf, hockey, etc.)
 - `/api/debug/counts` - Debug endpoint for like/comment counts
 - `/api/followers` - Followers, following, and follow requests (uses admin client for requests)
 - `/api/notifications` - Fetch/delete notifications with filtering
@@ -400,6 +401,101 @@ The `EditProfileTabs` component now has separate fields:
 - Last Name (required)
 - Middle Name (optional)
 - Username/Handle (what was previously "Full Name")
+
+### Sport-Specific Settings Architecture
+
+**IMPORTANT:** As of January 2025, all sport-specific settings are stored in the `sport_settings` table, NOT in the `profiles` table.
+
+**Database Table:**
+```sql
+sport_settings (
+  id UUID PRIMARY KEY,
+  profile_id UUID REFERENCES profiles(id) ON DELETE CASCADE,
+  sport_key TEXT NOT NULL,
+  settings JSONB NOT NULL DEFAULT '{}'::jsonb,
+  created_at TIMESTAMPTZ,
+  updated_at TIMESTAMPTZ,
+  UNIQUE(profile_id, sport_key)
+)
+```
+
+**TypeScript Interfaces:**
+```typescript
+// Sport-specific settings
+interface GolfSettings {
+  handicap?: number;
+  home_course?: string;
+  tee_preference?: string;
+  dominant_hand?: string;
+  driver_brand?: string;
+  driver_loft?: number;
+  irons_brand?: string;
+  putter_brand?: string;
+  ball_brand?: string;
+}
+
+interface HockeySettings {
+  position?: string;
+  stick_flex?: number;
+  shot_preference?: 'left' | 'right';
+  blade_curve?: string;
+}
+
+// Generic database record
+interface SportSettings {
+  id: string;
+  profile_id: string;
+  sport_key: string;
+  settings: GolfSettings | HockeySettings | Record<string, unknown>;
+  created_at: string;
+  updated_at: string;
+}
+```
+
+**API Usage:**
+```typescript
+// Fetch golf settings
+const response = await fetch('/api/sport-settings?sport=golf');
+const { settings } = await response.json();
+// settings = { handicap: 12, home_course: "Pebble Beach", ... }
+
+// Save golf settings
+await fetch('/api/sport-settings', {
+  method: 'PUT',
+  body: JSON.stringify({
+    sport: 'golf',
+    settings: {
+      handicap: 10,
+      home_course: 'Augusta National',
+      tee_preference: 'white'
+    }
+  })
+});
+
+// Adding a new sport (e.g., hockey) requires NO schema changes!
+await fetch('/api/sport-settings', {
+  method: 'PUT',
+  body: JSON.stringify({
+    sport: 'ice_hockey',
+    settings: {
+      position: 'center',
+      stick_flex: 85,
+      shot_preference: 'left'
+    }
+  })
+});
+```
+
+**Benefits:**
+- ✅ Add new sports without database migrations
+- ✅ Clean, normalized architecture
+- ✅ Flexible JSONB storage for sport-specific data
+- ✅ RLS policies ensure users only access their own settings
+- ✅ Performance indexes on profile_id, sport_key, and JSONB
+
+**Setup:** See `SETUP_SPORT_SETTINGS_FRESH.md` for implementation guide
+
+---
 
 ### Golf Implementation
 
