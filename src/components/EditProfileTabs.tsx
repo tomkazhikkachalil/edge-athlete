@@ -129,6 +129,42 @@ export default function EditProfileTabs({
     ball_brand: '',
   });
 
+  // Load golf settings from sport_settings table
+  useEffect(() => {
+    if (!user?.id) return;
+
+    const loadGolfSettings = async () => {
+      try {
+        const response = await fetch('/api/sport-settings?sport=golf');
+        if (response.ok) {
+          const data = await response.json();
+          const settings = data.settings || {};
+
+          // Update golf form with settings from sport_settings table
+          setGolfForm({
+            handicap: settings.handicap?.toString() || '',
+            home_course: settings.home_course || '',
+            tee_preference: (settings.tee_preference as 'black' | 'blue' | 'white' | 'red' | 'gold') || 'white',
+            dominant_hand: (settings.dominant_hand as 'right' | 'left') || 'right',
+          });
+
+          // Update equipment form with settings from sport_settings table
+          setEquipmentForm({
+            driver_brand: settings.driver_brand || '',
+            driver_loft: settings.driver_loft?.toString() || '',
+            irons_brand: settings.irons_brand || '',
+            putter_brand: settings.putter_brand || '',
+            ball_brand: settings.ball_brand || '',
+          });
+        }
+      } catch (error) {
+        console.error('Error loading golf settings:', error);
+      }
+    };
+
+    loadGolfSettings();
+  }, [user?.id]);
+
   // No conversion - save exactly what user enters
 
   // Initialize forms when profile changes
@@ -161,22 +197,8 @@ export default function EditProfileTabs({
       social_facebook: formatSocialHandle(profile?.social_facebook),
     });
 
-    // Initialize golf-specific form fields
-    setGolfForm({
-      handicap: (profile?.golf_handicap?.toString() || ''),
-      home_course: (profile?.golf_home_course || ''),
-      tee_preference: (profile?.golf_tee_preference as 'black' | 'blue' | 'white' | 'red' | 'gold') || 'white',
-      dominant_hand: (profile?.golf_dominant_hand as 'right' | 'left') || 'right',
-    });
-
-    // Initialize equipment form fields  
-    setEquipmentForm({
-      driver_brand: (profile?.golf_driver_brand || ''),
-      driver_loft: (profile?.golf_driver_loft?.toString() || ''),
-      irons_brand: (profile?.golf_irons_brand || ''),
-      putter_brand: (profile?.golf_putter_brand || ''),
-      ball_brand: (profile?.golf_ball_brand || ''),
-    });
+    // Golf and equipment settings are now loaded from sport_settings API
+    // (see useEffect above that fetches from /api/sport-settings)
   }, [profile]);
 
   const saveTab = async (tabId: TabId) => {
@@ -259,25 +281,70 @@ export default function EditProfileTabs({
           break;
 
         case 'golf':
-          updateData = {
-            golf_handicap: golfForm.handicap ? parseFloat(golfForm.handicap) : undefined,
-            golf_home_course: golfForm.home_course.trim() || undefined,
-            golf_tee_preference: golfForm.tee_preference,
-            golf_dominant_hand: golfForm.dominant_hand,
-          };
-          hasChanges = true;
-          break;
+          // Save golf settings to sport_settings table
+          {
+            const golfSettings = {
+              handicap: golfForm.handicap ? parseFloat(golfForm.handicap) : undefined,
+              home_course: golfForm.home_course.trim() || undefined,
+              tee_preference: golfForm.tee_preference,
+              dominant_hand: golfForm.dominant_hand,
+            };
+
+            const response = await fetch('/api/sport-settings', {
+              method: 'PUT',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                sport: 'golf',
+                settings: golfSettings
+              }),
+            });
+
+            if (!response.ok) {
+              throw new Error('Failed to save golf settings');
+            }
+
+            showSuccess('Changes Saved', 'Golf settings updated successfully!');
+            onSave(); // Refresh parent data
+          }
+          setIsSubmitting(false);
+          return; // Exit early - don't update profiles table
 
         case 'equipment':
-          updateData = {
-            golf_driver_brand: equipmentForm.driver_brand.trim() || undefined,
-            golf_driver_loft: equipmentForm.driver_loft ? parseFloat(equipmentForm.driver_loft) : undefined,
-            golf_irons_brand: equipmentForm.irons_brand.trim() || undefined,
-            golf_putter_brand: equipmentForm.putter_brand.trim() || undefined,
-            golf_ball_brand: equipmentForm.ball_brand.trim() || undefined,
-          };
-          hasChanges = true;
-          break;
+          // Save equipment settings to sport_settings table (merged with golf settings)
+          {
+            // First, fetch existing golf settings
+            const existingResponse = await fetch('/api/sport-settings?sport=golf');
+            const existingData = await existingResponse.json();
+            const existingSettings = existingData.settings || {};
+
+            // Merge equipment data with existing golf settings
+            const updatedSettings = {
+              ...existingSettings,
+              driver_brand: equipmentForm.driver_brand.trim() || undefined,
+              driver_loft: equipmentForm.driver_loft ? parseFloat(equipmentForm.driver_loft) : undefined,
+              irons_brand: equipmentForm.irons_brand.trim() || undefined,
+              putter_brand: equipmentForm.putter_brand.trim() || undefined,
+              ball_brand: equipmentForm.ball_brand.trim() || undefined,
+            };
+
+            const response = await fetch('/api/sport-settings', {
+              method: 'PUT',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                sport: 'golf',
+                settings: updatedSettings
+              }),
+            });
+
+            if (!response.ok) {
+              throw new Error('Failed to save equipment settings');
+            }
+
+            showSuccess('Changes Saved', 'Equipment updated successfully!');
+            onSave(); // Refresh parent data
+          }
+          setIsSubmitting(false);
+          return; // Exit early - don't update profiles table
 
         case 'ice_hockey':
         case 'volleyball':

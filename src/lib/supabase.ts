@@ -83,16 +83,7 @@ export interface Profile {
   avatar_url?: string;
   // Privacy settings
   visibility?: 'public' | 'private';
-  // Golf-specific fields
-  golf_handicap?: number;
-  golf_home_course?: string;
-  golf_tee_preference?: string;
-  golf_dominant_hand?: string;
-  golf_driver_brand?: string;
-  golf_driver_loft?: number;
-  golf_irons_brand?: string;
-  golf_putter_brand?: string;
-  golf_ball_brand?: string;
+  // Note: Sport-specific settings (golf, hockey, etc.) are now stored in the sport_settings table
 }
 
 export interface AthleteBadge {
@@ -162,4 +153,42 @@ export interface Comment {
   likes_count?: number;
   profile?: Profile;
   comment_likes?: { profile_id: string }[];
+}
+
+// Sport-specific settings interfaces
+export interface GolfSettings {
+  handicap?: number;
+  home_course?: string;
+  tee_preference?: string;
+  dominant_hand?: string;
+  driver_brand?: string;
+  driver_loft?: number;
+  irons_brand?: string;
+  putter_brand?: string;
+  ball_brand?: string;
+}
+
+export interface HockeySettings {
+  position?: string;
+  stick_flex?: number;
+  shot_preference?: 'left' | 'right';
+  blade_curve?: string;
+  // Add more hockey-specific settings as needed
+}
+
+export interface BasketballSettings {
+  position?: string;
+  shoe_size?: number;
+  jersey_number?: number;
+  // Add more basketball-specific settings as needed
+}
+
+// Generic sport settings (stored in database)
+export interface SportSettings {
+  id: string;
+  profile_id: string;
+  sport_key: string;
+  settings: GolfSettings | HockeySettings | BasketballSettings | Record<string, unknown>;
+  created_at: string;
+  updated_at: string;
 }
