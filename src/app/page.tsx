@@ -224,7 +224,7 @@ export default function Home() {
         
         <div className="flex-grow flex items-center justify-center p-4">
           <div className="w-full max-w-3xl bg-white rounded-lg shadow-lg overflow-hidden">
-            <div className="w-full p-micro sm:p-base">
+            <div className="w-full p-6 sm:p-8">
               <h2 className="text-xl sm:text-2xl font-bold text-blue-800 space-micro">Create Athlete Account</h2>
               {error && (
                 <div className="bg-red-50 border border-red-200 text-red-600 px-4 py-3 rounded-md text-sm">
@@ -240,24 +240,24 @@ export default function Home() {
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
                     <label htmlFor="first-name" className="block text-sm font-medium text-gray-700 mb-1">First Name</label>
-                    <input 
-                      type="text" 
-                      id="firstName" 
+                    <input
+                      type="text"
+                      id="firstName"
                       value={formData.firstName}
                       onChange={handleInputChange}
-                      className="w-full px-3 py-2 sm:py-1 text-sm text-gray-800 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500" 
+                      className="w-full px-4 py-3 text-sm text-gray-800 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500"
                       placeholder="Enter first name"
                       required
                     />
                   </div>
                   <div>
                     <label htmlFor="lastName" className="block text-sm font-medium text-gray-700 mb-1">Last Name</label>
-                    <input 
-                      type="text" 
-                      id="lastName" 
+                    <input
+                      type="text"
+                      id="lastName"
                       value={formData.lastName}
                       onChange={handleInputChange}
-                      className="w-full px-3 py-2 sm:py-1 text-sm text-gray-800 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500" 
+                      className="w-full px-4 py-3 text-sm text-gray-800 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500"
                       placeholder="Enter last name"
                       required
                     />
@@ -271,47 +271,47 @@ export default function Home() {
                 />
                 <div>
                   <label htmlFor="nickname" className="block text-sm font-medium text-gray-700 mb-1">Nickname</label>
-                  <input 
-                    type="text" 
-                    id="nickname" 
+                  <input
+                    type="text"
+                    id="nickname"
                     value={formData.nickname}
                     onChange={handleInputChange}
-                    className="w-full px-3 py-2 sm:py-1 text-sm text-gray-800 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500" 
+                    className="w-full px-4 py-3 text-sm text-gray-800 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500"
                     placeholder="Enter nickname"
                   />
                 </div>
                 <div>
                   <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-1">Email</label>
-                  <input 
-                    type="email" 
-                    id="email" 
+                  <input
+                    type="email"
+                    id="email"
                     value={formData.email}
                     onChange={handleInputChange}
-                    className="w-full px-3 py-2 sm:py-1 text-sm text-gray-800 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500" 
+                    className="w-full px-4 py-3 text-sm text-gray-800 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500"
                     placeholder="Enter email"
                     required
                   />
                 </div>
                 <div>
                   <label htmlFor="phone" className="block text-sm font-medium text-gray-700 mb-1">Phone Number</label>
-                  <input 
-                    type="tel" 
-                    id="phone" 
+                  <input
+                    type="tel"
+                    id="phone"
                     value={formData.phone}
                     onChange={handleInputChange}
-                    className="w-full px-3 py-2 sm:py-1 text-sm text-gray-800 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500" 
+                    className="w-full px-4 py-3 text-sm text-gray-800 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500"
                     placeholder="Enter phone number"
                   />
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
                     <label htmlFor="birthday" className="block text-sm font-medium text-gray-700 mb-1">Birthday</label>
-                    <input 
-                      type="date" 
-                      id="birthday" 
+                    <input
+                      type="date"
+                      id="birthday"
                       value={formData.birthday}
                       onChange={handleInputChange}
-                      className="w-full px-3 py-2 sm:py-1 text-sm text-gray-800 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500"
+                      className="w-full px-4 py-3 text-sm text-gray-800 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500"
                     />
                   </div>
                   <div>
@@ -358,22 +358,22 @@ export default function Home() {
                   <div className="relative">
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       <div>
-                        <input 
-                          type="text" 
-                          id="location" 
+                        <input
+                          type="text"
+                          id="location"
                           value={formData.location}
                           onChange={handleInputChange}
-                          className="w-full px-3 py-2 sm:py-1 text-sm text-gray-800 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500" 
+                          className="w-full px-4 py-3 text-sm text-gray-800 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500"
                           placeholder="Enter your location"
                         />
                       </div>
                       <div className="relative">
-                        <input 
-                          type="text" 
-                          id="postalCode" 
+                        <input
+                          type="text"
+                          id="postalCode"
                           value={formData.postalCode}
                           onChange={handleInputChange}
-                          className="w-full px-3 py-2 sm:py-1 text-sm text-gray-800 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500 pr-8" 
+                          className="w-full px-4 py-3 text-sm text-gray-800 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500 pr-10"
                           placeholder="Enter postal code"
                         />
                         <button type="button" className="absolute right-2 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-blue-500 sm:hidden">
@@ -389,13 +389,13 @@ export default function Home() {
                 <div>
                   <label htmlFor="associated-clubs" className="block text-sm font-medium text-gray-700 mb-1">Associated Clubs</label>
                   <div className="relative">
-                    <input 
-                      type="text" 
-                      id="associated-clubs" 
-                      className="w-full px-3 py-2 sm:py-1 text-sm text-gray-800 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500 pr-8" 
+                    <input
+                      type="text"
+                      id="associated-clubs"
+                      className="w-full px-4 py-3 text-sm text-gray-800 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500 pr-10"
                       placeholder="Search for clubs"
                     />
-                    <button type="button" className="absolute right-2 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-blue-500">
+                    <button type="button" className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-blue-500">
                       <i className="fas fa-magnifying-glass text-sm"></i>
                     </button>
                   </div>
@@ -407,12 +407,12 @@ export default function Home() {
                 </div>
                 <div>
                   <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-1">Password</label>
-                  <input 
-                    type="password" 
-                    id="password" 
+                  <input
+                    type="password"
+                    id="password"
                     value={formData.password}
                     onChange={handleInputChange}
-                    className="w-full px-3 py-2 sm:py-1 text-sm text-gray-800 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500" 
+                    className="w-full px-4 py-3 text-sm text-gray-800 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500"
                     placeholder="Enter password"
                     required
                     minLength={6}
@@ -420,12 +420,12 @@ export default function Home() {
                 </div>
                 <div>
                   <label htmlFor="confirmPassword" className="block text-sm font-medium text-gray-700 mb-1">Confirm Password</label>
-                  <input 
-                    type="password" 
-                    id="confirmPassword" 
+                  <input
+                    type="password"
+                    id="confirmPassword"
                     value={formData.confirmPassword}
                     onChange={handleInputChange}
-                    className="w-full px-3 py-2 sm:py-1 text-sm text-gray-800 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500" 
+                    className="w-full px-4 py-3 text-sm text-gray-800 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500"
                     placeholder="Confirm password"
                     required
                     minLength={6}

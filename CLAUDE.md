@@ -631,6 +631,8 @@ const { notifications, unreadCount, markAsRead, markAllAsRead } = useNotificatio
 8. **Media uploads** - Use `/api/upload/post-media` with FormData
 9. **Search** - Use `/api/search?q=` for global search across athletes/posts/clubs
 10. **Notifications** - Wrap app with `NotificationsProvider` for global notification state
+11. **Form container padding** - Use generous padding (`p-6 sm:p-8` or larger) for form containers, not just input fields
+12. **Error handling** - Gracefully handle 401 auth errors in global providers (NotificationsProvider, etc.) to prevent errors on public pages
 
 ### Common Tasks
 

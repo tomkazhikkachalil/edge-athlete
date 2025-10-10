@@ -60,6 +60,13 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
 
     try {
       const response = await fetch('/api/notifications/unread-count');
+
+      // Silently handle auth errors
+      if (response.status === 401) {
+        console.log('[NOTIFICATIONS] Not authenticated, skipping unread count fetch');
+        return;
+      }
+
       if (response.ok) {
         const data = await response.json();
         setUnreadCount(data.count);
@@ -88,6 +95,12 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
 
       const response = await fetch(`/api/notifications?${params}`);
 
+      // Silently handle auth errors (expected when not logged in)
+      if (response.status === 401) {
+        console.log('[NOTIFICATIONS] Not authenticated, skipping notifications fetch');
+        return;
+      }
+
       if (!response.ok) {
         throw new Error('Failed to fetch notifications');
       }
@@ -106,7 +119,10 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
 
     } catch (err) {
       console.error('[NOTIFICATIONS] Error fetching notifications:', err);
-      setError(err instanceof Error ? err.message : 'Failed to fetch notifications');
+      // Don't set error state for auth issues to prevent red error messages on login page
+      if (err instanceof Error && !err.message.includes('Authentication')) {
+        setError(err.message);
+      }
     } finally {
       setLoading(false);
     }
