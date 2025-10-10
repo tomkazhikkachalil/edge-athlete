@@ -68,7 +68,7 @@ export default function FollowButton({
         setIsFollowing(false);
         setFollowStatus(null);
       }
-    } catch (err) {
+    } catch {
       // Silently handle errors for now (table might not exist yet)
       setFollowersCount(0);
       setIsFollowing(false);

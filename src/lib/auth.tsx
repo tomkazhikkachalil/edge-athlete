@@ -74,8 +74,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
               localStorage.removeItem('edge-athlete-user-cache');
               localStorage.removeItem('edge-athlete-profile-cache');
               // Also clear Supabase auth storage
-              const storageKey = `sb-${process.env.NEXT_PUBLIC_SUPABASE_URL?.split('//')[1]?.split('.')[0]}-auth-token`;
-              localStorage.removeItem(storageKey);
+              try {
+                const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+                if (supabaseUrl) {
+                  const projectId = supabaseUrl.split('//')[1]?.split('.')[0];
+                  if (projectId) {
+                    localStorage.removeItem(`sb-${projectId}-auth-token`);
+                  }
+                }
+              } catch {
+                // Silently handle storage key generation errors
+              }
             }
             // Reset state immediately
             setUser(null);
@@ -172,8 +181,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                 localStorage.removeItem('edge-athlete-user-cache');
                 localStorage.removeItem('edge-athlete-profile-cache');
                 // Also clear Supabase auth storage
-                const storageKey = `sb-${process.env.NEXT_PUBLIC_SUPABASE_URL?.split('//')[1]?.split('.')[0]}-auth-token`;
-                localStorage.removeItem(storageKey);
+                try {
+                  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+                  if (supabaseUrl) {
+                    const projectId = supabaseUrl.split('//')[1]?.split('.')[0];
+                    if (projectId) {
+                      localStorage.removeItem(`sb-${projectId}-auth-token`);
+                    }
+                  }
+                } catch {
+                  // Silently handle storage key generation errors
+                }
               }
               // Don't throw or log - this is expected behavior when token expires
               return;

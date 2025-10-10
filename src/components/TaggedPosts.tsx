@@ -2,7 +2,6 @@
 
 import { useState, useEffect } from 'react';
 import PostCard from './PostCard';
-import { useAuth } from '@/lib/auth';
 
 interface TaggedPostsProps {
   profileId: string;

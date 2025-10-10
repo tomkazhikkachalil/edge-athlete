@@ -487,7 +487,6 @@ export async function PUT(request: NextRequest) {
     const {
       postId,
       caption = '',
-      tags = [],
       taggedProfiles = [],
       hashtags = [],
       visibility = 'public'

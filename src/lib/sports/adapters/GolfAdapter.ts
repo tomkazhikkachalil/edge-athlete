@@ -49,7 +49,7 @@ export class GolfAdapter extends BaseSportAdapter {
           value: '45%'
         }
       ];
-    } catch (error) {
+    } catch (_error) {
       // Error fetching golf highlights
       // Return empty tiles on error
       return await super.getHighlights(profileId, season);
@@ -100,7 +100,7 @@ export class GolfAdapter extends BaseSportAdapter {
         hasMore: sampleRounds.length > limit,
         nextCursor: sampleRounds.length > limit ? 'cursor-next' : undefined
       };
-    } catch (error) {
+    } catch (_error) {
       // Error fetching golf activity
       return {
         rows: [],
@@ -131,11 +131,11 @@ export class GolfAdapter extends BaseSportAdapter {
     }
   }
   
-  async composePost(context: PostContext): Promise<void> {
+  async composePost(_context: PostContext): Promise<void> {
     try {
       // TODO: Implement golf post composer
       // For now, show that it's functional
-      
+
       // Opening golf post composer
       
       // Would open golf-specific post composer here with:
@@ -163,7 +163,7 @@ export class GolfAdapter extends BaseSportAdapter {
    * Calculate golf aggregates after round save
    * Called by round save operations to update highlights
    */
-  async updateGolfAggregates(profileId: string): Promise<void> {
+  async updateGolfAggregates(_profileId: string): Promise<void> {
     try {
       // TODO: Implement golf stats calculation
       // - Last 5 rounds average
@@ -172,10 +172,11 @@ export class GolfAdapter extends BaseSportAdapter {
       // - GIR percentage (greens in regulation)
       // - Average putts per round
       // - Scrambling percentage
-      
+
+
       // Updating golf aggregates
-      
-    } catch (error) {
+
+    } catch (_error) {
       // Error updating golf aggregates
     }
   }

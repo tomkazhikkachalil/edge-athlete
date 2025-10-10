@@ -7,9 +7,8 @@ import LazyImage from './LazyImage';
 import type { Profile, AthleteBadge, SeasonHighlight, Performance } from '@/lib/supabase';
 import { getSportDefinition, getEnabledSports, getAllSports } from '@/lib/sports';
 import { COPY, getComingSoonMessage } from '@/lib/copy';
-import { 
-  formatHeight, 
-  formatDisplayName,
+import {
+  formatHeight,
   getInitials,
   formatSocialHandle,
   validateHeight
@@ -371,8 +370,8 @@ export default function EditProfileTabs({
           throw new Error(error.error || 'Failed to save changes');
         }
 
-        const result = await response.json();
-        
+        await response.json();
+
         showSuccess('Changes Saved', `${TABS.find(t => t.id === tabId)?.label} updated successfully!`);
         onSave(); // Refresh parent data
       }

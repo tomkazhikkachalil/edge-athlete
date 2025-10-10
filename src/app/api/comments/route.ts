@@ -43,9 +43,6 @@ export async function GET(request: NextRequest) {
 
     const supabase = createSupabaseServerClient(request);
 
-    // Get current user for like status
-    const { data: { user } } = await supabase.auth.getUser();
-
     // Fetch comments with profile data and likes
     const { data: comments, error } = await supabase
       .from('post_comments')

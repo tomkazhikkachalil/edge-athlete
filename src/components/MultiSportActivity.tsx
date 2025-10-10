@@ -1,11 +1,21 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { getSportDefinition, getAllSports, getSportAdapter, type ActivityRow } from '@/lib/sports';
+import { getSportDefinition, getSportAdapter } from '@/lib/sports';
 import { getPlaceholder } from '@/lib/config';
-import { formatDate } from '@/lib/formatters';
-import { COPY, getComingSoonMessage, getEmptyStateMessage, getActivityEncouragement } from '@/lib/copy';
-import { getSportColorClasses, getNeutralColorClasses, cssClasses, getButtonClasses } from '@/lib/design-tokens';
+import { COPY } from '@/lib/copy';
+import { cssClasses } from '@/lib/design-tokens';
+
+interface ActivityRow {
+  id: string;
+  col1: string;
+  col2: string;
+  col3: string;
+  col4: string;
+  col5?: string;
+  canEdit?: boolean;
+  canDelete?: boolean;
+}
 
 interface MultiSportActivityProps {
   profileId: string;
@@ -14,7 +24,7 @@ interface MultiSportActivityProps {
   onDelete?: (sportKey: string, entityId: string) => void;
 }
 
-export default function MultiSportActivity({ profileId, canEdit = true, onEdit, onDelete }: MultiSportActivityProps) {
+export default function MultiSportActivity({ profileId, onEdit, onDelete }: MultiSportActivityProps) {
   const [activeSportKey, setActiveSportKey] = useState('golf'); // Golf is default active
   const [activityData, setActivityData] = useState<Record<string, ActivityRow[]>>({});
   const [loading, setLoading] = useState<Record<string, boolean>>({});
@@ -29,12 +39,12 @@ export default function MultiSportActivity({ profileId, canEdit = true, onEdit, 
 
       const adapter = getSportAdapter(sportKey as any);
       const result = await adapter.getRecentActivity(profileId, 10);
-      
+
       setActivityData(prev => ({
         ...prev,
         [sportKey]: result.rows
       }));
-    } catch (error) {
+    } catch (_error) {
       // Error loading activity
       setActivityData(prev => ({
         ...prev,

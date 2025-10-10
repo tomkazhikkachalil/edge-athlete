@@ -183,7 +183,7 @@ export class GolfCourseService {
     // Zyla Golf API integration (ready for when API key is added)
     if (API_CONFIG.zylaGolf.enabled && API_CONFIG.zylaGolf.apiKey && results.length < limit) {
       try {
-        const zylaResults = await this.searchZylaGolf(query, limit - results.length, options);
+        const zylaResults = await this.searchZylaGolf(query, limit - results.length);
         results.push(...zylaResults);
       } catch (error) {
         console.warn('Zyla Golf search failed:', error);
@@ -254,7 +254,7 @@ export class GolfCourseService {
   /**
    * Zyla Golf API search implementation (ready for use)
    */
-  private static async searchZylaGolf(query: string, limit: number, options?: SearchOptions): Promise<GolfCourse[]> {
+  private static async searchZylaGolf(query: string, limit: number): Promise<GolfCourse[]> {
     const params = new URLSearchParams({
       courseName: query,
       limit: limit.toString()

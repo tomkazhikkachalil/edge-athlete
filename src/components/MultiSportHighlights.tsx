@@ -1,11 +1,15 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { getSportDefinition, getEnabledSports, getAllSports, getSportAdapter, type HighlightTile } from '@/lib/sports';
+import { getSportDefinition, getAllSports, getSportAdapter } from '@/lib/sports';
 import { getSeasonDisplayName, PLACEHOLDERS } from '@/lib/config';
-import { formatScore } from '@/lib/formatters';
-import { COPY, getComingSoonMessage } from '@/lib/copy';
+import { COPY } from '@/lib/copy';
 import { getSportColorClasses, getNeutralColorClasses, cssClasses } from '@/lib/design-tokens';
+
+interface HighlightTile {
+  label: string;
+  value: string | number | null;
+}
 
 interface MultiSportHighlightsProps {
   profileId: string;
@@ -44,7 +48,7 @@ export default function MultiSportHighlights({ profileId, canEdit = true, onEdit
         }
         
         setHighlightData(data);
-      } catch (error) {
+      } catch (_error) {
         // Error loading sport highlights
       } finally {
         setLoading(false);

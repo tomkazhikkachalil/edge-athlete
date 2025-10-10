@@ -98,7 +98,7 @@ export async function GET(request: NextRequest) {
         } else {
           throw new Error('Fallback to ILIKE');
         }
-      } catch (error) {
+      } catch {
         // Fallback to ILIKE search if full-text search fails
         console.log('[SEARCH] Falling back to ILIKE search for athletes');
         const searchPattern = `%${query}%`;
@@ -207,7 +207,7 @@ export async function GET(request: NextRequest) {
         } else {
           throw new Error('Fallback to ILIKE');
         }
-      } catch (error) {
+      } catch {
         // Fallback to ILIKE search if full-text search fails
         console.log('[SEARCH] Falling back to ILIKE search for posts');
         const searchPattern = `%${query}%`;
@@ -283,7 +283,7 @@ export async function GET(request: NextRequest) {
         } else {
           throw new Error('Fallback to ILIKE');
         }
-      } catch (error) {
+      } catch {
         // Fallback to ILIKE search if full-text search fails
         console.log('[SEARCH] Falling back to ILIKE search for clubs');
         const searchPattern = `%${query}%`;

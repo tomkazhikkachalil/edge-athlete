@@ -75,7 +75,7 @@ export default function RecentPosts({
       
       // Notify parent of posts count
       onPostsLoad?.(postsData.length);
-    } catch (err) {
+    } catch (_err) {
       setError('Failed to load posts');
       showError('Error', 'Failed to load posts');
     } finally {
@@ -118,12 +118,12 @@ export default function RecentPosts({
           return post;
         })
       );
-    } catch (err) {
+    } catch (_err) {
       showError('Error', 'Failed to like post');
     }
   };
 
-  const handleComment = (postId: string) => {
+  const handleComment = () => {
     // Comments are handled within CommentSection component
   };
 

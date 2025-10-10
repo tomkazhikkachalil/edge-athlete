@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect } from 'react';
 import { formatDistanceToNow } from 'date-fns';
 import { useRouter } from 'next/navigation';
 import LazyImage from './LazyImage';
@@ -88,7 +88,7 @@ export default function PostCard({
   );
   const [localLikesCount, setLocalLikesCount] = useState(post.likes_count);
   const [localCommentsCount, setLocalCommentsCount] = useState(post.comments_count);
-  const [localSavesCount, setLocalSavesCount] = useState(post.saves_count || 0);
+  const [, setLocalSavesCount] = useState(post.saves_count || 0);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
   // Update isLiked state when post.likes array changes
@@ -220,7 +220,7 @@ export default function PostCard({
       await navigator.clipboard.writeText(shareUrl);
       showShareSuccess();
       return;
-    } catch (clipboardError) {
+    } catch {
       // Clipboard API blocked, use legacy method
       console.log('Clipboard API blocked, using legacy method');
     }
@@ -501,7 +501,7 @@ export default function PostCard({
         {post.tagged_profiles && post.tagged_profiles.length > 0 && (
           <div className="flex flex-wrap gap-2 mb-3 items-center">
             <span className="text-sm text-gray-600">with</span>
-            {post.tagged_profiles.map((taggedProfile, index) => {
+            {post.tagged_profiles.map((taggedProfile) => {
               const taggedDisplayName = formatDisplayName(
                 taggedProfile.first_name,
                 null,

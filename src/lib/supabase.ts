@@ -1,12 +1,16 @@
 import { createClient } from '@supabase/supabase-js';
 import { createBrowserClient } from '@supabase/ssr';
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
+const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
 const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
 if (!supabaseUrl || !supabaseAnonKey) {
-  // Missing required Supabase environment variables
+  console.error('Missing required Supabase environment variables. Please set NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY');
+  // Provide helpful error message in development
+  if (process.env.NODE_ENV === 'development') {
+    throw new Error('Missing Supabase environment variables. Check your .env.local file.');
+  }
 }
 
 // Supabase configuration loaded
@@ -18,14 +22,34 @@ let supabaseInstance: ReturnType<typeof createBrowserClient> | null = null;
 export function getSupabaseBrowserClient() {
   if (supabaseInstance) return supabaseInstance;
 
+  if (!supabaseUrl || !supabaseAnonKey) {
+    throw new Error('Cannot initialize Supabase client: missing environment variables');
+  }
+
   supabaseInstance = createBrowserClient(supabaseUrl, supabaseAnonKey);
   return supabaseInstance;
 }
 
 // For backward compatibility, export as supabase
-export const supabase = typeof window !== 'undefined'
-  ? getSupabaseBrowserClient()
-  : createClient(supabaseUrl, supabaseAnonKey); // Fallback for SSR contexts
+// Create a safe default that will work in SSR but throw helpful errors if env vars are missing
+export const supabase = (() => {
+  try {
+    if (typeof window !== 'undefined') {
+      return getSupabaseBrowserClient();
+    } else {
+      // SSR context
+      if (supabaseUrl && supabaseAnonKey) {
+        return createClient(supabaseUrl, supabaseAnonKey);
+      }
+      // Return a dummy client for SSR - will fail gracefully if actually used
+      return createClient('https://placeholder.supabase.co', 'placeholder-key');
+    }
+  } catch (error) {
+    console.error('Failed to initialize Supabase client:', error);
+    // Return a dummy client that will fail gracefully
+    return createClient('https://placeholder.supabase.co', 'placeholder-key');
+  }
+})();
 
 // Server-side Supabase client with service role key (bypasses RLS)
 export const supabaseAdmin = supabaseServiceRoleKey 

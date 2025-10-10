@@ -249,7 +249,7 @@ export default function CreatePostModal({
   const generateGolfCaption = () => {
     if (!golfRoundData || postType !== 'golf') return '';
 
-    const { holesData, courseName, coursePar } = golfRoundData;
+    const { holesData, courseName } = golfRoundData;
     const scoredHoles = holesData?.filter((h: any) => h.score !== undefined) || [];
 
     if (scoredHoles.length === 0) return '';

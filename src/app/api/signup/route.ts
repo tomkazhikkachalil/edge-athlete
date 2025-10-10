@@ -110,50 +110,69 @@ export async function POST(request: NextRequest) {
     // Update the profile with additional data (using admin client to bypass RLS if available)
     if (data.user) {
       const client = supabaseAdmin || supabase;
-      
+
       // Create a full name from first and last name
       const fullName = [profileData.first_name, profileData.last_name]
         .filter(Boolean)
         .join(' ') || undefined;
 
+      // Prepare update data
+      const updateData: Record<string, unknown> = {
+        // Original fields
+        email: email.toLowerCase(), // Ensure email is set
+        first_name: profileData.first_name,
+        last_name: profileData.last_name,
+        nickname: profileData.nickname,
+        phone: profileData.phone,
+        birthday: profileData.birthday,
+        gender: profileData.gender,
+        location: profileData.location,
+        postal_code: profileData.postal_code,
+        user_type: profileData.user_type || 'athlete',
+
+        // Athlete-specific fields
+        full_name: fullName,
+        // Use birthday as DOB if provided
+        dob: profileData.birthday,
+      };
+
+      // Add handle if provided
+      if (profileData.handle) {
+        updateData.handle = profileData.handle.toLowerCase().trim();
+      }
+
       const { error: profileError } = await client
         .from('profiles')
-        .update({
-          // Original fields
-          first_name: profileData.first_name,
-          last_name: profileData.last_name,
-          nickname: profileData.nickname,
-          phone: profileData.phone,
-          birthday: profileData.birthday,
-          gender: profileData.gender,
-          location: profileData.location,
-          postal_code: profileData.postal_code,
-          user_type: profileData.user_type || 'athlete',
-
-          // Athlete-specific fields
-          full_name: fullName,
-          // Use birthday as DOB if provided
-          dob: profileData.birthday,
-          // We can derive bio from other info later, for now keep it empty for user to fill
-
-          // Handle (unique identifier)
-          handle: profileData.handle,
-        })
+        .update(updateData)
         .eq('id', data.user.id);
 
       if (profileError) {
         console.error('Error updating profile:', profileError);
-        // Don't return error here as user was created successfully
+
+        // Check if it's a handle uniqueness error
+        if (profileError.message?.includes('handle') ||
+            profileError.message?.includes('duplicate') ||
+            profileError.code === '23505') {
+          return NextResponse.json(
+            { error: 'This handle is already taken. Please choose a different one.' },
+            { status: 409 }
+          );
+        }
+
+        // For other errors, still return success since auth user was created
+        console.warn('Profile update failed but user created:', profileError);
       }
-      
+
       // Log successful profile update for debugging
       console.log('Profile updated for user:', data.user.id, 'with data:', {
+        email: email.toLowerCase(),
         full_name: fullName,
         first_name: profileData.first_name,
         last_name: profileData.last_name,
         nickname: profileData.nickname,
         location: profileData.location,
-        dob: profileData.birthday
+        dob: profileData.birthday,
+        handle: profileData.handle
       });
     }
 

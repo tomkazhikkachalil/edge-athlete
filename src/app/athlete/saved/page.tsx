@@ -49,7 +49,7 @@ interface SavedPost {
 
 export default function SavedPostsPage() {
   const router = useRouter();
-  const { user, profile } = useAuth();
+  const { user } = useAuth();
   const [savedPosts, setSavedPosts] = useState<SavedPost[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);

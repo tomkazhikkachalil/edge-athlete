@@ -5,7 +5,6 @@ import { useAuth } from '@/lib/auth';
 import { useRouter, useParams } from 'next/navigation';
 import { ToastContainer, useToast } from '@/components/Toast';
 import LazyImage from '@/components/LazyImage';
-import RecentPosts from '@/components/RecentPosts';
 import FollowButton from '@/components/FollowButton';
 import PrivateProfileView from '@/components/PrivateProfileView';
 import ProfileMediaTabs from '@/components/ProfileMediaTabs';

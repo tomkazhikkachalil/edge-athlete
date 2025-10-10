@@ -11,7 +11,6 @@ import SeasonHighlightsModal from '@/components/SeasonHighlightsModal';
 import PerformanceModal from '@/components/PerformanceModal';
 import LazyImage from '@/components/LazyImage';
 import CreatePostModal from '@/components/CreatePostModal';
-import RecentPosts from '@/components/RecentPosts';
 import ProfileMediaTabs from '@/components/ProfileMediaTabs';
 import NotificationsDropdown from '@/components/NotificationsDropdown';
 import type { AthleteBadge, SeasonHighlight, Performance, Profile } from '@/lib/supabase';
@@ -44,7 +43,7 @@ export default function AthleteProfilePage() {
   const [editingSportKey, setEditingSportKey] = useState<string>('');
   const [editingHighlight, setEditingHighlight] = useState<SeasonHighlight | undefined>();
   const [isPerformanceModalOpen, setIsPerformanceModalOpen] = useState(false);
-  const [editingPerformance, setEditingPerformance] = useState<Performance | undefined>();
+  const [editingPerformance] = useState<Performance | undefined>();
   const [avatarUploading, setAvatarUploading] = useState(false);
   const [submitStates, setSubmitStates] = useState<Record<string, boolean>>({});
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -55,9 +54,6 @@ export default function AthleteProfilePage() {
 
   // Posts count for stats display
   const [postsCount, setPostsCount] = useState(0);
-
-  // Posts refresh key - increment to force RecentPosts to reload
-  const [postsRefreshKey, setPostsRefreshKey] = useState(0);
 
   // Follow stats
   const [followersCount, setFollowersCount] = useState(0);
@@ -1128,10 +1124,7 @@ export default function AthleteProfilePage() {
         isOpen={isCreatePostModalOpen}
         onClose={() => setIsCreatePostModalOpen(false)}
         userId={user?.id || ''}
-        onPostCreated={(post) => {
-          console.log('Post created, refreshing feed...', post);
-          // Force RecentPosts to reload by changing its key
-          setPostsRefreshKey(prev => prev + 1);
+        onPostCreated={() => {
           // Refresh athlete data
           if (user?.id) {
             loadAthleteData(user.id, true);

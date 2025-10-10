@@ -4,18 +4,6 @@ import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useToast } from '@/components/Toast';
 import type { GolfCourse } from '@/lib/golf-courses-db';
 
-// Popular golf courses for autocomplete
-const POPULAR_COURSES = [
-  { name: 'Pebble Beach Golf Links', location: 'California', par: 72, rating: 75.5, slope: 145 },
-  { name: 'Augusta National Golf Club', location: 'Georgia', par: 72, rating: 78.1, slope: 155 },
-  { name: 'St. Andrews Old Course', location: 'Scotland', par: 72, rating: 74.4, slope: 140 },
-  { name: 'Pinehurst No. 2', location: 'North Carolina', par: 72, rating: 75.3, slope: 147 },
-  { name: 'TPC Sawgrass', location: 'Florida', par: 72, rating: 76.8, slope: 155 },
-  { name: 'Bethpage Black', location: 'New York', par: 71, rating: 78.1, slope: 155 },
-  { name: 'Torrey Pines South', location: 'California', par: 72, rating: 78.5, slope: 143 },
-  { name: 'Kiawah Island Ocean Course', location: 'South Carolina', par: 72, rating: 77.6, slope: 149 }
-];
-
 // Tee box options
 const TEE_OPTIONS = [
   { value: 'black', label: 'Black/Tips', color: 'bg-black' },
@@ -62,8 +50,8 @@ interface GolfScorecardFormProps {
   initialData?: Partial<GolfRoundData>;
 }
 
-export default function GolfScorecardForm({ onDataChange, initialData }: GolfScorecardFormProps) {
-  const { showError, showSuccess } = useToast();
+export default function GolfScorecardForm({ onDataChange }: GolfScorecardFormProps) {
+  const { showSuccess } = useToast();
 
   // Course info
   const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
@@ -283,30 +271,6 @@ export default function GolfScorecardForm({ onDataChange, initialData }: GolfSco
     return { text: hole.score, color: 'text-red-600' }; // Double+
   };
 
-  // Calculate running score up to a hole
-  const getRunningScore = (upToHole: number) => {
-    const currentNineHoles = holesData.filter(hole => {
-      if (holeCount === '9') return true;
-      return activeTab === 'front' ? hole.hole <= 9 : hole.hole > 9;
-    });
-
-    const relevantHoles = currentNineHoles.filter(h => h.hole <= upToHole && h.score);
-    return relevantHoles.reduce((sum, h) => sum + (h.score || 0), 0);
-  };
-
-  // Get hole description for display
-  const getHoleDescription = (hole: HoleData) => {
-    if (!hole.score) return '';
-    const diff = hole.score - hole.par;
-    if (diff <= -3) return 'Albatross';
-    if (diff === -2) return 'Eagle';
-    if (diff === -1) return 'Birdie';
-    if (diff === 0) return 'Par';
-    if (diff === 1) return 'Bogey';
-    if (diff === 2) return 'Double';
-    if (diff === 3) return 'Triple';
-    return `+${diff}`;
-  };
 
   // Notify parent of data changes (with stable callback)
   useEffect(() => {
@@ -455,7 +419,7 @@ export default function GolfScorecardForm({ onDataChange, initialData }: GolfSco
               <div className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-lg shadow-lg">
                 <div className="px-4 py-3 text-center text-gray-500">
                   <i className="fas fa-search mr-2"></i>
-                  No courses found. Try "Pebble Beach" or "Augusta"
+                  No courses found. Try &quot;Pebble Beach&quot; or &quot;Augusta&quot;
                 </div>
               </div>
             )}

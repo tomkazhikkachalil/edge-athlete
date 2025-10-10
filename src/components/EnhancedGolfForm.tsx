@@ -33,12 +33,11 @@ interface GolfHoleData {
 
 interface EnhancedGolfFormProps {
   onDataChange: (data: { mode: 'round_recap' | 'hole_highlight'; roundData?: GolfRoundData; holeData?: GolfHoleData }) => void;
-  initialData?: any;
 }
 
 type GolfMode = 'round_recap' | 'hole_highlight';
 
-export default function EnhancedGolfForm({ onDataChange, initialData }: EnhancedGolfFormProps) {
+export default function EnhancedGolfForm({ onDataChange }: EnhancedGolfFormProps) {
   const { showError } = useToast();
   
   // Mode selection

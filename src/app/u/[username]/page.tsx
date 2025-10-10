@@ -2,10 +2,10 @@
 
 import { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
+import Link from 'next/link';
 
 export default function PublicProfilePage() {
   const params = useParams();
-  const [profile, setProfile] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
 
@@ -22,15 +22,14 @@ export default function PublicProfilePage() {
         // }
         // const data = await response.json();
         // setProfile(data);
-        
+
         // For now, show coming soon message
         setTimeout(() => {
           setNotFound(false);
-          setProfile({ username, comingSoon: true });
           setLoading(false);
         }, 1000);
-        
-      } catch (error) {
+
+      } catch {
         // Failed to load public profile
         setNotFound(true);
         setLoading(false);
@@ -59,13 +58,13 @@ export default function PublicProfilePage() {
         <div className="text-center">
           <h1 className="text-4xl font-bold text-gray-900 mb-4">Profile Not Found</h1>
           <p className="text-gray-600 mb-8">The profile @{username} does not exist or is private.</p>
-          <a
+          <Link
             href="/"
             className="inline-flex items-center px-4 py-2 border border-transparent text-base font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 transition-colors"
           >
             <i className="fas fa-home mr-2"></i>
             Go Home
-          </a>
+          </Link>
         </div>
       </div>
     );

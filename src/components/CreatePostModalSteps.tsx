@@ -50,7 +50,6 @@ interface StepContentProps {
   onDrop: (e: React.DragEvent<HTMLDivElement>) => void;
   onFileSelect: (e: React.ChangeEvent<HTMLInputElement>) => void;
   onRemoveMedia: (fileId: string) => void;
-  onReorderMedia: (dragIndex: number, dropIndex: number) => void;
   onGolfDataChange: (data: Partial<GolfData>) => void;
   onCaptionChange: (caption: string) => void;
   onVisibilityChange: (visibility: 'public' | 'private') => void;
@@ -68,7 +67,6 @@ export function StepContent({
   onDrop,
   onFileSelect,
   onRemoveMedia,
-  onReorderMedia,
   onGolfDataChange,
   onCaptionChange,
   onVisibilityChange,
@@ -135,7 +133,7 @@ export function StepContent({
               Media Files ({mediaFiles.length})
             </h4>
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-micro">
-              {mediaFiles.map((file, index) => (
+              {mediaFiles.map((file) => (
                 <div
                   key={file.id}
                   className="relative group bg-gray-100 rounded-lg overflow-hidden aspect-square"
@@ -182,9 +180,8 @@ export function StepContent({
   if (currentStep === 'stats') {
     if (selectedType === 'golf') {
       return (
-        <EnhancedGolfForm 
+        <EnhancedGolfForm
           onDataChange={onGolfDataChange}
-          initialData={golfData}
         />
       );
     } else {
