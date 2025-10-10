@@ -531,6 +531,26 @@ Golf is the reference implementation for the sport adapter pattern:
 - Typography locked to 6-size scale
 - Sport colors from registry via `brand_color_token`
 
+**Text Contrast Standards (January 2025):**
+- **User Names**: Always bold black (`text-black font-bold`) for maximum visibility
+- **Handles/Tags**: Always light gray (`text-gray-500`) for consistent secondary text
+- **Body Text**: Black or dark gray (`text-black`, `text-gray-900`) with appropriate font weights
+- **Section Headers**: Solid black (`text-black`) with bold/semibold fonts
+- **Stat Labels**: Bold black or dark gray (`text-gray-900 font-bold`)
+- **Stat Values**: Solid black (`text-black`) for emphasis
+- **Never use**: Light grays (text-gray-400/500/600) for primary content text
+- **Accessibility**: Maintain strong contrast ratios for readability
+
+**Profile Display Standards:**
+- **Profile Pictures**:
+  - Own profile: 128-192px (responsive)
+  - Other users' profiles: 192px (larger for emphasis)
+  - Score badges proportionally scaled
+- **Name Display Pattern**:
+  - First line: Bold black name
+  - Second line: Light gray handle
+  - Consistent across feed, profiles, search results
+
 **CSS Classes (in `src/app/globals.css`):**
 ```css
 .space-micro { margin-bottom: 12px; }

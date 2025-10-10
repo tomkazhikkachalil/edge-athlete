@@ -45,7 +45,9 @@ export async function GET(request: NextRequest) {
             middle_name,
             last_name,
             avatar_url,
-            handle
+            handle,
+            sport,
+            school
           )
         `)
         .eq('following_id', profileId)
@@ -85,7 +87,9 @@ export async function GET(request: NextRequest) {
             middle_name,
             last_name,
             avatar_url,
-            handle
+            handle,
+            sport,
+            school
           )
         `)
         .eq('follower_id', profileId)

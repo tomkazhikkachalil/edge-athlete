@@ -330,7 +330,7 @@ export default function PostCard({
               <div className="flex items-center gap-2">
                 <h3 className="font-bold text-gray-900 text-base hover:text-blue-600 transition-colors">{displayName}</h3>
                 {getHandle(post.profile) && (
-                  <span className="text-sm text-gray-500">{getHandle(post.profile)}</span>
+                  <span className="text-sm text-gray-900 font-medium">{getHandle(post.profile)}</span>
                 )}
               </div>
               <div className="flex items-center gap-2 flex-wrap">
@@ -362,14 +362,14 @@ export default function PostCard({
             <>
               <button
                 onClick={() => onEdit?.(post.id)}
-                className="text-gray-400 hover:text-blue-600 transition-colors p-2 rounded-full hover:bg-blue-50"
+                className="text-gray-800 hover:text-blue-600 transition-colors p-2 rounded-full hover:bg-blue-50"
                 title="Edit post"
               >
                 <i className="fas fa-edit text-sm"></i>
               </button>
               <button
                 onClick={handleDeleteClick}
-                className="text-gray-400 hover:text-red-600 transition-colors p-2 rounded-full hover:bg-red-50"
+                className="text-gray-800 hover:text-red-600 transition-colors p-2 rounded-full hover:bg-red-50"
                 title="Delete post"
               >
                 <i className="fas fa-trash text-sm"></i>
@@ -909,7 +909,7 @@ export default function PostCard({
         {/* Sport Stats */}
         {post.stats_data && post.sport_key === 'golf' && (
           <div className="bg-gray-50 rounded-lg p-micro mt-micro">
-            <div className="text-xs text-gray-600 mb-1">Golf Stats</div>
+            <div className="text-xs text-gray-900 mb-1 font-bold">Golf Stats</div>
             {post.stats_data.type === 'round_recap' && (
               <div className="grid grid-cols-2 gap-2 text-xs">
                 <div>

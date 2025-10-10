@@ -274,7 +274,7 @@ export default function PostDetailModal({
       const response = await fetch('/api/posts/like', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ postId })
+        body: JSON.stringify({ postId, profileId: currentUserId })
       });
 
       if (!response.ok) {

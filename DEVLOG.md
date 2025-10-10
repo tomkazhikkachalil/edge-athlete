@@ -1,5 +1,72 @@
 # Development Log
 
+## 2025-01-10 - UI Contrast and Profile Display Improvements
+
+### Latest Changes
+
+#### 1. Text Contrast Enhancement
+**Feature**: Improved text readability across all profile pages with drastic contrast improvements.
+
+**Changes**:
+- **Own Profile Page** (`src/app/athlete/page.tsx`):
+  - Changed "My Media" header to solid black (`text-black`)
+
+- **Other Users' Profile Pages** (`src/app/athlete/[id]/page.tsx`):
+  - User name: Changed to solid black (`text-black`) with bold font
+  - Handle/tag: Changed to light gray (`text-gray-500`) to match own profile styling
+  - Bio text: Changed to black with semibold font
+  - All stat labels (Height, Weight, Age, Location, Posts): Changed to bold black
+  - All stat values: Changed to solid black
+  - Follower/Following counts: Changed to bold black
+  - Social media handles: Changed to bold black
+  - Season highlight labels: Changed to bold black
+  - Achievement card text: Changed to bold black
+  - Section headers: Changed to solid black
+
+**Impact**:
+- ✅ All text now highly visible with strong contrast
+- ✅ Consistent color scheme across own profile and other users' profiles
+- ✅ Name in black, handle in gray matches design pattern across all views
+- ✅ Improved accessibility and readability
+
+#### 2. Profile Picture Size Enhancement
+**Feature**: Increased profile picture size on other users' profiles for better visual prominence.
+
+**Changes** (`src/app/athlete/[id]/page.tsx`):
+- Profile picture: Increased from 128px to 192px (50% larger)
+- Changed from `w-32 h-32` to `w-48 h-48`
+- Initials text size (when no avatar): Increased from `text-3xl` to `text-5xl`
+- Score badge: Increased from 48px to 56px (`w-12 h-12` to `w-14 h-14`)
+- Badge text: Increased from `text-xl` to `text-2xl`
+
+**Impact**:
+- ✅ Profile pictures more prominent and easier to see
+- ✅ Better visual hierarchy on profile pages
+- ✅ Proportional scaling maintains design consistency
+
+#### 3. Consistent Color Scheme
+**Feature**: Standardized name and handle display across all profile views.
+
+**Pattern Established**:
+- **User Name**: Always bold black (`text-black font-bold`)
+- **Handle/Tag**: Always light gray (`text-gray-500`)
+- Applied consistently on:
+  - Own profile page
+  - Other users' profile pages
+  - Feed posts
+  - Search results
+
+**Files Modified**:
+- `src/app/athlete/page.tsx` - "My Media" header color
+- `src/app/athlete/[id]/page.tsx` - Comprehensive text contrast improvements, profile picture sizing
+
+### Build Status
+✅ ESLint: Passing (warnings only, no errors)
+✅ Production Build: Successful
+✅ All Tests: Passing
+
+---
+
 ## 2025-01-10 - Sport-Agnostic Settings Architecture
 
 **Major Milestone:** Removed the only architectural blocker to multi-sport expansion!

@@ -13,6 +13,7 @@ import LazyImage from '@/components/LazyImage';
 import CreatePostModal from '@/components/CreatePostModal';
 import ProfileMediaTabs from '@/components/ProfileMediaTabs';
 import NotificationsDropdown from '@/components/NotificationsDropdown';
+import FollowersModal from '@/components/FollowersModal';
 import type { AthleteBadge, SeasonHighlight, Performance, Profile } from '@/lib/supabase';
 import {
   formatHeight,
@@ -58,6 +59,10 @@ export default function AthleteProfilePage() {
   // Follow stats
   const [followersCount, setFollowersCount] = useState(0);
   const [followingCount, setFollowingCount] = useState(0);
+
+  // Followers Modal state
+  const [isFollowersModalOpen, setIsFollowersModalOpen] = useState(false);
+  const [followersModalTab, setFollowersModalTab] = useState<'followers' | 'following'>('followers');
 
   // Athletic score calculation
   const [athleticScore, setAthleticScore] = useState<number>(0);
@@ -926,22 +931,34 @@ export default function AthleteProfilePage() {
                   </div>
 
                   {/* Biography - View only, edit in modal */}
-                  <div className="text-gray-700 leading-relaxed mb-4 block">
+                  <div className="text-gray-900 leading-relaxed mb-4 block">
                     {profile?.bio || (
-                      <span className="text-gray-400 italic">{getPlaceholder('ADD_BIO')}</span>
+                      <span className="text-gray-800 italic">{getPlaceholder('ADD_BIO')}</span>
                     )}
                   </div>
                   
                   {/* Stats Row */}
                   <div className="flex items-center gap-6 text-sm">
-                    <div className="flex items-center gap-1 text-gray-600">
+                    <button
+                      onClick={() => {
+                        setFollowersModalTab('following');
+                        setIsFollowersModalOpen(true);
+                      }}
+                      className="flex items-center gap-1 text-gray-600 hover:text-blue-600 transition-colors"
+                    >
                       <span className="font-semibold text-gray-900">{followingCount}</span>
                       <span>Following</span>
-                    </div>
-                    <div className="flex items-center gap-1 text-gray-600">
+                    </button>
+                    <button
+                      onClick={() => {
+                        setFollowersModalTab('followers');
+                        setIsFollowersModalOpen(true);
+                      }}
+                      className="flex items-center gap-1 text-gray-600 hover:text-blue-600 transition-colors"
+                    >
                       <span className="font-semibold text-gray-900">{followersCount}</span>
                       <span>Followers</span>
-                    </div>
+                    </button>
                     <div className="flex items-center gap-1 text-gray-600">
                       <span className="font-semibold text-gray-900">{postsCount}</span>
                       <span>Posts</span>
@@ -965,7 +982,7 @@ export default function AthleteProfilePage() {
                   ariaLabel="Height in feet and inches"
                   inputType="text"
                 />
-                <div className="text-sm font-medium text-gray-500 uppercase tracking-wide">Height</div>
+                <div className="text-sm font-semibold text-gray-900 uppercase tracking-wide">Height</div>
               </div>
               <div className="text-center bg-white rounded-lg border border-gray-200 p-4">
                 <InlineEdit
@@ -982,13 +999,13 @@ export default function AthleteProfilePage() {
                   ariaLabel="Weight"
                   inputType="text"
                 />
-                <div className="text-sm font-medium text-gray-500 uppercase tracking-wide">Weight</div>
+                <div className="text-sm font-semibold text-gray-900 uppercase tracking-wide">Weight</div>
               </div>
               <div className="text-center bg-white rounded-lg border border-gray-200 p-4">
                 <div className="text-2xl font-bold text-gray-900 mb-1">
                   {formatAge(profile?.dob) || '--'}
                 </div>
-                <div className="text-sm font-medium text-gray-500 uppercase tracking-wide">Age</div>
+                <div className="text-sm font-semibold text-gray-900 uppercase tracking-wide">Age</div>
               </div>
               <div className="text-center bg-white rounded-lg border border-gray-200 p-4">
                 <InlineEdit
@@ -998,7 +1015,7 @@ export default function AthleteProfilePage() {
                   className="text-2xl font-bold text-gray-900 block mb-1"
                   ariaLabel="Location"
                 />
-                <div className="text-sm font-medium text-gray-500 uppercase tracking-wide">Location</div>
+                <div className="text-sm font-semibold text-gray-900 uppercase tracking-wide">Location</div>
               </div>
               <div className="text-center bg-white rounded-lg border border-gray-200 p-4">
                 <InlineEdit
@@ -1009,7 +1026,7 @@ export default function AthleteProfilePage() {
                   inputType="number"
                   ariaLabel="Class year"
                 />
-                <div className="text-sm font-medium text-gray-500 uppercase tracking-wide">Class Year</div>
+                <div className="text-sm font-semibold text-gray-900 uppercase tracking-wide">Class Year</div>
               </div>
             </div>
           </div>
@@ -1063,7 +1080,7 @@ export default function AthleteProfilePage() {
           {/* Media Tabs */}
           <div className="bg-white rounded-lg shadow-md p-6">
             <div className="flex justify-between items-center mb-6">
-              <h2 className="text-2xl font-bold">My Media</h2>
+              <h2 className="text-2xl font-bold text-black">My Media</h2>
               <button
                 onClick={() => setIsCreatePostModalOpen(true)}
                 className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2"
@@ -1130,6 +1147,14 @@ export default function AthleteProfilePage() {
             loadAthleteData(user.id, true);
           }
         }}
+      />
+
+      {/* Followers/Following Modal */}
+      <FollowersModal
+        isOpen={isFollowersModalOpen}
+        onClose={() => setIsFollowersModalOpen(false)}
+        profileId={user?.id || ''}
+        initialTab={followersModalTab}
       />
     </div>
   );

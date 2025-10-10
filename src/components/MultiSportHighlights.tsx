@@ -114,7 +114,7 @@ export default function MultiSportHighlights({ profileId, canEdit = true, onEdit
           {/* Status indicator for disabled sports */}
           {!isEnabled && (
             <div className="season-card-chips">
-              <div className="season-chip bg-gray-100 text-gray-500 border border-gray-200">
+              <div className="season-chip bg-gray-100 text-gray-900 font-semibold border border-gray-300">
                 {COPY.COMING_SOON.SPORT_GENERAL}
               </div>
             </div>
@@ -139,10 +139,10 @@ export default function MultiSportHighlights({ profileId, canEdit = true, onEdit
 
         {/* Decorative Footer */}
         <div className={cssClasses.LAYOUT.CARD_FOOTER}>
-          <div className={`flex items-center justify-center ${cssClasses.SPACING.GAP.MICRO} opacity-30`}>
+          <div className={`flex items-center justify-center ${cssClasses.SPACING.GAP.MICRO} opacity-40`}>
             <i className={`${sportDef.icon_id} ${cssClasses.ICONS.FOOTER} ${colors.iconPrimary}`}></i>
             <i className={`fas fa-trophy ${cssClasses.ICONS.FOOTER} text-yellow-500`}></i>
-            <i className={`fas fa-medal ${cssClasses.ICONS.FOOTER} text-gray-400`}></i>
+            <i className={`fas fa-medal ${cssClasses.ICONS.FOOTER} text-gray-800`}></i>
             <i className={`fas fa-star ${cssClasses.ICONS.FOOTER} text-yellow-400`}></i>
           </div>
         </div>
@@ -181,8 +181,8 @@ export default function MultiSportHighlights({ profileId, canEdit = true, onEdit
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between space-base">
         <h2 className="text-h2 text-gray-900">Sport Highlights</h2>
         <div className="inline-flex items-center px-3 py-1 bg-gray-50 rounded-md border border-gray-200 hover:bg-gray-100 transition-colors cursor-default">
-          <span className="text-label text-gray-700 font-medium">{getSeasonDisplayName()}</span>
-          <i className="fas fa-chevron-down icon-footer text-gray-400 ml-2" aria-hidden="true"></i>
+          <span className="text-label text-gray-900 font-bold">{getSeasonDisplayName()}</span>
+          <i className="fas fa-chevron-down icon-footer text-gray-800 ml-2" aria-hidden="true"></i>
         </div>
       </div>
 
@@ -193,7 +193,7 @@ export default function MultiSportHighlights({ profileId, canEdit = true, onEdit
       {/* Empty State Message - only show if no enabled sports have data */}
       {!hasAnyData && (
         <div className="text-center mt-base mb-section">
-          <p className="text-gray-500 text-sm">
+          <p className="text-gray-900 text-sm font-medium">
             {PLACEHOLDERS.NO_HIGHLIGHTS}
           </p>
         </div>

@@ -8,6 +8,7 @@ import LazyImage from '@/components/LazyImage';
 import FollowButton from '@/components/FollowButton';
 import PrivateProfileView from '@/components/PrivateProfileView';
 import ProfileMediaTabs from '@/components/ProfileMediaTabs';
+import FollowersModal from '@/components/FollowersModal';
 import type { Profile, AthleteBadge } from '@/lib/supabase';
 // Privacy checks moved to API route
 import {
@@ -38,6 +39,10 @@ export default function AthleteProfilePage() {
     isFollowing: false
   });
   const [hasAccess, setHasAccess] = useState(true); // Privacy check result
+
+  // Followers Modal state
+  const [isFollowersModalOpen, setIsFollowersModalOpen] = useState(false);
+  const [followersModalTab, setFollowersModalTab] = useState<'followers' | 'following'>('followers');
 
   const { toasts, dismissToast } = useToast();
 
@@ -153,7 +158,7 @@ export default function AthleteProfilePage() {
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="text-center">
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
-          <p className="mt-2 text-gray-600">Loading athlete profile...</p>
+          <p className="mt-2 text-gray-900 font-medium">Loading athlete profile...</p>
         </div>
       </div>
     );
@@ -185,7 +190,7 @@ export default function AthleteProfilePage() {
             <i className="fas fa-exclamation-triangle text-4xl"></i>
           </div>
           <h1 className="text-xl font-bold text-gray-900 mb-2">{error}</h1>
-          <p className="text-gray-600 mb-4">
+          <p className="text-gray-900 font-medium mb-4">
             {error === 'Athlete not found'
               ? 'This athlete profile could not be found or may not be public.'
               : 'There was an error loading the athlete profile.'}
@@ -199,7 +204,7 @@ export default function AthleteProfilePage() {
             </button>
             <button
               onClick={loadAthleteProfile}
-              className="bg-gray-200 text-gray-700 px-6 py-2 rounded-lg hover:bg-gray-300 transition-colors"
+              className="bg-gray-200 text-gray-900 font-semibold px-6 py-2 rounded-lg hover:bg-gray-300 transition-colors"
             >
               Try Again
             </button>
@@ -224,7 +229,7 @@ export default function AthleteProfilePage() {
           <div className="flex items-center gap-4">
             <button
               onClick={() => router.back()}
-              className="text-gray-600 hover:text-gray-900 transition-colors"
+              className="text-gray-900 hover:text-black transition-colors"
             >
               <i className="fas fa-arrow-left text-xl"></i>
             </button>
@@ -284,16 +289,16 @@ export default function AthleteProfilePage() {
               <LazyImage
                 src={profile.avatar_url}
                 alt="Profile Picture"
-                className="w-32 h-32 rounded-full object-cover border-4 border-blue-500"
-                width={128}
-                height={128}
+                className="w-48 h-48 rounded-full object-cover border-4 border-blue-500"
+                width={192}
+                height={192}
               />
             ) : (
-              <div className="w-32 h-32 rounded-full bg-blue-500 border-4 border-blue-500 flex items-center justify-center text-white text-3xl font-bold">
+              <div className="w-48 h-48 rounded-full bg-blue-500 border-4 border-blue-500 flex items-center justify-center text-white text-5xl font-bold">
                 {getInitials(formatDisplayName(profile.first_name, null, profile.last_name, profile.full_name))}
               </div>
             )}
-            <div className="absolute -bottom-2 -right-2 bg-green-500 text-white rounded-full w-12 h-12 flex items-center justify-center font-bold text-xl">
+            <div className="absolute -bottom-2 -right-2 bg-green-500 text-white rounded-full w-14 h-14 flex items-center justify-center font-bold text-2xl">
               85
             </div>
           </div>
@@ -301,7 +306,7 @@ export default function AthleteProfilePage() {
           <div className="flex-1">
             <div className="mb-3">
               <div className="flex items-center gap-2 mb-1">
-                <h1 className="text-3xl font-bold">
+                <h1 className="text-3xl font-bold text-black">
                   {formatDisplayName(profile.first_name, null, profile.last_name, profile.full_name)}
                 </h1>
                 {getHandle(profile) && (
@@ -341,61 +346,73 @@ export default function AthleteProfilePage() {
               </div>
             </div>
             
-            <p className="text-gray-600 text-lg mb-6">
+            <p className="text-black font-semibold text-lg mb-6">
               {profile.bio || 'Elite Multi-sport Athlete'}
             </p>
 
             {/* Stats Grid */}
             <div className="grid grid-cols-5 gap-6 p-4 bg-gray-50 rounded-xl mb-6">
               <div className="text-center">
-                <p className="font-semibold text-gray-600">Height</p>
-                <p className="font-bold text-xl mt-1">
+                <p className="font-bold text-gray-900">Height</p>
+                <p className="font-bold text-xl text-black mt-1">
                   {profile.height_cm ? formatHeight(profile.height_cm) : '--'}
                 </p>
               </div>
               <div className="text-center border-l">
-                <p className="font-semibold text-gray-600">Weight</p>
-                <p className="font-bold text-xl mt-1">
+                <p className="font-bold text-gray-900">Weight</p>
+                <p className="font-bold text-xl text-black mt-1">
                   {profile.weight_display && profile.weight_unit
                     ? formatWeightWithUnit(profile.weight_display, profile.weight_unit)
                     : '--'}
                 </p>
               </div>
               <div className="text-center border-l">
-                <p className="font-semibold text-gray-600">Age</p>
-                <p className="font-bold text-xl mt-1">
+                <p className="font-bold text-gray-900">Age</p>
+                <p className="font-bold text-xl text-black mt-1">
                   {profile.dob ? formatAge(profile.dob) : '--'}
                 </p>
               </div>
               <div className="text-center border-l">
-                <p className="font-semibold text-gray-600">Location</p>
-                <p className="font-bold text-xl mt-1">
+                <p className="font-bold text-gray-900">Location</p>
+                <p className="font-bold text-xl text-black mt-1">
                   {profile.location || '--'}
                 </p>
               </div>
               <div className="text-center border-l">
-                <p className="font-semibold text-gray-600">Posts</p>
-                <p className="font-bold text-xl mt-1">{postsCount}</p>
+                <p className="font-bold text-gray-900">Posts</p>
+                <p className="font-bold text-xl text-black mt-1">{postsCount}</p>
               </div>
             </div>
 
             {/* Social Links & Follow Stats */}
             <div className="bg-gray-50 rounded-xl p-4 mb-6">
               <div className="flex items-center gap-8">
-                <div className="flex items-center gap-1 text-gray-700 font-medium">
+                <button
+                  onClick={() => {
+                    setFollowersModalTab('following');
+                    setIsFollowersModalOpen(true);
+                  }}
+                  className="flex items-center gap-1 text-gray-900 font-bold hover:text-blue-600 transition-colors"
+                >
                   <span className="font-bold">{followStats.followingCount}</span>
                   <span>Following</span>
-                </div>
-                <div className="flex items-center gap-1 text-gray-700 font-medium">
+                </button>
+                <button
+                  onClick={() => {
+                    setFollowersModalTab('followers');
+                    setIsFollowersModalOpen(true);
+                  }}
+                  className="flex items-center gap-1 text-gray-900 font-bold hover:text-blue-600 transition-colors"
+                >
                   <span className="font-bold">{followStats.followersCount}</span>
                   <span>Followers</span>
-                </div>
+                </button>
                 
                 {/* Social Links */}
                 {profile.social_twitter && (
                   <div className="flex items-center gap-3">
                     <i className="fa-brands fa-twitter text-2xl text-blue-500"></i>
-                    <span className="text-gray-700 font-medium">
+                    <span className="text-gray-900 font-bold">
                       {formatSocialHandleDisplay(profile.social_twitter)}
                     </span>
                   </div>
@@ -403,7 +420,7 @@ export default function AthleteProfilePage() {
                 {profile.social_instagram && (
                   <div className="flex items-center gap-3">
                     <i className="fa-brands fa-instagram text-2xl text-pink-600"></i>
-                    <span className="text-gray-700 font-medium">
+                    <span className="text-gray-900 font-bold">
                       {formatSocialHandleDisplay(profile.social_instagram)}
                     </span>
                   </div>
@@ -427,8 +444,8 @@ export default function AthleteProfilePage() {
                       <i className="fa-solid fa-medal text-blue-600"></i>
                     </div>
                     <div>
-                      <p className="font-semibold">Elite Level</p>
-                      <p className="text-sm text-gray-600">{profile.position || 'Position'}</p>
+                      <p className="font-semibold text-black">Elite Level</p>
+                      <p className="text-sm text-black font-semibold">{profile.position || 'Position'}</p>
                     </div>
                   </div>
                 </div>
@@ -445,8 +462,8 @@ export default function AthleteProfilePage() {
                       <i className="fa-solid fa-trophy text-purple-600"></i>
                     </div>
                     <div>
-                      <p className="font-semibold">{badges.length} Badges</p>
-                      <p className="text-sm text-gray-600">Earned</p>
+                      <p className="font-semibold text-black">{badges.length} Badges</p>
+                      <p className="text-sm text-black font-semibold">Earned</p>
                     </div>
                   </div>
                 </div>
@@ -463,8 +480,8 @@ export default function AthleteProfilePage() {
                       <i className="fa-solid fa-trending-up text-green-600"></i>
                     </div>
                     <div>
-                      <p className="font-semibold">Trending Up</p>
-                      <p className="text-sm text-gray-600">Season Stats</p>
+                      <p className="font-semibold text-black">Trending Up</p>
+                      <p className="text-sm text-black font-semibold">Season Stats</p>
                     </div>
                   </div>
                 </div>
@@ -478,15 +495,15 @@ export default function AthleteProfilePage() {
                 <div className="flex-1 flex flex-col justify-center space-y-2">
                   <div className="flex items-center gap-3">
                     <i className="fa-solid fa-ranking-star text-yellow-500 text-lg"></i>
-                    <p className="font-semibold text-sm">Top Performer</p>
+                    <p className="font-semibold text-sm text-black">Top Performer</p>
                   </div>
                   <div className="flex items-center gap-3">
                     <i className="fa-solid fa-medal text-yellow-500 text-lg"></i>
-                    <p className="font-semibold text-sm">Multi-sport Excellence</p>
+                    <p className="font-semibold text-sm text-black">Multi-sport Excellence</p>
                   </div>
                   <div className="flex items-center gap-3">
                     <i className="fa-solid fa-trophy text-yellow-500 text-lg"></i>
-                    <p className="font-semibold text-sm">Championship Level</p>
+                    <p className="font-semibold text-sm text-black">Championship Level</p>
                   </div>
                 </div>
               </div>
@@ -497,7 +514,7 @@ export default function AthleteProfilePage() {
 
       {/* Season Highlights */}
       <div className="bg-white rounded-lg shadow-md p-4 mb-6">
-        <h2 className="text-xl font-bold mb-4">2024-25 Season Highlights</h2>
+        <h2 className="text-xl font-bold text-black mb-4">2024-25 Season Highlights</h2>
         <div className="grid grid-cols-3 gap-4">
           <div className="bg-blue-50 rounded-xl p-3 border border-blue-100">
             <div className="flex items-center justify-between mb-2">
@@ -513,19 +530,19 @@ export default function AthleteProfilePage() {
             </div>
             <div className="grid grid-cols-2 gap-2 mb-2">
               <div className="bg-white rounded-lg p-2 text-center">
-                <p className="text-xs text-gray-600">Performance</p>
+                <p className="text-xs text-gray-900 font-bold">Performance</p>
                 <p className="text-xl font-bold text-blue-700">--</p>
               </div>
               <div className="bg-white rounded-lg p-2 text-center">
-                <p className="text-xs text-gray-600">Achievements</p>
+                <p className="text-xs text-gray-900 font-bold">Achievements</p>
                 <p className="text-xl font-bold text-blue-700">--</p>
               </div>
               <div className="bg-white rounded-lg p-2 text-center">
-                <p className="text-xs text-gray-600">Games</p>
+                <p className="text-xs text-gray-900 font-bold">Games</p>
                 <p className="text-xl font-bold text-blue-700">--</p>
               </div>
               <div className="bg-white rounded-lg p-2 text-center">
-                <p className="text-xs text-gray-600">Rating</p>
+                <p className="text-xs text-gray-900 font-bold">Rating</p>
                 <p className="text-xl font-bold text-blue-700">85</p>
               </div>
             </div>
@@ -543,19 +560,19 @@ export default function AthleteProfilePage() {
             </div>
             <div className="grid grid-cols-2 gap-2 mb-2">
               <div className="bg-white rounded-lg p-2 text-center">
-                <p className="text-xs text-gray-600">Stats</p>
+                <p className="text-xs text-gray-900 font-bold">Stats</p>
                 <p className="text-xl font-bold text-purple-700">--</p>
               </div>
               <div className="bg-white rounded-lg p-2 text-center">
-                <p className="text-xs text-gray-600">Records</p>
+                <p className="text-xs text-gray-900 font-bold">Records</p>
                 <p className="text-xl font-bold text-purple-700">--</p>
               </div>
               <div className="bg-white rounded-lg p-2 text-center">
-                <p className="text-xs text-gray-600">Events</p>
+                <p className="text-xs text-gray-900 font-bold">Events</p>
                 <p className="text-xl font-bold text-purple-700">--</p>
               </div>
               <div className="bg-white rounded-lg p-2 text-center">
-                <p className="text-xs text-gray-600">Rating</p>
+                <p className="text-xs text-gray-900 font-bold">Rating</p>
                 <p className="text-xl font-bold text-purple-700">--</p>
               </div>
             </div>
@@ -573,19 +590,19 @@ export default function AthleteProfilePage() {
             </div>
             <div className="grid grid-cols-2 gap-2 mb-2">
               <div className="bg-white rounded-lg p-2 text-center">
-                <p className="text-xs text-gray-600">Endurance</p>
+                <p className="text-xs text-gray-900 font-bold">Endurance</p>
                 <p className="text-xl font-bold text-green-700">--</p>
               </div>
               <div className="bg-white rounded-lg p-2 text-center">
-                <p className="text-xs text-gray-600">Strength</p>
+                <p className="text-xs text-gray-900 font-bold">Strength</p>
                 <p className="text-xl font-bold text-green-700">--</p>
               </div>
               <div className="bg-white rounded-lg p-2 text-center">
-                <p className="text-xs text-gray-600">Speed</p>
+                <p className="text-xs text-gray-900 font-bold">Speed</p>
                 <p className="text-xl font-bold text-green-700">--</p>
               </div>
               <div className="bg-white rounded-lg p-2 text-center">
-                <p className="text-xs text-gray-600">Overall</p>
+                <p className="text-xs text-gray-900 font-bold">Overall</p>
                 <p className="text-xl font-bold text-green-700">--</p>
               </div>
             </div>
@@ -596,7 +613,7 @@ export default function AthleteProfilePage() {
       {/* Media Section with Segmented Tabs */}
       <div className="bg-white rounded-lg shadow-md p-6">
         <div className="flex justify-between items-center mb-6">
-          <h2 className="text-2xl font-bold">Athletic Profile & Media</h2>
+          <h2 className="text-2xl font-bold text-black">Athletic Profile & Media</h2>
         </div>
 
         <ProfileMediaTabs
@@ -609,6 +626,14 @@ export default function AthleteProfilePage() {
 
       {/* Toast Container */}
       <ToastContainer toasts={toasts} onDismiss={dismissToast} />
+
+      {/* Followers/Following Modal */}
+      <FollowersModal
+        isOpen={isFollowersModalOpen}
+        onClose={() => setIsFollowersModalOpen(false)}
+        profileId={athleteId}
+        initialTab={followersModalTab}
+      />
     </div>
   );
 }
