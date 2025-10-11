@@ -201,7 +201,14 @@ function FollowersContent() {
     return (
       <div className="bg-white rounded-lg border border-gray-200 p-4 hover:shadow-md transition-shadow">
         <div className="flex items-center gap-4">
-          <button onClick={() => router.push(`/athlete/${profile.id}`)} className="flex-shrink-0">
+          <button onClick={() => {
+            // Navigate to own profile if clicking own profile
+            if (user?.id === profile.id) {
+              router.push('/athlete');
+            } else {
+              router.push(`/athlete/${profile.id}`);
+            }
+          }} className="flex-shrink-0">
             {profile.avatar_url ? (
               <LazyImage
                 src={profile.avatar_url}
@@ -221,7 +228,14 @@ function FollowersContent() {
 
           <div className="flex-1 min-w-0">
             <button
-              onClick={() => router.push(`/athlete/${profile.id}`)}
+              onClick={() => {
+                // Navigate to own profile if clicking own profile
+                if (user?.id === profile.id) {
+                  router.push('/athlete');
+                } else {
+                  router.push(`/athlete/${profile.id}`);
+                }
+              }}
               className="font-bold text-gray-900 hover:text-blue-600 truncate block"
             >
               {formatDisplayName(profile.first_name, null, profile.last_name, profile.full_name)}
@@ -394,7 +408,14 @@ function FollowersContent() {
                     return (
                       <div key={request.id} className="bg-white rounded-lg border border-gray-200 p-4 hover:shadow-md transition-shadow">
                         <div className="flex items-start gap-4">
-                          <button onClick={() => router.push(`/athlete/${request.follower.id}`)} className="flex-shrink-0">
+                          <button onClick={() => {
+                            // Navigate to own profile if clicking own profile
+                            if (user?.id === request.follower.id) {
+                              router.push('/athlete');
+                            } else {
+                              router.push(`/athlete/${request.follower.id}`);
+                            }
+                          }} className="flex-shrink-0">
                             {request.follower.avatar_url ? (
                               <LazyImage
                                 src={request.follower.avatar_url}
@@ -414,7 +435,14 @@ function FollowersContent() {
 
                           <div className="flex-1 min-w-0">
                             <button
-                              onClick={() => router.push(`/athlete/${request.follower.id}`)}
+                              onClick={() => {
+                                // Navigate to own profile if clicking own profile
+                                if (user?.id === request.follower.id) {
+                                  router.push('/athlete');
+                                } else {
+                                  router.push(`/athlete/${request.follower.id}`);
+                                }
+                              }}
                               className="font-bold text-gray-900 hover:text-blue-600 truncate block"
                             >
                               {formatDisplayName(request.follower.first_name, null, request.follower.last_name, request.follower.full_name)}

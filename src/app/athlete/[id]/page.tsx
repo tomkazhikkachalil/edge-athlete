@@ -57,6 +57,13 @@ export default function AthleteProfilePage() {
     }
   }, [user, authLoading, router]);
 
+  // Redirect to own profile if viewing own ID
+  useEffect(() => {
+    if (!authLoading && user && athleteId === user.id) {
+      router.push('/athlete');
+    }
+  }, [user, authLoading, athleteId, router]);
+
   // Load athlete profile data
   useEffect(() => {
     if (athleteId && user) {

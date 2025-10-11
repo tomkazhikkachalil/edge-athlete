@@ -1,5 +1,64 @@
 # Development Log
 
+## 2025-01-11 - Profile Routing Fix: Own Profile Navigation
+
+### Latest Changes
+
+#### 1. Own Profile Routing Fix
+**Feature**: Fixed incorrect routing behavior where clicking on user's own name/profile anywhere in the app would navigate to the "visitor view" instead of their true profile page.
+
+**Problem**: Users clicking their own name in tagged posts, search results, follower lists, or notifications were being taken to `/athlete/[their-id]` (visitor view) instead of `/athlete` (owner view with editing tools).
+
+**Solution**: Implemented comprehensive routing logic across all components that link to athlete profiles:
+
+**Changes by Component**:
+- **`/athlete/[id]/page.tsx`**: Added redirect effect that detects when user is viewing their own ID and redirects to `/athlete`
+- **`PostCard.tsx`**: Updated profile header button and tagged profile links to check `currentUserId === profileId`
+- **`FollowersModal.tsx`**: Added `useAuth` hook and routing check in `handleProfileClick`
+- **`SearchBar.tsx`**: Updated `handleAthleteClick` to route to `/athlete` for own profile
+- **`AdvancedSearchBar.tsx`**: Added `useAuth` hook and routing check for athlete search results
+- **`NotificationsDropdown.tsx`**: Updated notification click handler for follow_accepted type
+- **`/app/app/followers/page.tsx`**: Updated all 4 profile link buttons (followers list, following list, requests list avatars and names)
+- **`/app/app/notifications/page.tsx`**: Updated notification click handler for follow_accepted type
+- **`ConnectionSuggestions.tsx`**: Updated both avatar and name buttons to check `profileId === suggestion.suggested_id`
+
+**Routing Pattern Applied**:
+```typescript
+// Pattern used across all components
+if (user?.id === profileId) {
+  router.push('/athlete');  // Owner view with editing tools
+} else {
+  router.push(`/athlete/${profileId}`);  // Visitor view
+}
+```
+
+**Components Updated**: 9 files
+- Athlete profile redirect: 1 file
+- PostCard links: 1 file
+- Modal components: 2 files (FollowersModal, SearchBar)
+- Dropdown/search: 2 files (AdvancedSearchBar, NotificationsDropdown)
+- Pages: 2 files (followers, notifications)
+- Suggestions: 1 file (ConnectionSuggestions)
+
+**User Experience Impact**:
+- ✅ Clicking own name anywhere routes to `/athlete` (owner view)
+- ✅ See true profile with access to editing tools and settings
+- ✅ Never see visitor version when clicking own profile
+- ✅ Consistent behavior across all profile link locations:
+  - Tagged posts
+  - Search results (basic and advanced)
+  - Follower/following lists
+  - Follow requests
+  - Notifications (follow accepted)
+  - Connection suggestions
+
+**Testing**:
+- ✅ Build completed successfully with no errors
+- ✅ All TypeScript checks passing
+- ✅ ESLint warnings only (no errors)
+
+---
+
 ## 2025-01-10 - UI Spacing Improvements and Post Loading Fix
 
 ### Latest Changes

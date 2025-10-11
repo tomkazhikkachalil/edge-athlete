@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
+import { useAuth } from '@/lib/auth';
 import { formatDisplayName, getInitials } from '@/lib/formatters';
 import { getSportIcon, getSportName } from '@/lib/config/sports-config';
 import { getHandle } from '@/lib/profile-display';
@@ -14,6 +15,7 @@ interface SearchResult {
 
 export default function SearchBar() {
   const router = useRouter();
+  const { user } = useAuth();
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<SearchResult>({ athletes: [], posts: [], clubs: [] });
   const [isLoading, setIsLoading] = useState(false);
@@ -71,7 +73,12 @@ export default function SearchBar() {
   };
 
   const handleAthleteClick = (athleteId: string) => {
-    router.push(`/athlete/${athleteId}`);
+    // Navigate to own profile if clicking own profile
+    if (user?.id === athleteId) {
+      router.push('/athlete');
+    } else {
+      router.push(`/athlete/${athleteId}`);
+    }
     setShowResults(false);
     setQuery('');
   };

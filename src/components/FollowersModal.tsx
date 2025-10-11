@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import { useAuth } from '@/lib/auth';
 import { formatDisplayName, getInitials } from '@/lib/formatters';
 import { getHandle } from '@/lib/profile-display';
 
@@ -26,6 +27,7 @@ interface FollowersModalProps {
 
 export default function FollowersModal({ isOpen, onClose, profileId, initialTab = 'followers' }: FollowersModalProps) {
   const router = useRouter();
+  const { user } = useAuth();
   const [activeTab, setActiveTab] = useState<'followers' | 'following'>(initialTab);
   const [followers, setFollowers] = useState<Profile[]>([]);
   const [following, setFollowing] = useState<Profile[]>([]);
@@ -74,7 +76,12 @@ export default function FollowersModal({ isOpen, onClose, profileId, initialTab 
 
   const handleProfileClick = (id: string) => {
     onClose();
-    router.push(`/athlete/${id}`);
+    // Navigate to own profile if clicking own profile
+    if (user?.id === id) {
+      router.push('/athlete');
+    } else {
+      router.push(`/athlete/${id}`);
+    }
   };
 
   const handleEscKey = (e: KeyboardEvent) => {

@@ -515,7 +515,12 @@ export default function PostCard({
                   key={taggedProfile.id}
                   onClick={(e) => {
                     e.stopPropagation();
-                    router.push(`/athlete/${taggedProfile.id}`);
+                    // Navigate to own profile if clicking own tag
+                    if (currentUserId === taggedProfile.id) {
+                      router.push('/athlete');
+                    } else {
+                      router.push(`/athlete/${taggedProfile.id}`);
+                    }
                   }}
                   className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-700 text-sm rounded-full font-semibold border border-blue-200 transition-colors"
                 >

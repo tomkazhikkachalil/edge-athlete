@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { formatDistanceToNow } from 'date-fns';
+import { useAuth } from '@/lib/auth';
 import { formatDisplayName, getInitials } from '@/lib/formatters';
 import LazyImage from './LazyImage';
 
@@ -38,6 +39,7 @@ interface Notification {
 
 export default function NotificationsDropdown() {
   const router = useRouter();
+  const { user } = useAuth();
   const [isOpen, setIsOpen] = useState(false);
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
@@ -124,7 +126,12 @@ export default function NotificationsDropdown() {
         router.push(`/feed?post=${notification.related_post.id}`);
       }
     } else if (notification.type === 'follow_accepted' && notification.actor) {
-      router.push(`/athlete/${notification.actor.id}`);
+      // Navigate to own profile if clicking own profile
+      if (user?.id === notification.actor.id) {
+        router.push('/athlete');
+      } else {
+        router.push(`/athlete/${notification.actor.id}`);
+      }
     }
 
     setIsOpen(false);

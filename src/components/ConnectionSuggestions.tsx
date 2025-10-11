@@ -119,7 +119,14 @@ export default function ConnectionSuggestions({
           >
             {/* Avatar */}
             <button
-              onClick={() => router.push(`/athlete/${suggestion.suggested_id}`)}
+              onClick={() => {
+                // Navigate to own profile if clicking own profile
+                if (profileId === suggestion.suggested_id) {
+                  router.push('/athlete');
+                } else {
+                  router.push(`/athlete/${suggestion.suggested_id}`);
+                }
+              }}
               className="flex-shrink-0"
             >
               {suggestion.suggested_avatar ? (
@@ -142,7 +149,14 @@ export default function ConnectionSuggestions({
             {/* Info */}
             <div className="flex-1 min-w-0">
               <button
-                onClick={() => router.push(`/athlete/${suggestion.suggested_id}`)}
+                onClick={() => {
+                  // Navigate to own profile if clicking own profile
+                  if (profileId === suggestion.suggested_id) {
+                    router.push('/athlete');
+                  } else {
+                    router.push(`/athlete/${suggestion.suggested_id}`);
+                  }
+                }}
                 className="font-semibold text-gray-900 hover:text-blue-600 truncate block text-sm"
               >
                 {suggestion.suggested_name}

@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
+import { useAuth } from '@/lib/auth';
 import { formatDisplayName, getInitials } from '@/lib/formatters';
 import { SPORT_REGISTRY } from '@/lib/sports/SportRegistry';
 
@@ -22,6 +23,7 @@ interface SearchFilters {
 
 export default function AdvancedSearchBar() {
   const router = useRouter();
+  const { user } = useAuth();
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<SearchResult>({ athletes: [], posts: [], clubs: [] });
   const [loading, setLoading] = useState(false);
@@ -261,7 +263,12 @@ export default function AdvancedSearchBar() {
                     <div
                       key={athlete.id}
                       onClick={() => {
-                        router.push(`/athlete/${athlete.id}`);
+                        // Navigate to own profile if clicking own profile
+                        if (user?.id === athlete.id) {
+                          router.push('/athlete');
+                        } else {
+                          router.push(`/athlete/${athlete.id}`);
+                        }
                         setShowResults(false);
                         setQuery('');
                       }}

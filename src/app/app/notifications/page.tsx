@@ -136,7 +136,12 @@ export default function NotificationsPage() {
         router.push(`/feed?post=${notification.related_post.id}`);
       }
     } else if (notification.type === 'follow_accepted' && notification.actor) {
-      router.push(`/athlete/${notification.actor.id}`);
+      // Navigate to own profile if clicking own profile
+      if (user?.id === notification.actor.id) {
+        router.push('/athlete');
+      } else {
+        router.push(`/athlete/${notification.actor.id}`);
+      }
     }
   };
 
