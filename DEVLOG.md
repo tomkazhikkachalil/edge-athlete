@@ -1,5 +1,96 @@
 # Development Log
 
+## 2025-01-11 - Indoor Golf Rounds and Profile Post Ordering
+
+### Latest Changes
+
+#### 1. Indoor Golf Round Support
+**Feature**: Added full support for indoor golf rounds (simulator/range) with clear visual distinction from outdoor rounds.
+
+**Database Changes**:
+- Added `round_type` column to `golf_rounds` table (values: 'outdoor', 'indoor')
+- Removed CHECK constraint limiting holes to only 9 or 18 (now supports any number like 5, 12, 15, etc.)
+- Added index on `round_type` for filtering performance
+- Migration script: `add-flexible-golf-rounds.sql`
+
+**UI Implementation**:
+- **Golf Scorecard Form** (`src/components/GolfScorecardForm.tsx`):
+  - Added Indoor/Outdoor radio button toggle with icons (tree for outdoor, warehouse for indoor)
+  - Conditionally hides "Playing Conditions" section for indoor rounds
+  - Weather, temperature, and wind fields only appear for outdoor rounds
+
+- **PostCard Display** (`src/components/PostCard.tsx`):
+  - Added round type badges next to course name
+  - Indoor rounds: Blue badge with warehouse icon (🏭 INDOOR)
+  - Outdoor rounds: Green badge with tree icon (🌲 OUTDOOR)
+  - Badges appear in feed, profile pages, and post detail modal
+
+**API Updates** (`src/app/api/posts/route.ts`):
+- POST/PUT operations now save `round_type` field to database
+- GET operations retrieve `round_type` with golf round data
+
+**Profile Tab Integration**:
+- Indoor rounds appear in "All Media" tab ✓
+- Indoor rounds appear in "Media with Stats" tab ✓
+- Database function `get_profile_stats_media()` includes posts with `round_id` (both indoor and outdoor)
+
+**Impact**:
+- ✅ Full support for indoor golf (simulators, driving ranges)
+- ✅ Clear visual distinction between indoor and outdoor rounds
+- ✅ Flexible hole counts for partial rounds or non-standard formats
+- ✅ Indoor rounds fully integrated into profile statistics and media views
+
+#### 2. Profile Post Ordering Fix
+**Feature**: Fixed critical bug where profile posts appeared in wrong order (oldest first instead of newest first).
+
+**Problem**: All profile media tabs were showing posts in random order because database functions were ordering by UUID instead of `created_at` timestamp.
+
+**Solution** (`fix-profile-post-ordering.sql`):
+- Updated three database functions to use subquery pattern:
+  - `get_profile_all_media()` - All posts + tagged posts
+  - `get_profile_stats_media()` - Posts with sports stats
+  - `get_profile_tagged_media()` - Posts where user is tagged
+- Added `ORDER BY created_at DESC` to outer query for proper chronological sorting
+
+**Implementation Pattern**:
+```sql
+RETURN QUERY
+SELECT * FROM (
+  -- Inner query: Get distinct posts
+  SELECT DISTINCT ON (p.id) ...
+  ORDER BY p.id, p.created_at DESC
+) AS unique_posts
+ORDER BY created_at DESC  -- ← Key fix: Sort by newest first
+LIMIT media_limit
+OFFSET media_offset;
+```
+
+**Impact**:
+- ✅ Newest posts always appear first on profile (matches feed behavior)
+- ✅ Consistent ordering across all three profile tabs
+- ✅ Works for ALL post types (text, media, golf rounds, indoor/outdoor, stats)
+- ✅ New posts automatically appear at top of profile
+- ✅ Pagination still works correctly
+- ✅ Privacy filtering unchanged
+
+**Files Modified**:
+- `src/components/PostCard.tsx` - Added indoor/outdoor badges
+- `src/components/GolfScorecardForm.tsx` - Indoor toggle and conditional rendering
+- `src/app/api/posts/route.ts` - Save/retrieve round_type
+- `fix-profile-post-ordering.sql` - Database function updates (NEW)
+- `add-flexible-golf-rounds.sql` - Database schema migration (NEW)
+
+**Database Migrations Required**:
+1. Run `add-flexible-golf-rounds.sql` for indoor golf support
+2. Run `fix-profile-post-ordering.sql` for correct post ordering
+
+### Build Status
+✅ ESLint: Passing (warnings only, no errors)
+✅ Production Build: Successful
+✅ TypeScript: No errors
+
+---
+
 ## 2025-01-11 - Profile Routing Fix: Own Profile Navigation
 
 ### Latest Changes

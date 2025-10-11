@@ -552,9 +552,21 @@ export default function PostCard({
             {/* Compact Header with Score */}
             <div className="flex items-center justify-between mb-2">
               <div className="flex-1">
-                <div className="flex items-center gap-2 mb-1">
+                <div className="flex items-center gap-2 mb-1 flex-wrap">
                   <i className="fas fa-golf-ball text-green-600 text-base"></i>
                   <span className="font-bold text-green-900 text-base">{post.golf_round.course}</span>
+                  {/* Round Type Badge - Indoor or Outdoor */}
+                  {post.golf_round.round_type === 'indoor' ? (
+                    <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-blue-600 text-white text-xs font-bold rounded-full">
+                      <i className="fas fa-warehouse text-[10px]"></i>
+                      INDOOR
+                    </span>
+                  ) : (
+                    <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-green-600 text-white text-xs font-bold rounded-full">
+                      <i className="fas fa-tree text-[10px]"></i>
+                      OUTDOOR
+                    </span>
+                  )}
                 </div>
                 <div className="flex items-center gap-3 text-sm text-green-800 font-semibold">
                   {post.golf_round.date && (

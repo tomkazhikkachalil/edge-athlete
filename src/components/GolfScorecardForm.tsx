@@ -35,7 +35,8 @@ interface GolfRoundData {
   courseRating?: number;
   courseSlope?: number;
   teeBox: string;
-  holes: '9' | '18';
+  holes: number;  // Flexible number of holes (not just 9 or 18)
+  roundType: 'outdoor' | 'indoor';  // Indoor or outdoor golf
   startingHole: 'front' | 'back';  // For 9-hole rounds
   weather?: string;
   temperature?: number;
@@ -61,7 +62,8 @@ export default function GolfScorecardForm({ onDataChange }: GolfScorecardFormPro
   const [courseRating, setCourseRating] = useState<number | undefined>();
   const [courseSlope, setCourseSlope] = useState<number | undefined>();
   const [teeBox, setTeeBox] = useState('white');
-  const [holeCount, setHoleCount] = useState<'9' | '18'>('18');
+  const [holeCount, setHoleCount] = useState<number>(18);
+  const [roundType, setRoundType] = useState<'outdoor' | 'indoor'>('outdoor');
   const [startingHole, setStartingHole] = useState<'front' | 'back'>('front');
 
   // Round conditions
@@ -84,20 +86,25 @@ export default function GolfScorecardForm({ onDataChange }: GolfScorecardFormPro
 
   // Initialize holes data
   useEffect(() => {
-    const numHoles = holeCount === '18' ? 18 : 9;
-    const startHole = holeCount === '9' && startingHole === 'back' ? 10 : 1;
+    const numHoles = holeCount;
+    const startHole = holeCount === 9 && startingHole === 'back' ? 10 : 1;
 
     const newHolesData: HoleData[] = [];
+
+    // Standard par distribution for 18 holes
+    const standardPars18 = [4, 4, 3, 5, 4, 4, 4, 3, 5, 4, 4, 3, 5, 4, 4, 4, 3, 5];
+
     for (let i = 0; i < numHoles; i++) {
       const holeNumber = startHole + i;
-      // Standard par distribution
-      const pars = holeCount === '18'
-        ? [4, 4, 3, 5, 4, 4, 4, 3, 5, 4, 4, 3, 5, 4, 4, 4, 3, 5] // Total: 72
-        : startingHole === 'front'
-          ? [4, 4, 3, 5, 4, 4, 4, 3, 5] // Front 9: 36
-          : [4, 4, 3, 5, 4, 4, 4, 3, 5]; // Back 9: 36
 
-      const par = pars[i] || 4;
+      // Use standard par distribution if within 18, otherwise default to par 4
+      let par: number;
+      if (holeNumber <= 18) {
+        par = standardPars18[holeNumber - 1] || 4;
+      } else {
+        // For holes beyond 18 (unusual but supported), cycle through pattern
+        par = standardPars18[i % 18] || 4;
+      }
       const baseYardage = par === 3 ? 150 : par === 4 ? 380 : 520;
       const yardageVariation = Math.floor(Math.random() * 40) - 20;
 
@@ -147,8 +154,8 @@ export default function GolfScorecardForm({ onDataChange }: GolfScorecardFormPro
     setCourseSlope(course.slopeRating[teeKey]);
 
     // Auto-populate hole data with real yardages
-    const numHoles = holeCount === '18' ? 18 : 9;
-    const startHole = holeCount === '9' && startingHole === 'back' ? 10 : 1;
+    const numHoles = holeCount;
+    const startHole = holeCount === 9 && startingHole === 'back' ? 10 : 1;
     const endHole = startHole + numHoles - 1;
 
     const courseHoles = course.holes.filter(h => h.number >= startHole && h.number <= endHole);
@@ -283,6 +290,7 @@ export default function GolfScorecardForm({ onDataChange }: GolfScorecardFormPro
       courseSlope,
       teeBox,
       holes: holeCount,
+      roundType,
       startingHole,
       weather,
       temperature,
@@ -295,7 +303,7 @@ export default function GolfScorecardForm({ onDataChange }: GolfScorecardFormPro
     onDataChange(roundData);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [date, courseName, courseLocation, coursePar, courseRating, courseSlope,
-      teeBox, holeCount, startingHole, weather, temperature, wind,
+      teeBox, holeCount, roundType, startingHole, weather, temperature, wind,
       playingPartners, handicap, holesData]);
 
   return (
@@ -453,33 +461,24 @@ export default function GolfScorecardForm({ onDataChange }: GolfScorecardFormPro
             </select>
           </div>
 
-          {/* Holes Played */}
+          {/* Holes Played - Flexible Input */}
           <div>
-            <label className="text-sm font-medium text-gray-700 block mb-1">Holes Played</label>
-            <div className="flex gap-4">
-              <label className="flex items-center">
-                <input
-                  type="radio"
-                  value="18"
-                  checked={holeCount === '18'}
-                  onChange={(e) => setHoleCount(e.target.value as '18')}
-                  className="mr-2"
-                />
-                18 Holes
-              </label>
-              <label className="flex items-center">
-                <input
-                  type="radio"
-                  value="9"
-                  checked={holeCount === '9'}
-                  onChange={(e) => setHoleCount(e.target.value as '9')}
-                  className="mr-2"
-                />
-                9 Holes
-              </label>
-            </div>
+            <label className="text-sm font-medium text-gray-700 block mb-1">
+              Holes Played
+              <span className="ml-2 text-xs text-gray-500">(Common: 9 or 18, or enter any number)</span>
+            </label>
+            <input
+              type="number"
+              min="1"
+              max="36"
+              value={holeCount}
+              onChange={(e) => setHoleCount(Number(e.target.value) || 1)}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500"
+              placeholder="Enter number of holes (e.g., 5, 9, 12, 18)"
+            />
 
-            {holeCount === '9' && (
+            {/* Starting hole selector for 9-hole rounds */}
+            {holeCount === 9 && (
               <div className="mt-2 flex gap-4">
                 <label className="flex items-center text-sm">
                   <input
@@ -503,6 +502,37 @@ export default function GolfScorecardForm({ onDataChange }: GolfScorecardFormPro
                 </label>
               </div>
             )}
+          </div>
+
+          {/* Round Type - Indoor/Outdoor */}
+          <div>
+            <label className="text-sm font-medium text-gray-700 block mb-1">
+              Round Type
+            </label>
+            <div className="flex gap-4">
+              <label className="flex items-center text-sm font-medium text-gray-900 cursor-pointer">
+                <input
+                  type="radio"
+                  value="outdoor"
+                  checked={roundType === 'outdoor'}
+                  onChange={(e) => setRoundType(e.target.value as 'outdoor')}
+                  className="mr-2"
+                />
+                <i className="fas fa-tree mr-1 text-green-600"></i>
+                Outdoor
+              </label>
+              <label className="flex items-center text-sm font-medium text-gray-900 cursor-pointer">
+                <input
+                  type="radio"
+                  value="indoor"
+                  checked={roundType === 'indoor'}
+                  onChange={(e) => setRoundType(e.target.value as 'indoor')}
+                  className="mr-2"
+                />
+                <i className="fas fa-warehouse mr-1 text-blue-600"></i>
+                Indoor (Simulator/Range)
+              </label>
+            </div>
           </div>
 
           {/* Course Rating/Slope */}
@@ -553,68 +583,70 @@ export default function GolfScorecardForm({ onDataChange }: GolfScorecardFormPro
         </div>
       </div>
 
-      {/* Playing Conditions */}
-      <div className="bg-white rounded-lg border border-gray-200 p-4">
-        <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
-          <i className="fas fa-cloud-sun mr-2 text-blue-500"></i>
-          Playing Conditions
-        </h3>
+      {/* Playing Conditions - Only show for outdoor rounds */}
+      {roundType === 'outdoor' && (
+        <div className="bg-white rounded-lg border border-gray-200 p-4">
+          <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
+            <i className="fas fa-cloud-sun mr-2 text-blue-500"></i>
+            Playing Conditions
+          </h3>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-          <div>
-            <label className="text-sm font-medium text-gray-700 block mb-1">Weather</label>
-            <select
-              value={weather}
-              onChange={(e) => setWeather(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500"
-            >
-              <option value="">Select...</option>
-              <option value="sunny">☀️ Sunny</option>
-              <option value="partly-cloudy">⛅ Partly Cloudy</option>
-              <option value="cloudy">☁️ Cloudy</option>
-              <option value="rainy">🌧️ Rainy</option>
-              <option value="windy">💨 Windy</option>
-            </select>
-          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div>
+              <label className="text-sm font-medium text-gray-700 block mb-1">Weather</label>
+              <select
+                value={weather}
+                onChange={(e) => setWeather(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500"
+              >
+                <option value="">Select...</option>
+                <option value="sunny">☀️ Sunny</option>
+                <option value="partly-cloudy">⛅ Partly Cloudy</option>
+                <option value="cloudy">☁️ Cloudy</option>
+                <option value="rainy">🌧️ Rainy</option>
+                <option value="windy">💨 Windy</option>
+              </select>
+            </div>
 
-          <div>
-            <label className="text-sm font-medium text-gray-700 block mb-1">Temperature (°F)</label>
-            <input
-              type="number"
-              value={temperature || ''}
-              onChange={(e) => setTemperature(e.target.value ? Number(e.target.value) : undefined)}
-              placeholder="75"
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500"
-            />
-          </div>
+            <div>
+              <label className="text-sm font-medium text-gray-700 block mb-1">Temperature (°F)</label>
+              <input
+                type="number"
+                value={temperature || ''}
+                onChange={(e) => setTemperature(e.target.value ? Number(e.target.value) : undefined)}
+                placeholder="75"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500"
+              />
+            </div>
 
-          <div>
-            <label className="text-sm font-medium text-gray-700 block mb-1">Wind</label>
-            <select
-              value={wind}
-              onChange={(e) => setWind(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500"
-            >
-              <option value="">Select...</option>
-              <option value="calm">Calm (0-5 mph)</option>
-              <option value="light">Light (5-10 mph)</option>
-              <option value="moderate">Moderate (10-20 mph)</option>
-              <option value="strong">Strong (20+ mph)</option>
-            </select>
-          </div>
+            <div>
+              <label className="text-sm font-medium text-gray-700 block mb-1">Wind</label>
+              <select
+                value={wind}
+                onChange={(e) => setWind(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500"
+              >
+                <option value="">Select...</option>
+                <option value="calm">Calm (0-5 mph)</option>
+                <option value="light">Light (5-10 mph)</option>
+                <option value="moderate">Moderate (10-20 mph)</option>
+                <option value="strong">Strong (20+ mph)</option>
+              </select>
+            </div>
 
-          <div>
-            <label className="text-sm font-medium text-gray-700 block mb-1">Playing Partners</label>
-            <input
-              type="text"
-              value={playingPartners}
-              onChange={(e) => setPlayingPartners(e.target.value)}
-              placeholder="Names (optional)"
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500"
-            />
+            <div>
+              <label className="text-sm font-medium text-gray-700 block mb-1">Playing Partners</label>
+              <input
+                type="text"
+                value={playingPartners}
+                onChange={(e) => setPlayingPartners(e.target.value)}
+                placeholder="Names (optional)"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500"
+              />
+            </div>
           </div>
         </div>
-      </div>
+      )}
 
       {/* Scorecard */}
       <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
@@ -633,7 +665,7 @@ export default function GolfScorecardForm({ onDataChange }: GolfScorecardFormPro
         </div>
 
         {/* Tabs for 18 holes */}
-        {holeCount === '18' && (
+        {holeCount === 18 && (
           <div className="border-b border-gray-200 bg-gray-50">
             <div className="flex">
               <button
@@ -683,7 +715,7 @@ export default function GolfScorecardForm({ onDataChange }: GolfScorecardFormPro
                 <td className="px-2 py-2 text-xs font-bold border border-green-700 text-center">HOLE</td>
                 {holesData
                   .filter(hole => {
-                    if (holeCount === '9') return true;
+                    if (holeCount !== 18) return true; // Show all holes for non-18 hole rounds
                     return activeTab === 'front' ? hole.hole <= 9 : hole.hole > 9;
                   })
                   .map(hole => (
@@ -692,7 +724,7 @@ export default function GolfScorecardForm({ onDataChange }: GolfScorecardFormPro
                     </td>
                   ))}
                 <td className="px-2 py-2 text-xs font-bold border border-green-700 text-center bg-green-700">
-                  {activeTab === 'front' || holeCount === '9' ? 'OUT' : 'IN'}
+                  {holeCount === 18 ? (activeTab === 'front' ? 'OUT' : 'IN') : 'TOTAL'}
                 </td>
               </tr>
 
@@ -701,7 +733,7 @@ export default function GolfScorecardForm({ onDataChange }: GolfScorecardFormPro
                 <td className="px-2 py-2 text-xs font-bold border border-gray-300 text-center bg-blue-200 text-gray-900">PAR</td>
                 {holesData
                   .filter(hole => {
-                    if (holeCount === '9') return true;
+                    if (holeCount !== 18) return true; // Show all holes for non-18 hole rounds
                     return activeTab === 'front' ? hole.hole <= 9 : hole.hole > 9;
                   })
                   .map(hole => (
@@ -714,7 +746,7 @@ export default function GolfScorecardForm({ onDataChange }: GolfScorecardFormPro
                 <td className="px-2 py-2 text-sm font-bold border border-gray-300 text-center bg-blue-200 text-gray-900">
                   {holesData
                     .filter(h => {
-                      if (holeCount === '9') return true;
+                      if (holeCount !== 18) return true; // Show all holes for non-18 hole rounds
                       return activeTab === 'front' ? h.hole <= 9 : h.hole > 9;
                     })
                     .reduce((sum, h) => sum + h.par, 0)}
@@ -726,7 +758,7 @@ export default function GolfScorecardForm({ onDataChange }: GolfScorecardFormPro
                 <td className="px-2 py-2 text-xs font-bold border border-gray-300 text-center bg-gray-100 text-gray-900">YDS</td>
                 {holesData
                   .filter(hole => {
-                    if (holeCount === '9') return true;
+                    if (holeCount !== 18) return true; // Show all holes for non-18 hole rounds
                     return activeTab === 'front' ? hole.hole <= 9 : hole.hole > 9;
                   })
                   .map(hole => (
@@ -737,7 +769,7 @@ export default function GolfScorecardForm({ onDataChange }: GolfScorecardFormPro
                 <td className="px-2 py-2 text-xs font-bold border border-gray-300 text-center bg-gray-100 text-gray-900">
                   {holesData
                     .filter(h => {
-                      if (holeCount === '9') return true;
+                      if (holeCount !== 18) return true; // Show all holes for non-18 hole rounds
                       return activeTab === 'front' ? h.hole <= 9 : h.hole > 9;
                     })
                     .reduce((sum, h) => sum + h.yardage, 0)}
@@ -749,7 +781,7 @@ export default function GolfScorecardForm({ onDataChange }: GolfScorecardFormPro
                 <td className="px-2 py-2 text-xs font-bold border border-gray-300 text-center bg-gray-100 text-gray-900">HCP</td>
                 {holesData
                   .filter(hole => {
-                    if (holeCount === '9') return true;
+                    if (holeCount !== 18) return true; // Show all holes for non-18 hole rounds
                     return activeTab === 'front' ? hole.hole <= 9 : hole.hole > 9;
                   })
                   .map(hole => (
@@ -768,11 +800,11 @@ export default function GolfScorecardForm({ onDataChange }: GolfScorecardFormPro
                 <td className="px-2 py-3 text-xs font-bold border border-gray-300 text-center bg-yellow-100 text-gray-900">SCORE</td>
                 {holesData
                   .filter(hole => {
-                    if (holeCount === '9') return true;
+                    if (holeCount !== 18) return true; // Show all holes for non-18 hole rounds
                     return activeTab === 'front' ? hole.hole <= 9 : hole.hole > 9;
                   })
                   .map((hole, index) => {
-                    const actualIndex = holeCount === '18' && activeTab === 'back' ? index + 9 : index;
+                    const actualIndex = holeCount === 18 && activeTab === 'back' ? index + 9 : index;
                     const score = getScoreDisplay(hole);
 
                     return (
@@ -802,7 +834,7 @@ export default function GolfScorecardForm({ onDataChange }: GolfScorecardFormPro
                     {stats ?
                       holesData
                         .filter(h => {
-                          if (holeCount === '9') return true;
+                          if (holeCount !== 18) return true; // Show all holes for non-18 hole rounds
                           return activeTab === 'front' ? h.hole <= 9 : h.hole > 9;
                         })
                         .reduce((sum, h) => sum + (h.score || 0), 0) || '−'
@@ -817,11 +849,11 @@ export default function GolfScorecardForm({ onDataChange }: GolfScorecardFormPro
                 <td className="px-2 py-2 text-xs font-bold border border-gray-300 text-center bg-gray-100 text-gray-900">PUTTS</td>
                 {holesData
                   .filter(hole => {
-                    if (holeCount === '9') return true;
+                    if (holeCount !== 18) return true; // Show all holes for non-18 hole rounds
                     return activeTab === 'front' ? hole.hole <= 9 : hole.hole > 9;
                   })
                   .map((hole, index) => {
-                    const actualIndex = holeCount === '18' && activeTab === 'back' ? index + 9 : index;
+                    const actualIndex = holeCount === 18 && activeTab === 'back' ? index + 9 : index;
 
                     return (
                       <td key={hole.hole} className="px-1 py-2 border border-gray-300 text-center">
@@ -841,7 +873,7 @@ export default function GolfScorecardForm({ onDataChange }: GolfScorecardFormPro
                   {stats ?
                     holesData
                       .filter(h => {
-                        if (holeCount === '9') return true;
+                        if (holeCount !== 18) return true; // Show all holes for non-18 hole rounds
                         return activeTab === 'front' ? h.hole <= 9 : h.hole > 9;
                       })
                       .reduce((sum, h) => sum + (h.putts || 0), 0) || '−'
@@ -855,11 +887,11 @@ export default function GolfScorecardForm({ onDataChange }: GolfScorecardFormPro
                 <td className="px-2 py-2 text-xs font-bold border border-gray-300 text-center bg-green-100 text-gray-900">F/W</td>
                 {holesData
                   .filter(hole => {
-                    if (holeCount === '9') return true;
+                    if (holeCount !== 18) return true; // Show all holes for non-18 hole rounds
                     return activeTab === 'front' ? hole.hole <= 9 : hole.hole > 9;
                   })
                   .map((hole, index) => {
-                    const actualIndex = holeCount === '18' && activeTab === 'back' ? index + 9 : index;
+                    const actualIndex = holeCount === 18 && activeTab === 'back' ? index + 9 : index;
 
                     return (
                       <td key={hole.hole} className="px-1 py-2 border border-gray-300 text-center">
@@ -881,7 +913,7 @@ export default function GolfScorecardForm({ onDataChange }: GolfScorecardFormPro
                     );
                   })}
                 <td className="px-2 py-2 text-xs border border-gray-300 text-center bg-green-100 text-gray-900 font-bold">
-                  {stats ? `${stats.fairwaysHit}/${holesData.filter(h => h.par > 3 && (holeCount === '9' ? true : activeTab === 'front' ? h.hole <= 9 : h.hole > 9)).length}` : '−'}
+                  {stats ? `${stats.fairwaysHit}/${holesData.filter(h => h.par > 3 && (holeCount !== 18 ? true : activeTab === 'front' ? h.hole <= 9 : h.hole > 9)).length}` : '−'}
                 </td>
               </tr>
 
@@ -890,11 +922,11 @@ export default function GolfScorecardForm({ onDataChange }: GolfScorecardFormPro
                 <td className="px-2 py-2 text-xs font-bold border border-gray-300 text-center bg-blue-100 text-gray-900">GIR</td>
                 {holesData
                   .filter(hole => {
-                    if (holeCount === '9') return true;
+                    if (holeCount !== 18) return true; // Show all holes for non-18 hole rounds
                     return activeTab === 'front' ? hole.hole <= 9 : hole.hole > 9;
                   })
                   .map((hole, index) => {
-                    const actualIndex = holeCount === '18' && activeTab === 'back' ? index + 9 : index;
+                    const actualIndex = holeCount === 18 && activeTab === 'back' ? index + 9 : index;
 
                     return (
                       <td key={hole.hole} className="px-1 py-2 border border-gray-300 text-center">
@@ -910,7 +942,7 @@ export default function GolfScorecardForm({ onDataChange }: GolfScorecardFormPro
                     );
                   })}
                 <td className="px-2 py-2 text-xs border border-gray-300 text-center bg-blue-100 text-gray-900 font-bold">
-                  {stats ? `${stats.greensInRegulation}/${holesData.filter(h => holeCount === '9' ? true : activeTab === 'front' ? h.hole <= 9 : h.hole > 9).length}` : '−'}
+                  {stats ? `${stats.greensInRegulation}/${holesData.filter(h => holeCount !== 18 ? true : activeTab === 'front' ? h.hole <= 9 : h.hole > 9).length}` : '−'}
                 </td>
               </tr>
             </tbody>

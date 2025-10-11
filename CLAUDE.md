@@ -183,6 +183,8 @@ See [PRIVACY_ARCHITECTURE.md](PRIVACY_ARCHITECTURE.md) and [SECURITY_ARCHITECTUR
 - `COMPLETE_NAME_MIGRATION.sql` - Name structure refactor (separate first/middle/last names)
 - `setup-all-notifications-complete.sql` - Comprehensive notification system setup
 - `add-comment-likes.sql` - Comment likes feature with triggers
+- `add-flexible-golf-rounds.sql` - Indoor golf and flexible holes support
+- `fix-profile-post-ordering.sql` - Profile post ordering (newest first)
 
 ### Feature Flags
 
@@ -502,24 +504,36 @@ await fetch('/api/sport-settings', {
 Golf is the reference implementation for the sport adapter pattern:
 
 **Database:**
-- `golf_rounds` table with course, date, total_score, stats
+- `golf_rounds` table with course, date, total_score, stats, `round_type`
 - `golf_holes` table with hole-by-hole scores
 - `round_id` foreign key on posts links rounds to social posts
 - Automatic stats calculation via database functions
+- **Indoor/Outdoor Support**: `round_type` column ('outdoor' or 'indoor') for simulator/range rounds
+- **Flexible Holes**: Supports any number of holes (not limited to 9 or 18) - e.g., 5, 12, 15, etc.
 
 **UI Flow:**
 1. User opens Golf form (`EnhancedGolfForm.tsx` or `GolfScorecardForm.tsx`)
-2. Selects course from `golf_courses` table or external API
-3. Enters hole-by-hole scores with putts tracking
-4. Stats auto-calculated (pars, birdies, eagles, etc.)
-5. Can attach to post or save standalone
-6. Traditional scorecard display with birdie circles (red) and bogey squares (blue)
+2. **NEW: Selects Indoor or Outdoor** with radio toggle (tree icon for outdoor, warehouse for indoor)
+3. Selects course from `golf_courses` table or external API
+4. Enters hole-by-hole scores with putts tracking
+5. **Conditional fields**: Playing Conditions (weather, temp, wind) only shown for outdoor rounds
+6. Stats auto-calculated (pars, birdies, eagles, etc.)
+7. Can attach to post or save standalone
+8. Traditional scorecard display with birdie circles (red) and bogey squares (blue)
+
+**Round Type Display:**
+- **Indoor rounds**: Blue badge with warehouse icon (🏭 INDOOR) next to course name
+- **Outdoor rounds**: Green badge with tree icon (🌲 OUTDOOR) next to course name
+- Badges appear in feed, profile pages, and post detail modals
+- Both round types fully integrated into profile tabs (All Media, Media with Stats)
 
 **Files:**
 - `src/lib/golf-course-service.ts` - Course search and data
 - `src/lib/golf-courses-db.ts` - Database course operations
-- `src/components/GolfScorecardForm.tsx` - Main golf form
+- `src/components/GolfScorecardForm.tsx` - Main golf form with indoor/outdoor toggle
+- `src/components/PostCard.tsx` - Round type badge display
 - `src/app/api/golf/` - Golf API endpoints
+- `add-flexible-golf-rounds.sql` - Database migration for round_type and flexible holes
 
 ### Styling & Design
 
@@ -663,10 +677,21 @@ const { notifications, unreadCount, markAsRead, markAllAsRead } = useNotificatio
 - Always show confirmation dialog before delete (handled by PostCard)
 
 **Profile media sorting:**
-- All profile media tabs show newest posts first by default
+- All profile media tabs show newest posts first by default (as of January 2025)
 - SQL functions use subquery pattern to order by created_at DESC
-- Run `fix-profile-media-sorting.sql` if posts show in wrong order
+- Run `fix-profile-post-ordering.sql` if posts show in wrong order
 - Functions: get_profile_all_media, get_profile_stats_media, get_profile_tagged_media
+- Critical fix: Outer query must have `ORDER BY created_at DESC` to ensure chronological order
+- New posts automatically appear at top of profile on all tabs
+
+**Indoor golf rounds:**
+- Full support for indoor golf (simulators, driving ranges) added January 2025
+- `golf_rounds.round_type` column: 'outdoor' or 'indoor'
+- UI toggle in GolfScorecardForm to select round type
+- Visual badges in PostCard: Blue (INDOOR) or Green (OUTDOOR)
+- Playing Conditions section hidden for indoor rounds
+- Indoor rounds fully integrated into profile tabs and stats
+- Run `add-flexible-golf-rounds.sql` migration to enable
 
 ### Known Issues & Workarounds
 
