@@ -7,6 +7,17 @@ const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
 
 const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
+// Interface for tagged profiles
+interface TaggedProfile {
+  id: string;
+  first_name: string | null;
+  middle_name: string | null;
+  last_name: string | null;
+  full_name: string | null;
+  avatar_url: string | null;
+  handle: string | null;
+}
+
 export async function POST(request: NextRequest) {
   try {
     // Require authentication
@@ -261,6 +272,7 @@ export async function POST(request: NextRequest) {
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
+    const postId = searchParams.get('postId');
     const userId = searchParams.get('userId');
     const sportKey = searchParams.get('sportKey');
     const limit = parseInt(searchParams.get('limit') || '20');
@@ -274,6 +286,124 @@ export async function GET(request: NextRequest) {
     } catch {
       // Not authenticated - will only see public content
       currentUserId = null;
+    }
+
+    // If fetching a single post by ID
+    if (postId) {
+      const { data: post, error } = await supabase
+        .from('posts')
+        .select(`
+          *,
+          post_media (
+            id,
+            media_url,
+            media_type,
+            thumbnail_url,
+            display_order
+          ),
+          profiles:profile_id (
+            id,
+            full_name,
+            first_name,
+            middle_name,
+            last_name,
+            avatar_url,
+            visibility,
+            handle
+          ),
+          post_likes (
+            profile_id
+          )
+        `)
+        .eq('id', postId)
+        .single();
+
+      if (error) {
+        console.error('Post fetch error:', error);
+        return NextResponse.json({ error: 'Failed to fetch post' }, { status: 500 });
+      }
+
+      if (!post) {
+        return NextResponse.json({ error: 'Post not found' }, { status: 404 });
+      }
+
+      // Fetch golf round if exists
+      let golfRound = null;
+      if (post.round_id) {
+        const { data: roundData } = await supabase
+          .from('golf_rounds')
+          .select(`
+            *,
+            golf_holes (
+              hole_number,
+              par,
+              strokes,
+              putts,
+              fairway_hit,
+              green_in_regulation,
+              distance_yards,
+              club_off_tee,
+              notes
+            )
+          `)
+          .eq('id', post.round_id)
+          .single();
+
+        if (roundData && roundData.golf_holes) {
+          roundData.golf_holes.sort((a: { hole_number: number }, b: { hole_number: number }) => a.hole_number - b.hole_number);
+        }
+        golfRound = roundData;
+      }
+
+      // Fetch tagged profiles if exists
+      let taggedProfiles: TaggedProfile[] = [];
+      if (post.tags && post.tags.length > 0) {
+        const { data: profiles } = await supabase
+          .from('profiles')
+          .select('id, first_name, middle_name, last_name, full_name, avatar_url, handle')
+          .in('id', post.tags);
+
+        if (profiles) {
+          taggedProfiles = profiles;
+        }
+      }
+
+      // Transform single post
+      const transformedPost = {
+        id: post.id,
+        caption: post.caption,
+        sport_key: post.sport_key,
+        stats_data: post.stats_data,
+        visibility: post.visibility,
+        tags: post.tags || [],
+        hashtags: post.hashtags || [],
+        created_at: post.created_at,
+        likes_count: post.likes_count ?? 0,
+        comments_count: post.comments_count ?? 0,
+        saves_count: post.saves_count ?? 0,
+        profile: {
+          id: post.profiles.id,
+          first_name: post.profiles.first_name,
+          middle_name: post.profiles.middle_name,
+          last_name: post.profiles.last_name,
+          full_name: post.profiles.full_name,
+          avatar_url: post.profiles.avatar_url,
+          handle: post.profiles.handle
+        },
+        media: (post.post_media || [])
+          .sort((a: { display_order: number }, b: { display_order: number }) => a.display_order - b.display_order)
+          .map((media: { id: string; media_url: string; media_type: string; display_order: number }) => ({
+            id: media.id,
+            media_url: media.media_url,
+            media_type: media.media_type,
+            display_order: media.display_order
+          })),
+        likes: post.post_likes || [],
+        golf_round: golfRound,
+        tagged_profiles: taggedProfiles
+      };
+
+      return NextResponse.json({ post: transformedPost });
     }
 
     // Fetch posts with profile and follow relationship info
@@ -372,7 +502,7 @@ export async function GET(request: NextRequest) {
     const postsWithRounds = await Promise.all(
       finalVisiblePosts.map(async (post) => {
         let golfRound = null;
-        let taggedProfiles: any[] = [];
+        let taggedProfiles: TaggedProfile[] = [];
 
         if (post.round_id) {
           console.log('[GET] Fetching golf round for post:', post.id, 'round_id:', post.round_id);

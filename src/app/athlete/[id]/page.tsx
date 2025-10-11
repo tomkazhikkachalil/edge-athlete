@@ -5,6 +5,7 @@ import { useAuth } from '@/lib/auth';
 import { useRouter, useParams } from 'next/navigation';
 import { ToastContainer, useToast } from '@/components/Toast';
 import LazyImage from '@/components/LazyImage';
+import AppHeader from '@/components/AppHeader';
 import FollowButton from '@/components/FollowButton';
 import PrivateProfileView from '@/components/PrivateProfileView';
 import ProfileMediaTabs from '@/components/ProfileMediaTabs';
@@ -222,67 +223,44 @@ export default function AthleteProfilePage() {
   const isOwnProfile = user?.id === athleteId;
 
   return (
-    <div className="min-h-screen bg-gray-100 p-8">
-      {/* Header Section */}
-      <div className="bg-white rounded-lg shadow-md p-6 mb-8">
-        <div className="flex items-center justify-between mb-4">
-          <div className="flex items-center gap-4">
-            <button
-              onClick={() => router.back()}
-              className="text-gray-900 hover:text-black transition-colors"
-            >
-              <i className="fas fa-arrow-left text-xl"></i>
-            </button>
-            <h2 className="text-2xl font-bold text-gray-900">Athlete Profile</h2>
-          </div>
-          
-          <div className="flex items-center gap-3">
+    <div className="min-h-screen bg-gray-50">
+      {/* Unified Header */}
+      <AppHeader showSearch={false} />
+
+      {/* Profile Content */}
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 py-6">
+        {/* Page Header with Back Button and Actions */}
+        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 sm:p-6 mb-6">
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-4">
+              <button
+                onClick={() => router.back()}
+                className="text-gray-700 hover:text-gray-900 transition-colors"
+                aria-label="Go back"
+              >
+                <i className="fas fa-arrow-left text-xl"></i>
+              </button>
+              <h2 className="text-xl sm:text-2xl font-bold text-gray-900">
+                {isOwnProfile ? 'My Profile' : 'Athlete Profile'}
+              </h2>
+            </div>
+
             {!isOwnProfile && (
-              <>
-                <button
-                  onClick={() => router.push('/feed')}
-                  className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2 text-sm font-medium h-10"
-                >
-                  <i className="fas fa-stream"></i>
-                  Feed
-                </button>
+              <div className="flex items-center gap-3">
                 <FollowButton
                   profileId={athleteId}
                   currentUserId={user?.id}
                   onFollowChange={handleFollowChange}
                   size="md"
                 />
-              </>
-            )}
-            {isOwnProfile && (
-              <>
-                <button
-                  onClick={() => router.push('/athlete')}
-                  className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition-colors flex items-center gap-2 text-sm font-medium h-10"
-                >
-                  <i className="fas fa-plus"></i>
-                  Create Post
-                </button>
-                <button
-                  onClick={() => router.push('/feed')}
-                  className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2 text-sm font-medium h-10"
-                >
-                  <i className="fas fa-stream"></i>
-                  Feed
-                </button>
-                <button
-                  onClick={() => router.push('/athlete')}
-                  className="bg-blue-500 text-white px-4 py-2 rounded-lg hover:bg-blue-600 transition-colors flex items-center gap-2 text-sm font-medium h-10"
-                >
-                  <i className="fa-solid fa-edit"></i>
-                  Edit Profile
-                </button>
-              </>
+              </div>
             )}
           </div>
         </div>
 
-        <div className="flex items-center space-x-8">
+        {/* Profile Info Section */}
+        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 sm:p-6 mb-6">
+          <div className="flex items-center space-x-8">
           {/* Profile Image with Score Badge */}
           <div className="relative">
             {profile.avatar_url ? (
@@ -510,13 +488,13 @@ export default function AthleteProfilePage() {
             </div>
           </div>
         </div>
-      </div>
+        </div>
 
-      {/* Season Highlights */}
-      <div className="bg-white rounded-lg shadow-md p-4 mb-6">
-        <h2 className="text-xl font-bold text-black mb-4">2024-25 Season Highlights</h2>
+        {/* Season Highlights */}
+        <div className="bg-white rounded-lg shadow-md p-6 sm:p-8 mb-6">
+        <h2 className="text-xl font-bold text-black mb-6">2024-25 Season Highlights</h2>
         <div className="grid grid-cols-3 gap-4">
-          <div className="bg-blue-50 rounded-xl p-3 border border-blue-100">
+          <div className="bg-blue-50 rounded-xl p-5 border border-blue-100">
             <div className="flex items-center justify-between mb-2">
               <div className="flex items-center gap-2">
                 <i className="fa-solid fa-trophy text-blue-600 text-lg"></i>
@@ -529,26 +507,26 @@ export default function AthleteProfilePage() {
               </div>
             </div>
             <div className="grid grid-cols-2 gap-2 mb-2">
-              <div className="bg-white rounded-lg p-2 text-center">
+              <div className="bg-white rounded-lg p-3 text-center">
                 <p className="text-xs text-gray-900 font-bold">Performance</p>
                 <p className="text-xl font-bold text-blue-700">--</p>
               </div>
-              <div className="bg-white rounded-lg p-2 text-center">
+              <div className="bg-white rounded-lg p-3 text-center">
                 <p className="text-xs text-gray-900 font-bold">Achievements</p>
                 <p className="text-xl font-bold text-blue-700">--</p>
               </div>
-              <div className="bg-white rounded-lg p-2 text-center">
+              <div className="bg-white rounded-lg p-3 text-center">
                 <p className="text-xs text-gray-900 font-bold">Games</p>
                 <p className="text-xl font-bold text-blue-700">--</p>
               </div>
-              <div className="bg-white rounded-lg p-2 text-center">
+              <div className="bg-white rounded-lg p-3 text-center">
                 <p className="text-xs text-gray-900 font-bold">Rating</p>
                 <p className="text-xl font-bold text-blue-700">85</p>
               </div>
             </div>
           </div>
 
-          <div className="bg-purple-50 rounded-xl p-3 border border-purple-100">
+          <div className="bg-purple-50 rounded-xl p-5 border border-purple-100">
             <div className="flex items-center justify-between mb-2">
               <div className="flex items-center gap-2">
                 <i className="fa-solid fa-medal text-purple-600 text-lg"></i>
@@ -559,26 +537,26 @@ export default function AthleteProfilePage() {
               </div>
             </div>
             <div className="grid grid-cols-2 gap-2 mb-2">
-              <div className="bg-white rounded-lg p-2 text-center">
+              <div className="bg-white rounded-lg p-3 text-center">
                 <p className="text-xs text-gray-900 font-bold">Stats</p>
                 <p className="text-xl font-bold text-purple-700">--</p>
               </div>
-              <div className="bg-white rounded-lg p-2 text-center">
+              <div className="bg-white rounded-lg p-3 text-center">
                 <p className="text-xs text-gray-900 font-bold">Records</p>
                 <p className="text-xl font-bold text-purple-700">--</p>
               </div>
-              <div className="bg-white rounded-lg p-2 text-center">
+              <div className="bg-white rounded-lg p-3 text-center">
                 <p className="text-xs text-gray-900 font-bold">Events</p>
                 <p className="text-xl font-bold text-purple-700">--</p>
               </div>
-              <div className="bg-white rounded-lg p-2 text-center">
+              <div className="bg-white rounded-lg p-3 text-center">
                 <p className="text-xs text-gray-900 font-bold">Rating</p>
                 <p className="text-xl font-bold text-purple-700">--</p>
               </div>
             </div>
           </div>
 
-          <div className="bg-green-50 rounded-xl p-3 border border-green-100">
+          <div className="bg-green-50 rounded-xl p-5 border border-green-100">
             <div className="flex items-center justify-between mb-2">
               <div className="flex items-center gap-2">
                 <i className="fa-solid fa-running text-green-600 text-lg"></i>
@@ -589,19 +567,19 @@ export default function AthleteProfilePage() {
               </div>
             </div>
             <div className="grid grid-cols-2 gap-2 mb-2">
-              <div className="bg-white rounded-lg p-2 text-center">
+              <div className="bg-white rounded-lg p-3 text-center">
                 <p className="text-xs text-gray-900 font-bold">Endurance</p>
                 <p className="text-xl font-bold text-green-700">--</p>
               </div>
-              <div className="bg-white rounded-lg p-2 text-center">
+              <div className="bg-white rounded-lg p-3 text-center">
                 <p className="text-xs text-gray-900 font-bold">Strength</p>
                 <p className="text-xl font-bold text-green-700">--</p>
               </div>
-              <div className="bg-white rounded-lg p-2 text-center">
+              <div className="bg-white rounded-lg p-3 text-center">
                 <p className="text-xs text-gray-900 font-bold">Speed</p>
                 <p className="text-xl font-bold text-green-700">--</p>
               </div>
-              <div className="bg-white rounded-lg p-2 text-center">
+              <div className="bg-white rounded-lg p-3 text-center">
                 <p className="text-xs text-gray-900 font-bold">Overall</p>
                 <p className="text-xl font-bold text-green-700">--</p>
               </div>
@@ -622,6 +600,7 @@ export default function AthleteProfilePage() {
           isOwnProfile={isOwnProfile}
           onCountsChange={(counts) => setPostsCount(counts.all)}
         />
+      </div>
       </div>
 
       {/* Toast Container */}

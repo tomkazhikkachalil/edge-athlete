@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth';
 import { useNotifications } from '@/lib/notifications';
 import { formatDisplayName, getInitials } from '@/lib/formatters';
+import AppHeader from '@/components/AppHeader';
 
 type Tab = 'all' | 'unread' | 'follow' | 'engagement' | 'system';
 
@@ -170,10 +171,13 @@ export default function NotificationsPage() {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      {/* Header */}
+      {/* Unified Header */}
+      <AppHeader showSearch={false} />
+
+      {/* Notifications Page Header */}
       <div className="bg-white border-b border-gray-200">
-        <div className="max-w-4xl mx-auto px-4 py-6">
-          <div className="flex items-center justify-between">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 py-4 sm:py-6">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-4">
             <div>
               <h1 className="text-2xl font-bold text-gray-900">Notifications</h1>
               <p className="text-sm text-gray-600 mt-1">
@@ -234,7 +238,7 @@ export default function NotificationsPage() {
       </div>
 
       {/* Notifications List */}
-      <div className="max-w-4xl mx-auto px-4 py-6">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 py-6">
         {loading && notifications.length === 0 ? (
           <div className="flex justify-center py-12">
             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>

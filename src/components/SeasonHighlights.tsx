@@ -75,7 +75,7 @@ export default function SeasonHighlights({ highlights, badges, onEdit, canEdit =
     ];
 
     return (
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-2 gap-4">
         {stats.map((stat, index) => (
           <div key={index} className="stat-tile">
             <div className="stat-value">

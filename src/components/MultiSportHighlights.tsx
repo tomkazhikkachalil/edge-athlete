@@ -123,7 +123,7 @@ export default function MultiSportHighlights({ profileId, canEdit = true, onEdit
 
         {/* Stats Grid - First 4 tiles in 2x2 grid */}
         <div className={cssClasses.LAYOUT.CARD_STATS}>
-          <div className={`grid grid-cols-2 ${cssClasses.SPACING.GAP.MICRO}`}>
+          <div className="grid grid-cols-2 gap-4">
             {tiles.slice(0, 4).map((tile, index) => (
               <div key={index} className={cssClasses.LAYOUT.STAT_TILE}>
                 <div className={cssClasses.LAYOUT.STAT_VALUE}>
@@ -157,8 +157,8 @@ export default function MultiSportHighlights({ profileId, canEdit = true, onEdit
 
   if (loading) {
     return (
-      <div className="bg-white rounded-lg shadow-sm p-base">
-        <h2 className="text-h2 text-gray-900 space-base">Sport Highlights</h2>
+      <div className="bg-white rounded-lg shadow-sm p-6 sm:p-8">
+        <h2 className="text-h2 text-gray-900 mb-6">Sport Highlights</h2>
         <div className="grid md:grid-cols-3 gap-base">
           {[1, 2, 3].map(i => (
             <div key={i} className="season-card bg-gray-50 rounded-lg border-2 border-gray-200 animate-pulse">
@@ -177,8 +177,8 @@ export default function MultiSportHighlights({ profileId, canEdit = true, onEdit
   );
 
   return (
-    <div className="bg-white rounded-lg shadow-sm p-base">
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between space-base">
+    <div className="bg-white rounded-lg shadow-sm p-6 sm:p-8">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-6">
         <h2 className="text-h2 text-gray-900">Sport Highlights</h2>
         <div className="inline-flex items-center px-3 py-1 bg-gray-50 rounded-md border border-gray-200 hover:bg-gray-100 transition-colors cursor-default">
           <span className="text-label text-gray-900 font-bold">{getSeasonDisplayName()}</span>

@@ -6,14 +6,10 @@ import { useRouter } from 'next/navigation';
 import PostCard from '@/components/PostCard';
 import CreatePostModal from '@/components/CreatePostModal';
 import EditPostModal from '@/components/EditPostModal';
-import AdvancedSearchBar from '@/components/AdvancedSearchBar';
-import NotificationBell from '@/components/NotificationBell';
-import MobileNav from '@/components/MobileNav';
+import AppHeader from '@/components/AppHeader';
 import ConnectionSuggestions from '@/components/ConnectionSuggestions';
 import { ToastContainer, useToast } from '@/components/Toast';
-import { formatDisplayName, getInitials } from '@/lib/formatters';
 import { getSupabaseBrowserClient } from '@/lib/supabase';
-import { AvatarImage } from '@/components/OptimizedImage';
 
 interface Post {
   id: string;
@@ -335,84 +331,8 @@ export default function FeedPage() {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      {/* Header */}
-      <header className="bg-white shadow-sm border-b border-gray-200 sticky top-0 z-10">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 py-3">
-          <div className="flex items-center justify-between">
-            {/* Left - Logo & Navigation */}
-            <div className="flex items-center gap-3 sm:gap-6">
-              <h1 className="text-lg sm:text-xl font-bold text-gray-900">Edge Athlete</h1>
-              <nav className="hidden md:flex items-center gap-6">
-                <button
-                  onClick={() => router.push('/feed')}
-                  className="text-blue-600 hover:text-blue-700 font-medium border-b-2 border-blue-600"
-                >
-                  Feed
-                </button>
-                <button
-                  onClick={() => router.push('/athlete')}
-                  className="text-gray-700 hover:text-gray-900 font-medium"
-                >
-                  Profile
-                </button>
-                <a href="#" className="text-gray-700 hover:text-gray-900 font-medium">Explore</a>
-                <a href="#" className="text-gray-700 hover:text-gray-900 font-medium">Following</a>
-              </nav>
-            </div>
-
-            {/* Right - Actions & Profile */}
-            <div className="flex items-center gap-2 sm:gap-4">
-              <NotificationBell />
-              <button
-                onClick={() => router.push('/app/followers')}
-                className="hidden sm:block text-gray-600 hover:text-gray-900"
-                title="Followers & Connections"
-              >
-                <i className="fas fa-user-friends text-lg"></i>
-              </button>
-              <button
-                onClick={() => setIsCreatePostModalOpen(true)}
-                className="bg-blue-600 text-white px-3 sm:px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2 text-sm font-medium"
-              >
-                <i className="fas fa-plus"></i>
-                <span className="hidden sm:inline">Post</span>
-              </button>
-
-              {/* Profile Dropdown - Desktop Only */}
-              <div className="hidden md:block relative">
-                <button
-                  onClick={() => router.push('/athlete')}
-                  className="flex items-center gap-2 hover:bg-gray-100 rounded-lg p-1 transition-colors"
-                  title="Go to Profile"
-                >
-                  <AvatarImage
-                    src={profile?.avatar_url}
-                    alt="Profile"
-                    size={32}
-                    fallbackInitials={getInitials(formatDisplayName(profile?.first_name, null, profile?.last_name, profile?.full_name))}
-                  />
-                  <span className="text-sm font-medium text-gray-700">
-                    {formatDisplayName(profile?.first_name, null, profile?.last_name, profile?.full_name)}
-                  </span>
-                  <i className="fas fa-chevron-down text-xs text-gray-500"></i>
-                </button>
-              </div>
-
-              {/* Mobile Menu */}
-              <MobileNav />
-            </div>
-          </div>
-        </div>
-      </header>
-
-      {/* Search Bar - Below Header */}
-      <div className="bg-white border-b border-gray-200">
-        <div className="max-w-7xl mx-auto px-4 py-4">
-          <div className="max-w-2xl">
-            <AdvancedSearchBar />
-          </div>
-        </div>
-      </div>
+      {/* Unified Header */}
+      <AppHeader showSearch={true} onCreatePost={() => setIsCreatePostModalOpen(true)} />
 
       {/* Main Layout */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 py-4 sm:py-6">

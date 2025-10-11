@@ -12,7 +12,7 @@ import PerformanceModal from '@/components/PerformanceModal';
 import LazyImage from '@/components/LazyImage';
 import CreatePostModal from '@/components/CreatePostModal';
 import ProfileMediaTabs from '@/components/ProfileMediaTabs';
-import NotificationsDropdown from '@/components/NotificationsDropdown';
+import AppHeader from '@/components/AppHeader';
 import FollowersModal from '@/components/FollowersModal';
 import type { AthleteBadge, SeasonHighlight, Performance, Profile } from '@/lib/supabase';
 import {
@@ -715,75 +715,8 @@ export default function AthleteProfilePage() {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      {/* Navigation Header */}
-      <header className="bg-white border-b border-gray-200 px-4 sm:px-6 py-4">
-        <div className="max-w-7xl mx-auto">
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-            <div className="flex items-center gap-6">
-              <h1 className="text-xl sm:text-2xl font-bold text-gray-900">Athletic Profile</h1>
-              <nav className="hidden md:flex items-center gap-6">
-                <button
-                  onClick={() => router.push('/feed')}
-                  className="text-gray-700 hover:text-gray-900 font-medium"
-                >
-                  Feed
-                </button>
-                <button
-                  onClick={() => router.push('/athlete')}
-                  className="text-blue-600 hover:text-blue-700 font-medium border-b-2 border-blue-600"
-                >
-                  Profile
-                </button>
-              </nav>
-            </div>
-
-            <div className="flex flex-wrap items-center gap-2 sm:gap-3">
-              <NotificationsDropdown />
-              <button
-                onClick={() => router.push('/app/followers')}
-                className="text-gray-600 hover:text-gray-900 p-2"
-                title="Followers & Connections"
-              >
-                <i className="fas fa-user-friends text-lg"></i>
-              </button>
-              <button
-                onClick={() => setIsCreatePostModalOpen(true)}
-                className="bg-blue-600 text-white px-3 py-2 sm:px-4 rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2 text-xs sm:text-sm font-medium"
-                aria-label="Create new post"
-              >
-                <i className="fas fa-plus"></i>
-                <span className="hidden sm:inline">Create Post</span>
-                <span className="sm:hidden">Post</span>
-              </button>
-              <button
-                onClick={() => router.push('/feed')}
-                className="bg-gray-600 text-white px-3 py-2 sm:px-4 rounded-lg hover:bg-gray-700 transition-colors flex items-center gap-2 text-xs sm:text-sm font-medium"
-                aria-label="View community feed"
-              >
-                <i className="fas fa-stream"></i>
-                Feed
-              </button>
-              <button
-                onClick={() => setIsEditModalOpen(true)}
-                className="bg-green-600 text-white px-3 py-2 sm:px-4 rounded-lg hover:bg-green-700 transition-colors flex items-center gap-2 text-xs sm:text-sm font-medium"
-                aria-label="Edit athlete profile"
-              >
-                <i className="fas fa-edit"></i>
-                <span className="hidden sm:inline">Edit Profile</span>
-                <span className="sm:hidden">Edit</span>
-              </button>
-              <button
-                onClick={() => signOut()}
-                className="bg-red-600 text-white px-3 py-2 sm:px-4 rounded-lg hover:bg-red-700 transition-colors flex items-center gap-2 text-xs sm:text-sm font-medium"
-                aria-label="Sign out of account"
-              >
-                <i className="fas fa-sign-out-alt"></i>
-                <span className="hidden sm:inline">Logout</span>
-              </button>
-            </div>
-          </div>
-        </div>
-      </header>
+      {/* Unified Header */}
+      <AppHeader showSearch={false} onCreatePost={() => setIsCreatePostModalOpen(true)} />
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 py-4 sm:py-8">
         {/* Profile Header Section */}

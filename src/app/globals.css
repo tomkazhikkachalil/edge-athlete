@@ -165,9 +165,9 @@ select {
 }
 
 .season-card-header {
-  height: 80px; /* Fixed header height: icon + title + chips */
+  height: 88px; /* Fixed header height: icon + title + chips with more padding */
   flex-shrink: 0;
-  padding: var(--space-micro);
+  padding: 16px; /* Increased from 12px for better spacing */
   border-bottom: 1px solid rgba(229, 231, 235, 0.5);
 }
 
@@ -184,7 +184,7 @@ select {
 
 .season-card-stats {
   flex: 1; /* Takes remaining space */
-  padding: var(--space-micro);
+  padding: 20px; /* Increased from 12px for better stat spacing */
   display: flex;
   align-items: center;
   justify-content: center;
@@ -193,7 +193,7 @@ select {
 .season-card-footer {
   height: 32px; /* Fixed footer height */
   flex-shrink: 0;
-  padding: 0 var(--space-micro) var(--space-micro) var(--space-micro);
+  padding: 0 16px 12px 16px; /* Increased horizontal padding */
   display: flex;
   align-items: center;
   justify-content: center;
@@ -218,6 +218,7 @@ select {
 .stat-tile {
   text-align: center;
   min-height: 48px;
+  padding: 8px; /* Added padding for better spacing */
   display: flex;
   flex-direction: column;
   justify-content: center;

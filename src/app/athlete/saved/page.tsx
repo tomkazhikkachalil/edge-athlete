@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth';
 import { supabase } from '@/lib/supabase';
 import PostCard from '@/components/PostCard';
+import AppHeader from '@/components/AppHeader';
 
 interface PostMedia {
   id: string;
@@ -243,24 +244,32 @@ export default function SavedPostsPage() {
   }
 
   return (
-    <div className="container mx-auto px-4 py-8">
-      <div className="max-w-2xl mx-auto">
-        {/* Header */}
-        <div className="mb-6">
-          <button
-            onClick={() => router.back()}
-            className="flex items-center gap-2 text-gray-600 hover:text-gray-900 mb-4"
-          >
-            <i className="fas fa-arrow-left"></i>
-            <span>Back</span>
-          </button>
-          <h1 className="text-3xl font-bold text-gray-900">Saved Posts</h1>
-          <p className="text-gray-600 mt-2">
+    <div className="min-h-screen bg-gray-50">
+      {/* Unified Header */}
+      <AppHeader showSearch={false} />
+
+      {/* Page Header */}
+      <div className="bg-white border-b border-gray-200">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 py-6">
+          <div className="flex items-center gap-4 mb-2">
+            <button
+              onClick={() => router.back()}
+              className="text-gray-600 hover:text-gray-900"
+            >
+              <i className="fas fa-arrow-left text-xl"></i>
+            </button>
+            <h1 className="text-2xl font-bold text-gray-900">Saved Posts</h1>
+          </div>
+          <p className="text-sm text-gray-600 ml-12">
             {savedPosts.length} {savedPosts.length === 1 ? 'post' : 'posts'} saved
           </p>
         </div>
+      </div>
 
-        {/* Saved Posts List */}
+      {/* Content */}
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 py-6">
+        <div className="max-w-2xl mx-auto">
+          {/* Saved Posts List */}
         {savedPosts.length === 0 ? (
           <div className="text-center py-12">
             <i className="far fa-bookmark text-6xl text-gray-300 mb-4"></i>
@@ -283,6 +292,7 @@ export default function SavedPostsPage() {
             ))}
           </div>
         )}
+        </div>
       </div>
     </div>
   );

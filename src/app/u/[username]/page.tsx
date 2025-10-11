@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
+import AppHeader from '@/components/AppHeader';
 
 export default function PublicProfilePage() {
   const params = useParams();
@@ -72,8 +73,11 @@ export default function PublicProfilePage() {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <div className="max-w-4xl mx-auto px-4 py-section">
-        <div className="bg-white rounded-lg shadow-sm p-base">
+      {/* Unified Header */}
+      <AppHeader showSearch={false} />
+
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 py-6">
+        <div className="bg-white rounded-lg shadow-sm p-6">
           <div className="text-center py-12">
             <i className="fas fa-user-circle text-6xl text-gray-300 mb-6"></i>
             <h1 className="text-3xl font-bold text-gray-900 mb-4">Public Profiles</h1>
