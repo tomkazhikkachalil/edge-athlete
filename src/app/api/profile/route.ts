@@ -79,14 +79,8 @@ export async function GET(request: NextRequest) {
 
 export async function PUT(request: NextRequest) {
   try {
-    console.log('\n=== PROFILE API DEBUG START ===');
-    console.log('Profile API: Received PUT request');
-    console.log('Profile API: Request method:', request.method);
-    console.log('Profile API: Request URL:', request.url);
-    console.log('Profile API: Request headers:', Object.fromEntries(request.headers.entries()));
     
     const body = await request.json();
-    console.log('Profile API: Request body received:', JSON.stringify(body, null, 2));
     
     // Validate required fields
     if (!body.profileData || !body.userId) {
@@ -95,8 +89,6 @@ export async function PUT(request: NextRequest) {
     }
 
     const { profileData, userId } = body;
-    console.log('Profile API: Updating user:', userId);
-    console.log('Profile API: Update data:', JSON.stringify(profileData, null, 2));
     
     // Clean up profileData - convert empty strings to null for optional fields
     const cleanedProfileData = { ...profileData };
@@ -113,7 +105,6 @@ export async function PUT(request: NextRequest) {
     if (cleanedProfileData.weight_kg === '') {
       cleanedProfileData.weight_kg = null;
     } else if (cleanedProfileData.weight_kg !== undefined) {
-      console.log('Profile API: Weight value before save:', cleanedProfileData.weight_kg, 'Type:', typeof cleanedProfileData.weight_kg);
     }
     if (cleanedProfileData.class_year === '') {
       cleanedProfileData.class_year = null;
@@ -129,10 +120,8 @@ export async function PUT(request: NextRequest) {
     
     // Don't null out weight_unit - keep it as is
     if (cleanedProfileData.weight_unit !== undefined) {
-      console.log('Profile API: Weight unit:', cleanedProfileData.weight_unit);
     }
     
-    console.log('Profile API: Cleaned update data:', JSON.stringify(cleanedProfileData, null, 2));
     
     if (!supabaseAdmin) {
       console.error('Profile API: supabaseAdmin not configured - missing SUPABASE_SERVICE_ROLE_KEY');
@@ -147,7 +136,6 @@ export async function PUT(request: NextRequest) {
     }
     
     // Update profile in database using admin client
-    console.log('Profile API: Executing database update...');
     const { data, error } = await supabaseAdmin
       .from('profiles')
       .update(cleanedProfileData)
@@ -164,14 +152,11 @@ export async function PUT(request: NextRequest) {
       }, { status: 500 });
     }
 
-    console.log('Profile API: Update successful:', JSON.stringify(data, null, 2));
     const response = {
       success: true,
       profile: data,
       message: 'Profile updated successfully'
     };
-    console.log('Profile API: Returning response:', JSON.stringify(response, null, 2));
-    console.log('=== PROFILE API DEBUG END ===\n');
     return NextResponse.json(response);
 
   } catch (error) {

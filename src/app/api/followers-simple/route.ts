@@ -3,7 +3,6 @@ import { createServerClient } from '@supabase/ssr';
 import { cookies } from 'next/headers';
 
 export async function GET() {
-  console.log('[SIMPLE FOLLOWERS API] Request received');
 
   try {
     const cookieStore = await cookies();
@@ -29,7 +28,6 @@ export async function GET() {
       return NextResponse.json({ error: 'Not logged in' }, { status: 401 });
     }
 
-    console.log('[SIMPLE FOLLOWERS API] User:', user.id);
 
     // Try the simplest possible query first - just get all follows
     const { data: allFollows, error: allError } = await supabase
@@ -47,7 +45,6 @@ export async function GET() {
       }, { status: 500 });
     }
 
-    console.log('[SIMPLE FOLLOWERS API] Total follows in table:', allFollows?.length);
 
     // Now try with status filter
     const { data: acceptedFollows, error: statusError } = await supabase
@@ -66,7 +63,6 @@ export async function GET() {
       }, { status: 500 });
     }
 
-    console.log('[SIMPLE FOLLOWERS API] Accepted follows:', acceptedFollows?.length);
 
     // Success!
     return NextResponse.json({

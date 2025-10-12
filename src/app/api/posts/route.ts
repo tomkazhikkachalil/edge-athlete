@@ -37,7 +37,6 @@ export async function POST(request: NextRequest) {
 
     // Use authenticated user's ID
     const userId = user.id;
-    console.log('[POST] Creating post for authenticated user:', userId);
 
     // Validate post type
     if (!['general', 'golf'].includes(postType)) {
@@ -72,10 +71,6 @@ export async function POST(request: NextRequest) {
       likes_count: 0,
       comments_count: 0
     };
-
-    console.log('[POST] Creating post with tagged profile IDs:', taggedProfiles);
-    console.log('[POST] Creating post with hashtags:', hashtags);
-    console.log('[POST] Category tags (not stored):', tags);
 
     let roundId: string | null = null;
 
@@ -184,11 +179,8 @@ export async function POST(request: NextRequest) {
       if (roundId) {
         postData.round_id = roundId;
         postData.golf_mode = 'round_recap';
-        console.log('[POST] Adding round_id to post:', roundId);
       }
     }
-
-    console.log('[POST] Final postData before insert:', JSON.stringify(postData, null, 2));
 
     const { data: post, error: postError } = await supabase
       .from('posts')
@@ -211,9 +203,6 @@ export async function POST(request: NextRequest) {
         hint: postError.hint
       }, { status: 500 });
     }
-
-    console.log('[POST] Post created successfully with ID:', post.id);
-    console.log('[POST] Post round_id:', post.round_id);
 
     // Add media files if provided
     if (media && media.length > 0) {
@@ -497,8 +486,6 @@ export async function GET(request: NextRequest) {
     // Apply final visibility filter (organization-based features not yet implemented)
     const finalVisiblePosts = visiblePosts;
 
-    console.log(`[PRIVACY] Total posts fetched: ${posts?.length || 0}, Visible after filtering: ${finalVisiblePosts.length}`);
-
     // Fetch golf rounds with hole-by-hole data for posts that have round_id
     // AND fetch tagged profiles for posts with tags
     const postsWithRounds = await Promise.all(
@@ -507,8 +494,6 @@ export async function GET(request: NextRequest) {
         let taggedProfiles: TaggedProfile[] = [];
 
         if (post.round_id) {
-          console.log('[GET] Fetching golf round for post:', post.id, 'round_id:', post.round_id);
-
           const { data: roundData, error: roundError } = await supabase
             .from('golf_rounds')
             .select(`
@@ -530,22 +515,15 @@ export async function GET(request: NextRequest) {
 
           if (roundError) {
             console.error('[GET] Error fetching golf round:', roundError);
-          } else {
-            console.log('[GET] Golf round fetched:', roundData?.id, 'holes count:', roundData?.golf_holes?.length);
-
-            if (roundData && roundData.golf_holes) {
-              // Sort holes by hole number
-              roundData.golf_holes.sort((a: { hole_number: number }, b: { hole_number: number }) => a.hole_number - b.hole_number);
-            }
-
+          } else if (roundData && roundData.golf_holes) {
+            // Sort holes by hole number
+            roundData.golf_holes.sort((a: { hole_number: number }, b: { hole_number: number }) => a.hole_number - b.hole_number);
             golfRound = roundData;
           }
         }
 
         // Fetch tagged profiles if post has tags
         if (post.tags && post.tags.length > 0) {
-          console.log('[GET] Fetching tagged profiles for post:', post.id, 'tags:', post.tags);
-
           const { data: profiles, error: profilesError } = await supabase
             .from('profiles')
             .select('id, first_name, middle_name, last_name, full_name, avatar_url, handle')
@@ -555,7 +533,6 @@ export async function GET(request: NextRequest) {
             console.error('[GET] Error fetching tagged profiles:', profilesError);
           } else if (profiles) {
             taggedProfiles = profiles;
-            console.log('[GET] Tagged profiles fetched:', profiles.length);
           }
         }
 
@@ -566,10 +543,7 @@ export async function GET(request: NextRequest) {
     // Transform the data to match the expected format
     const transformedPosts = postsWithRounds
       .filter(post => post.profiles) // Filter out posts without profiles
-      .map(post => {
-        console.log('[GET] Post tags from DB:', post.id, post.tags);
-        console.log('[GET] Post hashtags from DB:', post.id, post.hashtags);
-        return {
+      .map(post => ({
           id: post.id,
           caption: post.caption,
           sport_key: post.sport_key,
@@ -599,8 +573,7 @@ export async function GET(request: NextRequest) {
           likes: post.post_likes || [],
           golf_round: post.golf_round || null,
           tagged_profiles: post.tagged_profiles || []
-        };
-      });
+        }));
 
     return NextResponse.json({ posts: transformedPosts });
 
@@ -627,8 +600,6 @@ export async function PUT(request: NextRequest) {
     if (!postId) {
       return NextResponse.json({ error: 'Post ID is required' }, { status: 400 });
     }
-
-    console.log('[PUT] Updating post:', postId, 'for user:', user.id);
 
     // Validate visibility
     if (!['public', 'private'].includes(visibility)) {
@@ -672,8 +643,6 @@ export async function PUT(request: NextRequest) {
         details: updateError.message
       }, { status: 500 });
     }
-
-    console.log('[PUT] Post updated successfully:', postId);
 
     return NextResponse.json({
       success: true,

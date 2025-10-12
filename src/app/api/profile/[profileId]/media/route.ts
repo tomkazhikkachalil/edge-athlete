@@ -42,6 +42,7 @@ interface MediaItem {
   caption: string | null;
   sport_key: string | null;
   stats_data: Record<string, unknown> | null;
+  round_id?: string | null;
   visibility: string;
   created_at: string;
   profile_id: string;
@@ -106,7 +107,14 @@ export async function GET(
 
     if (mediaError) {
       console.error(`Error fetching ${tab} media:`, mediaError);
-      return NextResponse.json({ error: 'Failed to fetch media' }, { status: 500 });
+      console.error('Function called:', functionName);
+      console.error('Parameters:', { target_profile_id: profileId, viewer_id: viewerId, media_limit: limit, media_offset: offset });
+      return NextResponse.json({
+        error: 'Failed to fetch media',
+        details: mediaError.message,
+        hint: mediaError.hint,
+        function: functionName
+      }, { status: 500 });
     }
 
     let items = mediaItems as MediaItem[] || [];
@@ -214,10 +222,38 @@ export async function GET(
         });
       }
 
+      // Fetch golf round data for posts with round_id
+      const roundIds = items
+        .filter((item: MediaItem) => item.round_id)
+        .map((item: MediaItem) => item.round_id as string);
+
+      const golfRoundsMap = new Map<string, any>();
+
+      if (roundIds.length > 0) {
+        console.log('[PROFILE MEDIA API] Fetching golf rounds for:', roundIds);
+        const { data: golfRounds, error: roundsError } = await supabaseAdmin
+          .from('golf_rounds')
+          .select('*')
+          .in('id', roundIds);
+
+        if (roundsError) {
+          console.error('[PROFILE MEDIA API] Error fetching golf rounds:', roundsError);
+        } else {
+          console.log('[PROFILE MEDIA API] Fetched golf rounds:', golfRounds?.length || 0, golfRounds);
+        }
+
+        if (golfRounds) {
+          golfRounds.forEach((round: any) => {
+            golfRoundsMap.set(round.id, round);
+          });
+        }
+      }
+
       items = items.map((item: MediaItem) => ({
         ...item,
         media: mediaMap.get(item.id) || [],
-        tagged_profiles: taggedProfilesMap.get(item.id) || []
+        tagged_profiles: taggedProfilesMap.get(item.id) || [],
+        golf_round: item.round_id ? golfRoundsMap.get(item.round_id) || null : null
       }));
     }
 

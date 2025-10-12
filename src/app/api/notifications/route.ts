@@ -17,14 +17,6 @@ export async function GET(request: NextRequest) {
     const limit = parseInt(searchParams.get('limit') || '20');
     const cursor = searchParams.get('cursor'); // created_at timestamp for pagination
 
-    console.log('[NOTIFICATIONS API] GET request:', {
-      userId: user.id,
-      unreadOnly,
-      type,
-      limit,
-      cursor
-    });
-
     // Build query
     let query = supabaseAdmin
       .from('notifications')
@@ -90,12 +82,6 @@ export async function GET(request: NextRequest) {
     const nextCursor = hasMore && results.length > 0
       ? results[results.length - 1].created_at
       : null;
-
-    console.log('[NOTIFICATIONS API] Returning notifications:', {
-      count: results.length,
-      unreadCount,
-      hasMore
-    });
 
     return NextResponse.json({
       notifications: results,

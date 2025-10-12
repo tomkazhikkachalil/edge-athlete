@@ -41,158 +41,41 @@ export default function PostDetailModal({
     setError(null);
 
     try {
-      const supabase = createSupabaseBrowserClient();
+      // Use API endpoint which handles RLS with admin client
+      const response = await fetch(`/api/posts?postId=${postId}`);
 
-      // Fetch post with related data
-      const { data, error: fetchError } = await supabase
-        .from('posts')
-        .select(`
-          *,
-          post_media (
-            id,
-            media_url,
-            media_type,
-            display_order
-          ),
-          profiles:profile_id (
-            id,
-            first_name,
-            middle_name,
-            last_name,
-            full_name,
-            avatar_url,
-            handle
-          ),
-          post_likes (
-            profile_id
-          ),
-          saved_posts (
-            profile_id
-          )
-        `)
-        .eq('id', postId)
-        .single();
-
-      if (fetchError) {
-        console.error('Post fetch error details:', fetchError);
-        throw new Error(`Failed to fetch post: ${fetchError.message}`);
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to fetch post');
       }
+
+      const { post: data } = await response.json();
 
       if (!data) {
         throw new Error('Post not found');
       }
 
       // Debug: Log raw data
-      console.log('[PostDetailModal] Raw data received:', data);
+      console.log('[PostDetailModal] Raw data received from API:', data);
 
-      // =====================================================
-      // SPORT-SPECIFIC DATA LOADING
-      // =====================================================
-      // Future-proofing: Add similar blocks for other sports
-      // Example patterns:
-      //   - Basketball: game_id -> basketball_games + basketball_quarters
-      //   - Soccer: match_id -> soccer_matches + soccer_periods
-      //   - Hockey: game_id -> hockey_games + hockey_periods
-      // =====================================================
+      // Fetch saved_posts status for current user
+      const supabase = createSupabaseBrowserClient();
+      const { data: savedPosts } = await supabase
+        .from('saved_posts')
+        .select('profile_id')
+        .eq('post_id', postId);
 
-      // Fetch golf round data with hole-by-hole details
-      let golfRound = null;
-      if (data.round_id && data.sport_key === 'golf') {
-        const { data: roundData } = await supabase
-          .from('golf_rounds')
-          .select(`
-            *,
-            golf_holes (
-              hole_number,
-              par,
-              distance_yards,
-              strokes,
-              putts,
-              fairway_hit,
-              green_in_regulation,
-              notes
-            )
-          `)
-          .eq('id', data.round_id)
-          .single();
-
-        if (roundData && roundData.golf_holes) {
-          // Sort holes by hole number for proper display
-          roundData.golf_holes.sort((a: any, b: any) => a.hole_number - b.hole_number);
-        }
-
-        golfRound = roundData;
-        console.log('[PostDetailModal] Loaded golf round with holes:', roundData);
-      }
-
-      // TODO: Add other sport-specific data loading here
-      // Example for basketball:
-      // let basketballGame = null;
-      // if (data.game_id && data.sport_key === 'basketball') {
-      //   const { data: gameData } = await supabase
-      //     .from('basketball_games')
-      //     .select(`
-      //       *,
-      //       basketball_quarters (*)
-      //     `)
-      //     .eq('id', data.game_id)
-      //     .single();
-      //   basketballGame = gameData;
-      // }
-
-      // Fetch tagged profiles if post has tags
-      let taggedProfiles: any[] = [];
-      if (data.tags && Array.isArray(data.tags) && data.tags.length > 0) {
-        console.log('[PostDetailModal] Raw tags from post:', data.tags);
-
-        // UUID regex pattern for validation
-        const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-
-        // Filter to only valid UUIDs (exclude category tags like 'casual', 'lifestyle')
-        const validUUIDs = data.tags.filter((tag: any) =>
-          typeof tag === 'string' && uuidPattern.test(tag)
-        );
-
-        if (validUUIDs.length > 0) {
-          console.log('[PostDetailModal] Valid UUIDs to fetch:', validUUIDs);
-
-          const { data: profiles, error: profilesError } = await supabase
-            .from('profiles')
-            .select('id, first_name, middle_name, last_name, full_name, avatar_url, handle')
-            .in('id', validUUIDs);
-
-          if (profilesError) {
-            console.error('[PostDetailModal] Error fetching tagged profiles:', profilesError);
-          } else if (profiles) {
-            taggedProfiles = profiles;
-            console.log('[PostDetailModal] Tagged profiles fetched:', profiles.length);
-          }
-        } else {
-          // Log non-UUID tags (old category tags) but don't error
-          const nonUUIDs = data.tags.filter((tag: any) =>
-            typeof tag === 'string' && !uuidPattern.test(tag)
-          );
-          if (nonUUIDs.length > 0) {
-            console.log('[PostDetailModal] Skipping non-UUID category tags (old data):', nonUUIDs);
-          }
-        }
-      }
-
-      // Transform data to match PostCard interface
+      // Transform data to match PostCard interface (API already formats most of it)
       const transformedPost = {
         ...data,
-        profile: data.profiles, // Rename profiles -> profile
-        media: data.post_media || [], // Rename post_media -> media
-        golf_round: golfRound,
-        tagged_profiles: taggedProfiles,
-        // Remove old properties
-        profiles: undefined,
-        post_media: undefined
+        // Add saved_posts if user is logged in
+        saved_posts: savedPosts || []
       };
 
       console.log('[PostDetailModal] Transformed data for PostCard:', transformedPost);
       console.log('[PostDetailModal] Has profile?', !!transformedPost.profile);
       console.log('[PostDetailModal] Has media?', transformedPost.media?.length);
+      console.log('[PostDetailModal] Has golf_round?', !!transformedPost.golf_round);
 
       setPost(transformedPost);
     } catch (err: any) {

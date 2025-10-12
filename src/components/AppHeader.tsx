@@ -11,9 +11,10 @@ import AdvancedSearchBar from '@/components/AdvancedSearchBar';
 interface AppHeaderProps {
   showSearch?: boolean;
   onCreatePost?: () => void;
+  onEditProfile?: () => void;
 }
 
-export default function AppHeader({ showSearch = true, onCreatePost }: AppHeaderProps) {
+export default function AppHeader({ showSearch = true, onCreatePost, onEditProfile }: AppHeaderProps) {
   const router = useRouter();
   const pathname = usePathname();
   const { profile, signOut } = useAuth();
@@ -154,7 +155,11 @@ export default function AppHeader({ showSearch = true, onCreatePost }: AppHeader
                         </button>
                         <button
                           onClick={() => {
-                            router.push('/athlete');
+                            if (onEditProfile) {
+                              onEditProfile();
+                            } else {
+                              router.push('/athlete');
+                            }
                             setIsProfileDropdownOpen(false);
                           }}
                           className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-3"
@@ -208,9 +213,7 @@ export default function AppHeader({ showSearch = true, onCreatePost }: AppHeader
         {showSearch && (
           <div className="border-t border-gray-100">
             <div className="max-w-7xl mx-auto px-4 sm:px-6 py-3">
-              <div className="max-w-2xl">
-                <AdvancedSearchBar />
-              </div>
+              <AdvancedSearchBar />
             </div>
           </div>
         )}
@@ -297,6 +300,21 @@ export default function AppHeader({ showSearch = true, onCreatePost }: AppHeader
             >
               <i className="fas fa-plus w-5 text-center"></i>
               <span className="font-medium">Create Post</span>
+            </button>
+
+            <button
+              onClick={() => {
+                if (onEditProfile) {
+                  onEditProfile();
+                } else {
+                  router.push('/athlete');
+                }
+                setIsMobileMenuOpen(false);
+              }}
+              className="flex items-center gap-3 w-full px-4 py-3 text-left text-gray-700 hover:bg-blue-50 hover:text-blue-600 rounded-lg transition-colors"
+            >
+              <i className="fas fa-edit w-5 text-center"></i>
+              <span className="font-medium">Edit Profile</span>
             </button>
 
             <button

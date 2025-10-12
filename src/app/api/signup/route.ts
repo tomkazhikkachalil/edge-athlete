@@ -13,7 +13,6 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    console.log('Checking for existing email:', email.toLowerCase());
     
     // Check for existing emails if admin client is available
     if (supabaseAdmin) {
@@ -23,7 +22,6 @@ export async function POST(request: NextRequest) {
         .select('email')
         .eq('email', email.toLowerCase());
 
-      console.log('Profile check result:', { existingProfiles, checkError });
 
       if (checkError && checkError.code !== 'PGRST116') {
         console.error('Database check error:', checkError);
@@ -50,7 +48,6 @@ export async function POST(request: NextRequest) {
       if (!authCheckError && authUsers.users) {
         const existingAuthUser = authUsers.users.find(user => user.email?.toLowerCase() === email.toLowerCase());
         if (existingAuthUser) {
-          console.log('Email already exists in auth.users table');
           return NextResponse.json(
             { 
               error: 'This email is already registered. Please log in instead.' 
@@ -63,7 +60,6 @@ export async function POST(request: NextRequest) {
       console.warn('Admin client not available - skipping duplicate email check. Relying on Supabase Auth validation.');
     }
 
-    console.log('Proceeding with Supabase Auth signup for:', email);
     
     // Proceed with Supabase Auth signup
     const { data, error } = await supabase.auth.signUp({
@@ -71,7 +67,6 @@ export async function POST(request: NextRequest) {
       password,
     });
 
-    console.log('Supabase signup result:', { data: data?.user ? { id: data.user.id, email: data.user.email } : null, error });
 
     if (error) {
       console.error('Supabase auth signup error:', error);
@@ -162,18 +157,6 @@ export async function POST(request: NextRequest) {
         // For other errors, still return success since auth user was created
         console.warn('Profile update failed but user created:', profileError);
       }
-
-      // Log successful profile update for debugging
-      console.log('Profile updated for user:', data.user.id, 'with data:', {
-        email: email.toLowerCase(),
-        full_name: fullName,
-        first_name: profileData.first_name,
-        last_name: profileData.last_name,
-        nickname: profileData.nickname,
-        location: profileData.location,
-        dob: profileData.birthday,
-        handle: profileData.handle
-      });
     }
 
     return NextResponse.json(

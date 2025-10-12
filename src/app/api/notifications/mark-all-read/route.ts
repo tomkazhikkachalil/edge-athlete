@@ -11,7 +11,6 @@ export async function PATCH(request: NextRequest) {
   try {
     const user = await requireAuth(request);
 
-    console.log('[NOTIFICATIONS API] Marking all as read for user:', user.id);
 
     const { error, count } = await supabaseAdmin
       .from('notifications')

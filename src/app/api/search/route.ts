@@ -22,7 +22,6 @@ export async function GET(request: NextRequest) {
     const dateFrom = searchParams.get('dateFrom')?.trim();
     const dateTo = searchParams.get('dateTo')?.trim();
 
-    console.log('[SEARCH] Query received:', query, 'Type:', type, 'Filters:', { sport, school, league, dateFrom, dateTo });
 
     if (!query || query.length < 2) {
       return NextResponse.json({
@@ -45,7 +44,6 @@ export async function GET(request: NextRequest) {
       try {
         if (USE_FULLTEXT_SEARCH) {
           // Use optimized full-text search function
-          console.log('[SEARCH] Using full-text search for athletes');
 
           const { data: athletes, error: athletesError } = await supabase
             .rpc('search_profiles', {
@@ -54,7 +52,6 @@ export async function GET(request: NextRequest) {
             });
 
           if (!athletesError && athletes) {
-            console.log('[SEARCH] Full-text search returned:', athletes.length, 'athletes');
             // Apply additional filters (sport, school) client-side for now
             let filtered = athletes;
             if (sport) {
@@ -89,7 +86,6 @@ export async function GET(request: NextRequest) {
               school: athlete.school,
               visibility: athlete.visibility
             }));
-            console.log('[SEARCH] Athletes found:', athletes.length, 'After filters:', results.athletes.length);
           } else if (athletesError) {
             console.error('[SEARCH] Athletes full-text error:', athletesError);
             // Fallback to ILIKE on error
@@ -100,7 +96,6 @@ export async function GET(request: NextRequest) {
         }
       } catch {
         // Fallback to ILIKE search if full-text search fails
-        console.log('[SEARCH] Falling back to ILIKE search for athletes');
         const searchPattern = `%${query}%`;
 
         const athleteQuery = supabase
@@ -120,7 +115,6 @@ export async function GET(request: NextRequest) {
           .limit(20);
 
         if (!athletesError && athletes) {
-          console.log('[SEARCH] ILIKE fallback returned:', athletes.length, 'athletes');
           results.athletes = athletes.map(athlete => ({
             id: athlete.id,
             full_name: athlete.full_name,
@@ -134,7 +128,6 @@ export async function GET(request: NextRequest) {
             visibility: athlete.visibility,
             handle: athlete.handle
           }));
-          console.log('[SEARCH] Athletes found (ILIKE):', athletes.length);
         } else if (athletesError) {
           console.error('[SEARCH] Athletes ILIKE error:', athletesError);
         }
@@ -146,7 +139,6 @@ export async function GET(request: NextRequest) {
       try {
         if (USE_FULLTEXT_SEARCH) {
           // Use optimized full-text search function
-          console.log('[SEARCH] Using full-text search for posts');
 
           const { data: postsBasic, error: postsError } = await supabase
             .rpc('search_posts', {
@@ -198,7 +190,6 @@ export async function GET(request: NextRequest) {
                 .order('created_at', { ascending: false });
 
               results.posts = posts || [];
-              console.log('[SEARCH] Posts found:', posts?.length || 0);
             }
           } else if (postsError) {
             console.error('[SEARCH] Posts full-text error:', postsError);
@@ -209,7 +200,6 @@ export async function GET(request: NextRequest) {
         }
       } catch {
         // Fallback to ILIKE search if full-text search fails
-        console.log('[SEARCH] Falling back to ILIKE search for posts');
         const searchPattern = `%${query}%`;
 
         let postQuery = supabase
@@ -253,7 +243,6 @@ export async function GET(request: NextRequest) {
 
         if (!postsError && posts) {
           results.posts = posts;
-          console.log('[SEARCH] Posts found (ILIKE):', posts.length);
         } else if (postsError) {
           console.error('[SEARCH] Posts ILIKE error:', postsError);
         }
@@ -265,7 +254,6 @@ export async function GET(request: NextRequest) {
       try {
         if (USE_FULLTEXT_SEARCH) {
           // Use optimized full-text search function
-          console.log('[SEARCH] Using full-text search for clubs');
 
           const { data: clubs, error: clubsError } = await supabase
             .rpc('search_clubs', {
@@ -275,7 +263,6 @@ export async function GET(request: NextRequest) {
 
           if (!clubsError && clubs) {
             results.clubs = clubs;
-            console.log('[SEARCH] Clubs found:', clubs.length);
           } else if (clubsError) {
             console.error('[SEARCH] Clubs full-text error:', clubsError);
             throw clubsError;
@@ -285,7 +272,6 @@ export async function GET(request: NextRequest) {
         }
       } catch {
         // Fallback to ILIKE search if full-text search fails
-        console.log('[SEARCH] Falling back to ILIKE search for clubs');
         const searchPattern = `%${query}%`;
 
         const { data: clubs, error: clubsError } = await supabase
@@ -296,20 +282,11 @@ export async function GET(request: NextRequest) {
 
         if (!clubsError && clubs) {
           results.clubs = clubs;
-          console.log('[SEARCH] Clubs found (ILIKE):', clubs.length);
         } else if (clubsError) {
           console.error('[SEARCH] Clubs ILIKE error:', clubsError);
         }
       }
     }
-
-    // Log final results
-    console.log('[SEARCH] Total results:', {
-      athletes: results.athletes.length,
-      posts: results.posts.length,
-      clubs: results.clubs.length,
-      total: results.athletes.length + results.posts.length + results.clubs.length
-    });
 
     return NextResponse.json({
       query,

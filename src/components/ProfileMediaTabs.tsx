@@ -6,6 +6,7 @@ import OptimizedImage from './OptimizedImage';
 import PostDetailModal from './PostDetailModal';
 import EditPostModal from './EditPostModal';
 import { useToast } from './Toast';
+import { formatGolfStatsSummary, formatGenericStatsSummary } from '@/lib/stats-summary';
 
 type TabType = 'all' | 'stats' | 'tagged';
 type SortType = 'newest' | 'most_engaged';
@@ -16,6 +17,7 @@ interface MediaItem {
   caption: string | null;
   sport_key: string | null;
   stats_data: Record<string, unknown> | null;
+  round_id?: string | null;
   visibility: string;
   created_at: string;
   profile_id: string;
@@ -37,6 +39,17 @@ interface MediaItem {
     media_type: 'image' | 'video';
     display_order: number;
   }>;
+  golf_round?: {
+    id: string;
+    course: string | null;
+    course_location: string | null;
+    gross_score: number | null;  // Changed from total_score
+    par: number | null;
+    holes: number | null;
+    gir_percentage?: number | null;
+    fir_percentage?: number | null;
+    total_putts?: number | null;
+  } | null;
 }
 
 interface TabCounts {
@@ -427,10 +440,102 @@ function MediaGridItem({ item, onClick }: MediaGridItemProps) {
   const isVideo = firstMedia?.media_type === 'video';
   const mediaCount = item.media_count;
 
+  // Determine content to display for non-media tiles
+  const getTextContent = () => {
+    // If has caption, show that
+    if (item.caption) {
+      return item.caption;
+    }
+
+    // If stats-only (no caption, no media), show stats summary
+    if (hasStats || item.golf_round) {
+      // Try golf round first
+      if (item.golf_round) {
+        const summary = formatGolfStatsSummary(item.golf_round);
+        if (summary) {
+          return (
+            <div className="flex flex-col h-full justify-between p-3">
+              {/* Golf icon badge */}
+              <div className="flex justify-center mb-2">
+                <div className="w-12 h-12 rounded-full bg-green-600 flex items-center justify-center shadow-md">
+                  <i className="fas fa-golf-ball text-white text-xl"></i>
+                </div>
+              </div>
+
+              {/* Score card */}
+              <div className="bg-white/90 backdrop-blur-sm rounded-lg p-3 shadow-sm border border-green-200">
+                <div className="text-center">
+                  <div className="text-sm font-bold text-gray-900 line-clamp-2 mb-1">
+                    {summary.primaryLine}
+                  </div>
+                  {summary.secondaryLine && (
+                    <div className="text-xs text-green-700 font-semibold line-clamp-1">
+                      {summary.secondaryLine}
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Bottom accent */}
+              <div className="mt-2 flex justify-center">
+                <div className="h-1 w-16 bg-green-600 rounded-full"></div>
+              </div>
+            </div>
+          );
+        }
+      }
+
+      // Fall back to generic stats
+      if (item.stats_data) {
+        const summary = formatGenericStatsSummary(item.stats_data);
+        if (summary) {
+          return (
+            <div className="flex flex-col h-full justify-between p-3">
+              {/* Generic stats icon */}
+              <div className="flex justify-center mb-2">
+                <div className="w-12 h-12 rounded-full bg-blue-600 flex items-center justify-center shadow-md">
+                  <i className="fas fa-chart-line text-white text-xl"></i>
+                </div>
+              </div>
+
+              {/* Stats card */}
+              <div className="bg-white/90 backdrop-blur-sm rounded-lg p-3 shadow-sm border border-blue-200">
+                <div className="text-center">
+                  <div className="text-sm font-bold text-gray-900 line-clamp-2 mb-1">
+                    {summary.primaryLine}
+                  </div>
+                  {summary.secondaryLine && (
+                    <div className="text-xs text-blue-700 font-semibold line-clamp-1">
+                      {summary.secondaryLine}
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Bottom accent */}
+              <div className="mt-2 flex justify-center">
+                <div className="h-1 w-16 bg-blue-600 rounded-full"></div>
+              </div>
+            </div>
+          );
+        }
+      }
+    }
+
+    // Final fallback
+    return 'Post';
+  };
+
   return (
     <button
       onClick={onClick}
-      className="relative aspect-square bg-gray-100 rounded-lg overflow-hidden hover:opacity-90 transition-opacity group"
+      className={`relative aspect-square rounded-xl overflow-hidden transition-all duration-300 group ${
+        item.golf_round
+          ? 'bg-gray-100 hover:shadow-xl hover:shadow-green-200/50 hover:scale-105 ring-2 ring-green-100'
+          : hasStats
+          ? 'bg-gray-100 hover:shadow-xl hover:shadow-blue-200/50 hover:scale-105 ring-2 ring-blue-100'
+          : 'bg-gray-100 hover:shadow-lg hover:scale-105'
+      }`}
     >
       {/* Media thumbnail */}
       {hasMedia && firstMedia ? (
@@ -459,11 +564,23 @@ function MediaGridItem({ item, onClick }: MediaGridItemProps) {
           )}
         </div>
       ) : (
-        // Text post (no media)
-        <div className="w-full h-full flex items-center justify-center p-4 bg-gradient-to-br from-blue-50 to-purple-50">
-          <p className="text-sm text-gray-700 line-clamp-4 text-center">
-            {item.caption || 'Post'}
-          </p>
+        // Text/stats post (no media)
+        <div className={`w-full h-full flex items-center justify-center ${
+          item.golf_round
+            ? 'bg-gradient-to-br from-green-50 via-emerald-50 to-green-100'
+            : hasStats
+            ? 'bg-gradient-to-br from-blue-50 via-indigo-50 to-blue-100'
+            : 'bg-gradient-to-br from-gray-50 to-gray-100'
+        }`}>
+          <div className="text-center w-full">
+            {typeof getTextContent() === 'string' ? (
+              <p className="text-sm text-gray-700 line-clamp-4 px-4">
+                {getTextContent()}
+              </p>
+            ) : (
+              getTextContent()
+            )}
+          </div>
         </div>
       )}
 

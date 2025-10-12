@@ -99,36 +99,37 @@ export default function AdvancedSearchBar() {
   return (
     <div ref={searchRef} className="relative w-full">
       {/* Search Input */}
-      <div className="relative">
+      <div className="relative flex items-center">
         <input
           type="text"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           placeholder="Search athletes, posts, clubs..."
-          className="w-full px-4 py-2 pl-10 pr-20 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
+          className="w-full px-4 py-2.5 pl-10 pr-32 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all"
         />
         <i className="fas fa-search absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400"></i>
 
-        {/* Filter Toggle Button */}
+        {/* Filter Toggle Button - Positioned inside search bar */}
         <button
           onClick={() => setShowFilters(!showFilters)}
-          className={`absolute right-2 top-1/2 transform -translate-y-1/2 px-3 py-1 rounded-md text-sm font-medium transition-colors ${
+          style={{ right: '8px', top: '50%', transform: 'translateY(-50%)' }}
+          className={`absolute px-3 py-1.5 rounded-md text-sm font-medium transition-all flex items-center gap-1.5 ${
             hasActiveFilters
-              ? 'bg-blue-600 text-white'
+              ? 'bg-blue-600 text-white hover:bg-blue-700'
               : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
           }`}
         >
-          <i className="fas fa-filter mr-1"></i>
-          Filters
+          <i className="fas fa-filter text-xs"></i>
+          <span>Filters</span>
           {hasActiveFilters && (
-            <span className="ml-1 bg-white text-blue-600 rounded-full w-5 h-5 inline-flex items-center justify-center text-xs">
+            <span className="ml-0.5 bg-white text-blue-600 rounded-full w-5 h-5 inline-flex items-center justify-center text-xs font-semibold">
               {[filters.sport, filters.school, filters.league, filters.dateFrom, filters.type !== 'all'].filter(Boolean).length}
             </span>
           )}
         </button>
 
         {loading && (
-          <div className="absolute right-24 top-1/2 transform -translate-y-1/2">
+          <div className="absolute right-32 top-1/2 transform -translate-y-1/2">
             <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600"></div>
           </div>
         )}

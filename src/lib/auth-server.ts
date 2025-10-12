@@ -46,7 +46,6 @@ export async function requireAuth(request: NextRequest) {
       );
     }
 
-    console.log('User authenticated:', user.id);
     return user;
   } catch (error) {
     if (error instanceof Response) {

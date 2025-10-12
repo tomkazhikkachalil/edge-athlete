@@ -23,12 +23,6 @@ export async function POST(request: NextRequest) {
 
     // For now, just log the waitlist submission
     // In production, you would save this to your database or send to an email service
-    console.log('Waitlist submission:', {
-      email: email.toLowerCase(),
-      userType,
-      timestamp: new Date().toISOString(),
-      userAgent: request.headers.get('user-agent') || 'unknown'
-    });
 
     // You could also save to a database:
     // await supabaseAdmin.from('waitlist').insert({

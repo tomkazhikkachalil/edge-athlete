@@ -54,7 +54,6 @@ export async function PATCH(request: NextRequest) {
     const user = await requireAuth(request);
     const body = await request.json();
 
-    console.log('[NOTIFICATIONS API] Updating preferences for user:', user.id);
 
     const { data: preferences, error } = await supabaseAdmin
       .from('notification_preferences')

@@ -31,7 +31,7 @@ import {
 } from '@/lib/config';
 
 export default function AthleteProfilePage() {
-  const { user, profile, loading, signOut, refreshProfile, initialAuthCheckComplete } = useAuth();
+  const { user, profile, loading, refreshProfile, initialAuthCheckComplete } = useAuth();
   const router = useRouter();
   const [badges, setBadges] = useState<AthleteBadge[]>([]);
   const [highlights, setHighlights] = useState<SeasonHighlight[]>([]);
@@ -716,7 +716,11 @@ export default function AthleteProfilePage() {
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Unified Header */}
-      <AppHeader showSearch={false} onCreatePost={() => setIsCreatePostModalOpen(true)} />
+      <AppHeader
+        showSearch={false}
+        onCreatePost={() => setIsCreatePostModalOpen(true)}
+        onEditProfile={() => setIsEditModalOpen(true)}
+      />
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 py-4 sm:py-8">
         {/* Profile Header Section */}

@@ -17,12 +17,6 @@ export async function PATCH(
     const body = await request.json();
     const { is_read } = body;
 
-    console.log('[NOTIFICATIONS API] PATCH request:', {
-      userId: user.id,
-      notificationId: id,
-      is_read
-    });
-
     // Update notification
     const updateData: { is_read: boolean; read_at?: string } = { is_read };
 
@@ -59,11 +53,6 @@ export async function DELETE(
   try {
     const user = await requireAuth(request);
     const { id } = await params;
-
-    console.log('[NOTIFICATIONS API] DELETE request:', {
-      userId: user.id,
-      notificationId: id
-    });
 
     const { error } = await supabaseAdmin
       .from('notifications')

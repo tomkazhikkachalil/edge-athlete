@@ -63,7 +63,6 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
 
       // Silently handle auth errors
       if (response.status === 401) {
-        console.log('[NOTIFICATIONS] Not authenticated, skipping unread count fetch');
         return;
       }
 
@@ -97,7 +96,6 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
 
       // Silently handle auth errors (expected when not logged in)
       if (response.status === 401) {
-        console.log('[NOTIFICATIONS] Not authenticated, skipping notifications fetch');
         return;
       }
 
@@ -243,7 +241,6 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (!user) return;
 
-    console.log('[NOTIFICATIONS] Setting up real-time subscription for user:', user.id);
 
     const channel = supabase
       .channel('notifications')
@@ -253,7 +250,6 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
         table: 'notifications',
         filter: `user_id=eq.${user.id}`
       }, (payload: any) => {
-        console.log('[NOTIFICATIONS] New notification received:', payload);
 
         // Add new notification to the beginning of the list
         setNotifications(prev => [payload.new as Notification, ...prev]);
@@ -281,7 +277,6 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
     }
 
     return () => {
-      console.log('[NOTIFICATIONS] Cleaning up real-time subscription');
       channel.unsubscribe();
     };
   }, [user]);

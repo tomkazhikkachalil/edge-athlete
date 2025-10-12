@@ -49,7 +49,6 @@ export async function POST(request: NextRequest) {
         .eq('id', postId)
         .single();
 
-      console.log(`[LIKE API] User ${profileId} unliked post ${postId}. New count: ${post?.likes_count}`);
 
       return NextResponse.json({
         action: 'unliked',
@@ -94,7 +93,6 @@ export async function POST(request: NextRequest) {
         .eq('id', postId)
         .single();
 
-      console.log(`[LIKE API] User ${profileId} liked post ${postId}. New count: ${post?.likes_count}`);
 
       return NextResponse.json({
         action: 'liked',

@@ -11,7 +11,6 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const { followerId, followingId, message } = body;
 
-    console.log('[FOLLOW API] Request:', { followerId, followingId, hasMessage: !!message });
 
     if (!followerId || !followingId) {
       return NextResponse.json({ error: 'Follower ID and Following ID are required' }, { status: 400 });
@@ -37,7 +36,6 @@ export async function POST(request: NextRequest) {
       }, { status: 500 });
     }
 
-    console.log('[FOLLOW API] Existing follow:', existingFollow ? 'found' : 'not found');
 
     if (existingFollow) {
       // Unfollow: Remove the follow relationship
@@ -69,7 +67,6 @@ export async function POST(request: NextRequest) {
       }
 
       const isPrivate = targetProfile?.visibility === 'private';
-      console.log('[FOLLOW API] Target profile visibility:', { isPrivate, visibility: targetProfile?.visibility });
 
       // Follow: Create the follow relationship with pending status for private profiles
       const insertData = {
@@ -79,9 +76,8 @@ export async function POST(request: NextRequest) {
         message: message || null
       };
 
-      console.log('[FOLLOW API] Inserting follow:', insertData);
 
-      const { error: insertError, data: insertedFollow } = await supabase
+      const { error: insertError } = await supabase
         .from('follows')
         .insert(insertData)
         .select()
@@ -96,7 +92,6 @@ export async function POST(request: NextRequest) {
         }, { status: 500 });
       }
 
-      console.log('[FOLLOW API] Follow created successfully:', insertedFollow);
 
       return NextResponse.json({
         action: 'followed',
