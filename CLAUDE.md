@@ -535,6 +535,134 @@ Golf is the reference implementation for the sport adapter pattern:
 - `src/app/api/golf/` - Golf API endpoints
 - `add-flexible-golf-rounds.sql` - Database migration for round_type and flexible holes
 
+### Shared Round Scorecards (Multi-Player Golf)
+
+**NEW: January 2025** - Collaborative golf rounds with multiple participants
+
+**Database Architecture (Sport-Agnostic):**
+- `group_posts` - Core table for all group activities
+- `group_post_participants` - Participant tracking with attestation (pending/confirmed/declined)
+- `golf_scorecard_data` - Golf-specific scorecard metadata
+- `golf_participant_scores` - Individual participant scores (auto-calculated totals)
+- `golf_hole_scores` - Hole-by-hole scores for each participant
+
+**Key Features:**
+- Owner creates round and invites participants
+- Participants must confirm/decline participation (attestation model)
+- Owner can pre-fill scores, participants can edit their own
+- Supports any hole count (5, 9, 12, 18, etc.)
+- Indoor/outdoor tracking
+- Auto-calculation of totals via database triggers
+- Traditional scorecard display with birdie/bogey styling
+
+**UI Components:**
+- **CreatePostModal** - Round type selector (Individual vs Shared)
+  - Shared round form: course, date, holes, indoor/outdoor, tee color, participants
+  - Participant selection via TagPeopleModal
+- **SharedRoundQuickView** - Compact card for feed display
+  - Participant list with status badges (confirmed/pending/declined)
+  - Leader score display
+  - "View Full Scorecard" button
+- **SharedRoundFullCard** - Detailed scorecard modal
+  - Traditional grid layout (holes, par, players)
+  - Birdie circles (red) and bogey squares (blue)
+  - Score entry access for participants
+- **ScoreEntryModal** - Mobile-friendly hole-by-hole entry
+  - Numeric keypad for strokes/putts
+  - FIR/GIR tracking
+  - Progress indicator and hole navigation
+- **ParticipantAttestationModal** - Invitation confirmation
+  - Shows round details
+  - Confirm/Decline/Decide Later actions
+
+**API Routes:**
+```typescript
+// Group Posts
+POST   /api/group-posts              // Create shared round
+GET    /api/group-posts/[id]         // Get round details
+PATCH  /api/group-posts/[id]         // Update round
+DELETE /api/group-posts/[id]         // Delete round
+
+// Participation
+POST   /api/group-posts/[id]/attest        // Confirm/decline
+GET    /api/group-posts/[id]/attest        // Get status
+POST   /api/group-posts/[id]/participants  // Add participants
+DELETE /api/group-posts/[id]/participants  // Remove participant
+
+// Golf Scorecards
+POST   /api/golf/scorecards                      // Create scorecard
+GET    /api/golf/scorecards?group_post_id=xxx    // Get scorecard
+POST   /api/golf/scorecards/[id]/scores          // Add/update scores
+GET    /api/golf/scorecards/[id]/scores          // Get participant scores
+PATCH  /api/golf/scorecards/[id]/scores          // Confirm scores
+```
+
+**Next.js 15 Pattern:**
+All route handlers use async params: `{ params }: { params: Promise<{ id: string }> }`
+Must await params: `const { id } = await params;`
+
+**Display in Feed:**
+```typescript
+// PostCard checks for group_scorecard property
+if (post.group_scorecard) {
+  return <SharedRoundQuickView scorecard={post.group_scorecard} />;
+}
+```
+
+**Database Migration:**
+Run `setup-group-posts-foundation.sql` in Supabase SQL Editor
+
+**Future Enhancements:**
+- Participant invitation notifications
+- Real-time score updates
+- Handicap-adjusted scoring
+- Head-to-head records
+
+See [SHARED_SCORECARD_IMPLEMENTATION.md](SHARED_SCORECARD_IMPLEMENTATION.md) for full specification.
+
+### Post Creation & Refresh
+
+**Instant Post Display (January 2025):**
+When users create posts, they now appear immediately without manual refresh.
+
+**Feed Page (`src/app/feed/page.tsx`):**
+```typescript
+const handlePostCreated = async (newPost: unknown) => {
+  if (newPost && typeof newPost === 'object' && 'id' in newPost) {
+    const postData = newPost as { id: string; type?: string };
+
+    if (postData.type === 'golf_round') {
+      // Shared rounds need complete data - refetch
+      await loadFeed();
+    } else {
+      // Regular posts - add immediately to top of feed!
+      setPosts(prevPosts => [newPost as Post, ...prevPosts]);
+    }
+  }
+};
+```
+
+**Profile Page (`src/app/athlete/page.tsx`):**
+Uses `mediaRefreshKey` to force re-mount of `ProfileMediaTabs`:
+```typescript
+const [mediaRefreshKey, setMediaRefreshKey] = useState(0);
+
+onPostCreated={() => {
+  setMediaRefreshKey(prev => prev + 1); // Trigger refresh
+  showSuccess('Success', 'Post created successfully!');
+}}
+
+<ProfileMediaTabs key={mediaRefreshKey} ... />
+```
+
+**Benefits:**
+- Text posts appear instantly
+- Media posts appear instantly
+- Individual golf rounds appear instantly
+- Shared rounds refetch for complete scorecard data
+- Profile media refreshes automatically
+- No manual page refresh needed
+
 ### Styling & Design
 
 **Design System Enforcement:**

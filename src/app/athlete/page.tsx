@@ -56,6 +56,9 @@ export default function AthleteProfilePage() {
   // Posts count for stats display
   const [postsCount, setPostsCount] = useState(0);
 
+  // Media refresh trigger
+  const [mediaRefreshKey, setMediaRefreshKey] = useState(0);
+
   // Follow stats
   const [followersCount, setFollowersCount] = useState(0);
   const [followingCount, setFollowingCount] = useState(0);
@@ -1027,6 +1030,7 @@ export default function AthleteProfilePage() {
               </button>
             </div>
             <ProfileMediaTabs
+              key={mediaRefreshKey}
               profileId={user?.id || ''}
               currentUserId={user?.id}
               isOwnProfile={true}
@@ -1083,6 +1087,10 @@ export default function AthleteProfilePage() {
           if (user?.id) {
             loadAthleteData(user.id, true);
           }
+          // Trigger media refresh by changing the key
+          setMediaRefreshKey(prev => prev + 1);
+          setIsCreatePostModalOpen(false);
+          showSuccess('Success', 'Post created successfully!');
         }}
       />
 

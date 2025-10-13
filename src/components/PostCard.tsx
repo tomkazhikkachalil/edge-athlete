@@ -6,9 +6,13 @@ import { useRouter } from 'next/navigation';
 import LazyImage from './LazyImage';
 import ConfirmModal from './ConfirmModal';
 import CommentSection from './CommentSection';
+import SharedRoundQuickView from './golf/SharedRoundQuickView';
+import SharedRoundFullCard from './golf/SharedRoundFullCard';
+import ScoreEntryModal from './golf/ScoreEntryModal';
 import { getSportName, getSportIcon, getSportColor } from '@/lib/config/sports-config';
 import { formatDisplayName, getInitials } from '@/lib/formatters';
 import { getHandle } from '@/lib/profile-display';
+import type { CompleteGolfScorecard } from '@/types/group-posts';
 
 interface PostMedia {
   id: string;
@@ -55,6 +59,7 @@ interface Post {
   hashtags?: string[];
   golf_round?: any;
   tagged_profiles?: TaggedProfile[];
+  group_scorecard?: CompleteGolfScorecard; // Shared round scorecard
 }
 
 interface PostCardProps {
@@ -90,6 +95,9 @@ export default function PostCard({
   const [localCommentsCount, setLocalCommentsCount] = useState(post.comments_count);
   const [, setLocalSavesCount] = useState(post.saves_count || 0);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [showFullScorecard, setShowFullScorecard] = useState(false);
+  const [showScoreEntry, setShowScoreEntry] = useState(false);
+  const [scoreEntryParticipantId, setScoreEntryParticipantId] = useState<string | null>(null);
 
   // Update isLiked state when post.likes array changes
   useEffect(() => {
@@ -923,6 +931,15 @@ export default function PostCard({
           </div>
         )}
 
+        {/* Shared Round Scorecard - Multi-Player */}
+        {post.group_scorecard && (
+          <SharedRoundQuickView
+            scorecard={post.group_scorecard}
+            onExpand={() => setShowFullScorecard(true)}
+            currentUserId={currentUserId}
+          />
+        )}
+
         {/* Sport Stats */}
         {post.stats_data && post.sport_key === 'golf' && (
           <div className="bg-gray-50 rounded-lg p-micro mt-micro">
@@ -980,6 +997,59 @@ export default function PostCard({
         onConfirm={handleDeleteConfirm}
         onCancel={handleDeleteCancel}
       />
+
+      {/* Shared Round Full Scorecard Modal */}
+      {showFullScorecard && post.group_scorecard && (
+        <SharedRoundFullCard
+          scorecard={post.group_scorecard}
+          currentUserId={currentUserId}
+          onClose={() => setShowFullScorecard(false)}
+          onAddScores={(participantId) => {
+            setScoreEntryParticipantId(participantId);
+            setShowFullScorecard(false);
+            setShowScoreEntry(true);
+          }}
+        />
+      )}
+
+      {/* Score Entry Modal */}
+      {showScoreEntry && post.group_scorecard && scoreEntryParticipantId && (
+        <ScoreEntryModal
+          groupPostId={post.group_scorecard.group_post.id}
+          participantId={scoreEntryParticipantId}
+          holesPlayed={post.group_scorecard.golf_data.holes_played}
+          existingScores={
+            post.group_scorecard.participants
+              .find(p => p.participant.id === scoreEntryParticipantId)
+              ?.scores.hole_scores || []
+          }
+          onSave={async (scores) => {
+            try {
+              const response = await fetch(`/api/golf/scorecards/${post.group_scorecard!.group_post.id}/scores`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ scores })
+              });
+
+              if (!response.ok) {
+                const data = await response.json();
+                throw new Error(data.error || 'Failed to save scores');
+              }
+
+              // Reload the page to show updated scores
+              window.location.reload();
+            } catch (error: any) {
+              console.error('Error saving scores:', error);
+              throw error;
+            }
+          }}
+          onClose={() => {
+            setShowScoreEntry(false);
+            setScoreEntryParticipantId(null);
+            setShowFullScorecard(true);
+          }}
+        />
+      )}
     </div>
   );
 }

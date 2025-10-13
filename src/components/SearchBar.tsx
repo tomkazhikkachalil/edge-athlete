@@ -201,7 +201,7 @@ export default function SearchBar() {
                             post.profile?.full_name
                           )}
                         </span>
-                        {SportIcon && (
+                        {SportIcon && post.sport_key && (
                           <span className="text-xs text-gray-500 flex items-center gap-1">
                             <SportIcon size={12} />
                             {getSportName(post.sport_key)}

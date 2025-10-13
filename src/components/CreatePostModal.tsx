@@ -80,6 +80,19 @@ export default function CreatePostModal({
   // Golf specific data
   const [golfRoundData, setGolfRoundData] = useState<any>(null);
 
+  // Shared round specific data
+  const [roundType, setRoundType] = useState<'individual' | 'shared'>('individual');
+  const [sharedRoundParticipants, setSharedRoundParticipants] = useState<string[]>([]);
+  const [sharedRoundParticipantsData, setSharedRoundParticipantsData] = useState<{id: string; name: string}[]>([]);
+  const [showParticipantModal, setShowParticipantModal] = useState(false);
+  const [sharedRoundDetails, setSharedRoundDetails] = useState({
+    courseName: '',
+    date: new Date().toISOString().split('T')[0], // Today's date
+    holesPlayed: 18,
+    roundTypeIndoorOutdoor: 'outdoor' as 'outdoor' | 'indoor',
+    teeColor: '',
+  });
+
   // Visibility and submission
   const [visibility, setVisibility] = useState<'public' | 'private'>('public');
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -110,6 +123,18 @@ export default function CreatePostModal({
     setTaggedProfiles([]);
     setTaggedProfilesData([]);
     setShowTagModal(false);
+    // Reset shared round data
+    setRoundType('individual');
+    setSharedRoundParticipants([]);
+    setSharedRoundParticipantsData([]);
+    setShowParticipantModal(false);
+    setSharedRoundDetails({
+      courseName: '',
+      date: new Date().toISOString().split('T')[0],
+      holesPlayed: 18,
+      roundTypeIndoorOutdoor: 'outdoor',
+      teeColor: '',
+    });
   };
 
   // Handle close
@@ -235,6 +260,27 @@ export default function CreatePostModal({
     setTaggedProfilesData(prev => prev.filter(p => p.id !== profileId));
   };
 
+  // Handle participant selection for shared rounds
+  const handleParticipantSelection = (selectedIds: string[], selectedProfiles?: any[]) => {
+    setSharedRoundParticipants(selectedIds);
+
+    if (selectedProfiles && selectedProfiles.length > 0) {
+      const profilesData = selectedProfiles.map(profile => {
+        const name = profile.first_name && profile.last_name
+          ? `${profile.first_name} ${profile.last_name}`
+          : profile.full_name || 'Unknown User';
+        return { id: profile.id, name };
+      });
+      setSharedRoundParticipantsData(profilesData);
+    }
+  };
+
+  // Remove participant from shared round
+  const removeParticipant = (profileId: string) => {
+    setSharedRoundParticipants(prev => prev.filter(id => id !== profileId));
+    setSharedRoundParticipantsData(prev => prev.filter(p => p.id !== profileId));
+  };
+
   // Handle custom hashtag input
   const handleCustomHashtagSubmit = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && customHashtag.trim()) {
@@ -299,9 +345,19 @@ export default function CreatePostModal({
       return caption.trim().length > 0 || mediaFiles.length > 0;
     }
 
-    // Golf posts need scorecard data
+    // Golf posts
     if (postType === 'golf') {
-      return golfRoundData && golfRoundData.courseName && golfRoundData.holesData?.some((h: any) => h.score !== undefined);
+      if (roundType === 'individual') {
+        // Individual rounds need scorecard data
+        return golfRoundData && golfRoundData.courseName && golfRoundData.holesData?.some((h: any) => h.score !== undefined);
+      } else {
+        // Shared rounds need at least course name, date, and at least one participant
+        return (
+          sharedRoundDetails.courseName.trim().length > 0 &&
+          sharedRoundDetails.date &&
+          sharedRoundParticipants.length > 0
+        );
+      }
     }
 
     return false;
@@ -319,7 +375,67 @@ export default function CreatePostModal({
     try {
       console.log('Starting post submission...');
 
-      // Upload media files
+      // Handle shared golf rounds differently
+      if (postType === 'golf' && roundType === 'shared') {
+        console.log('Creating shared golf round...');
+
+        // Step 1: Create group post
+        const groupPostResponse = await fetch('/api/group-posts', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify({
+            type: 'golf_round',
+            title: `Golf at ${sharedRoundDetails.courseName}`,
+            description: caption.trim() || undefined,
+            date: sharedRoundDetails.date,
+            location: sharedRoundDetails.courseName,
+            visibility: visibility,
+            participant_ids: sharedRoundParticipants,
+          }),
+        });
+
+        if (!groupPostResponse.ok) {
+          const errorData = await groupPostResponse.json();
+          throw new Error(errorData.error || 'Failed to create shared round');
+        }
+
+        const groupPostResult = await groupPostResponse.json();
+        const groupPostId = groupPostResult.group_post.id;
+        console.log('Group post created:', groupPostId);
+
+        // Step 2: Create golf scorecard data
+        const golfDataResponse = await fetch('/api/golf/scorecards', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify({
+            group_post_id: groupPostId,
+            course_name: sharedRoundDetails.courseName,
+            round_type: sharedRoundDetails.roundTypeIndoorOutdoor,
+            holes_played: sharedRoundDetails.holesPlayed,
+            tee_color: sharedRoundDetails.teeColor || undefined,
+          }),
+        });
+
+        if (!golfDataResponse.ok) {
+          const errorData = await golfDataResponse.json();
+          console.error('Failed to create golf data:', errorData);
+          // Non-fatal - group post was created
+        }
+
+        showSuccess('Shared round created successfully! Participants will be notified. 🎉');
+
+        // Call callback to refresh posts
+        if (onPostCreated) {
+          onPostCreated(groupPostResult.group_post);
+        }
+
+        handleClose();
+        return;
+      }
+
+      // Upload media files (for individual posts)
       console.log('Uploading media files:', mediaFiles.length);
       const uploadedMedia = await Promise.all(
         mediaFiles.map(async (file) => {
@@ -461,8 +577,212 @@ export default function CreatePostModal({
             </button>
           </div>
 
-          {/* Golf Scorecard (when golf is selected) */}
+          {/* Golf Round Type Selection */}
           {postType === 'golf' && (
+            <div className="mb-6">
+              <label className="block text-sm font-semibold text-gray-700 mb-3">Round Type</label>
+              <div className="grid grid-cols-2 gap-4">
+                <button
+                  onClick={() => setRoundType('individual')}
+                  className={`p-4 border-2 rounded-lg text-left transition-all ${
+                    roundType === 'individual'
+                      ? 'border-green-500 bg-green-50'
+                      : 'border-gray-300 hover:border-gray-400'
+                  }`}
+                >
+                  <div className="flex items-center gap-3">
+                    <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${
+                      roundType === 'individual' ? 'bg-green-100' : 'bg-gray-100'
+                    }`}>
+                      <i className={`fas fa-user text-lg ${
+                        roundType === 'individual' ? 'text-green-600' : 'text-gray-600'
+                      }`}></i>
+                    </div>
+                    <div>
+                      <div className="font-semibold text-gray-900">Individual Round</div>
+                      <div className="text-sm text-gray-600">Track your own scorecard</div>
+                    </div>
+                  </div>
+                </button>
+
+                <button
+                  onClick={() => setRoundType('shared')}
+                  className={`p-4 border-2 rounded-lg text-left transition-all ${
+                    roundType === 'shared'
+                      ? 'border-green-500 bg-green-50'
+                      : 'border-gray-300 hover:border-gray-400'
+                  }`}
+                >
+                  <div className="flex items-center gap-3">
+                    <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${
+                      roundType === 'shared' ? 'bg-green-100' : 'bg-gray-100'
+                    }`}>
+                      <i className={`fas fa-users text-lg ${
+                        roundType === 'shared' ? 'text-green-600' : 'text-gray-600'
+                      }`}></i>
+                    </div>
+                    <div>
+                      <div className="font-semibold text-gray-900">Shared Round</div>
+                      <div className="text-sm text-gray-600">Play with friends</div>
+                    </div>
+                  </div>
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Shared Round Details Form */}
+          {postType === 'golf' && roundType === 'shared' && (
+            <div className="mb-6">
+              <div className="bg-green-50 rounded-lg border border-green-200 p-6">
+                <h3 className="text-lg font-bold text-green-900 mb-4 flex items-center gap-2">
+                  <i className="fas fa-users"></i>
+                  Shared Round Details
+                </h3>
+
+                {/* Course Name */}
+                <div className="mb-4">
+                  <label className="block text-sm font-semibold text-gray-900 mb-2">
+                    Course Name *
+                  </label>
+                  <input
+                    type="text"
+                    value={sharedRoundDetails.courseName}
+                    onChange={(e) => setSharedRoundDetails(prev => ({ ...prev, courseName: e.target.value }))}
+                    placeholder="Enter course name"
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                  />
+                </div>
+
+                {/* Date */}
+                <div className="mb-4">
+                  <label className="block text-sm font-semibold text-gray-900 mb-2">
+                    Date *
+                  </label>
+                  <input
+                    type="date"
+                    value={sharedRoundDetails.date}
+                    onChange={(e) => setSharedRoundDetails(prev => ({ ...prev, date: e.target.value }))}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                  />
+                </div>
+
+                {/* Indoor/Outdoor Selection */}
+                <div className="mb-4">
+                  <label className="block text-sm font-semibold text-gray-900 mb-2">
+                    Round Type *
+                  </label>
+                  <div className="grid grid-cols-2 gap-3">
+                    <button
+                      onClick={() => setSharedRoundDetails(prev => ({ ...prev, roundTypeIndoorOutdoor: 'outdoor' }))}
+                      className={`px-4 py-3 rounded-lg font-semibold transition-all ${
+                        sharedRoundDetails.roundTypeIndoorOutdoor === 'outdoor'
+                          ? 'bg-green-600 text-white'
+                          : 'bg-white text-gray-700 border-2 border-gray-300 hover:border-green-300'
+                      }`}
+                    >
+                      <i className="fas fa-tree mr-2"></i>
+                      Outdoor
+                    </button>
+                    <button
+                      onClick={() => setSharedRoundDetails(prev => ({ ...prev, roundTypeIndoorOutdoor: 'indoor' }))}
+                      className={`px-4 py-3 rounded-lg font-semibold transition-all ${
+                        sharedRoundDetails.roundTypeIndoorOutdoor === 'indoor'
+                          ? 'bg-blue-600 text-white'
+                          : 'bg-white text-gray-700 border-2 border-gray-300 hover:border-blue-300'
+                      }`}
+                    >
+                      <i className="fas fa-warehouse mr-2"></i>
+                      Indoor
+                    </button>
+                  </div>
+                </div>
+
+                {/* Holes Played */}
+                <div className="mb-4">
+                  <label className="block text-sm font-semibold text-gray-900 mb-2">
+                    Holes *
+                  </label>
+                  <select
+                    value={sharedRoundDetails.holesPlayed}
+                    onChange={(e) => setSharedRoundDetails(prev => ({ ...prev, holesPlayed: parseInt(e.target.value) }))}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                  >
+                    <option value={9}>9 Holes</option>
+                    <option value={18}>18 Holes</option>
+                    <option value={12}>12 Holes</option>
+                    <option value={6}>6 Holes</option>
+                  </select>
+                </div>
+
+                {/* Tee Color (optional, outdoor only) */}
+                {sharedRoundDetails.roundTypeIndoorOutdoor === 'outdoor' && (
+                  <div className="mb-4">
+                    <label className="block text-sm font-semibold text-gray-900 mb-2">
+                      Tee Color (optional)
+                    </label>
+                    <select
+                      value={sharedRoundDetails.teeColor}
+                      onChange={(e) => setSharedRoundDetails(prev => ({ ...prev, teeColor: e.target.value }))}
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                    >
+                      <option value="">Select tee color</option>
+                      <option value="black">Black</option>
+                      <option value="blue">Blue</option>
+                      <option value="white">White</option>
+                      <option value="red">Red</option>
+                      <option value="gold">Gold</option>
+                    </select>
+                  </div>
+                )}
+
+                {/* Participants */}
+                <div>
+                  <div className="flex items-center justify-between mb-3">
+                    <label className="text-sm font-semibold text-gray-900">
+                      Participants * ({sharedRoundParticipants.length})
+                    </label>
+                    <button
+                      onClick={() => setShowParticipantModal(true)}
+                      className="flex items-center gap-2 px-3 py-1.5 text-sm text-green-700 hover:text-green-800 hover:bg-green-100 rounded-lg transition-colors font-semibold"
+                    >
+                      <i className="fas fa-user-plus"></i>
+                      Add Participants
+                    </button>
+                  </div>
+
+                  {/* Participant chips */}
+                  {sharedRoundParticipantsData.length > 0 ? (
+                    <div className="flex flex-wrap gap-2">
+                      {sharedRoundParticipantsData.map(participant => (
+                        <span
+                          key={participant.id}
+                          className="inline-flex items-center gap-2 px-3 py-1.5 bg-green-100 text-green-800 rounded-full text-sm font-medium border border-green-300"
+                        >
+                          <i className="fas fa-user text-xs"></i>
+                          {participant.name}
+                          <button
+                            onClick={() => removeParticipant(participant.id)}
+                            className="ml-1 hover:text-green-900"
+                          >
+                            <i className="fas fa-times text-xs"></i>
+                          </button>
+                        </span>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="text-sm text-gray-600 bg-white rounded-lg p-3 border border-gray-300">
+                      <i className="fas fa-info-circle mr-1"></i>
+                      Add at least one participant to create a shared round
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Golf Scorecard (when individual round is selected) */}
+          {postType === 'golf' && roundType === 'individual' && (
             <div className="mb-6">
               <div className="bg-green-50 rounded-lg border border-green-200 p-4">
                 <GolfScorecardForm
@@ -792,7 +1112,9 @@ export default function CreatePostModal({
             {!isValidForSubmission() && (
               <span className="text-red-600">
                 <i className="fas fa-exclamation-circle mr-1"></i>
-                {postType === 'golf'
+                {postType === 'golf' && roundType === 'shared'
+                  ? 'Please add course name, date, and at least one participant'
+                  : postType === 'golf'
                   ? 'Please complete the scorecard'
                   : 'Add caption or media to post'
                 }
@@ -868,6 +1190,15 @@ export default function CreatePostModal({
         onClose={() => setShowTagModal(false)}
         existingTags={taggedProfiles}
         onSelectionComplete={handleTagPeopleComplete}
+        selectionMode={true}
+      />
+
+      {/* Participant Selection Modal (for shared rounds) */}
+      <TagPeopleModal
+        isOpen={showParticipantModal}
+        onClose={() => setShowParticipantModal(false)}
+        existingTags={sharedRoundParticipants}
+        onSelectionComplete={handleParticipantSelection}
         selectionMode={true}
       />
 

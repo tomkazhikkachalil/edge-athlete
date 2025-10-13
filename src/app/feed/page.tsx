@@ -285,9 +285,27 @@ export default function FeedPage() {
     );
   };
 
-  const handlePostCreated = () => {
-    // Refresh the feed when a new post is created
-    loadFeed();
+  const handlePostCreated = async (newPost: unknown) => {
+    console.log('[FEED] New post created:', newPost);
+
+    // For group posts (shared rounds), we need to fetch the complete data with scorecard
+    // For regular posts, add immediately to feed
+    if (newPost && typeof newPost === 'object' && 'id' in newPost) {
+      // Check if it's a group post
+      const postData = newPost as { id: string; type?: string };
+
+      if (postData.type === 'golf_round') {
+        // Group post - refetch to get complete scorecard data
+        await loadFeed();
+      } else {
+        // Regular post - add immediately to top of feed
+        setPosts(prevPosts => [newPost as Post, ...prevPosts]);
+      }
+    } else {
+      // Fallback: refetch feed
+      await loadFeed();
+    }
+
     setIsCreatePostModalOpen(false);
     showSuccess('Success', 'Post created successfully!');
   };
