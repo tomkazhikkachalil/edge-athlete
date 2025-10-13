@@ -5,13 +5,15 @@ import { useToast } from '@/components/Toast';
 import LazyImage from '@/components/LazyImage';
 import GolfScorecardForm from '@/components/GolfScorecardForm';
 import TagPeopleModal from '@/components/TagPeopleModal';
+import SportSelector from '@/components/SportSelector';
+import { getSportDefinition, type SportKey } from '@/lib/sports/SportRegistry';
 
 interface CreatePostModalProps {
   isOpen: boolean;
   onClose: () => void;
   userId: string;
   onPostCreated?: (post: unknown) => void;
-  defaultSportKey?: string; // Optional: pre-select a sport
+  defaultSportKey?: SportKey | 'general'; // Optional: pre-select a sport
 }
 
 interface MediaFile {
@@ -23,11 +25,7 @@ interface MediaFile {
   preview?: string;
 }
 
-// Post type options
-const POST_TYPES = [
-  { value: 'general', label: 'General Post', icon: 'fas fa-edit', description: 'Text, photos, and hashtags' },
-  { value: 'golf', label: 'Golf Round', icon: 'fas fa-golf-ball', description: 'Scorecard and round stats' }
-];
+// No longer needed - using SportSelector instead
 
 // Popular hashtags suggestions
 const HASHTAG_SUGGESTIONS = {
@@ -65,7 +63,8 @@ export default function CreatePostModal({
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Post type and content
-  const [postType, setPostType] = useState(defaultSportKey);
+  const [postType, setPostType] = useState<SportKey | 'general'>(defaultSportKey);
+  const [showSportSelector, setShowSportSelector] = useState(false);
   const [caption, setCaption] = useState('');
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
   const [hashtags, setHashtags] = useState<string[]>([]);
@@ -98,7 +97,7 @@ export default function CreatePostModal({
 
   // Reset form
   const reset = () => {
-    setPostType('general');
+    setPostType('general' as SportKey | 'general');
     setCaption('');
     setSelectedTags([]);
     setHashtags([]);
@@ -421,32 +420,45 @@ export default function CreatePostModal({
 
         {/* Content - Scrollable */}
         <div className="flex-1 overflow-y-auto p-6">
-          {/* Post Type Selection */}
+          {/* Sport/Post Type Selection */}
           <div className="mb-6">
             <label className="block text-sm font-semibold text-gray-700 mb-3">Post Type</label>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              {POST_TYPES.map(type => (
-                <button
-                  key={type.value}
-                  onClick={() => setPostType(type.value)}
-                  className={`p-4 border-2 rounded-lg text-left transition-all ${
-                    postType === type.value
-                      ? 'border-blue-500 bg-blue-50'
-                      : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50'
-                  }`}
-                >
-                  <div className="flex items-start gap-3">
-                    <i className={`${type.icon} text-lg ${
-                      postType === type.value ? 'text-blue-600' : 'text-gray-500'
-                    }`}></i>
-                    <div>
-                      <div className="font-medium text-gray-900">{type.label}</div>
-                      <div className="text-sm text-gray-500 mt-1">{type.description}</div>
+            <button
+              onClick={() => setShowSportSelector(true)}
+              className="w-full p-4 border-2 border-gray-300 rounded-lg text-left hover:border-blue-500 hover:bg-blue-50 transition-all group"
+            >
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="w-12 h-12 rounded-lg bg-gray-100 group-hover:bg-blue-100 flex items-center justify-center transition-colors">
+                    <i className={`${
+                      postType === 'general'
+                        ? 'fas fa-edit'
+                        : getSportDefinition(postType as SportKey).icon_id
+                    } text-xl ${
+                      postType === 'general' ? 'text-gray-500' : 'text-blue-600'
+                    } group-hover:text-blue-600`}></i>
+                  </div>
+                  <div>
+                    <div className="font-semibold text-gray-900">
+                      {postType === 'general'
+                        ? 'General Post'
+                        : getSportDefinition(postType as SportKey).display_name
+                      }
+                    </div>
+                    <div className="text-sm text-gray-500">
+                      {postType === 'general'
+                        ? 'Text, photos, and hashtags'
+                        : getSportDefinition(postType as SportKey).primary_action
+                      }
                     </div>
                   </div>
-                </button>
-              ))}
-            </div>
+                </div>
+                <div className="flex items-center gap-2 text-blue-600">
+                  <span className="text-sm font-medium">Change</span>
+                  <i className="fas fa-chevron-right"></i>
+                </div>
+              </div>
+            </button>
           </div>
 
           {/* Golf Scorecard (when golf is selected) */}
@@ -858,6 +870,15 @@ export default function CreatePostModal({
         onSelectionComplete={handleTagPeopleComplete}
         selectionMode={true}
       />
+
+      {/* Sport Selector Modal */}
+      {showSportSelector && (
+        <SportSelector
+          selectedSport={postType}
+          onSelectSport={(sport) => setPostType(sport)}
+          onClose={() => setShowSportSelector(false)}
+        />
+      )}
     </div>
   );
 }
