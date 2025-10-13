@@ -232,7 +232,7 @@ export default function AthleteProfilePage() {
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Unified Header */}
-      <AppHeader showSearch={false} />
+      <AppHeader showSearch={true} />
 
       {/* Profile Content */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 py-6">

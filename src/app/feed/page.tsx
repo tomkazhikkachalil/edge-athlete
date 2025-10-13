@@ -10,6 +10,8 @@ import AppHeader from '@/components/AppHeader';
 import ConnectionSuggestions from '@/components/ConnectionSuggestions';
 import { ToastContainer, useToast } from '@/components/Toast';
 import { getSupabaseBrowserClient } from '@/lib/supabase';
+import LazyImage from '@/components/LazyImage';
+import { getInitials, formatDisplayName } from '@/lib/formatters';
 
 interface Post {
   id: string;
@@ -36,6 +38,16 @@ interface Post {
   likes?: { profile_id: string }[];
   tags?: string[];
   hashtags?: string[];
+}
+
+interface RealtimePostPayload {
+  new: {
+    id: string;
+    likes_count: number;
+    comments_count: number;
+    caption: string | null;
+    stats_data: Record<string, unknown> | null;
+  };
 }
 
 export default function FeedPage() {
@@ -84,7 +96,7 @@ export default function FeedPage() {
           table: 'posts',
           filter: `visibility=eq.public`
         },
-        async (payload: any) => {
+        async (payload: RealtimePostPayload) => {
           console.log('[REALTIME] New post detected:', payload.new);
 
           // Fetch the complete post with profile and media
@@ -149,7 +161,7 @@ export default function FeedPage() {
           schema: 'public',
           table: 'posts'
         },
-        (payload: any) => {
+        (payload: RealtimePostPayload) => {
           console.log('[REALTIME] Post updated:', payload.new);
 
           setPosts(prev =>
@@ -362,7 +374,22 @@ export default function FeedPage() {
             {/* Post Creation Form */}
             <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-3 sm:p-4 mb-4 sm:mb-6">
               <div className="flex items-center gap-2 sm:gap-3">
-                <div className="w-10 h-10 bg-gray-300 rounded-full"></div>
+                {/* User Avatar */}
+                {profile?.avatar_url ? (
+                  <LazyImage
+                    src={profile.avatar_url}
+                    alt="Your profile"
+                    className="w-10 h-10 rounded-full object-cover"
+                    width={40}
+                    height={40}
+                  />
+                ) : (
+                  <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center">
+                    <span className="text-white text-sm font-semibold">
+                      {getInitials(formatDisplayName(profile?.first_name, null, profile?.last_name, profile?.full_name))}
+                    </span>
+                  </div>
+                )}
                 <button
                   onClick={() => setIsCreatePostModalOpen(true)}
                   className="flex-1 bg-gray-100 rounded-full px-3 sm:px-4 py-2 text-left text-gray-500 hover:bg-gray-200 transition-colors text-sm sm:text-base"

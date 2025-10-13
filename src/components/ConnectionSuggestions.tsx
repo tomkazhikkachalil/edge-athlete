@@ -115,7 +115,7 @@ export default function ConnectionSuggestions({
         {visibleSuggestions.map(suggestion => (
           <div
             key={suggestion.suggested_id}
-            className="flex items-start gap-3 p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors"
+            className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors min-h-[72px]"
           >
             {/* Avatar */}
             <button
@@ -146,8 +146,8 @@ export default function ConnectionSuggestions({
               )}
             </button>
 
-            {/* Info */}
-            <div className="flex-1 min-w-0">
+            {/* Info - with explicit width constraint */}
+            <div className="flex-1 min-w-0 max-w-[calc(100%-200px)]">
               <button
                 onClick={() => {
                   // Navigate to own profile if clicking own profile
@@ -157,7 +157,7 @@ export default function ConnectionSuggestions({
                     router.push(`/athlete/${suggestion.suggested_id}`);
                   }
                 }}
-                className="font-semibold text-gray-900 hover:text-blue-600 truncate block text-sm"
+                className="font-semibold text-gray-900 hover:text-blue-600 truncate block text-sm w-full text-left"
               >
                 {suggestion.suggested_name}
               </button>
@@ -170,14 +170,14 @@ export default function ConnectionSuggestions({
                 </p>
               )}
 
-              <p className="text-xs text-blue-600 mt-1">
+              <p className="text-xs text-blue-600 mt-1 truncate">
                 <i className="fas fa-lightbulb mr-1"></i>
                 {suggestion.reason}
               </p>
             </div>
 
-            {/* Actions */}
-            <div className="flex flex-col gap-2 flex-shrink-0">
+            {/* Actions - fixed width to prevent compression */}
+            <div className="flex items-center gap-2 flex-shrink-0 ml-auto w-[120px] justify-end">
               <FollowButton
                 profileId={suggestion.suggested_id}
                 currentUserId={profileId}
@@ -189,7 +189,8 @@ export default function ConnectionSuggestions({
               />
               <button
                 onClick={() => handleDismiss(suggestion.suggested_id)}
-                className="text-xs text-gray-500 hover:text-gray-700"
+                className="text-xs text-gray-500 hover:text-gray-700 p-1 w-6 h-6 flex items-center justify-center"
+                aria-label="Dismiss suggestion"
               >
                 <i className="fas fa-times"></i>
               </button>

@@ -27,7 +27,6 @@ export async function POST(request: NextRequest) {
     const {
       postType = 'general', // 'general' or 'golf'
       caption = '',
-      tags = [],
       hashtags = [],
       visibility = 'public',
       media = [],

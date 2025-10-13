@@ -60,6 +60,45 @@ interface MediaItem {
   is_tagged: boolean;
 }
 
+interface MediaAttachment {
+  id: string;
+  post_id: string;
+  media_url: string;
+  media_type: string;
+  display_order: number;
+}
+
+interface TaggedProfile {
+  id: string;
+  first_name: string | null;
+  middle_name: string | null;
+  last_name: string | null;
+  full_name: string | null;
+  avatar_url: string | null;
+  handle: string | null;
+}
+
+interface GolfRound {
+  id: string;
+  profile_id: string;
+  date: string;
+  course: string;
+  course_location: string | null;
+  tee: string | null;
+  holes: number;
+  round_type: string;
+  par: number;
+  gross_score: number | null;
+  total_putts: number | null;
+  fir_percentage: number | null;
+  gir_percentage: number | null;
+  weather: string | null;
+  temperature: number | null;
+  wind: string | null;
+  course_rating: number | null;
+  slope_rating: number | null;
+}
+
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ profileId: string }> }
@@ -180,9 +219,9 @@ export async function GET(
         .order('display_order', { ascending: true });
 
       // Attach media to posts
-      const mediaMap = new Map<string, any[]>();
+      const mediaMap = new Map<string, MediaAttachment[]>();
       if (media) {
-        media.forEach((m: any) => {
+        media.forEach((m: MediaAttachment) => {
           if (!mediaMap.has(m.post_id)) {
             mediaMap.set(m.post_id, []);
           }
@@ -191,7 +230,7 @@ export async function GET(
       }
 
       // Fetch tagged profiles for posts that have tags
-      const taggedProfilesMap = new Map<string, any[]>();
+      const taggedProfilesMap = new Map<string, TaggedProfile[]>();
 
       // Collect all unique profile IDs from tags
       const allTagIds = new Set<string>();
@@ -216,7 +255,7 @@ export async function GET(
           if (item.tags && item.tags.length > 0) {
             const taggedProfiles = item.tags
               .map(tagId => profileMap.get(tagId))
-              .filter(Boolean); // Remove any undefined profiles
+              .filter((profile): profile is TaggedProfile => profile !== undefined); // Remove any undefined profiles
             taggedProfilesMap.set(item.id, taggedProfiles);
           }
         });
@@ -227,7 +266,7 @@ export async function GET(
         .filter((item: MediaItem) => item.round_id)
         .map((item: MediaItem) => item.round_id as string);
 
-      const golfRoundsMap = new Map<string, any>();
+      const golfRoundsMap = new Map<string, GolfRound>();
 
       if (roundIds.length > 0) {
         console.log('[PROFILE MEDIA API] Fetching golf rounds for:', roundIds);
@@ -243,7 +282,7 @@ export async function GET(
         }
 
         if (golfRounds) {
-          golfRounds.forEach((round: any) => {
+          golfRounds.forEach((round: GolfRound) => {
             golfRoundsMap.set(round.id, round);
           });
         }

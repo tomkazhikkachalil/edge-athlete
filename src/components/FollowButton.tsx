@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth';
 import { useToast } from './Toast';
 
@@ -21,6 +22,7 @@ export default function FollowButton({
   showCount = false,
   className = ''
 }: FollowButtonProps) {
+  const router = useRouter();
   const { user } = useAuth();
   const currentUserId = propCurrentUserId || user?.id;
 
@@ -150,6 +152,11 @@ export default function FollowButton({
           ? 'Follow request sent! They will be notified.'
           : 'You are now following this athlete!';
         showSuccess('Success', message);
+
+        // Redirect to feed after successful follow
+        setTimeout(() => {
+          router.push('/feed');
+        }, 500);
       } else {
         showSuccess('Unfollowed', 'You are no longer following this athlete');
       }

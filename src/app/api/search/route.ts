@@ -18,7 +18,7 @@ export async function GET(request: NextRequest) {
     // Advanced filters
     const sport = searchParams.get('sport')?.trim();
     const school = searchParams.get('school')?.trim();
-    const league = searchParams.get('league')?.trim();
+    // const league = searchParams.get('league')?.trim(); // Reserved for future implementation
     const dateFrom = searchParams.get('dateFrom')?.trim();
     const dateTo = searchParams.get('dateTo')?.trim();
 
