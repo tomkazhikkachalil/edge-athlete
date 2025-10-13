@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
+import Image from 'next/image';
 import { Comment } from '@/lib/supabase';
 import { useAuth } from '@/lib/auth';
 
@@ -235,10 +236,12 @@ export default function CommentSection({ postId, initialCommentsCount = 0, onCom
                   {/* Avatar */}
                   <div className="flex-shrink-0">
                     {comment.profile?.avatar_url ? (
-                      <img
+                      <Image
                         src={comment.profile.avatar_url}
                         alt={comment.profile.full_name || 'User'}
-                        className="w-8 h-8 rounded-full object-cover"
+                        width={32}
+                        height={32}
+                        className="rounded-full object-cover"
                       />
                     ) : (
                       <div className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white text-xs font-semibold">

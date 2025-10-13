@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import Image from 'next/image';
 import { useAuth } from '@/lib/auth';
 import { formatDisplayName, getInitials } from '@/lib/formatters';
 import { getHandle } from '@/lib/profile-display';
@@ -61,8 +62,8 @@ export default function FollowersModal({ isOpen, onClose, profileId, initialTab 
       const followingData = await followingResponse.json();
 
       // Extract profile data from nested structure
-      const followersProfiles = (followersData.followers || []).map((item: any) => item.follower).filter(Boolean);
-      const followingProfiles = (followingData.following || []).map((item: any) => item.following).filter(Boolean);
+      const followersProfiles = (followersData.followers || []).map((item: { follower?: Profile }) => item.follower).filter(Boolean);
+      const followingProfiles = (followingData.following || []).map((item: { following?: Profile }) => item.following).filter(Boolean);
 
       setFollowers(followersProfiles);
       setFollowing(followingProfiles);
@@ -209,10 +210,12 @@ export default function FollowersModal({ isOpen, onClose, profileId, initialTab 
                   >
                     {/* Avatar */}
                     {profile.avatar_url ? (
-                      <img
+                      <Image
                         src={profile.avatar_url}
-                        alt={displayName}
-                        className="w-12 h-12 rounded-full object-cover"
+                        alt={displayName || 'User'}
+                        width={48}
+                        height={48}
+                        className="rounded-full object-cover"
                       />
                     ) : (
                       <div className="w-12 h-12 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white font-semibold">

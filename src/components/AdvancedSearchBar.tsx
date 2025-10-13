@@ -2,15 +2,11 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
+import Image from 'next/image';
 import { useAuth } from '@/lib/auth';
 import { formatDisplayName, getInitials } from '@/lib/formatters';
 import { SPORT_REGISTRY } from '@/lib/sports/SportRegistry';
-
-interface SearchResult {
-  athletes: unknown[];
-  posts: unknown[];
-  clubs: unknown[];
-}
+import { SearchResults, SearchAthleteResult, SearchPostResult, SearchClubResult } from '@/types/search';
 
 interface SearchFilters {
   sport?: string;
@@ -25,7 +21,7 @@ export default function AdvancedSearchBar() {
   const router = useRouter();
   const { user } = useAuth();
   const [query, setQuery] = useState('');
-  const [results, setResults] = useState<SearchResult>({ athletes: [], posts: [], clubs: [] });
+  const [results, setResults] = useState<SearchResults>({ athletes: [], posts: [], clubs: [] });
   const [loading, setLoading] = useState(false);
   const [showResults, setShowResults] = useState(false);
   const [showFilters, setShowFilters] = useState(false);
@@ -260,7 +256,7 @@ export default function AdvancedSearchBar() {
                   <div className="px-4 py-2 bg-gray-50 border-b border-gray-100">
                     <h3 className="text-sm font-semibold text-gray-700">Athletes</h3>
                   </div>
-                  {results.athletes.map((athlete: any) => (
+                  {results.athletes.map((athlete: SearchAthleteResult) => (
                     <div
                       key={athlete.id}
                       onClick={() => {
@@ -276,10 +272,12 @@ export default function AdvancedSearchBar() {
                       className="px-4 py-3 hover:bg-gray-50 cursor-pointer transition-colors flex items-center gap-3"
                     >
                       {athlete.avatar_url ? (
-                        <img
+                        <Image
                           src={athlete.avatar_url}
-                          alt={athlete.full_name || 'Athlete'}
-                          className="w-10 h-10 rounded-full object-cover"
+                          alt={formatDisplayName(athlete.first_name, null, athlete.last_name, athlete.full_name) || 'Athlete'}
+                          width={40}
+                          height={40}
+                          className="rounded-full object-cover"
                         />
                       ) : (
                         <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center">
@@ -318,7 +316,7 @@ export default function AdvancedSearchBar() {
                   <div className="px-4 py-2 bg-gray-50 border-b border-gray-100">
                     <h3 className="text-sm font-semibold text-gray-700">Posts</h3>
                   </div>
-                  {results.posts.map((post: any) => (
+                  {results.posts.map((post: SearchPostResult) => (
                     <div
                       key={post.id}
                       onClick={() => {
@@ -329,10 +327,12 @@ export default function AdvancedSearchBar() {
                       className="px-4 py-3 hover:bg-gray-50 cursor-pointer transition-colors flex items-center gap-3"
                     >
                       {post.post_media?.[0] && (
-                        <img
+                        <Image
                           src={post.post_media[0].media_url}
                           alt="Post preview"
-                          className="w-12 h-12 rounded object-cover"
+                          width={48}
+                          height={48}
+                          className="rounded object-cover"
                         />
                       )}
                       <div className="flex-1">
@@ -354,7 +354,7 @@ export default function AdvancedSearchBar() {
                   <div className="px-4 py-2 bg-gray-50 border-b border-gray-100">
                     <h3 className="text-sm font-semibold text-gray-700">Clubs</h3>
                   </div>
-                  {results.clubs.map((club: any) => (
+                  {results.clubs.map((club: SearchClubResult) => (
                     <div
                       key={club.id}
                       onClick={() => {

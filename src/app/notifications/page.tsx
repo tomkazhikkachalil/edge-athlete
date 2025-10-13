@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import Image from 'next/image';
 import { useAuth } from '@/lib/auth';
 import { useNotifications } from '@/lib/notifications';
 import { formatDisplayName, getInitials } from '@/lib/formatters';
@@ -273,15 +274,17 @@ export default function NotificationsPage() {
                         <div className="flex items-start gap-4">
                           {/* Actor Avatar or Icon */}
                           {notification.actor?.avatar_url ? (
-                            <img
+                            <Image
                               src={notification.actor.avatar_url}
                               alt={formatDisplayName(
                                 notification.actor.first_name,
                                 notification.actor.middle_name,
                                 notification.actor.last_name,
                                 notification.actor.full_name
-                              )}
-                              className="w-12 h-12 rounded-full object-cover flex-shrink-0"
+                              ) || 'User'}
+                              width={48}
+                              height={48}
+                              className="rounded-full object-cover flex-shrink-0"
                             />
                           ) : notification.actor ? (
                             <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center flex-shrink-0">

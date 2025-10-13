@@ -1,7 +1,7 @@
 'use client';
 
 import { cssClasses } from '@/lib/design-tokens';
-import { getSportDefinition } from '@/lib/sports';
+import { getSportDefinition, type SportKey } from '@/lib/sports';
 import EnhancedGolfForm from '@/components/EnhancedGolfForm';
 
 interface MediaFile {
@@ -61,7 +61,6 @@ export function StepContent({
   selectedType,
   mediaFiles,
   uploading,
-  golfData,
   caption,
   visibility,
   onDrop,
@@ -187,7 +186,7 @@ export function StepContent({
     } else {
       // Future sports - coming soon
       // Safe type assertion - selectedType is validated in parent component
-      const sport = getSportDefinition(selectedType as any);
+      const sport = getSportDefinition(selectedType as SportKey);
       return (
         <div className="space-y-base">
           <div className="text-center py-base">
@@ -320,9 +319,9 @@ export function StepContent({
               {selectedType !== 'general' && (
                 <>
                   <span className={`${cssClasses.TYPOGRAPHY.CHIP} text-gray-400`}>•</span>
-                  <i className={`${getSportDefinition(selectedType as any).icon_id} text-sm text-blue-600`}></i>
+                  <i className={`${getSportDefinition(selectedType as SportKey).icon_id} text-sm text-blue-600`}></i>
                   <span className={`${cssClasses.TYPOGRAPHY.CHIP} text-gray-600`}>
-                    {getSportDefinition(selectedType as any).display_name}
+                    {getSportDefinition(selectedType as SportKey).display_name}
                   </span>
                 </>
               )}

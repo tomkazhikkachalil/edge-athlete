@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
+import Image from 'next/image';
 import type { AthleteBadge, Profile } from '@/lib/supabase';
 
 interface EditProfileModalProps {
@@ -273,9 +274,9 @@ export default function EditProfileModal({ isOpen, onClose, profile, badges, onS
                   Avatar
                 </label>
                 <div className="flex items-center space-x-4">
-                  <div className="w-16 h-16 rounded-full bg-gray-200 flex items-center justify-center">
+                  <div className="w-16 h-16 rounded-full bg-gray-200 flex items-center justify-center overflow-hidden">
                     {profile?.avatar_url ? (
-                      <img src={profile.avatar_url} alt="" className="w-16 h-16 rounded-full object-cover" />
+                      <Image src={profile.avatar_url} alt="Profile avatar" width={64} height={64} className="rounded-full object-cover" />
                     ) : (
                       <i className="fas fa-user text-gray-400 text-xl"></i>
                     )}

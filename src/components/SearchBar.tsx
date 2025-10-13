@@ -1,23 +1,19 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
+import Image from 'next/image';
 import { useAuth } from '@/lib/auth';
 import { formatDisplayName, getInitials } from '@/lib/formatters';
 import { getSportIcon, getSportName } from '@/lib/config/sports-config';
 import { getHandle } from '@/lib/profile-display';
-
-interface SearchResult {
-  athletes: any[];
-  posts: any[];
-  clubs: any[];
-}
+import { SearchResults } from '@/types/search';
 
 export default function SearchBar() {
   const router = useRouter();
   const { user } = useAuth();
   const [query, setQuery] = useState('');
-  const [results, setResults] = useState<SearchResult>({ athletes: [], posts: [], clubs: [] });
+  const [results, setResults] = useState<SearchResults>({ athletes: [], posts: [], clubs: [] });
   const [isLoading, setIsLoading] = useState(false);
   const [showResults, setShowResults] = useState(false);
   const searchRef = useRef<HTMLDivElement>(null);
@@ -34,21 +30,7 @@ export default function SearchBar() {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  // Debounced search
-  useEffect(() => {
-    const delaySearch = setTimeout(() => {
-      if (query.trim().length >= 2) {
-        performSearch();
-      } else {
-        setResults({ athletes: [], posts: [], clubs: [] });
-        setShowResults(false);
-      }
-    }, 300);
-
-    return () => clearTimeout(delaySearch);
-  }, [query]);
-
-  const performSearch = async () => {
+  const performSearch = useCallback(async () => {
     setIsLoading(true);
     try {
       console.log('[SEARCH BAR] Searching for:', query);
@@ -70,7 +52,21 @@ export default function SearchBar() {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [query]);
+
+  // Debounced search
+  useEffect(() => {
+    const delaySearch = setTimeout(() => {
+      if (query.trim().length >= 2) {
+        performSearch();
+      } else {
+        setResults({ athletes: [], posts: [], clubs: [] });
+        setShowResults(false);
+      }
+    }, 300);
+
+    return () => clearTimeout(delaySearch);
+  }, [query, performSearch]);
 
   const handleAthleteClick = (athleteId: string) => {
     // Navigate to own profile if clicking own profile
@@ -137,10 +133,12 @@ export default function SearchBar() {
                   className="w-full flex items-center gap-3 p-3 hover:bg-gray-50 rounded-lg transition-colors text-left"
                 >
                   {athlete.avatar_url ? (
-                    <img
+                    <Image
                       src={athlete.avatar_url}
-                      alt={athlete.full_name}
-                      className="w-10 h-10 rounded-full object-cover"
+                      alt={formatDisplayName(athlete.first_name, null, athlete.last_name, athlete.full_name) || 'Athlete'}
+                      width={40}
+                      height={40}
+                      className="rounded-full object-cover"
                     />
                   ) : (
                     <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center">
@@ -181,10 +179,12 @@ export default function SearchBar() {
                     className="w-full flex items-center gap-3 p-3 hover:bg-gray-50 rounded-lg transition-colors text-left"
                   >
                     {post.post_media?.[0] ? (
-                      <img
+                      <Image
                         src={post.post_media[0].media_url}
-                        alt="Post"
-                        className="w-10 h-10 rounded object-cover"
+                        alt="Post media"
+                        width={40}
+                        height={40}
+                        className="rounded object-cover"
                       />
                     ) : (
                       <div className="w-10 h-10 bg-gray-200 rounded flex items-center justify-center">

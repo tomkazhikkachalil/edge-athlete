@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import Image from 'next/image';
 import { useToast } from './Toast';
 
 interface Profile {
@@ -247,10 +248,12 @@ export default function TagPeopleModal({
                     className="w-full p-4 flex items-center gap-3 hover:bg-gray-50 transition-colors text-left"
                   >
                     {profile.avatar_url ? (
-                      <img
+                      <Image
                         src={profile.avatar_url}
                         alt={getDisplayName(profile)}
-                        className="w-12 h-12 rounded-full object-cover"
+                        width={48}
+                        height={48}
+                        className="rounded-full object-cover"
                       />
                     ) : (
                       <div className="w-12 h-12 rounded-full bg-gray-200 flex items-center justify-center">
