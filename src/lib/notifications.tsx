@@ -94,13 +94,17 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
 
       const response = await fetch(`/api/notifications?${params}`);
 
-      // Silently handle auth errors (expected when not logged in)
-      if (response.status === 401) {
+      // Silently handle all auth and permission errors (expected when not logged in or account deleted)
+      if (response.status === 401 || response.status === 403) {
+        setLoading(false);
         return;
       }
 
       if (!response.ok) {
-        throw new Error('Failed to fetch notifications');
+        // Don't throw for other errors, just log and return
+        console.warn('[NOTIFICATIONS] Failed to fetch notifications:', response.status);
+        setLoading(false);
+        return;
       }
 
       const data = await response.json();
@@ -116,11 +120,8 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
       setNextCursor(data.next_cursor);
 
     } catch (err) {
-      console.error('[NOTIFICATIONS] Error fetching notifications:', err);
-      // Don't set error state for auth issues to prevent red error messages on login page
-      if (err instanceof Error && !err.message.includes('Authentication')) {
-        setError(err.message);
-      }
+      // Only log unexpected errors (network failures, etc.)
+      console.warn('[NOTIFICATIONS] Unexpected error fetching notifications:', err);
     } finally {
       setLoading(false);
     }
@@ -137,8 +138,14 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
         body: JSON.stringify({ is_read: true })
       });
 
+      // Silently handle auth errors
+      if (response.status === 401 || response.status === 403) {
+        return;
+      }
+
       if (!response.ok) {
-        throw new Error('Failed to mark notification as read');
+        console.warn('[NOTIFICATIONS] Failed to mark as read:', response.status);
+        return;
       }
 
       // Update local state
@@ -150,7 +157,7 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
       setUnreadCount(prev => Math.max(0, prev - 1));
 
     } catch (err) {
-      console.error('[NOTIFICATIONS] Error marking as read:', err);
+      console.warn('[NOTIFICATIONS] Unexpected error marking as read:', err);
     }
   }, [user]);
 
@@ -163,8 +170,14 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
         method: 'PATCH'
       });
 
+      // Silently handle auth errors
+      if (response.status === 401 || response.status === 403) {
+        return;
+      }
+
       if (!response.ok) {
-        throw new Error('Failed to mark all as read');
+        console.warn('[NOTIFICATIONS] Failed to mark all as read:', response.status);
+        return;
       }
 
       // Update local state
@@ -175,7 +188,7 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
       setUnreadCount(0);
 
     } catch (err) {
-      console.error('[NOTIFICATIONS] Error marking all as read:', err);
+      console.warn('[NOTIFICATIONS] Unexpected error marking all as read:', err);
     }
   }, [user]);
 
@@ -188,8 +201,14 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
         method: 'DELETE'
       });
 
+      // Silently handle auth errors
+      if (response.status === 401 || response.status === 403) {
+        return;
+      }
+
       if (!response.ok) {
-        throw new Error('Failed to delete notification');
+        console.warn('[NOTIFICATIONS] Failed to delete notification:', response.status);
+        return;
       }
 
       // Update local state
@@ -202,7 +221,7 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
       }
 
     } catch (err) {
-      console.error('[NOTIFICATIONS] Error deleting notification:', err);
+      console.warn('[NOTIFICATIONS] Unexpected error deleting notification:', err);
     }
   }, [user, notifications]);
 
@@ -215,8 +234,14 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
         method: 'DELETE'
       });
 
+      // Silently handle auth errors
+      if (response.status === 401 || response.status === 403) {
+        return;
+      }
+
       if (!response.ok) {
-        throw new Error('Failed to clear all notifications');
+        console.warn('[NOTIFICATIONS] Failed to clear all:', response.status);
+        return;
       }
 
       setNotifications([]);
@@ -225,15 +250,22 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
       setNextCursor(null);
 
     } catch (err) {
-      console.error('[NOTIFICATIONS] Error clearing all:', err);
+      console.warn('[NOTIFICATIONS] Unexpected error clearing all:', err);
     }
   }, [user]);
 
-  // Initial fetch on mount
+  // Initial fetch on mount and cleanup on logout
   useEffect(() => {
     if (user) {
       fetchNotifications({ reset: true });
       refreshUnreadCount();
+    } else {
+      // Clear notifications when user logs out
+      setNotifications([]);
+      setUnreadCount(0);
+      setHasMore(false);
+      setNextCursor(null);
+      setError(null);
     }
   }, [user]); // eslint-disable-line react-hooks/exhaustive-deps
 

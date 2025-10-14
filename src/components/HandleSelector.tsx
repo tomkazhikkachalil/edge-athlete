@@ -81,7 +81,8 @@ export default function HandleSelector({
     }, 500); // 500ms debounce
 
     return () => clearTimeout(timer);
-  }, [handle, onHandleSelected]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [handle]); // Intentionally excluding onHandleSelected to prevent constant re-checks when parent re-renders
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     let value = e.target.value;

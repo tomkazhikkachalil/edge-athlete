@@ -23,7 +23,7 @@ export default function AppHeader({ showSearch = true, onCreatePost, onEditProfi
 
   const handleSignOut = async () => {
     await signOut();
-    router.push('/');
+    // Note: signOut() handles the redirect, no need to router.push
   };
 
   const handleCreatePost = () => {
@@ -177,6 +177,16 @@ export default function AppHeader({ showSearch = true, onCreatePost, onEditProfi
                           <i className="fas fa-bookmark w-4"></i>
                           <span>Saved Posts</span>
                         </button>
+                        <button
+                          onClick={() => {
+                            router.push('/settings');
+                            setIsProfileDropdownOpen(false);
+                          }}
+                          className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-3"
+                        >
+                          <i className="fas fa-cog w-4"></i>
+                          <span>Settings</span>
+                        </button>
                       </div>
 
                       <div className="border-t border-gray-100 py-1">
@@ -326,6 +336,17 @@ export default function AppHeader({ showSearch = true, onCreatePost, onEditProfi
             >
               <i className="fas fa-bookmark w-5 text-center"></i>
               <span className="font-medium">Saved Posts</span>
+            </button>
+
+            <button
+              onClick={() => {
+                router.push('/settings');
+                setIsMobileMenuOpen(false);
+              }}
+              className="flex items-center gap-3 w-full px-4 py-3 text-left text-gray-700 hover:bg-blue-50 hover:text-blue-600 rounded-lg transition-colors"
+            >
+              <i className="fas fa-cog w-5 text-center"></i>
+              <span className="font-medium">Settings</span>
             </button>
 
             <div className="border-t border-gray-200 my-2"></div>

@@ -7,12 +7,13 @@ import { useAuth } from '@/lib/auth';
 import { useNotifications } from '@/lib/notifications';
 import { formatDisplayName, getInitials } from '@/lib/formatters';
 import AppHeader from '@/components/AppHeader';
+import EditProfileTabs from '@/components/EditProfileTabs';
 
 type Tab = 'all' | 'unread' | 'follow' | 'engagement' | 'system';
 
 export default function NotificationsPage() {
   const router = useRouter();
-  const { user, loading: authLoading } = useAuth();
+  const { user, profile, loading: authLoading } = useAuth();
   const {
     notifications,
     unreadCount,
@@ -27,6 +28,7 @@ export default function NotificationsPage() {
 
   const [activeTab, setActiveTab] = useState<Tab>('all');
   const [showClearConfirm, setShowClearConfirm] = useState(false);
+  const [isEditProfileModalOpen, setIsEditProfileModalOpen] = useState(false);
 
   // Redirect if not authenticated
   useEffect(() => {
@@ -173,7 +175,10 @@ export default function NotificationsPage() {
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Unified Header */}
-      <AppHeader showSearch={false} />
+      <AppHeader
+        showSearch={false}
+        onEditProfile={() => setIsEditProfileModalOpen(true)}
+      />
 
       {/* Notifications Page Header */}
       <div className="bg-white border-b border-gray-200">
@@ -393,6 +398,20 @@ export default function NotificationsPage() {
           </div>
         </div>
       )}
+
+      {/* Edit Profile Modal */}
+      <EditProfileTabs
+        isOpen={isEditProfileModalOpen}
+        onClose={() => setIsEditProfileModalOpen(false)}
+        profile={profile}
+        badges={[]}
+        highlights={[]}
+        performances={[]}
+        onSave={() => {
+          // Profile will be refreshed automatically by useAuth
+          setIsEditProfileModalOpen(false);
+        }}
+      />
     </div>
   );
 }

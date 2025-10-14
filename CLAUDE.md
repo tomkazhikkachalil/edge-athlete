@@ -663,6 +663,114 @@ onPostCreated={() => {
 - Profile media refreshes automatically
 - No manual page refresh needed
 
+### Critical Fixes (January 2025)
+
+**Recent improvements to core data flow and error handling:**
+
+#### 1. **Signup Flow Fix** ✅
+**Issue:** Database trigger `on_auth_user_created` was failing during signup, causing "Database error saving new user"
+
+**Solution:**
+- Disabled database trigger permanently
+- Updated `/src/app/api/signup/route.ts` to handle profile creation via direct UPSERT
+- Added comprehensive logging at each step
+- Duplicate email checks now use admin client for reliability
+
+**Result:** All new signups now create profiles correctly with proper data associations
+
+#### 2. **Post Creation Profile Data Fix** ✅
+**Issue:** Newly created posts appeared in feed without profile data, causing "Cannot read properties of undefined (reading 'first_name')" error
+
+**Solution:**
+- Updated `/src/app/api/posts/route.ts` POST endpoint to fetch complete post with profile relationship after creation
+- Returns transformed post object matching feed expectations
+- Includes profile data (first_name, last_name, full_name, avatar_url, handle)
+
+**Result:** Posts now appear instantly in feed with all profile information
+
+**Code Pattern:**
+```typescript
+// After inserting post, fetch complete data
+const { data: completePost } = await supabase
+  .from('posts')
+  .select(`
+    *,
+    profiles:profile_id (
+      id, first_name, middle_name, last_name,
+      full_name, avatar_url, handle
+    ),
+    post_media (*),
+    post_likes (profile_id)
+  `)
+  .eq('id', post.id)
+  .single();
+
+// Transform and return complete post
+return NextResponse.json({
+  success: true,
+  post: transformedPost,
+  message: 'Post created successfully!'
+});
+```
+
+#### 3. **Notification Error Handling** ✅
+**Issue:** After account deletion/logout, NotificationsProvider threw "Failed to fetch notifications" errors
+
+**Solution:**
+- Updated `/src/lib/notifications.tsx` to gracefully handle 401/403 errors
+- Added automatic state cleanup on logout
+- Changed error logging from `console.error` to `console.warn` for non-critical failures
+
+**Result:** No console errors after logout or account deletion
+
+**Code Pattern:**
+```typescript
+// Graceful auth error handling
+if (response.status === 401 || response.status === 403) {
+  setLoading(false);
+  return; // Silently handle auth errors
+}
+
+// Cleanup on logout
+useEffect(() => {
+  if (!user) {
+    setNotifications([]);
+    setUnreadCount(0);
+    setError(null);
+  }
+}, [user]);
+```
+
+#### 4. **Handle Validation Performance** ✅
+**Issue:** HandleSelector component made excessive API calls during signup
+
+**Solution:**
+- Updated `/src/components/HandleSelector.tsx` to remove unstable callback from useEffect dependencies
+- Validation now only runs on handle change (with 500ms debounce)
+
+**Result:** Smooth handle validation without API spam
+
+#### 5. **Goodbye Page UX** ✅
+**Issue:** Account deletion page allowed navigation to restricted areas
+
+**Solution:**
+- Updated `/src/app/goodbye/page.tsx` to show only "Log In" and "Sign Up" buttons
+- Removed generic navigation options
+
+**Result:** Clear user flow after account deletion
+
+**Database Configuration:**
+- Database trigger `on_auth_user_created` is **permanently disabled**
+- Profile creation handled entirely by signup API
+- This configuration applies to **all future user signups** automatically
+
+**Verification:**
+All data associations verified with end-to-end SQL scripts:
+- `end-to-end-verification.sql` - Comprehensive checks
+- `quick-verification.sql` - Fast verification with single email lookup
+- See `END_TO_END_TESTING_GUIDE.md` for manual testing procedures
+- See `VERIFICATION_SUMMARY.md` for technical validation report
+
 ### Styling & Design
 
 **Design System Enforcement:**

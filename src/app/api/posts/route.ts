@@ -242,9 +242,124 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    // Fetch the complete post with profile, media, and tagged profiles
+    const { data: completePost, error: fetchError } = await supabase
+      .from('posts')
+      .select(`
+        *,
+        post_media (
+          id,
+          media_url,
+          media_type,
+          thumbnail_url,
+          display_order
+        ),
+        profiles:profile_id (
+          id,
+          full_name,
+          first_name,
+          middle_name,
+          last_name,
+          avatar_url,
+          visibility,
+          handle
+        ),
+        post_likes (
+          profile_id
+        )
+      `)
+      .eq('id', post.id)
+      .single();
+
+    if (fetchError) {
+      console.error('[POST] Error fetching complete post:', fetchError);
+      // Return the basic post if fetch fails, but this shouldn't happen
+      return NextResponse.json({
+        success: true,
+        post: post,
+        message: 'Post created successfully!'
+      });
+    }
+
+    // Fetch golf round if exists
+    let golfRound = null;
+    if (completePost.round_id) {
+      const { data: roundData } = await supabase
+        .from('golf_rounds')
+        .select(`
+          *,
+          golf_holes (
+            hole_number,
+            par,
+            strokes,
+            putts,
+            fairway_hit,
+            green_in_regulation,
+            distance_yards,
+            club_off_tee,
+            notes
+          )
+        `)
+        .eq('id', completePost.round_id)
+        .single();
+
+      if (roundData && roundData.golf_holes) {
+        roundData.golf_holes.sort((a: { hole_number: number }, b: { hole_number: number }) => a.hole_number - b.hole_number);
+      }
+      golfRound = roundData;
+    }
+
+    // Fetch tagged profiles if exists
+    let taggedProfilesList: TaggedProfile[] = [];
+    if (completePost.tags && completePost.tags.length > 0) {
+      const { data: profiles } = await supabase
+        .from('profiles')
+        .select('id, first_name, middle_name, last_name, full_name, avatar_url, handle')
+        .in('id', completePost.tags);
+
+      if (profiles) {
+        taggedProfilesList = profiles;
+      }
+    }
+
+    // Transform to match expected format
+    const transformedPost = {
+      id: completePost.id,
+      caption: completePost.caption,
+      sport_key: completePost.sport_key,
+      stats_data: completePost.stats_data,
+      visibility: completePost.visibility,
+      tags: completePost.tags || [],
+      hashtags: completePost.hashtags || [],
+      created_at: completePost.created_at,
+      likes_count: completePost.likes_count ?? 0,
+      comments_count: completePost.comments_count ?? 0,
+      saves_count: completePost.saves_count ?? 0,
+      profile: {
+        id: completePost.profiles.id,
+        first_name: completePost.profiles.first_name,
+        middle_name: completePost.profiles.middle_name,
+        last_name: completePost.profiles.last_name,
+        full_name: completePost.profiles.full_name,
+        avatar_url: completePost.profiles.avatar_url,
+        handle: completePost.profiles.handle
+      },
+      media: (completePost.post_media || [])
+        .sort((a: { display_order: number }, b: { display_order: number }) => a.display_order - b.display_order)
+        .map((media: { id: string; media_url: string; media_type: string; display_order: number }) => ({
+          id: media.id,
+          media_url: media.media_url,
+          media_type: media.media_type,
+          display_order: media.display_order
+        })),
+      likes: completePost.post_likes || [],
+      golf_round: golfRound,
+      tagged_profiles: taggedProfilesList
+    };
+
     return NextResponse.json({
       success: true,
-      post: post,
+      post: transformedPost,
       message: 'Post created successfully!'
     });
 

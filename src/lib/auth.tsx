@@ -345,16 +345,38 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const signOut = async () => {
     try {
-      setLoading(true);
+      // Sign out from Supabase
       await supabase.auth.signOut();
-      // Clear local state immediately
+
+      // Clear local state
       setUser(null);
       setProfile(null);
-      // Use router instead of window.location for smoother transitions
+
+      // Clear all cached auth data from localStorage
+      if (typeof window !== 'undefined') {
+        localStorage.removeItem('edge-athlete-user-cache');
+        localStorage.removeItem('edge-athlete-profile-cache');
+
+        // Also clear Supabase auth storage
+        try {
+          const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+          if (supabaseUrl) {
+            const projectId = supabaseUrl.split('//')[1]?.split('.')[0];
+            if (projectId) {
+              localStorage.removeItem(`sb-${projectId}-auth-token`);
+            }
+          }
+        } catch {
+          // Silently handle errors
+        }
+      }
+
+      // Force redirect to login page with full page reload to ensure clean state
       window.location.href = '/';
-    } catch {
-      // Error signing out
-      setLoading(false);
+    } catch (error) {
+      console.error('Error signing out:', error);
+      // Even on error, try to redirect
+      window.location.href = '/';
     }
   };
 

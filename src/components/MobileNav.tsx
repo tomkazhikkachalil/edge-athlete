@@ -13,7 +13,7 @@ export default function MobileNav() {
 
   const handleSignOut = async () => {
     await signOut();
-    router.push('/');
+    // Note: signOut() handles the redirect, no need to router.push
     setIsOpen(false);
   };
 
@@ -72,7 +72,7 @@ export default function MobileNav() {
                 fallbackInitials={getInitials(
                   formatDisplayName(
                     profile?.first_name,
-                    profile?.middle_name,
+                    null,
                     profile?.last_name,
                     profile?.full_name
                   )
@@ -82,7 +82,7 @@ export default function MobileNav() {
                 <p className="font-semibold text-gray-900">
                   {formatDisplayName(
                     profile?.first_name,
-                    profile?.middle_name,
+                    null,
                     profile?.last_name,
                     profile?.full_name
                   )}
@@ -145,7 +145,7 @@ export default function MobileNav() {
 
             <button
               onClick={() => {
-                router.push('/app/profile');
+                router.push('/settings');
                 setIsOpen(false);
               }}
               className="flex items-center gap-3 w-full px-4 py-3 text-left text-gray-700 hover:bg-blue-50 hover:text-blue-600 rounded-lg transition-colors"

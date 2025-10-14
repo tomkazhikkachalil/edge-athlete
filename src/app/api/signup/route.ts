@@ -6,6 +6,9 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const { email, password, profileData } = body;
 
+    console.log('[SIGNUP] Starting signup process for email:', email);
+    console.log('[SIGNUP] Profile data received:', JSON.stringify(profileData, null, 2));
+
     if (!email || !password) {
       return NextResponse.json(
         { error: 'Email and password are required' },
@@ -60,16 +63,22 @@ export async function POST(request: NextRequest) {
       console.warn('Admin client not available - skipping duplicate email check. Relying on Supabase Auth validation.');
     }
 
-    
+
     // Proceed with Supabase Auth signup
+    console.log('[SIGNUP] Creating auth user...');
     const { data, error } = await supabase.auth.signUp({
       email,
       password,
     });
 
+    console.log('[SIGNUP] Auth signup result:', {
+      success: !!data.user,
+      userId: data.user?.id,
+      hasError: !!error
+    });
 
     if (error) {
-      console.error('Supabase auth signup error:', error);
+      console.error('[SIGNUP] Supabase auth signup error:', error);
       
       // Handle various Supabase duplicate email errors
       if (error.message.includes('already registered') || 
@@ -102,51 +111,68 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Update the profile with additional data (using admin client to bypass RLS if available)
+    // Create/update the profile with additional data (using admin client to bypass RLS if available)
     if (data.user) {
+      console.log('[SIGNUP] Creating profile for user:', data.user.id);
       const client = supabaseAdmin || supabase;
+      console.log('[SIGNUP] Using client:', supabaseAdmin ? 'admin' : 'regular');
+
+      if (!client) {
+        console.error('[SIGNUP] No Supabase client available!');
+        return NextResponse.json(
+          { error: 'Server configuration error: Database client not initialized' },
+          { status: 500 }
+        );
+      }
 
       // Create a full name from first and last name
       const fullName = [profileData.first_name, profileData.last_name]
         .filter(Boolean)
         .join(' ') || undefined;
 
-      // Prepare update data
-      const updateData: Record<string, unknown> = {
-        // Original fields
-        email: email.toLowerCase(), // Ensure email is set
+      // Prepare complete profile data for INSERT
+      const profileData_toInsert = {
+        id: data.user.id,
+        email: email.toLowerCase(),
         first_name: profileData.first_name,
         last_name: profileData.last_name,
-        nickname: profileData.nickname,
-        phone: profileData.phone,
-        birthday: profileData.birthday,
-        gender: profileData.gender,
-        location: profileData.location,
-        postal_code: profileData.postal_code,
+        nickname: profileData.nickname || null,
+        phone: profileData.phone || null,
+        birthday: profileData.birthday || null,
+        dob: profileData.birthday || null,
+        gender: profileData.gender || null,
+        location: profileData.location || null,
+        postal_code: profileData.postal_code || null,
         user_type: profileData.user_type || 'athlete',
-
-        // Athlete-specific fields
-        full_name: fullName,
-        // Use birthday as DOB if provided
-        dob: profileData.birthday,
+        full_name: fullName || null,
+        handle: profileData.handle ? profileData.handle.toLowerCase().trim() : null,
       };
 
-      // Add handle if provided
-      if (profileData.handle) {
-        updateData.handle = profileData.handle.toLowerCase().trim();
-      }
+      console.log('[SIGNUP] Profile data to INSERT:', JSON.stringify(profileData_toInsert, null, 2));
 
+      // Directly INSERT the profile (don't wait for trigger)
+      // Use upsert to handle race conditions with trigger
+      console.log('[SIGNUP] Inserting profile directly');
       const { error: profileError } = await client
         .from('profiles')
-        .update(updateData)
-        .eq('id', data.user.id);
+        .upsert(profileData_toInsert, {
+          onConflict: 'id',
+          ignoreDuplicates: false
+        });
 
       if (profileError) {
-        console.error('Error updating profile:', profileError);
+        console.error('[SIGNUP] Error updating profile:', profileError);
+        console.error('[SIGNUP] Profile error details:', {
+          message: profileError.message,
+          code: profileError.code,
+          details: profileError.details,
+          hint: profileError.hint
+        });
 
         // Check if it's a handle uniqueness error
         if (profileError.message?.includes('handle') ||
             profileError.message?.includes('duplicate') ||
+            profileError.message?.includes('unique') ||
             profileError.code === '23505') {
           return NextResponse.json(
             { error: 'This handle is already taken. Please choose a different one.' },
@@ -154,11 +180,27 @@ export async function POST(request: NextRequest) {
           );
         }
 
-        // For other errors, still return success since auth user was created
-        console.warn('Profile update failed but user created:', profileError);
+        // Check for null value errors
+        if (profileError.code === '23502') {
+          return NextResponse.json(
+            { error: 'Required profile information is missing. Please ensure all required fields are filled.' },
+            { status: 400 }
+          );
+        }
+
+        // Return specific database error instead of generic message
+        return NextResponse.json(
+          { error: `Database error: ${profileError.message}` },
+          { status: 500 }
+        );
+      } else {
+        console.log('[SIGNUP] Profile updated successfully');
       }
+    } else {
+      console.warn('[SIGNUP] No user data returned from auth signup');
     }
 
+    console.log('[SIGNUP] Signup completed successfully for:', email);
     return NextResponse.json(
       { message: 'Account created successfully', user: data.user },
       { status: 201 }

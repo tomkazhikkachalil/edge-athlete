@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation';
 import PostCard from '@/components/PostCard';
 import CreatePostModal from '@/components/CreatePostModal';
 import EditPostModal from '@/components/EditPostModal';
+import EditProfileTabs from '@/components/EditProfileTabs';
 import AppHeader from '@/components/AppHeader';
 import ConnectionSuggestions from '@/components/ConnectionSuggestions';
 import { ToastContainer, useToast } from '@/components/Toast';
@@ -57,6 +58,7 @@ export default function FeedPage() {
   const [feedLoading, setFeedLoading] = useState(true);
   const [isCreatePostModalOpen, setIsCreatePostModalOpen] = useState(false);
   const [isEditPostModalOpen, setIsEditPostModalOpen] = useState(false);
+  const [isEditProfileModalOpen, setIsEditProfileModalOpen] = useState(false);
   const [editingPost, setEditingPost] = useState<Post | null>(null);
   const [hasMore, setHasMore] = useState(true);
   const [page, setPage] = useState(0);
@@ -362,7 +364,11 @@ export default function FeedPage() {
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Unified Header */}
-      <AppHeader showSearch={true} onCreatePost={() => setIsCreatePostModalOpen(true)} />
+      <AppHeader
+        showSearch={true}
+        onCreatePost={() => setIsCreatePostModalOpen(true)}
+        onEditProfile={() => setIsEditProfileModalOpen(true)}
+      />
 
       {/* Main Layout */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 py-4 sm:py-6">
@@ -597,6 +603,20 @@ export default function FeedPage() {
           onPostUpdated={handlePostUpdated}
         />
       )}
+
+      {/* Edit Profile Modal */}
+      <EditProfileTabs
+        isOpen={isEditProfileModalOpen}
+        onClose={() => setIsEditProfileModalOpen(false)}
+        profile={profile}
+        badges={[]}
+        highlights={[]}
+        performances={[]}
+        onSave={() => {
+          // Profile will be refreshed automatically by useAuth
+          setIsEditProfileModalOpen(false);
+        }}
+      />
 
       {/* Toast Container */}
       <ToastContainer toasts={toasts} onDismiss={dismissToast} />
