@@ -76,6 +76,7 @@ export default function ProfileMediaTabs({ profileId, currentUserId, isOwnProfil
   const [hasMore, setHasMore] = useState(false);
   const [offset, setOffset] = useState(0);
   const observerTarget = useRef<HTMLDivElement>(null);
+  const offsetRef = useRef(0); // Use ref for offset to avoid dependency issues
 
   // Modal state
   const [selectedPostIndex, setSelectedPostIndex] = useState<number | null>(null);
@@ -112,17 +113,27 @@ export default function ProfileMediaTabs({ profileId, currentUserId, isOwnProfil
       if (resetItems) {
         setLoading(true);
         setOffset(0);
+        offsetRef.current = 0;
       } else {
         setLoadingMore(true);
       }
 
-      const currentOffset = resetItems ? 0 : offset;
+      const currentOffset = resetItems ? 0 : offsetRef.current;
       const params = new URLSearchParams({
         tab: activeTab,
         sort,
         mediaType: mediaFilter,
         limit: '20',
         offset: currentOffset.toString()
+      });
+
+      console.log('[ProfileMediaTabs] Fetching media:', {
+        profileId,
+        tab: activeTab,
+        sort,
+        mediaFilter,
+        offset: currentOffset,
+        resetItems
       });
 
       const response = await fetch(`/api/profile/${profileId}/media?${params}`);
@@ -135,31 +146,48 @@ export default function ProfileMediaTabs({ profileId, currentUserId, isOwnProfil
 
       const data = await response.json();
 
+      console.log('[ProfileMediaTabs] Received data:', {
+        itemsCount: data.items?.length || 0,
+        hasMore: data.hasMore,
+        nextOffset: data.nextOffset
+      });
+
       if (resetItems) {
-        setItems(data.items);
+        setItems(data.items || []);
       } else {
-        setItems(prev => [...prev, ...data.items]);
+        setItems(prev => [...prev, ...(data.items || [])]);
       }
 
-      setHasMore(data.hasMore);
-      setOffset(data.nextOffset);
+      setHasMore(data.hasMore || false);
+      const newOffset = data.nextOffset || currentOffset + (data.items?.length || 0);
+      setOffset(newOffset);
+      offsetRef.current = newOffset;
     } catch (error) {
-      console.error('Error fetching media:', error);
+      console.error('[ProfileMediaTabs] Error fetching media:', error);
+      // Reset loading states on error
+      setLoading(false);
+      setLoadingMore(false);
+      // Show empty state on error
+      if (resetItems) {
+        setItems([]);
+        setHasMore(false);
+      }
     } finally {
       setLoading(false);
       setLoadingMore(false);
     }
-  }, [profileId, activeTab, sort, mediaFilter, offset]);
+  }, [profileId, activeTab, sort, mediaFilter]);
 
-  // Load counts on mount
+  // Load counts on mount and when profileId changes
   useEffect(() => {
     fetchCounts();
   }, [fetchCounts]);
 
-  // Load media when tab/filter/sort changes
+  // Load media when tab/filter/sort/profileId changes
   useEffect(() => {
+    console.log('[ProfileMediaTabs] useEffect triggered - fetching media');
     fetchMedia(true);
-  }, [activeTab, sort, mediaFilter, profileId]);
+  }, [activeTab, sort, mediaFilter, profileId, fetchMedia]);
 
   // Infinite scroll observer
   useEffect(() => {

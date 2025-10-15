@@ -257,8 +257,19 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
   // Initial fetch on mount and cleanup on logout
   useEffect(() => {
     if (user) {
-      fetchNotifications({ reset: true });
-      refreshUnreadCount();
+      // PERFORMANCE FIX: Defer notification loading to avoid blocking page render
+      // Use requestIdleCallback for better performance (or setTimeout as fallback)
+      const idleCallback = window.requestIdleCallback || ((cb) => setTimeout(cb, 1));
+
+      idleCallback(() => {
+        // Only fetch unread count initially (lightweight query)
+        refreshUnreadCount();
+
+        // Defer full notifications list even further (not critical for initial render)
+        setTimeout(() => {
+          fetchNotifications({ reset: true });
+        }, 500);
+      });
     } else {
       // Clear notifications when user logs out
       setNotifications([]);

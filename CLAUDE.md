@@ -929,6 +929,31 @@ const { notifications, unreadCount, markAsRead, markAllAsRead } = useNotificatio
 - Indoor rounds fully integrated into profile tabs and stats
 - Run `add-flexible-golf-rounds.sql` migration to enable
 
+**Golf par calculation (January 2025):**
+- Par is calculated from ACTUAL holes played, not defaulted to 72
+- Display shows "+/- vs actual par" for any hole count (5, 9, 13, 18, etc.)
+- Partial rounds (< 18 holes) show "Through N holes" label
+- Database function `calculate_round_stats()` sums par from `golf_holes` table
+- PostCard calculates par client-side from hole records for display
+- Run `fix-golf-par-calculation.sql` to update database function
+
+**Pattern for displaying golf scores:**
+```typescript
+// Calculate actual par from recorded holes (PostCard.tsx)
+const actualPar = post.golf_round.golf_holes?.reduce(
+  (sum: number, hole: any) => sum + (hole.par || 0), 0
+) || 0;
+const holesPlayed = post.golf_round.golf_holes?.length || 0;
+const toPar = actualPar > 0 ? post.golf_round.gross_score - actualPar : null;
+
+// Show "Through N" label for partial rounds
+{holesPlayed > 0 && holesPlayed < 18 && (
+  <div className="text-[10px] text-green-700 font-medium">
+    Through {holesPlayed}
+  </div>
+)}
+```
+
 ### Known Issues & Workarounds
 
 - **Like/comment counts** - If counts are off, run `fix-likes-comments-issues.sql`

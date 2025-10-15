@@ -281,6 +281,17 @@ export async function POST(request: NextRequest) {
       });
     }
 
+    // Verify profile data was fetched successfully
+    if (!completePost.profiles) {
+      console.error('[POST] Post created but profile data missing for post:', post.id);
+      // Return basic post data without transformation
+      return NextResponse.json({
+        success: true,
+        post: post,
+        message: 'Post created successfully!'
+      });
+    }
+
     // Fetch golf round if exists
     let golfRound = null;
     if (completePost.round_id) {
@@ -430,6 +441,15 @@ export async function GET(request: NextRequest) {
 
       if (!post) {
         return NextResponse.json({ error: 'Post not found' }, { status: 404 });
+      }
+
+      // Check if profile data exists (critical for transformation)
+      if (!post.profiles) {
+        console.error('[GET] Post found but profile data missing:', postId);
+        return NextResponse.json({
+          error: 'Post profile data not found',
+          details: 'The profile associated with this post no longer exists'
+        }, { status: 404 });
       }
 
       // Fetch golf round if exists
@@ -656,7 +676,13 @@ export async function GET(request: NextRequest) {
 
     // Transform the data to match the expected format
     const transformedPosts = postsWithRounds
-      .filter(post => post.profiles) // Filter out posts without profiles
+      .filter(post => {
+        if (!post.profiles) {
+          console.warn('[GET] Skipping post with missing profile data:', post.id);
+          return false;
+        }
+        return true;
+      })
       .map(post => ({
           id: post.id,
           caption: post.caption,

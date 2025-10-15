@@ -84,8 +84,15 @@ export default function AthleteProfilePage() {
   // Load athlete data
   useEffect(() => {
     if (user?.id) {
+      // Load critical data immediately
       loadAthleteData(user.id);
-      loadFollowStats(user.id);
+
+      // PERFORMANCE FIX: Defer follow stats to avoid blocking page render
+      // Use requestIdleCallback for better performance
+      const idleCallback = window.requestIdleCallback || ((cb) => setTimeout(cb, 1));
+      idleCallback(() => {
+        loadFollowStats(user.id);
+      });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user]);

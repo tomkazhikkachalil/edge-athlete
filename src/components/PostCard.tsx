@@ -586,18 +586,30 @@ export default function PostCard({
               </div>
 
               {/* Large Score Badge */}
-              {post.golf_round.gross_score !== null && post.golf_round.gross_score !== undefined && (
-                <div className="text-right ml-3">
-                  <div className="bg-white rounded-lg px-4 py-2 shadow-md border-2 border-green-300">
-                    <div className="text-3xl font-black text-green-900 leading-none">{post.golf_round.gross_score}</div>
-                    {post.golf_round.par && (
-                      <div className={`text-sm font-bold ${post.golf_round.gross_score - post.golf_round.par < 0 ? 'text-blue-600' : 'text-red-600'}`}>
-                        {post.golf_round.gross_score - post.golf_round.par >= 0 ? '+' : ''}{post.golf_round.gross_score - post.golf_round.par}
-                      </div>
-                    )}
+              {post.golf_round.gross_score !== null && post.golf_round.gross_score !== undefined && (() => {
+                // Calculate actual par from recorded holes
+                const actualPar = post.golf_round.golf_holes?.reduce((sum: number, hole: any) => sum + (hole.par || 0), 0) || 0;
+                const holesPlayed = post.golf_round.golf_holes?.length || 0;
+                const toPar = actualPar > 0 ? post.golf_round.gross_score - actualPar : null;
+
+                return (
+                  <div className="text-right ml-3">
+                    <div className="bg-white rounded-lg px-4 py-2 shadow-md border-2 border-green-300">
+                      <div className="text-3xl font-black text-green-900 leading-none">{post.golf_round.gross_score}</div>
+                      {toPar !== null && (
+                        <div className={`text-sm font-bold ${toPar < 0 ? 'text-blue-600' : 'text-red-600'}`}>
+                          {toPar >= 0 ? '+' : ''}{toPar}
+                        </div>
+                      )}
+                      {holesPlayed > 0 && holesPlayed < 18 && (
+                        <div className="text-[10px] text-green-700 font-medium mt-0.5">
+                          Through {holesPlayed}
+                        </div>
+                      )}
+                    </div>
                   </div>
-                </div>
-              )}
+                );
+              })()}
             </div>
 
             {/* Inline Stats Bar */}
