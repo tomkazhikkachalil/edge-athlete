@@ -29,67 +29,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     let isMounted = true;
 
-    // Get initial session with faster localStorage check and caching
+    // Get initial session with 5-second timeout
     const getInitialSession = async () => {
       try {
-        // Ultra-fast initial check - use synchronous localStorage access
-        let cachedUser = null;
-        let cachedProfile = null;
-        
-        if (typeof window !== 'undefined') {
-          // Check for cached user data first
-          const cachedUserData = localStorage.getItem('edge-athlete-user-cache');
-          const cachedProfileData = localStorage.getItem('edge-athlete-profile-cache');
-          
-          if (cachedUserData && cachedProfileData) {
-            try {
-              cachedUser = JSON.parse(cachedUserData);
-              cachedProfile = JSON.parse(cachedProfileData);
-              
-              // Set immediately for instant UI response
-              if (isMounted && cachedUser && cachedProfile) {
-                setUser(cachedUser);
-                setProfile(cachedProfile);
-                setProfileCache(new Map([[cachedUser.id, cachedProfile]]));
-              }
-            } catch {
-              // Invalid cache, clear it
-              localStorage.removeItem('edge-athlete-user-cache');
-              localStorage.removeItem('edge-athlete-profile-cache');
-            }
-          }
-        }
-
-        // Then verify/update with fresh data from Supabase
+        // Get session from Supabase (no localStorage caching)
         const { data: { session }, error: sessionError } = await supabase.auth.getSession();
 
-        // Handle refresh token errors silently
+        // Handle refresh token errors
         if (sessionError) {
-          // Check for any variant of refresh token error
           const errorMessage = sessionError.message?.toLowerCase() || '';
           if (errorMessage.includes('refresh') && errorMessage.includes('token')) {
-            // Clear all auth-related storage silently
+            // Clear session silently
             await supabase.auth.signOut().catch(() => {});
-            if (typeof window !== 'undefined') {
-              localStorage.removeItem('edge-athlete-user-cache');
-              localStorage.removeItem('edge-athlete-profile-cache');
-              // Also clear Supabase auth storage
-              try {
-                const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-                if (supabaseUrl) {
-                  const projectId = supabaseUrl.split('//')[1]?.split('.')[0];
-                  if (projectId) {
-                    localStorage.removeItem(`sb-${projectId}-auth-token`);
-                  }
-                }
-              } catch {
-                // Silently handle storage key generation errors
-              }
-            }
-            // Reset state immediately
+            // Reset state
             setUser(null);
             setProfile(null);
-            // Skip further processing
             if (isMounted) {
               setLoading(false);
               setInitialAuthCheckComplete(true);
@@ -97,43 +51,45 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             return;
           }
         }
-        
+
         if (!isMounted) return;
-        
+
         const currentUser = session?.user || null;
         setUser(currentUser);
-        
+
         if (currentUser) {
-          // If we don't have cached data or user changed, fetch profile
-          if (!cachedProfile || cachedUser?.id !== currentUser.id) {
-            await fetchProfile(currentUser.id);
-          } else {
-            // We already set the cached profile, but still refresh it in background
-            fetchProfile(currentUser.id); // Don't await - background refresh
-          }
+          // Fetch profile (simplified, no background refresh)
+          await fetchProfile(currentUser.id);
         } else {
-          // Clear cache if no user
           setProfile(null);
-          if (typeof window !== 'undefined') {
-            localStorage.removeItem('edge-athlete-user-cache');
-            localStorage.removeItem('edge-athlete-profile-cache');
-          }
         }
-        
+
         if (isMounted) {
           setLoading(false);
           setInitialAuthCheckComplete(true);
         }
-      } catch {
-        // Error getting initial session
+      } catch (error) {
+        // Graceful fallback on error
+        console.warn('Auth initialization error:', error);
         if (isMounted) {
+          setUser(null);
+          setProfile(null);
           setLoading(false);
           setInitialAuthCheckComplete(true);
         }
       }
     };
 
-    getInitialSession();
+    // Add 5-second timeout to prevent infinite loading
+    const timeoutId = setTimeout(() => {
+      if (isMounted && loading) {
+        console.warn('Auth check timed out after 5 seconds');
+        setLoading(false);
+        setInitialAuthCheckComplete(true);
+      }
+    }, 5000);
+
+    getInitialSession().finally(() => clearTimeout(timeoutId));
 
     // Listen for auth changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
@@ -163,7 +119,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           // First check if we have a session before trying to refresh
           const { data: { session } } = await supabase.auth.getSession();
           if (!session) {
-            // No session to refresh, skip
             return;
           }
 
@@ -172,39 +127,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             // If refresh fails due to invalid token, sign out silently
             const errorMessage = error.message?.toLowerCase() || '';
             if (errorMessage.includes('refresh') && errorMessage.includes('token')) {
-              // Clear everything silently without logging the error
               await supabase.auth.signOut();
               setUser(null);
               setProfile(null);
-              // Clear cached auth data
-              if (typeof window !== 'undefined') {
-                localStorage.removeItem('edge-athlete-user-cache');
-                localStorage.removeItem('edge-athlete-profile-cache');
-                // Also clear Supabase auth storage
-                try {
-                  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-                  if (supabaseUrl) {
-                    const projectId = supabaseUrl.split('//')[1]?.split('.')[0];
-                    if (projectId) {
-                      localStorage.removeItem(`sb-${projectId}-auth-token`);
-                    }
-                  }
-                } catch {
-                  // Silently handle storage key generation errors
-                }
-              }
-              // Don't throw or log - this is expected behavior when token expires
               return;
             }
           }
         } catch {
-          // Silently handle refresh errors - user will be redirected to login if needed
+          // Silently handle refresh errors
         }
       }
-    }, 5 * 60 * 1000); // Refresh every 5 minutes
+    }, 15 * 60 * 1000); // Refresh every 15 minutes (reduced frequency)
 
     return () => {
       isMounted = false;
+      clearTimeout(timeoutId);
       subscription.unsubscribe();
       clearInterval(refreshInterval);
     };
@@ -220,21 +157,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       if (error && error.code !== 'PGRST116') {
         // Error fetching profile
-        // Don't return early, set profile to null and continue
+        setProfile(null);
+        return;
       }
 
       const profileData = data || null;
       setProfile(profileData);
-      
-      // Update cache
+
+      // Update in-memory cache only
       if (profileData) {
         setProfileCache(prev => new Map(prev.set(userId, profileData)));
-        
-        // Cache in localStorage for faster next load
-        if (typeof window !== 'undefined') {
-          localStorage.setItem('edge-athlete-user-cache', JSON.stringify(user));
-          localStorage.setItem('edge-athlete-profile-cache', JSON.stringify(profileData));
-        }
       }
     } catch {
       // Error in fetchProfile
@@ -351,25 +283,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       // Clear local state
       setUser(null);
       setProfile(null);
-
-      // Clear all cached auth data from localStorage
-      if (typeof window !== 'undefined') {
-        localStorage.removeItem('edge-athlete-user-cache');
-        localStorage.removeItem('edge-athlete-profile-cache');
-
-        // Also clear Supabase auth storage
-        try {
-          const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-          if (supabaseUrl) {
-            const projectId = supabaseUrl.split('//')[1]?.split('.')[0];
-            if (projectId) {
-              localStorage.removeItem(`sb-${projectId}-auth-token`);
-            }
-          }
-        } catch {
-          // Silently handle errors
-        }
-      }
 
       // Force redirect to login page with full page reload to ensure clean state
       window.location.href = '/';

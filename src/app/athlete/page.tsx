@@ -698,8 +698,9 @@ export default function AthleteProfilePage() {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
-          <p className="mt-2 text-gray-600">Authenticating...</p>
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
+          <p className="mt-4 text-gray-700 font-medium">Checking your session...</p>
+          <p className="mt-1 text-sm text-gray-500">This should only take a moment</p>
         </div>
       </div>
     );
@@ -716,8 +717,9 @@ export default function AthleteProfilePage() {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
-          <p className="mt-2 text-gray-600">Loading profile...</p>
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
+          <p className="mt-4 text-gray-700 font-medium">Loading your profile...</p>
+          <p className="mt-1 text-sm text-gray-500">Getting everything ready</p>
         </div>
       </div>
     );

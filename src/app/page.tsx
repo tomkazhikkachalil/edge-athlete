@@ -43,8 +43,9 @@ export default function Home() {
     return (
       <div className="min-h-screen bg-blue-50 flex items-center justify-center">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
-          <p className="mt-2 text-gray-600">Loading...</p>
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
+          <p className="mt-4 text-gray-700 font-medium">Checking your session...</p>
+          <p className="mt-1 text-sm text-gray-500">This should only take a moment</p>
         </div>
       </div>
     );
@@ -55,8 +56,9 @@ export default function Home() {
     return (
       <div className="min-h-screen bg-blue-50 flex items-center justify-center">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
-          <p className="mt-2 text-gray-600">Redirecting to your profile...</p>
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
+          <p className="mt-4 text-gray-700 font-medium">Welcome back!</p>
+          <p className="mt-1 text-sm text-gray-500">Redirecting to your profile...</p>
         </div>
       </div>
     );
