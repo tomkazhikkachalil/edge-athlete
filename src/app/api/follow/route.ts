@@ -77,7 +77,7 @@ export async function POST(request: NextRequest) {
       };
 
 
-      const { error: insertError } = await supabase
+      const { data: insertedFollow, error: insertError } = await supabase
         .from('follows')
         .insert(insertData)
         .select()
@@ -85,11 +85,18 @@ export async function POST(request: NextRequest) {
 
       if (insertError) {
         console.error('[FOLLOW API] Insert error:', insertError);
+        console.error('[FOLLOW API] Insert error details:', JSON.stringify(insertError, null, 2));
         return NextResponse.json({
           error: 'Failed to follow user',
           details: insertError.message,
-          code: insertError.code
+          code: insertError.code,
+          hint: insertError.hint
         }, { status: 500 });
+      }
+
+      if (!insertedFollow) {
+        console.error('[FOLLOW API] Insert succeeded but no data returned');
+        // Still return success since the insert worked
       }
 
 
