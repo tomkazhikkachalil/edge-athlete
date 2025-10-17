@@ -411,7 +411,7 @@ export class GolfCourseService {
       holes: course.scorecard ? this.transformScorecard(course.scorecard as ScorecardData) : this.generateDefaultHoles(),
       features: [],
       description: course.description || '',
-      priceRange: this.mapPriceRange(course.greenFee) as 'budget' | 'moderate' | 'premium' | 'luxury' | undefined
+      priceRange: course.greenFee ? (this.mapPriceRange(course.greenFee) as 'budget' | 'moderate' | 'premium' | 'luxury') : undefined
     } as GolfCourse));
   }
 
@@ -497,9 +497,11 @@ export class GolfCourseService {
     // Handle object format like {"1": "4", "2": "4", ...}
     const holes = [];
     for (let i = 1; i <= 18; i++) {
+      const parValue = scorecard[i.toString()];
+      const par = typeof parValue === 'number' ? parValue : parseInt(String(parValue)) || 4;
       holes.push({
         number: i,
-        par: parseInt(scorecard[i.toString()]) || 4,
+        par,
         yardage: { white: 400 },
         handicap: i
       });
