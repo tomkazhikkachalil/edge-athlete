@@ -146,48 +146,9 @@ export default function FeedPage() {
     };
   }, [user, showSuccess]);
 
-  // Real-time subscription for post updates (likes, comments)
-  useEffect(() => {
-    if (!user) return;
-
-    const supabase = getSupabaseBrowserClient();
-
-    console.log('[REALTIME] Setting up post updates subscription');
-
-    const channel = supabase
-      .channel('feed-updates')
-      .on(
-        'postgres_changes',
-        {
-          event: 'UPDATE',
-          schema: 'public',
-          table: 'posts'
-        },
-        (payload: RealtimePostPayload) => {
-          console.log('[REALTIME] Post updated:', payload.new);
-
-          setPosts(prev =>
-            prev.map(post =>
-              post.id === payload.new.id
-                ? {
-                    ...post,
-                    likes_count: payload.new.likes_count,
-                    comments_count: payload.new.comments_count,
-                    caption: payload.new.caption,
-                    stats_data: payload.new.stats_data
-                  }
-                : post
-            )
-          );
-        }
-      )
-      .subscribe();
-
-    return () => {
-      console.log('[REALTIME] Cleaning up updates subscription');
-      supabase.removeChannel(channel);
-    };
-  }, [user]);
+  // Note: Removed unfiltered real-time subscription for post updates (likes, comments)
+  // to eliminate 850K+ Realtime overhead. Using optimistic UI updates instead for
+  // instant feedback like Instagram/Facebook. Feed refreshes via pull-to-refresh.
 
   const loadFeed = async (loadMore = false) => {
     try {
