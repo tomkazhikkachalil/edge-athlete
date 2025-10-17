@@ -378,13 +378,13 @@ export class GolfCourseService {
       slopeRating: course.slopeRating || { white: 113 },
       totalPar: course.totalPar || 72,
       totalYardage: course.totalYardage || { white: 6000 },
-      holes: course.holes || this.generateDefaultHoles(),
+      holes: course.holes && Array.isArray(course.holes) ? this.transformScorecard(course.holes) : this.generateDefaultHoles(),
       features: course.features || [],
       website: course.website || undefined,
       imageUrl: course.imageUrl || undefined,
       description: course.description || '',
       greensType: course.greensType || undefined,
-      priceRange: course.priceRange || undefined
+      priceRange: (course.priceRange as 'budget' | 'moderate' | 'premium' | 'luxury' | undefined) || undefined
     }));
   }
 
@@ -394,7 +394,7 @@ export class GolfCourseService {
   private static transformiGolfResults(apiResults: IGolfCourse[]): GolfCourse[] {
     return apiResults.map((course) => ({
       id: `igolf-${course.id || course.name?.toLowerCase().replace(/\s+/g, '-')}`,
-      name: course.courseName || course.name,
+      name: course.courseName || course.name || 'Unknown Course',
       location: {
         city: course.city || '',
         state: course.state || course.province || '',
@@ -408,11 +408,11 @@ export class GolfCourseService {
       slopeRating: course.slopeRating || { white: 113 },
       totalPar: course.par || 72,
       totalYardage: course.yardage || { white: 6000 },
-      holes: course.scorecard ? this.transformScorecard(course.scorecard) : this.generateDefaultHoles(),
+      holes: course.scorecard ? this.transformScorecard(course.scorecard as ScorecardData) : this.generateDefaultHoles(),
       features: [],
       description: course.description || '',
-      priceRange: this.mapPriceRange(course.greenFee) as 'budget' | 'moderate' | 'premium' | 'luxury' | 'unknown'
-    }));
+      priceRange: this.mapPriceRange(course.greenFee) as 'budget' | 'moderate' | 'premium' | 'luxury' | undefined
+    } as GolfCourse));
   }
 
   /**
@@ -421,7 +421,7 @@ export class GolfCourseService {
   private static transformZylaResults(apiResults: ZylaGolfCourse[]): GolfCourse[] {
     return apiResults.map((course) => ({
       id: `zyla-${course.courseName?.toLowerCase().replace(/\s+/g, '-') || 'unknown'}`,
-      name: course.courseName,
+      name: course.courseName || 'Unknown Course',
       location: {
         city: course.city || '',
         state: course.state || '',
@@ -432,14 +432,14 @@ export class GolfCourseService {
         }
       },
       totalPar: course.par || 72,
-      holes: course.scorecard ? this.transformZylaScorecard(course.scorecard) : this.generateDefaultHoles(),
+      holes: course.scorecard ? this.transformZylaScorecard(course.scorecard as ScorecardData) : this.generateDefaultHoles(),
       features: [],
       description: '',
-      priceRange: 'unknown' as 'budget' | 'moderate' | 'premium' | 'luxury' | 'unknown',
+      priceRange: undefined,
       courseRating: { white: 0 },
       slopeRating: { white: 113 },
       totalYardage: { white: 6000 }
-    }));
+    } as GolfCourse));
   }
 
   /**

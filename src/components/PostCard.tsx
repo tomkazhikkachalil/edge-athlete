@@ -960,31 +960,31 @@ export default function PostCard({
             {post.stats_data.type === 'round_recap' && (
               <div className="grid grid-cols-2 gap-2 text-xs">
                 <div>
-                  <span className="font-medium">Score:</span> {post.stats_data.grossScore}
+                  <span className="font-medium">Score:</span> {String(post.stats_data.grossScore ?? '')}
                 </div>
-                {post.stats_data.course && (
+                {Boolean(post.stats_data.course) && (
                   <div>
-                    <span className="font-medium">Course:</span> {post.stats_data.course}
+                    <span className="font-medium">Course:</span> {String(post.stats_data.course)}
                   </div>
                 )}
-                {post.stats_data.firPercentage && (
+                {Boolean(post.stats_data.firPercentage) && (
                   <div>
-                    <span className="font-medium">FIR:</span> {Math.round(post.stats_data.firPercentage)}%
+                    <span className="font-medium">FIR:</span> {Math.round(Number(post.stats_data.firPercentage))}%
                   </div>
                 )}
-                {post.stats_data.totalPutts && (
+                {Boolean(post.stats_data.totalPutts) && (
                   <div>
-                    <span className="font-medium">Putts:</span> {post.stats_data.totalPutts}
+                    <span className="font-medium">Putts:</span> {String(post.stats_data.totalPutts)}
                   </div>
                 )}
               </div>
             )}
             {post.stats_data.type === 'hole_highlight' && (
               <div className="text-xs">
-                <span className="font-medium">Hole {post.stats_data.holeNumber}:</span> 
-                {' '}{post.stats_data.score} on Par {post.stats_data.par}
-                {post.stats_data.club && (
-                  <span> • {post.stats_data.club}</span>
+                <span className="font-medium">Hole {String(post.stats_data.holeNumber ?? '')}:</span>
+                {' '}{String(post.stats_data.score ?? '')} on Par {String(post.stats_data.par ?? '')}
+                {Boolean(post.stats_data.club) && (
+                  <span> • {String(post.stats_data.club)}</span>
                 )}
               </div>
             )}

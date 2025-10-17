@@ -3,9 +3,39 @@
 import { useState, useEffect, useCallback } from 'react';
 import PostCard from './PostCard';
 
+interface PostMedia {
+  id: string;
+  media_url: string;
+  media_type: 'image' | 'video';
+  display_order: number;
+}
+
+interface Profile {
+  id: string;
+  first_name: string | null;
+  middle_name?: string | null;
+  last_name: string | null;
+  full_name: string | null;
+  avatar_url: string | null;
+  handle?: string | null;
+}
+
 interface Post {
   id: string;
   caption: string | null;
+  sport_key: string | null;
+  stats_data: Record<string, unknown> | null;
+  visibility: string;
+  created_at: string;
+  likes_count: number;
+  comments_count: number;
+  saves_count?: number;
+  profile: Profile;
+  media: PostMedia[];
+  likes?: { profile_id: string }[];
+  saved_posts?: { profile_id: string }[];
+  tags?: string[];
+  hashtags?: string[];
   [key: string]: unknown;
 }
 

@@ -29,8 +29,8 @@ interface MediaItem {
   likes_count: number;
   comments_count: number;
   saves_count: number;
-  tags: string[] | null;
-  hashtags: string[] | null;
+  tags?: string[] | null;
+  hashtags?: string[] | null;
   is_own_post: boolean;
   is_tagged: boolean;
   media?: Array<{
@@ -447,7 +447,11 @@ export default function ProfileMediaTabs({ profileId, currentUserId, isOwnProfil
             setIsEditPostModalOpen(false);
             setEditingPost(null);
           }}
-          post={editingPost}
+          post={{
+            ...editingPost,
+            tags: editingPost.tags ?? undefined,
+            hashtags: editingPost.hashtags ?? undefined
+          } as Parameters<typeof EditPostModal>[0]['post']}
           onPostUpdated={handlePostUpdated}
         />
       )}

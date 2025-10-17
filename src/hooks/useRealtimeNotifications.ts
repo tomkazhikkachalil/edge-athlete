@@ -72,8 +72,9 @@ export function useRealtimeNotifications(userId: string | undefined) {
         .limit(50);
 
       if (!error && data) {
-        setNotifications(data as Notification[]);
-        setUnreadCount(data.filter((n) => !n.read).length);
+        const typedData = data as Notification[];
+        setNotifications(typedData);
+        setUnreadCount(typedData.filter((n: Notification) => !n.read).length);
       }
 
       setLoading(false);
@@ -101,6 +102,8 @@ export function useRealtimeNotifications(userId: string | undefined) {
         async (payload: RealtimePostgresChangesPayload<Notification>) => {
           console.log('[REALTIME] New notification:', payload.new);
 
+          const newRecord = payload.new as Notification;
+
           // Fetch complete notification with actor details
           const { data: newNotification } = await supabase
             .from('notifications')
@@ -122,7 +125,7 @@ export function useRealtimeNotifications(userId: string | undefined) {
                 avatar_url
               )
             `)
-            .eq('id', payload.new.id)
+            .eq('id', newRecord.id)
             .single();
 
           if (newNotification) {
@@ -142,13 +145,15 @@ export function useRealtimeNotifications(userId: string | undefined) {
         (payload: RealtimePostgresChangesPayload<Notification>) => {
           console.log('[REALTIME] Notification updated:', payload.new);
 
+          const updatedRecord = payload.new as Notification;
+
           setNotifications((prev) =>
             prev.map((n) =>
-              n.id === payload.new.id ? { ...n, read: payload.new.read } : n
+              n.id === updatedRecord.id ? { ...n, read: updatedRecord.read } : n
             )
           );
 
-          if (payload.new.read) {
+          if (updatedRecord.read) {
             setUnreadCount((prev) => Math.max(0, prev - 1));
           }
         }

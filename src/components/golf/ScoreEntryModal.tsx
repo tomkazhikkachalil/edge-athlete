@@ -104,7 +104,7 @@ export default function ScoreEntryModal({
       const scores = holeData
         .filter(h => h.strokes !== null)
         .map(h => ({
-          hole_number: h.hole_number,
+          hole_number: h.hole_number!,
           strokes: h.strokes!,
           putts: h.putts ?? undefined,
           fairway_hit: h.fairway_hit ?? undefined,
