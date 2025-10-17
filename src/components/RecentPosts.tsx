@@ -9,7 +9,7 @@ interface Post {
   id: string;
   caption: string | null;
   sport_key: string | null;
-  stats_data: any;
+  stats_data: Record<string, unknown> | null;
   visibility: string;
   created_at: string;
   likes_count: number;
@@ -70,7 +70,7 @@ export default function RecentPosts({
 
       // Notify parent of posts count
       onPostsLoad?.(postsData.length);
-    } catch (_err) {
+    } catch {
       setError('Failed to load posts');
       showError('Error', 'Failed to load posts');
     } finally {
@@ -117,7 +117,7 @@ export default function RecentPosts({
           return post;
         })
       );
-    } catch (_err) {
+    } catch {
       showError('Error', 'Failed to like post');
     }
   };

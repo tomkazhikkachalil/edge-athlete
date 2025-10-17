@@ -446,17 +446,22 @@ export function getCourseByName(name: string): GolfCourse | undefined {
   );
 }
 
+// Type guard for valid tee colors
+type ValidTee = 'black' | 'blue' | 'white' | 'gold' | 'red';
+
+function isValidTee(tee: string): tee is ValidTee {
+  return ['black', 'blue', 'white', 'gold', 'red'].includes(tee);
+}
+
 // Get yardage for specific tee
 export function getYardageForTee(course: GolfCourse, tee: string): number[] {
-  const validTees = ['black', 'blue', 'white', 'gold', 'red'] as const;
-  const teeKey = (validTees.includes(tee as any) ? tee : 'white') as 'black' | 'blue' | 'white' | 'gold' | 'red';
+  const teeKey: ValidTee = isValidTee(tee) ? tee : 'white';
   return course.holes.map(hole => hole.yardage[teeKey] || hole.yardage.white || 400);
 }
 
 // Get course rating and slope for tee
 export function getRatingForTee(course: GolfCourse, tee: string): { rating?: number; slope?: number } {
-  const validTees = ['black', 'blue', 'white', 'gold', 'red'] as const;
-  const teeKey = (validTees.includes(tee as any) ? tee : 'white') as 'black' | 'blue' | 'white' | 'gold' | 'red';
+  const teeKey: ValidTee = isValidTee(tee) ? tee : 'white';
   return {
     rating: course.courseRating[teeKey],
     slope: course.slopeRating[teeKey]

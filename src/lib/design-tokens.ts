@@ -231,6 +231,7 @@ export const DESIGN_VALIDATION = {
   /**
    * Log design system usage for debugging
    */
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   logDesignUsage: (_componentName: string, _usedTokens: string[]) => {
     if (process.env.NODE_ENV === 'development') {
       // Design system tokens used

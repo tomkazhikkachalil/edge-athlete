@@ -46,9 +46,9 @@ export default function MultiSportHighlights({ profileId, canEdit = true, onEdit
             ];
           }
         }
-        
+
         setHighlightData(data);
-      } catch (_error) {
+      } catch {
         // Error loading sport highlights
       } finally {
         setLoading(false);

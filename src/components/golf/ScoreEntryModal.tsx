@@ -1,7 +1,8 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import type { GolfHoleScore } from '@/types/group-posts';
+import type { HoleData } from '@/types/golf';
 
 interface ScoreEntryModalProps {
   groupPostId: string;
@@ -16,14 +17,6 @@ interface ScoreEntryModalProps {
     green_in_regulation?: boolean;
   }>) => Promise<void>;
   onClose: () => void;
-}
-
-interface HoleData {
-  hole_number: number;
-  strokes: number | null;
-  putts: number | null;
-  fairway_hit: boolean | null;
-  green_in_regulation: boolean | null;
 }
 
 export default function ScoreEntryModal({
@@ -49,6 +42,7 @@ export default function ScoreEntryModal({
         putts: existing?.putts ?? null,
         fairway_hit: existing?.fairway_hit ?? null,
         green_in_regulation: existing?.green_in_regulation ?? null,
+        par: 4, // Estimated par
       });
     }
     return holes;
@@ -56,7 +50,7 @@ export default function ScoreEntryModal({
 
   const currentHoleData = holeData[currentHole - 1];
 
-  const updateCurrentHole = (field: keyof HoleData, value: any) => {
+  const updateCurrentHole = (field: keyof HoleData, value: number | boolean | null) => {
     setHoleData(prev => prev.map((h, idx) =>
       idx === currentHole - 1 ? { ...h, [field]: value } : h
     ));

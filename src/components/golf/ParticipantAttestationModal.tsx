@@ -76,7 +76,7 @@ export default function ParticipantAttestationModal({
                 <h2 className="text-2xl font-black">Round Invitation</h2>
               </div>
               <p className="text-sm font-semibold opacity-90">
-                You've been invited to join a golf round
+                You&apos;ve been invited to join a golf round
               </p>
             </div>
             <button
@@ -157,11 +157,11 @@ export default function ParticipantAttestationModal({
             <ul className="text-sm text-blue-900 space-y-1">
               <li className="flex items-start gap-2">
                 <i className="fas fa-check text-blue-600 mt-0.5"></i>
-                <span>If you <strong>confirm</strong>, you'll be able to add your scores and appear on the shared scorecard</span>
+                <span>If you <strong>confirm</strong>, you&apos;ll be able to add your scores and appear on the shared scorecard</span>
               </li>
               <li className="flex items-start gap-2">
                 <i className="fas fa-times text-red-600 mt-0.5"></i>
-                <span>If you <strong>decline</strong>, you won't be included in the round</span>
+                <span>If you <strong>decline</strong>, you won&apos;t be included in the round</span>
               </li>
             </ul>
           </div>
@@ -212,7 +212,7 @@ export default function ParticipantAttestationModal({
               disabled={processing}
               className="text-sm text-gray-600 hover:text-gray-800 font-semibold disabled:text-gray-400 disabled:cursor-not-allowed"
             >
-              I'll decide later
+              I&apos;ll decide later
             </button>
           </div>
         </div>

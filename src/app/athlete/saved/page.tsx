@@ -6,6 +6,7 @@ import { useAuth } from '@/lib/auth';
 import { supabase } from '@/lib/supabase';
 import PostCard from '@/components/PostCard';
 import AppHeader from '@/components/AppHeader';
+import type { GolfRound } from '@/types/golf';
 
 interface PostMedia {
   id: string;
@@ -21,28 +22,6 @@ interface Profile {
   last_name: string | null;
   full_name: string | null;
   avatar_url: string | null;
-}
-
-interface GolfHole {
-  hole_number: number;
-  par: number;
-  distance_yards?: number;
-  strokes?: number;
-  putts?: number;
-}
-
-interface GolfRound {
-  id: string;
-  course: string;
-  date: string;
-  gross_score: number;
-  par: number;
-  holes: number;
-  tee?: string;
-  total_putts?: number;
-  fir_percentage?: number;
-  gir_percentage?: number;
-  golf_holes?: GolfHole[];
 }
 
 interface StatsData {

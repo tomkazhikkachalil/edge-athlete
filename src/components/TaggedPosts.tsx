@@ -3,13 +3,19 @@
 import { useState, useEffect, useCallback } from 'react';
 import PostCard from './PostCard';
 
+interface Post {
+  id: string;
+  caption: string | null;
+  [key: string]: unknown;
+}
+
 interface TaggedPostsProps {
   profileId: string;
   currentUserId?: string;
 }
 
 export default function TaggedPosts({ profileId, currentUserId }: TaggedPostsProps) {
-  const [posts, setPosts] = useState<any[]>([]);
+  const [posts, setPosts] = useState<Post[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -33,7 +39,7 @@ export default function TaggedPosts({ profileId, currentUserId }: TaggedPostsPro
       }
 
       // Get unique post IDs from tags
-      const postIds = [...new Set(tags.map((tag: any) => tag.post_id))] as string[];
+      const postIds = [...new Set(tags.map((tag: { post_id: string }) => tag.post_id))] as string[];
 
       // Fetch posts for these IDs
       const postsPromises = postIds.map(async (postId: string) => {

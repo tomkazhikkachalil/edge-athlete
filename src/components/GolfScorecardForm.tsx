@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useToast } from '@/components/Toast';
 import type { GolfCourse } from '@/lib/golf-courses-db';
+import type { HoleData } from '@/types/golf';
 
 // Tee box options
 const TEE_OPTIONS = [
@@ -12,20 +13,6 @@ const TEE_OPTIONS = [
   { value: 'gold', label: 'Gold/Senior', color: 'bg-yellow-500' },
   { value: 'red', label: 'Red/Forward', color: 'bg-red-600' }
 ];
-
-interface HoleData {
-  hole: number;
-  par: number;
-  yardage: number;
-  handicap?: number;
-  score?: number;
-  putts?: number;
-  fairway?: 'left' | 'right' | 'hit' | 'na';  // na for par 3s
-  gir?: boolean;  // Green in Regulation
-  penalty?: number;  // Penalty strokes
-  sand?: boolean;  // Hit sand bunker
-  notes?: string;
-}
 
 interface GolfRoundData {
   date: string;
@@ -249,7 +236,7 @@ export default function GolfScorecardForm({ onDataChange }: GolfScorecardFormPro
   }, [holesData, handicap]);
 
   // Update hole data
-  const updateHole = (holeIndex: number, field: keyof HoleData, value: any) => {
+  const updateHole = (holeIndex: number, field: keyof HoleData, value: number | boolean | string | undefined) => {
     const newHolesData = [...holesData];
     newHolesData[holeIndex] = { ...newHolesData[holeIndex], [field]: value };
 
@@ -716,7 +703,8 @@ export default function GolfScorecardForm({ onDataChange }: GolfScorecardFormPro
                 {holesData
                   .filter(hole => {
                     if (holeCount !== 18) return true; // Show all holes for non-18 hole rounds
-                    return activeTab === 'front' ? hole.hole <= 9 : hole.hole > 9;
+                    const holeNum = hole.hole ?? 0;
+                    return activeTab === 'front' ? holeNum <= 9 : holeNum > 9;
                   })
                   .map(hole => (
                     <td key={hole.hole} className="px-2 py-2 text-sm font-bold border border-green-700 text-center min-w-[40px]">
@@ -734,7 +722,8 @@ export default function GolfScorecardForm({ onDataChange }: GolfScorecardFormPro
                 {holesData
                   .filter(hole => {
                     if (holeCount !== 18) return true; // Show all holes for non-18 hole rounds
-                    return activeTab === 'front' ? hole.hole <= 9 : hole.hole > 9;
+                    const holeNum = hole.hole ?? 0;
+                    return activeTab === 'front' ? holeNum <= 9 : holeNum > 9;
                   })
                   .map(hole => (
                     <td key={hole.hole} className={`px-2 py-2 text-sm font-bold border border-gray-300 text-center text-gray-900 ${
@@ -747,7 +736,8 @@ export default function GolfScorecardForm({ onDataChange }: GolfScorecardFormPro
                   {holesData
                     .filter(h => {
                       if (holeCount !== 18) return true; // Show all holes for non-18 hole rounds
-                      return activeTab === 'front' ? h.hole <= 9 : h.hole > 9;
+                      const holeNum = h.hole ?? 0;
+                      return activeTab === 'front' ? holeNum <= 9 : holeNum > 9;
                     })
                     .reduce((sum, h) => sum + h.par, 0)}
                 </td>
@@ -759,7 +749,8 @@ export default function GolfScorecardForm({ onDataChange }: GolfScorecardFormPro
                 {holesData
                   .filter(hole => {
                     if (holeCount !== 18) return true; // Show all holes for non-18 hole rounds
-                    return activeTab === 'front' ? hole.hole <= 9 : hole.hole > 9;
+                    const holeNum = hole.hole ?? 0;
+                    return activeTab === 'front' ? holeNum <= 9 : holeNum > 9;
                   })
                   .map(hole => (
                     <td key={hole.hole} className="px-1 py-2 text-xs border border-gray-300 text-center text-gray-800 font-medium">
@@ -770,9 +761,10 @@ export default function GolfScorecardForm({ onDataChange }: GolfScorecardFormPro
                   {holesData
                     .filter(h => {
                       if (holeCount !== 18) return true; // Show all holes for non-18 hole rounds
-                      return activeTab === 'front' ? h.hole <= 9 : h.hole > 9;
+                      const holeNum = h.hole ?? 0;
+                      return activeTab === 'front' ? holeNum <= 9 : holeNum > 9;
                     })
-                    .reduce((sum, h) => sum + h.yardage, 0)}
+                    .reduce((sum, h) => sum + (h.yardage ?? 0), 0)}
                 </td>
               </tr>
 
@@ -782,7 +774,8 @@ export default function GolfScorecardForm({ onDataChange }: GolfScorecardFormPro
                 {holesData
                   .filter(hole => {
                     if (holeCount !== 18) return true; // Show all holes for non-18 hole rounds
-                    return activeTab === 'front' ? hole.hole <= 9 : hole.hole > 9;
+                    const holeNum = hole.hole ?? 0;
+                    return activeTab === 'front' ? holeNum <= 9 : holeNum > 9;
                   })
                   .map(hole => (
                     <td key={hole.hole} className="px-1 py-2 text-xs border border-gray-300 text-center text-gray-800 font-medium">
@@ -801,7 +794,8 @@ export default function GolfScorecardForm({ onDataChange }: GolfScorecardFormPro
                 {holesData
                   .filter(hole => {
                     if (holeCount !== 18) return true; // Show all holes for non-18 hole rounds
-                    return activeTab === 'front' ? hole.hole <= 9 : hole.hole > 9;
+                    const holeNum = hole.hole ?? 0;
+                    return activeTab === 'front' ? holeNum <= 9 : holeNum > 9;
                   })
                   .map((hole, index) => {
                     const actualIndex = holeCount === 18 && activeTab === 'back' ? index + 9 : index;
@@ -835,7 +829,8 @@ export default function GolfScorecardForm({ onDataChange }: GolfScorecardFormPro
                       holesData
                         .filter(h => {
                           if (holeCount !== 18) return true; // Show all holes for non-18 hole rounds
-                          return activeTab === 'front' ? h.hole <= 9 : h.hole > 9;
+                          const holeNum = h.hole ?? 0;
+                          return activeTab === 'front' ? holeNum <= 9 : holeNum > 9;
                         })
                         .reduce((sum, h) => sum + (h.score || 0), 0) || '−'
                       : '−'
@@ -850,7 +845,8 @@ export default function GolfScorecardForm({ onDataChange }: GolfScorecardFormPro
                 {holesData
                   .filter(hole => {
                     if (holeCount !== 18) return true; // Show all holes for non-18 hole rounds
-                    return activeTab === 'front' ? hole.hole <= 9 : hole.hole > 9;
+                    const holeNum = hole.hole ?? 0;
+                    return activeTab === 'front' ? holeNum <= 9 : holeNum > 9;
                   })
                   .map((hole, index) => {
                     const actualIndex = holeCount === 18 && activeTab === 'back' ? index + 9 : index;
@@ -874,7 +870,8 @@ export default function GolfScorecardForm({ onDataChange }: GolfScorecardFormPro
                     holesData
                       .filter(h => {
                         if (holeCount !== 18) return true; // Show all holes for non-18 hole rounds
-                        return activeTab === 'front' ? h.hole <= 9 : h.hole > 9;
+                        const holeNum = h.hole ?? 0;
+                        return activeTab === 'front' ? holeNum <= 9 : holeNum > 9;
                       })
                       .reduce((sum, h) => sum + (h.putts || 0), 0) || '−'
                     : '−'
@@ -888,7 +885,8 @@ export default function GolfScorecardForm({ onDataChange }: GolfScorecardFormPro
                 {holesData
                   .filter(hole => {
                     if (holeCount !== 18) return true; // Show all holes for non-18 hole rounds
-                    return activeTab === 'front' ? hole.hole <= 9 : hole.hole > 9;
+                    const holeNum = hole.hole ?? 0;
+                    return activeTab === 'front' ? holeNum <= 9 : holeNum > 9;
                   })
                   .map((hole, index) => {
                     const actualIndex = holeCount === 18 && activeTab === 'back' ? index + 9 : index;
@@ -913,7 +911,7 @@ export default function GolfScorecardForm({ onDataChange }: GolfScorecardFormPro
                     );
                   })}
                 <td className="px-2 py-2 text-xs border border-gray-300 text-center bg-green-100 text-gray-900 font-bold">
-                  {stats ? `${stats.fairwaysHit}/${holesData.filter(h => h.par > 3 && (holeCount !== 18 ? true : activeTab === 'front' ? h.hole <= 9 : h.hole > 9)).length}` : '−'}
+                  {stats ? `${stats.fairwaysHit}/${holesData.filter(h => h.par > 3 && (holeCount !== 18 ? true : activeTab === 'front' ? (h.hole ?? 0) <= 9 : (h.hole ?? 0) > 9)).length}` : '−'}
                 </td>
               </tr>
 
@@ -923,7 +921,8 @@ export default function GolfScorecardForm({ onDataChange }: GolfScorecardFormPro
                 {holesData
                   .filter(hole => {
                     if (holeCount !== 18) return true; // Show all holes for non-18 hole rounds
-                    return activeTab === 'front' ? hole.hole <= 9 : hole.hole > 9;
+                    const holeNum = hole.hole ?? 0;
+                    return activeTab === 'front' ? holeNum <= 9 : holeNum > 9;
                   })
                   .map((hole, index) => {
                     const actualIndex = holeCount === 18 && activeTab === 'back' ? index + 9 : index;
@@ -942,7 +941,7 @@ export default function GolfScorecardForm({ onDataChange }: GolfScorecardFormPro
                     );
                   })}
                 <td className="px-2 py-2 text-xs border border-gray-300 text-center bg-blue-100 text-gray-900 font-bold">
-                  {stats ? `${stats.greensInRegulation}/${holesData.filter(h => holeCount !== 18 ? true : activeTab === 'front' ? h.hole <= 9 : h.hole > 9).length}` : '−'}
+                  {stats ? `${stats.greensInRegulation}/${holesData.filter(h => holeCount !== 18 ? true : activeTab === 'front' ? (h.hole ?? 0) <= 9 : (h.hole ?? 0) > 9).length}` : '−'}
                 </td>
               </tr>
             </tbody>

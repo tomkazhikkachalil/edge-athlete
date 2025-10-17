@@ -38,6 +38,61 @@ interface SearchResult {
   query: string;
 }
 
+// API Response Types
+interface GolfApiCourse {
+  id?: string;
+  name: string;
+  city?: string;
+  state?: string;
+  country?: string;
+  coordinates?: { lat: number; lng: number };
+  designer?: string;
+  yearOpened?: number;
+  courseRating?: Record<string, number>;
+  slopeRating?: Record<string, number>;
+  totalPar?: number;
+  totalYardage?: Record<string, number>;
+  holes?: unknown;
+  features?: string[];
+  website?: string;
+  imageUrl?: string;
+  description?: string;
+  greensType?: string;
+  priceRange?: string;
+}
+
+interface IGolfCourse {
+  id?: string;
+  courseName?: string;
+  name?: string;
+  city?: string;
+  state?: string;
+  province?: string;
+  country?: string;
+  latitude?: number;
+  longitude?: number;
+  courseRating?: Record<string, number>;
+  slopeRating?: Record<string, number>;
+  par?: number;
+  yardage?: Record<string, number>;
+  scorecard?: unknown;
+  description?: string;
+  greenFee?: number | string;
+}
+
+interface ZylaGolfCourse {
+  courseName?: string;
+  city?: string;
+  state?: string;
+  country?: string;
+  latitude?: number;
+  longitude?: number;
+  par?: number;
+  scorecard?: unknown;
+}
+
+type ScorecardData = Array<{ par?: number; yardage?: number; handicap?: number }> | Record<string, string | number>;
+
 /**
  * Hybrid Golf Course Search Service
  *
@@ -307,7 +362,7 @@ export class GolfCourseService {
   /**
    * Transform GolfAPI.io results to our format
    */
-  private static transformGolfApiResults(apiResults: any[]): GolfCourse[] {
+  private static transformGolfApiResults(apiResults: GolfApiCourse[]): GolfCourse[] {
     return apiResults.map(course => ({
       id: course.id || `api-${course.name?.toLowerCase().replace(/\s+/g, '-')}`,
       name: course.name,
@@ -336,8 +391,8 @@ export class GolfCourseService {
   /**
    * Transform iGolf results to our format
    */
-  private static transformiGolfResults(apiResults: any[]): GolfCourse[] {
-    return apiResults.map((course: any) => ({
+  private static transformiGolfResults(apiResults: IGolfCourse[]): GolfCourse[] {
+    return apiResults.map((course) => ({
       id: `igolf-${course.id || course.name?.toLowerCase().replace(/\s+/g, '-')}`,
       name: course.courseName || course.name,
       location: {
@@ -356,15 +411,15 @@ export class GolfCourseService {
       holes: course.scorecard ? this.transformScorecard(course.scorecard) : this.generateDefaultHoles(),
       features: [],
       description: course.description || '',
-      priceRange: this.mapPriceRange(course.greenFee) as any
-    })) as GolfCourse[];
+      priceRange: this.mapPriceRange(course.greenFee) as 'budget' | 'moderate' | 'premium' | 'luxury' | 'unknown'
+    }));
   }
 
   /**
    * Transform Zyla Golf results to our format
    */
-  private static transformZylaResults(apiResults: any[]): GolfCourse[] {
-    return apiResults.map((course: any) => ({
+  private static transformZylaResults(apiResults: ZylaGolfCourse[]): GolfCourse[] {
+    return apiResults.map((course) => ({
       id: `zyla-${course.courseName?.toLowerCase().replace(/\s+/g, '-') || 'unknown'}`,
       name: course.courseName,
       location: {
@@ -380,11 +435,11 @@ export class GolfCourseService {
       holes: course.scorecard ? this.transformZylaScorecard(course.scorecard) : this.generateDefaultHoles(),
       features: [],
       description: '',
-      priceRange: 'unknown' as any,
+      priceRange: 'unknown' as 'budget' | 'moderate' | 'premium' | 'luxury' | 'unknown',
       courseRating: { white: 0 },
       slopeRating: { white: 113 },
       totalYardage: { white: 6000 }
-    })) as GolfCourse[];
+    }));
   }
 
   /**
@@ -429,7 +484,7 @@ export class GolfCourseService {
   /**
    * Transform scorecard data from API format
    */
-  private static transformScorecard(scorecard: any) {
+  private static transformScorecard(scorecard: ScorecardData) {
     if (Array.isArray(scorecard)) {
       return scorecard.map((hole, index) => ({
         number: index + 1,
@@ -455,7 +510,7 @@ export class GolfCourseService {
   /**
    * Transform Zyla scorecard format
    */
-  private static transformZylaScorecard(scorecard: any) {
+  private static transformZylaScorecard(scorecard: ScorecardData) {
     return this.transformScorecard(scorecard);
   }
 

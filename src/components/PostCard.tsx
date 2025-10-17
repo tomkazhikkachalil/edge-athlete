@@ -13,6 +13,7 @@ import { getSportName, getSportIcon, getSportColor } from '@/lib/config/sports-c
 import { formatDisplayName, getInitials } from '@/lib/formatters';
 import { getHandle } from '@/lib/profile-display';
 import type { CompleteGolfScorecard } from '@/types/group-posts';
+import type { GolfRound } from '@/types/golf';
 
 interface PostMedia {
   id: string;
@@ -45,7 +46,7 @@ interface Post {
   id: string;
   caption: string | null;
   sport_key: string | null;
-  stats_data: any;
+  stats_data: Record<string, unknown> | null;
   visibility: string;
   created_at: string;
   likes_count: number;
@@ -57,7 +58,7 @@ interface Post {
   saved_posts?: { profile_id: string }[];
   tags?: string[];
   hashtags?: string[];
-  golf_round?: any;
+  golf_round?: GolfRound;
   tagged_profiles?: TaggedProfile[];
   group_scorecard?: CompleteGolfScorecard; // Shared round scorecard
 }
@@ -588,7 +589,7 @@ export default function PostCard({
               {/* Large Score Badge */}
               {post.golf_round.gross_score !== null && post.golf_round.gross_score !== undefined && (() => {
                 // Calculate actual par from recorded holes
-                const actualPar = post.golf_round.golf_holes?.reduce((sum: number, hole: any) => sum + (hole.par || 0), 0) || 0;
+                const actualPar = post.golf_round.golf_holes?.reduce((sum: number, hole) => sum + (hole.par || 0), 0) || 0;
                 const holesPlayed = post.golf_round.golf_holes?.length || 0;
                 const toPar = actualPar > 0 ? post.golf_round.gross_score - actualPar : null;
 
@@ -683,15 +684,15 @@ export default function PostCard({
                   {/* Traditional Scorecard Layout */}
                   <div className="bg-white rounded border border-gray-300 overflow-hidden">
                     {/* Front 9 */}
-                    {post.golf_round.golf_holes.filter((h: any) => h.hole_number <= 9).length > 0 && (
+                    {post.golf_round.golf_holes.filter((h) => h.hole_number <= 9).length > 0 && (
                       <div className="border-b-2 border-gray-400">
                         <table className="w-full text-xs">
                           <thead>
                             <tr className="bg-green-100 border-b border-gray-300">
                               <th className="text-left py-1.5 px-2 font-bold text-green-900">HOLE</th>
                               {post.golf_round.golf_holes
-                                .filter((h: any) => h.hole_number <= 9)
-                                .map((hole: any) => (
+                                .filter((h) => h.hole_number <= 9)
+                                .map((hole) => (
                                   <th key={hole.hole_number} className="text-center py-1.5 px-1 font-black text-green-900">
                                     {hole.hole_number}
                                   </th>
@@ -704,41 +705,41 @@ export default function PostCard({
                             <tr className="border-b border-gray-200 bg-gray-50">
                               <td className="py-1.5 px-2 font-bold text-gray-800">YDS</td>
                               {post.golf_round.golf_holes
-                                .filter((h: any) => h.hole_number <= 9)
-                                .map((hole: any) => (
+                                .filter((h) => h.hole_number <= 9)
+                                .map((hole) => (
                                   <td key={hole.hole_number} className="text-center py-1.5 px-1 font-semibold text-gray-700">
                                     {hole.distance_yards || '-'}
                                   </td>
                                 ))}
                               <td className="text-center py-1.5 px-2 font-bold text-gray-800 bg-gray-100">
                                 {post.golf_round.golf_holes
-                                  .filter((h: any) => h.hole_number <= 9)
-                                  .reduce((sum: number, h: any) => sum + (h.distance_yards || 0), 0) || '-'}
+                                  .filter((h) => h.hole_number <= 9)
+                                  .reduce((sum: number, h) => sum + (h.distance_yards || 0), 0) || '-'}
                               </td>
                             </tr>
                             {/* Par Row */}
                             <tr className="border-b border-gray-300 bg-yellow-50">
                               <td className="py-1.5 px-2 font-bold text-gray-900">PAR</td>
                               {post.golf_round.golf_holes
-                                .filter((h: any) => h.hole_number <= 9)
-                                .map((hole: any) => (
+                                .filter((h) => h.hole_number <= 9)
+                                .map((hole) => (
                                   <td key={hole.hole_number} className="text-center py-1.5 px-1 font-bold text-gray-900">
                                     {hole.par}
                                   </td>
                                 ))}
                               <td className="text-center py-1.5 px-2 font-black text-gray-900 bg-yellow-100">
                                 {post.golf_round.golf_holes
-                                  .filter((h: any) => h.hole_number <= 9)
-                                  .reduce((sum: number, h: any) => sum + (h.par || 0), 0)}
+                                  .filter((h) => h.hole_number <= 9)
+                                  .reduce((sum: number, h) => sum + (h.par || 0), 0)}
                               </td>
                             </tr>
                             {/* Score Row */}
                             <tr className="border-b-2 border-gray-400">
                               <td className="py-2 px-2 font-black text-gray-900">SCORE</td>
                               {post.golf_round.golf_holes
-                                .filter((h: any) => h.hole_number <= 9)
-                                .map((hole: any) => {
-                                  const diff = hole.strokes - hole.par;
+                                .filter((h) => h.hole_number <= 9)
+                                .map((hole) => {
+                                  const diff = (hole.strokes ?? 0) - hole.par;
                                   const bgColor = 'bg-white';
                                   let textColor = 'text-gray-900';
                                   let border = '';
@@ -770,8 +771,8 @@ export default function PostCard({
                               <td className="text-center py-2 px-2 bg-blue-50">
                                 <span className="font-black text-blue-900 text-base">
                                   {post.golf_round.golf_holes
-                                    .filter((h: any) => h.hole_number <= 9)
-                                    .reduce((sum: number, h: any) => sum + (h.strokes || 0), 0)}
+                                    .filter((h) => h.hole_number <= 9)
+                                    .reduce((sum: number, h) => sum + (h.strokes || 0), 0)}
                                 </span>
                               </td>
                             </tr>
@@ -779,16 +780,16 @@ export default function PostCard({
                             <tr className="bg-gray-50">
                               <td className="py-1.5 px-2 text-xs font-semibold text-gray-700">Putts</td>
                               {post.golf_round.golf_holes
-                                .filter((h: any) => h.hole_number <= 9)
-                                .map((hole: any) => (
+                                .filter((h) => h.hole_number <= 9)
+                                .map((hole) => (
                                   <td key={hole.hole_number} className="text-center py-1.5 px-1 text-xs font-medium text-gray-700">
                                     {hole.putts || '-'}
                                   </td>
                                 ))}
                               <td className="text-center py-1.5 px-2 font-bold text-gray-800 bg-gray-100">
                                 {post.golf_round.golf_holes
-                                  .filter((h: any) => h.hole_number <= 9)
-                                  .reduce((sum: number, h: any) => sum + (h.putts || 0), 0) || '-'}
+                                  .filter((h) => h.hole_number <= 9)
+                                  .reduce((sum: number, h) => sum + (h.putts || 0), 0) || '-'}
                               </td>
                             </tr>
                           </tbody>
@@ -797,15 +798,15 @@ export default function PostCard({
                     )}
 
                     {/* Back 9 */}
-                    {post.golf_round.golf_holes.filter((h: any) => h.hole_number > 9).length > 0 && (
+                    {post.golf_round.golf_holes.filter((h) => h.hole_number > 9).length > 0 && (
                       <div>
                         <table className="w-full text-xs">
                           <thead>
                             <tr className="bg-green-100 border-b border-gray-300">
                               <th className="text-left py-1.5 px-2 font-bold text-green-900">HOLE</th>
                               {post.golf_round.golf_holes
-                                .filter((h: any) => h.hole_number > 9)
-                                .map((hole: any) => (
+                                .filter((h) => h.hole_number > 9)
+                                .map((hole) => (
                                   <th key={hole.hole_number} className="text-center py-1.5 px-1 font-black text-green-900">
                                     {hole.hole_number}
                                   </th>
@@ -818,41 +819,41 @@ export default function PostCard({
                             <tr className="border-b border-gray-200 bg-gray-50">
                               <td className="py-1.5 px-2 font-bold text-gray-800">YDS</td>
                               {post.golf_round.golf_holes
-                                .filter((h: any) => h.hole_number > 9)
-                                .map((hole: any) => (
+                                .filter((h) => h.hole_number > 9)
+                                .map((hole) => (
                                   <td key={hole.hole_number} className="text-center py-1.5 px-1 font-semibold text-gray-700">
                                     {hole.distance_yards || '-'}
                                   </td>
                                 ))}
                               <td className="text-center py-1.5 px-2 font-bold text-gray-800 bg-gray-100">
                                 {post.golf_round.golf_holes
-                                  .filter((h: any) => h.hole_number > 9)
-                                  .reduce((sum: number, h: any) => sum + (h.distance_yards || 0), 0) || '-'}
+                                  .filter((h) => h.hole_number > 9)
+                                  .reduce((sum: number, h) => sum + (h.distance_yards || 0), 0) || '-'}
                               </td>
                             </tr>
                             {/* Par */}
                             <tr className="border-b border-gray-300 bg-yellow-50">
                               <td className="py-1.5 px-2 font-bold text-gray-900">PAR</td>
                               {post.golf_round.golf_holes
-                                .filter((h: any) => h.hole_number > 9)
-                                .map((hole: any) => (
+                                .filter((h) => h.hole_number > 9)
+                                .map((hole) => (
                                   <td key={hole.hole_number} className="text-center py-1.5 px-1 font-bold text-gray-900">
                                     {hole.par}
                                   </td>
                                 ))}
                               <td className="text-center py-1.5 px-2 font-black text-gray-900 bg-yellow-100">
                                 {post.golf_round.golf_holes
-                                  .filter((h: any) => h.hole_number > 9)
-                                  .reduce((sum: number, h: any) => sum + (h.par || 0), 0)}
+                                  .filter((h) => h.hole_number > 9)
+                                  .reduce((sum: number, h) => sum + (h.par || 0), 0)}
                               </td>
                             </tr>
                             {/* Score */}
                             <tr className="border-b border-gray-300">
                               <td className="py-2 px-2 font-black text-gray-900">SCORE</td>
                               {post.golf_round.golf_holes
-                                .filter((h: any) => h.hole_number > 9)
-                                .map((hole: any) => {
-                                  const diff = hole.strokes - hole.par;
+                                .filter((h) => h.hole_number > 9)
+                                .map((hole) => {
+                                  const diff = (hole.strokes ?? 0) - hole.par;
                                   let textColor = 'text-gray-900';
                                   let border = '';
 
@@ -883,8 +884,8 @@ export default function PostCard({
                               <td className="text-center py-2 px-2 bg-blue-50">
                                 <span className="font-black text-blue-900 text-base">
                                   {post.golf_round.golf_holes
-                                    .filter((h: any) => h.hole_number > 9)
-                                    .reduce((sum: number, h: any) => sum + (h.strokes || 0), 0)}
+                                    .filter((h) => h.hole_number > 9)
+                                    .reduce((sum: number, h) => sum + (h.strokes || 0), 0)}
                                 </span>
                               </td>
                             </tr>
@@ -892,16 +893,16 @@ export default function PostCard({
                             <tr className="bg-gray-50">
                               <td className="py-1.5 px-2 text-xs font-semibold text-gray-700">Putts</td>
                               {post.golf_round.golf_holes
-                                .filter((h: any) => h.hole_number > 9)
-                                .map((hole: any) => (
+                                .filter((h) => h.hole_number > 9)
+                                .map((hole) => (
                                   <td key={hole.hole_number} className="text-center py-1.5 px-1 text-xs font-medium text-gray-700">
                                     {hole.putts || '-'}
                                   </td>
                                 ))}
                               <td className="text-center py-1.5 px-2 font-bold text-gray-800 bg-gray-100">
                                 {post.golf_round.golf_holes
-                                  .filter((h: any) => h.hole_number > 9)
-                                  .reduce((sum: number, h: any) => sum + (h.putts || 0), 0) || '-'}
+                                  .filter((h) => h.hole_number > 9)
+                                  .reduce((sum: number, h) => sum + (h.putts || 0), 0) || '-'}
                               </td>
                             </tr>
                           </tbody>
@@ -1050,7 +1051,7 @@ export default function PostCard({
 
               // Reload the page to show updated scores
               window.location.reload();
-            } catch (error: any) {
+            } catch (error: unknown) {
               console.error('Error saving scores:', error);
               throw error;
             }

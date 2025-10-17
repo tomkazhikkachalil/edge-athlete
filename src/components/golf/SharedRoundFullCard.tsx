@@ -19,7 +19,7 @@ export default function SharedRoundFullCard({
   onAddScores
 }: SharedRoundFullCardProps) {
   const { group_post, golf_data, participants } = scorecard;
-  const [showHoleDetails, setShowHoleDetails] = useState(true);
+  const [showHoleDetails] = useState(true);
 
   // Format date
   const formattedDate = new Date(group_post.date).toLocaleDateString('en-US', {
@@ -43,8 +43,6 @@ export default function SharedRoundFullCard({
 
   // Calculate estimated par per hole (4 default)
   const estimatedPar = 4;
-
-  const isOwner = currentUserId === group_post.creator_id;
 
   // Find current user's participant record
   const currentUserParticipant = participants.find(
@@ -381,7 +379,7 @@ export default function SharedRoundFullCard({
                     </div>
                   ) : (
                     <div>
-                      <span className="font-bold text-gray-900">You haven't added your scores yet</span>
+                      <span className="font-bold text-gray-900">You haven&apos;t added your scores yet</span>
                     </div>
                   )}
                 </div>

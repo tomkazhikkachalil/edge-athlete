@@ -81,7 +81,7 @@ This email was sent from your website's contact form.
     try {
       await this.transporter.verify();
       return true;
-    } catch (_error) {
+    } catch {
       // Email connection failed
       return false;
     }

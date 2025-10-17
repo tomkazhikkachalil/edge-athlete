@@ -49,7 +49,7 @@ export class GolfAdapter extends BaseSportAdapter {
           value: '45%'
         }
       ];
-    } catch (_error) {
+    } catch {
       // Error fetching golf highlights
       // Return empty tiles on error
       return await super.getHighlights(profileId, season);
@@ -100,7 +100,7 @@ export class GolfAdapter extends BaseSportAdapter {
         hasMore: sampleRounds.length > limit,
         nextCursor: sampleRounds.length > limit ? 'cursor-next' : undefined
       };
-    } catch (_error) {
+    } catch {
       // Error fetching golf activity
       return {
         rows: [],
@@ -131,21 +131,22 @@ export class GolfAdapter extends BaseSportAdapter {
     }
   }
   
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   async composePost(_context: PostContext): Promise<void> {
     try {
       // TODO: Implement golf post composer
       // For now, show that it's functional
 
       // Opening golf post composer
-      
+
       // Would open golf-specific post composer here with:
       // - Round attachment options
       // - Auto-filled stats (score, FIR, GIR, putts)
       // - Media upload for course photos
-      
+
       // Simulate successful post creation
       await new Promise(resolve => setTimeout(resolve, 100));
-      
+
     } catch (error) {
       // Error composing golf post
       throw error;
@@ -163,6 +164,7 @@ export class GolfAdapter extends BaseSportAdapter {
    * Calculate golf aggregates after round save
    * Called by round save operations to update highlights
    */
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   async updateGolfAggregates(_profileId: string): Promise<void> {
     try {
       // TODO: Implement golf stats calculation
@@ -176,7 +178,7 @@ export class GolfAdapter extends BaseSportAdapter {
 
       // Updating golf aggregates
 
-    } catch (_error) {
+    } catch {
       // Error updating golf aggregates
     }
   }

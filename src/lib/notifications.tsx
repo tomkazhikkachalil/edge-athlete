@@ -1,6 +1,7 @@
 'use client';
 
 import { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react';
+import { RealtimePostgresChangesPayload } from '@supabase/supabase-js';
 import { useAuth } from '@/lib/auth';
 import { supabase } from '@/lib/supabase';
 
@@ -292,7 +293,7 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
         schema: 'public',
         table: 'notifications',
         filter: `user_id=eq.${user.id}`
-      }, (payload: any) => {
+      }, (payload: RealtimePostgresChangesPayload<Notification>) => {
 
         // Add new notification to the beginning of the list
         setNotifications(prev => [payload.new as Notification, ...prev]);

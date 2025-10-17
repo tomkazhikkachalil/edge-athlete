@@ -74,7 +74,7 @@ export default function ProfileMediaTabs({ profileId, currentUserId, isOwnProfil
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
   const [hasMore, setHasMore] = useState(false);
-  const [offset, setOffset] = useState(0);
+  const [, setOffset] = useState(0);
   const observerTarget = useRef<HTMLDivElement>(null);
   const offsetRef = useRef(0); // Use ref for offset to avoid dependency issues
 
@@ -82,7 +82,7 @@ export default function ProfileMediaTabs({ profileId, currentUserId, isOwnProfil
   const [selectedPostIndex, setSelectedPostIndex] = useState<number | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isEditPostModalOpen, setIsEditPostModalOpen] = useState(false);
-  const [editingPost, setEditingPost] = useState<any>(null);
+  const [editingPost, setEditingPost] = useState<MediaItem | null>(null);
 
   // Toast notifications
   const { showSuccess, showError } = useToast();

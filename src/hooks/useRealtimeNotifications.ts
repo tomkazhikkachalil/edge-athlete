@@ -6,6 +6,7 @@
  */
 
 import { useEffect, useState } from 'react';
+import { RealtimePostgresChangesPayload } from '@supabase/supabase-js';
 import { getSupabaseBrowserClient } from '@/lib/supabase';
 
 export interface Notification {
@@ -72,7 +73,7 @@ export function useRealtimeNotifications(userId: string | undefined) {
 
       if (!error && data) {
         setNotifications(data as Notification[]);
-        setUnreadCount(data.filter((n: any) => !n.read).length);
+        setUnreadCount(data.filter((n) => !n.read).length);
       }
 
       setLoading(false);
@@ -97,7 +98,7 @@ export function useRealtimeNotifications(userId: string | undefined) {
           table: 'notifications',
           filter: `profile_id=eq.${userId}`
         },
-        async (payload: any) => {
+        async (payload: RealtimePostgresChangesPayload<Notification>) => {
           console.log('[REALTIME] New notification:', payload.new);
 
           // Fetch complete notification with actor details
@@ -138,7 +139,7 @@ export function useRealtimeNotifications(userId: string | undefined) {
           table: 'notifications',
           filter: `profile_id=eq.${userId}`
         },
-        (payload: any) => {
+        (payload: RealtimePostgresChangesPayload<Notification>) => {
           console.log('[REALTIME] Notification updated:', payload.new);
 
           setNotifications((prev) =>

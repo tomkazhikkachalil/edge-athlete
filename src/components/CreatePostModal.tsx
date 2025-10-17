@@ -7,6 +7,7 @@ import GolfScorecardForm from '@/components/GolfScorecardForm';
 import TagPeopleModal from '@/components/TagPeopleModal';
 import SportSelector from '@/components/SportSelector';
 import { getSportDefinition, type SportKey } from '@/lib/sports/SportRegistry';
+import type { HoleData } from '@/types/golf';
 
 interface CreatePostModalProps {
   isOpen: boolean;
@@ -23,12 +24,6 @@ interface MediaFile {
   size: number;
   file?: File;
   preview?: string;
-}
-
-interface HoleData {
-  score?: number;
-  par: number;
-  putts?: number;
 }
 
 interface GolfRoundData {
@@ -825,7 +820,7 @@ export default function CreatePostModal({
               <div className="bg-green-50 rounded-lg border border-green-200 p-4">
                 <GolfScorecardForm
                   onDataChange={(data) => setGolfRoundData(data)}
-                  initialData={golfRoundData as any}
+                  initialData={golfRoundData || undefined}
                 />
               </div>
 

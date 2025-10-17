@@ -2,7 +2,6 @@
 
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/lib/auth';
-import { useRouter } from 'next/navigation';
 import { useToast } from '@/components/Toast';
 
 interface DeleteAccountModalProps {
@@ -12,7 +11,6 @@ interface DeleteAccountModalProps {
 
 export default function DeleteAccountModal({ isOpen, onClose }: DeleteAccountModalProps) {
   const { user, profile } = useAuth();
-  const router = useRouter();
   const { showError } = useToast();
 
   const [step, setStep] = useState<1 | 2>(1);
@@ -76,7 +74,7 @@ export default function DeleteAccountModal({ isOpen, onClose }: DeleteAccountMod
       setNeedsReauth(false);
       setReauthPassword('');
       showError('Success', 'Re-authenticated successfully');
-    } catch (error) {
+    } catch {
       showError('Error', 'Invalid password. Please try again.');
     } finally {
       setIsReauthenticating(false);

@@ -51,9 +51,9 @@ export default function WaitlistPopup({ isOpen, onClose, userType }: WaitlistPop
         setError(result.error || 'Something went wrong. Please try again.');
         return;
       }
-      
+
       setIsSubmitted(true);
-    } catch (_err) {
+    } catch {
       // Waitlist submission error
       setError('Something went wrong. Please try again.');
     } finally {

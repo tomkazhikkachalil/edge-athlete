@@ -811,7 +811,7 @@ export default function EditProfileTabs({
         >
           <option value="black">Black (Championship)</option>
           <option value="blue">Blue (Back/Tips)</option>
-          <option value="white">White (Men's Regular)</option>
+          <option value="white">White (Men&apos;s Regular)</option>
           <option value="red">Red (Forward/Ladies)</option>
           <option value="gold">Gold (Senior)</option>
         </select>
