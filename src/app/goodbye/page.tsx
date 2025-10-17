@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect } from 'react';
+import Link from 'next/link';
 
 export default function GoodbyePage() {
   useEffect(() => {
@@ -27,7 +28,7 @@ export default function GoodbyePage() {
 
           {/* Message */}
           <p className="text-lg text-gray-600 mb-8 max-w-xl mx-auto">
-            We're sorry to see you go. All your data has been permanently removed from Edge Athlete.
+            We&apos;re sorry to see you go. All your data has been permanently removed from Edge Athlete.
           </p>
 
           {/* Divider */}
@@ -73,7 +74,7 @@ export default function GoodbyePage() {
               Help us improve
             </h3>
             <p className="text-sm text-blue-800 mb-4">
-              We'd love to hear your feedback about Edge Athlete. Your insights help us build a better platform for athletes.
+              We&apos;d love to hear your feedback about Edge Athlete. Your insights help us build a better platform for athletes.
             </p>
             <a
               href="mailto:support@edgeathlete.com?subject=Account Deletion Feedback"
@@ -86,20 +87,20 @@ export default function GoodbyePage() {
 
           {/* Action Buttons */}
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
-            <a
+            <Link
               href="/"
               className="inline-flex items-center justify-center gap-2 px-8 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium text-lg"
             >
               <i className="fas fa-sign-in-alt"></i>
               Log In
-            </a>
-            <a
+            </Link>
+            <Link
               href="/"
               className="inline-flex items-center justify-center gap-2 px-8 py-3 bg-white border-2 border-gray-300 text-gray-700 rounded-lg hover:border-gray-400 hover:bg-gray-50 transition-colors font-medium text-lg"
             >
               <i className="fas fa-user-plus"></i>
               Sign Up
-            </a>
+            </Link>
           </div>
 
           {/* Footer Note */}

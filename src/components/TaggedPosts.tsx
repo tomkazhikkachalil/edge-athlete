@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import PostCard from './PostCard';
 
 interface TaggedPostsProps {
@@ -13,11 +13,7 @@ export default function TaggedPosts({ profileId, currentUserId }: TaggedPostsPro
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    loadTaggedPosts();
-  }, [profileId]);
-
-  const loadTaggedPosts = async () => {
+  const loadTaggedPosts = useCallback(async () => {
     try {
       setLoading(true);
       setError(null);
@@ -59,7 +55,11 @@ export default function TaggedPosts({ profileId, currentUserId }: TaggedPostsPro
     } finally {
       setLoading(false);
     }
-  };
+  }, [profileId]);
+
+  useEffect(() => {
+    loadTaggedPosts();
+  }, [loadTaggedPosts]);
 
   if (loading) {
     return (

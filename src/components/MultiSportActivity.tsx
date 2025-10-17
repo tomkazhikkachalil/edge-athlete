@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { getSportDefinition, getSportAdapter } from '@/lib/sports';
 import { getPlaceholder } from '@/lib/config';
 import { COPY } from '@/lib/copy';
@@ -33,7 +33,7 @@ export default function MultiSportActivity({ profileId, onEdit, onDelete }: Mult
   const primarySportKeys = ['golf', 'ice_hockey', 'volleyball'];
 
   // Load activity data for a specific sport
-  const loadSportActivity = async (sportKey: string) => {
+  const loadSportActivity = useCallback(async (sportKey: string) => {
     try {
       setLoading(prev => ({ ...prev, [sportKey]: true }));
 
@@ -53,14 +53,14 @@ export default function MultiSportActivity({ profileId, onEdit, onDelete }: Mult
     } finally {
       setLoading(prev => ({ ...prev, [sportKey]: false }));
     }
-  };
+  }, [profileId]);
 
   // Load initial data for active sport
   useEffect(() => {
     if (profileId && activeSportKey) {
       loadSportActivity(activeSportKey);
     }
-  }, [profileId, activeSportKey]);
+  }, [profileId, activeSportKey, loadSportActivity]);
 
   const handleTabChange = (sportKey: string) => {
     setActiveSportKey(sportKey);

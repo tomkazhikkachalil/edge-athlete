@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import Image from 'next/image';
 import { useAuth } from '@/lib/auth';
@@ -35,14 +35,7 @@ export default function FollowersModal({ isOpen, onClose, profileId, initialTab 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    if (isOpen) {
-      setActiveTab(initialTab);
-      loadData();
-    }
-  }, [isOpen, initialTab, profileId]);
-
-  const loadData = async () => {
+  const loadData = useCallback(async () => {
     setLoading(true);
     setError(null);
 
@@ -73,7 +66,14 @@ export default function FollowersModal({ isOpen, onClose, profileId, initialTab 
     } finally {
       setLoading(false);
     }
-  };
+  }, [profileId]);
+
+  useEffect(() => {
+    if (isOpen) {
+      setActiveTab(initialTab);
+      loadData();
+    }
+  }, [isOpen, initialTab, loadData]);
 
   const handleProfileClick = (id: string) => {
     onClose();
@@ -85,11 +85,11 @@ export default function FollowersModal({ isOpen, onClose, profileId, initialTab 
     }
   };
 
-  const handleEscKey = (e: KeyboardEvent) => {
+  const handleEscKey = useCallback((e: KeyboardEvent) => {
     if (e.key === 'Escape' && isOpen) {
       onClose();
     }
-  };
+  }, [isOpen, onClose]);
 
   useEffect(() => {
     if (isOpen) {
@@ -101,7 +101,7 @@ export default function FollowersModal({ isOpen, onClose, profileId, initialTab 
       window.removeEventListener('keydown', handleEscKey);
       document.body.style.overflow = 'unset';
     };
-  }, [isOpen]);
+  }, [isOpen, handleEscKey]);
 
   if (!isOpen) return null;
 

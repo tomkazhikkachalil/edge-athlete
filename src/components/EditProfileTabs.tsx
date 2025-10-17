@@ -5,7 +5,7 @@ import { useAuth } from '@/lib/auth';
 import { useToast } from './Toast';
 import LazyImage from './LazyImage';
 import type { Profile, AthleteBadge, SeasonHighlight, Performance } from '@/lib/supabase';
-import { getSportDefinition, getEnabledSports, getAllSports } from '@/lib/sports';
+import { getSportDefinition, getEnabledSports, getAllSports, type SportKey } from '@/lib/sports';
 import { COPY, getComingSoonMessage } from '@/lib/copy';
 import {
   formatHeight,
@@ -349,7 +349,7 @@ export default function EditProfileTabs({
         case 'volleyball':
           // Future sports - show coming soon
           const sportName = TABS.find(t => t.id === tabId)?.label || 'Sport';
-          showInfo(`${sportName} Settings`, getComingSoonMessage(tabId as any, 'settings'));
+          showInfo(`${sportName} Settings`, getComingSoonMessage(tabId as SportKey, 'settings'));
           return;
       }
 
@@ -975,7 +975,7 @@ export default function EditProfileTabs({
       case 'ice_hockey':
       case 'volleyball':
         const currentTab = TABS.find(t => t.id === activeTab);
-        const sportDef = getSportDefinition(activeTab as any);
+        const sportDef = getSportDefinition(activeTab as SportKey);
         return (
           <div className="text-center py-12 text-gray-500">
             <i className={`${sportDef.icon_id} text-4xl text-gray-300 mb-4`} aria-hidden="true"></i>

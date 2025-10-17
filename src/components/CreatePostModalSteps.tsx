@@ -1,5 +1,6 @@
 'use client';
 
+import Image from 'next/image';
 import { cssClasses } from '@/lib/design-tokens';
 import { getSportDefinition, type SportKey } from '@/lib/sports';
 import EnhancedGolfForm from '@/components/EnhancedGolfForm';
@@ -138,10 +139,12 @@ export function StepContent({
                   className="relative group bg-gray-100 rounded-lg overflow-hidden aspect-square"
                 >
                   {file.type === 'image' ? (
-                    <img
+                    <Image
                       src={file.url}
                       alt={file.name}
-                      className="w-full h-full object-cover"
+                      fill
+                      sizes="(max-width: 640px) 50vw, 33vw"
+                      className="object-cover"
                     />
                   ) : (
                     <div className="w-full h-full flex items-center justify-center bg-gray-800 text-white">

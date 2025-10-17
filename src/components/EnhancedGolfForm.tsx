@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { cssClasses } from '@/lib/design-tokens';
 import { useToast } from '@/components/Toast';
 
@@ -10,7 +10,7 @@ interface GolfRoundData {
   course: string;
   tee?: string;
   holes: 9 | 18;
-  
+
   // Scorecard summary
   grossScore?: number;
   par: number;
@@ -37,12 +37,26 @@ interface EnhancedGolfFormProps {
 
 type GolfMode = 'round_recap' | 'hole_highlight';
 
+// Popular courses for suggestions (constant, moved outside component)
+const POPULAR_COURSES = [
+  'Pebble Beach Golf Links',
+  'Augusta National Golf Club',
+  'St. Andrews Old Course',
+  'Pinehurst No. 2',
+  'Torrey Pines (South)',
+  'TPC Sawgrass',
+  'Bethpage Black',
+  'Whistling Straits',
+  'Kiawah Island (Ocean Course)',
+  'Bandon Dunes'
+];
+
 export default function EnhancedGolfForm({ onDataChange }: EnhancedGolfFormProps) {
   const { showError } = useToast();
-  
+
   // Mode selection
   const [mode, setMode] = useState<GolfMode>('round_recap');
-  
+
   // Round Recap data
   const [roundData, setRoundData] = useState<GolfRoundData>({
     date: new Date().toISOString().split('T')[0],
@@ -56,7 +70,7 @@ export default function EnhancedGolfForm({ onDataChange }: EnhancedGolfFormProps
     totalPutts: undefined,
     notes: ''
   });
-  
+
   // Hole Highlight data
   const [holeData, setHoleData] = useState<GolfHoleData>({
     date: new Date().toISOString().split('T')[0],
@@ -68,25 +82,11 @@ export default function EnhancedGolfForm({ onDataChange }: EnhancedGolfFormProps
     fairwayHit: undefined,
     greenInRegulation: undefined
   });
-  
+
   // Course search
   const [courseSearchTerm, setCourseSearchTerm] = useState('');
   const [courseResults, setCourseResults] = useState<string[]>([]);
   const [showCourseDropdown, setShowCourseDropdown] = useState(false);
-  
-  // Popular courses for suggestions
-  const popularCourses = [
-    'Pebble Beach Golf Links',
-    'Augusta National Golf Club',
-    'St. Andrews Old Course',
-    'Pinehurst No. 2',
-    'Torrey Pines (South)',
-    'TPC Sawgrass',
-    'Bethpage Black',
-    'Whistling Straits',
-    'Kiawah Island (Ocean Course)',
-    'Bandon Dunes'
-  ];
   
   // Update parent when data changes
   useEffect(() => {
@@ -100,7 +100,7 @@ export default function EnhancedGolfForm({ onDataChange }: EnhancedGolfFormProps
   // Course search functionality
   useEffect(() => {
     if (courseSearchTerm.length > 0) {
-      const filtered = popularCourses.filter(course => 
+      const filtered = POPULAR_COURSES.filter(course =>
         course.toLowerCase().includes(courseSearchTerm.toLowerCase())
       );
       setCourseResults(filtered);
@@ -138,8 +138,8 @@ export default function EnhancedGolfForm({ onDataChange }: EnhancedGolfFormProps
     }
     setShowCourseDropdown(false);
   };
-  
-  const validateForm = (): boolean => {
+
+  const validateForm = useCallback((): boolean => {
     if (mode === 'round_recap') {
       if (!roundData.date) {
         showError('Validation Error', 'Date is required');
@@ -161,12 +161,12 @@ export default function EnhancedGolfForm({ onDataChange }: EnhancedGolfFormProps
       }
       return true;
     }
-  };
-  
+  }, [mode, roundData, holeData, showError]);
+
   // Expose validation to parent
   useEffect(() => {
-    (onDataChange as any).validate = validateForm;
-  }, [mode, roundData, holeData]);
+    (onDataChange as { validate?: () => boolean }).validate = validateForm;
+  }, [validateForm, onDataChange]);
 
   return (
     <div className="space-y-base">

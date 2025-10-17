@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth';
 import { useToast } from './Toast';
@@ -42,14 +42,7 @@ export default function FollowButton({
     lg: 'px-6 py-3 text-base'
   };
 
-  // Load follow stats on component mount
-  useEffect(() => {
-    if (profileId && currentUserId) {
-      loadFollowStats();
-    }
-  }, [profileId, currentUserId]);
-
-  const loadFollowStats = async () => {
+  const loadFollowStats = useCallback(async () => {
     try {
       setStatsLoading(true);
       const params = new URLSearchParams({ profileId });
@@ -78,7 +71,14 @@ export default function FollowButton({
     } finally {
       setStatsLoading(false);
     }
-  };
+  }, [profileId, currentUserId]);
+
+  // Load follow stats on component mount
+  useEffect(() => {
+    if (profileId && currentUserId) {
+      loadFollowStats();
+    }
+  }, [profileId, currentUserId, loadFollowStats]);
 
   const handleFollowClick = () => {
     console.log('[FOLLOW BUTTON] Button clicked!', { currentUserId, profileId, isFollowing, followStatus });

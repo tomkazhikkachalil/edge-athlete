@@ -23,11 +23,37 @@ interface Profile {
   avatar_url: string | null;
 }
 
+interface GolfHole {
+  hole_number: number;
+  par: number;
+  distance_yards?: number;
+  strokes?: number;
+  putts?: number;
+}
+
+interface GolfRound {
+  id: string;
+  course: string;
+  date: string;
+  gross_score: number;
+  par: number;
+  holes: number;
+  tee?: string;
+  total_putts?: number;
+  fir_percentage?: number;
+  gir_percentage?: number;
+  golf_holes?: GolfHole[];
+}
+
+interface StatsData {
+  [key: string]: string | number | boolean | null;
+}
+
 interface Post {
   id: string;
   caption: string | null;
   sport_key: string | null;
-  stats_data: any;
+  stats_data: StatsData | null;
   visibility: string;
   created_at: string;
   likes_count: number;
@@ -39,7 +65,7 @@ interface Post {
   saved_posts?: { profile_id: string }[];
   tags?: string[];
   hashtags?: string[];
-  golf_round?: any;
+  golf_round?: GolfRound;
 }
 
 interface SavedPost {
@@ -130,7 +156,7 @@ export default function SavedPostsPage() {
       }
 
       // Filter out any saved posts where the post was deleted
-      const validSavedPosts = (data || []).filter((sp: any) => sp.post !== null);
+      const validSavedPosts = (data || []).filter((sp: SavedPost) => sp.post !== null);
 
       setSavedPosts(validSavedPosts as SavedPost[]);
     } catch (err) {
@@ -172,7 +198,7 @@ export default function SavedPostsPage() {
                   likes_count: data.likesCount,
                   likes: data.action === 'liked'
                     ? [...(sp.post.likes || []), { profile_id: user.id }]
-                    : (sp.post.likes || []).filter((l: any) => l.profile_id !== user.id)
+                    : (sp.post.likes || []).filter((l: { profile_id: string }) => l.profile_id !== user.id)
                 }
               };
             }

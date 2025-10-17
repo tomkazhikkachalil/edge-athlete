@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth';
-import { getSportDefinition, getSportAdapter } from '@/lib/sports';
+import { getSportDefinition, getSportAdapter, type SportKey } from '@/lib/sports';
 
 export default function SportActivityDetailPage() {
   const params = useParams();
@@ -26,8 +26,8 @@ export default function SportActivityDetailPage() {
     const checkRoute = async () => {
       try {
         // Check if this is a valid sport
-        const sportDef = getSportDefinition(sportKey as any);
-        const adapter = getSportAdapter(sportKey as any);
+        const sportDef = getSportDefinition(sportKey as SportKey);
+        const adapter = getSportAdapter(sportKey as SportKey);
         
         if (!sportDef) {
           setNotFound(true);
@@ -90,8 +90,8 @@ export default function SportActivityDetailPage() {
   }
 
   // This is a future sport activity detail page
-  const sportDef = getSportDefinition(sportKey as any);
-  const adapter = getSportAdapter(sportKey as any);
+  const sportDef = getSportDefinition(sportKey as SportKey);
+  const adapter = getSportAdapter(sportKey as SportKey);
 
   return (
     <div className="min-h-screen bg-gray-50">

@@ -25,6 +25,44 @@ interface MediaFile {
   preview?: string;
 }
 
+interface HoleData {
+  score?: number;
+  par: number;
+  putts?: number;
+}
+
+interface GolfRoundData {
+  courseName?: string;
+  holesData?: HoleData[];
+}
+
+interface ProfileData {
+  id: string;
+  first_name?: string;
+  last_name?: string;
+  full_name?: string;
+  name?: string;
+}
+
+interface TagOption {
+  value: string;
+  label: string;
+  color: string;
+}
+
+interface PostPreviewProps {
+  postType: SportKey | 'general';
+  caption: string;
+  tags: string[];
+  hashtags: string[];
+  mediaFiles: MediaFile[];
+  visibility: 'public' | 'private';
+  golfData: GolfRoundData | null;
+  taggedPeople?: {id: string; name: string}[];
+  onClose: () => void;
+  onPost: () => void;
+}
+
 // No longer needed - using SportSelector instead
 
 // Popular hashtags suggestions
@@ -78,7 +116,7 @@ export default function CreatePostModal({
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
 
   // Golf specific data
-  const [golfRoundData, setGolfRoundData] = useState<any>(null);
+  const [golfRoundData, setGolfRoundData] = useState<GolfRoundData | null>(null);
 
   // Shared round specific data
   const [roundType, setRoundType] = useState<'individual' | 'shared'>('individual');
@@ -239,7 +277,7 @@ export default function CreatePostModal({
   };
 
   // Handle tag people selection
-  const handleTagPeopleComplete = (selectedIds: string[], selectedProfiles?: any[]) => {
+  const handleTagPeopleComplete = (selectedIds: string[], selectedProfiles?: ProfileData[]) => {
     setTaggedProfiles(selectedIds);
 
     // Use the profile data passed from the modal
@@ -261,7 +299,7 @@ export default function CreatePostModal({
   };
 
   // Handle participant selection for shared rounds
-  const handleParticipantSelection = (selectedIds: string[], selectedProfiles?: any[]) => {
+  const handleParticipantSelection = (selectedIds: string[], selectedProfiles?: ProfileData[]) => {
     setSharedRoundParticipants(selectedIds);
 
     if (selectedProfiles && selectedProfiles.length > 0) {
@@ -295,12 +333,12 @@ export default function CreatePostModal({
     if (!golfRoundData || postType !== 'golf') return '';
 
     const { holesData, courseName } = golfRoundData;
-    const scoredHoles = holesData?.filter((h: any) => h.score !== undefined) || [];
+    const scoredHoles = holesData?.filter((h: HoleData) => h.score !== undefined) || [];
 
     if (scoredHoles.length === 0) return '';
 
-    const totalScore = scoredHoles.reduce((sum: number, h: any) => sum + (h.score || 0), 0);
-    const totalPar = scoredHoles.reduce((sum: number, h: any) => sum + h.par, 0);
+    const totalScore = scoredHoles.reduce((sum: number, h: HoleData) => sum + (h.score || 0), 0);
+    const totalPar = scoredHoles.reduce((sum: number, h: HoleData) => sum + h.par, 0);
     const differential = totalScore - totalPar;
 
     let caption = `Shot ${totalScore}`;
@@ -311,10 +349,10 @@ export default function CreatePostModal({
     if (courseName) caption += ` at ${courseName}`;
 
     // Add some stats if available
-    const putts = scoredHoles.reduce((sum: number, h: any) => sum + (h.putts || 0), 0);
+    const putts = scoredHoles.reduce((sum: number, h: HoleData) => sum + (h.putts || 0), 0);
     if (putts > 0) caption += ` | ${putts} putts`;
 
-    const birdies = scoredHoles.filter((h: any) => h.score === h.par - 1).length;
+    const birdies = scoredHoles.filter((h: HoleData) => h.score === h.par - 1).length;
     if (birdies > 0) caption += ` | ${birdies} ${birdies === 1 ? 'birdie' : 'birdies'}`;
 
     return caption;
@@ -349,7 +387,7 @@ export default function CreatePostModal({
     if (postType === 'golf') {
       if (roundType === 'individual') {
         // Individual rounds need scorecard data
-        return golfRoundData && golfRoundData.courseName && golfRoundData.holesData?.some((h: any) => h.score !== undefined);
+        return golfRoundData && golfRoundData.courseName && golfRoundData.holesData?.some((h: HoleData) => h.score !== undefined);
       } else {
         // Shared rounds need at least course name, date, and at least one participant
         return (
@@ -787,7 +825,7 @@ export default function CreatePostModal({
               <div className="bg-green-50 rounded-lg border border-green-200 p-4">
                 <GolfScorecardForm
                   onDataChange={(data) => setGolfRoundData(data)}
-                  initialData={golfRoundData}
+                  initialData={golfRoundData as any}
                 />
               </div>
 
@@ -1226,7 +1264,7 @@ function PostPreview({
   taggedPeople = [],
   onClose,
   onPost
-}: any) {
+}: PostPreviewProps) {
   const tagOptions = TAG_OPTIONS[postType as keyof typeof TAG_OPTIONS] || TAG_OPTIONS.general;
 
   return (
@@ -1297,7 +1335,7 @@ function PostPreview({
               {tags.length > 0 && (
                 <div className="flex flex-wrap gap-2 mb-4">
                   {tags.map((tagValue: string) => {
-                    const tag = tagOptions.find((t: any) => t.value === tagValue);
+                    const tag = tagOptions.find((t: TagOption) => t.value === tagValue);
                     if (!tag) return null;
                     return (
                       <span
@@ -1321,10 +1359,10 @@ function PostPreview({
                   <div className="text-sm text-green-700 space-y-1">
                     {golfData.courseName && <div><strong>Course:</strong> {golfData.courseName}</div>}
                     {golfData.holesData && (() => {
-                      const scored = golfData.holesData.filter((h: any) => h.score !== undefined);
+                      const scored = golfData.holesData.filter((h: HoleData) => h.score !== undefined);
                       if (scored.length === 0) return null;
-                      const total = scored.reduce((sum: number, h: any) => sum + h.score, 0);
-                      const par = scored.reduce((sum: number, h: any) => sum + h.par, 0);
+                      const total = scored.reduce((sum: number, h: HoleData) => sum + (h.score || 0), 0);
+                      const par = scored.reduce((sum: number, h: HoleData) => sum + h.par, 0);
                       return (
                         <>
                           <div><strong>Score:</strong> {total} ({total - par >= 0 ? '+' : ''}{total - par})</div>
@@ -1339,7 +1377,7 @@ function PostPreview({
               {/* Media */}
               {mediaFiles.length > 0 && (
                 <div className={`grid ${mediaFiles.length === 1 ? 'grid-cols-1' : 'grid-cols-2'} gap-1 rounded-lg overflow-hidden`}>
-                  {mediaFiles.slice(0, 4).map((file: any, index: number) => (
+                  {mediaFiles.slice(0, 4).map((file: MediaFile, index: number) => (
                     <div key={file.id} className="relative aspect-square bg-gray-100">
                       {file.type === 'image' ? (
                         <LazyImage

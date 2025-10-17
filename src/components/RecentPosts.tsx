@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import PostCard from './PostCard';
 import EditPostModal from './EditPostModal';
 import { useToast } from './Toast';
@@ -54,25 +54,20 @@ export default function RecentPosts({
   const [editingPost, setEditingPost] = useState<Post | null>(null);
   const { showError, showSuccess } = useToast();
 
-
-  useEffect(() => {
-    loadPosts();
-  }, [profileId]);
-
-  const loadPosts = async () => {
+  const loadPosts = useCallback(async () => {
     try {
       setLoading(true);
       const response = await fetch(`/api/posts?userId=${profileId}&limit=10`);
-      
+
       if (!response.ok) {
         throw new Error('Failed to load posts');
       }
-      
+
       const data = await response.json();
       const postsData = data.posts || [];
       setPosts(postsData);
       setError(null);
-      
+
       // Notify parent of posts count
       onPostsLoad?.(postsData.length);
     } catch (_err) {
@@ -81,7 +76,11 @@ export default function RecentPosts({
     } finally {
       setLoading(false);
     }
-  };
+  }, [profileId, onPostsLoad, showError]);
+
+  useEffect(() => {
+    loadPosts();
+  }, [loadPosts]);
 
   const handleLike = async (postId: string) => {
     if (!currentUserId) {
