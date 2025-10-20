@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
+import Image from 'next/image';
 
 interface LazyImageProps {
   src?: string | null;
@@ -26,7 +27,7 @@ export default function LazyImage({
   const [isLoaded, setIsLoaded] = useState(false);
   const [hasError, setHasError] = useState(false);
   const [isInView, setIsInView] = useState(priority);
-  const imgRef = useRef<HTMLImageElement>(null);
+  const imgRef = useRef<HTMLDivElement>(null);
   const observerRef = useRef<IntersectionObserver | null>(null);
 
   // Intersection Observer for lazy loading
@@ -92,16 +93,19 @@ export default function LazyImage({
       
       {/* Actual image - only load when in view */}
       {isInView && (
-        <img
+        <Image
           src={src}
           alt={alt}
+          width={width || 800}
+          height={height || 600}
           className={`transition-opacity duration-300 ${className} ${
             isLoaded ? 'opacity-100' : 'opacity-0'
           }`}
-          style={{ width, height }}
+          style={{ width: width ? `${width}px` : '100%', height: height ? `${height}px` : 'auto' }}
           onLoad={handleLoad}
           onError={handleError}
-          loading={priority ? 'eager' : 'lazy'}
+          priority={priority}
+          unoptimized={true}
         />
       )}
     </div>

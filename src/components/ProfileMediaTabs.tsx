@@ -309,7 +309,7 @@ export default function ProfileMediaTabs({ profileId, currentUserId, isOwnProfil
                   : 'border-transparent text-gray-600 hover:text-gray-800 hover:border-gray-300'
               }`}
             >
-              All Media
+              Media
               <span className="ml-2 py-0.5 px-2 rounded-full text-xs bg-gray-100 text-gray-700">
                 {counts.all}
               </span>
@@ -322,7 +322,7 @@ export default function ProfileMediaTabs({ profileId, currentUserId, isOwnProfil
                   : 'border-transparent text-gray-600 hover:text-gray-800 hover:border-gray-300'
               }`}
             >
-              Media with Stats
+              Stats
               <span className="ml-2 py-0.5 px-2 rounded-full text-xs bg-gray-100 text-gray-700">
                 {counts.stats}
               </span>
@@ -335,7 +335,7 @@ export default function ProfileMediaTabs({ profileId, currentUserId, isOwnProfil
                   : 'border-transparent text-gray-600 hover:text-gray-800 hover:border-gray-300'
               }`}
             >
-              Tagged in Media
+              Tagged
               <span className="ml-2 py-0.5 px-2 rounded-full text-xs bg-gray-100 text-gray-700">
                 {counts.tagged}
               </span>

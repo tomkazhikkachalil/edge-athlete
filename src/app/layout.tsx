@@ -1,7 +1,14 @@
 import type { Metadata } from "next";
+import { Inter } from 'next/font/google';
 import { AuthProvider } from "@/lib/auth";
 import { NotificationsProvider } from "@/lib/notifications";
 import "./globals.css";
+
+const inter = Inter({
+  subsets: ['latin'],
+  display: 'swap',
+  variable: '--font-inter'
+});
 
 export const metadata: Metadata = {
   title: "Edge Athlete",
@@ -14,7 +21,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en">
+    <html lang="en" className={inter.variable}>
       <head>
         <script src="https://cdn.tailwindcss.com" async></script>
         <script
@@ -24,7 +31,7 @@ export default function RootLayout({
                 theme: {
                   extend: {
                     fontFamily: {
-                      sans: ['Inter', 'sans-serif']
+                      sans: ['var(--font-inter)', 'sans-serif']
                     }
                   }
                 }
@@ -32,18 +39,12 @@ export default function RootLayout({
             `,
           }}
         />
-        <link rel="preconnect" href="https://fonts.googleapis.com" />
-        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="" />
-        <link
-          href="https://fonts.googleapis.com/css2?family=Inter:wght@100;200;300;400;500;600;700;800;900&display=swap"
-          rel="stylesheet"
-        />
         <link
           rel="stylesheet"
           href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"
         />
       </head>
-      <body className="font-sans antialiased">
+      <body className={`${inter.className} antialiased`}>
         <AuthProvider>
           <NotificationsProvider>
             {children}

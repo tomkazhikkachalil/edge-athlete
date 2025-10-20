@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { getSportDefinition, getSportAdapter } from '@/lib/sports';
+import { getSportDefinition, getSportAdapter, type SportKey } from '@/lib/sports';
 import { getPlaceholder } from '@/lib/config';
 import { COPY } from '@/lib/copy';
 import { cssClasses } from '@/lib/design-tokens';
@@ -25,19 +25,19 @@ interface MultiSportActivityProps {
 }
 
 export default function MultiSportActivity({ profileId, onEdit, onDelete }: MultiSportActivityProps) {
-  const [activeSportKey, setActiveSportKey] = useState('golf'); // Golf is default active
-  const [activityData, setActivityData] = useState<Record<string, ActivityRow[]>>({});
-  const [loading, setLoading] = useState<Record<string, boolean>>({});
+  const [activeSportKey, setActiveSportKey] = useState<SportKey>('golf'); // Golf is default active
+  const [activityData, setActivityData] = useState<Record<SportKey, ActivityRow[]>>({} as Record<SportKey, ActivityRow[]>);
+  const [loading, setLoading] = useState<Record<SportKey, boolean>>({} as Record<SportKey, boolean>);
 
   // Primary sports to show as tabs
-  const primarySportKeys = ['golf', 'ice_hockey', 'volleyball'];
+  const primarySportKeys: SportKey[] = ['golf', 'ice_hockey', 'volleyball'];
 
   // Load activity data for a specific sport
-  const loadSportActivity = useCallback(async (sportKey: string) => {
+  const loadSportActivity = useCallback(async (sportKey: SportKey) => {
     try {
       setLoading(prev => ({ ...prev, [sportKey]: true }));
 
-      const adapter = getSportAdapter(sportKey as any);
+      const adapter = getSportAdapter(sportKey);
       const result = await adapter.getRecentActivity(profileId, 10);
 
       setActivityData(prev => ({
@@ -62,9 +62,9 @@ export default function MultiSportActivity({ profileId, onEdit, onDelete }: Mult
     }
   }, [profileId, activeSportKey, loadSportActivity]);
 
-  const handleTabChange = (sportKey: string) => {
+  const handleTabChange = (sportKey: SportKey) => {
     setActiveSportKey(sportKey);
-    
+
     // Load data if not already loaded
     if (!activityData[sportKey] && !loading[sportKey]) {
       loadSportActivity(sportKey);
@@ -72,7 +72,7 @@ export default function MultiSportActivity({ profileId, onEdit, onDelete }: Mult
   };
 
   const handleAddActivity = () => {
-    const adapter = getSportAdapter(activeSportKey as any);
+    const adapter = getSportAdapter(activeSportKey);
 
     if (adapter.isEnabled()) {
       onEdit?.(activeSportKey);
@@ -83,7 +83,7 @@ export default function MultiSportActivity({ profileId, onEdit, onDelete }: Mult
   };
 
   const handleEditActivity = (entityId: string) => {
-    const adapter = getSportAdapter(activeSportKey as any);
+    const adapter = getSportAdapter(activeSportKey);
 
     if (adapter.isEnabled()) {
       onEdit?.(activeSportKey, entityId);
@@ -91,16 +91,16 @@ export default function MultiSportActivity({ profileId, onEdit, onDelete }: Mult
   };
 
   const handleDeleteActivity = (entityId: string) => {
-    const adapter = getSportAdapter(activeSportKey as any);
+    const adapter = getSportAdapter(activeSportKey);
 
     if (adapter.isEnabled()) {
       onDelete?.(activeSportKey, entityId);
     }
   };
 
-  const renderTabButton = (sportKey: string) => {
-    const sportDef = getSportDefinition(sportKey as any);
-    const adapter = getSportAdapter(sportKey as any);
+  const renderTabButton = (sportKey: SportKey) => {
+    const sportDef = getSportDefinition(sportKey);
+    const adapter = getSportAdapter(sportKey);
     const isActive = activeSportKey === sportKey;
     const isEnabled = adapter.isEnabled();
     
@@ -130,8 +130,8 @@ export default function MultiSportActivity({ profileId, onEdit, onDelete }: Mult
   };
 
   const renderActivityTable = () => {
-    const sportDef = getSportDefinition(activeSportKey as any);
-    const adapter = getSportAdapter(activeSportKey as any);
+    const sportDef = getSportDefinition(activeSportKey);
+    const adapter = getSportAdapter(activeSportKey);
     const isEnabled = adapter.isEnabled();
     const rows = activityData[activeSportKey] || [];
     const isLoading = loading[activeSportKey];
@@ -283,14 +283,14 @@ export default function MultiSportActivity({ profileId, onEdit, onDelete }: Mult
         <button
           onClick={handleAddActivity}
           className={`px-4 py-2 text-sm font-medium border border-transparent rounded-md transition-colors ${
-            getSportAdapter(activeSportKey as any).isEnabled()
+            getSportAdapter(activeSportKey).isEnabled()
               ? 'text-white bg-blue-600 hover:bg-blue-700'
               : 'text-gray-500 bg-gray-100 cursor-not-allowed'
           }`}
-          disabled={!getSportAdapter(activeSportKey as any).isEnabled()}
-          title={getSportAdapter(activeSportKey as any).isEnabled() ? undefined : 'Coming soon'}
+          disabled={!getSportAdapter(activeSportKey).isEnabled()}
+          title={getSportAdapter(activeSportKey).isEnabled() ? undefined : 'Coming soon'}
         >
-          {getSportDefinition(activeSportKey as any).primary_action}
+          {getSportDefinition(activeSportKey).primary_action}
         </button>
       </div>
 

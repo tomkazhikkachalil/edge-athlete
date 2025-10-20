@@ -20,8 +20,8 @@ interface ScoreEntryModalProps {
 }
 
 export default function ScoreEntryModal({
-  groupPostId,
-  participantId,
+  groupPostId: _groupPostId, // eslint-disable-line @typescript-eslint/no-unused-vars
+  participantId: _participantId, // eslint-disable-line @typescript-eslint/no-unused-vars
   holesPlayed,
   existingScores = [],
   onSave,
@@ -113,8 +113,8 @@ export default function ScoreEntryModal({
 
       await onSave(scores);
       onClose();
-    } catch (err: any) {
-      setError(err.message || 'Failed to save scores');
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Failed to save scores');
       setSaving(false);
     }
   };

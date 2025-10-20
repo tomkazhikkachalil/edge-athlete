@@ -91,8 +91,8 @@ export default function EditProfileTabs({
     first_name: '',
     middle_name: '',
     last_name: '',
-    full_name: '', // Legacy username field
-    handle: '', // Unique @handle identifier
+    full_name: '', // Fallback display name (NOT editable, NOT a handle)
+    handle: '', // Unique @handle identifier (user-editable @username)
     bio: '',
     avatar_file: null as File | null,
     visibility: 'public' as 'public' | 'private',
@@ -172,7 +172,7 @@ export default function EditProfileTabs({
       first_name: (profile?.first_name || '').toString(),
       middle_name: (profile?.middle_name || '').toString(),
       last_name: (profile?.last_name || '').toString(),
-      full_name: (profile?.full_name || '').toString(), // legacy username
+      full_name: (profile?.full_name || '').toString(), // fallback display name (not editable)
       handle: (profile?.handle || '').toString(), // unique @handle identifier
       bio: (profile?.bio || '').toString(),
       avatar_file: null,
@@ -229,7 +229,7 @@ export default function EditProfileTabs({
             first_name: basicForm.first_name.trim(),
             middle_name: basicForm.middle_name.trim() || undefined,
             last_name: basicForm.last_name.trim(),
-            full_name: basicForm.full_name.trim() || undefined, // legacy username
+            full_name: basicForm.full_name.trim() || undefined, // fallback display name (not editable)
             handle: basicForm.handle.trim() || undefined, // unique @handle identifier
             bio: basicForm.bio.trim() || undefined,
             visibility: basicForm.visibility,

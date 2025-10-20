@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { getSportDefinition, getAllSports, getSportAdapter } from '@/lib/sports';
+import { getSportDefinition, getAllSports, getSportAdapter, type SportKey } from '@/lib/sports';
 import { getSeasonDisplayName, PLACEHOLDERS } from '@/lib/config';
 import { COPY } from '@/lib/copy';
 import { getSportColorClasses, getNeutralColorClasses, cssClasses } from '@/lib/design-tokens';
@@ -18,7 +18,7 @@ interface MultiSportHighlightsProps {
 }
 
 export default function MultiSportHighlights({ profileId, canEdit = true, onEdit }: MultiSportHighlightsProps) {
-  const [highlightData, setHighlightData] = useState<Record<string, HighlightTile[]>>({});
+  const [highlightData, setHighlightData] = useState<Record<SportKey, HighlightTile[]>>({} as Record<SportKey, HighlightTile[]>);
   const [loading, setLoading] = useState(true);
 
   // Load highlight data for all sports
@@ -26,7 +26,7 @@ export default function MultiSportHighlights({ profileId, canEdit = true, onEdit
     const loadHighlights = async () => {
       try {
         const allSports = getAllSports();
-        const data: Record<string, HighlightTile[]> = {};
+        const data: Record<SportKey, HighlightTile[]> = {} as Record<SportKey, HighlightTile[]>;
         
         // Load highlights for each sport (enabled sports get real data, others get placeholders)
         for (const adapter of allSports) {
@@ -60,9 +60,9 @@ export default function MultiSportHighlights({ profileId, canEdit = true, onEdit
     }
   }, [profileId]);
 
-  const handleEditSport = (sportKey: string) => {
-    const adapter = getSportAdapter(sportKey as any);
-    
+  const handleEditSport = (sportKey: SportKey) => {
+    const adapter = getSportAdapter(sportKey);
+
     if (adapter.isEnabled()) {
       onEdit?.(sportKey);
     } else {
@@ -71,15 +71,15 @@ export default function MultiSportHighlights({ profileId, canEdit = true, onEdit
     }
   };
 
-  const renderSportCard = (sportKey: string) => {
-    const sportDef = getSportDefinition(sportKey as any);
-    const adapter = getSportAdapter(sportKey as any);
+  const renderSportCard = (sportKey: SportKey) => {
+    const sportDef = getSportDefinition(sportKey);
+    const adapter = getSportAdapter(sportKey);
     const tiles = highlightData[sportKey] || [];
     const isEnabled = adapter.isEnabled();
     
     // Get color classes from design tokens
     const colors = isEnabled
-      ? getSportColorClasses(sportKey as any)
+      ? getSportColorClasses(sportKey)
       : getNeutralColorClasses();
     
     return (
@@ -171,7 +171,7 @@ export default function MultiSportHighlights({ profileId, canEdit = true, onEdit
   }
 
   // Show primary sports (golf + 2 most important disabled sports)
-  const primarySportKeys = ['golf', 'ice_hockey', 'volleyball'];
+  const primarySportKeys: SportKey[] = ['golf', 'ice_hockey', 'volleyball'];
   const hasAnyData = primarySportKeys.some(key => 
     highlightData[key]?.some(tile => tile.value !== null)
   );

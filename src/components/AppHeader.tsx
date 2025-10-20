@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import { useAuth } from '@/lib/auth';
 import { formatDisplayName, getInitials } from '@/lib/formatters';
+import { getHandle } from '@/lib/profile-display';
 import { AvatarImage } from '@/components/OptimizedImage';
 import NotificationBell from '@/components/NotificationBell';
 import AdvancedSearchBar from '@/components/AdvancedSearchBar';
@@ -138,7 +139,7 @@ export default function AppHeader({ showSearch = true, onCreatePost, onEditProfi
                           {formatDisplayName(profile?.first_name, null, profile?.last_name, profile?.full_name)}
                         </p>
                         <p className="text-xs text-gray-500 mt-0.5">
-                          {profile?.full_name ? `@${profile.full_name}` : ''}
+                          {getHandle(profile || {})}
                         </p>
                       </div>
 

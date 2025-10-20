@@ -84,9 +84,9 @@ export interface Profile {
   updated_at: string;
   // Extended athlete profile fields
   middle_name?: string;
-  username?: string;
-  full_name?: string; // This is now the username/handle
-  handle?: string; // Unique @handle identifier
+  username?: string; // DEPRECATED: No longer used
+  full_name?: string; // Fallback display name (NOT a handle - use 'handle' field instead)
+  handle?: string; // Unique @handle identifier (user-editable @username)
   bio?: string;
   sport?: string;
   position?: string;

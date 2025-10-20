@@ -4,6 +4,42 @@ import { useState, useEffect, useCallback } from 'react';
 import { createSupabaseBrowserClient } from '@/lib/supabase';
 import PostCard from './PostCard';
 
+// PostDetailModal uses a flexible post type to accommodate the PostCard interface
+// which includes additional fields like stats_data and media
+interface PostData {
+  id: string;
+  profile_id: string;
+  caption: string | null;
+  sport_key: string | null;
+  visibility: string;
+  created_at: string;
+  updated_at: string;
+  likes_count: number;
+  comments_count: number;
+  saves_count: number;
+  stats_data: Record<string, unknown> | null;
+  profile: {
+    id: string;
+    full_name: string | null;
+    first_name?: string | null;
+    last_name?: string | null;
+    avatar_url: string | null;
+    handle?: string | null;
+  };
+  media: Array<{
+    id: string;
+    post_id: string;
+    media_url: string;
+    media_type: 'image' | 'video';
+    caption?: string | null;
+    position: number;
+  }>;
+  post_likes?: { profile_id: string }[];
+  saved_posts?: { profile_id: string }[];
+  golf_round?: unknown;
+  [key: string]: unknown; // Allow additional properties from API
+}
+
 interface PostDetailModalProps {
   postId: string | null;
   isOpen: boolean;
@@ -25,7 +61,7 @@ export default function PostDetailModal({
   onEdit,
   onDelete
 }: PostDetailModalProps) {
-  const [post, setPost] = useState<any>(null);
+  const [post, setPost] = useState<PostData | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -66,8 +102,10 @@ export default function PostDetailModal({
         .eq('post_id', postId);
 
       // Transform data to match PostCard interface (API already formats most of it)
-      const transformedPost = {
+      const transformedPost: PostData = {
         ...data,
+        stats_data: data.stats_data ?? null,
+        media: data.media || [],
         // Add saved_posts if user is logged in
         saved_posts: savedPosts || []
       };
@@ -78,9 +116,9 @@ export default function PostDetailModal({
       console.log('[PostDetailModal] Has golf_round?', !!transformedPost.golf_round);
 
       setPost(transformedPost);
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('Error fetching post:', err);
-      setError(err?.message || 'Failed to load post');
+      setError(err instanceof Error ? err.message : 'Failed to load post');
     } finally {
       setLoading(false);
     }
@@ -138,18 +176,18 @@ export default function PostDetailModal({
 
   // Handle like update
   const handleLike = async (postId: string) => {
-    if (!post) return;
+    if (!post || !currentUserId) return;
 
-    const isLiked = post.likes?.some((like: any) => like.profile_id === currentUserId);
+    const isLiked = post.post_likes?.some((like) => like.profile_id === currentUserId);
     const newLikesCount = isLiked ? post.likes_count - 1 : post.likes_count + 1;
 
     // Optimistic update
     setPost({
       ...post,
       likes_count: newLikesCount,
-      likes: isLiked
-        ? post.likes.filter((like: any) => like.profile_id !== currentUserId)
-        : [...(post.likes || []), { profile_id: currentUserId }]
+      post_likes: isLiked
+        ? post.post_likes?.filter((like) => like.profile_id !== currentUserId)
+        : [...(post.post_likes || []), { profile_id: currentUserId }]
     });
 
     // Call API
@@ -165,10 +203,10 @@ export default function PostDetailModal({
         await fetchPost();
       } else {
         const data = await response.json();
-        setPost((prev: any) => ({
+        setPost((prev) => prev ? ({
           ...prev,
           likes_count: data.likesCount
-        }));
+        }) : null);
       }
     } catch (err) {
       console.error('Error toggling like:', err);
@@ -177,10 +215,10 @@ export default function PostDetailModal({
   };
 
   const handleCommentCountChange = (postId: string, newCount: number) => {
-    setPost((prev: any) => ({
+    setPost((prev) => prev ? ({
       ...prev,
       comments_count: newCount
-    }));
+    }) : null);
   };
 
   if (!isOpen) return null;
@@ -249,7 +287,7 @@ export default function PostDetailModal({
 
           {!loading && !error && post && (
             <PostCard
-              post={post}
+              post={post as never}
               currentUserId={currentUserId}
               onLike={handleLike}
               onEdit={onEdit}
