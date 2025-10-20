@@ -38,10 +38,26 @@ interface Notification {
   };
 }
 
+interface FollowRequest {
+  id: string;
+  message?: string;
+  created_at: string;
+  follower: {
+    id: string;
+    first_name?: string;
+    middle_name?: string;
+    last_name?: string;
+    full_name?: string;
+    avatar_url?: string;
+    handle?: string;
+  };
+}
+
 export default function NotificationsPage() {
   const { user, loading: authLoading } = useAuth();
   const router = useRouter();
   const [notifications, setNotifications] = useState<Notification[]>([]);
+  const [followRequests, setFollowRequests] = useState<FollowRequest[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<'all' | 'unread'>('all');
   const [hasMore, setHasMore] = useState(true);
@@ -57,6 +73,7 @@ export default function NotificationsPage() {
   useEffect(() => {
     if (user) {
       loadNotifications();
+      loadFollowRequests();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user, filter]);
@@ -92,6 +109,18 @@ export default function NotificationsPage() {
     }
   };
 
+  const loadFollowRequests = async () => {
+    try {
+      const response = await fetch('/api/followers?type=requests');
+      if (!response.ok) throw new Error('Failed to load follow requests');
+
+      const data = await response.json();
+      setFollowRequests(data.requests || []);
+    } catch (error) {
+      console.error('Error loading follow requests:', error);
+    }
+  };
+
   const markAsRead = async (notificationIds: string[]) => {
     try {
       await fetch('/api/notifications', {
@@ -124,13 +153,51 @@ export default function NotificationsPage() {
     }
   };
 
+  const handleAcceptRequest = async (followId: string) => {
+    try {
+      const response = await fetch('/api/followers', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'accept', followId })
+      });
+
+      if (!response.ok) throw new Error('Failed to accept request');
+
+      setFollowRequests(prev => prev.filter(r => r.id !== followId));
+      showSuccess('Success', 'Follow request accepted');
+      loadNotifications(); // Reload notifications to update counts
+    } catch (error) {
+      console.error('Error accepting request:', error);
+      showError('Error', 'Failed to accept request');
+    }
+  };
+
+  const handleRejectRequest = async (followId: string) => {
+    try {
+      const response = await fetch('/api/followers', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'reject', followId })
+      });
+
+      if (!response.ok) throw new Error('Failed to reject request');
+
+      setFollowRequests(prev => prev.filter(r => r.id !== followId));
+      showSuccess('Success', 'Follow request declined');
+    } catch (error) {
+      console.error('Error rejecting request:', error);
+      showError('Error', 'Failed to decline request');
+    }
+  };
+
   const handleNotificationClick = (notification: Notification) => {
     if (!notification.read) {
       markAsRead([notification.id]);
     }
 
     if (notification.type === 'follow_request') {
-      router.push('/app/followers?tab=requests');
+      // Don't navigate - handled in Follow Requests section above
+      return;
     } else if (notification.type === 'like' || notification.type === 'comment') {
       if (notification.related_post) {
         router.push(`/feed?post=${notification.related_post.id}`);
@@ -246,6 +313,66 @@ export default function NotificationsPage() {
           </div>
         </div>
       </div>
+
+      {/* Follow Requests Section */}
+      {followRequests.length > 0 && (
+        <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 pt-6">
+          <h2 className="text-lg font-semibold text-gray-900 mb-4">Follow Requests</h2>
+          <div className="bg-white rounded-lg shadow-sm border border-gray-200 divide-y divide-gray-200">
+            {followRequests.map((request) => (
+              <div key={request.id} className="p-4 flex items-center justify-between gap-4">
+                {/* User Avatar & Name */}
+                <div className="flex items-center gap-3 flex-1 min-w-0">
+                  <LazyImage
+                    src={request.follower.avatar_url || ''}
+                    alt={formatDisplayName(
+                      request.follower.first_name,
+                      null,
+                      request.follower.last_name,
+                      request.follower.full_name
+                    )}
+                    width={48}
+                    height={48}
+                    className="rounded-full"
+                  />
+                  <div className="flex-1 min-w-0">
+                    <p className="font-semibold text-gray-900 truncate">
+                      {formatDisplayName(
+                        request.follower.first_name,
+                        null,
+                        request.follower.last_name,
+                        request.follower.full_name
+                      )}
+                    </p>
+                    {request.follower.handle && (
+                      <p className="text-sm text-gray-500">@{request.follower.handle}</p>
+                    )}
+                    <p className="text-xs text-gray-500 mt-1">
+                      {formatDistanceToNow(new Date(request.created_at), { addSuffix: true })}
+                    </p>
+                  </div>
+                </div>
+
+                {/* Accept/Decline Buttons */}
+                <div className="flex gap-2 flex-shrink-0">
+                  <button
+                    onClick={() => handleAcceptRequest(request.id)}
+                    className="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition-colors"
+                  >
+                    Accept
+                  </button>
+                  <button
+                    onClick={() => handleRejectRequest(request.id)}
+                    className="px-4 py-2 bg-gray-200 text-gray-700 text-sm font-medium rounded-lg hover:bg-gray-300 transition-colors"
+                  >
+                    Decline
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Notifications List */}
       <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
