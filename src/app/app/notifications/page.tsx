@@ -387,7 +387,7 @@ export default function NotificationsPage() {
             <i className="fas fa-spinner fa-spin text-3xl text-gray-400 mb-3"></i>
             <p className="text-gray-600">Loading notifications...</p>
           </div>
-        ) : notifications.length === 0 ? (
+        ) : (filter === 'unread' && unreadCount === 0) || (filter === 'all' && notifications.length === 0) ? (
           <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-12 text-center">
             <i className={`fas ${filter === 'unread' ? 'fa-check-circle' : 'fa-bell-slash'} text-6xl mb-4 ${
               filter === 'unread' ? 'text-green-400' : 'text-gray-300'
@@ -420,7 +420,7 @@ export default function NotificationsPage() {
                 className={`w-full rounded-lg transition-all ${
                   !notification.is_read
                     ? 'border-2 border-blue-500 bg-blue-50 shadow-md'
-                    : 'border border-gray-200 bg-white opacity-80'
+                    : 'border border-gray-200 bg-white'
                 }`}
               >
                 <button

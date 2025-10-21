@@ -123,7 +123,7 @@ export default function NotificationBell() {
               <div className="divide-y divide-gray-100">
                 {recentNotifications.map((notification) => (
                   <div
-                    key={notification.id}
+                    key={`${notification.id}-${notification.is_read}`}
                     onClick={() => handleNotificationClick(notification)}
                     className="px-4 py-3 hover:bg-gray-50 cursor-pointer transition-colors"
                   >
