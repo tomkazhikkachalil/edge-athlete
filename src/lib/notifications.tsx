@@ -281,13 +281,14 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
     }
   }, [user]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Set up real-time subscription for new notifications
+  // Set up real-time subscription for new and updated notifications
   useEffect(() => {
     if (!user) return;
 
 
     const channel = supabase
       .channel('notifications')
+      // Listen for new notifications
       .on('postgres_changes', {
         event: 'INSERT',
         schema: 'public',
@@ -312,6 +313,19 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
             icon: '/icon-192x192.png'
           });
         }
+      })
+      // Listen for notification updates (e.g., action_status changes)
+      .on('postgres_changes', {
+        event: 'UPDATE',
+        schema: 'public',
+        table: 'notifications',
+        filter: `user_id=eq.${user.id}`
+      }, (payload: RealtimePostgresChangesPayload<Notification>) => {
+
+        // Update the notification in the list
+        setNotifications(prev =>
+          prev.map(n => n.id === payload.new.id ? payload.new as Notification : n)
+        );
       })
       .subscribe();
 

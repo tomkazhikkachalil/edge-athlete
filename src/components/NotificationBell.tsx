@@ -24,10 +24,8 @@ export default function NotificationBell() {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  // Get recent unread notifications (max 5)
-  const recentNotifications = notifications
-    .filter(n => !n.is_read)
-    .slice(0, 5);
+  // Get recent notifications (max 5) - show all, not just unread
+  const recentNotifications = notifications.slice(0, 5);
 
   const handleNotificationClick = async (notification: typeof notifications[0]) => {
     // Mark as read
@@ -158,9 +156,17 @@ export default function NotificationBell() {
 
                       {/* Notification Content */}
                       <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium text-gray-900 line-clamp-2">
-                          {notification.title}
-                        </p>
+                        <div className="flex items-start gap-2">
+                          <p className={`text-sm font-medium flex-1 line-clamp-2 ${
+                            !notification.is_read ? 'text-gray-900' : 'text-gray-600'
+                          }`}>
+                            {notification.title}
+                          </p>
+                          {/* Blue dot indicator for unread */}
+                          {!notification.is_read && (
+                            <div className="w-2 h-2 bg-blue-600 rounded-full mt-1 flex-shrink-0"></div>
+                          )}
+                        </div>
                         {notification.message && (
                           <p className="text-xs text-gray-600 mt-1 line-clamp-2">
                             {notification.message}
@@ -170,11 +176,6 @@ export default function NotificationBell() {
                           {getRelativeTime(notification.created_at)}
                         </p>
                       </div>
-
-                      {/* Unread Indicator */}
-                      {!notification.is_read && (
-                        <div className="w-2 h-2 bg-blue-600 rounded-full mt-2"></div>
-                      )}
                     </div>
                   </div>
                 ))}

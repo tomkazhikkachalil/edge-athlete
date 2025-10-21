@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { useAuth } from '@/lib/auth';
 import { useRouter } from 'next/navigation';
 import { formatDistanceToNow } from 'date-fns';
@@ -10,11 +10,14 @@ import { ToastContainer, useToast } from '@/components/Toast';
 
 interface Notification {
   id: string;
-  type: 'follow_request' | 'follow_accepted' | 'like' | 'comment' | 'mention' | 'system';
+  type: 'follow_request' | 'follow_accepted' | 'like' | 'comment' | 'mention' | 'system' | 'new_follower';
   message?: string;
   read: boolean;
   read_at?: string;
   created_at: string;
+  action_status?: 'pending' | 'accepted' | 'declined';
+  action_taken_at?: string;
+  follow_id?: string;
   actor?: {
     id: string;
     full_name?: string;
@@ -38,31 +41,77 @@ interface Notification {
   };
 }
 
-interface FollowRequest {
-  id: string;
-  message?: string;
-  created_at: string;
-  follower: {
-    id: string;
-    first_name?: string;
-    middle_name?: string;
-    last_name?: string;
-    full_name?: string;
-    avatar_url?: string;
-    handle?: string;
-  };
-}
-
 export default function NotificationsPage() {
   const { user, loading: authLoading } = useAuth();
   const router = useRouter();
   const [notifications, setNotifications] = useState<Notification[]>([]);
-  const [followRequests, setFollowRequests] = useState<FollowRequest[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<'all' | 'unread'>('all');
   const [hasMore, setHasMore] = useState(true);
   const [page, setPage] = useState(0);
+  const [actioningNotificationId, setActioningNotificationId] = useState<string | null>(null);
   const { toasts, dismissToast, showSuccess, showError } = useToast();
+  const notificationRefs = useRef<Map<string, HTMLDivElement>>(new Map());
+  const visibilityTimers = useRef<Map<string, NodeJS.Timeout>>(new Map());
+
+  // Callback ref to track notification elements
+  const setNotificationRef = useCallback((notificationId: string, element: HTMLDivElement | null) => {
+    if (element) {
+      notificationRefs.current.set(notificationId, element);
+    } else {
+      notificationRefs.current.delete(notificationId);
+    }
+  }, []);
+
+  // Set up Intersection Observer to auto-mark notifications as read
+  useEffect(() => {
+    if (typeof window === 'undefined' || !user) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          const notificationId = entry.target.getAttribute('data-notification-id');
+          const isRead = entry.target.getAttribute('data-is-read') === 'true';
+
+          if (!notificationId) return;
+
+          if (entry.isIntersecting && !isRead) {
+            // Start a timer to mark as read after 2 seconds of visibility
+            if (!visibilityTimers.current.has(notificationId)) {
+              const timer = setTimeout(() => {
+                markAsRead([notificationId]);
+                visibilityTimers.current.delete(notificationId);
+              }, 2000);
+              visibilityTimers.current.set(notificationId, timer);
+            }
+          } else {
+            // Clear timer if notification leaves viewport before 2 seconds
+            const timer = visibilityTimers.current.get(notificationId);
+            if (timer) {
+              clearTimeout(timer);
+              visibilityTimers.current.delete(notificationId);
+            }
+          }
+        });
+      },
+      {
+        threshold: 0.5, // At least 50% visible
+        rootMargin: '0px'
+      }
+    );
+
+    // Observe all notification elements
+    notificationRefs.current.forEach((element) => {
+      observer.observe(element);
+    });
+
+    return () => {
+      observer.disconnect();
+      // Clear all timers
+      visibilityTimers.current.forEach((timer) => clearTimeout(timer));
+      visibilityTimers.current.clear();
+    };
+  }, [notifications, user]); // Re-run when notifications change
 
   useEffect(() => {
     if (!authLoading && !user) {
@@ -73,7 +122,6 @@ export default function NotificationsPage() {
   useEffect(() => {
     if (user) {
       loadNotifications();
-      loadFollowRequests();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user, filter]);
@@ -109,17 +157,6 @@ export default function NotificationsPage() {
     }
   };
 
-  const loadFollowRequests = async () => {
-    try {
-      const response = await fetch('/api/followers?type=requests');
-      if (!response.ok) throw new Error('Failed to load follow requests');
-
-      const data = await response.json();
-      setFollowRequests(data.requests || []);
-    } catch (error) {
-      console.error('Error loading follow requests:', error);
-    }
-  };
 
   const markAsRead = async (notificationIds: string[]) => {
     try {
@@ -153,40 +190,41 @@ export default function NotificationsPage() {
     }
   };
 
-  const handleAcceptRequest = async (followId: string) => {
+  const handleNotificationAction = async (notificationId: string, action: 'accept' | 'decline') => {
     try {
-      const response = await fetch('/api/followers', {
+      setActioningNotificationId(notificationId);
+
+      const response = await fetch(`/api/notifications/${notificationId}/action`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'accept', followId })
+        body: JSON.stringify({ action })
       });
 
-      if (!response.ok) throw new Error('Failed to accept request');
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Failed to process action');
+      }
 
-      setFollowRequests(prev => prev.filter(r => r.id !== followId));
-      showSuccess('Success', 'Follow request accepted');
-      loadNotifications(); // Reload notifications to update counts
+      const data = await response.json();
+
+      // Update notification in local state
+      setNotifications(prev =>
+        prev.map(n => n.id === notificationId ? {
+          ...n,
+          action_status: data.action_status,
+          action_taken_at: new Date().toISOString()
+        } : n)
+      );
+
+      showSuccess(
+        'Success',
+        action === 'accept' ? 'Follow request accepted' : 'Follow request declined'
+      );
     } catch (error) {
-      console.error('Error accepting request:', error);
-      showError('Error', 'Failed to accept request');
-    }
-  };
-
-  const handleRejectRequest = async (followId: string) => {
-    try {
-      const response = await fetch('/api/followers', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'reject', followId })
-      });
-
-      if (!response.ok) throw new Error('Failed to reject request');
-
-      setFollowRequests(prev => prev.filter(r => r.id !== followId));
-      showSuccess('Success', 'Follow request declined');
-    } catch (error) {
-      console.error('Error rejecting request:', error);
-      showError('Error', 'Failed to decline request');
+      console.error('Error processing notification action:', error);
+      showError('Error', error instanceof Error ? error.message : 'Failed to process request');
+    } finally {
+      setActioningNotificationId(null);
     }
   };
 
@@ -195,15 +233,18 @@ export default function NotificationsPage() {
       markAsRead([notification.id]);
     }
 
-    if (notification.type === 'follow_request') {
-      // Don't navigate - handled in Follow Requests section above
+    // Don't navigate if it's a pending follow request (user should use action buttons)
+    if (notification.type === 'follow_request' && notification.action_status === 'pending') {
       return;
-    } else if (notification.type === 'like' || notification.type === 'comment') {
+    }
+
+    // Navigate based on notification type
+    if (notification.type === 'like' || notification.type === 'comment') {
       if (notification.related_post) {
         router.push(`/feed?post=${notification.related_post.id}`);
       }
-    } else if (notification.type === 'follow_accepted' && notification.actor) {
-      // Navigate to own profile if clicking own profile
+    } else if ((notification.type === 'follow_accepted' || notification.type === 'new_follower') && notification.actor) {
+      // Navigate to actor's profile
       if (user?.id === notification.actor.id) {
         router.push('/athlete');
       } else {
@@ -241,9 +282,16 @@ export default function NotificationsPage() {
 
     switch (notification.type) {
       case 'follow_request':
+        if (notification.action_status === 'accepted') {
+          return `You accepted ${actorName}'s follow request`;
+        } else if (notification.action_status === 'declined') {
+          return `You declined ${actorName}'s follow request`;
+        }
         return `${actorName} sent you a follow request`;
       case 'follow_accepted':
         return `${actorName} accepted your follow request`;
+      case 'new_follower':
+        return `${actorName} started following you`;
       case 'like':
         return `${actorName} liked your post`;
       case 'comment':
@@ -314,65 +362,6 @@ export default function NotificationsPage() {
         </div>
       </div>
 
-      {/* Follow Requests Section */}
-      {followRequests.length > 0 && (
-        <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 pt-6">
-          <h2 className="text-lg font-semibold text-gray-900 mb-4">Follow Requests</h2>
-          <div className="bg-white rounded-lg shadow-sm border border-gray-200 divide-y divide-gray-200">
-            {followRequests.map((request) => (
-              <div key={request.id} className="p-4 flex items-center justify-between gap-4">
-                {/* User Avatar & Name */}
-                <div className="flex items-center gap-3 flex-1 min-w-0">
-                  <LazyImage
-                    src={request.follower.avatar_url || ''}
-                    alt={formatDisplayName(
-                      request.follower.first_name,
-                      null,
-                      request.follower.last_name,
-                      request.follower.full_name
-                    )}
-                    width={48}
-                    height={48}
-                    className="rounded-full"
-                  />
-                  <div className="flex-1 min-w-0">
-                    <p className="font-semibold text-gray-900 truncate">
-                      {formatDisplayName(
-                        request.follower.first_name,
-                        null,
-                        request.follower.last_name,
-                        request.follower.full_name
-                      )}
-                    </p>
-                    {request.follower.handle && (
-                      <p className="text-sm text-gray-500">@{request.follower.handle}</p>
-                    )}
-                    <p className="text-xs text-gray-500 mt-1">
-                      {formatDistanceToNow(new Date(request.created_at), { addSuffix: true })}
-                    </p>
-                  </div>
-                </div>
-
-                {/* Accept/Decline Buttons */}
-                <div className="flex gap-2 flex-shrink-0">
-                  <button
-                    onClick={() => handleAcceptRequest(request.id)}
-                    className="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition-colors"
-                  >
-                    Accept
-                  </button>
-                  <button
-                    onClick={() => handleRejectRequest(request.id)}
-                    className="px-4 py-2 bg-gray-200 text-gray-700 text-sm font-medium rounded-lg hover:bg-gray-300 transition-colors"
-                  >
-                    Decline
-                  </button>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
 
       {/* Notifications List */}
       <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
@@ -394,14 +383,20 @@ export default function NotificationsPage() {
         ) : (
           <div className="space-y-2">
             {notifications.map(notification => (
-              <button
+              <div
                 key={notification.id}
-                onClick={() => handleNotificationClick(notification)}
-                className={`w-full bg-white rounded-lg border hover:shadow-md transition-all text-left ${
+                ref={(el) => setNotificationRef(notification.id, el)}
+                data-notification-id={notification.id}
+                data-is-read={notification.read}
+                className={`w-full bg-white rounded-lg border transition-all ${
                   !notification.read ? 'border-blue-200 bg-blue-50' : 'border-gray-200'
                 }`}
               >
-                <div className="p-4 flex gap-4">
+                <button
+                  onClick={() => handleNotificationClick(notification)}
+                  className="w-full p-4 flex gap-4 text-left hover:bg-gray-50 transition-colors"
+                  disabled={notification.type === 'follow_request' && notification.action_status === 'pending'}
+                >
                   {/* Actor Avatar or Icon */}
                   {notification.actor?.avatar_url ? (
                     <LazyImage
@@ -442,15 +437,55 @@ export default function NotificationsPage() {
                           New
                         </span>
                       )}
+                      {/* Status badges for completed actions */}
+                      {notification.action_status === 'accepted' && (
+                        <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-800">
+                          Accepted
+                        </span>
+                      )}
+                      {notification.action_status === 'declined' && (
+                        <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-600">
+                          Declined
+                        </span>
+                      )}
                     </div>
                   </div>
 
-                  {/* Chevron */}
-                  <div className="flex items-center">
-                    <i className="fas fa-chevron-right text-gray-400"></i>
+                  {/* Chevron (only for clickable notifications) */}
+                  {!(notification.type === 'follow_request' && notification.action_status === 'pending') && (
+                    <div className="flex items-center">
+                      <i className="fas fa-chevron-right text-gray-400"></i>
+                    </div>
+                  )}
+                </button>
+
+                {/* Inline action buttons for pending follow requests */}
+                {notification.type === 'follow_request' && notification.action_status === 'pending' && (
+                  <div className="px-4 pb-4 flex gap-2">
+                    <button
+                      onClick={() => handleNotificationAction(notification.id, 'accept')}
+                      disabled={actioningNotificationId === notification.id}
+                      className="flex-1 px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      {actioningNotificationId === notification.id ? (
+                        <>
+                          <i className="fas fa-spinner fa-spin mr-2"></i>
+                          Processing...
+                        </>
+                      ) : (
+                        'Accept'
+                      )}
+                    </button>
+                    <button
+                      onClick={() => handleNotificationAction(notification.id, 'decline')}
+                      disabled={actioningNotificationId === notification.id}
+                      className="flex-1 px-4 py-2 bg-gray-200 text-gray-700 text-sm font-medium rounded-lg hover:bg-gray-300 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      Decline
+                    </button>
                   </div>
-                </div>
-              </button>
+                )}
+              </div>
             ))}
           </div>
         )}
