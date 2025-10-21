@@ -46,10 +46,12 @@ export default function NotificationsPage() {
   const router = useRouter();
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [loading, setLoading] = useState(true);
-  const [filter, setFilter] = useState<'all' | 'unread'>('all');
+  const [filter, setFilter] = useState<'all' | 'unread'>('unread'); // Default to unread
   const [hasMore, setHasMore] = useState(true);
   const [page, setPage] = useState(0);
   const [actioningNotificationId, setActioningNotificationId] = useState<string | null>(null);
+  const [unreadCount, setUnreadCount] = useState(0);
+  const [totalCount, setTotalCount] = useState(0);
   const { toasts, dismissToast, showSuccess, showError } = useToast();
   const notificationRefs = useRef<Map<string, HTMLDivElement>>(new Map());
   const visibilityTimers = useRef<Map<string, NodeJS.Timeout>>(new Map());
@@ -149,6 +151,14 @@ export default function NotificationsPage() {
       }
 
       setHasMore(newNotifications.length === 20);
+
+      // Update counts from API response
+      setUnreadCount(data.unread_count || 0);
+
+      // Calculate total count (only when on 'all' tab, otherwise use notifications length)
+      if (filter === 'all') {
+        setTotalCount(newNotifications.length >= 20 ? newNotifications.length : newNotifications.length);
+      }
     } catch (error) {
       console.error('Error loading notifications:', error);
       showError('Error', 'Failed to load notifications');
@@ -174,6 +184,9 @@ export default function NotificationsPage() {
       setNotifications(prev =>
         prev.map(n => notificationIds.includes(n.id) ? { ...n, is_read: true, read_at: new Date().toISOString() } : n)
       );
+
+      // Decrease unread count
+      setUnreadCount(prev => Math.max(0, prev - notificationIds.length));
     } catch (error) {
       console.error('Error marking notifications as read:', error);
     }
@@ -186,6 +199,7 @@ export default function NotificationsPage() {
       });
 
       setNotifications(prev => prev.map(n => ({ ...n, is_read: true, read_at: new Date().toISOString() })));
+      setUnreadCount(0); // Reset unread count to 0
       showSuccess('Success', 'All notifications marked as read');
     } catch (error) {
       console.error('Error marking all as read:', error);
@@ -342,6 +356,16 @@ export default function NotificationsPage() {
           {/* Filter Tabs */}
           <div className="flex gap-4 mt-4">
             <button
+              onClick={() => setFilter('unread')}
+              className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+                filter === 'unread'
+                  ? 'border-blue-600 text-blue-600'
+                  : 'border-transparent text-gray-600 hover:text-gray-900'
+              }`}
+            >
+              Unread {unreadCount > 0 && <span className="ml-1 text-xs">({unreadCount})</span>}
+            </button>
+            <button
               onClick={() => setFilter('all')}
               className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
                 filter === 'all'
@@ -350,16 +374,6 @@ export default function NotificationsPage() {
               }`}
             >
               All
-            </button>
-            <button
-              onClick={() => setFilter('unread')}
-              className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
-                filter === 'unread'
-                  ? 'border-blue-600 text-blue-600'
-                  : 'border-transparent text-gray-600 hover:text-gray-900'
-              }`}
-            >
-              Unread
             </button>
           </div>
         </div>
@@ -375,13 +389,25 @@ export default function NotificationsPage() {
           </div>
         ) : notifications.length === 0 ? (
           <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-12 text-center">
-            <i className="fas fa-bell-slash text-6xl text-gray-300 mb-4"></i>
-            <h3 className="text-xl font-bold text-gray-900 mb-2">No notifications</h3>
+            <i className={`fas ${filter === 'unread' ? 'fa-check-circle' : 'fa-bell-slash'} text-6xl mb-4 ${
+              filter === 'unread' ? 'text-green-400' : 'text-gray-300'
+            }`}></i>
+            <h3 className="text-xl font-bold text-gray-900 mb-2">
+              {filter === 'unread' ? "You're all caught up! 🎉" : "No notifications"}
+            </h3>
             <p className="text-gray-600">
               {filter === 'unread'
-                ? "You're all caught up! No unread notifications."
+                ? "No unread notifications. Great job staying on top of things!"
                 : "You don't have any notifications yet."}
             </p>
+            {filter === 'unread' && unreadCount === 0 && (
+              <button
+                onClick={() => setFilter('all')}
+                className="mt-4 px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition-colors"
+              >
+                View all notifications
+              </button>
+            )}
           </div>
         ) : (
           <div className="space-y-2">
@@ -391,8 +417,10 @@ export default function NotificationsPage() {
                 ref={(el) => setNotificationRef(notification.id, el)}
                 data-notification-id={notification.id}
                 data-is-read={notification.is_read}
-                className={`w-full bg-white rounded-lg border transition-all ${
-                  !notification.is_read ? 'border-blue-200 bg-blue-50' : 'border-gray-200'
+                className={`w-full rounded-lg transition-all ${
+                  !notification.is_read
+                    ? 'border-2 border-blue-500 bg-blue-50 shadow-md'
+                    : 'border border-gray-200 bg-white opacity-80'
                 }`}
               >
                 <button
@@ -423,7 +451,11 @@ export default function NotificationsPage() {
 
                   {/* Content */}
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm text-gray-900 font-medium">
+                    <p className={`text-sm ${
+                      !notification.is_read
+                        ? 'text-gray-900 font-semibold'
+                        : 'text-gray-500 font-normal'
+                    }`}>
                       {getNotificationText(notification)}
                     </p>
                     {notification.related_follow?.message && (
