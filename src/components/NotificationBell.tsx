@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { useNotifications } from '@/lib/notifications';
 import { formatDisplayName, getInitials } from '@/lib/formatters';
@@ -11,6 +11,9 @@ export default function NotificationBell() {
   const { notifications, unreadCount, markAsRead, markAllAsRead } = useNotifications();
   const [showDropdown, setShowDropdown] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const [viewedNotifications, setViewedNotifications] = useState<Set<string>>(new Set());
+  const notificationRefs = useRef<Map<string, HTMLDivElement>>(new Map());
+  const visibilityTimers = useRef<Map<string, NodeJS.Timeout>>(new Map());
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -23,6 +26,65 @@ export default function NotificationBell() {
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
+
+  // Callback ref to track notification elements
+  const setNotificationRef = useCallback((notificationId: string, element: HTMLDivElement | null) => {
+    if (element) {
+      notificationRefs.current.set(notificationId, element);
+    } else {
+      notificationRefs.current.delete(notificationId);
+    }
+  }, []);
+
+  // Set up Intersection Observer to auto-mark notifications as "viewed" (local state only)
+  useEffect(() => {
+    if (!showDropdown || typeof window === 'undefined') return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          const notificationId = entry.target.getAttribute('data-notification-id');
+          const isRead = entry.target.getAttribute('data-is-read') === 'true';
+
+          if (!notificationId) return;
+
+          if (entry.isIntersecting && !isRead) {
+            // Start a 3-second timer to mark as "viewed" (local state only)
+            if (!visibilityTimers.current.has(notificationId)) {
+              const timer = setTimeout(() => {
+                setViewedNotifications(prev => new Set(prev).add(notificationId));
+                visibilityTimers.current.delete(notificationId);
+              }, 3000); // 3 seconds
+              visibilityTimers.current.set(notificationId, timer);
+            }
+          } else {
+            // Clear timer if notification leaves viewport before 3 seconds
+            const timer = visibilityTimers.current.get(notificationId);
+            if (timer) {
+              clearTimeout(timer);
+              visibilityTimers.current.delete(notificationId);
+            }
+          }
+        });
+      },
+      {
+        threshold: 0.5, // At least 50% visible
+        rootMargin: '0px'
+      }
+    );
+
+    // Observe all notification elements
+    notificationRefs.current.forEach((element) => {
+      observer.observe(element);
+    });
+
+    return () => {
+      observer.disconnect();
+      // Clear all timers when dropdown closes
+      visibilityTimers.current.forEach((timer) => clearTimeout(timer));
+      visibilityTimers.current.clear();
+    };
+  }, [showDropdown, notifications]); // Re-run when dropdown opens/closes or notifications change
 
   // Get recent notifications (max 5) - show all, not just unread
   const recentNotifications = notifications.slice(0, 5);
@@ -124,6 +186,9 @@ export default function NotificationBell() {
                 {recentNotifications.map((notification) => (
                   <div
                     key={`${notification.id}-${notification.is_read}`}
+                    ref={(el) => setNotificationRef(notification.id, el)}
+                    data-notification-id={notification.id}
+                    data-is-read={notification.is_read}
                     onClick={() => handleNotificationClick(notification)}
                     className="px-4 py-3 hover:bg-gray-50 cursor-pointer transition-colors"
                   >
@@ -162,8 +227,8 @@ export default function NotificationBell() {
                           }`}>
                             {notification.title}
                           </p>
-                          {/* Blue dot indicator for unread */}
-                          {!notification.is_read && (
+                          {/* Blue dot indicator for unread AND not viewed */}
+                          {!notification.is_read && !viewedNotifications.has(notification.id) && (
                             <div className="w-2 h-2 bg-blue-600 rounded-full mt-1 flex-shrink-0"></div>
                           )}
                         </div>

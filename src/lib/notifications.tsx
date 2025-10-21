@@ -36,6 +36,7 @@ interface NotificationsContextType {
   loading: boolean;
   error: string | null;
   hasMore: boolean;
+  connectionStatus: 'connected' | 'connecting' | 'disconnected';
   fetchNotifications: (options?: { unreadOnly?: boolean; type?: string; reset?: boolean }) => Promise<void>;
   markAsRead: (notificationId: string) => Promise<void>;
   markAllAsRead: () => Promise<void>;
@@ -54,6 +55,7 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
   const [error, setError] = useState<string | null>(null);
   const [hasMore, setHasMore] = useState(false);
   const [nextCursor, setNextCursor] = useState<string | null>(null);
+  const [connectionStatus, setConnectionStatus] = useState<'connected' | 'connecting' | 'disconnected'>('connecting');
 
   // Fetch unread count
   const refreshUnreadCount = useCallback(async () => {
@@ -128,10 +130,21 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
     }
   }, [user, nextCursor]);
 
-  // Mark notification as read
+  // Mark notification as read (with optimistic update)
   const markAsRead = useCallback(async (notificationId: string) => {
     if (!user) return;
 
+    // Check if already read
+    const notification = notifications.find(n => n.id === notificationId);
+    if (!notification || notification.is_read) return;
+
+    // OPTIMISTIC UPDATE: Update UI immediately
+    setNotifications(prev =>
+      prev.map(n => n.id === notificationId ? { ...n, is_read: true, read_at: new Date().toISOString() } : n)
+    );
+    setUnreadCount(prev => Math.max(0, prev - 1));
+
+    // Then sync with server in background
     try {
       const response = await fetch(`/api/notifications/${notificationId}`, {
         method: 'PATCH',
@@ -146,26 +159,38 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
 
       if (!response.ok) {
         console.warn('[NOTIFICATIONS] Failed to mark as read:', response.status);
-        return;
+        // Rollback optimistic update on error
+        setNotifications(prev =>
+          prev.map(n => n.id === notificationId ? { ...n, is_read: false, read_at: undefined } : n)
+        );
+        setUnreadCount(prev => prev + 1);
       }
-
-      // Update local state
-      setNotifications(prev =>
-        prev.map(n => n.id === notificationId ? { ...n, is_read: true, read_at: new Date().toISOString() } : n)
-      );
-
-      // Decrease unread count
-      setUnreadCount(prev => Math.max(0, prev - 1));
 
     } catch (err) {
       console.warn('[NOTIFICATIONS] Unexpected error marking as read:', err);
+      // Rollback optimistic update on error
+      setNotifications(prev =>
+        prev.map(n => n.id === notificationId ? { ...n, is_read: false, read_at: undefined } : n)
+      );
+      setUnreadCount(prev => prev + 1);
     }
-  }, [user]);
+  }, [user, notifications]);
 
-  // Mark all notifications as read
+  // Mark all notifications as read (with optimistic update)
   const markAllAsRead = useCallback(async () => {
     if (!user) return;
 
+    // Save previous state for rollback
+    const previousNotifications = [...notifications];
+    const previousUnreadCount = unreadCount;
+
+    // OPTIMISTIC UPDATE: Update UI immediately
+    setNotifications(prev =>
+      prev.map(n => ({ ...n, is_read: true, read_at: new Date().toISOString() }))
+    );
+    setUnreadCount(0);
+
+    // Then sync with server in background
     try {
       const response = await fetch('/api/notifications/mark-all-read', {
         method: 'PATCH'
@@ -178,20 +203,18 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
 
       if (!response.ok) {
         console.warn('[NOTIFICATIONS] Failed to mark all as read:', response.status);
-        return;
+        // Rollback optimistic update on error
+        setNotifications(previousNotifications);
+        setUnreadCount(previousUnreadCount);
       }
-
-      // Update local state
-      setNotifications(prev =>
-        prev.map(n => ({ ...n, is_read: true, read_at: new Date().toISOString() }))
-      );
-
-      setUnreadCount(0);
 
     } catch (err) {
       console.warn('[NOTIFICATIONS] Unexpected error marking all as read:', err);
+      // Rollback optimistic update on error
+      setNotifications(previousNotifications);
+      setUnreadCount(previousUnreadCount);
     }
-  }, [user]);
+  }, [user, notifications, unreadCount]);
 
   // Delete notification
   const deleteNotification = useCallback(async (notificationId: string) => {
@@ -258,19 +281,9 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
   // Initial fetch on mount and cleanup on logout
   useEffect(() => {
     if (user) {
-      // PERFORMANCE FIX: Defer notification loading to avoid blocking page render
-      // Use requestIdleCallback for better performance (or setTimeout as fallback)
-      const idleCallback = window.requestIdleCallback || ((cb) => setTimeout(cb, 1));
-
-      idleCallback(() => {
-        // Only fetch unread count initially (lightweight query)
-        refreshUnreadCount();
-
-        // Defer full notifications list even further (not critical for initial render)
-        setTimeout(() => {
-          fetchNotifications({ reset: true });
-        }, 500);
-      });
+      // PERFORMANCE OPTIMIZED: Load immediately - no artificial delays!
+      refreshUnreadCount();
+      fetchNotifications({ reset: true });
     } else {
       // Clear notifications when user logs out
       setNotifications([]);
@@ -278,6 +291,7 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
       setHasMore(false);
       setNextCursor(null);
       setError(null);
+      setConnectionStatus('connecting');
     }
   }, [user]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -285,6 +299,7 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (!user) return;
 
+    setConnectionStatus('connecting');
 
     const channel = supabase
       .channel('notifications')
@@ -323,11 +338,31 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
       }, (payload: RealtimePostgresChangesPayload<Notification>) => {
 
         // Update the notification in the list
-        setNotifications(prev =>
-          prev.map(n => n.id === payload.new.id ? payload.new as Notification : n)
-        );
+        const updatedNotification = payload.new as Notification;
+        if (updatedNotification?.id) {
+          setNotifications(prev =>
+            prev.map(n => n.id === updatedNotification.id ? updatedNotification : n)
+          );
+        }
       })
-      .subscribe();
+      .subscribe((status: string) => {
+        // Track connection status
+        if (status === 'SUBSCRIBED') {
+          setConnectionStatus('connected');
+          console.log('[NOTIFICATIONS] Real-time connected');
+        } else if (status === 'CHANNEL_ERROR') {
+          setConnectionStatus('disconnected');
+          console.warn('[NOTIFICATIONS] Real-time disconnected, retrying...');
+          // Auto-reconnect after 3 seconds
+          setTimeout(() => {
+            console.log('[NOTIFICATIONS] Attempting to reconnect...');
+            channel.subscribe();
+          }, 3000);
+        } else if (status === 'TIMED_OUT') {
+          setConnectionStatus('disconnected');
+          console.warn('[NOTIFICATIONS] Real-time connection timed out');
+        }
+      });
 
     // Request notification permission
     if (typeof window !== 'undefined' && Notification.permission === 'default') {
@@ -336,6 +371,7 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
 
     return () => {
       channel.unsubscribe();
+      setConnectionStatus('connecting');
     };
   }, [user]);
 
@@ -347,6 +383,7 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
         loading,
         error,
         hasMore,
+        connectionStatus,
         fetchNotifications,
         markAsRead,
         markAllAsRead,

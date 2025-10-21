@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from 'react';
 import Image from 'next/image';
 import { Comment } from '@/lib/supabase';
 import { useAuth } from '@/lib/auth';
+import { formatDisplayName, getInitials } from '@/lib/formatters';
 
 interface CommentSectionProps {
   postId: string;
@@ -238,14 +239,24 @@ export default function CommentSection({ postId, initialCommentsCount = 0, onCom
                     {comment.profile?.avatar_url ? (
                       <Image
                         src={comment.profile.avatar_url}
-                        alt={comment.profile.full_name || 'User'}
+                        alt={formatDisplayName(
+                          comment.profile.first_name,
+                          null,
+                          comment.profile.last_name,
+                          comment.profile.full_name
+                        )}
                         width={32}
                         height={32}
                         className="rounded-full object-cover"
                       />
                     ) : (
                       <div className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white text-xs font-semibold">
-                        {(comment.profile?.full_name || 'U')[0].toUpperCase()}
+                        {getInitials(formatDisplayName(
+                          comment.profile?.first_name,
+                          null,
+                          comment.profile?.last_name,
+                          comment.profile?.full_name
+                        ))}
                       </div>
                     )}
                   </div>
@@ -255,7 +266,12 @@ export default function CommentSection({ postId, initialCommentsCount = 0, onCom
                     <div className="bg-gray-50 rounded-lg px-3 py-2">
                       <div className="flex items-center justify-between mb-1">
                         <span className="font-semibold text-sm text-gray-900">
-                          {comment.profile?.full_name || comment.profile?.username || 'Unknown User'}
+                          {formatDisplayName(
+                            comment.profile?.first_name,
+                            null,
+                            comment.profile?.last_name,
+                            comment.profile?.full_name
+                          )}
                         </span>
                         {user?.id === comment.profile_id && (
                           <button

@@ -70,35 +70,37 @@ function Toast({ toast, onDismiss }: ToastProps) {
   return (
     <div
       className={`
-        max-w-sm w-full bg-white border rounded-lg shadow-lg pointer-events-auto 
+        max-w-5xl w-full bg-white border-2 rounded-lg shadow-lg pointer-events-auto
         transform transition-all duration-300 ease-in-out ${getBgColor()}
         ${isVisible && !isExiting ? 'translate-x-0 opacity-100' : 'translate-x-full opacity-0'}
       `}
       role="alert"
       aria-live="polite"
     >
-      <div className="p-4">
+      <div className="p-10">
         <div className="flex items-start">
           <div className="flex-shrink-0">
-            {getIcon()}
+            <div className="text-3xl">
+              {getIcon()}
+            </div>
           </div>
-          <div className="ml-3 w-0 flex-1 pt-0.5">
-            <p className="text-sm font-medium text-gray-900">
+          <div className="ml-6 w-0 flex-1 pt-1">
+            <p className="text-lg font-semibold text-gray-900">
               {toast.title}
             </p>
             {toast.message && (
-              <p className="mt-1 text-sm text-gray-500">
+              <p className="mt-2 text-base text-gray-600">
                 {toast.message}
               </p>
             )}
           </div>
-          <div className="ml-4 flex-shrink-0 flex">
+          <div className="ml-6 flex-shrink-0 flex">
             <button
               className="bg-white rounded-md inline-flex text-gray-400 hover:text-gray-500 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
               onClick={handleDismiss}
               aria-label="Dismiss notification"
             >
-              <i className="fas fa-times text-sm" aria-hidden="true" />
+              <i className="fas fa-times text-lg" aria-hidden="true" />
             </button>
           </div>
         </div>
@@ -115,7 +117,7 @@ interface ToastContainerProps {
 export function ToastContainer({ toasts, onDismiss }: ToastContainerProps) {
   return (
     <div
-      className="fixed top-0 right-0 z-50 p-6 space-y-4 pointer-events-none"
+      className="fixed top-0 left-1/2 -translate-x-1/2 z-50 p-6 space-y-4 pointer-events-none"
       aria-live="polite"
       aria-label="Notifications"
     >

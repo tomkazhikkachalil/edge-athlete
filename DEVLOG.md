@@ -1,5 +1,59 @@
 # Development Log
 
+## 2025-10-21 - Follow Request to Private Accounts Fix
+
+### Latest Changes
+
+#### 1. Follow Request Trigger Fix for Private Accounts
+**Feature**: Fixed critical bug preventing follow requests from being sent to private accounts.
+
+**Problem**:
+- Users could successfully follow public accounts
+- Users could NOT send follow requests to private accounts
+- Database trigger `notify_follow_request` was failing silently
+- Root cause: Missing schema qualification in `create_notification()` function call when `SET search_path = ''` was applied for security
+
+**Solution**:
+- **Database Migration** (`fix-follow-request-private-accounts.sql`):
+  - Fixed `notify_follow_request()` trigger function
+  - Fixed `notify_follow_accepted()` trigger function
+  - Fixed `notify_new_follower()` trigger function
+  - Added `public.` prefix to all `create_notification()` calls
+  - Added schema-qualified table references (`public.profiles`, `public.notifications`)
+  - All functions now properly use `SET search_path = ''` for SQL injection prevention
+
+**Code Pattern Fixed**:
+```sql
+-- BEFORE (failing for private accounts)
+PERFORM create_notification(...)
+
+-- AFTER (working for all accounts)
+PERFORM public.create_notification(...)
+```
+
+**Impact**:
+- ✅ Follow requests to private accounts now work correctly
+- ✅ Notifications are created properly for follow requests
+- ✅ Follow requests to public accounts continue working
+- ✅ All follow-related triggers secured with proper search_path
+- ✅ No breaking changes to existing functionality
+
+**Database Migration File**:
+- `database/fixes/fix-follow-request-private-accounts.sql`
+
+**Testing**:
+- Verified follow requests to private accounts create pending status
+- Verified notifications are generated correctly
+- Verified public account follows continue working as before
+
+### Build Status
+✅ ESLint: Passing (warnings only, no errors)
+✅ Production Build: Successful (compiled in 25.0s)
+✅ TypeScript: No errors
+✅ All migrations: Successfully applied
+
+---
+
 ## 2025-10-17 - Database Performance Perfect Score Achievement
 
 ### Latest Changes

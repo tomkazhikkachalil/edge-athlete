@@ -816,6 +816,56 @@ All database tests passing:
 - No duplicate function errors
 - RLS policies optimized for performance
 
+#### 7. **Follow Request to Private Accounts Fix** ✅
+**Issue:** Users could follow public accounts successfully but could NOT send follow requests to private accounts
+
+**Root Cause:**
+- Database trigger `notify_follow_request` was failing silently for private account follow requests
+- The `create_notification()` function call was not schema-qualified
+- When `SET search_path = ''` was applied for SQL injection prevention, unqualified function calls stopped working
+- Public accounts worked because they use the `notify_new_follower` trigger (already fixed with schema qualification)
+- Private accounts use `notify_follow_request` trigger (missing schema qualification)
+
+**Solution:**
+- Updated `/database/fixes/fix-follow-request-private-accounts.sql`
+- Fixed `notify_follow_request()` function to use `public.create_notification()`
+- Fixed `notify_follow_accepted()` function with schema qualification
+- Fixed `notify_new_follower()` function with schema qualification
+- All three follow triggers now properly secured with `SET search_path = ''`
+
+**Code Pattern Fixed:**
+```sql
+-- BEFORE (failing for private accounts)
+PERFORM create_notification(
+  p_user_id := NEW.following_id,
+  p_type := 'follow_request',
+  ...
+);
+
+-- AFTER (working for all accounts)
+PERFORM public.create_notification(
+  p_user_id := NEW.following_id,
+  p_type := 'follow_request',
+  ...
+);
+```
+
+**Impact:**
+- ✅ Follow requests to private accounts now work correctly
+- ✅ Notifications are created properly for all follow types
+- ✅ Follow requests to public accounts continue working
+- ✅ All follow-related triggers secured with proper search_path
+- ✅ No breaking changes to existing functionality
+
+**Key Files:**
+- `database/fixes/fix-follow-request-private-accounts.sql` - Complete fix for all follow triggers
+
+**Testing:**
+- Follow request to private account creates `status='pending'` in follows table
+- Notification created for profile owner with type `'follow_request'`
+- Follow button shows "Requested" state with clock icon
+- Public account follows continue working with immediate acceptance
+
 ### Database Performance Optimizations (January 2025)
 
 **Achievement:** Database optimized for billion-user scale with perfect Performance Advisor score.

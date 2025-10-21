@@ -50,8 +50,12 @@ export async function GET(request: NextRequest) {
         *,
         profile:profiles(
           id,
+          first_name,
+          middle_name,
+          last_name,
           full_name,
           username,
+          handle,
           avatar_url
         ),
         comment_likes(profile_id)
@@ -129,8 +133,12 @@ export async function POST(request: NextRequest) {
         *,
         profile:profiles(
           id,
+          first_name,
+          middle_name,
+          last_name,
           full_name,
           username,
+          handle,
           avatar_url
         )
       `)

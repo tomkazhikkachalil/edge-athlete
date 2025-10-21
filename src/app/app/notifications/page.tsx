@@ -7,6 +7,8 @@ import { formatDistanceToNow } from 'date-fns';
 import { formatDisplayName, getInitials } from '@/lib/formatters';
 import LazyImage from '@/components/LazyImage';
 import { ToastContainer, useToast } from '@/components/Toast';
+import { useNotifications } from '@/lib/notifications';
+import AppHeader from '@/components/AppHeader';
 
 interface Notification {
   id: string;
@@ -53,6 +55,7 @@ export default function NotificationsPage() {
   const [unreadCount, setUnreadCount] = useState(0);
   const [totalCount, setTotalCount] = useState(0);
   const { toasts, dismissToast, showSuccess, showError } = useToast();
+  const { connectionStatus } = useNotifications(); // Get WebSocket connection status
   const notificationRefs = useRef<Map<string, HTMLDivElement>>(new Map());
   const visibilityTimers = useRef<Map<string, NodeJS.Timeout>>(new Map());
 
@@ -328,20 +331,37 @@ export default function NotificationsPage() {
 
   return (
     <div className="min-h-screen bg-gray-50">
+      {/* Unified Header */}
+      <AppHeader showSearch={false} />
+
       <ToastContainer toasts={toasts} onDismiss={dismissToast} />
 
-      {/* Header */}
-      <div className="bg-white border-b border-gray-200 sticky top-0 z-10">
+      {/* Page Header */}
+      <div className="bg-white border-b border-gray-200">
         <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-          <div className="flex items-center justify-between">
+          <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-4">
-              <button
-                onClick={() => router.back()}
-                className="text-gray-600 hover:text-gray-900"
-              >
-                <i className="fas fa-arrow-left text-xl"></i>
-              </button>
               <h1 className="text-2xl font-bold text-gray-900">Notifications</h1>
+
+              {/* Real-time Connection Status Indicator */}
+              <div className="flex items-center gap-2">
+                {connectionStatus === 'connected' ? (
+                  <div className="flex items-center gap-1.5" title="Real-time updates active">
+                    <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+                    <span className="text-xs text-gray-500">Live</span>
+                  </div>
+                ) : connectionStatus === 'connecting' ? (
+                  <div className="flex items-center gap-1.5" title="Connecting to real-time updates">
+                    <i className="fas fa-spinner fa-spin text-xs text-gray-400"></i>
+                    <span className="text-xs text-gray-500">Connecting...</span>
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-1.5" title="Reconnecting to real-time updates">
+                    <div className="w-2 h-2 bg-yellow-500 rounded-full"></div>
+                    <span className="text-xs text-gray-500">Reconnecting...</span>
+                  </div>
+                )}
+              </div>
             </div>
             {notifications.some(n => !n.is_read) && (
               <button
