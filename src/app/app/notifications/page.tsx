@@ -12,7 +12,7 @@ interface Notification {
   id: string;
   type: 'follow_request' | 'follow_accepted' | 'like' | 'comment' | 'mention' | 'system' | 'new_follower';
   message?: string;
-  read: boolean;
+  is_read: boolean;
   read_at?: string;
   created_at: string;
   action_status?: 'pending' | 'accepted' | 'declined';
@@ -160,14 +160,19 @@ export default function NotificationsPage() {
 
   const markAsRead = async (notificationIds: string[]) => {
     try {
-      await fetch('/api/notifications', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ notificationIds })
-      });
+      // Mark individual notifications using correct endpoint
+      await Promise.all(
+        notificationIds.map(id =>
+          fetch(`/api/notifications/${id}`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ is_read: true })
+          })
+        )
+      );
 
       setNotifications(prev =>
-        prev.map(n => notificationIds.includes(n.id) ? { ...n, read: true } : n)
+        prev.map(n => notificationIds.includes(n.id) ? { ...n, is_read: true, read_at: new Date().toISOString() } : n)
       );
     } catch (error) {
       console.error('Error marking notifications as read:', error);
@@ -176,13 +181,11 @@ export default function NotificationsPage() {
 
   const markAllAsRead = async () => {
     try {
-      await fetch('/api/notifications', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ markAllAsRead: true })
+      await fetch('/api/notifications/mark-all-read', {
+        method: 'PATCH'
       });
 
-      setNotifications(prev => prev.map(n => ({ ...n, read: true })));
+      setNotifications(prev => prev.map(n => ({ ...n, is_read: true, read_at: new Date().toISOString() })));
       showSuccess('Success', 'All notifications marked as read');
     } catch (error) {
       console.error('Error marking all as read:', error);
@@ -229,7 +232,7 @@ export default function NotificationsPage() {
   };
 
   const handleNotificationClick = (notification: Notification) => {
-    if (!notification.read) {
+    if (!notification.is_read) {
       markAsRead([notification.id]);
     }
 
@@ -326,7 +329,7 @@ export default function NotificationsPage() {
               </button>
               <h1 className="text-2xl font-bold text-gray-900">Notifications</h1>
             </div>
-            {notifications.some(n => !n.read) && (
+            {notifications.some(n => !n.is_read) && (
               <button
                 onClick={markAllAsRead}
                 className="text-sm text-blue-600 hover:text-blue-700 font-medium"
@@ -387,9 +390,9 @@ export default function NotificationsPage() {
                 key={notification.id}
                 ref={(el) => setNotificationRef(notification.id, el)}
                 data-notification-id={notification.id}
-                data-is-read={notification.read}
+                data-is-read={notification.is_read}
                 className={`w-full bg-white rounded-lg border transition-all ${
-                  !notification.read ? 'border-blue-200 bg-blue-50' : 'border-gray-200'
+                  !notification.is_read ? 'border-blue-200 bg-blue-50' : 'border-gray-200'
                 }`}
               >
                 <button
@@ -432,7 +435,7 @@ export default function NotificationsPage() {
                       <p className="text-xs text-gray-500">
                         {formatDistanceToNow(new Date(notification.created_at), { addSuffix: true })}
                       </p>
-                      {!notification.read && (
+                      {!notification.is_read && (
                         <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800">
                           New
                         </span>
