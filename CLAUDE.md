@@ -48,6 +48,30 @@ npm run start        # Start production server
 npm run lint         # Run ESLint
 ```
 
+### Production Deployment (Vercel)
+
+**Status:** ✅ Deployed to Vercel
+
+**GitHub Repository:** `https://github.com/tomkazhikkachalil/edge-athlete`
+
+**Deployment Steps:**
+1. Push to `main` branch triggers automatic deployment
+2. Ensure environment variables are configured in Vercel:
+   - `NEXT_PUBLIC_SUPABASE_URL`
+   - `NEXT_PUBLIC_SUPABASE_ANON_KEY`
+   - `SUPABASE_SERVICE_ROLE_KEY` (mark as Sensitive)
+
+**Supabase Configuration:**
+- **CRITICAL:** Add your Vercel deployment URL to Supabase
+- Go to: Authentication → URL Configuration
+- **Site URL:** `https://your-app.vercel.app`
+- **Redirect URLs:** `https://your-app.vercel.app/**`
+- Also keep `http://localhost:3000/**` for local development
+
+**Known Issues:**
+- Connection suggestions feature has SQL ambiguous column error (non-critical, affects "People you may know" sidebar only)
+- Some debug console.log statements remain in FollowButton.tsx and ProfileMediaTabs.tsx (for future cleanup)
+
 ---
 
 ## 📁 Architecture Overview
