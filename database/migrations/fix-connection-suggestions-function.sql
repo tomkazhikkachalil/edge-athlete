@@ -3,6 +3,10 @@
 -- Resolves ambiguous column error and aligns return format with API expectations
 -- ============================================================================
 
+-- Drop the existing function first (required when changing return type)
+DROP FUNCTION IF EXISTS public.generate_connection_suggestions(UUID, INTEGER);
+
+-- Create the corrected function with updated return columns
 CREATE OR REPLACE FUNCTION public.generate_connection_suggestions(
   user_profile_id UUID,
   suggestion_limit INTEGER DEFAULT 10
