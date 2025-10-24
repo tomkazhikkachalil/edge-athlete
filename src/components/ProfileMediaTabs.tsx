@@ -127,15 +127,6 @@ export default function ProfileMediaTabs({ profileId, currentUserId, isOwnProfil
         offset: currentOffset.toString()
       });
 
-      console.log('[ProfileMediaTabs] Fetching media:', {
-        profileId,
-        tab: activeTab,
-        sort,
-        mediaFilter,
-        offset: currentOffset,
-        resetItems
-      });
-
       const response = await fetch(`/api/profile/${profileId}/media?${params}`);
 
       if (!response.ok) {
@@ -145,12 +136,6 @@ export default function ProfileMediaTabs({ profileId, currentUserId, isOwnProfil
       }
 
       const data = await response.json();
-
-      console.log('[ProfileMediaTabs] Received data:', {
-        itemsCount: data.items?.length || 0,
-        hasMore: data.hasMore,
-        nextOffset: data.nextOffset
-      });
 
       if (resetItems) {
         setItems(data.items || []);
@@ -185,7 +170,6 @@ export default function ProfileMediaTabs({ profileId, currentUserId, isOwnProfil
 
   // Load media when tab/filter/sort/profileId changes
   useEffect(() => {
-    console.log('[ProfileMediaTabs] useEffect triggered - fetching media');
     fetchMedia(true);
   }, [activeTab, sort, mediaFilter, profileId, fetchMedia]);
 

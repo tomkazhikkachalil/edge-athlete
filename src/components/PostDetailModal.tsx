@@ -68,11 +68,9 @@ export default function PostDetailModal({
   // Fetch post data
   const fetchPost = useCallback(async () => {
     if (!postId) {
-      console.log('[PostDetailModal] No postId, skipping fetch');
       return;
     }
 
-    console.log('[PostDetailModal] Fetching post:', postId);
     setLoading(true);
     setError(null);
 
@@ -91,9 +89,6 @@ export default function PostDetailModal({
         throw new Error('Post not found');
       }
 
-      // Debug: Log raw data
-      console.log('[PostDetailModal] Raw data received from API:', data);
-
       // Fetch saved_posts status for current user
       const supabase = createSupabaseBrowserClient();
       const { data: savedPosts } = await supabase
@@ -110,11 +105,6 @@ export default function PostDetailModal({
         saved_posts: savedPosts || []
       };
 
-      console.log('[PostDetailModal] Transformed data for PostCard:', transformedPost);
-      console.log('[PostDetailModal] Has profile?', !!transformedPost.profile);
-      console.log('[PostDetailModal] Has media?', transformedPost.media?.length);
-      console.log('[PostDetailModal] Has golf_round?', !!transformedPost.golf_round);
-
       setPost(transformedPost);
     } catch (err: unknown) {
       console.error('Error fetching post:', err);
@@ -127,11 +117,9 @@ export default function PostDetailModal({
   // Fetch post when modal opens or postId changes
   useEffect(() => {
     if (isOpen && postId) {
-      console.log('[PostDetailModal] Modal opened, fetching post...');
       fetchPost();
     } else if (!isOpen) {
       // Reset state when modal closes
-      console.log('[PostDetailModal] Modal closed, resetting state');
       setPost(null);
       setLoading(false);
       setError(null);

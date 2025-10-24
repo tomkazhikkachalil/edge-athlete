@@ -81,33 +81,26 @@ export default function FollowButton({
   }, [profileId, currentUserId, loadFollowStats]);
 
   const handleFollowClick = () => {
-    console.log('[FOLLOW BUTTON] Button clicked!', { currentUserId, profileId, isFollowing, followStatus });
-
     if (!currentUserId) {
-      console.log('[FOLLOW BUTTON] No currentUserId, showing error');
       showError('Authentication Required', 'Please log in to follow athletes');
       return;
     }
 
     if (profileId === currentUserId) {
-      console.log('[FOLLOW BUTTON] Cannot follow self');
       showError('Error', 'You cannot follow yourself');
       return;
     }
 
     // If already following or pending, unfollow/cancel directly
     if (isFollowing) {
-      console.log('[FOLLOW BUTTON] Already following/pending, unfollowing/canceling');
       handleFollow();
     } else {
       // Show message modal for new follow requests
-      console.log('[FOLLOW BUTTON] Showing message modal');
       setShowMessageModal(true);
     }
   };
 
   const handleFollow = async () => {
-    console.log('[FOLLOW BUTTON] Starting follow action', { currentUserId, profileId, followMessage });
     setLoading(true);
     setShowMessageModal(false);
 
@@ -122,8 +115,6 @@ export default function FollowButton({
         })
       });
 
-      console.log('[FOLLOW BUTTON] API response status:', response.status);
-
       if (!response.ok) {
         const errorData = await response.json();
         console.error('[FOLLOW BUTTON] API error:', errorData);
@@ -131,7 +122,6 @@ export default function FollowButton({
       }
 
       const data = await response.json();
-      console.log('[FOLLOW BUTTON] API response data:', data);
 
       const newFollowingStatus = data.action === 'followed';
       const newFollowersCount = newFollowingStatus ? followersCount + 1 : followersCount - 1;
