@@ -71,8 +71,7 @@ export default function HandleSelector({
             setShowSuggestions(true);
           }
         }
-      } catch (error) {
-        console.error('Error checking handle:', error);
+      } catch {
         setValidationMessage('Error checking availability');
         setIsValid(false);
       } finally {

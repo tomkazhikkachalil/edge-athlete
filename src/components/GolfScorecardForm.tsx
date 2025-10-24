@@ -120,8 +120,7 @@ export default function GolfScorecardForm({ onDataChange }: GolfScorecardFormPro
         const data = await response.json();
         setAvailableCourses(data.courses || []);
       }
-    } catch (error) {
-      console.error('Course search error:', error);
+    } catch {
       setAvailableCourses([]);
     } finally {
       setSearchLoading(false);

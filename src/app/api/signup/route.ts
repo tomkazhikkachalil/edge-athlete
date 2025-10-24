@@ -6,8 +6,6 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const { email, password, profileData } = body;
 
-    console.log('[SIGNUP] Starting signup process for email:', email);
-    console.log('[SIGNUP] Profile data received:', JSON.stringify(profileData, null, 2));
 
     if (!email || !password) {
       return NextResponse.json(
@@ -65,17 +63,12 @@ export async function POST(request: NextRequest) {
 
 
     // Proceed with Supabase Auth signup
-    console.log('[SIGNUP] Creating auth user...');
     const { data, error } = await supabase.auth.signUp({
       email,
       password,
     });
 
-    console.log('[SIGNUP] Auth signup result:', {
-      success: !!data.user,
-      userId: data.user?.id,
-      hasError: !!error
-    });
+    
 
     if (error) {
       console.error('[SIGNUP] Supabase auth signup error:', error);
@@ -113,9 +106,7 @@ export async function POST(request: NextRequest) {
 
     // Create/update the profile with additional data (using admin client to bypass RLS if available)
     if (data.user) {
-      console.log('[SIGNUP] Creating profile for user:', data.user.id);
       const client = supabaseAdmin || supabase;
-      console.log('[SIGNUP] Using client:', supabaseAdmin ? 'admin' : 'regular');
 
       if (!client) {
         console.error('[SIGNUP] No Supabase client available!');
@@ -148,11 +139,9 @@ export async function POST(request: NextRequest) {
         handle: profileData.handle ? profileData.handle.toLowerCase().trim() : null,
       };
 
-      console.log('[SIGNUP] Profile data to INSERT:', JSON.stringify(profileData_toInsert, null, 2));
 
       // Directly INSERT the profile (don't wait for trigger)
       // Use upsert to handle race conditions with trigger
-      console.log('[SIGNUP] Inserting profile directly');
       const { error: profileError } = await client
         .from('profiles')
         .upsert(profileData_toInsert, {
@@ -194,13 +183,11 @@ export async function POST(request: NextRequest) {
           { status: 500 }
         );
       } else {
-        console.log('[SIGNUP] Profile updated successfully');
       }
     } else {
       console.warn('[SIGNUP] No user data returned from auth signup');
     }
 
-    console.log('[SIGNUP] Signup completed successfully for:', email);
     return NextResponse.json(
       { message: 'Account created successfully', user: data.user },
       { status: 201 }

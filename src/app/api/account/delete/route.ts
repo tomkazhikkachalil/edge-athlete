@@ -105,8 +105,6 @@ export async function DELETE(request: NextRequest) {
       }
     }
 
-    console.log(`[Account Deletion] Starting deletion for user ${userId}`);
-    console.log(`[Account Deletion] Found ${storagePaths.length} storage buckets to clean`);
 
     // 6. Delete data in correct order (using admin client to bypass RLS)
     // Order matters to avoid foreign key constraint violations
@@ -163,7 +161,6 @@ export async function DELETE(request: NextRequest) {
         throw new Error(`Failed to delete profile: ${profileError.message}`);
       }
 
-      console.log('[Account Deletion] Database records deleted successfully');
 
     } catch (dbError) {
       console.error('[Account Deletion] Database deletion error:', dbError);
@@ -187,7 +184,6 @@ export async function DELETE(request: NextRequest) {
           console.error(`[Account Deletion] Storage deletion error (${bucket}):`, error);
           storageErrors.push(`${bucket}: ${error.message}`);
         } else {
-          console.log(`[Account Deletion] Deleted ${paths.length} files from ${bucket}`);
         }
       } catch (storageError) {
         console.error(`[Account Deletion] Storage error (${bucket}):`, storageError);
@@ -205,7 +201,6 @@ export async function DELETE(request: NextRequest) {
         // The profile is already deleted, which is the main goal
         storageErrors.push(`Auth: ${authDeleteError.message}`);
       } else {
-        console.log('[Account Deletion] Auth user deleted successfully');
       }
     } catch (authError) {
       console.error('[Account Deletion] Auth deletion error:', authError);
@@ -215,7 +210,6 @@ export async function DELETE(request: NextRequest) {
     // 9. Sign out the user
     await supabase.auth.signOut();
 
-    console.log(`[Account Deletion] Completed for user ${userId}`);
 
     if (storageErrors.length > 0) {
       console.warn('[Account Deletion] Storage cleanup warnings:', storageErrors);

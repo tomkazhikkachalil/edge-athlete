@@ -112,8 +112,7 @@ export default function AthleteProfilePage() {
         await loadFollowStats();
       }
 
-    } catch (err) {
-      console.error('Error loading athlete profile:', err);
+    } catch {
       setError('Failed to load athlete profile');
     } finally {
       setLoading(false);
@@ -133,9 +132,8 @@ export default function AthleteProfilePage() {
         const data = await response.json();
         setFollowStats(data);
       }
-    } catch (err) {
+    } catch {
       // Silently handle errors for follow stats
-      console.error('Error loading follow stats:', err);
     }
   };
 

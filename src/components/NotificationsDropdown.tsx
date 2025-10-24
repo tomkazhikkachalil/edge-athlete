@@ -75,8 +75,7 @@ export default function NotificationsDropdown() {
         setNotifications(data.notifications || []);
         setUnreadCount(data.unreadCount || 0);
       }
-    } catch (error) {
-      console.error('Error loading notifications:', error);
+    } catch {
     }
   };
 
@@ -92,8 +91,7 @@ export default function NotificationsDropdown() {
         prev.map(n => notificationIds.includes(n.id) ? { ...n, read: true } : n)
       );
       setUnreadCount(prev => Math.max(0, prev - notificationIds.length));
-    } catch (error) {
-      console.error('Error marking notifications as read:', error);
+    } catch {
     }
   };
 
@@ -107,8 +105,7 @@ export default function NotificationsDropdown() {
 
       setNotifications(prev => prev.map(n => ({ ...n, read: true })));
       setUnreadCount(0);
-    } catch (error) {
-      console.error('Error marking all as read:', error);
+    } catch {
     }
   };
 

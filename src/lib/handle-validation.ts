@@ -169,8 +169,7 @@ export async function checkHandleAvailability(
     }
 
     return await response.json();
-  } catch (error) {
-    console.error('Error checking handle availability:', error);
+  } catch {
     return {
       available: false,
       reason: 'Unable to check availability. Please try again.'
@@ -205,8 +204,7 @@ export async function updateHandle(newHandle: string): Promise<{
     }
 
     return data;
-  } catch (error) {
-    console.error('Error updating handle:', error);
+  } catch {
     return {
       success: false,
       message: 'Unable to update handle. Please try again.'
@@ -245,8 +243,7 @@ export async function searchHandles(
     }
 
     return await response.json();
-  } catch (error) {
-    console.error('Error searching handles:', error);
+  } catch {
     return [];
   }
 }

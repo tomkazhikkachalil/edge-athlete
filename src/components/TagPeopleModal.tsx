@@ -56,30 +56,22 @@ export default function TagPeopleModal({
   const searchProfiles = async () => {
     try {
       setLoading(true);
-      console.log('[TagPeopleModal] Searching for:', searchQuery);
       const response = await fetch(`/api/search?q=${encodeURIComponent(searchQuery)}&type=athletes`);
 
       if (!response.ok) {
-        console.error('[TagPeopleModal] Search request failed:', response.status);
         throw new Error('Search failed');
       }
 
       const data = await response.json();
-      console.log('[TagPeopleModal] Search response:', data);
-      console.log('[TagPeopleModal] Athletes array:', data.athletes);
-      console.log('[TagPeopleModal] Results object:', data.results);
       const profiles = data.results?.athletes || data.athletes || [];
-      console.log('[TagPeopleModal] Found profiles:', profiles.length);
 
       // Filter out already tagged profiles
       const filtered = profiles.filter(
         (profile: Profile) => !existingTags.includes(profile.id)
       );
-      console.log('[TagPeopleModal] Filtered profiles:', filtered.length);
 
       setSearchResults(filtered);
-    } catch (error) {
-      console.error('[TagPeopleModal] Error searching profiles:', error);
+    } catch {
       setSearchResults([]);
     } finally {
       setLoading(false);
@@ -139,8 +131,7 @@ export default function TagPeopleModal({
       }
 
       onClose();
-    } catch (error) {
-      console.error('Error adding tags:', error);
+    } catch {
       showError('Failed to add tags');
     } finally {
       setSubmitting(false);

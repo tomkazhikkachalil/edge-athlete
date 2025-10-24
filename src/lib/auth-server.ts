@@ -39,7 +39,6 @@ export async function requireAuth(request: NextRequest) {
     const { data: { user }, error } = await supabase.auth.getUser();
 
     if (error || !user) {
-      console.error('Auth failed:', error?.message || 'No user');
       throw new Response(
         JSON.stringify({ error: 'Authentication required' }),
         { status: 401, headers: { 'Content-Type': 'application/json' } }
@@ -47,11 +46,10 @@ export async function requireAuth(request: NextRequest) {
     }
 
     return user;
-  } catch (error) {
-    if (error instanceof Response) {
-      throw error;
+  } catch (err) {
+    if (err instanceof Response) {
+      throw err;
     }
-    console.error('Auth error:', error);
     throw new Response(
       JSON.stringify({ error: 'Authentication failed' }),
       { status: 401, headers: { 'Content-Type': 'application/json' } }

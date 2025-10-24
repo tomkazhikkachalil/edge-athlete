@@ -1,232 +1,140 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+**Project Context for Claude Code** - This file provides essential guidance when working with this codebase.
 
-## Project Overview
+## 🎯 Project Overview
 
-This is a **multi-sport athlete social network platform** built with Next.js 15, Supabase, and TypeScript. It allows athletes to create profiles, share posts with media, track performance statistics, and connect with other athletes. The platform is designed to be sport-agnostic with a flexible adapter pattern that currently supports Golf fully, with other sports (ice hockey, volleyball) registered but not yet implemented.
+**Multi-Sport Athlete Social Network** built with:
+- **Next.js 15** (App Router) + **React 19**
+- **Supabase** (auth, database, storage)
+- **TypeScript** (strict mode)
+- **Tailwind CSS 4**
 
-## Development Commands
+**Platform Features:**
+- Athlete profiles with performance stats
+- Social feed with posts, comments, likes
+- Privacy controls (public/private profiles)
+- Sport-specific adapters (Golf fully implemented)
+- Notification system with real-time updates
+- Follow/follower system with request management
 
+---
+
+## 🚀 Quick Start - Local Development
+
+### Environment Variables
+**Required** - Create `.env.local` with:
 ```bash
-npm run dev          # Start development server (http://localhost:3000)
-npm run build        # Production build (checks TypeScript and builds)
+# Supabase (required)
+NEXT_PUBLIC_SUPABASE_URL=https://your-project.supabase.co
+NEXT_PUBLIC_SUPABASE_ANON_KEY=your-anon-key
+SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
+
+# Optional: AI features
+OPENAI_API_KEY=your-key
+
+# Optional: Email (contact forms)
+SMTP_HOST=smtp.gmail.com
+SMTP_PORT=587
+SMTP_USER=your@email.com
+SMTP_PASS=your-app-password
+```
+
+### Development Commands
+```bash
+npm run dev          # Start dev server → http://localhost:3000
+npm run build        # Production build + TypeScript check
 npm run start        # Start production server
 npm run lint         # Run ESLint
 ```
 
-## Environment Setup
+---
 
-Required environment variables (see `.env.example`):
-
-```bash
-# Supabase (required)
-NEXT_PUBLIC_SUPABASE_URL=
-NEXT_PUBLIC_SUPABASE_ANON_KEY=
-SUPABASE_SERVICE_ROLE_KEY=  # Server-side only
-
-# OpenAI (optional - for AI features)
-OPENAI_API_KEY=
-
-# Email (optional - for contact forms)
-SMTP_HOST=
-SMTP_PORT=
-SMTP_USER=
-SMTP_PASS=
-```
-
-## Architecture & Code Structure
+## 📁 Architecture Overview
 
 ### App Router Structure
-
-- **`src/app/`** - Next.js 15 App Router pages
-  - **`feed/`** - Main feed with posts from followed athletes
-  - **`athlete/[id]/`** - Individual athlete profile pages (by user ID)
-  - **`u/[username]/`** - Profile pages accessible by username
-  - **`app/profile/`** - Logged-in user's own profile editor
-  - **`app/followers/`** - Followers, following, and follow requests management
-  - **`app/sport/[sport_key]/`** - Sport-specific pages and forms
-  - **`dashboard/`** - Admin dashboard
-  - **`api/`** - API routes (posts, comments, likes, search, upload, etc.)
+```
+src/app/
+├── feed/                    # Main feed (posts from followed athletes)
+├── athlete/[id]/            # Profile pages by user ID
+├── u/[username]/            # Profile pages by username
+├── app/
+│   ├── profile/             # Logged-in user's profile editor
+│   ├── followers/           # Followers/following management
+│   ├── notifications/       # Notifications page
+│   └── sport/[sport_key]/   # Sport-specific pages
+├── dashboard/               # Admin dashboard
+└── api/                     # API routes
+    ├── posts/               # CRUD for posts
+    ├── comments/            # CRUD for comments
+    ├── follow/              # Follow/unfollow
+    ├── notifications/       # Notification management
+    ├── golf/                # Golf-specific endpoints
+    └── ...
+```
 
 ### Key Libraries & Utilities
 
-- **`src/lib/supabase.ts`** - Supabase client setup
-  - `supabase` - Browser client (SSR-compatible with cookies)
-  - `supabaseAdmin` - Server-side client with service role (bypasses RLS)
-  - TypeScript interfaces for all database tables
+**`src/lib/supabase.ts`** - Supabase client setup
+- `supabase` - Browser client (SSR-compatible with cookies)
+- `supabaseAdmin` - Server-side client (bypasses RLS, use sparingly)
+- TypeScript interfaces for all database tables
 
-- **`src/lib/auth.tsx`** - Authentication context provider
-  - `useAuth()` hook for accessing user/profile
-  - Handles sign up, sign in, sign out, profile updates
-  - Manages session state and profile caching
+**`src/lib/auth.tsx`** - Authentication context
+- `useAuth()` - Hook for accessing user/profile
+- Handles sign up, sign in, sign out, profile updates
 
-- **`src/middleware.ts`** - Supabase auth middleware
-  - Refreshes sessions on every request
-  - Required for SSR authentication
+**`src/middleware.ts`** - Supabase auth middleware
+- Refreshes sessions on every request
+- Required for SSR authentication
 
 ### Sport Adapter Pattern
 
 **Location:** `src/lib/sports/`
 
-The platform uses a **sport adapter pattern** to handle sport-specific logic:
+Platform uses adapters for sport-specific logic:
+- **SportRegistry.ts** - Defines all sports (golf, ice_hockey, volleyball)
+- **SportAdapter.ts** - Base interface for sport implementations
+- **adapters/GolfAdapter.ts** - Reference implementation
 
-```
-src/lib/sports/
-├── SportRegistry.ts      # Central registry of all sports
-├── SportAdapter.ts       # Base adapter interface
-├── AdapterRegistry.ts    # Maps sport keys to adapters
-└── adapters/
-    └── GolfAdapter.ts    # Golf implementation
-```
+**Status:**
+- ✅ **Golf** - Fully implemented (rounds, scorecards, stats)
+- 🚧 **Ice Hockey, Volleyball** - Registered but not implemented
 
-**Key Concepts:**
+---
 
-1. **SportRegistry** defines all sports with:
-   - `sport_key` (unique identifier like 'golf', 'ice_hockey')
-   - `display_name`, `icon`, `brand_color_token`
-   - `metric_labels` (tile1-6 labels for stats)
+## 🗄️ Database Structure
 
-2. **SportAdapter interface** standardizes how sports work:
-   - `getHighlights(profileId, season)` - Returns stat tiles
-   - `getRecentActivity(profileId, limit, cursor)` - Returns activity rows
-   - `openEditDialog(entityId)` - Opens sport-specific forms
-   - `composePost(context)` - Creates sport-specific posts
-
-3. **Implementation states:**
-   - **Fully implemented:** Golf (with rounds, scorecards, course data)
-   - **Registered but disabled:** Ice hockey, volleyball (show "coming soon")
-   - **To add new sport:** Register in SportRegistry → Create adapter → Enable in features.ts
-
-### Design System
-
-**Location:** `src/lib/design-tokens.ts`
-
-Strict design system with enforced tokens:
-
-- **Typography Scale:** 32/24/18/16/14/12px (H1/H2/H3/Body/Label/Chip)
-- **Spacing Rhythm:** 12px (micro) / 24px (base) / 48px (section)
-- **Icon Sizes:** 24px (header) / 20px (edit/social) / 16px (footer)
-- **Card Heights:** Fixed 280px minimum with 80px header, flexible stats, 32px footer
-
-**Usage:**
-```typescript
-import { TYPOGRAPHY, SPACING, LAYOUT, getSportColorClasses } from '@/lib/design-tokens';
-
-const colors = getSportColorClasses('golf'); // Returns sport-specific color classes
-```
-
-### Privacy & Security Architecture
-
-**Privacy System (`src/lib/privacy.ts`):**
-
-- **Simple model:** Public or Private profiles
-- **Access control:** Private profiles visible only to owner + approved followers
-- **RLS enforcement:** Database-level Row Level Security on all tables
-- **Future-ready:** Schema supports granular controls (media, stats, posts visibility)
-
-**IMPORTANT: Privacy checks must be done server-side**
-- Privacy functions require `supabaseAdmin` (service role key)
-- **Client-side usage:** Call `/api/privacy/check?profileId={id}` API endpoint
-- **Server-side usage:** Import and call `canViewProfile(profileId, currentUserId)` directly
-
-**Key functions:**
-```typescript
-// Server-side only (API routes, server components)
-canViewProfile(profileId, currentUserId) // Returns access check result
-getProfileWithPrivacy(profileId, currentUserId) // Returns limited or full profile
-
-// Client-side: Use API endpoint
-const response = await fetch(`/api/privacy/check?profileId=${athleteId}`);
-const { canView } = await response.json();
-```
-
-**Database Security:**
-- All tables have RLS enabled
-- Policies enforce owner-only access for private data
-- Service role key (`supabaseAdmin`) bypasses RLS for admin operations
-- Storage buckets organized by user ID with path-based policies
-
-See [PRIVACY_ARCHITECTURE.md](PRIVACY_ARCHITECTURE.md) and [SECURITY_ARCHITECTURE.md](SECURITY_ARCHITECTURE.md) for details.
-
-### Database Structure
-
-**Core Tables:**
+### Core Tables
 - `profiles` - User profiles (extends auth.users)
-- `posts` - Social posts with media, stats, visibility
+- `posts` - Social posts with media and stats
 - `post_media` - Media attachments (images/videos)
-- `post_comments` - Post comments with threading and likes_count
-- `post_likes` - Post likes (unique constraint per user)
-- `comment_likes` - Comment likes (unique constraint per user/comment)
-- `saved_posts` - Bookmarked posts (unique constraint per user/post)
-- `follows` - Follow relationships with status (pending/accepted)
-- `notifications` - User notifications with type, actor, and metadata
-- `notification_preferences` - User notification preferences (11 types)
-- `golf_rounds` - Golf-specific round data
-- `golf_holes` - Individual hole scores
-- `season_highlights` - Sport performance highlights per season
-- `performances` - Individual performance records
-- `athlete_badges` - Achievement badges
+- `post_comments` - Comments with threading and likes
+- `post_likes` - Post likes
+- `comment_likes` - Comment likes
+- `saved_posts` - Bookmarked posts
+- `follows` - Follow relationships (with pending/accepted status)
+- `notifications` - User notifications
+- `notification_preferences` - User notification settings
+- `golf_rounds` - Golf round data (with indoor/outdoor support)
+- `golf_holes` - Hole-by-hole scores
+- `season_highlights` - Sport performance highlights
+- `sport_settings` - Sport-specific user settings (JSONB)
 
-**Important Patterns:**
-- Foreign keys cascade on delete
-- `updated_at` triggers auto-update timestamps
-- Counts cached in `posts` table (likes_count, comments_count, saves_count)
-- Visibility column controls privacy ('public' or 'private')
+### Important Patterns
+- **RLS Enabled** - All tables have Row Level Security
+- **Cascading Deletes** - Foreign keys auto-delete related data
+- **Auto-timestamps** - `updated_at` triggers on all tables
+- **Cached Counts** - `likes_count`, `comments_count`, `saves_count` on posts
+- **Privacy Column** - `visibility` field ('public' or 'private')
 
-**SQL Files:** Root directory contains many `.sql` migration files. Key ones:
-- `supabase-setup.sql` - Initial setup
-- `implement-privacy-system.sql` - Privacy implementation
-- `setup-saved-posts.sql` - Saved posts functionality
-- `COMPLETE_GOLF_SETUP.sql` - Golf schema
-- `fix-likes-comments-issues.sql` - Latest count fixes
-- `COMPLETE_NAME_MIGRATION.sql` - Name structure refactor (separate first/middle/last names)
-- `setup-all-notifications-complete.sql` - Comprehensive notification system setup
-- `add-comment-likes.sql` - Comment likes feature with triggers
-- `add-flexible-golf-rounds.sql` - Indoor golf and flexible holes support
-- `fix-profile-post-ordering.sql` - Profile post ordering (newest first)
+---
 
-### Feature Flags
+## 🔌 API Patterns
 
-**Location:** `src/lib/features.ts`
+### Next.js 15 Cookie Authentication Pattern
 
-Controls which features are enabled:
-
-```typescript
-FEATURE_FLAGS = {
-  FEATURE_SPORTS: ['golf', 'ice_hockey', 'volleyball']
-}
-
-isSportEnabled(sportKey) // Check if sport is active
-getEnabledSportKeys()    // Get all enabled sports
-```
-
-Toggle sports here to enable/disable throughout UI.
-
-### Key Components
-
-**Location:** `src/components/`
-
-- **PostCard.tsx** - Main post display with likes, comments, saves, shares, media carousel. Uses inline header layout with consistent gap-4 spacing between avatar and name
-- **CreatePostModal.tsx** - Multi-step post creation wizard
-- **EditPostModal.tsx** - Post editing modal
-- **EditProfileTabs.tsx** - Profile editor with Basic Info/Sports/Achievements tabs
-- **SearchBar.tsx** - Global search (athletes, posts, clubs) with dropdown results
-- **FollowButton.tsx** - Follow/unfollow with request handling
-- **PrivateProfileView.tsx** - Restricted view for private profiles
-- **GolfScorecardForm.tsx** - Golf round entry with hole-by-hole scoring
-- **SeasonHighlights.tsx / SeasonHighlightsModal.tsx** - Sport performance tracking
-- **NotificationBell.tsx** - Notification dropdown in header with unread badge
-- **notifications.tsx** - NotificationsProvider context for global state
-- **Toast.tsx** - Toast notification system
-
-### API Patterns
-
-**API Routes (`src/app/api/`):**
-
-**IMPORTANT: Next.js 15 Cookie Authentication Pattern**
-
-All routes must use the cookie header reading pattern (NOT `await cookies()`):
+**CRITICAL:** All API routes must use cookie header reading (NOT `await cookies()`):
 
 ```typescript
 import { NextRequest, NextResponse } from 'next/server';
@@ -266,9 +174,9 @@ export async function GET(request: NextRequest) {
 }
 ```
 
-**When to use Admin Client:**
+### When to Use Admin Client
 
-For operations that need to bypass RLS (e.g., viewing follow request sender profiles):
+For operations that bypass RLS (e.g., viewing follow request sender profiles):
 
 ```typescript
 import { createClient } from '@supabase/supabase-js';
@@ -284,913 +192,191 @@ const supabaseAdmin = createClient(
   }
 );
 
-// Use sparingly - bypasses all RLS policies
+// Use sparingly - bypasses ALL RLS policies
 const { data } = await supabaseAdmin.from('profiles').select('*');
 ```
 
-**Key endpoints:**
-- `/api/posts` - CRUD for posts
-- `/api/posts/like` - Toggle likes
-- `/api/posts/save` - Toggle save/bookmark posts
-- `/api/comments` - CRUD for comments
-- `/api/comments/like` - Toggle comment likes with notifications
-- `/api/search` - Global search
-- `/api/upload/post-media` - Media uploads
-- `/api/follow` - Follow/unfollow
-- `/api/golf/*` - Golf-specific endpoints
-- `/api/sport-settings` - **NEW** Get/update sport-specific settings (golf, hockey, etc.)
-- `/api/debug/counts` - Debug endpoint for like/comment counts
-- `/api/followers` - Followers, following, and follow requests (uses admin client for requests)
-- `/api/notifications` - Fetch/delete notifications with filtering
-- `/api/notifications/unread-count` - Get unread notification count
-- `/api/notifications/[id]` - Mark individual notification as read/unread
-- `/api/notifications/mark-all-read` - Bulk mark all as read
-- `/api/notifications/preferences` - Get/update notification preferences
+---
 
-### Profile Name Structure
+## 🎨 Design System
 
-**IMPORTANT: Name fields changed in October 2024**
+### Strict Spacing Rhythm
+- **12px** (`space-micro`) - Label-to-value, icon-to-text
+- **24px** (`space-base`) - Intra-section gaps
+- **48px** (`space-section`) - Section gutters
 
-The profile name structure uses separate fields:
+### Typography Scale
+- **H1:** 32px
+- **H2:** 24px
+- **H3:** 18px
+- **Body:** 16px
+- **Label:** 14px
+- **Chip:** 12px
 
-**Database Schema:**
-```typescript
-interface Profile {
-  first_name?: string;      // User's first/given name (required for display)
-  middle_name?: string;      // User's middle name (optional)
-  last_name?: string;        // User's last/family name (required for display)
-  full_name?: string;        // Username/handle (e.g., "johndoe")
-  username?: string;         // Alternative username (legacy)
-}
+### Text Contrast Standards
+- **User Names**: Bold black (`text-black font-bold`)
+- **Handles/Tags**: Light gray (`text-gray-500`)
+- **Body Text**: Black or dark gray (`text-black`, `text-gray-900`)
+- **Never use**: Light grays for primary content
+
+### CSS Classes
+Available in `src/app/globals.css`:
+```css
+.space-micro, .space-base, .space-section  /* margin-bottom */
+.gap-micro, .gap-base, .gap-section        /* flexbox/grid gaps */
+.season-card, .season-card-header, etc.    /* component classes */
 ```
-
-**Display Name Function:**
-
-ALWAYS use the correct signature when displaying names. **As of October 2025, middle names are NOT displayed** to maintain consistent "First Last" formatting:
-
-```typescript
-import { formatDisplayName, getInitials } from '@/lib/formatters';
-
-// CORRECT - Current standard (no middle name)
-const displayName = formatDisplayName(
-  profile.first_name,
-  null,  // Don't include middle name in display
-  profile.last_name,
-  profile.full_name  // username fallback
-);
-
-// WRONG - Including middle name (old pattern, removed October 2025)
-const displayName = formatDisplayName(
-  profile.first_name,
-  profile.middle_name,  // ❌ Don't use middle_name
-  profile.last_name,
-  profile.full_name
-);
-
-// For initials
-const initials = getInitials(displayName);
-```
-
-**API Query Pattern:**
-
-When querying profiles, include `middle_name` in the query (for database compatibility) but **do not display it**:
-
-```typescript
-// CORRECT - Query includes middle_name but won't be displayed
-const { data } = await supabase
-  .from('profiles')
-  .select('id, first_name, middle_name, last_name, full_name, avatar_url, sport, school');
-
-// Then display without middle name
-const displayName = formatDisplayName(
-  profile.first_name,
-  null,  // Don't display middle_name even though it's in the data
-  profile.last_name,
-  profile.full_name
-);
-```
-
-**Foreign Key Queries:**
-
-```typescript
-// For followers/following with nested profiles
-.select(`
-  id,
-  created_at,
-  follower:follower_id (
-    id,
-    full_name,
-    first_name,
-    middle_name,
-    last_name,
-    avatar_url,
-    sport,
-    school
-  )
-`)
-```
-
-**Handling Missing Name Data:**
-
-- Users without `first_name`/`last_name` will show as "Unknown User"
-- This is expected for users who haven't updated their profiles yet
-- `formatDisplayName()` handles nulls gracefully with fallback to username
-
-**Profile Editing:**
-
-The `EditProfileTabs` component now has separate fields:
-- First Name (required)
-- Last Name (required)
-- Middle Name (optional)
-- Username/Handle (what was previously "Full Name")
-
-### Sport-Specific Settings Architecture
-
-**IMPORTANT:** As of January 2025, all sport-specific settings are stored in the `sport_settings` table, NOT in the `profiles` table.
-
-**Database Table:**
-```sql
-sport_settings (
-  id UUID PRIMARY KEY,
-  profile_id UUID REFERENCES profiles(id) ON DELETE CASCADE,
-  sport_key TEXT NOT NULL,
-  settings JSONB NOT NULL DEFAULT '{}'::jsonb,
-  created_at TIMESTAMPTZ,
-  updated_at TIMESTAMPTZ,
-  UNIQUE(profile_id, sport_key)
-)
-```
-
-**TypeScript Interfaces:**
-```typescript
-// Sport-specific settings
-interface GolfSettings {
-  handicap?: number;
-  home_course?: string;
-  tee_preference?: string;
-  dominant_hand?: string;
-  driver_brand?: string;
-  driver_loft?: number;
-  irons_brand?: string;
-  putter_brand?: string;
-  ball_brand?: string;
-}
-
-interface HockeySettings {
-  position?: string;
-  stick_flex?: number;
-  shot_preference?: 'left' | 'right';
-  blade_curve?: string;
-}
-
-// Generic database record
-interface SportSettings {
-  id: string;
-  profile_id: string;
-  sport_key: string;
-  settings: GolfSettings | HockeySettings | Record<string, unknown>;
-  created_at: string;
-  updated_at: string;
-}
-```
-
-**API Usage:**
-```typescript
-// Fetch golf settings
-const response = await fetch('/api/sport-settings?sport=golf');
-const { settings } = await response.json();
-// settings = { handicap: 12, home_course: "Pebble Beach", ... }
-
-// Save golf settings
-await fetch('/api/sport-settings', {
-  method: 'PUT',
-  body: JSON.stringify({
-    sport: 'golf',
-    settings: {
-      handicap: 10,
-      home_course: 'Augusta National',
-      tee_preference: 'white'
-    }
-  })
-});
-
-// Adding a new sport (e.g., hockey) requires NO schema changes!
-await fetch('/api/sport-settings', {
-  method: 'PUT',
-  body: JSON.stringify({
-    sport: 'ice_hockey',
-    settings: {
-      position: 'center',
-      stick_flex: 85,
-      shot_preference: 'left'
-    }
-  })
-});
-```
-
-**Benefits:**
-- ✅ Add new sports without database migrations
-- ✅ Clean, normalized architecture
-- ✅ Flexible JSONB storage for sport-specific data
-- ✅ RLS policies ensure users only access their own settings
-- ✅ Performance indexes on profile_id, sport_key, and JSONB
-
-**Setup:** See `SETUP_SPORT_SETTINGS_FRESH.md` for implementation guide
 
 ---
 
-### Golf Implementation
+## 🔒 Privacy & Security
 
-Golf is the reference implementation for the sport adapter pattern:
+### Privacy System
+**Location:** `src/lib/privacy.ts`
 
-**Database:**
-- `golf_rounds` table with course, date, total_score, stats, `round_type`
-- `golf_holes` table with hole-by-hole scores
-- `round_id` foreign key on posts links rounds to social posts
-- Automatic stats calculation via database functions
-- **Indoor/Outdoor Support**: `round_type` column ('outdoor' or 'indoor') for simulator/range rounds
-- **Flexible Holes**: Supports any number of holes (not limited to 9 or 18) - e.g., 5, 12, 15, etc.
+- **Simple Model**: Public or Private profiles
+- **Access Control**: Private profiles visible only to owner + approved followers
+- **RLS Enforcement**: Database-level Row Level Security on all tables
 
-**UI Flow:**
-1. User opens Golf form (`EnhancedGolfForm.tsx` or `GolfScorecardForm.tsx`)
-2. **NEW: Selects Indoor or Outdoor** with radio toggle (tree icon for outdoor, warehouse for indoor)
-3. Selects course from `golf_courses` table or external API
-4. Enters hole-by-hole scores with putts tracking
-5. **Conditional fields**: Playing Conditions (weather, temp, wind) only shown for outdoor rounds
-6. Stats auto-calculated (pars, birdies, eagles, etc.)
-7. Can attach to post or save standalone
-8. Traditional scorecard display with birdie circles (red) and bogey squares (blue)
-
-**Round Type Display:**
-- **Indoor rounds**: Blue badge with warehouse icon (🏭 INDOOR) next to course name
-- **Outdoor rounds**: Green badge with tree icon (🌲 OUTDOOR) next to course name
-- Badges appear in feed, profile pages, and post detail modals
-- Both round types fully integrated into profile tabs (All Media, Media with Stats)
-
-**Files:**
-- `src/lib/golf-course-service.ts` - Course search and data
-- `src/lib/golf-courses-db.ts` - Database course operations
-- `src/components/GolfScorecardForm.tsx` - Main golf form with indoor/outdoor toggle
-- `src/components/PostCard.tsx` - Round type badge display
-- `src/app/api/golf/` - Golf API endpoints
-- `add-flexible-golf-rounds.sql` - Database migration for round_type and flexible holes
-
-### Shared Round Scorecards (Multi-Player Golf)
-
-**NEW: January 2025** - Collaborative golf rounds with multiple participants
-
-**Database Architecture (Sport-Agnostic):**
-- `group_posts` - Core table for all group activities
-- `group_post_participants` - Participant tracking with attestation (pending/confirmed/declined)
-- `golf_scorecard_data` - Golf-specific scorecard metadata
-- `golf_participant_scores` - Individual participant scores (auto-calculated totals)
-- `golf_hole_scores` - Hole-by-hole scores for each participant
-
-**Key Features:**
-- Owner creates round and invites participants
-- Participants must confirm/decline participation (attestation model)
-- Owner can pre-fill scores, participants can edit their own
-- Supports any hole count (5, 9, 12, 18, etc.)
-- Indoor/outdoor tracking
-- Auto-calculation of totals via database triggers
-- Traditional scorecard display with birdie/bogey styling
-
-**UI Components:**
-- **CreatePostModal** - Round type selector (Individual vs Shared)
-  - Shared round form: course, date, holes, indoor/outdoor, tee color, participants
-  - Participant selection via TagPeopleModal
-- **SharedRoundQuickView** - Compact card for feed display
-  - Participant list with status badges (confirmed/pending/declined)
-  - Leader score display
-  - "View Full Scorecard" button
-- **SharedRoundFullCard** - Detailed scorecard modal
-  - Traditional grid layout (holes, par, players)
-  - Birdie circles (red) and bogey squares (blue)
-  - Score entry access for participants
-- **ScoreEntryModal** - Mobile-friendly hole-by-hole entry
-  - Numeric keypad for strokes/putts
-  - FIR/GIR tracking
-  - Progress indicator and hole navigation
-- **ParticipantAttestationModal** - Invitation confirmation
-  - Shows round details
-  - Confirm/Decline/Decide Later actions
-
-**API Routes:**
-```typescript
-// Group Posts
-POST   /api/group-posts              // Create shared round
-GET    /api/group-posts/[id]         // Get round details
-PATCH  /api/group-posts/[id]         // Update round
-DELETE /api/group-posts/[id]         // Delete round
-
-// Participation
-POST   /api/group-posts/[id]/attest        // Confirm/decline
-GET    /api/group-posts/[id]/attest        // Get status
-POST   /api/group-posts/[id]/participants  // Add participants
-DELETE /api/group-posts/[id]/participants  // Remove participant
-
-// Golf Scorecards
-POST   /api/golf/scorecards                      // Create scorecard
-GET    /api/golf/scorecards?group_post_id=xxx    // Get scorecard
-POST   /api/golf/scorecards/[id]/scores          // Add/update scores
-GET    /api/golf/scorecards/[id]/scores          // Get participant scores
-PATCH  /api/golf/scorecards/[id]/scores          // Confirm scores
-```
-
-**Next.js 15 Pattern:**
-All route handlers use async params: `{ params }: { params: Promise<{ id: string }> }`
-Must await params: `const { id } = await params;`
-
-**Display in Feed:**
-```typescript
-// PostCard checks for group_scorecard property
-if (post.group_scorecard) {
-  return <SharedRoundQuickView scorecard={post.group_scorecard} />;
-}
-```
-
-**Database Migration:**
-Run `setup-group-posts-foundation.sql` in Supabase SQL Editor
-
-**Future Enhancements:**
-- Participant invitation notifications
-- Real-time score updates
-- Handicap-adjusted scoring
-- Head-to-head records
-
-See [SHARED_SCORECARD_IMPLEMENTATION.md](SHARED_SCORECARD_IMPLEMENTATION.md) for full specification.
-
-### Post Creation & Refresh
-
-**Instant Post Display (January 2025):**
-When users create posts, they now appear immediately without manual refresh.
-
-**Feed Page (`src/app/feed/page.tsx`):**
-```typescript
-const handlePostCreated = async (newPost: unknown) => {
-  if (newPost && typeof newPost === 'object' && 'id' in newPost) {
-    const postData = newPost as { id: string; type?: string };
-
-    if (postData.type === 'golf_round') {
-      // Shared rounds need complete data - refetch
-      await loadFeed();
-    } else {
-      // Regular posts - add immediately to top of feed!
-      setPosts(prevPosts => [newPost as Post, ...prevPosts]);
-    }
-  }
-};
-```
-
-**Profile Page (`src/app/athlete/page.tsx`):**
-Uses `mediaRefreshKey` to force re-mount of `ProfileMediaTabs`:
-```typescript
-const [mediaRefreshKey, setMediaRefreshKey] = useState(0);
-
-onPostCreated={() => {
-  setMediaRefreshKey(prev => prev + 1); // Trigger refresh
-  showSuccess('Success', 'Post created successfully!');
-}}
-
-<ProfileMediaTabs key={mediaRefreshKey} ... />
-```
-
-**Benefits:**
-- Text posts appear instantly
-- Media posts appear instantly
-- Individual golf rounds appear instantly
-- Shared rounds refetch for complete scorecard data
-- Profile media refreshes automatically
-- No manual page refresh needed
-
-### Critical Fixes (January 2025)
-
-**Recent improvements to core data flow and error handling:**
-
-#### 1. **Signup Flow Fix** ✅
-**Issue:** Database trigger `on_auth_user_created` was failing during signup, causing "Database error saving new user"
-
-**Solution:**
-- Disabled database trigger permanently
-- Updated `/src/app/api/signup/route.ts` to handle profile creation via direct UPSERT
-- Added comprehensive logging at each step
-- Duplicate email checks now use admin client for reliability
-
-**Result:** All new signups now create profiles correctly with proper data associations
-
-#### 2. **Post Creation Profile Data Fix** ✅
-**Issue:** Newly created posts appeared in feed without profile data, causing "Cannot read properties of undefined (reading 'first_name')" error
-
-**Solution:**
-- Updated `/src/app/api/posts/route.ts` POST endpoint to fetch complete post with profile relationship after creation
-- Returns transformed post object matching feed expectations
-- Includes profile data (first_name, last_name, full_name, avatar_url, handle)
-
-**Result:** Posts now appear instantly in feed with all profile information
-
-**Code Pattern:**
-```typescript
-// After inserting post, fetch complete data
-const { data: completePost } = await supabase
-  .from('posts')
-  .select(`
-    *,
-    profiles:profile_id (
-      id, first_name, middle_name, last_name,
-      full_name, avatar_url, handle
-    ),
-    post_media (*),
-    post_likes (profile_id)
-  `)
-  .eq('id', post.id)
-  .single();
-
-// Transform and return complete post
-return NextResponse.json({
-  success: true,
-  post: transformedPost,
-  message: 'Post created successfully!'
-});
-```
-
-#### 3. **Notification Error Handling** ✅
-**Issue:** After account deletion/logout, NotificationsProvider threw "Failed to fetch notifications" errors
-
-**Solution:**
-- Updated `/src/lib/notifications.tsx` to gracefully handle 401/403 errors
-- Added automatic state cleanup on logout
-- Changed error logging from `console.error` to `console.warn` for non-critical failures
-
-**Result:** No console errors after logout or account deletion
-
-**Code Pattern:**
-```typescript
-// Graceful auth error handling
-if (response.status === 401 || response.status === 403) {
-  setLoading(false);
-  return; // Silently handle auth errors
-}
-
-// Cleanup on logout
-useEffect(() => {
-  if (!user) {
-    setNotifications([]);
-    setUnreadCount(0);
-    setError(null);
-  }
-}, [user]);
-```
-
-#### 4. **Handle Validation Performance** ✅
-**Issue:** HandleSelector component made excessive API calls during signup
-
-**Solution:**
-- Updated `/src/components/HandleSelector.tsx` to remove unstable callback from useEffect dependencies
-- Validation now only runs on handle change (with 500ms debounce)
-
-**Result:** Smooth handle validation without API spam
-
-#### 5. **Goodbye Page UX** ✅
-**Issue:** Account deletion page allowed navigation to restricted areas
-
-**Solution:**
-- Updated `/src/app/goodbye/page.tsx` to show only "Log In" and "Sign Up" buttons
-- Removed generic navigation options
-
-**Result:** Clear user flow after account deletion
-
-**Database Configuration:**
-- Database trigger `on_auth_user_created` is **permanently disabled**
-- Profile creation handled entirely by signup API
-- This configuration applies to **all future user signups** automatically
-
-**Verification:**
-All data associations verified with end-to-end SQL scripts:
-- `end-to-end-verification.sql` - Comprehensive checks
-- `quick-verification.sql` - Fast verification with single email lookup
-- See `END_TO_END_TESTING_GUIDE.md` for manual testing procedures
-- See `VERIFICATION_SUMMARY.md` for technical validation report
-
-#### 6. **Database Performance Optimizations** ✅
-**Issue:** 358 Supabase Performance Advisor warnings affecting database performance and follow functionality
-
-**Solution - Phase 1 (RLS Performance):**
-- Ran `fix-rls-initplan-performance-corrected.sql` to optimize ALL RLS policies
-- Changed `auth.uid()` → `(select auth.uid())` across 70+ policies in 18 tables
-- This prevents PostgreSQL from re-evaluating auth.uid() for every row (massive performance improvement)
-
-**Solution - Phase 2 (Function Security):**
-- Ran `fix-function-search-paths-compatible.sql` to secure 47 functions
-- Added `SET search_path = ''` to all functions to prevent SQL injection
-- Updated all notification functions to use schema-qualified table names (`public.profiles`, `public.notifications`)
-- Ran `fix-notification-functions-schema-qualified.sql` to fix broken triggers after search_path change
-
-**Solution - Phase 3 (Duplicate Functions):**
-- Ran `fix-duplicate-notification-functions.sql` to remove duplicate `create_notification` function signatures
-- Fixed "function is not unique" error that was breaking follow button
-- Consolidated to ONE canonical version with proper schema qualification
-
-**Solution - Phase 4 (Index Optimization):**
-- Ran `fix-duplicate-indexes-performance.sql` to remove 5 redundant indexes
-- Improved write performance and reduced storage usage
-
-**Impact:**
-- ✅ Follow button now works correctly with notifications
-- ✅ Database queries optimized for billion-user scale
-- ✅ Reduced ~200-250 Performance Advisor warnings
-- ✅ Notification triggers work correctly with schema-qualified names
-- ✅ All functions secured against SQL injection
-
-**Key Files:**
-- `fix-rls-initplan-performance-corrected.sql` - RLS optimization
-- `fix-function-search-paths-compatible.sql` - Function security
-- `fix-notification-functions-schema-qualified.sql` - Notification fixes
-- `fix-duplicate-notification-functions.sql` - Duplicate cleanup
-- `fix-duplicate-indexes-performance.sql` - Index optimization
-- `src/app/api/follow/route.ts` - Enhanced error logging
-
-**Verification:**
-All database tests passing:
-- Notification triggers work correctly
-- Follow functionality restored
-- No duplicate function errors
-- RLS policies optimized for performance
-
-#### 7. **Follow Request to Private Accounts Fix** ✅
-**Issue:** Users could follow public accounts successfully but could NOT send follow requests to private accounts
-
-**Root Cause:**
-- Database trigger `notify_follow_request` was failing silently for private account follow requests
-- The `create_notification()` function call was not schema-qualified
-- When `SET search_path = ''` was applied for SQL injection prevention, unqualified function calls stopped working
-- Public accounts worked because they use the `notify_new_follower` trigger (already fixed with schema qualification)
-- Private accounts use `notify_follow_request` trigger (missing schema qualification)
-
-**Solution:**
-- Updated `/database/fixes/fix-follow-request-private-accounts.sql`
-- Fixed `notify_follow_request()` function to use `public.create_notification()`
-- Fixed `notify_follow_accepted()` function with schema qualification
-- Fixed `notify_new_follower()` function with schema qualification
-- All three follow triggers now properly secured with `SET search_path = ''`
-
-**Code Pattern Fixed:**
-```sql
--- BEFORE (failing for private accounts)
-PERFORM create_notification(
-  p_user_id := NEW.following_id,
-  p_type := 'follow_request',
-  ...
-);
-
--- AFTER (working for all accounts)
-PERFORM public.create_notification(
-  p_user_id := NEW.following_id,
-  p_type := 'follow_request',
-  ...
-);
-```
-
-**Impact:**
-- ✅ Follow requests to private accounts now work correctly
-- ✅ Notifications are created properly for all follow types
-- ✅ Follow requests to public accounts continue working
-- ✅ All follow-related triggers secured with proper search_path
-- ✅ No breaking changes to existing functionality
-
-**Key Files:**
-- `database/fixes/fix-follow-request-private-accounts.sql` - Complete fix for all follow triggers
-
-**Testing:**
-- Follow request to private account creates `status='pending'` in follows table
-- Notification created for profile owner with type `'follow_request'`
-- Follow button shows "Requested" state with clock icon
-- Public account follows continue working with immediate acceptance
-
-### Database Performance Optimizations (January 2025)
-
-**Achievement:** Database optimized for billion-user scale with perfect Performance Advisor score.
-
-#### RLS Policy Optimization Pattern
-**Problem:** Direct `auth.uid()` calls evaluated per-row causing Seq Scans
-**Solution:** Wrap in subquery: `(select auth.uid())` enables cached evaluation
-
-```sql
--- BEFORE (unoptimized - evaluated per row)
-CREATE POLICY posts_select_policy ON posts
-FOR SELECT USING (
-  profile_id = auth.uid()  -- ❌ Evaluated 1M times for 1M rows
-);
-
--- AFTER (optimized - cached once per query)
-CREATE POLICY posts_select_policy ON posts
-FOR SELECT USING (
-  profile_id = (select auth.uid())  -- ✅ Evaluated once, uses index
-);
-```
-
-**Performance Impact:**
-- Query speed: 10-100x faster
-- Database load: Significant CPU reduction
-- Example: 1M row table query: 500-1000ms → 5-50ms
-
-**Migrations Applied:**
-- `fix-all-rls-issues-comprehensive.sql` - Core 18 tables
-- `final-rls-fix-all-remaining-tables.sql` - Remaining 34 tables
-- `fix-post-tags-final.sql` - Consolidated duplicate policies
-- Result: 292 warnings → 0 warnings ✅
-
-#### Index Strategy for Billion-User Scale
-**Foreign Key Coverage:**
-All foreign keys must have covering indexes for optimal JOIN performance:
-
-```sql
--- Critical FK indexes added:
-idx_connection_suggestions_suggested_profile_id
-idx_notifications_follow_id, _post_id, _actor_id, _user_id
-idx_athlete_clubs_club_id
-idx_golf_rounds_profile_id
-idx_group_post_media_group_post_id
-idx_performances_profile_id
-idx_post_comments_parent_comment_id, _profile_id
-idx_post_likes_profile_id
-```
-
-**Index Cleanup Strategy:**
-- Dropped 73 genuinely unused indexes (verified via Supabase Performance Advisor)
-- Freed ~50-100MB disk space
-- Improved write performance
-- Migrations: `perfect-performance-advisor-cleanup.sql`, `fix-missing-fk-indexes.sql`
-
-#### Realtime Architecture Best Practices
-**Anti-Pattern:** Unfiltered subscriptions broadcasting all changes to all users
+**IMPORTANT:** Privacy checks must be done **server-side**
 
 ```typescript
-// ❌ BAD - Broadcasts ALL post updates to ALL users (850K+ calls)
-const channel = supabase
-  .channel('feed-updates')
-  .on('postgres_changes', {
-    event: 'UPDATE',
-    schema: 'public',
-    table: 'posts'  // No filter!
-  }, handleUpdate)
-  .subscribe();
+// Server-side (API routes, server components)
+import { canViewProfile } from '@/lib/privacy';
+const canView = await canViewProfile(profileId, currentUserId);
 
-// ✅ GOOD - Filtered subscription (selective real-time)
-const channel = supabase
-  .channel('notifications')
-  .on('postgres_changes', {
-    event: 'INSERT',
-    schema: 'public',
-    table: 'notifications',
-    filter: `user_id=eq.${user.id}`  // Filtered to specific user
-  }, handleNotification)
-  .subscribe();
+// Client-side: Use API endpoint
+const response = await fetch(`/api/privacy/check?profileId=${athleteId}`);
+const { canView } = await response.json();
 ```
 
-**Instagram/Facebook Pattern:**
-- ✅ Selective real-time: Notifications, new content only
-- ✅ Optimistic UI updates: Likes, comments update immediately
-- ✅ User-controlled refresh: Pull-to-refresh, Load More
-- ❌ No broadcast spam: Don't send every update to every user
+### Database Security
+- All tables have RLS enabled
+- Service role key (`supabaseAdmin`) bypasses RLS - use carefully
+- Policies enforce owner-only access for private data
 
-**Implementation:**
-- Removed unfiltered post updates subscription from feed page
-- Kept essential filtered subscriptions (notifications, new posts)
-- Leveraged optimistic updates for instant UX
-- Result: 854K calls → ~10K expected (98% reduction)
+---
 
-**Migration Notes:**
-- All RLS optimizations are backward compatible (no breaking changes)
-- Index changes improve performance immediately
-- Realtime architecture change maintains identical UX
-- No application code changes required for RLS/index optimizations
+## 📋 Key Conventions
 
-### Styling & Design
-
-**Design System Enforcement:**
-- All vertical spacing must be 12px/24px/48px
-- Card heights are fixed (280px min) regardless of content
-- Missing data shows as "—" placeholder, never empty space
-- Season highlight cards always show 2 chips and 4 stats (with placeholders)
-- Typography locked to 6-size scale
-- Sport colors from registry via `brand_color_token`
-
-**Text Contrast Standards (January 2025):**
-- **User Names**: Always bold black (`text-black font-bold`) for maximum visibility
-- **Handles/Tags**: Always light gray (`text-gray-500`) for consistent secondary text
-- **Body Text**: Black or dark gray (`text-black`, `text-gray-900`) with appropriate font weights
-- **Section Headers**: Solid black (`text-black`) with bold/semibold fonts
-- **Stat Labels**: Bold black or dark gray (`text-gray-900 font-bold`)
-- **Stat Values**: Solid black (`text-black`) for emphasis
-- **Never use**: Light grays (text-gray-400/500/600) for primary content text
-- **Accessibility**: Maintain strong contrast ratios for readability
-
-**Profile Display Standards:**
-- **Profile Pictures**:
-  - Own profile: 128-192px (responsive)
-  - Other users' profiles: 192px (larger for emphasis)
-  - Score badges proportionally scaled
-- **Name Display Pattern**:
-  - First line: Bold black name
-  - Second line: Light gray handle
-  - Consistent across feed, profiles, search results
-
-**CSS Classes (in `src/app/globals.css`):**
-```css
-.space-micro { margin-bottom: 12px; }
-.space-base { margin-bottom: 24px; }
-.space-section { margin-bottom: 48px; }
-.gap-micro, .gap-base, .gap-section
-.season-card, .season-card-header, .season-card-stats, .season-card-footer
-```
-
-### Notification System
-
-**Implementation:** Comprehensive notification system with real-time updates (October 2025)
-
-**Notification Types:**
-- `follow_request` - Someone sends a follow request (private profiles)
-- `follow_accepted` - Your follow request is accepted
-- `new_follower` - Someone follows you (public profiles)
-- `post_like` - Someone likes your post
-- `post_comment` - Someone comments on your post
-- `comment_like` - Someone likes your comment
-
-**Database Triggers:**
-```sql
--- Follow notifications
-trigger_notify_follow_request    -- On INSERT to follows (status='pending')
-trigger_notify_follow_accepted   -- On UPDATE to follows (pending→accepted)
-trigger_notify_new_follower      -- On INSERT to follows (status='accepted')
-
--- Engagement notifications
-trigger_notify_post_like         -- On INSERT to post_likes
-trigger_notify_post_comment      -- On INSERT to post_comments
-trigger_notify_comment_like      -- On INSERT to comment_likes
-
--- Automatic count management
-trigger_increment_comment_likes_count  -- Auto-increment on like
-trigger_decrement_comment_likes_count  -- Auto-decrement on unlike
-```
-
-**Features:**
-- Cursor-based pagination for performance
-- Real-time subscription support (when Realtime enabled)
-- Notification preferences with 11 toggleable types
-- Desktop notifications (with browser permission)
-- Time grouping (Today, Yesterday, This Week, Earlier)
-- Filter by type (All, Unread, Follows, Engagement, System)
-- Automatic cleanup of old read notifications (90 days)
-- Self-notification prevention (no alerts for own actions)
-
-**Usage:**
-```typescript
-// Wrap app with NotificationsProvider
-import { NotificationsProvider } from '@/components/notifications';
-
-<NotificationsProvider>
-  <YourApp />
-</NotificationsProvider>
-
-// Use notification context
-import { useNotifications } from '@/components/notifications';
-
-const { notifications, unreadCount, markAsRead, markAllAsRead } = useNotifications();
-```
-
-**Setup:**
-1. Run `setup-all-notifications-complete.sql` in Supabase SQL Editor
-2. Run `add-comment-likes.sql` for comment likes feature
-3. Enable Realtime replication for `notifications` table (optional)
-
-### Important Patterns & Conventions
-
-1. **Always use `useAuth()` for user/profile access** - Never fetch separately
-2. **RLS handles security** - No manual permission checks in API routes
-3. **Privacy-aware queries** - Use `canViewProfile()` before showing private data
-4. **Sport-agnostic UI** - Never hardcode sport names, use SportRegistry
+1. **Always use `useAuth()`** for user/profile access - Never fetch separately
+2. **RLS handles security** - No manual permission checks needed in API routes
+3. **Privacy-aware queries** - Check `canViewProfile()` before showing private data
+4. **Sport-agnostic UI** - Never hardcode sport names, use `SportRegistry`
 5. **Design tokens** - Import from `design-tokens.ts`, never hardcode sizes/colors
-6. **Toast notifications** - Use `useToast()` hook for user feedback
-7. **Optimistic updates** - Update UI immediately, sync with server after
-8. **Media uploads** - Use `/api/upload/post-media` with FormData
-9. **Search** - Use `/api/search?q=` for global search across athletes/posts/clubs
-10. **Notifications** - Wrap app with `NotificationsProvider` for global notification state
-11. **Form container padding** - Use generous padding (`p-6 sm:p-8` or larger) for form containers, not just input fields
-12. **Error handling** - Gracefully handle 401 auth errors in global providers (NotificationsProvider, etc.) to prevent errors on public pages
+6. **Optimistic updates** - Update UI immediately, sync with server after
+7. **Path alias** - `@/*` maps to `src/*`
 
-### Common Tasks
+---
 
-**Add a new sport:**
-1. Register in `SportRegistry.ts` with display_name, icon, metrics
-2. Create adapter in `adapters/NewSportAdapter.ts` extending `BaseSportAdapter`
-3. Register in `AdapterRegistry.ts`
-4. Add to `FEATURE_FLAGS.FEATURE_SPORTS` in `features.ts`
-5. Implement sport-specific tables/forms as needed
+## 🔧 Common Tasks
 
-**Add privacy to new table:**
-1. Add RLS policy checking `profiles.visibility`
-2. Join with profiles table in policy
-3. Check if user is owner OR (profile is public) OR (user follows profile)
-4. See `implement-privacy-system.sql` for examples
+### Add a New Sport
+1. Register in `src/lib/sports/SportRegistry.ts`
+2. Create adapter in `src/lib/sports/adapters/NewSportAdapter.ts`
+3. Register in `src/lib/sports/AdapterRegistry.ts`
+4. Add to `FEATURE_FLAGS.FEATURE_SPORTS` in `src/lib/features.ts`
 
-**Debug like/comment counts:**
+### Debug Like/Comment Counts
 1. Check `/api/debug/counts` endpoint
 2. Run `diagnose-likes-comments.sql` in Supabase
-3. Verify triggers are active: `check-triggers.sql`
-4. Re-run count fix: `fix-likes-comments-issues.sql`
+3. Re-run fix: `fix-likes-comments-issues.sql`
 
-**Edit/Delete posts:**
-- Edit and delete work on both feed page and profile pages
-- PostCard accepts `onEdit` and `onDelete` props
-- PostDetailModal passes through edit/delete handlers to PostCard
-- ProfileMediaTabs has full edit/delete support with EditPostModal
-- Always show confirmation dialog before delete (handled by PostCard)
+### Add Privacy to New Table
+1. Add RLS policy checking `profiles.visibility`
+2. Join with profiles table in policy
+3. Check: user is owner OR profile is public OR user follows profile
+4. See `implement-privacy-system.sql` for examples
 
-**Profile media sorting:**
-- All profile media tabs show newest posts first by default (as of January 2025)
-- SQL functions use subquery pattern to order by created_at DESC
-- Run `fix-profile-post-ordering.sql` if posts show in wrong order
-- Functions: get_profile_all_media, get_profile_stats_media, get_profile_tagged_media
-- Critical fix: Outer query must have `ORDER BY created_at DESC` to ensure chronological order
-- New posts automatically appear at top of profile on all tabs
+---
 
-**Indoor golf rounds:**
-- Full support for indoor golf (simulators, driving ranges) added January 2025
-- `golf_rounds.round_type` column: 'outdoor' or 'indoor'
-- UI toggle in GolfScorecardForm to select round type
-- Visual badges in PostCard: Blue (INDOOR) or Green (OUTDOOR)
-- Playing Conditions section hidden for indoor rounds
-- Indoor rounds fully integrated into profile tabs and stats
-- Run `add-flexible-golf-rounds.sql` migration to enable
+## 🆕 Recent Critical Fixes (January 2025)
 
-**Golf par calculation (January 2025):**
-- Par is calculated from ACTUAL holes played, not defaulted to 72
-- Display shows "+/- vs actual par" for any hole count (5, 9, 13, 18, etc.)
-- Partial rounds (< 18 holes) show "Through N holes" label
-- Database function `calculate_round_stats()` sums par from `golf_holes` table
-- PostCard calculates par client-side from hole records for display
-- Run `fix-golf-par-calculation.sql` to update database function
+### Local Development Migration
+**Context:** Migrated from GitHub Codespaces to local VS Code
 
-**Pattern for displaying golf scores:**
-```typescript
-// Calculate actual par from recorded holes (PostCard.tsx)
-const actualPar = post.golf_round.golf_holes?.reduce(
-  (sum: number, hole: any) => sum + (hole.par || 0), 0
-) || 0;
-const holesPlayed = post.golf_round.golf_holes?.length || 0;
-const toPar = actualPar > 0 ? post.golf_round.gross_score - actualPar : null;
+**Fixed:**
+- ✅ Missing `SUPABASE_SERVICE_ROLE_KEY` in `.env.local`
+- ✅ Incorrect anon key (was using service_role key - security issue!)
+- ✅ Build errors in API routes
+- ✅ All environment variables properly configured
 
-// Show "Through N" label for partial rounds
-{holesPlayed > 0 && holesPlayed < 18 && (
-  <div className="text-[10px] text-green-700 font-medium">
-    Through {holesPlayed}
-  </div>
-)}
-```
+### Environment Configuration
+`.env.local` now has correct structure:
+- `NEXT_PUBLIC_SUPABASE_ANON_KEY` - Safe for browser
+- `SUPABASE_SERVICE_ROLE_KEY` - Server-only, bypasses RLS
 
-### Known Issues & Workarounds
+### Database Performance Optimizations
+**Achievement:** Database optimized for billion-user scale
 
-- **Like/comment counts** - If counts are off, run `fix-likes-comments-issues.sql`
-- **Double triggers** - Fixed by `fix-double-trigger.sql` (don't re-create triggers)
-- **Profile name fields** - Use `full_name` primarily, `first_name`/`last_name` as fallback
-- **Weight units** - Use `weight_kg` for storage, `weight_display` + `weight_unit` for UI
-- **Golf course data** - Some courses require external API, fallback to database
+- ✅ RLS policies optimized: `auth.uid()` → `(select auth.uid())`
+- ✅ 70+ policies updated across 18 tables
+- ✅ Query speed: 10-100x faster
+- ✅ All foreign keys have covering indexes
+- ✅ Follow request notifications working for private accounts
 
-### Testing & Debugging
+**Key Migrations:**
+- `fix-rls-initplan-performance-corrected.sql`
+- `fix-notification-functions-schema-qualified.sql`
+- `fix-follow-request-private-accounts.sql`
 
-**Manual testing:**
-1. Create test users: `create-test-users.sql`
-2. Toggle privacy and verify access control
-3. Test follow flow (request → approve → access granted)
-4. Check RLS: Try accessing other user's data (should fail)
+---
 
-**SQL debugging:**
-```sql
--- Check RLS status
-SELECT tablename, rowsecurity FROM pg_tables WHERE schemaname = 'public';
+## 📚 Detailed Documentation
 
--- Verify policies
-SELECT tablename, policyname FROM pg_policies WHERE schemaname = 'public';
+This project has extensive documentation for specific features:
 
--- Debug counts
-SELECT id, likes_count, comments_count FROM posts;
-```
+### Setup & Configuration
+- `README.md` - Quick start for students
+- `DATABASE_SETUP.md` - Database initialization
+- `DEPLOYMENT_GUIDE.md` - Production deployment
 
-### Documentation Files
+### Architecture & Design
+- `PRIVACY_ARCHITECTURE.md` - Privacy system design
+- `SECURITY_ARCHITECTURE.md` - RLS and auth patterns
+- `BILLION_USER_SCALE_DEPLOYMENT.md` - Scalability
 
-- [README.md](README.md) - Quick start guide for students
-- [PRIVACY_ARCHITECTURE.md](PRIVACY_ARCHITECTURE.md) - Privacy system design
-- [SECURITY_ARCHITECTURE.md](SECURITY_ARCHITECTURE.md) - RLS and auth patterns
-- [DATABASE_SETUP.md](DATABASE_SETUP.md) - Database initialization
-- [PRIVACY_IMPLEMENTATION_GUIDE.md](PRIVACY_IMPLEMENTATION_GUIDE.md) - Privacy how-to
+### Feature Guides
+- `NOTIFICATIONS_SYSTEM_GUIDE.md` - Notification implementation
+- `TAGGING_SYSTEM_GUIDE.md` - User tagging features
+- `SHARED_SCORECARD_IMPLEMENTATION.md` - Multi-player golf
+- `SPORT_SETTINGS_IMPLEMENTATION_GUIDE.md` - Sport-specific settings
 
-### Additional Context
+### Debugging & Testing
+- `DEBUGGING_GUIDE.md` - Common issues and fixes
+- `END_TO_END_TESTING_GUIDE.md` - Testing procedures
+- `TROUBLESHOOTING.md` - Problem resolution
 
-- **Next.js 15** with App Router and React 19
-- **Supabase** for auth, database, storage
-- **TypeScript** strict mode enabled
-- **Tailwind CSS 4** for styling
-- **Path alias:** `@/*` maps to `src/*`
-- **OpenAI integration** for AI text/image analysis (optional features)
-- **Email system** via Nodemailer (contact forms)
-- **Multi-sport social network** - Golf is reference implementation
+### Database
+- `RLS_OPTIMIZATION_GUIDE.md` - Performance optimization
+- `FIX_COUNTS_GUIDE.md` - Like/comment count fixes
+- `COMPLETE-RLS-FIX-GUIDE.md` - RLS comprehensive fixes
+
+---
+
+## 🎯 Tech Stack Summary
+
+- **Framework:** Next.js 15 (App Router) + React 19
+- **Database:** Supabase (PostgreSQL)
+- **Auth:** Supabase Auth (magic links, OAuth)
+- **Storage:** Supabase Storage (user avatars, post media)
+- **Styling:** Tailwind CSS 4
+- **Language:** TypeScript (strict mode)
+- **Icons:** Lucide React
+- **Optional:** OpenAI API (AI features), Nodemailer (email)
+
+---
+
+## 💡 Pro Tips
+
+1. **Always check RLS policies** when adding new tables
+2. **Use `supabaseAdmin` sparingly** - it bypasses all security
+3. **Test privacy controls** - Verify private profiles are protected
+4. **Follow spacing rhythm** - 12px/24px/48px only
+5. **Reference existing patterns** - Look at Golf implementation as reference
+6. **Keep .env.local secure** - Never commit to git
+
+---
+
+**Last Updated:** January 2025 (Local Development Migration)
+**Environment:** macOS (Darwin 25.0.0), Node 22.18.0, npm 10.9.3

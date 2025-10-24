@@ -33,21 +33,17 @@ export default function SearchBar() {
   const performSearch = useCallback(async () => {
     setIsLoading(true);
     try {
-      console.log('[SEARCH BAR] Searching for:', query);
       const response = await fetch(`/api/search?q=${encodeURIComponent(query)}`);
       const data = await response.json();
 
-      console.log('[SEARCH BAR] Response:', data);
 
       if (response.ok) {
         setResults(data.results || { athletes: [], posts: [], clubs: [] });
         setShowResults(true);
       } else {
-        console.error('[SEARCH BAR] Error response:', data);
         setResults({ athletes: [], posts: [], clubs: [] });
       }
-    } catch (error) {
-      console.error('[SEARCH BAR] Search error:', error);
+    } catch {
       setResults({ athletes: [], posts: [], clubs: [] });
     } finally {
       setIsLoading(false);

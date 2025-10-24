@@ -85,7 +85,6 @@ export default function FeedPage() {
 
     const supabase = getSupabaseBrowserClient();
 
-    console.log('[REALTIME] Setting up posts subscription');
 
     // Subscribe to INSERT events on posts table
     const channel = supabase
@@ -99,7 +98,6 @@ export default function FeedPage() {
           filter: `visibility=eq.public`
         },
         async (payload: RealtimePostPayload) => {
-          console.log('[REALTIME] New post detected:', payload.new);
 
           // Fetch the complete post with profile and media
           const { data: newPost } = await supabase
@@ -141,7 +139,6 @@ export default function FeedPage() {
       .subscribe();
 
     return () => {
-      console.log('[REALTIME] Cleaning up posts subscription');
       supabase.removeChannel(channel);
     };
   }, [user, showSuccess]);
@@ -178,8 +175,7 @@ export default function FeedPage() {
       
       setHasMore(newPosts.length === 20);
       
-    } catch (error) {
-      console.error('Feed load error:', error);
+    } catch {
       showError('Error', 'Failed to load feed');
     } finally {
       setFeedLoading(false);
@@ -192,7 +188,6 @@ export default function FeedPage() {
       return;
     }
 
-    console.log(`[FEED] handleLike called for post ${postId}`);
 
     try {
       const response = await fetch('/api/posts/like', {
@@ -208,13 +203,11 @@ export default function FeedPage() {
       const data = await response.json();
       const isLiking = data.action === 'liked';
 
-      console.log(`[FEED] API returned action: ${data.action}, count: ${data.likesCount}`);
 
       // Update local state with actual count from database
       setPosts(prevPosts =>
         prevPosts.map(post => {
           if (post.id === postId) {
-            console.log(`[FEED] Updating post ${postId}: old count ${post.likes_count} -> new count ${data.likesCount}`);
             return {
               ...post,
               likes_count: data.likesCount,
@@ -226,8 +219,7 @@ export default function FeedPage() {
           return post;
         })
       );
-    } catch (error) {
-      console.error('Like error:', error);
+    } catch {
       showError('Error', 'Failed to like post');
     }
   };
@@ -249,7 +241,6 @@ export default function FeedPage() {
   };
 
   const handlePostCreated = async (newPost: unknown) => {
-    console.log('[FEED] New post created:', newPost);
 
     // For group posts (shared rounds), we need to fetch the complete data with scorecard
     // For regular posts, add immediately to feed
@@ -304,9 +295,8 @@ export default function FeedPage() {
       // Remove post from local state
       setPosts(prevPosts => prevPosts.filter(post => post.id !== postId));
       showSuccess('Success', 'Post deleted successfully');
-    } catch (err) {
-      console.error('Delete post error:', err);
-      showError('Error', err instanceof Error ? err.message : 'Failed to delete post');
+    } catch {
+      showError('Error', 'Failed to delete post');
     }
   };
 

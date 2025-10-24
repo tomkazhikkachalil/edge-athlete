@@ -136,8 +136,7 @@ export class GolfCourseService {
         source: apiResults.length > 0 ? 'hybrid' : 'local',
         query
       };
-    } catch (error) {
-      console.warn('API search failed, falling back to local results:', error);
+    } catch {
 
       return {
         courses: localResults,
@@ -162,8 +161,7 @@ export class GolfCourseService {
     if (this.isAnyApiEnabled()) {
       try {
         return await this.fetchCourseFromApis(id);
-      } catch (error) {
-        console.warn('API course fetch failed:', error);
+      } catch {
       }
     }
 
@@ -188,8 +186,7 @@ export class GolfCourseService {
           course.name.toLowerCase() === name.toLowerCase()
         );
         return exactMatch || null;
-      } catch (error) {
-        console.warn('API course search failed:', error);
+      } catch {
       }
     }
 
@@ -220,8 +217,7 @@ export class GolfCourseService {
       try {
         const golfApiResults = await this.searchGolfApi(query, limit, options);
         results.push(...golfApiResults);
-      } catch (error) {
-        console.warn('GolfAPI search failed:', error);
+      } catch {
       }
     }
 
@@ -230,8 +226,7 @@ export class GolfCourseService {
       try {
         const iGolfResults = await this.searchiGolf(query, limit - results.length, options);
         results.push(...iGolfResults);
-      } catch (error) {
-        console.warn('iGolf search failed:', error);
+      } catch {
       }
     }
 
@@ -240,8 +235,7 @@ export class GolfCourseService {
       try {
         const zylaResults = await this.searchZylaGolf(query, limit - results.length);
         results.push(...zylaResults);
-      } catch (error) {
-        console.warn('Zyla Golf search failed:', error);
+      } catch {
       }
     }
 
@@ -349,8 +343,7 @@ export class GolfCourseService {
           const transformed = this.transformGolfApiResults([data.course]);
           return transformed[0] || null;
         }
-      } catch (error) {
-        console.warn('GolfAPI course fetch failed:', error);
+      } catch {
       }
     }
 

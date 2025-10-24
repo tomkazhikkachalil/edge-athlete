@@ -406,11 +406,9 @@ export default function CreatePostModal({
     setIsSubmitting(true);
 
     try {
-      console.log('Starting post submission...');
 
       // Handle shared golf rounds differently
       if (postType === 'golf' && roundType === 'shared') {
-        console.log('Creating shared golf round...');
 
         // Step 1: Create group post
         const groupPostResponse = await fetch('/api/group-posts', {
@@ -435,7 +433,6 @@ export default function CreatePostModal({
 
         const groupPostResult = await groupPostResponse.json();
         const groupPostId = groupPostResult.group_post.id;
-        console.log('Group post created:', groupPostId);
 
         // Step 2: Create golf scorecard data
         const golfDataResponse = await fetch('/api/golf/scorecards', {
@@ -452,8 +449,6 @@ export default function CreatePostModal({
         });
 
         if (!golfDataResponse.ok) {
-          const errorData = await golfDataResponse.json();
-          console.error('Failed to create golf data:', errorData);
           // Non-fatal - group post was created
         }
 
@@ -469,13 +464,10 @@ export default function CreatePostModal({
       }
 
       // Upload media files (for individual posts)
-      console.log('Uploading media files:', mediaFiles.length);
       const uploadedMedia = await Promise.all(
         mediaFiles.map(async (file) => {
           if (file.file) {
-            console.log('Uploading file:', file.file.name);
             const { url } = await uploadMediaToServer(file.file);
-            console.log('File uploaded:', url);
             return { ...file, url };
           }
           return file;
@@ -498,7 +490,6 @@ export default function CreatePostModal({
         taggedProfiles: taggedProfiles // Add tagged people
       };
 
-      console.log('Creating post with data:', postData);
 
       // Create post
       const response = await fetch('/api/posts', {
@@ -508,16 +499,13 @@ export default function CreatePostModal({
         body: JSON.stringify(postData)
       });
 
-      console.log('Post response status:', response.status);
 
       if (!response.ok) {
         const errorData = await response.json();
-        console.error('Post creation failed:', errorData);
         throw new Error(errorData.error || 'Failed to create post');
       }
 
       const result = await response.json();
-      console.log('Post created successfully:', result);
 
       showSuccess('Post created successfully! 🎉');
 
@@ -528,9 +516,8 @@ export default function CreatePostModal({
 
       // Close modal
       handleClose();
-    } catch (error) {
-      console.error('Post submission error:', error);
-      showError('Failed to create post', error instanceof Error ? error.message : 'Please try again');
+    } catch {
+      showError('Failed to create post', 'Please try again');
     } finally {
       setIsSubmitting(false);
     }
@@ -1174,9 +1161,6 @@ export default function CreatePostModal({
 
             <button
               onClick={() => {
-                console.log('Create Post button clicked');
-                console.log('Is valid:', isValidForSubmission());
-                console.log('Is submitting:', isSubmitting);
                 handleSubmit();
               }}
               disabled={!isValidForSubmission() || isSubmitting}

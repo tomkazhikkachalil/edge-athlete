@@ -78,11 +78,14 @@ export default function NotificationBell() {
       observer.observe(element);
     });
 
+    // Capture current ref value for cleanup
+    const timersToCleanup = visibilityTimers.current;
+
     return () => {
       observer.disconnect();
       // Clear all timers when dropdown closes
-      visibilityTimers.current.forEach((timer) => clearTimeout(timer));
-      visibilityTimers.current.clear();
+      timersToCleanup.forEach((timer) => clearTimeout(timer));
+      timersToCleanup.clear();
     };
   }, [showDropdown, notifications]); // Re-run when dropdown opens/closes or notifications change
 

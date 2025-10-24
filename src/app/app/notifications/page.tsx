@@ -53,7 +53,6 @@ export default function NotificationsPage() {
   const [page, setPage] = useState(0);
   const [actioningNotificationId, setActioningNotificationId] = useState<string | null>(null);
   const [unreadCount, setUnreadCount] = useState(0);
-  const [totalCount, setTotalCount] = useState(0);
   const { toasts, dismissToast, showSuccess, showError } = useToast();
   const { connectionStatus } = useNotifications(); // Get WebSocket connection status
   const notificationRefs = useRef<Map<string, HTMLDivElement>>(new Map());
@@ -110,11 +109,14 @@ export default function NotificationsPage() {
       observer.observe(element);
     });
 
+    // Capture current ref value for cleanup
+    const timersToCleanup = visibilityTimers.current;
+
     return () => {
       observer.disconnect();
       // Clear all timers
-      visibilityTimers.current.forEach((timer) => clearTimeout(timer));
-      visibilityTimers.current.clear();
+      timersToCleanup.forEach((timer) => clearTimeout(timer));
+      timersToCleanup.clear();
     };
   }, [notifications, user]); // Re-run when notifications change
 
@@ -158,12 +160,8 @@ export default function NotificationsPage() {
       // Update counts from API response
       setUnreadCount(data.unread_count || 0);
 
-      // Calculate total count (only when on 'all' tab, otherwise use notifications length)
-      if (filter === 'all') {
-        setTotalCount(newNotifications.length >= 20 ? newNotifications.length : newNotifications.length);
-      }
-    } catch (error) {
-      console.error('Error loading notifications:', error);
+      // Note: totalCount removed as it was unused
+    } catch {
       showError('Error', 'Failed to load notifications');
     } finally {
       setLoading(false);
@@ -190,8 +188,7 @@ export default function NotificationsPage() {
 
       // Decrease unread count
       setUnreadCount(prev => Math.max(0, prev - notificationIds.length));
-    } catch (error) {
-      console.error('Error marking notifications as read:', error);
+    } catch {
     }
   };
 
@@ -204,8 +201,7 @@ export default function NotificationsPage() {
       setNotifications(prev => prev.map(n => ({ ...n, is_read: true, read_at: new Date().toISOString() })));
       setUnreadCount(0); // Reset unread count to 0
       showSuccess('Success', 'All notifications marked as read');
-    } catch (error) {
-      console.error('Error marking all as read:', error);
+    } catch {
       showError('Error', 'Failed to mark notifications as read');
     }
   };
@@ -240,9 +236,8 @@ export default function NotificationsPage() {
         'Success',
         action === 'accept' ? 'Follow request accepted' : 'Follow request declined'
       );
-    } catch (error) {
-      console.error('Error processing notification action:', error);
-      showError('Error', error instanceof Error ? error.message : 'Failed to process request');
+    } catch {
+      showError('Error', 'Failed to process request');
     } finally {
       setActioningNotificationId(null);
     }

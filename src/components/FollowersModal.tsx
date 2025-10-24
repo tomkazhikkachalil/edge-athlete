@@ -60,8 +60,7 @@ export default function FollowersModal({ isOpen, onClose, profileId, initialTab 
 
       setFollowers(followersProfiles);
       setFollowing(followingProfiles);
-    } catch (err) {
-      console.error('Error loading followers/following:', err);
+    } catch {
       setError('Failed to load data. Please try again.');
     } finally {
       setLoading(false);

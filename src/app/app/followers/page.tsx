@@ -64,15 +64,12 @@ function FollowersContent() {
       setLoading(true);
       const response = await fetch(`/api/followers?type=${activeTab}`);
 
-      console.log('[FOLLOWERS PAGE] Response status:', response.status);
 
       if (!response.ok) {
         let errorData;
         try {
           errorData = await response.json();
-          console.error('[FOLLOWERS PAGE] API Error:', errorData);
-        } catch (jsonError) {
-          console.error('[FOLLOWERS PAGE] Failed to parse error JSON:', jsonError);
+        } catch {
           throw new Error(`API returned ${response.status}: ${response.statusText}`);
         }
 
@@ -85,25 +82,17 @@ function FollowersContent() {
       }
 
       const data = await response.json();
-      console.log('[FOLLOWERS PAGE] Data received:', {
-        type: activeTab,
-        count: data.followers?.length || data.following?.length || data.requests?.length || 0,
-        rawData: data
-      });
+      
 
       if (activeTab === 'followers') {
-        console.log('[FOLLOWERS PAGE] Setting followers:', data.followers);
         setFollowers(data.followers || []);
       } else if (activeTab === 'following') {
-        console.log('[FOLLOWERS PAGE] Setting following:', data.following);
         setFollowing(data.following || []);
       } else if (activeTab === 'requests') {
-        console.log('[FOLLOWERS PAGE] Setting requests:', data.requests);
         setRequests(data.requests || []);
       }
-    } catch (error) {
-      console.error('[FOLLOWERS PAGE] Error loading data:', error);
-      showError('Error', error instanceof Error ? error.message : 'Failed to load data');
+    } catch {
+      showError('Error', 'Failed to load data');
     } finally {
       setLoading(false);
     }
@@ -122,8 +111,7 @@ function FollowersContent() {
       setRequests(prev => prev.filter(r => r.id !== followId));
       showSuccess('Success', 'Follow request accepted');
       loadData(); // Reload to update counts
-    } catch (error) {
-      console.error('Error accepting request:', error);
+    } catch {
       showError('Error', 'Failed to accept request');
     }
   };
@@ -140,8 +128,7 @@ function FollowersContent() {
 
       setRequests(prev => prev.filter(r => r.id !== followId));
       showSuccess('Success', 'Follow request rejected');
-    } catch (error) {
-      console.error('Error rejecting request:', error);
+    } catch {
       showError('Error', 'Failed to reject request');
     }
   };
@@ -167,8 +154,7 @@ function FollowersContent() {
 
       showSuccess('Success', 'Unfollowed successfully');
       loadData(); // Reload the lists
-    } catch (error) {
-      console.error('Error unfollowing:', error);
+    } catch {
       showError('Error', 'Failed to unfollow');
     }
   };
@@ -191,8 +177,7 @@ function FollowersContent() {
 
       showSuccess('Success', 'Follower removed');
       loadData(); // Reload the lists
-    } catch (error) {
-      console.error('Error removing follower:', error);
+    } catch {
       showError('Error', 'Failed to remove follower');
     }
   };
@@ -353,9 +338,8 @@ function FollowersContent() {
                   </div>
                 ) : (
                   <div className="space-y-3">
-                    {followers.map((f, index) => {
+                    {followers.map((f) => {
                       if (!f.follower) {
-                        console.error('[FOLLOWERS PAGE] Follower missing profile data at index', index, ':', f);
                         return <div key={f.id} className="bg-red-100 p-4 rounded">Missing follower data for ID: {f.id}</div>;
                       }
                       return <div key={f.id}>{renderProfileCard(f.follower, true, false)}</div>;
@@ -378,7 +362,6 @@ function FollowersContent() {
                   <>
                     {following.map(f => {
                       if (!f.following) {
-                        console.warn('[FOLLOWERS PAGE] Following missing profile data:', f);
                         return null;
                       }
                       return <div key={f.id}>{renderProfileCard(f.following, false, true)}</div>;
@@ -401,7 +384,6 @@ function FollowersContent() {
                   requests.map(request => {
                     // Safety check for null follower
                     if (!request.follower) {
-                      console.warn('[FOLLOWERS PAGE] Request with null follower:', request);
                       return null;
                     }
 

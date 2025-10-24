@@ -179,17 +179,15 @@ export default function PostCard({
       if (!response.ok) {
         // Revert on error
         setIsSaved(isSaved);
-        console.error('Failed to save/unsave post:', data.error);
         return;
       }
 
       // Update counts from server
       setLocalSavesCount(data.savesCount);
       setIsSaved(data.isSaved);
-    } catch (error) {
+    } catch {
       // Revert on error
       setIsSaved(isSaved);
-      console.error('Error saving/unsaving post:', error);
     }
   };
 
@@ -211,11 +209,10 @@ export default function PostCard({
           await navigator.share(shareData);
           return;
         }
-      } catch (error) {
+      } catch (err) {
         // User cancelled or error occurred
-        const err = error as Error;
-        if (err.name !== 'AbortError') {
-          console.error('Error sharing:', error);
+        const error = err as Error;
+        if (error.name !== 'AbortError') {
           // Fall through to clipboard fallback
         } else {
           // User cancelled, don't show error
@@ -231,7 +228,6 @@ export default function PostCard({
       return;
     } catch {
       // Clipboard API blocked, use legacy method
-      console.log('Clipboard API blocked, using legacy method');
     }
 
     // Final fallback: Use legacy execCommand method
@@ -253,8 +249,7 @@ export default function PostCard({
       } else {
         throw new Error('Copy command failed');
       }
-    } catch (error) {
-      console.error('Error copying to clipboard:', error);
+    } catch {
       // Show input field for manual copy as last resort
       alert(`Copy this link:\n\n${shareUrl}`);
     }
@@ -1051,9 +1046,8 @@ export default function PostCard({
 
               // Reload the page to show updated scores
               window.location.reload();
-            } catch (error: unknown) {
-              console.error('Error saving scores:', error);
-              throw error;
+            } catch (err) {
+              throw err;
             }
           }}
           onClose={() => {

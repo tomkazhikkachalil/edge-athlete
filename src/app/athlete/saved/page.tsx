@@ -129,7 +129,6 @@ export default function SavedPostsPage() {
         .order('created_at', { ascending: false });
 
       if (fetchError) {
-        console.error('Error fetching saved posts:', fetchError);
         setError('Failed to load saved posts');
         return;
       }
@@ -138,8 +137,7 @@ export default function SavedPostsPage() {
       const validSavedPosts = (data || []).filter((sp: SavedPost) => sp.post !== null);
 
       setSavedPosts(validSavedPosts as SavedPost[]);
-    } catch (err) {
-      console.error('Error loading saved posts:', err);
+    } catch {
       setError('An error occurred while loading saved posts');
     } finally {
       setLoading(false);
@@ -185,8 +183,7 @@ export default function SavedPostsPage() {
           })
         );
       }
-    } catch (error) {
-      console.error('Error toggling like:', error);
+    } catch {
     }
   };
 

@@ -73,8 +73,7 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
         const data = await response.json();
         setUnreadCount(data.count);
       }
-    } catch (err) {
-      console.error('[NOTIFICATIONS] Error fetching unread count:', err);
+    } catch {
     }
   }, [user]);
 
@@ -105,7 +104,6 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
 
       if (!response.ok) {
         // Don't throw for other errors, just log and return
-        console.warn('[NOTIFICATIONS] Failed to fetch notifications:', response.status);
         setLoading(false);
         return;
       }
@@ -122,9 +120,8 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
       setHasMore(data.has_more);
       setNextCursor(data.next_cursor);
 
-    } catch (err) {
+    } catch {
       // Only log unexpected errors (network failures, etc.)
-      console.warn('[NOTIFICATIONS] Unexpected error fetching notifications:', err);
     } finally {
       setLoading(false);
     }
@@ -158,7 +155,6 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
       }
 
       if (!response.ok) {
-        console.warn('[NOTIFICATIONS] Failed to mark as read:', response.status);
         // Rollback optimistic update on error
         setNotifications(prev =>
           prev.map(n => n.id === notificationId ? { ...n, is_read: false, read_at: undefined } : n)
@@ -166,8 +162,7 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
         setUnreadCount(prev => prev + 1);
       }
 
-    } catch (err) {
-      console.warn('[NOTIFICATIONS] Unexpected error marking as read:', err);
+    } catch {
       // Rollback optimistic update on error
       setNotifications(prev =>
         prev.map(n => n.id === notificationId ? { ...n, is_read: false, read_at: undefined } : n)
@@ -202,14 +197,12 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
       }
 
       if (!response.ok) {
-        console.warn('[NOTIFICATIONS] Failed to mark all as read:', response.status);
         // Rollback optimistic update on error
         setNotifications(previousNotifications);
         setUnreadCount(previousUnreadCount);
       }
 
-    } catch (err) {
-      console.warn('[NOTIFICATIONS] Unexpected error marking all as read:', err);
+    } catch {
       // Rollback optimistic update on error
       setNotifications(previousNotifications);
       setUnreadCount(previousUnreadCount);
@@ -231,7 +224,6 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
       }
 
       if (!response.ok) {
-        console.warn('[NOTIFICATIONS] Failed to delete notification:', response.status);
         return;
       }
 
@@ -244,8 +236,7 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
         setUnreadCount(prev => Math.max(0, prev - 1));
       }
 
-    } catch (err) {
-      console.warn('[NOTIFICATIONS] Unexpected error deleting notification:', err);
+    } catch {
     }
   }, [user, notifications]);
 
@@ -264,7 +255,6 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
       }
 
       if (!response.ok) {
-        console.warn('[NOTIFICATIONS] Failed to clear all:', response.status);
         return;
       }
 
@@ -273,8 +263,7 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
       setHasMore(false);
       setNextCursor(null);
 
-    } catch (err) {
-      console.warn('[NOTIFICATIONS] Unexpected error clearing all:', err);
+    } catch {
     }
   }, [user]);
 
@@ -349,18 +338,14 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
         // Track connection status
         if (status === 'SUBSCRIBED') {
           setConnectionStatus('connected');
-          console.log('[NOTIFICATIONS] Real-time connected');
         } else if (status === 'CHANNEL_ERROR') {
           setConnectionStatus('disconnected');
-          console.warn('[NOTIFICATIONS] Real-time disconnected, retrying...');
           // Auto-reconnect after 3 seconds
           setTimeout(() => {
-            console.log('[NOTIFICATIONS] Attempting to reconnect...');
             channel.subscribe();
           }, 3000);
         } else if (status === 'TIMED_OUT') {
           setConnectionStatus('disconnected');
-          console.warn('[NOTIFICATIONS] Real-time connection timed out');
         }
       });
 

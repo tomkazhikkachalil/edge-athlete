@@ -125,9 +125,9 @@ export class GolfAdapter extends BaseSportAdapter {
       // Simulate successful dialog interaction
       await new Promise(resolve => setTimeout(resolve, 100));
       
-    } catch (error) {
+    } catch (err) {
       // Error opening golf edit dialog
-      throw error;
+      throw err;
     }
   }
   
@@ -147,9 +147,9 @@ export class GolfAdapter extends BaseSportAdapter {
       // Simulate successful post creation
       await new Promise(resolve => setTimeout(resolve, 100));
 
-    } catch (error) {
+    } catch (err) {
       // Error composing golf post
-      throw error;
+      throw err;
     }
   }
   

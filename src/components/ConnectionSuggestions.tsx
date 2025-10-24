@@ -41,8 +41,7 @@ export default function ConnectionSuggestions({
         const data = await response.json();
         setSuggestions(data.suggestions || []);
       }
-    } catch (error) {
-      console.error('Error loading suggestions:', error);
+    } catch {
     } finally {
       setLoading(false);
     }
@@ -68,8 +67,7 @@ export default function ConnectionSuggestions({
 
       setDismissedIds(prev => new Set(prev).add(suggestedId));
       setSuggestions(prev => prev.filter(s => s.suggested_id !== suggestedId));
-    } catch (error) {
-      console.error('Error dismissing suggestion:', error);
+    } catch {
     }
   };
 

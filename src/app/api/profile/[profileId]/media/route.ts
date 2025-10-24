@@ -269,7 +269,6 @@ export async function GET(
       const golfRoundsMap = new Map<string, GolfRound>();
 
       if (roundIds.length > 0) {
-        console.log('[PROFILE MEDIA API] Fetching golf rounds for:', roundIds);
         const { data: golfRounds, error: roundsError } = await supabaseAdmin
           .from('golf_rounds')
           .select('*')
@@ -278,7 +277,6 @@ export async function GET(
         if (roundsError) {
           console.error('[PROFILE MEDIA API] Error fetching golf rounds:', roundsError);
         } else {
-          console.log('[PROFILE MEDIA API] Fetched golf rounds:', golfRounds?.length || 0, golfRounds);
         }
 
         if (golfRounds) {

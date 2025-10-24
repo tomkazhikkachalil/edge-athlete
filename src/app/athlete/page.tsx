@@ -122,8 +122,7 @@ export default function AthleteProfilePage() {
       if (performancesResult.status === 'fulfilled') {
         setPerformances(performancesResult.value);
       }
-    } catch (error) {
-      console.error('Error loading athlete data:', error);
+    } catch {
       showError('Failed to load profile data', 'Some information may not be displayed correctly.');
     } finally {
       if (!skipLoadingState) {
@@ -140,8 +139,7 @@ export default function AthleteProfilePage() {
         setFollowersCount(data.followersCount || 0);
         setFollowingCount(data.followingCount || 0);
       }
-    } catch (error) {
-      console.error('Error loading follow stats:', error);
+    } catch {
       setFollowersCount(0);
       setFollowingCount(0);
     }
@@ -202,10 +200,10 @@ export default function AthleteProfilePage() {
       
       try {
         await fn();
-      } catch (error) {
-        setErrors(prev => ({ 
-          ...prev, 
-          [key]: error instanceof Error ? error.message : 'An error occurred'
+      } catch (err) {
+        setErrors(prev => ({
+          ...prev,
+          [key]: err instanceof Error ? err.message : 'An error occurred'
         }));
       } finally {
         setSubmitStates(prev => ({ ...prev, [key]: false }));
@@ -251,10 +249,11 @@ export default function AthleteProfilePage() {
         refreshProfile();
         loadAthleteData(user.id, true); // Skip loading state for background refresh
       }
-    } catch (error) {
+    } catch (err) {
       // Season highlights save error
-      showError('Failed to save season highlights', error instanceof Error ? error.message : 'Please try again');
-      throw new Error(error instanceof Error ? error.message : 'Failed to save season highlights');
+      const message = err instanceof Error ? err.message : 'Failed to save season highlights';
+      showError('Failed to save season highlights', message);
+      throw new Error(message);
     }
   };
 
@@ -298,14 +297,15 @@ export default function AthleteProfilePage() {
         // Also refresh performances specifically to maintain sort order
         AthleteService.getRecentPerformances(user.id).then(newPerformances => {
           setPerformances(newPerformances);
-        }).catch((error) => {
-          console.error('Failed to refresh performances:', error);
+        }).catch(() => {
+          // Silently handle error - non-critical refresh
         });
       }
-    } catch (error) {
+    } catch (err) {
       // Performance save error
-      showError('Failed to save performance', error instanceof Error ? error.message : 'Please try again');
-      throw new Error(error instanceof Error ? error.message : 'Failed to save performance');
+      const message = err instanceof Error ? err.message : 'Failed to save performance';
+      showError('Failed to save performance', message);
+      throw new Error(message);
     }
   };
 
@@ -337,10 +337,10 @@ export default function AthleteProfilePage() {
   //       AthleteService.getRecentPerformances(user.id).then(newPerformances => {
   //         setPerformances(newPerformances);
   //       }).catch((error) => {
-  //         console.error('Failed to refresh performances:', error);
+  //         
   //       });
   //     }
-  //   } catch (error) {
+  //   } catch {
   //     // Performance delete error
   //     showError('Failed to delete performance', error instanceof Error ? error.message : 'Please try again');
   //   }

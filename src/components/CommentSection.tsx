@@ -36,8 +36,7 @@ export default function CommentSection({ postId, initialCommentsCount = 0, onCom
 
       // Don't update count here - trust the database count from props
       // Count only updates when we add/delete comments
-    } catch (err) {
-      console.error('Error fetching comments:', err);
+    } catch {
       setError('Failed to load comments');
     } finally {
       setIsLoading(false);
@@ -82,8 +81,7 @@ export default function CommentSection({ postId, initialCommentsCount = 0, onCom
       const newCount = updatedComments.length;
       setCommentsCount(newCount);
       onCommentCountChange?.(newCount);
-    } catch (err) {
-      console.error('Error posting comment:', err);
+    } catch {
       setError('Failed to post comment');
     } finally {
       setIsSubmitting(false);
@@ -107,8 +105,7 @@ export default function CommentSection({ postId, initialCommentsCount = 0, onCom
       const newCount = updatedComments.length;
       setCommentsCount(newCount);
       onCommentCountChange?.(newCount);
-    } catch (err) {
-      console.error('Error deleting comment:', err);
+    } catch {
       setError('Failed to delete comment');
     }
   };
@@ -143,8 +140,7 @@ export default function CommentSection({ postId, initialCommentsCount = 0, onCom
             : comment
         )
       );
-    } catch (err) {
-      console.error('Error liking comment:', err);
+    } catch {
       setError('Failed to like comment');
     } finally {
       setLikingComments(prev => {

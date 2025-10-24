@@ -113,7 +113,7 @@ export default function ScoreEntryModal({
 
       await onSave(scores);
       onClose();
-    } catch (err: unknown) {
+    } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to save scores');
       setSaving(false);
     }

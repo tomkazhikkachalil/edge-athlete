@@ -44,8 +44,8 @@ export const supabase = (() => {
       // Return a dummy client for SSR - will fail gracefully if actually used
       return createClient('https://placeholder.supabase.co', 'placeholder-key');
     }
-  } catch (error) {
-    console.error('Failed to initialize Supabase client:', error);
+  } catch (err) {
+    console.error('Failed to initialize Supabase client:', err);
     // Return a dummy client that will fail gracefully
     return createClient('https://placeholder.supabase.co', 'placeholder-key');
   }

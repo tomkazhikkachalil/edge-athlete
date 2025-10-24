@@ -85,8 +85,7 @@ export default function TaggedPosts({ profileId, currentUserId }: TaggedPostsPro
       const validPosts = fetchedPosts.filter(post => post !== null);
 
       setPosts(validPosts);
-    } catch (err) {
-      console.error('Error loading tagged posts:', err);
+    } catch {
       setError('Failed to load tagged posts');
     } finally {
       setLoading(false);
