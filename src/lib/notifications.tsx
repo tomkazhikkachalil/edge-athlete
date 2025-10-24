@@ -1,0 +1,391 @@
+'use client';
+
+import { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react';
+import { RealtimePostgresChangesPayload } from '@supabase/supabase-js';
+import { useAuth } from '@/lib/auth';
+import { supabase } from '@/lib/supabase';
+
+export interface NotificationActor {
+  id: string;
+  first_name?: string;
+  middle_name?: string;
+  last_name?: string;
+  full_name?: string;
+  avatar_url?: string;
+}
+
+export interface Notification {
+  id: string;
+  type: string;
+  title: string;
+  message?: string;
+  action_url?: string;
+  is_read: boolean;
+  read_at?: string;
+  created_at: string;
+  metadata?: Record<string, unknown>;
+  post_id?: string;
+  comment_id?: string;
+  follow_id?: string;
+  actor?: NotificationActor;
+}
+
+interface NotificationsContextType {
+  notifications: Notification[];
+  unreadCount: number;
+  loading: boolean;
+  error: string | null;
+  hasMore: boolean;
+  connectionStatus: 'connected' | 'connecting' | 'disconnected';
+  fetchNotifications: (options?: { unreadOnly?: boolean; type?: string; reset?: boolean }) => Promise<void>;
+  markAsRead: (notificationId: string) => Promise<void>;
+  markAllAsRead: () => Promise<void>;
+  deleteNotification: (notificationId: string) => Promise<void>;
+  clearAll: () => Promise<void>;
+  refreshUnreadCount: () => Promise<void>;
+}
+
+const NotificationsContext = createContext<NotificationsContextType | undefined>(undefined);
+
+export function NotificationsProvider({ children }: { children: ReactNode }) {
+  const { user } = useAuth();
+  const [notifications, setNotifications] = useState<Notification[]>([]);
+  const [unreadCount, setUnreadCount] = useState(0);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [hasMore, setHasMore] = useState(false);
+  const [nextCursor, setNextCursor] = useState<string | null>(null);
+  const [connectionStatus, setConnectionStatus] = useState<'connected' | 'connecting' | 'disconnected'>('connecting');
+
+  // Fetch unread count
+  const refreshUnreadCount = useCallback(async () => {
+    if (!user) return;
+
+    try {
+      const response = await fetch('/api/notifications/unread-count');
+
+      // Silently handle auth errors
+      if (response.status === 401) {
+        return;
+      }
+
+      if (response.ok) {
+        const data = await response.json();
+        setUnreadCount(data.count);
+      }
+    } catch {
+    }
+  }, [user]);
+
+  // Fetch notifications
+  const fetchNotifications = useCallback(async (options?: {
+    unreadOnly?: boolean;
+    type?: string;
+    reset?: boolean;
+  }) => {
+    if (!user) return;
+
+    try {
+      setLoading(true);
+      setError(null);
+
+      const params = new URLSearchParams();
+      if (options?.unreadOnly) params.append('unread_only', 'true');
+      if (options?.type) params.append('type', options.type);
+      if (!options?.reset && nextCursor) params.append('cursor', nextCursor);
+
+      const response = await fetch(`/api/notifications?${params}`);
+
+      // Silently handle all auth and permission errors (expected when not logged in or account deleted)
+      if (response.status === 401 || response.status === 403) {
+        setLoading(false);
+        return;
+      }
+
+      if (!response.ok) {
+        // Don't throw for other errors, just log and return
+        setLoading(false);
+        return;
+      }
+
+      const data = await response.json();
+
+      if (options?.reset) {
+        setNotifications(data.notifications);
+      } else {
+        setNotifications(prev => [...prev, ...data.notifications]);
+      }
+
+      setUnreadCount(data.unread_count);
+      setHasMore(data.has_more);
+      setNextCursor(data.next_cursor);
+
+    } catch {
+      // Only log unexpected errors (network failures, etc.)
+    } finally {
+      setLoading(false);
+    }
+  }, [user, nextCursor]);
+
+  // Mark notification as read (with optimistic update)
+  const markAsRead = useCallback(async (notificationId: string) => {
+    if (!user) return;
+
+    // Check if already read
+    const notification = notifications.find(n => n.id === notificationId);
+    if (!notification || notification.is_read) return;
+
+    // OPTIMISTIC UPDATE: Update UI immediately
+    setNotifications(prev =>
+      prev.map(n => n.id === notificationId ? { ...n, is_read: true, read_at: new Date().toISOString() } : n)
+    );
+    setUnreadCount(prev => Math.max(0, prev - 1));
+
+    // Then sync with server in background
+    try {
+      const response = await fetch(`/api/notifications/${notificationId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ is_read: true })
+      });
+
+      // Silently handle auth errors
+      if (response.status === 401 || response.status === 403) {
+        return;
+      }
+
+      if (!response.ok) {
+        // Rollback optimistic update on error
+        setNotifications(prev =>
+          prev.map(n => n.id === notificationId ? { ...n, is_read: false, read_at: undefined } : n)
+        );
+        setUnreadCount(prev => prev + 1);
+      }
+
+    } catch {
+      // Rollback optimistic update on error
+      setNotifications(prev =>
+        prev.map(n => n.id === notificationId ? { ...n, is_read: false, read_at: undefined } : n)
+      );
+      setUnreadCount(prev => prev + 1);
+    }
+  }, [user, notifications]);
+
+  // Mark all notifications as read (with optimistic update)
+  const markAllAsRead = useCallback(async () => {
+    if (!user) return;
+
+    // Save previous state for rollback
+    const previousNotifications = [...notifications];
+    const previousUnreadCount = unreadCount;
+
+    // OPTIMISTIC UPDATE: Update UI immediately
+    setNotifications(prev =>
+      prev.map(n => ({ ...n, is_read: true, read_at: new Date().toISOString() }))
+    );
+    setUnreadCount(0);
+
+    // Then sync with server in background
+    try {
+      const response = await fetch('/api/notifications/mark-all-read', {
+        method: 'PATCH'
+      });
+
+      // Silently handle auth errors
+      if (response.status === 401 || response.status === 403) {
+        return;
+      }
+
+      if (!response.ok) {
+        // Rollback optimistic update on error
+        setNotifications(previousNotifications);
+        setUnreadCount(previousUnreadCount);
+      }
+
+    } catch {
+      // Rollback optimistic update on error
+      setNotifications(previousNotifications);
+      setUnreadCount(previousUnreadCount);
+    }
+  }, [user, notifications, unreadCount]);
+
+  // Delete notification
+  const deleteNotification = useCallback(async (notificationId: string) => {
+    if (!user) return;
+
+    try {
+      const response = await fetch(`/api/notifications/${notificationId}`, {
+        method: 'DELETE'
+      });
+
+      // Silently handle auth errors
+      if (response.status === 401 || response.status === 403) {
+        return;
+      }
+
+      if (!response.ok) {
+        return;
+      }
+
+      // Update local state
+      const notification = notifications.find(n => n.id === notificationId);
+      setNotifications(prev => prev.filter(n => n.id !== notificationId));
+
+      // Decrease unread count if notification was unread
+      if (notification && !notification.is_read) {
+        setUnreadCount(prev => Math.max(0, prev - 1));
+      }
+
+    } catch {
+    }
+  }, [user, notifications]);
+
+  // Clear all notifications
+  const clearAll = useCallback(async () => {
+    if (!user) return;
+
+    try {
+      const response = await fetch('/api/notifications?action=clear-all', {
+        method: 'DELETE'
+      });
+
+      // Silently handle auth errors
+      if (response.status === 401 || response.status === 403) {
+        return;
+      }
+
+      if (!response.ok) {
+        return;
+      }
+
+      setNotifications([]);
+      setUnreadCount(0);
+      setHasMore(false);
+      setNextCursor(null);
+
+    } catch {
+    }
+  }, [user]);
+
+  // Initial fetch on mount and cleanup on logout
+  useEffect(() => {
+    if (user) {
+      // PERFORMANCE OPTIMIZED: Load immediately - no artificial delays!
+      refreshUnreadCount();
+      fetchNotifications({ reset: true });
+    } else {
+      // Clear notifications when user logs out
+      setNotifications([]);
+      setUnreadCount(0);
+      setHasMore(false);
+      setNextCursor(null);
+      setError(null);
+      setConnectionStatus('connecting');
+    }
+  }, [user]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Set up real-time subscription for new and updated notifications
+  useEffect(() => {
+    if (!user) return;
+
+    setConnectionStatus('connecting');
+
+    const channel = supabase
+      .channel('notifications')
+      // Listen for new notifications
+      .on('postgres_changes', {
+        event: 'INSERT',
+        schema: 'public',
+        table: 'notifications',
+        filter: `user_id=eq.${user.id}`
+      }, (payload: RealtimePostgresChangesPayload<Notification>) => {
+
+        // Add new notification to the beginning of the list
+        setNotifications(prev => [payload.new as Notification, ...prev]);
+
+        // Increase unread count
+        setUnreadCount(prev => prev + 1);
+
+        // Optional: Play notification sound
+        // playNotificationSound();
+
+        // Optional: Show browser notification
+        if (Notification.permission === 'granted') {
+          const notification = payload.new as Notification;
+          new Notification(notification.title, {
+            body: notification.message || '',
+            icon: '/icon-192x192.png'
+          });
+        }
+      })
+      // Listen for notification updates (e.g., action_status changes)
+      .on('postgres_changes', {
+        event: 'UPDATE',
+        schema: 'public',
+        table: 'notifications',
+        filter: `user_id=eq.${user.id}`
+      }, (payload: RealtimePostgresChangesPayload<Notification>) => {
+
+        // Update the notification in the list
+        const updatedNotification = payload.new as Notification;
+        if (updatedNotification?.id) {
+          setNotifications(prev =>
+            prev.map(n => n.id === updatedNotification.id ? updatedNotification : n)
+          );
+        }
+      })
+      .subscribe((status: string) => {
+        // Track connection status
+        if (status === 'SUBSCRIBED') {
+          setConnectionStatus('connected');
+        } else if (status === 'CHANNEL_ERROR') {
+          setConnectionStatus('disconnected');
+          // Auto-reconnect after 3 seconds
+          setTimeout(() => {
+            channel.subscribe();
+          }, 3000);
+        } else if (status === 'TIMED_OUT') {
+          setConnectionStatus('disconnected');
+        }
+      });
+
+    // Request notification permission
+    if (typeof window !== 'undefined' && Notification.permission === 'default') {
+      Notification.requestPermission();
+    }
+
+    return () => {
+      channel.unsubscribe();
+      setConnectionStatus('connecting');
+    };
+  }, [user]);
+
+  return (
+    <NotificationsContext.Provider
+      value={{
+        notifications,
+        unreadCount,
+        loading,
+        error,
+        hasMore,
+        connectionStatus,
+        fetchNotifications,
+        markAsRead,
+        markAllAsRead,
+        deleteNotification,
+        clearAll,
+        refreshUnreadCount
+      }}
+    >
+      {children}
+    </NotificationsContext.Provider>
+  );
+}
+
+export function useNotifications() {
+  const context = useContext(NotificationsContext);
+  if (context === undefined) {
+    throw new Error('useNotifications must be used within a NotificationsProvider');
+  }
+  return context;
+}

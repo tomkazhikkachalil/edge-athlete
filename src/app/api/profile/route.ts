@@ -1,0 +1,170 @@
+import { NextRequest, NextResponse } from 'next/server';
+import { supabaseAdmin } from '@/lib/supabase';
+
+export async function GET(request: NextRequest) {
+  try {
+    const { searchParams } = new URL(request.url);
+    const profileId = searchParams.get('id');
+    
+    if (!profileId) {
+      return NextResponse.json({ error: 'Profile ID is required' }, { status: 400 });
+    }
+
+    if (!supabaseAdmin) {
+      return NextResponse.json({ 
+        error: 'Server configuration error - supabaseAdmin not available' 
+      }, { status: 500 });
+    }
+
+    // Fetch profile data
+    const { data: profile, error: profileError } = await supabaseAdmin
+      .from('profiles')
+      .select('*')
+      .eq('id', profileId)
+      .single();
+
+    if (profileError) {
+      console.error('Profile error:', profileError);
+      if (profileError.code === 'PGRST116') {
+        return NextResponse.json({ error: 'Profile not found' }, { status: 404 });
+      }
+      return NextResponse.json({ error: 'Failed to fetch profile' }, { status: 500 });
+    }
+
+    // Fetch badges
+    const { data: badges, error: badgesError } = await supabaseAdmin
+      .from('athlete_badges')
+      .select('*')
+      .eq('athlete_id', profileId)
+      .order('created_at', { ascending: false });
+
+    if (badgesError && badgesError.code !== 'PGRST116') {
+      console.error('Badges error:', badgesError);
+    }
+
+    // Fetch season highlights
+    const { data: seasonHighlights, error: highlightsError } = await supabaseAdmin
+      .from('season_highlights')
+      .select('*')
+      .eq('athlete_id', profileId)
+      .order('season', { ascending: false });
+
+    if (highlightsError && highlightsError.code !== 'PGRST116') {
+      console.error('Season highlights error:', highlightsError);
+    }
+
+    // Fetch performances
+    const { data: performances, error: performancesError } = await supabaseAdmin
+      .from('performances')
+      .select('*')
+      .eq('athlete_id', profileId)
+      .order('date', { ascending: false });
+
+    if (performancesError && performancesError.code !== 'PGRST116') {
+      console.error('Performances error:', performancesError);
+    }
+
+    return NextResponse.json({
+      profile,
+      badges: badges || [],
+      seasonHighlights: seasonHighlights || [],
+      performances: performances || []
+    });
+
+  } catch (error) {
+    console.error('API error:', error);
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+  }
+}
+
+export async function PUT(request: NextRequest) {
+  try {
+    
+    const body = await request.json();
+    
+    // Validate required fields
+    if (!body.profileData || !body.userId) {
+      console.error('Profile API: Missing required fields');
+      return NextResponse.json({ error: 'Profile data and user ID are required' }, { status: 400 });
+    }
+
+    const { profileData, userId } = body;
+    
+    // Clean up profileData - convert empty strings to null for optional fields
+    const cleanedProfileData = { ...profileData };
+    
+    // Convert empty strings to null for date fields
+    if (cleanedProfileData.dob === '') {
+      cleanedProfileData.dob = null;
+    }
+    
+    // Convert empty strings to null for numeric fields and log weight values
+    if (cleanedProfileData.height_cm === '') {
+      cleanedProfileData.height_cm = null;
+    }
+    if (cleanedProfileData.weight_kg === '') {
+      cleanedProfileData.weight_kg = null;
+    } else if (cleanedProfileData.weight_kg !== undefined) {
+    }
+    if (cleanedProfileData.class_year === '') {
+      cleanedProfileData.class_year = null;
+    }
+    
+    // Convert empty strings to null for optional text fields (keeps them as empty strings if that's intended)
+    const optionalFields = ['username', 'bio', 'location', 'social_twitter', 'social_instagram', 'social_facebook'];
+    optionalFields.forEach(field => {
+      if (cleanedProfileData[field] === '') {
+        cleanedProfileData[field] = null;
+      }
+    });
+    
+    // Don't null out weight_unit - keep it as is
+    if (cleanedProfileData.weight_unit !== undefined) {
+    }
+    
+    
+    if (!supabaseAdmin) {
+      console.error('Profile API: supabaseAdmin not configured - missing SUPABASE_SERVICE_ROLE_KEY');
+      console.error('Profile API: Available env vars:', {
+        url: !!process.env.NEXT_PUBLIC_SUPABASE_URL,
+        anonKey: !!process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
+        serviceKey: !!process.env.SUPABASE_SERVICE_ROLE_KEY
+      });
+      return NextResponse.json({ 
+        error: 'Server configuration error - supabaseAdmin not available. Missing SUPABASE_SERVICE_ROLE_KEY environment variable.' 
+      }, { status: 500 });
+    }
+    
+    // Update profile in database using admin client
+    const { data, error } = await supabaseAdmin
+      .from('profiles')
+      .update(cleanedProfileData)
+      .eq('id', userId)
+      .select()
+      .single();
+
+    if (error) {
+      console.error('Profile API: Database error:', error);
+      console.error('Profile API: Error details:', JSON.stringify(error, null, 2));
+      return NextResponse.json({ 
+        error: `Database error: ${error.message || 'Failed to update profile'}`,
+        details: error
+      }, { status: 500 });
+    }
+
+    const response = {
+      success: true,
+      profile: data,
+      message: 'Profile updated successfully'
+    };
+    return NextResponse.json(response);
+
+  } catch (error) {
+    console.error('Profile API: Unexpected error:', error);
+    console.error('Profile API: Error stack:', error instanceof Error ? error.stack : 'No stack trace');
+    return NextResponse.json({ 
+      error: `Internal server error: ${error instanceof Error ? error.message : 'Unknown error'}`,
+      details: error instanceof Error ? error.stack : error
+    }, { status: 500 });
+  }
+}

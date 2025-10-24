@@ -1,0 +1,330 @@
+@import "tailwindcss";
+
+:root {
+  --background: #ffffff;
+  --foreground: #171717;
+  
+  /* Vertical Rhythm System - Base 24px
+   * 
+   * SPACING TOKENS:
+   * --space-micro: 12px   (½ base) - micro spacing, label-to-value, icon-to-text, small gaps
+   * --space-base: 24px    (1x base) - standard intra-section gaps, card padding
+   * --space-section: 48px (2x base) - major section gutters, large spacing between regions
+   * 
+   * USAGE GUIDELINES:
+   * - Use -micro (12px) for: small gaps, icon margins, chip spacing, input padding
+   * - Use -base (24px) for: content padding, card spacing, medium gaps between elements  
+   * - Use -section (48px) for: major section breaks, page regions, large whitespace
+   * 
+   * UTILITY CLASSES AVAILABLE:
+   * Spacing: .space-micro, .space-base, .space-section (margin-bottom)
+   * Gaps: .gap-micro, .gap-base, .gap-section (flexbox/grid gap)
+   * Padding: .p-micro, .px-micro, .py-micro, .pt-micro, .pb-micro, .pl-micro, .pr-micro
+   *          .p-base, .px-base, .py-base, .pt-base, .pb-base, .pl-base, .pr-base
+   *          .p-section, .px-section, .py-section, .pt-section, .pb-section, .pl-section, .pr-section
+   * Margins: .m-micro, .mx-micro, .my-micro, .mt-micro, .mb-micro
+   *          .m-base, .mx-base, .my-base, .mt-base, .mb-base  
+   *          .m-section, .mx-section, .my-section, .mt-section, .mb-section
+   */
+  --space-micro: 12px;
+  --space-base: 24px;
+  --space-section: 48px;
+  
+  /* Typography Scale
+   * 
+   * HEADING SIZES:
+   * H1: 32px bold - Athlete name (primary page anchor)
+   * H2: 24px semibold - Section titles (e.g., "Season Highlights", "Recent Performances")
+   * H3: 18px bold - Card titles (e.g., "Hockey", "Basketball")
+   * 
+   * BODY TEXT SIZES:
+   * Body: 16px regular - Standard paragraphs and descriptions
+   * Label: 14px regular - Form labels, secondary info
+   * Chip: 12px medium - Badges, chips, meta info
+   * 
+   * LINE HEIGHT: 1.4x for all text for optimal readability
+   * 
+   * UTILITY CLASSES:
+   * .text-h1, .text-h2, .text-h3
+   * .text-body, .text-label, .text-chip
+   */
+  --text-h1-size: 2rem; /* 32px */
+  --text-h2-size: 1.5rem; /* 24px */
+  --text-h3-size: 1.125rem; /* 18px */
+  --text-body-size: 1rem; /* 16px */
+  --text-label-size: 0.875rem; /* 14px */
+  --text-chip-size: 0.75rem; /* 12px */
+  --text-line-height: 1.4;
+  
+  /* Icon Sizing System
+   * 
+   * ICON SIZES:
+   * --icon-header: 24px - Sport icons in card headers
+   * --icon-edit: 20px - Edit pencil icons
+   * --icon-social: 20px - Social media icons
+   * --icon-footer: 16px - Footer/mini icons in cards
+   * 
+   * ICON SPACING:
+   * --icon-gap: 8px - Standard gap between icon and text
+   * 
+   * UTILITY CLASSES:
+   * .icon-header, .icon-edit, .icon-social, .icon-footer
+   * .icon-gap (for consistent icon-to-text spacing)
+   */
+  --icon-header: 1.5rem; /* 24px */
+  --icon-edit: 1.25rem; /* 20px */
+  --icon-social: 1.25rem; /* 20px */
+  --icon-footer: 1rem; /* 16px */
+  --icon-gap: 0.5rem; /* 8px */
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --background: #0a0a0a;
+    --foreground: #ededed;
+  }
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: Arial, Helvetica, sans-serif;
+}
+
+/* Make all input fields have black text */
+input,
+textarea,
+select {
+  color: #000000 !important;
+}
+
+/* Vertical Rhythm Utility Classes */
+.space-micro { margin-bottom: var(--space-micro); }
+.space-base { margin-bottom: var(--space-base); }
+.space-section { margin-bottom: var(--space-section); }
+
+/* Margin Utilities */
+.mt-micro { margin-top: var(--space-micro); }
+.mb-micro { margin-bottom: var(--space-micro); }
+.my-micro { margin-top: var(--space-micro); margin-bottom: var(--space-micro); }
+.mx-micro { margin-left: var(--space-micro); margin-right: var(--space-micro); }
+.m-micro { margin: var(--space-micro); }
+
+.mt-base { margin-top: var(--space-base); }
+.mb-base { margin-bottom: var(--space-base); }
+.my-base { margin-top: var(--space-base); margin-bottom: var(--space-base); }
+.mx-base { margin-left: var(--space-base); margin-right: var(--space-base); }
+.m-base { margin: var(--space-base); }
+
+.mt-section { margin-top: var(--space-section); }
+.mb-section { margin-bottom: var(--space-section); }
+.my-section { margin-top: var(--space-section); margin-bottom: var(--space-section); }
+.mx-section { margin-left: var(--space-section); margin-right: var(--space-section); }
+.m-section { margin: var(--space-section); }
+
+.gap-micro { gap: var(--space-micro); }
+.gap-base { gap: var(--space-base); }
+.gap-section { gap: var(--space-section); }
+
+.pt-micro { padding-top: var(--space-micro); }
+.pb-micro { padding-bottom: var(--space-micro); }
+.py-micro { padding-top: var(--space-micro); padding-bottom: var(--space-micro); }
+
+.pt-base { padding-top: var(--space-base); }
+.pb-base { padding-bottom: var(--space-base); }
+.py-base { padding-top: var(--space-base); padding-bottom: var(--space-base); }
+
+.pt-section { padding-top: var(--space-section); }
+.pb-section { padding-bottom: var(--space-section); }
+.py-section { padding-top: var(--space-section); padding-bottom: var(--space-section); }
+
+.px-micro { padding-left: var(--space-micro); padding-right: var(--space-micro); }
+.pl-micro { padding-left: var(--space-micro); }
+.pr-micro { padding-right: var(--space-micro); }
+
+.px-base { padding-left: var(--space-base); padding-right: var(--space-base); }
+.pl-base { padding-left: var(--space-base); }
+.pr-base { padding-right: var(--space-base); }
+
+.px-section { padding-left: var(--space-section); padding-right: var(--space-section); }
+.pl-section { padding-left: var(--space-section); }
+.pr-section { padding-right: var(--space-section); }
+
+/* Season Highlights Card System */
+.season-card {
+  min-height: 280px; /* Fixed card height */
+  display: flex;
+  flex-direction: column;
+}
+
+.season-card-header {
+  height: 88px; /* Fixed header height: icon + title + chips with more padding */
+  flex-shrink: 0;
+  padding: 16px; /* Increased from 12px for better spacing */
+  border-bottom: 1px solid rgba(229, 231, 235, 0.5);
+}
+
+.season-card-header-top {
+  height: 48px; /* Icon + title + edit button */
+  margin-bottom: var(--space-micro);
+}
+
+.season-card-chips {
+  height: 20px; /* Two chip row */
+  display: flex;
+  gap: var(--space-micro);
+}
+
+.season-card-stats {
+  flex: 1; /* Takes remaining space */
+  padding: 20px; /* Increased from 12px for better stat spacing */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.season-card-footer {
+  height: 32px; /* Fixed footer height */
+  flex-shrink: 0;
+  padding: 0 16px 12px 16px; /* Increased horizontal padding */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Ensure consistent chip sizes */
+.season-chip {
+  height: 20px;
+  display: inline-flex;
+  align-items: center;
+  padding: 0 8px;
+  border-radius: 10px;
+  font-size: 0.75rem;
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 80px;
+}
+
+/* Stat grid consistency */
+.stat-tile {
+  text-align: center;
+  min-height: 48px;
+  padding: 8px; /* Added padding for better spacing */
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+.stat-value {
+  font-size: 1.125rem;
+  font-weight: 700;
+  line-height: 1.2;
+  color: #111827;
+  min-height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.stat-label {
+  font-size: 0.75rem;
+  color: #6B7280;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  line-height: 1;
+  margin-top: 4px;
+}
+
+/* Typography Scale Utilities */
+.text-h1 {
+  font-size: var(--text-h1-size);
+  font-weight: 700; /* bold */
+  line-height: var(--text-line-height);
+}
+
+.text-h2 {
+  font-size: var(--text-h2-size);
+  font-weight: 600; /* semibold */
+  line-height: var(--text-line-height);
+}
+
+.text-h3 {
+  font-size: var(--text-h3-size);
+  font-weight: 700; /* bold */
+  line-height: var(--text-line-height);
+}
+
+.text-body {
+  font-size: var(--text-body-size);
+  font-weight: 400; /* regular */
+  line-height: var(--text-line-height);
+}
+
+.text-label {
+  font-size: var(--text-label-size);
+  font-weight: 400; /* regular */
+  line-height: var(--text-line-height);
+}
+
+.text-chip {
+  font-size: var(--text-chip-size);
+  font-weight: 500; /* medium */
+  line-height: var(--text-line-height);
+}
+
+/* Icon Size Utilities */
+.icon-header {
+  font-size: var(--icon-header);
+  width: var(--icon-header);
+  height: var(--icon-header);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.icon-edit {
+  font-size: var(--icon-edit);
+  width: var(--icon-edit);
+  height: var(--icon-edit);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.icon-social {
+  font-size: var(--icon-social);
+  width: var(--icon-social);
+  height: var(--icon-social);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.icon-footer {
+  font-size: var(--icon-footer);
+  width: var(--icon-footer);
+  height: var(--icon-footer);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.icon-gap {
+  gap: var(--icon-gap);
+}
+
+/* Icon baseline alignment helper */
+.icon-baseline {
+  display: inline-flex;
+  align-items: baseline;
+  gap: var(--icon-gap);
+}

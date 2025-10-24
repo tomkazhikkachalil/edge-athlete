@@ -1,0 +1,1092 @@
+'use client';
+
+import { useState, useEffect } from 'react';
+import { useAuth } from '@/lib/auth';
+import { useToast } from './Toast';
+import LazyImage from './LazyImage';
+import type { Profile, AthleteBadge, SeasonHighlight, Performance } from '@/lib/supabase';
+import { getSportDefinition, getEnabledSports, getAllSports, type SportKey } from '@/lib/sports';
+import { COPY, getComingSoonMessage } from '@/lib/copy';
+import {
+  formatHeight,
+  getInitials,
+  formatSocialHandle,
+  validateHeight
+} from '@/lib/formatters';
+
+interface EditProfileTabsProps {
+  isOpen: boolean;
+  onClose: () => void;
+  profile: Profile | null;
+  badges: AthleteBadge[];
+  highlights: SeasonHighlight[];
+  performances: Performance[];
+  onSave: () => void;
+}
+
+type TabId = 'basic' | 'vitals' | 'socials' | 'golf' | 'equipment' | 'ice_hockey' | 'volleyball';
+
+interface TabConfig {
+  id: TabId;
+  label: string;
+  icon: string;
+  enabled: boolean;
+  comingSoon?: boolean;
+}
+
+// Generate sport-aware tabs dynamically
+const generateTabs = (): TabConfig[] => {
+  const baseTabs: TabConfig[] = [
+    { id: 'basic', label: 'Basic', icon: 'fas fa-user', enabled: true },
+    { id: 'vitals', label: 'Vitals', icon: 'fas fa-chart-line', enabled: true },
+    { id: 'socials', label: 'Socials', icon: 'fas fa-share-alt', enabled: true },
+  ];
+
+  // Add sport-specific tabs
+  const allSports = getAllSports();
+  allSports.forEach(adapter => {
+    const sportDef = getSportDefinition(adapter.sportKey);
+    baseTabs.push({
+      id: adapter.sportKey as TabId,
+      label: sportDef.display_name,
+      icon: sportDef.icon_id,
+      enabled: adapter.isEnabled(),
+      comingSoon: !adapter.isEnabled()
+    });
+  });
+
+  // Add equipment tab for golf only (when golf is enabled)
+  const golfEnabled = getEnabledSports().some(adapter => adapter.sportKey === 'golf');
+  if (golfEnabled) {
+    baseTabs.push({
+      id: 'equipment',
+      label: 'Equipment',
+      icon: 'fas fa-golf-club',
+      enabled: true
+    });
+  }
+
+  return baseTabs;
+};
+
+const TABS = generateTabs();
+
+export default function EditProfileTabs({
+  isOpen,
+  onClose,
+  profile,
+  badges: _badges, // eslint-disable-line @typescript-eslint/no-unused-vars
+  highlights: _highlights, // eslint-disable-line @typescript-eslint/no-unused-vars
+  performances: _performances, // eslint-disable-line @typescript-eslint/no-unused-vars
+  onSave
+}: EditProfileTabsProps) {
+  const { user } = useAuth();
+  const { showSuccess, showError, showInfo } = useToast();
+  const [activeTab, setActiveTab] = useState<TabId>('basic');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [errors, setErrors] = useState<Record<string, string>>({});
+
+  // Form states - Initialize with empty strings to prevent controlled/uncontrolled warnings
+  const [basicForm, setBasicForm] = useState({
+    first_name: '',
+    middle_name: '',
+    last_name: '',
+    full_name: '', // Fallback display name (NOT editable, NOT a handle)
+    handle: '', // Unique @handle identifier (user-editable @username)
+    bio: '',
+    avatar_file: null as File | null,
+    visibility: 'public' as 'public' | 'private',
+  });
+
+  const [vitalsForm, setVitalsForm] = useState({
+    height_cm: '',
+    weight_kg: '',
+    weight_unit: 'lbs' as 'lbs' | 'kg' | 'stone',
+    dob: '',
+    location: '',
+    class_year: '' as string | number,
+  });
+
+  const [socialsForm, setSocialsForm] = useState({
+    social_twitter: '',
+    social_instagram: '',
+    social_facebook: '',
+  });
+
+  const [golfForm, setGolfForm] = useState({
+    handicap: '',
+    home_course: '',
+    tee_preference: 'white' as 'black' | 'blue' | 'white' | 'red' | 'gold',
+    dominant_hand: 'right' as 'right' | 'left',
+  });
+
+  const [equipmentForm, setEquipmentForm] = useState({
+    driver_brand: '',
+    driver_loft: '',
+    irons_brand: '',
+    putter_brand: '',
+    ball_brand: '',
+  });
+
+  // Load golf settings from sport_settings table
+  useEffect(() => {
+    if (!user?.id) return;
+
+    const loadGolfSettings = async () => {
+      try {
+        const response = await fetch('/api/sport-settings?sport=golf');
+        if (response.ok) {
+          const data = await response.json();
+          const settings = data.settings || {};
+
+          // Update golf form with settings from sport_settings table
+          setGolfForm({
+            handicap: settings.handicap?.toString() || '',
+            home_course: settings.home_course || '',
+            tee_preference: (settings.tee_preference as 'black' | 'blue' | 'white' | 'red' | 'gold') || 'white',
+            dominant_hand: (settings.dominant_hand as 'right' | 'left') || 'right',
+          });
+
+          // Update equipment form with settings from sport_settings table
+          setEquipmentForm({
+            driver_brand: settings.driver_brand || '',
+            driver_loft: settings.driver_loft?.toString() || '',
+            irons_brand: settings.irons_brand || '',
+            putter_brand: settings.putter_brand || '',
+            ball_brand: settings.ball_brand || '',
+          });
+        }
+      } catch (error) {
+        console.error('Error loading golf settings:', error);
+      }
+    };
+
+    loadGolfSettings();
+  }, [user?.id]);
+
+  // No conversion - save exactly what user enters
+
+  // Initialize forms when profile changes
+  useEffect(() => {
+    setBasicForm({
+      first_name: (profile?.first_name || '').toString(),
+      middle_name: (profile?.middle_name || '').toString(),
+      last_name: (profile?.last_name || '').toString(),
+      full_name: (profile?.full_name || '').toString(), // fallback display name (not editable)
+      handle: (profile?.handle || '').toString(), // unique @handle identifier
+      bio: (profile?.bio || '').toString(),
+      avatar_file: null,
+      visibility: (profile?.visibility || 'public') as 'public' | 'private',
+    });
+
+    // Initialize weight with user's saved values - no conversion
+    const savedUnit = (profile?.weight_unit || 'lbs') as 'lbs' | 'kg' | 'stone';
+    setVitalsForm({
+      height_cm: profile?.height_cm ? formatHeight(profile.height_cm) : '',
+      weight_kg: profile?.weight_display ? String(profile.weight_display) : '',
+      weight_unit: savedUnit,
+      dob: (profile?.dob || '').toString(),
+      location: (profile?.location || '').toString(),
+      class_year: profile?.class_year ? String(profile.class_year) : '',
+    });
+
+    setSocialsForm({
+      social_twitter: formatSocialHandle(profile?.social_twitter),
+      social_instagram: formatSocialHandle(profile?.social_instagram),
+      social_facebook: formatSocialHandle(profile?.social_facebook),
+    });
+
+    // Golf and equipment settings are now loaded from sport_settings API
+    // (see useEffect above that fetches from /api/sport-settings)
+  }, [profile]);
+
+  const saveTab = async (tabId: TabId) => {
+    if (!user?.id) {
+      showError('Authentication Error', 'Please log in again.');
+      return;
+    }
+
+    setIsSubmitting(true);
+    setErrors({});
+
+    try {
+      let updateData: Partial<Profile> = {};
+      let hasChanges = false;
+
+      switch (tabId) {
+        case 'basic':
+          // Handle avatar upload if present
+          if (basicForm.avatar_file) {
+            await uploadAvatar(basicForm.avatar_file);
+          }
+
+          // Validate required fields
+          if (!basicForm.first_name.trim() || !basicForm.last_name.trim()) {
+            throw new Error('First name and last name are required');
+          }
+
+          updateData = {
+            first_name: basicForm.first_name.trim(),
+            middle_name: basicForm.middle_name.trim() || undefined,
+            last_name: basicForm.last_name.trim(),
+            full_name: basicForm.full_name.trim() || undefined, // fallback display name (not editable)
+            handle: basicForm.handle.trim() || undefined, // unique @handle identifier
+            bio: basicForm.bio.trim() || undefined,
+            visibility: basicForm.visibility,
+          };
+          hasChanges = true;
+          break;
+
+        case 'vitals':
+          // Save vitals data
+          // Validate height
+          const heightValidation = validateHeight(vitalsForm.height_cm);
+          if (vitalsForm.height_cm.trim() && heightValidation.error) {
+            throw new Error(`Height: ${heightValidation.error}`);
+          }
+          
+          // Save weight display value exactly as entered
+          let weightDisplay: number | undefined;
+          if (vitalsForm.weight_kg && vitalsForm.weight_kg.trim()) {
+            weightDisplay = parseFloat(vitalsForm.weight_kg);
+            // Save weight with unit
+            if (isNaN(weightDisplay) || weightDisplay <= 0) {
+              throw new Error(`Please enter a valid weight`);
+            }
+          } else {
+            // Clear weight if no value
+            weightDisplay = undefined;
+          }
+          
+          updateData = {
+            height_cm: heightValidation.value || undefined,
+            weight_display: weightDisplay,
+            weight_unit: vitalsForm.weight_unit || 'lbs',
+            dob: vitalsForm.dob || undefined,
+            location: vitalsForm.location.trim() || undefined,
+            class_year: vitalsForm.class_year ? parseInt(String(vitalsForm.class_year)) : undefined,
+          };
+          // Update vitals in database
+          hasChanges = true;
+          break;
+
+        case 'socials':
+          updateData = {
+            social_twitter: socialsForm.social_twitter.trim() || undefined,
+            social_instagram: socialsForm.social_instagram.trim() || undefined,
+            social_facebook: socialsForm.social_facebook.trim() || undefined,
+          };
+          hasChanges = true;
+          break;
+
+        case 'golf':
+          // Save golf settings to sport_settings table
+          {
+            const golfSettings = {
+              handicap: golfForm.handicap ? parseFloat(golfForm.handicap) : undefined,
+              home_course: golfForm.home_course.trim() || undefined,
+              tee_preference: golfForm.tee_preference,
+              dominant_hand: golfForm.dominant_hand,
+            };
+
+            const response = await fetch('/api/sport-settings', {
+              method: 'PUT',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                sport: 'golf',
+                settings: golfSettings
+              }),
+            });
+
+            if (!response.ok) {
+              throw new Error('Failed to save golf settings');
+            }
+
+            showSuccess('Changes Saved', 'Golf settings updated successfully!');
+            onSave(); // Refresh parent data
+          }
+          setIsSubmitting(false);
+          return; // Exit early - don't update profiles table
+
+        case 'equipment':
+          // Save equipment settings to sport_settings table (merged with golf settings)
+          {
+            // First, fetch existing golf settings
+            const existingResponse = await fetch('/api/sport-settings?sport=golf');
+            const existingData = await existingResponse.json();
+            const existingSettings = existingData.settings || {};
+
+            // Merge equipment data with existing golf settings
+            const updatedSettings = {
+              ...existingSettings,
+              driver_brand: equipmentForm.driver_brand.trim() || undefined,
+              driver_loft: equipmentForm.driver_loft ? parseFloat(equipmentForm.driver_loft) : undefined,
+              irons_brand: equipmentForm.irons_brand.trim() || undefined,
+              putter_brand: equipmentForm.putter_brand.trim() || undefined,
+              ball_brand: equipmentForm.ball_brand.trim() || undefined,
+            };
+
+            const response = await fetch('/api/sport-settings', {
+              method: 'PUT',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                sport: 'golf',
+                settings: updatedSettings
+              }),
+            });
+
+            if (!response.ok) {
+              throw new Error('Failed to save equipment settings');
+            }
+
+            showSuccess('Changes Saved', 'Equipment updated successfully!');
+            onSave(); // Refresh parent data
+          }
+          setIsSubmitting(false);
+          return; // Exit early - don't update profiles table
+
+        case 'ice_hockey':
+        case 'volleyball':
+          // Future sports - show coming soon
+          const sportName = TABS.find(t => t.id === tabId)?.label || 'Sport';
+          showInfo(`${sportName} Settings`, getComingSoonMessage(tabId as SportKey, 'settings'));
+          return;
+      }
+
+      if (hasChanges) {
+        const response = await fetch('/api/profile', {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            profileData: updateData,
+            userId: user.id
+          }),
+        });
+
+        if (!response.ok) {
+          const error = await response.json();
+          throw new Error(error.error || 'Failed to save changes');
+        }
+
+        await response.json();
+
+        showSuccess('Changes Saved', `${TABS.find(t => t.id === tabId)?.label} updated successfully!`);
+        onSave(); // Refresh parent data
+      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to save changes';
+      showError('Save Failed', message);
+      
+      // Set field-specific errors if needed
+      if (message.includes('username')) {
+        setErrors({ username: message });
+      }
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const uploadAvatar = async (file: File) => {
+    const maxSize = 5 * 1024 * 1024; // 5MB
+    const allowedTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
+    
+    if (file.size > maxSize) {
+      throw new Error('Avatar file size must be less than 5MB');
+    }
+    
+    if (!allowedTypes.includes(file.type)) {
+      throw new Error('Please select a valid image file (JPG, PNG, GIF, or WebP)');
+    }
+
+    const formData = new FormData();
+    formData.append('avatar', file);
+    formData.append('userId', user!.id);
+
+    const response = await fetch('/api/upload/avatar', {
+      method: 'POST',
+      body: formData,
+    });
+
+    if (!response.ok) {
+      const result = await response.json();
+      throw new Error(result.error || 'Failed to upload avatar');
+    }
+  };
+
+  const renderBasicTab = () => (
+    <div className="space-y-6">
+      {/* Avatar Upload */}
+      <div className="flex items-center space-x-4">
+        <div className="relative">
+          <LazyImage
+            src={profile?.avatar_url}
+            alt={`${basicForm.full_name || 'User'} avatar`}
+            className="w-20 h-20 rounded-full object-cover border-3 border-gray-300"
+            width={80}
+            height={80}
+            priority
+            fallback={
+              <div 
+                className="w-20 h-20 rounded-full bg-gray-200 flex items-center justify-center border-3 border-gray-300"
+                role="img"
+                aria-label={`${basicForm.full_name || 'User'} avatar`}
+              >
+                <span className="text-gray-600 font-semibold text-xl" aria-hidden="true">
+                  {getInitials(basicForm.full_name)}
+                </span>
+              </div>
+            }
+          />
+        </div>
+        <div className="flex-1">
+          <label
+            htmlFor="avatar-upload"
+            className="cursor-pointer inline-flex items-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+          >
+            <i className="fas fa-upload mr-2" aria-hidden="true"></i>
+            Change Avatar
+          </label>
+          <input
+            key={`avatar-upload-${isOpen}`}
+            id="avatar-upload"
+            type="file"
+            accept="image/*"
+            className="sr-only"
+            onChange={(e) => {
+              const file = e.target.files?.[0];
+              if (file) {
+                setBasicForm(prev => ({ ...prev, avatar_file: file }));
+              }
+              // Reset the input value to allow re-selecting the same file
+              e.target.value = '';
+            }}
+          />
+          <p className="mt-1 text-xs text-gray-500">
+            JPG, PNG, GIF or WebP. Max 5MB.
+          </p>
+        </div>
+      </div>
+
+      {/* Name Fields */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div>
+          <label htmlFor="first_name" className="block text-sm font-medium text-gray-700 mb-1">
+            First Name <span className="text-red-500">*</span>
+          </label>
+          <input
+            id="first_name"
+            type="text"
+            value={basicForm.first_name || ''}
+            onChange={(e) => setBasicForm(prev => ({ ...prev, first_name: e.target.value }))}
+            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            placeholder="John"
+            required
+          />
+        </div>
+
+        <div>
+          <label htmlFor="last_name" className="block text-sm font-medium text-gray-700 mb-1">
+            Last Name <span className="text-red-500">*</span>
+          </label>
+          <input
+            id="last_name"
+            type="text"
+            value={basicForm.last_name || ''}
+            onChange={(e) => setBasicForm(prev => ({ ...prev, last_name: e.target.value }))}
+            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            placeholder="Doe"
+            required
+          />
+        </div>
+      </div>
+
+      <div>
+        <label htmlFor="middle_name" className="block text-sm font-medium text-gray-700 mb-1">
+          Middle Name <span className="text-gray-400 text-xs">(Optional)</span>
+        </label>
+        <input
+          id="middle_name"
+          type="text"
+          value={basicForm.middle_name || ''}
+          onChange={(e) => setBasicForm(prev => ({ ...prev, middle_name: e.target.value }))}
+          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+          placeholder="Michael"
+        />
+      </div>
+
+      <div>
+        <label htmlFor="handle" className="block text-sm font-medium text-gray-700 mb-1">
+          Handle (Username) <span className="text-red-500">*</span>
+        </label>
+        <div className="relative">
+          <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+            <span className="text-gray-500">@</span>
+          </div>
+          <input
+            id="handle"
+            type="text"
+            value={basicForm.handle || ''}
+            onChange={(e) => {
+              // Remove @ prefix if user types it, remove spaces, convert to lowercase
+              const value = e.target.value.replace(/^@/, '').replace(/\s/g, '').toLowerCase();
+              setBasicForm(prev => ({ ...prev, handle: value }));
+            }}
+            className={`w-full pl-8 pr-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
+              errors.handle ? 'border-red-500' : 'border-gray-300'
+            }`}
+            placeholder="yourhandle"
+            required
+            minLength={3}
+            maxLength={20}
+            pattern="[a-z0-9][a-z0-9._]*[a-z0-9]"
+          />
+        </div>
+        <p className="mt-1 text-xs text-gray-500">
+          Your unique identifier (3-20 characters, letters/numbers/dots/underscores, no spaces)
+        </p>
+        {errors.handle && (
+          <p className="mt-1 text-sm text-red-600" role="alert">
+            {errors.handle}
+          </p>
+        )}
+      </div>
+
+      <div>
+        <label htmlFor="bio" className="block text-sm font-medium text-gray-700 mb-1">
+          Bio
+        </label>
+        <textarea
+          id="bio"
+          rows={4}
+          value={basicForm.bio || ''}
+          onChange={(e) => setBasicForm(prev => ({ ...prev, bio: e.target.value }))}
+          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
+          placeholder="Tell us about yourself..."
+        />
+        <p className="mt-1 text-xs text-gray-500">
+          {basicForm.bio.length}/500 characters
+        </p>
+      </div>
+
+      {/* Privacy Toggle */}
+      <div className="pt-4 border-t border-gray-200">
+        <label className="flex items-center justify-between p-4 border-2 border-gray-200 rounded-lg cursor-pointer hover:bg-gray-50 transition-colors">
+          <div className="flex-1">
+            <div className="font-medium text-gray-900 mb-1">Profile Visibility</div>
+            <div className="text-sm text-gray-500">
+              {basicForm.visibility === 'public'
+                ? 'Anyone can view your profile, posts, and stats'
+                : 'Only approved followers can view your profile, posts, and stats'
+              }
+            </div>
+          </div>
+          <div className="ml-4 flex-shrink-0">
+            <button
+              type="button"
+              onClick={() => setBasicForm(prev => ({
+                ...prev,
+                visibility: prev.visibility === 'public' ? 'private' : 'public'
+              }))}
+              className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 ${
+                basicForm.visibility === 'public' ? 'bg-green-600' : 'bg-gray-300'
+              }`}
+              aria-label={`Toggle profile visibility. Currently ${basicForm.visibility}`}
+            >
+              <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                basicForm.visibility === 'public' ? 'translate-x-6' : 'translate-x-1'
+              }`} />
+            </button>
+          </div>
+        </label>
+
+        {/* Visual indicator */}
+        <div className="mt-3 text-center">
+          <span className={`inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-medium ${
+            basicForm.visibility === 'public'
+              ? 'bg-green-100 text-green-700 border border-green-200'
+              : 'bg-orange-100 text-orange-700 border border-orange-200'
+          }`}>
+            <i className={`fas fa-${basicForm.visibility === 'public' ? 'globe' : 'lock'}`}></i>
+            {basicForm.visibility === 'public' ? 'Public Profile' : 'Private Profile'}
+          </span>
+        </div>
+
+        {/* Explanation */}
+        <div className="mt-3 p-3 bg-blue-50 border border-blue-100 rounded-lg">
+          <div className="flex items-start gap-2">
+            <i className="fas fa-info-circle text-blue-600 mt-0.5"></i>
+            <div className="text-xs text-blue-900">
+              {basicForm.visibility === 'public' ? (
+                <>
+                  <strong>Public profiles</strong> help you get discovered by coaches, scouts, and other athletes.
+                  All your content will be visible to anyone who is logged in.
+                </>
+              ) : (
+                <>
+                  <strong>Private profiles</strong> give you control over who sees your content.
+                  Only followers you approve will be able to view your profile, posts, and stats.
+                </>
+              )}
+            </div>
+          </div>
+        </div>
+
+        <p className="mt-2 text-xs text-gray-500 text-center">
+          You can change this setting anytime
+        </p>
+      </div>
+    </div>
+  );
+
+  const renderVitalsTab = () => (
+    <div className="space-y-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div>
+          <label htmlFor="height" className="block text-sm font-medium text-gray-700 mb-1">
+            Height
+          </label>
+          <input
+            id="height"
+            type="text"
+            value={vitalsForm.height_cm || ''}
+            onChange={(e) => setVitalsForm(prev => ({ ...prev, height_cm: e.target.value }))}
+            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            placeholder="5'10&quot;, 5 10, 510, or 5.10"
+          />
+          <p className="mt-1 text-xs text-gray-500">
+            Multiple formats accepted: 5&apos;10&quot;, 5 10, 510, 5.10, 6 feet
+          </p>
+        </div>
+
+        <div>
+          <label htmlFor="weight" className="block text-sm font-medium text-gray-700 mb-1">
+            Weight
+          </label>
+          <div className="flex space-x-2">
+            <input
+              id="weight"
+              type="number"
+              step="0.1"
+              value={vitalsForm.weight_kg || ''}
+              onChange={(e) => setVitalsForm(prev => ({ ...prev, weight_kg: e.target.value }))}
+              className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              placeholder={vitalsForm.weight_unit === 'kg' ? '68' : vitalsForm.weight_unit === 'stone' ? '11.7' : '150'}
+            />
+            <select
+              value={vitalsForm.weight_unit}
+              onChange={(e) => {
+                const newUnit = e.target.value as 'lbs' | 'kg' | 'stone';
+                // Just change the unit, don't convert the value
+                setVitalsForm(prev => ({ 
+                  ...prev, 
+                  weight_unit: newUnit
+                }));
+              }}
+              className="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            >
+              <option value="lbs">lbs</option>
+              <option value="kg">kg</option>
+              <option value="stone">stone</option>
+            </select>
+          </div>
+          <p className="mt-1 text-xs text-gray-500">
+            {vitalsForm.weight_unit === 'stone' ? 'Enter as stone.pounds (e.g., 11.7 = 11 stone 7 lbs)' : 
+             vitalsForm.weight_unit === 'kg' ? 'Enter weight in kilograms' : 
+             'Enter weight in pounds'}
+          </p>
+        </div>
+      </div>
+
+      <div>
+        <label htmlFor="dob" className="block text-sm font-medium text-gray-700 mb-1">
+          Date of Birth
+        </label>
+        <input
+          id="dob"
+          type="date"
+          value={vitalsForm.dob || ''}
+          onChange={(e) => setVitalsForm(prev => ({ ...prev, dob: e.target.value }))}
+          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+        />
+      </div>
+
+      <div>
+        <label htmlFor="location" className="block text-sm font-medium text-gray-700 mb-1">
+          Location
+        </label>
+        <input
+          id="location"
+          type="text"
+          value={vitalsForm.location || ''}
+          onChange={(e) => setVitalsForm(prev => ({ ...prev, location: e.target.value }))}
+          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+          placeholder="City, State"
+        />
+      </div>
+
+      <div>
+        <label htmlFor="class_year" className="block text-sm font-medium text-gray-700 mb-1">
+          Class Year
+        </label>
+        <input
+          id="class_year"
+          type="number"
+          min="2020"
+          max="2040"
+          value={vitalsForm.class_year || ''}
+          onChange={(e) => setVitalsForm(prev => ({ ...prev, class_year: e.target.value }))}
+          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+          placeholder="2025"
+        />
+      </div>
+    </div>
+  );
+
+  const renderGolfTab = () => (
+    <div className="space-y-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div>
+          <label htmlFor="handicap" className="block text-sm font-medium text-gray-700 mb-1">
+            <i className="fas fa-golf-ball text-green-600 mr-2" aria-hidden="true"></i>
+            Handicap Index
+          </label>
+          <input
+            id="handicap"
+            type="number"
+            step="0.1"
+            value={golfForm.handicap || ''}
+            onChange={(e) => setGolfForm(prev => ({ ...prev, handicap: e.target.value }))}
+            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            placeholder="12.4"
+          />
+          <p className="mt-1 text-xs text-gray-500">
+            Official USGA Handicap Index
+          </p>
+        </div>
+
+        <div>
+          <label htmlFor="dominant_hand" className="block text-sm font-medium text-gray-700 mb-1">
+            <i className="fas fa-hand-paper text-green-600 mr-2" aria-hidden="true"></i>
+            Dominant Hand
+          </label>
+          <select
+            id="dominant_hand"
+            value={golfForm.dominant_hand}
+            onChange={(e) => setGolfForm(prev => ({ ...prev, dominant_hand: e.target.value as 'right' | 'left' }))}
+            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+          >
+            <option value="right">Right-handed</option>
+            <option value="left">Left-handed</option>
+          </select>
+        </div>
+      </div>
+
+      <div>
+        <label htmlFor="home_course" className="block text-sm font-medium text-gray-700 mb-1">
+          <i className="fas fa-flag text-green-600 mr-2" aria-hidden="true"></i>
+          Home Course
+        </label>
+        <input
+          id="home_course"
+          type="text"
+          value={golfForm.home_course || ''}
+          onChange={(e) => setGolfForm(prev => ({ ...prev, home_course: e.target.value }))}
+          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+          placeholder="Pebble Beach Golf Links"
+        />
+      </div>
+
+      <div>
+        <label htmlFor="tee_preference" className="block text-sm font-medium text-gray-700 mb-1">
+          <i className="fas fa-golf-tee text-green-600 mr-2" aria-hidden="true"></i>
+          Preferred Tee
+        </label>
+        <select
+          id="tee_preference"
+          value={golfForm.tee_preference}
+          onChange={(e) => setGolfForm(prev => ({ ...prev, tee_preference: e.target.value as 'black' | 'blue' | 'white' | 'red' | 'gold' }))}
+          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+        >
+          <option value="black">Black (Championship)</option>
+          <option value="blue">Blue (Back/Tips)</option>
+          <option value="white">White (Men&apos;s Regular)</option>
+          <option value="red">Red (Forward/Ladies)</option>
+          <option value="gold">Gold (Senior)</option>
+        </select>
+      </div>
+    </div>
+  );
+
+  const renderEquipmentTab = () => (
+    <div className="space-y-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div>
+          <label htmlFor="driver_brand" className="block text-sm font-medium text-gray-700 mb-1">
+            <i className="fas fa-golf-club text-green-600 mr-2" aria-hidden="true"></i>
+            Driver Brand
+          </label>
+          <input
+            id="driver_brand"
+            type="text"
+            value={equipmentForm.driver_brand || ''}
+            onChange={(e) => setEquipmentForm(prev => ({ ...prev, driver_brand: e.target.value }))}
+            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            placeholder="TaylorMade, Callaway, Titleist..."
+          />
+        </div>
+
+        <div>
+          <label htmlFor="driver_loft" className="block text-sm font-medium text-gray-700 mb-1">
+            Driver Loft
+          </label>
+          <input
+            id="driver_loft"
+            type="number"
+            step="0.5"
+            value={equipmentForm.driver_loft || ''}
+            onChange={(e) => setEquipmentForm(prev => ({ ...prev, driver_loft: e.target.value }))}
+            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            placeholder="10.5"
+          />
+        </div>
+      </div>
+
+      <div>
+        <label htmlFor="irons_brand" className="block text-sm font-medium text-gray-700 mb-1">
+          <i className="fas fa-golf-club text-green-600 mr-2" aria-hidden="true"></i>
+          Irons Brand
+        </label>
+        <input
+          id="irons_brand"
+          type="text"
+          value={equipmentForm.irons_brand || ''}
+          onChange={(e) => setEquipmentForm(prev => ({ ...prev, irons_brand: e.target.value }))}
+          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+          placeholder="Titleist, Ping, Mizuno..."
+        />
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div>
+          <label htmlFor="putter_brand" className="block text-sm font-medium text-gray-700 mb-1">
+            <i className="fas fa-golf-club text-green-600 mr-2" aria-hidden="true"></i>
+            Putter Brand
+          </label>
+          <input
+            id="putter_brand"
+            type="text"
+            value={equipmentForm.putter_brand || ''}
+            onChange={(e) => setEquipmentForm(prev => ({ ...prev, putter_brand: e.target.value }))}
+            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            placeholder="Scotty Cameron, Odyssey..."
+          />
+        </div>
+
+        <div>
+          <label htmlFor="ball_brand" className="block text-sm font-medium text-gray-700 mb-1">
+            <i className="fas fa-golf-ball text-green-600 mr-2" aria-hidden="true"></i>
+            Ball Brand
+          </label>
+          <input
+            id="ball_brand"
+            type="text"
+            value={equipmentForm.ball_brand || ''}
+            onChange={(e) => setEquipmentForm(prev => ({ ...prev, ball_brand: e.target.value }))}
+            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            placeholder="Pro V1, TP5, Chrome Soft..."
+          />
+        </div>
+      </div>
+    </div>
+  );
+
+  const renderSocialsTab = () => (
+    <div className="space-y-6">
+      <div>
+        <label htmlFor="twitter" className="block text-sm font-medium text-gray-700 mb-1">
+          <i className="fab fa-twitter text-blue-400 mr-2" aria-hidden="true"></i>
+          Twitter Handle
+        </label>
+        <div className="relative">
+          <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500 text-sm">@</span>
+          <input
+            id="twitter"
+            type="text"
+            value={socialsForm.social_twitter || ''}
+            onChange={(e) => setSocialsForm(prev => ({ ...prev, social_twitter: e.target.value }))}
+            className="w-full pl-8 pr-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            placeholder="username"
+          />
+        </div>
+      </div>
+
+      <div>
+        <label htmlFor="instagram" className="block text-sm font-medium text-gray-700 mb-1">
+          <i className="fab fa-instagram text-pink-500 mr-2" aria-hidden="true"></i>
+          Instagram Handle
+        </label>
+        <div className="relative">
+          <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500 text-sm">@</span>
+          <input
+            id="instagram"
+            type="text"
+            value={socialsForm.social_instagram || ''}
+            onChange={(e) => setSocialsForm(prev => ({ ...prev, social_instagram: e.target.value }))}
+            className="w-full pl-8 pr-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            placeholder="username"
+          />
+        </div>
+      </div>
+
+      <div>
+        <label htmlFor="facebook" className="block text-sm font-medium text-gray-700 mb-1">
+          <i className="fab fa-facebook text-blue-600 mr-2" aria-hidden="true"></i>
+          Facebook Handle
+        </label>
+        <div className="relative">
+          <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500 text-sm">@</span>
+          <input
+            id="facebook"
+            type="text"
+            value={socialsForm.social_facebook || ''}
+            onChange={(e) => setSocialsForm(prev => ({ ...prev, social_facebook: e.target.value }))}
+            className="w-full pl-8 pr-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            placeholder="username"
+          />
+        </div>
+      </div>
+    </div>
+  );
+
+  const renderTabContent = () => {
+    switch (activeTab) {
+      case 'basic':
+        return renderBasicTab();
+      case 'vitals':
+        return renderVitalsTab();
+      case 'socials':
+        return renderSocialsTab();
+      case 'golf':
+        return renderGolfTab();
+      case 'equipment':
+        return renderEquipmentTab();
+      case 'ice_hockey':
+      case 'volleyball':
+        const currentTab = TABS.find(t => t.id === activeTab);
+        const sportDef = getSportDefinition(activeTab as SportKey);
+        return (
+          <div className="text-center py-12 text-gray-500">
+            <i className={`${sportDef.icon_id} text-4xl text-gray-300 mb-4`} aria-hidden="true"></i>
+            <h3 className="text-lg font-medium mb-2">{currentTab?.label} Settings</h3>
+            <p>Sport preferences and equipment settings coming soon!</p>
+            <div className="mt-4 px-4 py-2 bg-amber-50 border border-amber-200 rounded-md">
+              <div className="flex items-center justify-center">
+                <i className="fas fa-clock text-amber-600 mr-2" aria-hidden="true"></i>
+                <span className="text-sm text-amber-800 font-medium">Coming Soon</span>
+              </div>
+            </div>
+          </div>
+        );
+      default:
+        return null;
+    }
+  };
+
+  if (!isOpen) return null;
+
+  return (
+    <div className="fixed inset-0 z-50 overflow-y-auto" aria-labelledby="edit-profile-title" role="dialog" aria-modal="true">
+      <div className="flex items-center justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
+        {/* Backdrop */}
+        <div 
+          className="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity" 
+          aria-hidden="true"
+          onClick={onClose}
+        ></div>
+
+        {/* Modal */}
+        <div className="inline-block align-bottom bg-white rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-4xl sm:w-full">
+          {/* Header */}
+          <div className="bg-white px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
+            <div className="flex items-center justify-between mb-6">
+              <h2 id="edit-profile-title" className="text-lg font-medium text-gray-900">
+                Edit Profile
+              </h2>
+              <button
+                onClick={onClose}
+                className="text-gray-400 hover:text-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 rounded-md p-1"
+                aria-label="Close modal"
+              >
+                <i className="fas fa-times text-lg" aria-hidden="true"></i>
+              </button>
+            </div>
+
+            {/* Tabs */}
+            <div className="border-b border-gray-200">
+              <nav className="-mb-px flex flex-wrap gap-x-8 gap-y-2" aria-label="Profile sections">
+                {TABS.map((tab) => (
+                  <button
+                    key={tab.id}
+                    onClick={() => tab.enabled && setActiveTab(tab.id)}
+                    className={`py-2 px-1 border-b-2 font-medium text-sm whitespace-nowrap focus:outline-none transition-colors ${
+                      !tab.enabled
+                        ? 'border-transparent text-gray-400 cursor-not-allowed'
+                        : activeTab === tab.id
+                        ? 'border-blue-500 text-blue-600'
+                        : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 focus:ring-2 focus:ring-blue-500 focus:ring-offset-2'
+                    }`}
+                    aria-current={activeTab === tab.id ? 'page' : undefined}
+                    disabled={!tab.enabled}
+                    title={tab.comingSoon ? COPY.COMING_SOON.SPORT_GENERAL : undefined}
+                  >
+                    <i className={`${tab.icon} mr-2`} aria-hidden="true"></i>
+                    {tab.label}
+                    {tab.comingSoon && (
+                      <span className="ml-1 text-xs text-gray-400">{COPY.TABS.COMING_SOON_INDICATOR}</span>
+                    )}
+                  </button>
+                ))}
+              </nav>
+            </div>
+          </div>
+
+          {/* Tab Content */}
+          <div className="bg-gray-50 px-4 py-6 sm:px-6">
+            <div className="max-h-96 overflow-y-auto">
+              {renderTabContent()}
+            </div>
+          </div>
+
+          {/* Footer */}
+          <div className="bg-gray-50 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse">
+            <button
+              onClick={() => saveTab(activeTab)}
+              disabled={isSubmitting}
+              className="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-blue-600 text-base font-medium text-white hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 sm:ml-3 sm:w-auto sm:text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {isSubmitting ? (
+                <>
+                  <i className="fas fa-spinner fa-spin mr-2" aria-hidden="true"></i>
+                  Saving...
+                </>
+              ) : (
+                <>
+                  <i className="fas fa-save mr-2" aria-hidden="true"></i>
+                  Save {TABS.find(t => t.id === activeTab)?.label}
+                </>
+              )}
+            </button>
+            <button
+              onClick={onClose}
+              className="mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm"
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
