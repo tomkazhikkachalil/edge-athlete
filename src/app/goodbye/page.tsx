@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect } from 'react';
-import Link from 'next/link';
+import { createSupabaseBrowserClient } from '@/lib/supabase';
 
 export default function GoodbyePage() {
   useEffect(() => {
@@ -10,6 +10,15 @@ export default function GoodbyePage() {
       localStorage.clear();
     }
   }, []);
+
+  const handleReturnHome = async () => {
+    // Force sign out to clear all Supabase cookies/session before redirect
+    const supabase = createSupabaseBrowserClient();
+    await supabase.auth.signOut();
+
+    // Then redirect with full page reload
+    window.location.href = '/';
+  };
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-gray-50 to-gray-100 flex items-center justify-center p-4">
@@ -68,39 +77,15 @@ export default function GoodbyePage() {
             </ul>
           </div>
 
-          {/* Feedback Section */}
-          <div className="bg-blue-50 border border-blue-200 rounded-lg p-6 mb-8">
-            <h3 className="font-semibold text-blue-900 mb-2">
-              Help us improve
-            </h3>
-            <p className="text-sm text-blue-800 mb-4">
-              We&apos;d love to hear your feedback about Edge Athlete. Your insights help us build a better platform for athletes.
-            </p>
-            <a
-              href="mailto:support@edgeathlete.com?subject=Account Deletion Feedback"
-              className="inline-flex items-center gap-2 bg-blue-600 text-white px-6 py-2.5 rounded-lg hover:bg-blue-700 transition-colors text-sm font-medium"
+          {/* Single Action Button */}
+          <div className="flex justify-center">
+            <button
+              onClick={handleReturnHome}
+              className="inline-flex items-center justify-center gap-2 px-12 py-4 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-semibold text-lg shadow-lg hover:shadow-xl"
             >
-              <i className="fas fa-envelope"></i>
-              Send Feedback
-            </a>
-          </div>
-
-          {/* Action Buttons */}
-          <div className="flex flex-col sm:flex-row gap-4 justify-center">
-            <Link
-              href="/"
-              className="inline-flex items-center justify-center gap-2 px-8 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium text-lg"
-            >
-              <i className="fas fa-sign-in-alt"></i>
-              Log In
-            </Link>
-            <Link
-              href="/"
-              className="inline-flex items-center justify-center gap-2 px-8 py-3 bg-white border-2 border-gray-300 text-gray-700 rounded-lg hover:border-gray-400 hover:bg-gray-50 transition-colors font-medium text-lg"
-            >
-              <i className="fas fa-user-plus"></i>
-              Sign Up
-            </Link>
+              <i className="fas fa-home"></i>
+              Return to Home
+            </button>
           </div>
 
           {/* Footer Note */}

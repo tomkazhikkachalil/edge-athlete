@@ -137,6 +137,7 @@ export async function POST(request: NextRequest) {
         user_type: profileData.user_type || 'athlete',
         full_name: fullName || null,
         handle: profileData.handle ? profileData.handle.toLowerCase().trim() : null,
+        display_name: profileData.nickname || fullName || profileData.handle || 'Athlete',
       };
 
 

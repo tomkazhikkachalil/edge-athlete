@@ -191,20 +191,28 @@ export async function DELETE(request: NextRequest) {
       }
     }
 
-    // 8. Delete auth user (last step)
+    // 8. Delete auth user (CRITICAL - must succeed to free up email)
     try {
       const { error: authDeleteError } = await supabaseAdmin.auth.admin.deleteUser(userId);
 
       if (authDeleteError) {
-        console.error('[Account Deletion] Auth deletion error:', authDeleteError);
-        // Don't fail the whole operation if auth deletion fails
-        // The profile is already deleted, which is the main goal
-        storageErrors.push(`Auth: ${authDeleteError.message}`);
-      } else {
+        console.error('[Account Deletion] Auth deletion FAILED:', authDeleteError);
+        // This is CRITICAL - if auth deletion fails, email remains registered
+        return NextResponse.json({
+          error: 'Failed to delete authentication user',
+          details: authDeleteError.message,
+          hint: 'Account data deleted but email may still be reserved. Contact support.'
+        }, { status: 500 });
       }
+
+      console.log(`[Account Deletion] Auth user ${userId} deleted successfully`);
     } catch (authError) {
-      console.error('[Account Deletion] Auth deletion error:', authError);
-      storageErrors.push(`Auth: ${authError instanceof Error ? authError.message : 'Unknown error'}`);
+      console.error('[Account Deletion] Auth deletion exception:', authError);
+      return NextResponse.json({
+        error: 'Failed to delete authentication user',
+        details: authError instanceof Error ? authError.message : 'Unknown error',
+        hint: 'Account data deleted but email may still be reserved. Contact support.'
+      }, { status: 500 });
     }
 
     // 9. Sign out the user

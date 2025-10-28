@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useAuth } from '@/lib/auth';
 import { useRouter } from 'next/navigation';
 import AppHeader from '@/components/AppHeader';
@@ -17,8 +17,13 @@ export default function SettingsPage() {
   const [isEditProfileModalOpen, setIsEditProfileModalOpen] = useState(false);
 
   // Redirect if not authenticated
+  useEffect(() => {
+    if (!loading && !user) {
+      router.push('/');
+    }
+  }, [loading, user, router]);
+
   if (!loading && !user) {
-    router.push('/');
     return null;
   }
 
