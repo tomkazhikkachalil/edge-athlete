@@ -6,8 +6,9 @@ import LazyImage from '@/components/LazyImage';
 import GolfScorecardForm from '@/components/GolfScorecardForm';
 import TagPeopleModal from '@/components/TagPeopleModal';
 import SportSelector from '@/components/SportSelector';
+import MultiPlayerScorecardGrid, { type PlayerScoreData, type PlayerHoleScore } from '@/components/golf/MultiPlayerScorecardGrid';
 import { getSportDefinition, type SportKey } from '@/lib/sports/SportRegistry';
-import type { HoleData } from '@/types/golf';
+import type { HoleData, GolfCourse } from '@/types/golf';
 
 interface CreatePostModalProps {
   isOpen: boolean;
@@ -124,7 +125,27 @@ export default function CreatePostModal({
     holesPlayed: 18,
     roundTypeIndoorOutdoor: 'outdoor' as 'outdoor' | 'indoor',
     teeColor: '',
+    weather: '',
+    temperature: '',
+    wind: '',
+    playingPartners: '',
   });
+
+  // Golf course search for shared rounds
+  const [courseSearchOpen, setCourseSearchOpen] = useState(false);
+  const [courseSearchQuery, setCourseSearchQuery] = useState('');
+  const [availableCourses, setAvailableCourses] = useState<GolfCourse[]>([]);
+  const [searchLoading, setSearchLoading] = useState(false);
+  const [selectedCourse, setSelectedCourse] = useState<GolfCourse | null>(null);
+
+  // Course hole data (par and yardage per hole)
+  const [courseHoleData, setCourseHoleData] = useState<{ hole: number; par: number; yardage?: number }[]>([]);
+  const [manualParEntry, setManualParEntry] = useState<number[]>([]);
+  const [manualYardageEntry, setManualYardageEntry] = useState<number[]>([]);
+
+  // Shared round score entry
+  const [enterScoresNow, setEnterScoresNow] = useState(false);
+  const [playerScores, setPlayerScores] = useState<PlayerScoreData[]>([]);
 
   // Visibility and submission
   const [visibility, setVisibility] = useState<'public' | 'private'>('public');
@@ -140,6 +161,102 @@ export default function CreatePostModal({
   const MAX_CAPTION_LENGTH = 500;
   const MAX_HASHTAGS = 10;
   const MAX_MEDIA_FILES = 10;
+
+  // Search for golf courses (for shared rounds)
+  const searchCourses = useCallback(async (query: string) => {
+    if (query.length < 2) {
+      setAvailableCourses([]);
+      return;
+    }
+
+    setSearchLoading(true);
+    try {
+      const response = await fetch(`/api/golf/courses?q=${encodeURIComponent(query)}&limit=8`);
+      if (response.ok) {
+        const data = await response.json();
+        setAvailableCourses(data.courses || []);
+      }
+    } catch {
+      setAvailableCourses([]);
+    } finally {
+      setSearchLoading(false);
+    }
+  }, []);
+
+  // Select a course from search results (for shared rounds)
+  const selectCourse = useCallback((course: GolfCourse) => {
+    setSelectedCourse(course);
+    setSharedRoundDetails(prev => ({
+      ...prev,
+      courseName: course.name
+    }));
+    setCourseSearchOpen(false);
+    setCourseSearchQuery('');
+    setAvailableCourses([]);
+
+    // Auto-populate par and yardage from course data
+    const teeKey = (sharedRoundDetails.teeColor || 'white') as keyof typeof course.holes[0]['yardage'];
+    const holeData = course.holes
+      .filter(hole => hole.number <= sharedRoundDetails.holesPlayed)
+      .map(hole => ({
+        hole: hole.number,
+        par: hole.par,
+        yardage: hole.yardage[teeKey] || hole.yardage.white || hole.yardage.blue || 400
+      }));
+    setCourseHoleData(holeData);
+
+    // Clear manual entry since we have course data
+    setManualParEntry([]);
+    setManualYardageEntry([]);
+  }, [sharedRoundDetails.teeColor, sharedRoundDetails.holesPlayed]);
+
+  // Initialize player scores when participants are added
+  const initializePlayerScores = useCallback((participants: {id: string; name: string}[], holes: number) => {
+    setPlayerScores(prev => {
+      // Get existing player IDs to avoid duplicates
+      const existingIds = new Set(prev.map(p => p.participant_id));
+
+      // Only initialize scores for NEW players
+      const newPlayers = participants
+        .filter(p => !existingIds.has(p.id))
+        .map(participant => ({
+          participant_id: participant.id,
+          profile: {
+            id: participant.id,
+            full_name: participant.name
+          },
+          hole_scores: Array.from({ length: holes }, (_, i) => ({
+            hole_number: i + 1,
+            strokes: undefined,
+            putts: undefined,
+            fairway_hit: undefined,
+            green_in_regulation: undefined
+          }))
+        }));
+
+      // Merge with existing players
+      return [...prev, ...newPlayers];
+    });
+  }, []);
+
+  // Handle score change for a specific player and hole
+  const handlePlayerScoreChange = useCallback((playerId: string, holeNum: number, data: Partial<PlayerHoleScore>) => {
+    setPlayerScores(prevScores =>
+      prevScores.map(playerScore => {
+        if (playerScore.participant_id === playerId) {
+          return {
+            ...playerScore,
+            hole_scores: playerScore.hole_scores.map(holeScore =>
+              holeScore.hole_number === holeNum
+                ? { ...holeScore, ...data }
+                : holeScore
+            )
+          };
+        }
+        return playerScore;
+      })
+    );
+  }, []);
 
   // Reset form
   const reset = () => {
@@ -167,7 +284,24 @@ export default function CreatePostModal({
       holesPlayed: 18,
       roundTypeIndoorOutdoor: 'outdoor',
       teeColor: '',
+      weather: '',
+      temperature: '',
+      wind: '',
+      playingPartners: '',
     });
+    // Reset course search
+    setCourseSearchOpen(false);
+    setCourseSearchQuery('');
+    setAvailableCourses([]);
+    setSearchLoading(false);
+    setSelectedCourse(null);
+    // Reset course hole data
+    setCourseHoleData([]);
+    setManualParEntry([]);
+    setManualYardageEntry([]);
+    // Reset score entry
+    setEnterScoresNow(false);
+    setPlayerScores([]);
   };
 
   // Handle close
@@ -293,7 +427,7 @@ export default function CreatePostModal({
     setTaggedProfilesData(prev => prev.filter(p => p.id !== profileId));
   };
 
-  // Handle participant selection for shared rounds
+  // Handle shared round participant selection
   const handleParticipantSelection = (selectedIds: string[], selectedProfiles?: ProfileData[]) => {
     setSharedRoundParticipants(selectedIds);
 
@@ -301,18 +435,32 @@ export default function CreatePostModal({
       const profilesData = selectedProfiles.map(profile => {
         const name = profile.first_name && profile.last_name
           ? `${profile.first_name} ${profile.last_name}`
-          : profile.full_name || 'Unknown User';
+          : profile.full_name || profile.name || 'Unknown User';
         return { id: profile.id, name };
       });
       setSharedRoundParticipantsData(profilesData);
+
+      // Initialize scores if entering now
+      if (enterScoresNow && profilesData.length > 0) {
+        initializePlayerScores(profilesData, sharedRoundDetails.holesPlayed);
+      }
     }
   };
 
-  // Remove participant from shared round
+  // Remove participant
   const removeParticipant = (profileId: string) => {
     setSharedRoundParticipants(prev => prev.filter(id => id !== profileId));
     setSharedRoundParticipantsData(prev => prev.filter(p => p.id !== profileId));
+    // Also remove from scores
+    setPlayerScores(prev => prev.filter(p => p.participant_id !== profileId));
   };
+
+  // Initialize scores when entering scores mode or holes change
+  useEffect(() => {
+    if (enterScoresNow && sharedRoundParticipantsData.length > 0) {
+      initializePlayerScores(sharedRoundParticipantsData, sharedRoundDetails.holesPlayed);
+    }
+  }, [enterScoresNow, sharedRoundDetails.holesPlayed, sharedRoundParticipantsData, initializePlayerScores]);
 
   // Handle custom hashtag input
   const handleCustomHashtagSubmit = (e: React.KeyboardEvent) => {
@@ -445,11 +593,58 @@ export default function CreatePostModal({
             round_type: sharedRoundDetails.roundTypeIndoorOutdoor,
             holes_played: sharedRoundDetails.holesPlayed,
             tee_color: sharedRoundDetails.teeColor || undefined,
+            weather_conditions: sharedRoundDetails.weather || undefined,
+            temperature: sharedRoundDetails.temperature ? parseInt(sharedRoundDetails.temperature) : undefined,
+            wind_speed: sharedRoundDetails.wind === 'calm' ? 0 :
+                        sharedRoundDetails.wind === 'light' ? 7 :
+                        sharedRoundDetails.wind === 'moderate' ? 15 :
+                        sharedRoundDetails.wind === 'strong' ? 25 : undefined,
           }),
         });
 
         if (!golfDataResponse.ok) {
           // Non-fatal - group post was created
+        }
+
+        // Step 3: Save participant scores if entered now
+        if (enterScoresNow && playerScores.length > 0) {
+          try {
+            const scoresResponse = await fetch('/api/golf/participant-scores', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              credentials: 'include',
+              body: JSON.stringify({
+                group_post_id: groupPostId,
+                participant_scores: playerScores.map(player => ({
+                  participant_id: player.participant_id,
+                  hole_scores: player.hole_scores
+                    .filter(hole => hole.strokes !== undefined && hole.strokes > 0)
+                    .map(hole => {
+                      // Add par and yardage from course data if available
+                      const holeInfo = courseHoleData.find(h => h.hole === hole.hole_number) ||
+                        (manualParEntry.length > 0 || manualYardageEntry.length > 0
+                          ? {
+                              par: manualParEntry[hole.hole_number - 1] || undefined,
+                              yardage: manualYardageEntry[hole.hole_number - 1] || undefined
+                            }
+                          : {});
+
+                      return {
+                        ...hole,
+                        par: holeInfo.par,
+                        yardage: holeInfo.yardage
+                      };
+                    })
+                }))
+              }),
+            });
+
+            if (!scoresResponse.ok) {
+              // Non-fatal - scorecard was created, scores can be added later
+            }
+          } catch {
+            // Non-fatal error
+          }
         }
 
         showSuccess('Shared round created successfully! Participants will be notified. 🎉');
@@ -660,18 +855,96 @@ export default function CreatePostModal({
                   Shared Round Details
                 </h3>
 
-                {/* Course Name */}
-                <div className="mb-4">
+                {/* Course Name with Search */}
+                <div className="mb-4 relative">
                   <label className="block text-sm font-semibold text-gray-900 mb-2">
                     Course Name *
                   </label>
-                  <input
-                    type="text"
-                    value={sharedRoundDetails.courseName}
-                    onChange={(e) => setSharedRoundDetails(prev => ({ ...prev, courseName: e.target.value }))}
-                    placeholder="Enter course name"
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500"
-                  />
+                  <div className="relative">
+                    <input
+                      type="text"
+                      value={sharedRoundDetails.courseName}
+                      onChange={(e) => {
+                        setSharedRoundDetails(prev => ({ ...prev, courseName: e.target.value }));
+                        setCourseSearchQuery(e.target.value);
+                        searchCourses(e.target.value);
+                        setCourseSearchOpen(true);
+                        // Clear selected course if user types manually
+                        if (selectedCourse && e.target.value !== selectedCourse.name) {
+                          setSelectedCourse(null);
+                        }
+                      }}
+                      onFocus={() => {
+                        setCourseSearchOpen(true);
+                        if (courseSearchQuery.length >= 2) {
+                          searchCourses(courseSearchQuery);
+                        }
+                      }}
+                      placeholder="Search for a golf course..."
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 pr-10"
+                    />
+                    {searchLoading && (
+                      <div className="absolute right-3 top-1/2 transform -translate-y-1/2">
+                        <div className="animate-spin h-5 w-5 border-2 border-green-500 border-t-transparent rounded-full"></div>
+                      </div>
+                    )}
+                    {!searchLoading && sharedRoundDetails.courseName && (
+                      <i className="fas fa-search absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400"></i>
+                    )}
+                  </div>
+
+                  {/* Course Search Results Dropdown */}
+                  {courseSearchOpen && availableCourses.length > 0 && (
+                    <>
+                      {/* Backdrop to close dropdown */}
+                      <div
+                        className="fixed inset-0 z-10"
+                        onClick={() => {
+                          setCourseSearchOpen(false);
+                          setAvailableCourses([]);
+                        }}
+                      />
+                      {/* Dropdown */}
+                      <div className="absolute z-20 w-full mt-1 bg-white border border-gray-300 rounded-lg shadow-lg max-h-60 overflow-y-auto">
+                        {availableCourses.map((course) => (
+                          <button
+                            key={course.id}
+                            onClick={() => selectCourse(course)}
+                            className="w-full px-4 py-3 text-left hover:bg-green-50 transition-colors border-b border-gray-100 last:border-b-0"
+                          >
+                            <div className="font-semibold text-gray-900">{course.name}</div>
+                            {course.city && course.state && (
+                              <div className="text-sm text-gray-600">
+                                {course.city}, {course.state}
+                              </div>
+                            )}
+                            <div className="text-xs text-gray-500 mt-1">
+                              Par {course.totalPar} • {course.holes.length} holes
+                            </div>
+                          </button>
+                        ))}
+                      </div>
+                    </>
+                  )}
+
+                  {/* Selected Course Badge */}
+                  {selectedCourse && (
+                    <div className="mt-2 inline-flex items-center gap-2 px-3 py-1.5 bg-green-100 text-green-800 rounded-full text-sm font-medium border border-green-300">
+                      <i className="fas fa-check-circle text-xs"></i>
+                      {selectedCourse.name}
+                      {selectedCourse.city && selectedCourse.state && ` (${selectedCourse.city}, ${selectedCourse.state})`}
+                    </div>
+                  )}
+
+                  {/* Help text for manual entry */}
+                  {!selectedCourse && sharedRoundDetails.courseName && (
+                    <div className="mt-2 flex items-start gap-2 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                      <i className="fas fa-info-circle text-blue-600 mt-0.5"></i>
+                      <p className="text-xs text-blue-800">
+                        <strong>Custom course detected.</strong> Since this course isn&apos;t in our database, you can manually enter par and yardage below (optional).
+                      </p>
+                    </div>
+                  )}
                 </div>
 
                 {/* Date */}
@@ -718,23 +991,6 @@ export default function CreatePostModal({
                   </div>
                 </div>
 
-                {/* Holes Played */}
-                <div className="mb-4">
-                  <label className="block text-sm font-semibold text-gray-900 mb-2">
-                    Holes *
-                  </label>
-                  <select
-                    value={sharedRoundDetails.holesPlayed}
-                    onChange={(e) => setSharedRoundDetails(prev => ({ ...prev, holesPlayed: parseInt(e.target.value) }))}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500"
-                  >
-                    <option value={9}>9 Holes</option>
-                    <option value={18}>18 Holes</option>
-                    <option value={12}>12 Holes</option>
-                    <option value={6}>6 Holes</option>
-                  </select>
-                </div>
-
                 {/* Tee Color (optional, outdoor only) */}
                 {sharedRoundDetails.roundTypeIndoorOutdoor === 'outdoor' && (
                   <div className="mb-4">
@@ -756,19 +1012,221 @@ export default function CreatePostModal({
                   </div>
                 )}
 
+                {/* Manual Par & Yardage Entry (when course not in database) */}
+                {!selectedCourse && sharedRoundDetails.courseName && (
+                  <div className="mb-6 p-4 bg-gray-50 border border-gray-300 rounded-lg">
+                    <div className="flex items-center justify-between mb-3">
+                      <h4 className="text-sm font-bold text-gray-900">
+                        <i className="fas fa-edit mr-2"></i>
+                        Course Details (Manual Entry)
+                      </h4>
+                      <span className="text-xs text-gray-600">Optional - adds Par & Yardage to scorecard</span>
+                    </div>
+
+                    <div className="max-h-64 overflow-y-auto">
+                      <div className="grid grid-cols-1 gap-3">
+                        {Array.from({ length: sharedRoundDetails.holesPlayed }, (_, i) => {
+                          const holeNum = i + 1;
+                          return (
+                            <div key={holeNum} className="flex items-center gap-3 bg-white p-3 rounded border border-gray-200">
+                              <span className="text-sm font-semibold text-gray-700 w-16">Hole {holeNum}</span>
+                              <div className="flex-1 flex gap-3">
+                                <div className="flex-1">
+                                  <label className="block text-xs text-gray-600 mb-1">Par</label>
+                                  <select
+                                    value={manualParEntry[i] || ''}
+                                    onChange={(e) => {
+                                      const newPar = [...manualParEntry];
+                                      newPar[i] = parseInt(e.target.value) || 0;
+                                      setManualParEntry(newPar);
+                                    }}
+                                    className="w-full px-3 py-1.5 text-sm border border-gray-300 rounded focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                                  >
+                                    <option value="">-</option>
+                                    <option value="3">3</option>
+                                    <option value="4">4</option>
+                                    <option value="5">5</option>
+                                    <option value="6">6</option>
+                                  </select>
+                                </div>
+                                <div className="flex-1">
+                                  <label className="block text-xs text-gray-600 mb-1">Yardage</label>
+                                  <input
+                                    type="number"
+                                    value={manualYardageEntry[i] || ''}
+                                    onChange={(e) => {
+                                      const newYardage = [...manualYardageEntry];
+                                      newYardage[i] = parseInt(e.target.value) || 0;
+                                      setManualYardageEntry(newYardage);
+                                    }}
+                                    placeholder="yards"
+                                    min="50"
+                                    max="700"
+                                    className="w-full px-3 py-1.5 text-sm border border-gray-300 rounded focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                                  />
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+
+                    <div className="mt-3 text-xs text-gray-600">
+                      <i className="fas fa-info-circle mr-1"></i>
+                      Entering par and yardage will display these values in the scorecard
+                    </div>
+                  </div>
+                )}
+
+                {/* Playing Conditions (outdoor only, required) */}
+                {sharedRoundDetails.roundTypeIndoorOutdoor === 'outdoor' && (
+                  <div className="mb-6 p-4 bg-white border border-gray-300 rounded-lg">
+                    <h4 className="text-sm font-bold text-gray-900 mb-3">
+                      <i className="fas fa-cloud-sun mr-2"></i>
+                      Playing Conditions *
+                    </h4>
+
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+                      {/* Weather */}
+                      <div>
+                        <label className="block text-xs font-semibold text-gray-700 mb-1.5">
+                          Weather *
+                        </label>
+                        <select
+                          value={sharedRoundDetails.weather}
+                          onChange={(e) => setSharedRoundDetails(prev => ({ ...prev, weather: e.target.value }))}
+                          className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                          required
+                        >
+                          <option value="">Select weather</option>
+                          <option value="sunny">☀️ Sunny</option>
+                          <option value="partly-cloudy">⛅ Partly Cloudy</option>
+                          <option value="cloudy">☁️ Cloudy</option>
+                          <option value="rainy">🌧️ Rainy</option>
+                          <option value="windy">💨 Windy</option>
+                        </select>
+                      </div>
+
+                      {/* Temperature */}
+                      <div>
+                        <label className="block text-xs font-semibold text-gray-700 mb-1.5">
+                          Temperature (°F) *
+                        </label>
+                        <input
+                          type="number"
+                          value={sharedRoundDetails.temperature}
+                          onChange={(e) => setSharedRoundDetails(prev => ({ ...prev, temperature: e.target.value }))}
+                          className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                          placeholder="72"
+                          min="0"
+                          max="120"
+                          required
+                        />
+                      </div>
+
+                      {/* Wind */}
+                      <div>
+                        <label className="block text-xs font-semibold text-gray-700 mb-1.5">
+                          Wind *
+                        </label>
+                        <select
+                          value={sharedRoundDetails.wind}
+                          onChange={(e) => setSharedRoundDetails(prev => ({ ...prev, wind: e.target.value }))}
+                          className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                          required
+                        >
+                          <option value="">Select wind</option>
+                          <option value="calm">Calm (0-5 mph)</option>
+                          <option value="light">Light (5-10 mph)</option>
+                          <option value="moderate">Moderate (10-20 mph)</option>
+                          <option value="strong">Strong (20+ mph)</option>
+                        </select>
+                      </div>
+                    </div>
+
+                    {/* Playing Partners (optional) */}
+                    <div>
+                      <label className="block text-xs font-semibold text-gray-700 mb-1.5">
+                        Other Playing Partners (optional)
+                      </label>
+                      <input
+                        type="text"
+                        value={sharedRoundDetails.playingPartners}
+                        onChange={(e) => setSharedRoundDetails(prev => ({ ...prev, playingPartners: e.target.value }))}
+                        className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                        placeholder="e.g., John, Sarah (non-tagged participants)"
+                      />
+                      <p className="text-xs text-gray-500 mt-1">
+                        Enter names of people who aren&apos;t tagged in this post
+                      </p>
+                    </div>
+                  </div>
+                )}
+
                 {/* Participants */}
                 <div>
                   <div className="flex items-center justify-between mb-3">
                     <label className="text-sm font-semibold text-gray-900">
                       Participants * ({sharedRoundParticipants.length})
                     </label>
-                    <button
-                      onClick={() => setShowParticipantModal(true)}
-                      className="flex items-center gap-2 px-3 py-1.5 text-sm text-green-700 hover:text-green-800 hover:bg-green-100 rounded-lg transition-colors font-semibold"
-                    >
-                      <i className="fas fa-user-plus"></i>
-                      Add Participants
-                    </button>
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={async () => {
+                          // Check if user already added
+                          if (sharedRoundParticipants.includes(userId)) {
+                            return;
+                          }
+
+                          // Fetch current user's profile
+                          try {
+                            const response = await fetch(`/api/profile?id=${userId}`);
+                            if (response.ok) {
+                              const { profile } = await response.json();
+                              const userName = profile.first_name && profile.last_name
+                                ? `${profile.first_name} ${profile.last_name}`
+                                : profile.full_name || 'Me';
+
+                              // Add to participants - useEffect will handle score initialization
+                              setSharedRoundParticipants(prev => [...prev, userId]);
+                              setSharedRoundParticipantsData(prev => [...prev, { id: userId, name: userName }]);
+                            } else {
+                              const errorData = await response.json();
+                              console.error('Failed to add yourself to round:', errorData.error);
+                              showError('Failed to add yourself to the round. Please try again.');
+                            }
+                          } catch (error) {
+                            console.error('Error adding yourself to round:', error);
+                            showError('Failed to add yourself to the round. Please try again.');
+                          }
+                        }}
+                        disabled={sharedRoundParticipants.includes(userId)}
+                        className={`flex items-center gap-2 px-3 py-1.5 text-sm rounded-lg transition-colors font-semibold ${
+                          sharedRoundParticipants.includes(userId)
+                            ? 'bg-green-100 text-green-700 cursor-not-allowed'
+                            : 'text-blue-700 hover:text-blue-800 hover:bg-blue-100'
+                        }`}
+                      >
+                        {sharedRoundParticipants.includes(userId) ? (
+                          <>
+                            <i className="fas fa-check"></i>
+                            You&apos;re included
+                          </>
+                        ) : (
+                          <>
+                            <i className="fas fa-user-plus"></i>
+                            + Add Myself
+                          </>
+                        )}
+                      </button>
+                      <button
+                        onClick={() => setShowParticipantModal(true)}
+                        className="flex items-center gap-2 px-3 py-1.5 text-sm text-green-700 hover:text-green-800 hover:bg-green-100 rounded-lg transition-colors font-semibold"
+                      >
+                        <i className="fas fa-users"></i>
+                        Add Others
+                      </button>
+                    </div>
                   </div>
 
                   {/* Participant chips */}
@@ -797,6 +1255,59 @@ export default function CreatePostModal({
                     </div>
                   )}
                 </div>
+              </div>
+            </div>
+          )}
+
+          {/* Score Entry Section (when shared round with participants) */}
+          {postType === 'golf' && roundType === 'shared' && sharedRoundParticipantsData.length > 0 && (
+            <div className="mb-6">
+              <div className="bg-green-50 rounded-lg border border-green-200 p-4">
+                {/* Toggle for entering scores now */}
+                <div className="flex items-center justify-between mb-4">
+                  <div>
+                    <h4 className="text-sm font-semibold text-gray-900">Score Entry</h4>
+                    <p className="text-xs text-gray-600 mt-1">
+                      Enter scores now or let participants add them later
+                    </p>
+                  </div>
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={enterScoresNow}
+                      onChange={(e) => setEnterScoresNow(e.target.checked)}
+                      className="w-4 h-4 text-green-600 rounded focus:ring-2 focus:ring-green-500"
+                    />
+                    <span className="text-sm font-medium text-gray-900">
+                      Enter Scores Now
+                    </span>
+                  </label>
+                </div>
+
+                {/* Multi-player scorecard grid */}
+                {enterScoresNow && (
+                  <div className="mt-4">
+                    <MultiPlayerScorecardGrid
+                      players={playerScores}
+                      holes={sharedRoundDetails.holesPlayed}
+                      editable={true}
+                      showDetailedStats={false}
+                      onScoreChange={handlePlayerScoreChange}
+                      holeData={
+                        // Use course data if available, otherwise manual entry
+                        courseHoleData.length > 0
+                          ? courseHoleData
+                          : manualParEntry.length > 0 || manualYardageEntry.length > 0
+                          ? Array.from({ length: sharedRoundDetails.holesPlayed }, (_, i) => ({
+                              hole: i + 1,
+                              par: manualParEntry[i] || 4,
+                              yardage: manualYardageEntry[i] || undefined
+                            }))
+                          : undefined
+                      }
+                    />
+                  </div>
+                )}
               </div>
             </div>
           )}

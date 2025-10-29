@@ -49,9 +49,9 @@ export default function GolfScorecardForm({ onDataChange }: GolfScorecardFormPro
   const [courseRating, setCourseRating] = useState<number | undefined>();
   const [courseSlope, setCourseSlope] = useState<number | undefined>();
   const [teeBox, setTeeBox] = useState('white');
-  const [holeCount, setHoleCount] = useState<number>(18);
+  const [holeCount] = useState<number>(18); // Fixed to 18 holes
   const [roundType, setRoundType] = useState<'outdoor' | 'indoor'>('outdoor');
-  const [startingHole, setStartingHole] = useState<'front' | 'back'>('front');
+  const [startingHole] = useState<'front' | 'back'>('front'); // Fixed to front 9 start
 
   // Round conditions
   const [weather, setWeather] = useState('');
@@ -445,49 +445,6 @@ export default function GolfScorecardForm({ onDataChange }: GolfScorecardFormPro
                 </option>
               ))}
             </select>
-          </div>
-
-          {/* Holes Played - Flexible Input */}
-          <div>
-            <label className="text-sm font-medium text-gray-700 block mb-1">
-              Holes Played
-              <span className="ml-2 text-xs text-gray-500">(Common: 9 or 18, or enter any number)</span>
-            </label>
-            <input
-              type="number"
-              min="1"
-              max="36"
-              value={holeCount}
-              onChange={(e) => setHoleCount(Number(e.target.value) || 1)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500"
-              placeholder="Enter number of holes (e.g., 5, 9, 12, 18)"
-            />
-
-            {/* Starting hole selector for 9-hole rounds */}
-            {holeCount === 9 && (
-              <div className="mt-2 flex gap-4">
-                <label className="flex items-center text-sm">
-                  <input
-                    type="radio"
-                    value="front"
-                    checked={startingHole === 'front'}
-                    onChange={(e) => setStartingHole(e.target.value as 'front')}
-                    className="mr-1"
-                  />
-                  Front 9
-                </label>
-                <label className="flex items-center text-sm">
-                  <input
-                    type="radio"
-                    value="back"
-                    checked={startingHole === 'back'}
-                    onChange={(e) => setStartingHole(e.target.value as 'back')}
-                    className="mr-1"
-                  />
-                  Back 9
-                </label>
-              </div>
-            )}
           </div>
 
           {/* Round Type - Indoor/Outdoor */}
