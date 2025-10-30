@@ -143,9 +143,9 @@ export default function SharedRoundQuickView({
           return (
             <div
               key={participant.id}
-              className="flex items-center justify-between bg-white/60 rounded px-3 py-2"
+              className="flex items-center justify-between bg-white/60 rounded px-3 py-1.5"
             >
-              <div className="flex items-center gap-2 flex-1 min-w-0">
+              <div className="flex items-center gap-1.5 flex-1 min-w-0">
                 {/* Avatar */}
                 {profile.avatar_url ? (
                   <LazyImage
