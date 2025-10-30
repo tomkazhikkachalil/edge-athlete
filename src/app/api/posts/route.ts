@@ -621,12 +621,15 @@ export async function GET(request: NextRequest) {
     const finalVisiblePosts = visiblePosts;
 
     // Fetch golf rounds with hole-by-hole data for posts that have round_id
+    // AND fetch shared golf scorecards for posts with group_post_id
     // AND fetch tagged profiles for posts with tags
     const postsWithRounds = await Promise.all(
       finalVisiblePosts.map(async (post) => {
         let golfRound = null;
+        let groupScorecard = null;
         let taggedProfiles: TaggedProfile[] = [];
 
+        // Fetch individual golf round if exists
         if (post.round_id) {
           const { data: roundData, error: roundError } = await supabase
             .from('golf_rounds')
@@ -656,6 +659,79 @@ export async function GET(request: NextRequest) {
           }
         }
 
+        // Fetch shared golf scorecard if exists
+        if (post.group_post_id) {
+          const { data: groupData, error: groupError } = await supabase
+            .from('group_posts')
+            .select(`
+              id,
+              creator_id,
+              type,
+              title,
+              description,
+              date,
+              location,
+              visibility,
+              status,
+              created_at,
+              golf_data:golf_scorecard_data (
+                id,
+                course_name,
+                course_id,
+                round_type,
+                holes_played,
+                tee_color,
+                slope_rating,
+                course_rating
+              ),
+              participants:group_post_participants (
+                id,
+                status,
+                role,
+                attested_at,
+                profile:profiles (
+                  id,
+                  first_name,
+                  last_name,
+                  full_name,
+                  avatar_url,
+                  handle
+                ),
+                scores:golf_participant_scores (
+                  id,
+                  total_score,
+                  to_par,
+                  holes_completed,
+                  scores_confirmed,
+                  hole_scores:golf_hole_scores (
+                    hole_number,
+                    strokes,
+                    putts,
+                    fairway_hit,
+                    green_in_regulation
+                  )
+                )
+              )
+            `)
+            .eq('id', post.group_post_id)
+            .single();
+
+          if (groupError) {
+            console.error('[GET] Error fetching group scorecard:', groupError);
+          } else if (groupData) {
+            // Sort hole scores by hole number for each participant
+            if (groupData.participants) {
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+              groupData.participants.forEach((participant: any) => {
+                if (participant.scores?.hole_scores) {
+                  participant.scores.hole_scores.sort((a: { hole_number: number }, b: { hole_number: number }) => a.hole_number - b.hole_number);
+                }
+              });
+            }
+            groupScorecard = groupData;
+          }
+        }
+
         // Fetch tagged profiles if post has tags
         if (post.tags && post.tags.length > 0) {
           const { data: profiles, error: profilesError } = await supabase
@@ -670,7 +746,12 @@ export async function GET(request: NextRequest) {
           }
         }
 
-        return { ...post, golf_round: golfRound, tagged_profiles: taggedProfiles };
+        return {
+          ...post,
+          golf_round: golfRound,
+          group_scorecard: groupScorecard,
+          tagged_profiles: taggedProfiles
+        };
       })
     );
 
@@ -712,6 +793,7 @@ export async function GET(request: NextRequest) {
           })),
           likes: post.post_likes || [],
           golf_round: post.golf_round || null,
+          group_scorecard: post.group_scorecard || null,
           tagged_profiles: post.tagged_profiles || []
         }));
 

@@ -117,7 +117,6 @@ export default function FollowButton({
 
       if (!response.ok) {
         const errorData = await response.json();
-        console.error('[FOLLOW BUTTON] API error:', errorData);
         throw new Error(errorData.error || 'Failed to update follow status');
       }
 
@@ -152,7 +151,6 @@ export default function FollowButton({
       }
 
     } catch (err) {
-      console.error('[FOLLOW BUTTON] Error:', err);
       const errorMessage = err instanceof Error ? err.message : 'Failed to update follow status';
       showError('Error', errorMessage);
     } finally {

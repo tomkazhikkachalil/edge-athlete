@@ -38,7 +38,21 @@ interface ProfileData {
   last_name?: string;
   full_name?: string;
   name?: string;
+  avatar_url?: string;
 }
+
+interface SharedRoundDetails {
+  courseName: string;
+  date: string;
+  holesPlayed: number;
+  roundTypeIndoorOutdoor: 'outdoor' | 'indoor';
+  teeColor: string;
+  weather: string;
+  temperature: string;
+  wind: string;
+}
+
+type PlayerScore = PlayerScoreData;
 
 interface TagOption {
   value: string;
@@ -55,6 +69,11 @@ interface PostPreviewProps {
   visibility: 'public' | 'private';
   golfData: GolfRoundData | null;
   taggedPeople?: {id: string; name: string}[];
+  // Shared round data
+  roundType?: 'individual' | 'shared';
+  sharedRoundDetails?: SharedRoundDetails;
+  sharedRoundParticipants?: {id: string; name: string; avatar_url?: string}[];
+  playerScores?: PlayerScore[];
   onClose: () => void;
   onPost: () => void;
 }
@@ -117,7 +136,7 @@ export default function CreatePostModal({
   // Shared round specific data
   const [roundType, setRoundType] = useState<'individual' | 'shared'>('individual');
   const [sharedRoundParticipants, setSharedRoundParticipants] = useState<string[]>([]);
-  const [sharedRoundParticipantsData, setSharedRoundParticipantsData] = useState<{id: string; name: string}[]>([]);
+  const [sharedRoundParticipantsData, setSharedRoundParticipantsData] = useState<{id: string; name: string; avatar_url?: string}[]>([]);
   const [showParticipantModal, setShowParticipantModal] = useState(false);
   const [sharedRoundDetails, setSharedRoundDetails] = useState({
     courseName: '',
@@ -128,7 +147,6 @@ export default function CreatePostModal({
     weather: '',
     temperature: '',
     wind: '',
-    playingPartners: '',
   });
 
   // Golf course search for shared rounds
@@ -144,7 +162,6 @@ export default function CreatePostModal({
   const [manualYardageEntry, setManualYardageEntry] = useState<number[]>([]);
 
   // Shared round score entry
-  const [enterScoresNow, setEnterScoresNow] = useState(false);
   const [playerScores, setPlayerScores] = useState<PlayerScoreData[]>([]);
 
   // Visibility and submission
@@ -211,7 +228,7 @@ export default function CreatePostModal({
   }, [sharedRoundDetails.teeColor, sharedRoundDetails.holesPlayed]);
 
   // Initialize player scores when participants are added
-  const initializePlayerScores = useCallback((participants: {id: string; name: string}[], holes: number) => {
+  const initializePlayerScores = useCallback((participants: {id: string; name: string; avatar_url?: string}[], holes: number) => {
     setPlayerScores(prev => {
       // Get existing player IDs to avoid duplicates
       const existingIds = new Set(prev.map(p => p.participant_id));
@@ -223,7 +240,8 @@ export default function CreatePostModal({
           participant_id: participant.id,
           profile: {
             id: participant.id,
-            full_name: participant.name
+            full_name: participant.name,
+            avatar_url: participant.avatar_url
           },
           hole_scores: Array.from({ length: holes }, (_, i) => ({
             hole_number: i + 1,
@@ -287,7 +305,6 @@ export default function CreatePostModal({
       weather: '',
       temperature: '',
       wind: '',
-      playingPartners: '',
     });
     // Reset course search
     setCourseSearchOpen(false);
@@ -300,7 +317,6 @@ export default function CreatePostModal({
     setManualParEntry([]);
     setManualYardageEntry([]);
     // Reset score entry
-    setEnterScoresNow(false);
     setPlayerScores([]);
   };
 
@@ -429,21 +445,28 @@ export default function CreatePostModal({
 
   // Handle shared round participant selection
   const handleParticipantSelection = (selectedIds: string[], selectedProfiles?: ProfileData[]) => {
-    setSharedRoundParticipants(selectedIds);
+    // Merge new selections with existing participants (don't replace)
+    setSharedRoundParticipants(prev => {
+      const newIds = selectedIds.filter(id => !prev.includes(id));
+      return [...prev, ...newIds];
+    });
 
     if (selectedProfiles && selectedProfiles.length > 0) {
       const profilesData = selectedProfiles.map(profile => {
         const name = profile.first_name && profile.last_name
           ? `${profile.first_name} ${profile.last_name}`
           : profile.full_name || profile.name || 'Unknown User';
-        return { id: profile.id, name };
+        return { id: profile.id, name, avatar_url: profile.avatar_url };
       });
-      setSharedRoundParticipantsData(profilesData);
 
-      // Initialize scores if entering now
-      if (enterScoresNow && profilesData.length > 0) {
-        initializePlayerScores(profilesData, sharedRoundDetails.holesPlayed);
-      }
+      // Merge new profiles with existing participant data (don't replace)
+      setSharedRoundParticipantsData(prev => {
+        const existingIds = new Set(prev.map(p => p.id));
+        const newProfiles = profilesData.filter(p => !existingIds.has(p.id));
+        return [...prev, ...newProfiles];
+      });
+
+      // Score initialization is now handled by useEffect
     }
   };
 
@@ -455,12 +478,12 @@ export default function CreatePostModal({
     setPlayerScores(prev => prev.filter(p => p.participant_id !== profileId));
   };
 
-  // Initialize scores when entering scores mode or holes change
+  // Initialize scores when participants are added or holes change
   useEffect(() => {
-    if (enterScoresNow && sharedRoundParticipantsData.length > 0) {
+    if (sharedRoundParticipantsData.length > 0) {
       initializePlayerScores(sharedRoundParticipantsData, sharedRoundDetails.holesPlayed);
     }
-  }, [enterScoresNow, sharedRoundDetails.holesPlayed, sharedRoundParticipantsData, initializePlayerScores]);
+  }, [sharedRoundDetails.holesPlayed, sharedRoundParticipantsData, initializePlayerScores]);
 
   // Handle custom hashtag input
   const handleCustomHashtagSubmit = (e: React.KeyboardEvent) => {
@@ -533,11 +556,23 @@ export default function CreatePostModal({
         return golfRoundData && golfRoundData.courseName && golfRoundData.holesData?.some((h: HoleData) => h.score !== undefined);
       } else {
         // Shared rounds need at least course name, date, and at least one participant
-        return (
+        const hasBasicInfo = (
           sharedRoundDetails.courseName.trim().length > 0 &&
           sharedRoundDetails.date &&
           sharedRoundParticipants.length > 0
         );
+
+        // For outdoor rounds, weather fields are required
+        if (sharedRoundDetails.roundTypeIndoorOutdoor === 'outdoor') {
+          return (
+            hasBasicInfo &&
+            sharedRoundDetails.weather.trim().length > 0 &&
+            sharedRoundDetails.temperature.trim().length > 0 &&
+            sharedRoundDetails.wind.trim().length > 0
+          );
+        }
+
+        return hasBasicInfo;
       }
     }
 
@@ -547,7 +582,21 @@ export default function CreatePostModal({
   // Submit post
   const handleSubmit = async () => {
     if (!isValidForSubmission()) {
-      showError('Incomplete post', 'Please add content to your post');
+      // Provide specific error message based on post type
+      if (postType === 'golf' && roundType === 'shared') {
+        const missing: string[] = [];
+        if (!sharedRoundDetails.courseName.trim()) missing.push('course name');
+        if (!sharedRoundDetails.date) missing.push('date');
+        if (sharedRoundParticipants.length === 0) missing.push('participants');
+        if (sharedRoundDetails.roundTypeIndoorOutdoor === 'outdoor') {
+          if (!sharedRoundDetails.weather.trim()) missing.push('weather');
+          if (!sharedRoundDetails.temperature.trim()) missing.push('temperature');
+          if (!sharedRoundDetails.wind.trim()) missing.push('wind');
+        }
+        showError('Incomplete shared round', `Please provide: ${missing.join(', ')}`);
+      } else {
+        showError('Incomplete post', 'Please add content to your post');
+      }
       return;
     }
 
@@ -606,8 +655,12 @@ export default function CreatePostModal({
           // Non-fatal - group post was created
         }
 
-        // Step 3: Save participant scores if entered now
-        if (enterScoresNow && playerScores.length > 0) {
+        // Step 3: Save participant scores if any were entered
+        const hasScores = playerScores.length > 0 && playerScores.some(p =>
+          p.hole_scores.some(h => h.strokes !== undefined && h.strokes > 0)
+        );
+
+        if (hasScores) {
           try {
             const scoresResponse = await fetch('/api/golf/participant-scores', {
               method: 'POST',
@@ -848,11 +901,13 @@ export default function CreatePostModal({
 
           {/* Shared Round Details Form */}
           {postType === 'golf' && roundType === 'shared' && (
-            <div className="mb-6">
-              <div className="bg-green-50 rounded-lg border border-green-200 p-6">
-                <h3 className="text-lg font-bold text-green-900 mb-4 flex items-center gap-2">
-                  <i className="fas fa-users"></i>
-                  Shared Round Details
+            <div className="mb-6 bg-green-50 rounded-lg p-6">
+              <div className="space-y-6">
+                {/* Course Details - White Box */}
+              <div className="bg-white rounded-lg border border-gray-200 p-4">
+                <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
+                  <i className="fas fa-flag-checkered mr-2 text-green-600"></i>
+                  Course Details
                 </h3>
 
                 {/* Course Name with Search */}
@@ -1011,15 +1066,17 @@ export default function CreatePostModal({
                     </select>
                   </div>
                 )}
+              </div>
 
-                {/* Manual Par & Yardage Entry (when course not in database) */}
-                {!selectedCourse && sharedRoundDetails.courseName && (
-                  <div className="mb-6 p-4 bg-gray-50 border border-gray-300 rounded-lg">
+              {/* Manual Par & Yardage Entry - White Box (when course not in database) */}
+              {!selectedCourse && sharedRoundDetails.courseName && (
+                <div className="bg-white rounded-lg border border-gray-200 p-4">
+                  <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
+                    <i className="fas fa-edit mr-2 text-blue-600"></i>
+                    Course Par & Yardage (Optional)
+                  </h3>
+                  <div className="p-4 bg-gray-50 border border-gray-300 rounded-lg">
                     <div className="flex items-center justify-between mb-3">
-                      <h4 className="text-sm font-bold text-gray-900">
-                        <i className="fas fa-edit mr-2"></i>
-                        Course Details (Manual Entry)
-                      </h4>
                       <span className="text-xs text-gray-600">Optional - adds Par & Yardage to scorecard</span>
                     </div>
 
@@ -1077,15 +1134,16 @@ export default function CreatePostModal({
                       Entering par and yardage will display these values in the scorecard
                     </div>
                   </div>
-                )}
+                </div>
+              )}
 
-                {/* Playing Conditions (outdoor only, required) */}
-                {sharedRoundDetails.roundTypeIndoorOutdoor === 'outdoor' && (
-                  <div className="mb-6 p-4 bg-white border border-gray-300 rounded-lg">
-                    <h4 className="text-sm font-bold text-gray-900 mb-3">
-                      <i className="fas fa-cloud-sun mr-2"></i>
-                      Playing Conditions *
-                    </h4>
+              {/* Playing Conditions - White Box (outdoor only, required) */}
+              {sharedRoundDetails.roundTypeIndoorOutdoor === 'outdoor' && (
+                <div className="bg-white rounded-lg border border-gray-200 p-4">
+                  <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
+                    <i className="fas fa-cloud-sun mr-2 text-blue-500"></i>
+                    Playing Conditions
+                  </h3>
 
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
                       {/* Weather */}
@@ -1144,27 +1202,15 @@ export default function CreatePostModal({
                         </select>
                       </div>
                     </div>
+                </div>
+              )}
 
-                    {/* Playing Partners (optional) */}
-                    <div>
-                      <label className="block text-xs font-semibold text-gray-700 mb-1.5">
-                        Other Playing Partners (optional)
-                      </label>
-                      <input
-                        type="text"
-                        value={sharedRoundDetails.playingPartners}
-                        onChange={(e) => setSharedRoundDetails(prev => ({ ...prev, playingPartners: e.target.value }))}
-                        className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                        placeholder="e.g., John, Sarah (non-tagged participants)"
-                      />
-                      <p className="text-xs text-gray-500 mt-1">
-                        Enter names of people who aren&apos;t tagged in this post
-                      </p>
-                    </div>
-                  </div>
-                )}
-
-                {/* Participants */}
+              {/* Participants - White Box */}
+              <div className="bg-white rounded-lg border border-gray-200 p-4">
+                <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
+                  <i className="fas fa-users mr-2 text-green-600"></i>
+                  Round Participants
+                </h3>
                 <div>
                   <div className="flex items-center justify-between mb-3">
                     <label className="text-sm font-semibold text-gray-900">
@@ -1189,7 +1235,7 @@ export default function CreatePostModal({
 
                               // Add to participants - useEffect will handle score initialization
                               setSharedRoundParticipants(prev => [...prev, userId]);
-                              setSharedRoundParticipantsData(prev => [...prev, { id: userId, name: userName }]);
+                              setSharedRoundParticipantsData(prev => [...prev, { id: userId, name: userName, avatar_url: profile.avatar_url }]);
                             } else {
                               const errorData = await response.json();
                               console.error('Failed to add yourself to round:', errorData.error);
@@ -1256,38 +1302,25 @@ export default function CreatePostModal({
                   )}
                 </div>
               </div>
+              </div>
             </div>
           )}
 
           {/* Score Entry Section (when shared round with participants) */}
           {postType === 'golf' && roundType === 'shared' && sharedRoundParticipantsData.length > 0 && (
             <div className="mb-6">
-              <div className="bg-green-50 rounded-lg border border-green-200 p-4">
-                {/* Toggle for entering scores now */}
-                <div className="flex items-center justify-between mb-4">
-                  <div>
-                    <h4 className="text-sm font-semibold text-gray-900">Score Entry</h4>
-                    <p className="text-xs text-gray-600 mt-1">
-                      Enter scores now or let participants add them later
-                    </p>
-                  </div>
-                  <label className="flex items-center gap-2 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={enterScoresNow}
-                      onChange={(e) => setEnterScoresNow(e.target.checked)}
-                      className="w-4 h-4 text-green-600 rounded focus:ring-2 focus:ring-green-500"
-                    />
-                    <span className="text-sm font-medium text-gray-900">
-                      Enter Scores Now
-                    </span>
-                  </label>
-                </div>
+              <div className="bg-white rounded-lg border border-gray-200 p-4">
+                <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
+                  <i className="fas fa-list-ol mr-2 text-green-600"></i>
+                  Score Entry
+                </h3>
+                <p className="text-sm text-gray-600 mb-4">
+                  Enter scores below or leave blank - participants can add them later
+                </p>
 
-                {/* Multi-player scorecard grid */}
-                {enterScoresNow && (
-                  <div className="mt-4">
-                    <MultiPlayerScorecardGrid
+                {/* Multi-player scorecard grid - always shown */}
+                <div>
+                  <MultiPlayerScorecardGrid
                       players={playerScores}
                       holes={sharedRoundDetails.holesPlayed}
                       editable={true}
@@ -1306,8 +1339,7 @@ export default function CreatePostModal({
                           : undefined
                       }
                     />
-                  </div>
-                )}
+                </div>
               </div>
             </div>
           )}
@@ -1704,6 +1736,10 @@ export default function CreatePostModal({
           visibility={visibility}
           golfData={golfRoundData}
           taggedPeople={taggedProfilesData}
+          roundType={roundType}
+          sharedRoundDetails={sharedRoundDetails}
+          sharedRoundParticipants={sharedRoundParticipantsData}
+          playerScores={playerScores}
           onClose={() => setShowPreview(false)}
           onPost={() => {
             setShowPreview(false);
@@ -1752,6 +1788,10 @@ function PostPreview({
   visibility,
   golfData,
   taggedPeople = [],
+  roundType,
+  sharedRoundDetails,
+  sharedRoundParticipants = [],
+  playerScores = [],
   onClose,
   onPost
 }: PostPreviewProps) {
@@ -1840,26 +1880,74 @@ function PostPreview({
               )}
 
               {/* Golf Scorecard Summary */}
-              {postType === 'golf' && golfData && (
+              {postType === 'golf' && (
                 <div className="mb-4 p-4 bg-green-50 rounded-lg border border-green-200">
                   <div className="flex items-center gap-2 mb-2">
                     <i className="fas fa-golf-ball text-green-600"></i>
-                    <span className="font-semibold text-green-800">Golf Round</span>
+                    <span className="font-semibold text-green-800">
+                      {roundType === 'shared' ? 'Shared Golf Round' : 'Golf Round'}
+                    </span>
                   </div>
                   <div className="text-sm text-green-700 space-y-1">
-                    {golfData.courseName && <div><strong>Course:</strong> {golfData.courseName}</div>}
-                    {golfData.holesData && (() => {
-                      const scored = golfData.holesData.filter((h: HoleData) => h.score !== undefined);
-                      if (scored.length === 0) return null;
-                      const total = scored.reduce((sum: number, h: HoleData) => sum + (h.score || 0), 0);
-                      const par = scored.reduce((sum: number, h: HoleData) => sum + h.par, 0);
-                      return (
-                        <>
-                          <div><strong>Score:</strong> {total} ({total - par >= 0 ? '+' : ''}{total - par})</div>
-                          <div><strong>Holes Played:</strong> {scored.length}</div>
-                        </>
-                      );
-                    })()}
+                    {/* Individual Round */}
+                    {roundType === 'individual' && golfData && (
+                      <>
+                        {golfData.courseName && <div><strong>Course:</strong> {golfData.courseName}</div>}
+                        {golfData.holesData && (() => {
+                          const scored = golfData.holesData.filter((h: HoleData) => h.score !== undefined);
+                          if (scored.length === 0) return null;
+                          const total = scored.reduce((sum: number, h: HoleData) => sum + (h.score || 0), 0);
+                          const par = scored.reduce((sum: number, h: HoleData) => sum + h.par, 0);
+                          return (
+                            <>
+                              <div><strong>Score:</strong> {total} ({total - par >= 0 ? '+' : ''}{total - par})</div>
+                              <div><strong>Holes Played:</strong> {scored.length}</div>
+                            </>
+                          );
+                        })()}
+                      </>
+                    )}
+
+                    {/* Shared Round */}
+                    {roundType === 'shared' && sharedRoundDetails && (
+                      <>
+                        {sharedRoundDetails.courseName && (
+                          <div><strong>Course:</strong> {sharedRoundDetails.courseName}</div>
+                        )}
+                        {sharedRoundDetails.date && (
+                          <div><strong>Date:</strong> {new Date(sharedRoundDetails.date).toLocaleDateString()}</div>
+                        )}
+                        <div><strong>Type:</strong> {sharedRoundDetails.roundTypeIndoorOutdoor === 'indoor' ? '🏠 Indoor' : '⛳ Outdoor'}</div>
+                        <div><strong>Holes:</strong> {sharedRoundDetails.holesPlayed}</div>
+                        {sharedRoundParticipants.length > 0 && (
+                          <div>
+                            <strong>Players:</strong> {sharedRoundParticipants.map(p => p.name).join(', ')}
+                          </div>
+                        )}
+                        {sharedRoundDetails.roundTypeIndoorOutdoor === 'outdoor' && (
+                          <>
+                            {sharedRoundDetails.weather && (
+                              <div><strong>Weather:</strong> {sharedRoundDetails.weather}</div>
+                            )}
+                            {sharedRoundDetails.temperature && (
+                              <div><strong>Temperature:</strong> {sharedRoundDetails.temperature}°F</div>
+                            )}
+                            {sharedRoundDetails.wind && (
+                              <div><strong>Wind:</strong> {sharedRoundDetails.wind}</div>
+                            )}
+                          </>
+                        )}
+                        {playerScores.length > 0 && (() => {
+                          const hasScores = playerScores.some(p =>
+                            p.hole_scores.some(h => h.strokes !== undefined && h.strokes > 0)
+                          );
+                          if (hasScores) {
+                            return <div className="mt-2 text-green-600"><strong>✓</strong> Scores recorded</div>;
+                          }
+                          return null;
+                        })()}
+                      </>
+                    )}
                   </div>
                 </div>
               )}

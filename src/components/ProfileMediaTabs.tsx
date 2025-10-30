@@ -102,8 +102,8 @@ export default function ProfileMediaTabs({ profileId, currentUserId, isOwnProfil
           onCountsChange(data);
         }
       }
-    } catch (error) {
-      console.error('Error fetching media counts:', error);
+    } catch {
+      // Silently handle media count fetch errors
     }
   }, [profileId, onCountsChange]);
 
@@ -131,7 +131,6 @@ export default function ProfileMediaTabs({ profileId, currentUserId, isOwnProfil
 
       if (!response.ok) {
         const errorText = await response.text();
-        console.error('[ProfileMediaTabs] API error:', response.status, errorText);
         throw new Error(`Failed to fetch media: ${response.status} - ${errorText}`);
       }
 
@@ -147,8 +146,7 @@ export default function ProfileMediaTabs({ profileId, currentUserId, isOwnProfil
       const newOffset = data.nextOffset || currentOffset + (data.items?.length || 0);
       setOffset(newOffset);
       offsetRef.current = newOffset;
-    } catch (error) {
-      console.error('[ProfileMediaTabs] Error fetching media:', error);
+    } catch {
       // Reset loading states on error
       setLoading(false);
       setLoadingMore(false);
@@ -235,8 +233,7 @@ export default function ProfileMediaTabs({ profileId, currentUserId, isOwnProfil
       setEditingPost(data.post);
       setIsEditPostModalOpen(true);
       setIsModalOpen(false); // Close detail modal
-    } catch (error) {
-      console.error('Error fetching post for edit:', error);
+    } catch {
       showError('Error', 'Failed to load post for editing');
     }
   };
@@ -265,7 +262,6 @@ export default function ProfileMediaTabs({ profileId, currentUserId, isOwnProfil
 
       showSuccess('Success', 'Post deleted successfully');
     } catch (err) {
-      console.error('Delete post error:', err);
       showError('Error', err instanceof Error ? err.message : 'Failed to delete post');
     }
   };

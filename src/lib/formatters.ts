@@ -122,6 +122,65 @@ export const formatDisplayName = (
   return 'Unknown User';
 };
 
+// Smart name truncation for compact displays (scorecards, mobile views)
+// Prioritizes first name visibility, abbreviates last name to initial
+export const formatShortName = (
+  firstName?: string | null,
+  lastName?: string | null,
+  fullName?: string | null,
+  maxLength: number = 15
+): string => {
+  const first = firstName?.trim() || '';
+  const last = lastName?.trim() || '';
+
+  // If we have first/last names, use them
+  if (first || last) {
+    // Only first name
+    if (first && !last) return first;
+
+    // Only last name
+    if (!first && last) return last;
+
+    // Full name (first + last)
+    const combinedName = `${first} ${last}`;
+
+    // If full name fits, use it
+    if (combinedName.length <= maxLength) return combinedName;
+
+    // Smart truncation: "First L." format
+    const abbreviated = `${first} ${last[0]}.`;
+
+    // If abbreviated name still too long, truncate first name
+    if (abbreviated.length > maxLength) {
+      const maxFirstLength = maxLength - 3; // Reserve space for " L."
+      return `${first.slice(0, maxFirstLength)} ${last[0]}.`;
+    }
+
+    return abbreviated;
+  }
+
+  // Fallback: Parse full_name if provided
+  if (fullName?.trim()) {
+    const parts = fullName.trim().split(' ').filter(part => part.length > 0);
+
+    // Single name (e.g., "Madonna")
+    if (parts.length === 1) return parts[0];
+
+    // Multiple parts - use first and last
+    const parsedFirst = parts[0];
+    const parsedLast = parts[parts.length - 1];
+    const combined = `${parsedFirst} ${parsedLast}`;
+
+    // If combined name fits, use it
+    if (combined.length <= maxLength) return combined;
+
+    // Smart truncation: "First L." format
+    return `${parsedFirst} ${parsedLast[0]}.`;
+  }
+
+  return 'Unknown';
+};
+
 // Legacy function for backwards compatibility with old code
 export const formatDisplayNameLegacy = (
   fullName?: string | null,

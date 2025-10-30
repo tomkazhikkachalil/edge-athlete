@@ -19,7 +19,7 @@ export default function SharedRoundFullCard({
   onAddScores
 }: SharedRoundFullCardProps) {
   const { group_post, golf_data, participants } = scorecard;
-  const [showHoleDetails] = useState(true);
+  const [activeTab, setActiveTab] = useState<'overview' | 'scorecard'>('overview');
 
   // Format date
   const formattedDate = new Date(group_post.date).toLocaleDateString('en-US', {
@@ -297,10 +297,206 @@ export default function SharedRoundFullCard({
           </div>
         </div>
 
+        {/* Tabs */}
+        <div className="border-b border-gray-300 bg-white">
+          <div className="flex px-6">
+            <button
+              onClick={() => setActiveTab('overview')}
+              className={`px-6 py-3 font-bold text-sm border-b-2 transition-colors ${
+                activeTab === 'overview'
+                  ? 'border-green-600 text-green-700'
+                  : 'border-transparent text-gray-600 hover:text-gray-900'
+              }`}
+            >
+              <i className="fas fa-trophy mr-2"></i>
+              Overview
+            </button>
+            <button
+              onClick={() => setActiveTab('scorecard')}
+              className={`px-6 py-3 font-bold text-sm border-b-2 transition-colors ${
+                activeTab === 'scorecard'
+                  ? 'border-green-600 text-green-700'
+                  : 'border-transparent text-gray-600 hover:text-gray-900'
+              }`}
+            >
+              <i className="fas fa-table mr-2"></i>
+              Full Scorecard
+            </button>
+          </div>
+        </div>
+
         {/* Scrollable Content */}
         <div className="flex-1 overflow-y-auto p-6">
-          {/* Scorecard Tables */}
-          {showHoleDetails ? (
+          {/* Overview Tab */}
+          {activeTab === 'overview' && (
+            <div className="space-y-4">
+              {/* Leaderboard */}
+              <div className="bg-white rounded-lg border-2 border-green-300 overflow-hidden">
+                <div className="bg-green-100 px-4 py-3 border-b-2 border-green-300">
+                  <h3 className="text-lg font-black text-green-900">
+                    <i className="fas fa-trophy mr-2"></i>
+                    Leaderboard
+                  </h3>
+                </div>
+                <div className="divide-y divide-gray-200">
+                  {participants
+                    .filter(p => p.participant.status === 'confirmed' && p.scores.total_score !== null)
+                    .sort((a, b) => (a.scores.total_score || Infinity) - (b.scores.total_score || Infinity))
+                    .map(({ participant, scores }, index) => {
+                      const profile = participant.profile!;
+                      const displayName = formatDisplayName(
+                        profile.first_name,
+                        null,
+                        profile.last_name,
+                        profile.full_name
+                      );
+                      const isCurrentUser = participant.profile_id === currentUserId;
+
+                      return (
+                        <div key={participant.id} className={`flex items-center gap-4 p-4 ${isCurrentUser ? 'bg-blue-50' : 'hover:bg-gray-50'}`}>
+                          {/* Position */}
+                          <div className="w-10 h-10 flex-shrink-0 flex items-center justify-center">
+                            {index === 0 ? (
+                              <div className="w-10 h-10 bg-yellow-400 rounded-full flex items-center justify-center">
+                                <i className="fas fa-trophy text-yellow-900 text-lg"></i>
+                              </div>
+                            ) : (
+                              <span className="text-2xl font-black text-gray-400">{index + 1}</span>
+                            )}
+                          </div>
+
+                          {/* Avatar */}
+                          {profile.avatar_url ? (
+                            <LazyImage
+                              src={profile.avatar_url}
+                              alt={displayName}
+                              className="w-12 h-12 rounded-full object-cover flex-shrink-0"
+                              width={48}
+                              height={48}
+                            />
+                          ) : (
+                            <div className="w-12 h-12 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center flex-shrink-0">
+                              <span className="text-white text-sm font-bold">
+                                {getInitials(displayName)}
+                              </span>
+                            </div>
+                          )}
+
+                          {/* Name */}
+                          <div className="flex-1 min-w-0">
+                            <div className={`font-black text-base ${isCurrentUser ? 'text-blue-700' : 'text-gray-900'}`}>
+                              {displayName}
+                              {isCurrentUser && <span className="ml-2 text-sm">(You)</span>}
+                            </div>
+                            <div className="text-sm text-gray-600">
+                              {scores.holes_completed} of {golf_data.holes_played} holes
+                            </div>
+                          </div>
+
+                          {/* Score */}
+                          <div className="text-right">
+                            <div className="text-3xl font-black text-green-900">{scores.total_score}</div>
+                            {scores.to_par !== null && (
+                              <div className={`text-sm font-bold ${scores.to_par < 0 ? 'text-blue-600' : scores.to_par > 0 ? 'text-red-600' : 'text-gray-600'}`}>
+                                {scores.to_par >= 0 ? '+' : ''}{scores.to_par}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+
+                  {/* Players without scores */}
+                  {participants
+                    .filter(p => p.participant.status === 'confirmed' && !p.scores.total_score)
+                    .map(({ participant }) => {
+                      const profile = participant.profile!;
+                      const displayName = formatDisplayName(
+                        profile.first_name,
+                        null,
+                        profile.last_name,
+                        profile.full_name
+                      );
+                      const isCurrentUser = participant.profile_id === currentUserId;
+
+                      return (
+                        <div key={participant.id} className="flex items-center gap-4 p-4 bg-gray-50">
+                          <div className="w-10 h-10 flex-shrink-0 flex items-center justify-center">
+                            <span className="text-2xl font-black text-gray-300">-</span>
+                          </div>
+
+                          {profile.avatar_url ? (
+                            <LazyImage
+                              src={profile.avatar_url}
+                              alt={displayName}
+                              className="w-12 h-12 rounded-full object-cover flex-shrink-0 opacity-60"
+                              width={48}
+                              height={48}
+                            />
+                          ) : (
+                            <div className="w-12 h-12 rounded-full bg-gray-300 flex items-center justify-center flex-shrink-0">
+                              <span className="text-gray-600 text-sm font-bold">
+                                {getInitials(displayName)}
+                              </span>
+                            </div>
+                          )}
+
+                          <div className="flex-1 min-w-0">
+                            <div className={`font-bold text-base ${isCurrentUser ? 'text-blue-700' : 'text-gray-600'}`}>
+                              {displayName}
+                              {isCurrentUser && <span className="ml-2 text-sm">(You)</span>}
+                            </div>
+                            <div className="text-sm text-gray-500 italic">
+                              {isCurrentUser && onAddScores ? 'Tap to add your scores' : 'Awaiting scores'}
+                            </div>
+                          </div>
+
+                          {isCurrentUser && onAddScores && (
+                            <button
+                              onClick={() => onAddScores(participant.id)}
+                              className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg text-sm transition-colors"
+                            >
+                              Add Scores
+                            </button>
+                          )}
+                        </div>
+                      );
+                    })}
+                </div>
+              </div>
+
+              {/* Round Details */}
+              <div className="bg-white rounded-lg border-2 border-gray-300 p-4">
+                <h3 className="text-lg font-black text-gray-900 mb-3">
+                  <i className="fas fa-info-circle mr-2"></i>
+                  Round Details
+                </h3>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                  <div>
+                    <div className="text-xs font-semibold text-gray-600 mb-1">Course</div>
+                    <div className="font-bold text-gray-900">{golf_data.course_name}</div>
+                  </div>
+                  <div>
+                    <div className="text-xs font-semibold text-gray-600 mb-1">Date</div>
+                    <div className="font-bold text-gray-900">{formattedDate}</div>
+                  </div>
+                  <div>
+                    <div className="text-xs font-semibold text-gray-600 mb-1">Holes</div>
+                    <div className="font-bold text-gray-900">{golf_data.holes_played}</div>
+                  </div>
+                  {golf_data.tee_color && (
+                    <div>
+                      <div className="text-xs font-semibold text-gray-600 mb-1">Tees</div>
+                      <div className="font-bold text-gray-900">{golf_data.tee_color.charAt(0).toUpperCase() + golf_data.tee_color.slice(1)}</div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Scorecard Tab */}
+          {activeTab === 'scorecard' && (
             <>
               {front9.length > 0 && renderScorecardTable(front9, front9.length === 9 ? 'Front 9' : 'Holes')}
               {back9.length > 0 && renderScorecardTable(back9, 'Back 9')}
@@ -356,13 +552,11 @@ export default function SharedRoundFullCard({
                 </div>
               </div>
             </>
-          ) : (
-            <div className="text-center py-8 text-gray-600">
-              Scorecard details hidden
-            </div>
           )}
+        </div>
 
-          {/* Actions for Current User */}
+        {/* Actions for Current User */}
+        <div className="border-t border-gray-300 p-4 bg-gray-50">
           {currentUserParticipant && (
             <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
               <div className="flex items-center justify-between">

@@ -2,7 +2,7 @@
 
 import { useState, useCallback } from 'react';
 import LazyImage from '@/components/LazyImage';
-import { getInitials, formatDisplayName } from '@/lib/formatters';
+import { getInitials, formatDisplayName, formatShortName } from '@/lib/formatters';
 
 export interface PlayerHoleScore {
   hole_number: number;
@@ -281,19 +281,22 @@ export default function MultiPlayerScorecardGrid({
                         <LazyImage
                           src={player.profile.avatar_url}
                           alt={formatDisplayName(player.profile.first_name, null, player.profile.last_name, player.profile.full_name)}
-                          className="w-8 h-8 rounded-full object-cover"
+                          className="w-8 h-8 rounded-full object-cover flex-shrink-0"
                           width={32}
                           height={32}
                         />
                       ) : (
-                        <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center">
+                        <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center flex-shrink-0">
                           <span className="text-white text-xs font-semibold">
                             {getInitials(formatDisplayName(player.profile.first_name, null, player.profile.last_name, player.profile.full_name))}
                           </span>
                         </div>
                       )}
-                      <span className="text-sm font-medium text-gray-900">
-                        {formatDisplayName(player.profile.first_name, null, player.profile.last_name, player.profile.full_name)}
+                      <span
+                        className="text-sm font-medium text-gray-900 max-w-[140px] truncate"
+                        title={formatDisplayName(player.profile.first_name, null, player.profile.last_name, player.profile.full_name)}
+                      >
+                        {formatShortName(player.profile.first_name, player.profile.last_name, player.profile.full_name, 18)}
                       </span>
                     </div>
                   </td>
