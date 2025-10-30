@@ -559,23 +559,12 @@ export default function CreatePostModal({
         return golfRoundData && golfRoundData.courseName && golfRoundData.holesData?.some((h: HoleData) => h.score !== undefined);
       } else {
         // Shared rounds need at least course name, date, and at least one participant
-        const hasBasicInfo = (
+        // Weather fields are optional - can be added later or left blank
+        return (
           sharedRoundDetails.courseName.trim().length > 0 &&
           sharedRoundDetails.date &&
           sharedRoundParticipants.length > 0
         );
-
-        // For outdoor rounds, weather fields are required
-        if (sharedRoundDetails.roundTypeIndoorOutdoor === 'outdoor') {
-          return (
-            hasBasicInfo &&
-            sharedRoundDetails.weather.trim().length > 0 &&
-            sharedRoundDetails.temperature.trim().length > 0 &&
-            sharedRoundDetails.wind.trim().length > 0
-          );
-        }
-
-        return hasBasicInfo;
       }
     }
 
