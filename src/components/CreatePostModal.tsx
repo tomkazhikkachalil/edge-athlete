@@ -2046,9 +2046,9 @@ function PostPreview({
 
               {/* Media */}
               {mediaFiles.length > 0 && (
-                <div className={`grid ${mediaFiles.length === 1 ? 'grid-cols-1' : 'grid-cols-2'} gap-1 rounded-lg overflow-hidden`}>
+                <div className={`grid ${mediaFiles.length === 1 ? 'grid-cols-1' : 'grid-cols-2'} gap-2 rounded-lg overflow-hidden`}>
                   {mediaFiles.slice(0, 4).map((file: MediaFile, index: number) => (
-                    <div key={file.id} className="relative aspect-square bg-gray-100">
+                    <div key={file.id} className="relative aspect-square bg-gray-100 p-1.5">
                       {file.type === 'image' ? (
                         <LazyImage
                           src={file.url}
