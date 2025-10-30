@@ -7,8 +7,10 @@ import GolfScorecardForm from '@/components/GolfScorecardForm';
 import TagPeopleModal from '@/components/TagPeopleModal';
 import SportSelector from '@/components/SportSelector';
 import MultiPlayerScorecardGrid, { type PlayerScoreData, type PlayerHoleScore } from '@/components/golf/MultiPlayerScorecardGrid';
+import SharedRoundQuickView from '@/components/golf/SharedRoundQuickView';
 import { getSportDefinition, type SportKey } from '@/lib/sports/SportRegistry';
 import type { HoleData, GolfCourse } from '@/types/golf';
+import type { CompleteGolfScorecard, ParticipantRole } from '@/types/group-posts';
 
 interface CreatePostModalProps {
   isOpen: boolean;
@@ -74,6 +76,7 @@ interface PostPreviewProps {
   sharedRoundDetails?: SharedRoundDetails;
   sharedRoundParticipants?: {id: string; name: string; avatar_url?: string}[];
   playerScores?: PlayerScore[];
+  userId?: string;
   onClose: () => void;
   onPost: () => void;
 }
@@ -1740,6 +1743,7 @@ export default function CreatePostModal({
           sharedRoundDetails={sharedRoundDetails}
           sharedRoundParticipants={sharedRoundParticipantsData}
           playerScores={playerScores}
+          userId={userId}
           onClose={() => setShowPreview(false)}
           onPost={() => {
             setShowPreview(false);
@@ -1778,6 +1782,125 @@ export default function CreatePostModal({
   );
 }
 
+// Helper function to transform form data into CompleteGolfScorecard format for preview
+function transformToScorecardPreview(
+  sharedRoundDetails: SharedRoundDetails,
+  sharedRoundParticipants: {id: string; name: string; avatar_url?: string}[],
+  playerScores: PlayerScore[],
+  userId: string
+): CompleteGolfScorecard {
+  // Create mock group_post
+  const mockGroupPost = {
+    id: 'preview-' + Date.now(),
+    creator_id: userId,
+    type: 'golf_round' as const,
+    title: `Round at ${sharedRoundDetails.courseName}`,
+    description: null,
+    date: sharedRoundDetails.date,
+    location: sharedRoundDetails.courseName,
+    visibility: 'public' as const,
+    status: 'pending' as const,
+    post_id: null,
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString()
+  };
+
+  // Create golf_data
+  const golfData = {
+    id: 'preview-golf-' + Date.now(),
+    group_post_id: mockGroupPost.id,
+    course_name: sharedRoundDetails.courseName,
+    course_id: null,
+    round_type: sharedRoundDetails.roundTypeIndoorOutdoor,
+    holes_played: sharedRoundDetails.holesPlayed,
+    tee_color: sharedRoundDetails.teeColor || null,
+    slope_rating: null,
+    course_rating: null,
+    weather_conditions: sharedRoundDetails.weather || null,
+    temperature: sharedRoundDetails.temperature ? parseInt(sharedRoundDetails.temperature) : null,
+    wind_speed: null,
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString()
+  };
+
+  // Transform participants with scores
+  const participants = sharedRoundParticipants.map(participant => {
+    // Find matching player scores
+    const playerScore = playerScores.find(ps => ps.participant_id === participant.id);
+
+    // Calculate total score and holes completed from hole scores
+    let totalScore: number | null = null;
+    let holesCompleted = 0;
+    let toPar: number | null = null;
+
+    if (playerScore && playerScore.hole_scores) {
+      const scoredHoles = playerScore.hole_scores.filter(h => h.strokes !== undefined && h.strokes > 0);
+      if (scoredHoles.length > 0) {
+        totalScore = scoredHoles.reduce((sum, h) => sum + (h.strokes || 0), 0);
+        holesCompleted = scoredHoles.length;
+        // Assume par 4 for each hole if not provided
+        const parTotal = scoredHoles.length * 4;
+        toPar = totalScore - parTotal;
+      }
+    }
+
+    const isCreator = participant.id === userId;
+
+    return {
+      participant: {
+        id: 'preview-participant-' + participant.id,
+        group_post_id: mockGroupPost.id,
+        profile_id: participant.id,
+        status: 'confirmed' as const,
+        role: (isCreator ? 'creator' : 'participant') as ParticipantRole,
+        attested_at: new Date().toISOString(),
+        data_contributed: totalScore !== null,
+        last_contribution: totalScore !== null ? new Date().toISOString() : null,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+        profile: {
+          id: participant.id,
+          full_name: participant.name,
+          first_name: participant.name.split(' ')[0] || null,
+          middle_name: null,
+          last_name: participant.name.split(' ').slice(1).join(' ') || null,
+          avatar_url: participant.avatar_url || null,
+          sport: null,
+          school: null
+        }
+      },
+      scores: {
+        id: 'preview-scores-' + participant.id,
+        participant_id: 'preview-participant-' + participant.id,
+        entered_by: userId,
+        scores_confirmed: false,
+        total_score: totalScore,
+        to_par: toPar,
+        holes_completed: holesCompleted,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+        hole_scores: playerScore?.hole_scores?.map((h, idx) => ({
+          id: 'preview-hole-' + participant.id + '-' + idx,
+          golf_participant_id: 'preview-scores-' + participant.id,
+          hole_number: h.hole_number,
+          strokes: h.strokes || 0,
+          putts: h.putts || null,
+          fairway_hit: h.fairway_hit || null,
+          green_in_regulation: h.green_in_regulation || null,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        })) || []
+      }
+    };
+  });
+
+  return {
+    group_post: mockGroupPost,
+    golf_data: golfData,
+    participants
+  };
+}
+
 // Post Preview Component
 function PostPreview({
   postType,
@@ -1792,6 +1915,7 @@ function PostPreview({
   sharedRoundDetails,
   sharedRoundParticipants = [],
   playerScores = [],
+  userId = '',
   onClose,
   onPost
 }: PostPreviewProps) {
@@ -1908,45 +2032,24 @@ function PostPreview({
                       </>
                     )}
 
-                    {/* Shared Round */}
+                    {/* Shared Round - Use SharedRoundQuickView Component */}
                     {roundType === 'shared' && sharedRoundDetails && (
-                      <>
-                        {sharedRoundDetails.courseName && (
-                          <div><strong>Course:</strong> {sharedRoundDetails.courseName}</div>
-                        )}
-                        {sharedRoundDetails.date && (
-                          <div><strong>Date:</strong> {new Date(sharedRoundDetails.date).toLocaleDateString()}</div>
-                        )}
-                        <div><strong>Type:</strong> {sharedRoundDetails.roundTypeIndoorOutdoor === 'indoor' ? '🏠 Indoor' : '⛳ Outdoor'}</div>
-                        <div><strong>Holes:</strong> {sharedRoundDetails.holesPlayed}</div>
-                        {sharedRoundParticipants.length > 0 && (
-                          <div>
-                            <strong>Players:</strong> {sharedRoundParticipants.map(p => p.name).join(', ')}
-                          </div>
-                        )}
-                        {sharedRoundDetails.roundTypeIndoorOutdoor === 'outdoor' && (
-                          <>
-                            {sharedRoundDetails.weather && (
-                              <div><strong>Weather:</strong> {sharedRoundDetails.weather}</div>
-                            )}
-                            {sharedRoundDetails.temperature && (
-                              <div><strong>Temperature:</strong> {sharedRoundDetails.temperature}°F</div>
-                            )}
-                            {sharedRoundDetails.wind && (
-                              <div><strong>Wind:</strong> {sharedRoundDetails.wind}</div>
-                            )}
-                          </>
-                        )}
-                        {playerScores.length > 0 && (() => {
-                          const hasScores = playerScores.some(p =>
-                            p.hole_scores.some(h => h.strokes !== undefined && h.strokes > 0)
-                          );
-                          if (hasScores) {
-                            return <div className="mt-2 text-green-600"><strong>✓</strong> Scores recorded</div>;
-                          }
-                          return null;
-                        })()}
-                      </>
+                      <div className="relative">
+                        <SharedRoundQuickView
+                          scorecard={transformToScorecardPreview(
+                            sharedRoundDetails,
+                            sharedRoundParticipants,
+                            playerScores,
+                            userId
+                          )}
+                          onExpand={() => {
+                            // In preview mode, we can just show a message or do nothing
+                            // The full scorecard modal would require more state management
+                            // For now, the button will be visible but won't do anything special in preview
+                          }}
+                          currentUserId={userId}
+                        />
+                      </div>
                     )}
                   </div>
                 </div>
