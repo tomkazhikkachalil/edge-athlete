@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { X, RefreshCw, Archive } from 'lucide-react';
+import Image from 'next/image';
 import AddEquipmentModal from './AddEquipmentModal';
 import { type EquipmentItem } from './EquipmentSection';
 
@@ -104,10 +105,13 @@ export default function ReplaceEquipmentModal({
                   <div className="flex items-start gap-4">
                     {/* Image */}
                     {oldEquipment.image_url ? (
-                      <img
+                      <Image
                         src={oldEquipment.image_url}
                         alt={`${oldEquipment.brand} ${oldEquipment.model}`}
+                        width={80}
+                        height={80}
                         className="w-20 h-20 object-contain rounded-lg bg-white"
+                        unoptimized={oldEquipment.image_url.includes('golfwrx.com')}
                       />
                     ) : (
                       <div className="w-20 h-20 bg-gray-200 rounded-lg flex items-center justify-center text-3xl">
@@ -155,7 +159,7 @@ export default function ReplaceEquipmentModal({
                       What happens next?
                     </p>
                     <ul className="text-sm text-blue-700 space-y-1">
-                      <li>• Your current equipment will be marked as "retired"</li>
+                      <li>• Your current equipment will be marked as &quot;retired&quot;</li>
                       <li>• It will remain in your equipment history</li>
                       <li>• You can add the new replacement equipment</li>
                       <li>• The category will be pre-selected for you</li>

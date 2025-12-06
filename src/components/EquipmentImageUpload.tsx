@@ -2,6 +2,7 @@
 
 import { useState, useRef } from 'react';
 import { Upload, X, Loader2, Image as ImageIcon } from 'lucide-react';
+import Image from 'next/image';
 import { createBrowserClient } from '@supabase/ssr';
 
 interface EquipmentImageUploadProps {
@@ -53,7 +54,7 @@ export default function EquipmentImageUpload({
       const filePath = `equipment-images/${fileName}`;
 
       // Upload to Supabase storage
-      const { data, error } = await supabase.storage
+      const { error } = await supabase.storage
         .from('media')
         .upload(filePath, file, {
           cacheControl: '3600',
@@ -102,15 +103,17 @@ export default function EquipmentImageUpload({
       {/* Image Preview */}
       {value && (
         <div className="relative w-full aspect-video bg-gray-100 rounded-lg overflow-hidden">
-          <img
+          <Image
             src={value}
             alt="Equipment"
-            className="w-full h-full object-contain"
+            fill
+            className="object-contain"
+            unoptimized
           />
           <button
             type="button"
             onClick={handleRemove}
-            className="absolute top-2 right-2 p-1.5 bg-red-500 text-white rounded-full hover:bg-red-600 transition-colors shadow-lg"
+            className="absolute top-2 right-2 p-1.5 bg-red-500 text-white rounded-full hover:bg-red-600 transition-colors shadow-lg z-10"
           >
             <X className="w-4 h-4" />
           </button>
@@ -191,14 +194,16 @@ export default function EquipmentImageUpload({
                   key={index}
                   type="button"
                   onClick={() => handlePresetSelect(presetUrl)}
-                  className={`aspect-video bg-white border-2 rounded-lg overflow-hidden hover:border-blue-500 transition-colors ${
+                  className={`relative aspect-video bg-white border-2 rounded-lg overflow-hidden hover:border-blue-500 transition-colors ${
                     value === presetUrl ? 'border-blue-500 ring-2 ring-blue-200' : 'border-gray-200'
                   }`}
                 >
-                  <img
+                  <Image
                     src={presetUrl}
                     alt={`Preset ${index + 1}`}
-                    className="w-full h-full object-contain p-1"
+                    fill
+                    className="object-contain p-1"
+                    unoptimized
                   />
                 </button>
               ))}
@@ -210,7 +215,7 @@ export default function EquipmentImageUpload({
                 No preset images available
               </p>
               <p className="text-xs text-gray-500">
-                This brand/model combination doesn't have preset images yet. Upload your own photo instead!
+                This brand/model combination doesn&apos;t have preset images yet. Upload your own photo instead!
               </p>
             </div>
           )}

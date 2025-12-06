@@ -175,8 +175,7 @@ export async function GET(request: NextRequest) {
     console.error('[FOLLOWERS API] Catch error:', error);
     return NextResponse.json({
       error: error instanceof Error ? error.message : 'Failed to fetch followers',
-      details: 'Database setup required. See QUICK_FIX_GUIDE.md for step-by-step instructions',
-      setup: 'Run the SQL commands in QUICK_FIX_GUIDE.md via Supabase SQL Editor'
+      details: 'Database setup required. See CLAUDE.md for instructions',
     }, { status: 500 });
   }
 }

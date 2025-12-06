@@ -1,7 +1,7 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { Plus, Edit2, Trash2, CheckCircle2, Archive, RefreshCw } from 'lucide-react';
+import { useState, useEffect, useCallback } from 'react';
+import { Plus, Edit2, Trash2, CheckCircle2, Archive, RefreshCw, Dumbbell } from 'lucide-react';
 import OptimizedImage from './OptimizedImage';
 import AddEquipmentModal from './AddEquipmentModal';
 import ReplaceEquipmentModal from './ReplaceEquipmentModal';
@@ -78,12 +78,7 @@ export default function EquipmentSection({ profileId, isOwnProfile = false }: Eq
   const [equipmentToReplace, setEquipmentToReplace] = useState<EquipmentItem | null>(null);
   const [loading, setLoading] = useState(true);
 
-  // Fetch equipment on mount
-  useEffect(() => {
-    fetchEquipment();
-  }, [profileId]);
-
-  const fetchEquipment = async () => {
+  const fetchEquipment = useCallback(async () => {
     try {
       setLoading(true);
       const response = await fetch(`/api/equipment?profileId=${profileId}`, {
@@ -96,13 +91,19 @@ export default function EquipmentSection({ profileId, isOwnProfile = false }: Eq
 
       const data = await response.json();
       setEquipment(data.equipment || []);
-    } catch (error) {
-      console.error('Error fetching equipment:', error);
+    } catch (err) {
+      // Silently handle fetch errors - empty state will be shown
+      void err;
       setEquipment([]);
     } finally {
       setLoading(false);
     }
-  };
+  }, [profileId]);
+
+  // Fetch equipment on mount
+  useEffect(() => {
+    fetchEquipment();
+  }, [fetchEquipment]);
 
   const handleToggleStatus = async (id: string) => {
     const item = equipment.find(e => e.id === id);
@@ -131,7 +132,7 @@ export default function EquipmentSection({ profileId, isOwnProfile = false }: Eq
         'Success',
         `Equipment ${newStatus === 'active' ? 'activated' : 'retired'} successfully`
       );
-    } catch (error) {
+    } catch {
       showError('Error', 'Failed to update equipment status');
     }
   };
@@ -152,7 +153,7 @@ export default function EquipmentSection({ profileId, isOwnProfile = false }: Eq
       // Remove from local state
       setEquipment(prev => prev.filter(e => e.id !== id));
       showSuccess('Success', 'Equipment deleted successfully');
-    } catch (error) {
+    } catch {
       showError('Error', 'Failed to delete equipment');
     }
   };
@@ -305,7 +306,7 @@ export default function EquipmentSection({ profileId, isOwnProfile = false }: Eq
                         key={item.id}
                         item={item}
                         isOwnProfile={isOwnProfile}
-                        onEdit={(id) => console.log('Edit', id)} // TODO: Implement edit modal
+                        onEdit={() => {}} // Edit functionality coming soon
                         onDelete={handleDelete}
                         onToggleStatus={handleToggleStatus}
                         onReplace={() => handleReplace(item)}
@@ -488,6 +489,3 @@ function EquipmentCard({ item, isOwnProfile, onEdit, onDelete, onToggleStatus, o
     </div>
   );
 }
-
-// Import Dumbbell icon
-import { Dumbbell } from 'lucide-react';

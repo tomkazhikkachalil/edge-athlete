@@ -1,7 +1,8 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
-import { X, Upload, Loader2, ChevronDown } from 'lucide-react';
+import { X, Loader2, ChevronDown } from 'lucide-react';
+import Image from 'next/image';
 import { useToast } from './Toast';
 import type { EquipmentCategory, EquipmentSpecs } from './EquipmentSection';
 import { getCatalogService, getPresetImages, type EquipmentBrand, type EquipmentModel } from '@/lib/equipment-catalog';
@@ -429,14 +430,13 @@ export default function AddEquipmentModal({
                           className="w-full px-4 py-2.5 text-left text-sm text-gray-900 hover:bg-blue-50 hover:text-blue-700 transition-colors border-b border-gray-100 last:border-b-0 flex items-center gap-3"
                         >
                           {suggestion.logo ? (
-                            <img
+                            <Image
                               src={suggestion.logo}
                               alt={suggestion.name}
+                              width={24}
+                              height={24}
                               className="w-6 h-6 object-contain flex-shrink-0"
-                              onError={(e) => {
-                                // Hide image if it fails to load
-                                e.currentTarget.style.display = 'none';
-                              }}
+                              unoptimized
                             />
                           ) : (
                             <div className="w-6 h-6 flex-shrink-0 bg-gray-200 rounded flex items-center justify-center text-xs font-bold text-gray-600">
