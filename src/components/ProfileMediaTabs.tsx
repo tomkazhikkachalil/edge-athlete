@@ -2,13 +2,15 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { formatDistanceToNow } from 'date-fns';
+import { Camera, BarChart3, Tag, Dumbbell, Activity, Trophy } from 'lucide-react';
 import OptimizedImage from './OptimizedImage';
 import PostDetailModal from './PostDetailModal';
 import EditPostModal from './EditPostModal';
+import EquipmentSection from './EquipmentSection';
 import { useToast } from './Toast';
 import { formatGolfStatsSummary, formatGenericStatsSummary } from '@/lib/stats-summary';
 
-type TabType = 'all' | 'stats' | 'tagged';
+type TabType = 'all' | 'stats' | 'tagged' | 'equipment' | 'vitals' | 'achievements';
 type SortType = 'newest' | 'most_engaged';
 type MediaFilterType = 'all' | 'photos' | 'videos' | 'posts';
 
@@ -56,6 +58,9 @@ interface TabCounts {
   all: number;
   stats: number;
   tagged: number;
+  equipment: number;
+  vitals: number;
+  achievements: number;
 }
 
 interface ProfileMediaTabsProps {
@@ -70,7 +75,7 @@ export default function ProfileMediaTabs({ profileId, currentUserId, isOwnProfil
   const [sort, setSort] = useState<SortType>('newest');
   const [mediaFilter, setMediaFilter] = useState<MediaFilterType>('all');
   const [items, setItems] = useState<MediaItem[]>([]);
-  const [counts, setCounts] = useState<TabCounts>({ all: 0, stats: 0, tagged: 0 });
+  const [counts, setCounts] = useState<TabCounts>({ all: 0, stats: 0, tagged: 0, equipment: 0, vitals: 0, achievements: 0 });
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
   const [hasMore, setHasMore] = useState(false);
@@ -275,117 +280,183 @@ export default function ProfileMediaTabs({ profileId, currentUserId, isOwnProfil
     showSuccess('Success', 'Post updated successfully!');
   };
 
+  // Tab configuration with icons
+  const tabs = [
+    { id: 'all' as TabType, label: 'Media', icon: Camera, count: counts.all },
+    { id: 'stats' as TabType, label: 'Stats', icon: BarChart3, count: counts.stats },
+    { id: 'tagged' as TabType, label: 'Tagged', icon: Tag, count: counts.tagged },
+    { id: 'equipment' as TabType, label: 'Equipment', icon: Dumbbell, count: counts.equipment },
+    { id: 'vitals' as TabType, label: 'Vitals', icon: Activity, count: counts.vitals },
+    { id: 'achievements' as TabType, label: 'Achievements', icon: Trophy, count: counts.achievements },
+  ];
+
   return (
-    <div className="w-full space-y-4">
-      {/* Tabs */}
-      <div className="border-b border-gray-200">
-        <div className="flex items-center justify-between mb-2">
-          <nav className="flex space-x-6" aria-label="Media tabs">
-            <button
-              onClick={() => handleTabChange('all')}
-              className={`pb-3 px-1 border-b-2 font-medium text-sm transition-colors ${
-                activeTab === 'all'
-                  ? 'border-blue-600 text-blue-600'
-                  : 'border-transparent text-gray-600 hover:text-gray-800 hover:border-gray-300'
-              }`}
+    <div className="w-full space-y-6">
+      {/* Modern Segmented Control Tabs */}
+      <div className="relative">
+        {/* Scrollable container with gradient fade on edges */}
+        <div className="relative overflow-hidden">
+          <div className="absolute left-0 top-0 bottom-0 w-8 bg-gradient-to-r from-white to-transparent z-10 pointer-events-none md:hidden" />
+          <div className="absolute right-0 top-0 bottom-0 w-8 bg-gradient-to-l from-white to-transparent z-10 pointer-events-none md:hidden" />
+
+          <div className="overflow-x-auto scrollbar-hide">
+            <nav
+              className="flex gap-2 p-1 bg-gray-100 rounded-xl min-w-min"
+              aria-label="Profile sections"
             >
-              Media
-              <span className="ml-2 py-0.5 px-2 rounded-full text-xs bg-gray-100 text-gray-700">
-                {counts.all}
-              </span>
-            </button>
-            <button
-              onClick={() => handleTabChange('stats')}
-              className={`pb-3 px-1 border-b-2 font-medium text-sm transition-colors ${
-                activeTab === 'stats'
-                  ? 'border-blue-600 text-blue-600'
-                  : 'border-transparent text-gray-600 hover:text-gray-800 hover:border-gray-300'
-              }`}
-            >
-              Stats
-              <span className="ml-2 py-0.5 px-2 rounded-full text-xs bg-gray-100 text-gray-700">
-                {counts.stats}
-              </span>
-            </button>
-            <button
-              onClick={() => handleTabChange('tagged')}
-              className={`pb-3 px-1 border-b-2 font-medium text-sm transition-colors ${
-                activeTab === 'tagged'
-                  ? 'border-blue-600 text-blue-600'
-                  : 'border-transparent text-gray-600 hover:text-gray-800 hover:border-gray-300'
-              }`}
-            >
-              Tagged
-              <span className="ml-2 py-0.5 px-2 rounded-full text-xs bg-gray-100 text-gray-700">
-                {counts.tagged}
-              </span>
-            </button>
-          </nav>
-        </div>
-      </div>
+              {tabs.map((tab) => {
+                const Icon = tab.icon;
+                const isActive = activeTab === tab.id;
 
-      {/* Filters */}
-      <div className="flex items-center justify-between gap-4 flex-wrap">
-        <div className="flex items-center gap-3">
-          {/* Sort dropdown */}
-          <select
-            value={sort}
-            onChange={(e) => setSort(e.target.value as SortType)}
-            className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-          >
-            <option value="newest">Newest First</option>
-            <option value="most_engaged">Most Engaged</option>
-          </select>
+                return (
+                  <button
+                    key={tab.id}
+                    onClick={() => handleTabChange(tab.id)}
+                    className={`
+                      relative flex items-center gap-2 px-4 py-2.5 rounded-lg
+                      font-semibold text-sm transition-all duration-200
+                      whitespace-nowrap flex-shrink-0
+                      ${isActive
+                        ? 'bg-white text-gray-900 shadow-sm'
+                        : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50/50'
+                      }
+                    `}
+                  >
+                    {/* Icon */}
+                    <Icon
+                      className={`w-4 h-4 transition-colors ${
+                        isActive ? 'text-blue-600' : 'text-gray-500'
+                      }`}
+                    />
 
-          {/* Media type filter */}
-          <select
-            value={mediaFilter}
-            onChange={(e) => setMediaFilter(e.target.value as MediaFilterType)}
-            className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-          >
-            <option value="all">All Types</option>
-            <option value="photos">Photos Only</option>
-            <option value="videos">Videos Only</option>
-            <option value="posts">Posts Only</option>
-          </select>
-        </div>
+                    {/* Label */}
+                    <span>{tab.label}</span>
 
-        <div className="text-sm text-gray-600">
-          {items.length} {items.length === 1 ? 'item' : 'items'}
-        </div>
-      </div>
+                    {/* Count badge */}
+                    {tab.count > 0 && (
+                      <span className={`
+                        inline-flex items-center justify-center
+                        min-w-[20px] h-5 px-1.5 rounded-full text-xs font-bold
+                        transition-colors
+                        ${isActive
+                          ? 'bg-blue-600 text-white'
+                          : 'bg-gray-200 text-gray-700'
+                        }
+                      `}>
+                        {tab.count > 99 ? '99+' : tab.count}
+                      </span>
+                    )}
 
-      {/* Loading state */}
-      {loading && (
-        <div className="flex justify-center items-center py-12">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-        </div>
-      )}
-
-      {/* Empty state */}
-      {!loading && items.length === 0 && (
-        <div className="text-center py-12 px-4">
-          <div className="w-16 h-16 mx-auto mb-4 text-gray-400">
-            <i className="fas fa-images text-5xl"></i>
+                    {/* Active indicator dot (for new/unread items - future feature) */}
+                    {tab.id === 'tagged' && tab.count > 0 && !isActive && (
+                      <span className="absolute -top-0.5 -right-0.5 w-2 h-2 bg-green-500 rounded-full border-2 border-white" />
+                    )}
+                  </button>
+                );
+              })}
+            </nav>
           </div>
-          <h3 className="text-lg font-semibold text-gray-900 mb-2">
-            {activeTab === 'all' && 'No posts yet'}
-            {activeTab === 'stats' && 'No stat-attached posts yet'}
-            {activeTab === 'tagged' && 'No media tags yet'}
+        </div>
+      </div>
+
+      {/* Equipment Section (special tab) */}
+      {activeTab === 'equipment' && (
+        <EquipmentSection profileId={profileId} isOwnProfile={isOwnProfile} />
+      )}
+
+      {/* Vitals and Achievements tabs (coming soon) */}
+      {(activeTab === 'vitals' || activeTab === 'achievements') && (
+        <div className="text-center py-16 px-4">
+          <div className="w-20 h-20 mx-auto mb-6 rounded-full bg-gray-100 flex items-center justify-center">
+            {activeTab === 'vitals' && <Activity className="w-10 h-10 text-gray-400" />}
+            {activeTab === 'achievements' && <Trophy className="w-10 h-10 text-gray-400" />}
+          </div>
+          <h3 className="text-xl font-bold text-gray-900 mb-2">
+            {activeTab === 'vitals' && 'Vitals Tracking'}
+            {activeTab === 'achievements' && 'Achievements'}
           </h3>
-          <p className="text-gray-600 mb-4">
-            {activeTab === 'all' && isOwnProfile && 'Start sharing your athletic journey'}
-            {activeTab === 'all' && !isOwnProfile && 'This athlete hasn\'t posted yet'}
-            {activeTab === 'stats' && isOwnProfile && 'Add stats to your posts to track performance'}
-            {activeTab === 'stats' && !isOwnProfile && 'No performance stats available'}
-            {activeTab === 'tagged' && isOwnProfile && 'You haven\'t been tagged in any media yet'}
-            {activeTab === 'tagged' && !isOwnProfile && 'Not tagged in any media yet'}
+          <p className="text-gray-600 mb-6 max-w-md mx-auto">
+            This feature is coming soon! Track your progress and showcase your accomplishments.
           </p>
+          <div className="inline-flex items-center gap-2 px-4 py-2 bg-blue-50 text-blue-700 rounded-lg font-semibold text-sm">
+            <Trophy className="w-4 h-4" />
+            Feature in Development
+          </div>
         </div>
       )}
 
-      {/* Media grid */}
-      {!loading && items.length > 0 && (
+      {/* Media/Stats/Tagged tabs */}
+      {(activeTab === 'all' || activeTab === 'stats' || activeTab === 'tagged') && (
+        <>
+          {/* Filters (only shown for media/stats/tagged tabs) */}
+          {(activeTab === 'all' || activeTab === 'stats' || activeTab === 'tagged') && (
+            <div className="flex items-center justify-between gap-4 flex-wrap">
+              <div className="flex items-center gap-3">
+                {/* Sort dropdown */}
+                <select
+                  value={sort}
+                  onChange={(e) => setSort(e.target.value as SortType)}
+                  className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="newest">Newest First</option>
+                  <option value="most_engaged">Most Engaged</option>
+                </select>
+
+                {/* Media type filter */}
+                <select
+                  value={mediaFilter}
+                  onChange={(e) => setMediaFilter(e.target.value as MediaFilterType)}
+                  className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="all">All Types</option>
+                  <option value="photos">Photos Only</option>
+                  <option value="videos">Videos Only</option>
+                  <option value="posts">Posts Only</option>
+                </select>
+              </div>
+
+              <div className="text-sm text-gray-600">
+                {items.length} {items.length === 1 ? 'item' : 'items'}
+              </div>
+            </div>
+          )}
+
+          {/* Loading state */}
+          {loading && (
+            <div className="flex justify-center items-center py-12">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+            </div>
+          )}
+
+          {/* Empty state */}
+          {!loading && items.length === 0 && (
+        <div className="text-center py-16 px-4">
+          {/* Icon based on tab type */}
+          <div className="w-20 h-20 mx-auto mb-6 rounded-full bg-gray-100 flex items-center justify-center">
+            {activeTab === 'all' && <Camera className="w-10 h-10 text-gray-400" />}
+            {activeTab === 'stats' && <BarChart3 className="w-10 h-10 text-gray-400" />}
+            {activeTab === 'tagged' && <Tag className="w-10 h-10 text-gray-400" />}
+          </div>
+
+          <h3 className="text-xl font-bold text-gray-900 mb-2">
+            {activeTab === 'all' && 'No media yet'}
+            {activeTab === 'stats' && 'No performance stats'}
+            {activeTab === 'tagged' && 'No tags yet'}
+          </h3>
+
+          <p className="text-gray-600 mb-6 max-w-md mx-auto">
+            {activeTab === 'all' && isOwnProfile && 'Start sharing your athletic journey with photos, videos, and stats'}
+            {activeTab === 'all' && !isOwnProfile && 'This athlete hasn\'t posted any content yet'}
+            {activeTab === 'stats' && isOwnProfile && 'Add performance stats to your posts to track your progress over time'}
+            {activeTab === 'stats' && !isOwnProfile && 'No performance statistics available for this athlete'}
+            {activeTab === 'tagged' && isOwnProfile && 'You haven\'t been tagged in any posts yet'}
+            {activeTab === 'tagged' && !isOwnProfile && 'This athlete hasn\'t been tagged in any posts'}
+          </p>
+          </div>
+          )}
+
+          {/* Media grid */}
+          {!loading && items.length > 0 && (
         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-2">
           {items.map((item, index) => (
             <MediaGridItem
@@ -397,15 +468,17 @@ export default function ProfileMediaTabs({ profileId, currentUserId, isOwnProfil
         </div>
       )}
 
-      {/* Loading more indicator */}
-      {loadingMore && (
-        <div className="flex justify-center items-center py-6">
-          <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600"></div>
-        </div>
-      )}
+          {/* Loading more indicator */}
+          {loadingMore && (
+            <div className="flex justify-center items-center py-6">
+              <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600"></div>
+            </div>
+          )}
 
-      {/* Intersection observer target */}
-      <div ref={observerTarget} className="h-4" />
+          {/* Intersection observer target */}
+          <div ref={observerTarget} className="h-4" />
+        </>
+      )}
 
       {/* Post Detail Modal */}
       <PostDetailModal
