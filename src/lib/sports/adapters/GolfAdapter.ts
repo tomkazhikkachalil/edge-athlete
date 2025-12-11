@@ -1,6 +1,6 @@
 /**
  * Golf Sport Adapter - V1 Implementation
- * 
+ *
  * Provides full functionality for golf:
  * - Highlights from golf aggregates/rounds
  * - Recent rounds activity
@@ -10,186 +10,171 @@
 
 import { BaseSportAdapter, type HighlightTile, type ActivityRow, type ActivityResult, type PostContext } from '../SportAdapter';
 
+interface GolfStatsResponse {
+  highlights: Array<{
+    label: string;
+    value: string | null;
+    trend?: string | null;
+  }>;
+  recentRounds: Array<{
+    id: string;
+    date: string;
+    course: string;
+    courseLocation?: string;
+    score?: number;
+    par?: number;
+    gir?: number;
+    holes?: number;
+    roundType?: string;
+    isComplete?: boolean;
+  }>;
+  totalRounds: number;
+  completedRounds: number;
+}
+
 export class GolfAdapter extends BaseSportAdapter {
   constructor() {
     super('golf');
   }
-  
-  async getHighlights(profileId: string, season?: string): Promise<HighlightTile[]> {
+
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  async getHighlights(profileId: string, _season?: string): Promise<HighlightTile[]> {
     try {
-      // TODO: Replace with actual golf stats queries
-      // For now, return sample data that matches golf metrics
-      
-      return [
-        { 
-          label: 'Last 5 Avg', 
-          value: '78.2',
-          trend: 'down' // Lower scores are better in golf
-        },
-        { 
-          label: 'Best 18', 
-          value: '74'
-        },
-        { 
-          label: 'FIR%', 
-          value: '71%',
-          trend: 'up'
-        },
-        { 
-          label: 'GIR%', 
-          value: '58%',
-          trend: 'neutral'
-        },
-        { 
-          label: 'Putts/Round', 
-          value: '32.1'
-        },
-        { 
-          label: 'Scrambling%', 
-          value: '45%'
-        }
-      ];
+      // Fetch real golf stats from API
+      const response = await fetch(`/api/golf/stats?profileId=${profileId}`);
+
+      if (!response.ok) {
+        // Fall back to empty tiles on error
+        return this.getEmptyHighlights();
+      }
+
+      const data: GolfStatsResponse = await response.json();
+
+      // Map API response to HighlightTile format
+      return data.highlights.map(h => ({
+        label: h.label,
+        value: h.value ?? '—',
+        trend: h.trend as 'up' | 'down' | 'neutral' | undefined
+      }));
+
     } catch {
-      // Error fetching golf highlights
       // Return empty tiles on error
-      return await super.getHighlights(profileId, season);
+      return this.getEmptyHighlights();
     }
   }
-  
+
+  private getEmptyHighlights(): HighlightTile[] {
+    return [
+      { label: 'Last 5 Avg', value: '—' },
+      { label: 'Best 18', value: '—' },
+      { label: 'FIR%', value: '—' },
+      { label: 'GIR%', value: '—' },
+      { label: 'Putts/Round', value: '—' },
+      { label: 'Rounds', value: '—' }
+    ];
+  }
+
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  async getRecentActivity(_profileId: string, limit = 10, _cursor?: string): Promise<ActivityResult> {
+  async getRecentActivity(profileId: string, limit = 10, _cursor?: string): Promise<ActivityResult> {
     try {
-      // TODO: Replace with actual rounds queries
-      // For now, return sample golf rounds
-      
-      const sampleRounds: ActivityRow[] = [
-        {
-          id: 'round-1',
-          col1: 'Mar 15, 2024',
-          col2: 'Pebble Beach Golf Links',
-          col3: '82',
-          col4: '9/18',
-          col5: 'Club Tournament',
-          canEdit: true,
-          canDelete: true
-        },
-        {
-          id: 'round-2', 
-          col1: 'Mar 12, 2024',
-          col2: 'Torrey Pines (South)',
-          col3: '76',
-          col4: '12/18',
-          col5: 'USGA Qualifier',
-          canEdit: true,
-          canDelete: true
-        },
-        {
-          id: 'round-3',
-          col1: 'Mar 8, 2024',
-          col2: 'Bethpage Black',
-          col3: '79',
-          col4: '10/18',
-          col5: 'Practice Round',
-          canEdit: true,
-          canDelete: true
+      // Fetch real golf rounds from API
+      const response = await fetch(`/api/golf/stats?profileId=${profileId}`);
+
+      if (!response.ok) {
+        return { rows: [], hasMore: false };
+      }
+
+      const data: GolfStatsResponse = await response.json();
+
+      // Format rounds for activity display
+      const rows: ActivityRow[] = data.recentRounds.slice(0, limit).map(round => {
+        // Format date
+        const dateStr = new Date(round.date).toLocaleDateString('en-US', {
+          month: 'short',
+          day: 'numeric',
+          year: 'numeric'
+        });
+
+        // Format score with par comparison
+        let scoreDisplay = round.score?.toString() || '—';
+        if (round.score && round.par) {
+          const diff = round.score - round.par;
+          if (diff === 0) scoreDisplay = `${round.score} (E)`;
+          else if (diff > 0) scoreDisplay = `${round.score} (+${diff})`;
+          else scoreDisplay = `${round.score} (${diff})`;
         }
-      ];
-      
+
+        // Format GIR
+        const girDisplay = round.gir !== undefined && round.gir !== null
+          ? `${Math.round(round.gir)}%`
+          : '—';
+
+        return {
+          id: round.id,
+          col1: dateStr,
+          col2: round.course || 'Unknown Course',
+          col3: scoreDisplay,
+          col4: girDisplay,
+          col5: round.roundType === 'indoor' ? 'Indoor' : '',
+          canEdit: true,
+          canDelete: true
+        };
+      });
+
       return {
-        rows: sampleRounds.slice(0, limit),
-        hasMore: sampleRounds.length > limit,
-        nextCursor: sampleRounds.length > limit ? 'cursor-next' : undefined
+        rows,
+        hasMore: data.recentRounds.length > limit,
+        nextCursor: data.recentRounds.length > limit ? 'cursor-next' : undefined
       };
+
     } catch {
-      // Error fetching golf activity
       return {
         rows: [],
         hasMore: false
       };
     }
   }
-  
+
   async openEditDialog(entityId?: string): Promise<void> {
     try {
-      // TODO: Implement golf round editor
-      // For now, show that it's functional (unlike other sports)
-      
       if (entityId) {
-        // Opening golf round editor
-        // Would open edit round modal here
+        // Opening golf round editor for existing round
+        // Navigation/modal handled by component that calls this
       } else {
         // Opening new golf round dialog
-        // Would open new round modal here
+        // Navigation/modal handled by component that calls this
       }
-      
+
       // Simulate successful dialog interaction
       await new Promise(resolve => setTimeout(resolve, 100));
-      
+
     } catch (err) {
-      // Error opening golf edit dialog
       throw err;
     }
   }
-  
+
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   async composePost(_context: PostContext): Promise<void> {
     try {
-      // TODO: Implement golf post composer
-      // For now, show that it's functional
-
-      // Opening golf post composer
-
-      // Would open golf-specific post composer here with:
-      // - Round attachment options
-      // - Auto-filled stats (score, FIR, GIR, putts)
-      // - Media upload for course photos
-
-      // Simulate successful post creation
+      // Golf post composer is handled by CreatePostModal component
+      // This method exists for interface compliance
       await new Promise(resolve => setTimeout(resolve, 100));
-
     } catch (err) {
-      // Error composing golf post
       throw err;
     }
   }
-  
+
   isEnabled(): boolean {
-    // Use feature flags - golf should be enabled by default
     return super.isEnabled();
   }
-  
-  // Golf-specific helper methods
-  
-  /**
-   * Calculate golf aggregates after round save
-   * Called by round save operations to update highlights
-   */
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  async updateGolfAggregates(_profileId: string): Promise<void> {
-    try {
-      // TODO: Implement golf stats calculation
-      // - Last 5 rounds average
-      // - Best 18-hole score
-      // - FIR percentage (fairways in regulation)
-      // - GIR percentage (greens in regulation)
-      // - Average putts per round
-      // - Scrambling percentage
 
-
-      // Updating golf aggregates
-
-    } catch {
-      // Error updating golf aggregates
-    }
-  }
-  
   /**
    * Format golf score for display
    * Handles par display (+2, E, -1) and stroke totals
    */
   formatGolfScore(strokes: number, par: number = 72): string {
     const scoreToPar = strokes - par;
-    
+
     if (scoreToPar === 0) return `${strokes} (E)`;
     if (scoreToPar > 0) return `${strokes} (+${scoreToPar})`;
     return `${strokes} (${scoreToPar})`;
