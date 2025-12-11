@@ -177,21 +177,21 @@ export default function PublicProfilePage() {
             </div>
             <h1 className="text-2xl font-bold text-gray-900 mb-2">Private Profile</h1>
             <p className="text-gray-600 mb-6">
-              @{username} has a private profile. Follow them to see their content.
+              @{username} has a private profile. Become a fan to see their content.
             </p>
             {user ? (
               <Link
                 href={`/athlete/${username}`}
                 className="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
               >
-                Request to Follow
+                Become a Fan
               </Link>
             ) : (
               <Link
                 href="/"
                 className="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
               >
-                Sign In to Follow
+                Sign In to Become a Fan
               </Link>
             )}
           </div>
@@ -318,7 +318,7 @@ export default function PublicProfilePage() {
 
               {/* Stats and CTA */}
               <div className="flex flex-col items-start sm:items-end gap-3">
-                {/* Follow stats */}
+                {/* Fan stats */}
                 <div className="flex gap-6 text-sm">
                   <div className="text-center">
                     <span className="block font-bold text-gray-900">{profile.postsCount}</span>
@@ -326,11 +326,11 @@ export default function PublicProfilePage() {
                   </div>
                   <div className="text-center">
                     <span className="block font-bold text-gray-900">{profile.followersCount}</span>
-                    <span className="text-gray-500">Followers</span>
+                    <span className="text-gray-500">Fans</span>
                   </div>
                   <div className="text-center">
                     <span className="block font-bold text-gray-900">{profile.followingCount}</span>
-                    <span className="text-gray-500">Following</span>
+                    <span className="text-gray-500">Fan Of</span>
                   </div>
                 </div>
 

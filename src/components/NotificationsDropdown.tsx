@@ -152,9 +152,9 @@ export default function NotificationsDropdown() {
 
     switch (notification.type) {
       case 'follow_request':
-        return `${actorName} sent you a follow request`;
+        return `${actorName} wants to become your fan`;
       case 'follow_accepted':
-        return `${actorName} accepted your follow request`;
+        return `${actorName} accepted your fan request`;
       case 'like':
         return `${actorName} liked your post`;
       case 'comment':

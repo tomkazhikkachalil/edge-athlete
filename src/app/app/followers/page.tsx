@@ -109,7 +109,7 @@ function FollowersContent() {
       if (!response.ok) throw new Error('Failed to accept request');
 
       setRequests(prev => prev.filter(r => r.id !== followId));
-      showSuccess('Success', 'Follow request accepted');
+      showSuccess('Success', 'Fan request accepted');
       loadData(); // Reload to update counts
     } catch {
       showError('Error', 'Failed to accept request');
@@ -127,7 +127,7 @@ function FollowersContent() {
       if (!response.ok) throw new Error('Failed to reject request');
 
       setRequests(prev => prev.filter(r => r.id !== followId));
-      showSuccess('Success', 'Follow request rejected');
+      showSuccess('Success', 'Fan request declined');
     } catch {
       showError('Error', 'Failed to reject request');
     }
@@ -152,7 +152,7 @@ function FollowersContent() {
 
       if (!response.ok) throw new Error('Failed to unfollow');
 
-      showSuccess('Success', 'Unfollowed successfully');
+      showSuccess('Success', 'You are no longer a fan');
       loadData(); // Reload the lists
     } catch {
       showError('Error', 'Failed to unfollow');
@@ -175,7 +175,7 @@ function FollowersContent() {
 
       if (!response.ok) throw new Error('Failed to remove follower');
 
-      showSuccess('Success', 'Follower removed');
+      showSuccess('Success', 'Fan removed');
       loadData(); // Reload the lists
     } catch {
       showError('Error', 'Failed to remove follower');
@@ -248,7 +248,7 @@ function FollowersContent() {
               onClick={() => handleUnfollow(profile.id)}
               className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
             >
-              Unfollow
+              Remove
             </button>
           )}
         </div>
@@ -286,7 +286,7 @@ function FollowersContent() {
                   : 'border-transparent text-gray-600 hover:text-gray-900'
               }`}
             >
-              Followers
+              Fans
             </button>
             <button
               onClick={() => setActiveTab('following')}
@@ -296,7 +296,7 @@ function FollowersContent() {
                   : 'border-transparent text-gray-600 hover:text-gray-900'
               }`}
             >
-              Following
+              Fan Of
             </button>
             <button
               onClick={() => setActiveTab('requests')}
@@ -306,7 +306,7 @@ function FollowersContent() {
                   : 'border-transparent text-gray-600 hover:text-gray-900'
               }`}
             >
-              Requests
+              Fan Requests
               {requests.length > 0 && activeTab !== 'requests' && (
                 <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs font-bold rounded-full h-5 w-5 flex items-center justify-center">
                   {requests.length > 9 ? '9+' : requests.length}
@@ -332,9 +332,9 @@ function FollowersContent() {
                 {followers.length === 0 ? (
                   <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-12 text-center">
                     <i className="fas fa-users text-6xl text-gray-300 mb-4"></i>
-                    <h3 className="text-xl font-bold text-gray-900 mb-2">No followers yet</h3>
-                    <p className="text-gray-600">When people follow you, they&apos;ll appear here.</p>
-                    <p className="text-xs text-gray-400 mt-2">Debug: {followers.length} followers in state</p>
+                    <h3 className="text-xl font-bold text-gray-900 mb-2">No fans yet</h3>
+                    <p className="text-gray-600">When people become your fans, they&apos;ll appear here.</p>
+                    <p className="text-xs text-gray-400 mt-2">Debug: {followers.length} fans in state</p>
                   </div>
                 ) : (
                   <div className="space-y-3">
@@ -355,8 +355,8 @@ function FollowersContent() {
                 {following.length === 0 ? (
                   <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-12 text-center">
                     <i className="fas fa-user-friends text-6xl text-gray-300 mb-4"></i>
-                    <h3 className="text-xl font-bold text-gray-900 mb-2">Not following anyone</h3>
-                    <p className="text-gray-600">Find athletes to follow and see their activity.</p>
+                    <h3 className="text-xl font-bold text-gray-900 mb-2">Not a fan of anyone yet</h3>
+                    <p className="text-gray-600">Find athletes to become a fan of and see their activity.</p>
                   </div>
                 ) : (
                   <>
@@ -377,8 +377,8 @@ function FollowersContent() {
                 {requests.length === 0 ? (
                   <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-12 text-center">
                     <i className="fas fa-user-clock text-6xl text-gray-300 mb-4"></i>
-                    <h3 className="text-xl font-bold text-gray-900 mb-2">No pending requests</h3>
-                    <p className="text-gray-600">Follow requests will appear here.</p>
+                    <h3 className="text-xl font-bold text-gray-900 mb-2">No pending fan requests</h3>
+                    <p className="text-gray-600">Fan requests will appear here.</p>
                   </div>
                 ) : (
                   requests.map(request => {

@@ -82,12 +82,12 @@ export default function FollowButton({
 
   const handleFollowClick = () => {
     if (!currentUserId) {
-      showError('Authentication Required', 'Please log in to follow athletes');
+      showError('Authentication Required', 'Please log in to become a fan');
       return;
     }
 
     if (profileId === currentUserId) {
-      showError('Error', 'You cannot follow yourself');
+      showError('Error', 'You cannot be a fan of yourself');
       return;
     }
 
@@ -138,8 +138,8 @@ export default function FollowButton({
 
       if (newFollowingStatus) {
         const message = data.isPending
-          ? 'Follow request sent! They will be notified.'
-          : 'You are now following this athlete!';
+          ? 'Fan request sent! They will be notified.'
+          : 'You are now a fan of this athlete!';
         showSuccess('Success', message);
 
         // Redirect to feed after successful follow
@@ -147,7 +147,7 @@ export default function FollowButton({
           router.push('/feed');
         }, 500);
       } else {
-        showSuccess('Unfollowed', 'You are no longer following this athlete');
+        showSuccess('Removed', 'You are no longer a fan of this athlete');
       }
 
     } catch (err) {
@@ -190,16 +190,16 @@ export default function FollowButton({
     if (isFollowing) {
       return (
         <>
-          <i className="fas fa-check mr-1"></i>
-          Following
+          <i className="fas fa-heart mr-1"></i>
+          Fan
         </>
       );
     }
 
     return (
       <>
-        <i className="fas fa-plus mr-1"></i>
-        Follow
+        <i className="fas fa-heart mr-1"></i>
+        Become a Fan
       </>
     );
   };
@@ -227,16 +227,16 @@ export default function FollowButton({
 
         {showCount && (
           <span className="text-sm text-gray-600">
-            {followersCount} follower{followersCount !== 1 ? 's' : ''}
+            {followersCount} fan{followersCount !== 1 ? 's' : ''}
           </span>
         )}
       </div>
 
-      {/* Follow Message Modal */}
+      {/* Fan Request Modal */}
       {showMessageModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-lg shadow-xl max-w-md w-full p-6">
-            <h3 className="text-xl font-bold text-gray-900 mb-2">Send Follow Request</h3>
+            <h3 className="text-xl font-bold text-gray-900 mb-2">Become a Fan</h3>
             <p className="text-sm text-gray-600 mb-4">
               Add an optional message to introduce yourself (optional)
             </p>

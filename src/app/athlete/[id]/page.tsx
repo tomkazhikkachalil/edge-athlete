@@ -378,7 +378,7 @@ export default function AthleteProfilePage() {
                   className="flex items-center gap-1 text-gray-900 font-bold hover:text-blue-600 transition-colors"
                 >
                   <span className="font-bold">{followStats.followingCount}</span>
-                  <span>Following</span>
+                  <span>Fan Of</span>
                 </button>
                 <button
                   onClick={() => {
@@ -388,7 +388,7 @@ export default function AthleteProfilePage() {
                   className="flex items-center gap-1 text-gray-900 font-bold hover:text-blue-600 transition-colors"
                 >
                   <span className="font-bold">{followStats.followersCount}</span>
-                  <span>Followers</span>
+                  <span>Fans</span>
                 </button>
                 
                 {/* Social Links */}

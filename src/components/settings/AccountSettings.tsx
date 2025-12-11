@@ -203,7 +203,7 @@ export default function AccountSettings({ onEditProfile }: AccountSettingsProps)
                 'Your profile and personal information',
                 'All posts, photos, and videos',
                 'Comments and likes',
-                'Followers and connections',
+                'Fans and connections',
                 'Performance stats and achievements',
                 'Notifications and messages',
                 'Saved posts and bookmarks',

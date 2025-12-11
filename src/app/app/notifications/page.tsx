@@ -234,7 +234,7 @@ export default function NotificationsPage() {
 
       showSuccess(
         'Success',
-        action === 'accept' ? 'Follow request accepted' : 'Follow request declined'
+        action === 'accept' ? 'Fan request accepted' : 'Fan request declined'
       );
     } catch {
       showError('Error', 'Failed to process request');
@@ -298,15 +298,15 @@ export default function NotificationsPage() {
     switch (notification.type) {
       case 'follow_request':
         if (notification.action_status === 'accepted') {
-          return `You accepted ${actorName}'s follow request`;
+          return `You accepted ${actorName}'s fan request`;
         } else if (notification.action_status === 'declined') {
-          return `You declined ${actorName}'s follow request`;
+          return `You declined ${actorName}'s fan request`;
         }
-        return `${actorName} sent you a follow request`;
+        return `${actorName} wants to become your fan`;
       case 'follow_accepted':
-        return `${actorName} accepted your follow request`;
+        return `${actorName} accepted your fan request`;
       case 'new_follower':
-        return `${actorName} started following you`;
+        return `${actorName} is now your fan`;
       case 'like':
         return `${actorName} liked your post`;
       case 'comment':

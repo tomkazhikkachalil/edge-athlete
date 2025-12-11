@@ -896,7 +896,7 @@ export default function AthleteProfilePage() {
                       className="flex items-center gap-1 text-gray-600 hover:text-blue-600 transition-colors"
                     >
                       <span className="font-semibold text-gray-900">{followingCount}</span>
-                      <span>Following</span>
+                      <span>Fan Of</span>
                     </button>
                     <button
                       onClick={() => {
@@ -906,7 +906,7 @@ export default function AthleteProfilePage() {
                       className="flex items-center gap-1 text-gray-600 hover:text-blue-600 transition-colors"
                     >
                       <span className="font-semibold text-gray-900">{followersCount}</span>
-                      <span>Followers</span>
+                      <span>Fans</span>
                     </button>
                     <div className="flex items-center gap-1 text-gray-600">
                       <span className="font-semibold text-gray-900">{postsCount}</span>

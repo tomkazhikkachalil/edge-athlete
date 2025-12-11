@@ -33,7 +33,7 @@ export default function PrivateProfileView({ profile, onFollow }: PrivateProfile
         </h2>
 
         <p className="text-gray-600 mb-8">
-          Follow {profile.first_name || 'this athlete'} to see their posts, stats, and activity
+          Become a fan of {profile.first_name || 'this athlete'} to see their posts, stats, and activity
         </p>
 
         {/* Athlete Info (Limited) */}
@@ -83,7 +83,7 @@ export default function PrivateProfileView({ profile, onFollow }: PrivateProfile
           <div className="flex items-start gap-2 text-left">
             <i className="fas fa-info-circle text-blue-600 mt-0.5 flex-shrink-0"></i>
             <p className="text-sm text-blue-900">
-              This athlete has a private profile. Once they accept your follow request,
+              This athlete has a private profile. Once they accept your fan request,
               you&apos;ll be able to view their posts, stats, and all profile content.
             </p>
           </div>

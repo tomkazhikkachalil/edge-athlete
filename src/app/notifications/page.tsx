@@ -217,7 +217,7 @@ export default function NotificationsPage() {
             {[
               { id: 'all' as Tab, label: 'All', count: notifications.length },
               { id: 'unread' as Tab, label: 'Unread', count: unreadCount },
-              { id: 'follow' as Tab, label: 'Follows', icon: 'fa-user-plus' },
+              { id: 'follow' as Tab, label: 'Fans', icon: 'fa-user-plus' },
               { id: 'engagement' as Tab, label: 'Engagement', icon: 'fa-heart' },
               { id: 'system' as Tab, label: 'System', icon: 'fa-bullhorn' }
             ].map(tab => (

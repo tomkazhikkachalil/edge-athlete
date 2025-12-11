@@ -578,7 +578,7 @@ export default function EditProfileTabs({
             <div className="text-sm text-gray-500">
               {basicForm.visibility === 'public'
                 ? 'Anyone can view your profile, posts, and stats'
-                : 'Only approved followers can view your profile, posts, and stats'
+                : 'Only approved fans can view your profile, posts, and stats'
               }
             </div>
           </div>
@@ -626,7 +626,7 @@ export default function EditProfileTabs({
               ) : (
                 <>
                   <strong>Private profiles</strong> give you control over who sees your content.
-                  Only followers you approve will be able to view your profile, posts, and stats.
+                  Only fans you approve will be able to view your profile, posts, and stats.
                 </>
               )}
             </div>

@@ -119,7 +119,7 @@ export default function FollowersModal({ isOpen, onClose, profileId, initialTab 
         {/* Header */}
         <div className="flex items-center justify-between p-4 border-b border-gray-200">
           <h2 className="text-xl font-bold text-gray-900">
-            {activeTab === 'followers' ? 'Followers' : 'Following'}
+            {activeTab === 'followers' ? 'Fans' : 'Fan Of'}
           </h2>
           <button
             onClick={onClose}
@@ -140,7 +140,7 @@ export default function FollowersModal({ isOpen, onClose, profileId, initialTab 
                 : 'text-gray-600 hover:text-gray-900'
             }`}
           >
-            Followers ({followers.length})
+            Fans ({followers.length})
           </button>
           <button
             onClick={() => setActiveTab('following')}
@@ -150,7 +150,7 @@ export default function FollowersModal({ isOpen, onClose, profileId, initialTab 
                 : 'text-gray-600 hover:text-gray-900'
             }`}
           >
-            Following ({following.length})
+            Fan Of ({following.length})
           </button>
         </div>
 
@@ -184,8 +184,8 @@ export default function FollowersModal({ isOpen, onClose, profileId, initialTab 
               </div>
               <p className="text-gray-900 font-medium">
                 {activeTab === 'followers'
-                  ? 'No followers yet'
-                  : 'Not following anyone yet'}
+                  ? 'No fans yet'
+                  : 'Not a fan of anyone yet'}
               </p>
             </div>
           )}

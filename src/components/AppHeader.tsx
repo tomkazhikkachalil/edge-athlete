@@ -92,7 +92,7 @@ export default function AppHeader({ showSearch = true, onCreatePost, onEditProfi
               <button
                 onClick={() => router.push('/app/followers')}
                 className="hidden sm:block text-gray-600 hover:text-gray-900 p-2"
-                title="Followers & Connections"
+                title="Fans & Connections"
                 aria-label="View connections"
               >
                 <i className="fas fa-user-friends text-lg"></i>

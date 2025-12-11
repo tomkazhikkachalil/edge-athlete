@@ -138,7 +138,7 @@ export default function MobileNav() {
               className="flex items-center gap-3 w-full px-4 py-3 text-left text-gray-700 hover:bg-blue-50 hover:text-blue-600 rounded-lg transition-colors"
             >
               <i className="fas fa-users w-5 text-center"></i>
-              <span className="font-medium">Following</span>
+              <span className="font-medium">Fans</span>
             </button>
 
             <div className="border-t border-gray-200 my-2"></div>
