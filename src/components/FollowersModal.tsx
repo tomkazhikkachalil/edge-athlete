@@ -138,6 +138,40 @@ export default function FollowersModal({ isOpen, onClose, profileId, initialTab 
     }
   };
 
+  const handleUnfollow = async (targetId: string, e: React.MouseEvent) => {
+    e.stopPropagation(); // Don't trigger row click
+    if (!user) return;
+
+    setActionLoading(targetId);
+    try {
+      const response = await fetch('/api/follow', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          followerId: user.id,
+          followingId: targetId
+        })
+      });
+
+      if (!response.ok) throw new Error('Failed to unfollow');
+
+      const data = await response.json();
+
+      // Update local state - remove from myFollowing
+      if (data.action === 'unfollowed') {
+        setMyFollowing(prev => {
+          const newSet = new Set(prev);
+          newSet.delete(targetId);
+          return newSet;
+        });
+      }
+    } catch {
+      // Silently fail - user can try again
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
   const handleRemoveFan = async (fanId: string, e: React.MouseEvent) => {
     e.stopPropagation(); // Don't trigger row click
     if (!user || !isOwnProfile) return;
@@ -328,18 +362,25 @@ export default function FollowersModal({ isOpen, onClose, profileId, initialTab 
                       </div>
                     </button>
 
-                    {/* Action buttons - only show for others, not yourself */}
+                    {/* Action buttons - always visible for others, not yourself */}
                     {!isMe && user && (
                       <div className="flex items-center gap-2 flex-shrink-0">
-                        {/* Fans tab: Show "Become a Fan" / "You're a Fan" + Remove (if own profile) */}
+                        {/* Fans tab: Show "Become a Fan" or "Unfollow" + "Remove Fan" (if own profile) */}
                         {activeTab === 'followers' && (
                           <>
-                            {/* Fan back button */}
+                            {/* Fan/Unfollow button - always visible */}
                             {amFanOfThem ? (
-                              <span className="px-3 py-1.5 text-xs font-medium text-green-700 bg-green-100 rounded-full whitespace-nowrap">
-                                <i className="fas fa-heart mr-1"></i>
-                                You&apos;re a Fan
-                              </span>
+                              <button
+                                onClick={(e) => handleUnfollow(profile.id, e)}
+                                disabled={isLoadingThis}
+                                className="px-3 py-1.5 text-xs font-medium text-gray-700 bg-gray-200 rounded-full hover:bg-gray-300 transition-colors disabled:opacity-50 whitespace-nowrap"
+                              >
+                                {isLoadingThis ? (
+                                  <i className="fas fa-spinner fa-spin"></i>
+                                ) : (
+                                  'Unfollow'
+                                )}
+                              </button>
                             ) : (
                               <button
                                 onClick={(e) => handleBecomeFan(profile.id, e)}
@@ -349,36 +390,39 @@ export default function FollowersModal({ isOpen, onClose, profileId, initialTab 
                                 {isLoadingThis ? (
                                   <i className="fas fa-spinner fa-spin"></i>
                                 ) : (
-                                  <>
-                                    <i className="fas fa-heart mr-1"></i>
-                                    Become a Fan
-                                  </>
+                                  'Become a Fan'
                                 )}
                               </button>
                             )}
 
-                            {/* Remove fan - only on own profile */}
+                            {/* Remove Fan - only on own profile, always visible */}
                             {isOwnProfile && (
                               <button
                                 onClick={(e) => handleRemoveFan(profile.id, e)}
                                 disabled={isLoadingThis}
-                                className="p-1.5 text-gray-400 hover:text-red-600 transition-colors"
-                                title="Remove fan"
+                                className="px-3 py-1.5 text-xs font-medium text-red-600 bg-red-50 rounded-full hover:bg-red-100 transition-colors disabled:opacity-50 whitespace-nowrap"
                               >
-                                <i className="fas fa-times"></i>
+                                Remove Fan
                               </button>
                             )}
                           </>
                         )}
 
-                        {/* Fan Of tab: Show "Become a Fan" for people in someone else's Fan Of list */}
-                        {activeTab === 'following' && !isOwnProfile && (
+                        {/* Fan Of tab: Show "Become a Fan" or "Unfollow" */}
+                        {activeTab === 'following' && (
                           <>
                             {amFanOfThem ? (
-                              <span className="px-3 py-1.5 text-xs font-medium text-green-700 bg-green-100 rounded-full whitespace-nowrap">
-                                <i className="fas fa-heart mr-1"></i>
-                                You&apos;re a Fan
-                              </span>
+                              <button
+                                onClick={(e) => handleUnfollow(profile.id, e)}
+                                disabled={isLoadingThis}
+                                className="px-3 py-1.5 text-xs font-medium text-gray-700 bg-gray-200 rounded-full hover:bg-gray-300 transition-colors disabled:opacity-50 whitespace-nowrap"
+                              >
+                                {isLoadingThis ? (
+                                  <i className="fas fa-spinner fa-spin"></i>
+                                ) : (
+                                  'Unfollow'
+                                )}
+                              </button>
                             ) : (
                               <button
                                 onClick={(e) => handleBecomeFan(profile.id, e)}
@@ -388,10 +432,7 @@ export default function FollowersModal({ isOpen, onClose, profileId, initialTab 
                                 {isLoadingThis ? (
                                   <i className="fas fa-spinner fa-spin"></i>
                                 ) : (
-                                  <>
-                                    <i className="fas fa-heart mr-1"></i>
-                                    Become a Fan
-                                  </>
+                                  'Become a Fan'
                                 )}
                               </button>
                             )}
