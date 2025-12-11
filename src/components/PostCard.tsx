@@ -366,14 +366,14 @@ export default function PostCard({
             <>
               <button
                 onClick={() => onEdit?.(post.id)}
-                className="text-gray-800 hover:text-blue-600 transition-colors p-2 rounded-full hover:bg-blue-50"
+                className="text-gray-800 hover:text-blue-600 transition-colors p-2 min-w-[44px] min-h-[44px] rounded-full hover:bg-blue-50 flex items-center justify-center"
                 title="Edit post"
               >
                 <i className="fas fa-edit text-sm"></i>
               </button>
               <button
                 onClick={handleDeleteClick}
-                className="text-gray-800 hover:text-red-600 transition-colors p-2 rounded-full hover:bg-red-50"
+                className="text-gray-800 hover:text-red-600 transition-colors p-2 min-w-[44px] min-h-[44px] rounded-full hover:bg-red-50 flex items-center justify-center"
                 title="Delete post"
               >
                 <i className="fas fa-trash text-sm"></i>
@@ -410,13 +410,15 @@ export default function PostCard({
             <>
               <button
                 onClick={prevMedia}
-                className="absolute left-2 top-1/2 transform -translate-y-1/2 bg-black bg-opacity-50 text-white rounded-full w-8 h-8 flex items-center justify-center hover:bg-opacity-70"
+                className="absolute left-2 top-1/2 transform -translate-y-1/2 bg-black bg-opacity-50 text-white rounded-full w-11 h-11 flex items-center justify-center hover:bg-opacity-70"
+                aria-label="Previous image"
               >
                 <i className="fas fa-chevron-left text-sm"></i>
               </button>
               <button
                 onClick={nextMedia}
-                className="absolute right-2 top-1/2 transform -translate-y-1/2 bg-black bg-opacity-50 text-white rounded-full w-8 h-8 flex items-center justify-center hover:bg-opacity-70"
+                className="absolute right-2 top-1/2 transform -translate-y-1/2 bg-black bg-opacity-50 text-white rounded-full w-11 h-11 flex items-center justify-center hover:bg-opacity-70"
+                aria-label="Next image"
               >
                 <i className="fas fa-chevron-right text-sm"></i>
               </button>
@@ -443,7 +445,7 @@ export default function PostCard({
           <div className="flex items-center gap-base">
             <button
               onClick={handleLike}
-              className={`flex items-center gap-2 text-base font-bold transition-colors ${
+              className={`flex items-center gap-2 text-base font-bold transition-colors min-h-[44px] ${
                 isLiked ? 'text-red-600' : 'text-gray-800 hover:text-red-600'
               }`}
             >
@@ -453,7 +455,7 @@ export default function PostCard({
 
             <button
               onClick={handleComment}
-              className="flex items-center gap-2 text-base font-bold text-gray-800 hover:text-blue-600 transition-colors"
+              className="flex items-center gap-2 text-base font-bold text-gray-800 hover:text-blue-600 transition-colors min-h-[44px]"
             >
               <i className="far fa-comment text-lg"></i>
               <span>{localCommentsCount}</span>
@@ -461,7 +463,7 @@ export default function PostCard({
 
             <button
               onClick={handleShare}
-              className="flex items-center gap-2 text-base font-bold text-gray-800 hover:text-green-600 transition-colors"
+              className="flex items-center gap-2 text-base font-bold text-gray-800 hover:text-green-600 transition-colors min-h-[44px]"
               title="Share post"
             >
               <i className="far fa-share-square text-lg"></i>
@@ -469,7 +471,7 @@ export default function PostCard({
 
             <button
               onClick={handleSave}
-              className={`flex items-center gap-2 text-base font-bold transition-colors ml-auto ${
+              className={`flex items-center gap-2 text-base font-bold transition-colors ml-auto min-h-[44px] ${
                 isSaved ? 'text-yellow-600' : 'text-gray-800 hover:text-yellow-600'
               }`}
               title={isSaved ? 'Unsave post' : 'Save post'}
@@ -675,13 +677,13 @@ export default function PostCard({
                   <i className="fas fa-chevron-right group-open:rotate-90 transition-transform text-[10px]"></i>
                   View Scorecard ({post.golf_round.golf_holes.length} holes)
                 </summary>
-                <div className="mt-3">
-                  {/* Traditional Scorecard Layout */}
-                  <div className="bg-white rounded border border-gray-300 overflow-hidden">
+                <div className="mt-3 -mx-3 sm:mx-0">
+                  {/* Traditional Scorecard Layout - horizontal scroll on mobile */}
+                  <div className="bg-white rounded border border-gray-300 overflow-x-auto">
                     {/* Front 9 */}
                     {post.golf_round.golf_holes.filter((h) => h.hole_number <= 9).length > 0 && (
                       <div className="border-b-2 border-gray-400">
-                        <table className="w-full text-xs">
+                        <table className="w-full min-w-[500px] text-xs">
                           <thead>
                             <tr className="bg-green-100 border-b border-gray-300">
                               <th className="text-left py-1.5 px-2 font-bold text-green-900">HOLE</th>
@@ -795,7 +797,7 @@ export default function PostCard({
                     {/* Back 9 */}
                     {post.golf_round.golf_holes.filter((h) => h.hole_number > 9).length > 0 && (
                       <div>
-                        <table className="w-full text-xs">
+                        <table className="w-full min-w-[500px] text-xs">
                           <thead>
                             <tr className="bg-green-100 border-b border-gray-300">
                               <th className="text-left py-1.5 px-2 font-bold text-green-900">HOLE</th>
