@@ -32,25 +32,30 @@ export default function FollowersModal({ isOpen, onClose, profileId, initialTab 
   const [activeTab, setActiveTab] = useState<'followers' | 'following'>(initialTab);
   const [followers, setFollowers] = useState<Profile[]>([]);
   const [following, setFollowing] = useState<Profile[]>([]);
+  const [myFollowing, setMyFollowing] = useState<Set<string>>(new Set()); // IDs of people I'm a fan of
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [actionLoading, setActionLoading] = useState<string | null>(null); // Track which button is loading
+
+  // Is this the current user's own profile?
+  const isOwnProfile = user?.id === profileId;
 
   const loadData = useCallback(async () => {
     setLoading(true);
     setError(null);
 
     try {
-      // Fetch followers
+      // Fetch followers of the profile being viewed
       const followersResponse = await fetch(`/api/followers?profileId=${profileId}&type=followers`);
       if (!followersResponse.ok) {
-        throw new Error('Failed to load followers');
+        throw new Error('Failed to load fans');
       }
       const followersData = await followersResponse.json();
 
-      // Fetch following
+      // Fetch following of the profile being viewed
       const followingResponse = await fetch(`/api/followers?profileId=${profileId}&type=following`);
       if (!followingResponse.ok) {
-        throw new Error('Failed to load following');
+        throw new Error('Failed to load fan of list');
       }
       const followingData = await followingResponse.json();
 
@@ -60,12 +65,31 @@ export default function FollowersModal({ isOpen, onClose, profileId, initialTab 
 
       setFollowers(followersProfiles);
       setFollowing(followingProfiles);
+
+      // If viewing someone else's profile, also fetch who I'm following
+      // to show "You're a Fan" / "Become a Fan" status
+      if (user && !isOwnProfile) {
+        const myFollowingResponse = await fetch(`/api/followers?profileId=${user.id}&type=following`);
+        if (myFollowingResponse.ok) {
+          const myFollowingData = await myFollowingResponse.json();
+          const myFollowingIds = new Set(
+            (myFollowingData.following || [])
+              .map((item: { following?: Profile }) => item.following?.id)
+              .filter(Boolean)
+          );
+          setMyFollowing(myFollowingIds as Set<string>);
+        }
+      } else if (isOwnProfile) {
+        // On own profile, "following" list IS who I'm a fan of
+        const myFollowingIds = new Set<string>(followingProfiles.map((p: Profile) => p.id));
+        setMyFollowing(myFollowingIds);
+      }
     } catch {
       setError('Failed to load data. Please try again.');
     } finally {
       setLoading(false);
     }
-  }, [profileId]);
+  }, [profileId, user, isOwnProfile]);
 
   useEffect(() => {
     if (isOpen) {
@@ -81,6 +105,63 @@ export default function FollowersModal({ isOpen, onClose, profileId, initialTab 
       router.push('/athlete');
     } else {
       router.push(`/athlete/${id}`);
+    }
+  };
+
+  const handleBecomeFan = async (targetId: string, e: React.MouseEvent) => {
+    e.stopPropagation(); // Don't trigger row click
+    if (!user) return;
+
+    setActionLoading(targetId);
+    try {
+      const response = await fetch('/api/follow', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          followerId: user.id,
+          followingId: targetId
+        })
+      });
+
+      if (!response.ok) throw new Error('Failed to become a fan');
+
+      const data = await response.json();
+
+      // Update local state
+      if (data.action === 'followed') {
+        setMyFollowing(prev => new Set([...prev, targetId]));
+      }
+    } catch {
+      // Silently fail - user can try again
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  const handleRemoveFan = async (fanId: string, e: React.MouseEvent) => {
+    e.stopPropagation(); // Don't trigger row click
+    if (!user || !isOwnProfile) return;
+
+    setActionLoading(fanId);
+    try {
+      // Remove means deleting their follow of you
+      const response = await fetch('/api/follow', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          followerId: fanId,    // They are the follower/fan
+          followingId: user.id  // You are being followed
+        })
+      });
+
+      if (!response.ok) throw new Error('Failed to remove fan');
+
+      // Update local state - remove from followers list
+      setFollowers(prev => prev.filter(p => p.id !== fanId));
+    } catch {
+      // Silently fail - user can try again
+    } finally {
+      setActionLoading(null);
     }
   };
 
@@ -200,48 +281,125 @@ export default function FollowersModal({ isOpen, onClose, profileId, initialTab 
                   profile.full_name
                 );
                 const handle = getHandle(profile);
+                const isMe = user?.id === profile.id;
+                const amFanOfThem = myFollowing.has(profile.id);
+                const isLoadingThis = actionLoading === profile.id;
 
                 return (
-                  <button
+                  <div
                     key={profile.id}
-                    onClick={() => handleProfileClick(profile.id)}
-                    className="w-full flex items-center gap-3 p-3 rounded-lg hover:bg-gray-50 transition-colors text-left"
+                    className="flex items-center gap-3 p-3 rounded-lg hover:bg-gray-50 transition-colors"
                   >
-                    {/* Avatar */}
-                    {profile.avatar_url ? (
-                      <Image
-                        src={profile.avatar_url}
-                        alt={displayName || 'User'}
-                        width={48}
-                        height={48}
-                        className="rounded-full object-cover"
-                      />
-                    ) : (
-                      <div className="w-12 h-12 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white font-semibold">
-                        {getInitials(displayName)}
-                      </div>
-                    )}
+                    {/* Clickable profile section */}
+                    <button
+                      onClick={() => handleProfileClick(profile.id)}
+                      className="flex items-center gap-3 flex-1 min-w-0 text-left"
+                    >
+                      {/* Avatar */}
+                      {profile.avatar_url ? (
+                        <Image
+                          src={profile.avatar_url}
+                          alt={displayName || 'User'}
+                          width={48}
+                          height={48}
+                          className="rounded-full object-cover flex-shrink-0"
+                        />
+                      ) : (
+                        <div className="w-12 h-12 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white font-semibold flex-shrink-0">
+                          {getInitials(displayName)}
+                        </div>
+                      )}
 
-                    {/* Info */}
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2">
-                        <p className="font-semibold text-gray-900 truncate">
-                          {displayName}
-                        </p>
-                        {handle && (
-                          <span className="text-sm text-gray-900 font-medium">{handle}</span>
+                      {/* Info */}
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2">
+                          <p className="font-semibold text-gray-900 truncate">
+                            {displayName}
+                          </p>
+                          {handle && (
+                            <span className="text-sm text-gray-500 truncate">{handle}</span>
+                          )}
+                        </div>
+                        {(profile.sport || profile.school) && (
+                          <p className="text-sm text-gray-600 truncate">
+                            {[profile.sport, profile.school].filter(Boolean).join(' • ')}
+                          </p>
                         )}
                       </div>
-                      {(profile.sport || profile.school) && (
-                        <p className="text-sm text-gray-900 truncate">
-                          {[profile.sport, profile.school].filter(Boolean).join(' • ')}
-                        </p>
-                      )}
-                    </div>
+                    </button>
 
-                    {/* Arrow */}
-                    <i className="fas fa-chevron-right text-gray-700"></i>
-                  </button>
+                    {/* Action buttons - only show for others, not yourself */}
+                    {!isMe && user && (
+                      <div className="flex items-center gap-2 flex-shrink-0">
+                        {/* Fans tab: Show "Become a Fan" / "You're a Fan" + Remove (if own profile) */}
+                        {activeTab === 'followers' && (
+                          <>
+                            {/* Fan back button */}
+                            {amFanOfThem ? (
+                              <span className="px-3 py-1.5 text-xs font-medium text-green-700 bg-green-100 rounded-full whitespace-nowrap">
+                                <i className="fas fa-heart mr-1"></i>
+                                You&apos;re a Fan
+                              </span>
+                            ) : (
+                              <button
+                                onClick={(e) => handleBecomeFan(profile.id, e)}
+                                disabled={isLoadingThis}
+                                className="px-3 py-1.5 text-xs font-medium text-white bg-blue-600 rounded-full hover:bg-blue-700 transition-colors disabled:opacity-50 whitespace-nowrap"
+                              >
+                                {isLoadingThis ? (
+                                  <i className="fas fa-spinner fa-spin"></i>
+                                ) : (
+                                  <>
+                                    <i className="fas fa-heart mr-1"></i>
+                                    Become a Fan
+                                  </>
+                                )}
+                              </button>
+                            )}
+
+                            {/* Remove fan - only on own profile */}
+                            {isOwnProfile && (
+                              <button
+                                onClick={(e) => handleRemoveFan(profile.id, e)}
+                                disabled={isLoadingThis}
+                                className="p-1.5 text-gray-400 hover:text-red-600 transition-colors"
+                                title="Remove fan"
+                              >
+                                <i className="fas fa-times"></i>
+                              </button>
+                            )}
+                          </>
+                        )}
+
+                        {/* Fan Of tab: Show "Become a Fan" for people in someone else's Fan Of list */}
+                        {activeTab === 'following' && !isOwnProfile && (
+                          <>
+                            {amFanOfThem ? (
+                              <span className="px-3 py-1.5 text-xs font-medium text-green-700 bg-green-100 rounded-full whitespace-nowrap">
+                                <i className="fas fa-heart mr-1"></i>
+                                You&apos;re a Fan
+                              </span>
+                            ) : (
+                              <button
+                                onClick={(e) => handleBecomeFan(profile.id, e)}
+                                disabled={isLoadingThis}
+                                className="px-3 py-1.5 text-xs font-medium text-white bg-blue-600 rounded-full hover:bg-blue-700 transition-colors disabled:opacity-50 whitespace-nowrap"
+                              >
+                                {isLoadingThis ? (
+                                  <i className="fas fa-spinner fa-spin"></i>
+                                ) : (
+                                  <>
+                                    <i className="fas fa-heart mr-1"></i>
+                                    Become a Fan
+                                  </>
+                                )}
+                              </button>
+                            )}
+                          </>
+                        )}
+                      </div>
+                    )}
+                  </div>
                 );
               })}
             </div>
