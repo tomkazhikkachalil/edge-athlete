@@ -128,17 +128,25 @@ export default function MobileNav() {
             </button>
 
             <button
+              onClick={() => {
+                router.push('/athlete/saved');
+                setIsOpen(false);
+              }}
               className="flex items-center gap-3 w-full px-4 py-3 text-left text-gray-700 hover:bg-blue-50 hover:text-blue-600 rounded-lg transition-colors"
             >
-              <i className="fas fa-compass w-5 text-center"></i>
-              <span className="font-medium">Explore</span>
+              <i className="fas fa-bookmark w-5 text-center"></i>
+              <span className="font-medium">Saved Posts</span>
             </button>
 
             <button
+              onClick={() => {
+                router.push('/app/notifications');
+                setIsOpen(false);
+              }}
               className="flex items-center gap-3 w-full px-4 py-3 text-left text-gray-700 hover:bg-blue-50 hover:text-blue-600 rounded-lg transition-colors"
             >
-              <i className="fas fa-users w-5 text-center"></i>
-              <span className="font-medium">Fans</span>
+              <i className="fas fa-bell w-5 text-center"></i>
+              <span className="font-medium">Notifications</span>
             </button>
 
             <div className="border-t border-gray-200 my-2"></div>
