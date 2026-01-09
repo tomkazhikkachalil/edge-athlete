@@ -2,6 +2,18 @@
 
 ## January 8, 2026
 
+### Mobile Navigation Fix
+Fixed non-functional buttons in the mobile navigation drawer:
+
+**Before:** "Explore" and "Fans" buttons had no click handlers
+**After:** Replaced with working navigation links:
+- **Saved Posts** → `/athlete/saved`
+- **Notifications** → `/app/notifications`
+
+**File Changed:** `src/components/MobileNav.tsx`
+
+---
+
 ### Connection Suggestions Feature Fix
 Fixed the "People you may know" suggestions feature which was failing due to SQL issues:
 
