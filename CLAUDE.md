@@ -69,8 +69,10 @@ npm run lint         # Run ESLint
 - Also keep `http://localhost:3000/**` for local development
 
 **Known Issues:**
-- Connection suggestions feature has SQL ambiguous column error (non-critical, affects "People you may know" sidebar only)
-- Some debug console.log statements remain in FollowButton.tsx and ProfileMediaTabs.tsx (for future cleanup)
+- ~~Connection suggestions feature~~ - FIXED (Jan 2026): Run `database/migrations/fix-suggestions-feature-complete.sql`
+
+**Pending Database Migrations:**
+- `fix-suggestions-feature-complete.sql` - Creates connection_suggestions table and fixes RPC function
 
 ---
 

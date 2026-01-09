@@ -89,9 +89,9 @@ export interface Profile {
   handle?: string; // Unique @handle identifier (user-editable @username)
   bio?: string;
   sport?: string;
-  position?: string;
+  position?: string; // Note: Not in current DB schema, reserved for future use
   school?: string;
-  team?: string;
+  team?: string; // Note: Not in current DB schema, reserved for future use
   height?: number;
   height_cm?: number;
   weight_kg?: number;

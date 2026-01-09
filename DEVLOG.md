@@ -1,5 +1,44 @@
 # Development Log
 
+## January 8, 2026
+
+### Connection Suggestions Feature Fix
+Fixed the "People you may know" suggestions feature which was failing due to SQL issues:
+
+**Root Cause:**
+- Multiple versions of `generate_connection_suggestions` function with different return types
+- Missing `connection_suggestions` table for dismiss functionality
+- RPC function parameter names mismatch between API and database
+
+**Changes Made:**
+
+1. **Created comprehensive migration:** `database/migrations/fix-suggestions-feature-complete.sql`
+   - Creates `connection_suggestions` table with proper schema
+   - Adds RLS policies for the new table
+   - Drops all old function versions
+   - Creates corrected `generate_connection_suggestions` function
+   - Adds proper indexes for performance
+
+2. **Improved API route:** `src/app/api/suggestions/route.ts`
+   - Added TypeScript interface for `ConnectionSuggestion`
+   - Fixed RPC parameter names (`p_user_profile_id`, `p_suggestion_limit`)
+   - Improved fallback logic to exclude already-followed profiles
+   - Better error logging with structured error details
+   - Created Supabase client per-request instead of module level
+
+**To Apply:**
+Run the migration in Supabase SQL Editor:
+```
+database/migrations/fix-suggestions-feature-complete.sql
+```
+
+**Database Schema Alignment:**
+Also fixed `src/app/api/public/profile/route.ts` and `src/lib/supabase.ts`:
+- Removed `position` and `team` from profile queries (not in current DB schema)
+- Fixed golf rounds query to use `gross_score` instead of `total_score`
+
+---
+
 ## December 10, 2025
 
 ### Fan Terminology Update

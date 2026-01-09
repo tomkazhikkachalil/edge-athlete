@@ -3,7 +3,23 @@ import { createClient } from '@supabase/supabase-js';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
-const supabase = createClient(supabaseUrl, supabaseServiceKey);
+
+// Validate environment variables at module level
+if (!supabaseUrl || !supabaseServiceKey) {
+  console.error('Missing required Supabase environment variables for suggestions API');
+}
+
+// Type for suggestions returned by the RPC function
+interface ConnectionSuggestion {
+  suggested_id: string;
+  suggested_name: string;
+  suggested_avatar: string | null;
+  suggested_sport: string | null;
+  suggested_school: string | null;
+  suggested_location: string | null;
+  similarity_score: number;
+  reason: string;
+}
 
 export async function GET(request: NextRequest) {
   try {
@@ -15,25 +31,56 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Profile ID required' }, { status: 400 });
     }
 
-    // Try to call the database function, fallback to simple query if it doesn't exist
-    let suggestions: unknown[] = [];
+    // Validate environment variables
+    if (!supabaseUrl || !supabaseServiceKey) {
+      return NextResponse.json(
+        { error: 'Server configuration error' },
+        { status: 500 }
+      );
+    }
 
+    const supabase = createClient(supabaseUrl, supabaseServiceKey);
+    let suggestions: ConnectionSuggestion[] = [];
+
+    // Try the RPC function first
     const { data: rpcSuggestions, error: rpcError } = await supabase
       .rpc('generate_connection_suggestions', {
-        user_profile_id: profileId,
-        suggestion_limit: limit
+        p_user_profile_id: profileId,
+        p_suggestion_limit: limit
       });
 
     if (rpcError) {
-      console.error('Error generating suggestions:', rpcError);
+      // Log the specific error for debugging
+      console.error('RPC generate_connection_suggestions error:', {
+        code: rpcError.code,
+        message: rpcError.message,
+        details: rpcError.details,
+        hint: rpcError.hint
+      });
 
-      // Fallback: Get random profiles that user doesn't follow
-      const { data: fallbackSuggestions, error: fallbackError } = await supabase
+      // Fallback: Get profiles that user doesn't follow
+      // First get who the user already follows
+      const { data: following } = await supabase
+        .from('follows')
+        .select('following_id')
+        .eq('follower_id', profileId);
+
+      const followingIds = following?.map(f => f.following_id) || [];
+      followingIds.push(profileId); // Exclude self
+
+      // Get profiles not in following list
+      let query = supabase
         .from('profiles')
-        .select('id, full_name, first_name, middle_name, last_name, avatar_url, location')
-        .neq('id', profileId)
+        .select('id, full_name, first_name, last_name, avatar_url, sport, school, location')
         .eq('visibility', 'public')
         .limit(limit);
+
+      // Only add the "not in" filter if there are IDs to exclude
+      if (followingIds.length > 0) {
+        query = query.not('id', 'in', `(${followingIds.join(',')})`);
+      }
+
+      const { data: fallbackSuggestions, error: fallbackError } = await query;
 
       if (fallbackError) {
         console.error('Fallback suggestions error:', fallbackError);
@@ -43,12 +90,18 @@ export async function GET(request: NextRequest) {
       // Normalize fallback data to match expected format
       suggestions = (fallbackSuggestions || []).map(profile => ({
         suggested_id: profile.id,
-        suggested_name: profile.full_name || `${profile.first_name || ''} ${profile.last_name || ''}`.trim(),
+        suggested_name: profile.full_name ||
+          [profile.first_name, profile.last_name].filter(Boolean).join(' ') ||
+          'Unknown',
         suggested_avatar: profile.avatar_url,
+        suggested_sport: profile.sport,
+        suggested_school: profile.school,
+        suggested_location: profile.location,
         similarity_score: 0,
-        reason: 'You might know them'
+        reason: 'Suggested for you'
       }));
     } else {
+      // Use RPC results directly - they already match our interface
       suggestions = rpcSuggestions || [];
     }
 
@@ -71,6 +124,16 @@ export async function POST(request: NextRequest) {
     if (!profileId || !suggestedProfileId) {
       return NextResponse.json({ error: 'Profile IDs required' }, { status: 400 });
     }
+
+    // Validate environment variables
+    if (!supabaseUrl || !supabaseServiceKey) {
+      return NextResponse.json(
+        { error: 'Server configuration error' },
+        { status: 500 }
+      );
+    }
+
+    const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
     if (action === 'dismiss') {
       // Dismiss a suggestion

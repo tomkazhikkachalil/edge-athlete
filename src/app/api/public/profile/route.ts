@@ -37,9 +37,7 @@ export async function GET(request: NextRequest) {
         avatar_url,
         bio,
         sport,
-        position,
         school,
-        team,
         location,
         height_cm,
         weight_kg,
@@ -124,13 +122,13 @@ export async function GET(request: NextRequest) {
     if (profile.sport === 'golf' || profile.sport === 'Golf') {
       const { data: rounds } = await supabase
         .from('golf_rounds')
-        .select('total_score, par')
+        .select('gross_score, par')
         .eq('profile_id', profile.id)
         .order('date', { ascending: false })
         .limit(10);
 
       if (rounds && rounds.length > 0) {
-        const scores = rounds.map(r => r.total_score).filter(Boolean);
+        const scores = rounds.map(r => r.gross_score).filter(Boolean);
         const avgScore = scores.length > 0
           ? Math.round(scores.reduce((a, b) => a + b, 0) / scores.length * 10) / 10
           : null;
