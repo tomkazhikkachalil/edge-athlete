@@ -1,8 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
-
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
+import { getSupabaseAdmin } from '@/lib/auth-server';
 
 export async function GET(request: NextRequest) {
   try {
@@ -13,16 +10,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Handle is required' }, { status: 400 });
     }
 
-    // Validate environment variables
-    if (!supabaseUrl || !supabaseServiceKey) {
-      console.error('Missing Supabase environment variables');
-      return NextResponse.json(
-        { error: 'Server configuration error' },
-        { status: 500 }
-      );
-    }
-
-    const supabase = createClient(supabaseUrl, supabaseServiceKey);
+    const supabase = getSupabaseAdmin();
 
     // Fetch profile by handle - only return public profiles
     const { data: profile, error: profileError } = await supabase

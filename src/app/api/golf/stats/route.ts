@@ -1,8 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
-
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
+import { getSupabaseAdmin } from '@/lib/auth-server';
 
 export async function GET(request: NextRequest) {
   try {
@@ -13,11 +10,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Profile ID is required' }, { status: 400 });
     }
 
-    if (!supabaseUrl || !supabaseServiceKey) {
-      return NextResponse.json({ error: 'Server configuration error' }, { status: 500 });
-    }
-
-    const supabase = createClient(supabaseUrl, supabaseServiceKey);
+    const supabase = getSupabaseAdmin();
 
     // Fetch golf rounds for this profile
     const { data: rounds, error: roundsError } = await supabase
@@ -31,7 +24,6 @@ export async function GET(request: NextRequest) {
         holes,
         par,
         gross_score,
-        total_score,
         fir_percentage,
         gir_percentage,
         total_putts,
@@ -49,12 +41,12 @@ export async function GET(request: NextRequest) {
 
     // Calculate stats from rounds
     const completedRounds = (rounds || []).filter(r =>
-      (r.gross_score || r.total_score) && r.holes === 18
+      r.gross_score && r.holes === 18
     );
 
-    // Get scores (prefer gross_score, fall back to total_score)
+    // Get scores
     const scores = completedRounds
-      .map(r => r.gross_score || r.total_score)
+      .map(r => r.gross_score)
       .filter((s): s is number => s !== null && s !== undefined);
 
     // Last 5 rounds average
@@ -125,7 +117,7 @@ export async function GET(request: NextRequest) {
       date: round.date,
       course: round.course,
       courseLocation: round.course_location,
-      score: round.gross_score || round.total_score,
+      score: round.gross_score,
       par: round.par,
       gir: round.gir_percentage,
       holes: round.holes,

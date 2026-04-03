@@ -1,14 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
-import { requireAuth } from '@/lib/auth-server';
-
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
-const supabase = createClient(supabaseUrl, supabaseServiceKey);
+import { requireAuth, getSupabaseAdmin } from '@/lib/auth-server';
 
 // GET - Fetch equipment for a profile
 export async function GET(request: NextRequest) {
   try {
+    const supabase = getSupabaseAdmin();
     const { searchParams } = new URL(request.url);
     const profileId = searchParams.get('profileId');
 
@@ -38,6 +34,7 @@ export async function GET(request: NextRequest) {
 // POST - Add new equipment
 export async function POST(request: NextRequest) {
   try {
+    const supabase = getSupabaseAdmin();
     const user = await requireAuth(request);
     const body = await request.json();
 

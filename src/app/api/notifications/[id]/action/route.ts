@@ -1,17 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
-import { requireAuth } from '@/lib/auth-server';
-
-const supabaseAdmin = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-);
+import { requireAuth, getSupabaseAdmin } from '@/lib/auth-server';
 
 export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const supabaseAdmin = getSupabaseAdmin();
     const user = await requireAuth(request);
     const { id } = await params;
     const body = await request.json();
@@ -127,6 +122,7 @@ export async function POST(
     );
 
   } catch (error) {
+    if (error instanceof Response) return error;
     console.error('[NOTIFICATION ACTION] Error:', error);
     return NextResponse.json(
       { error: error instanceof Error ? error.message : 'Failed to process action' },

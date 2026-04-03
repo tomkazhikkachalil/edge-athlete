@@ -2,6 +2,18 @@ import { NextRequest } from 'next/server';
 import { createServerClient } from '@supabase/ssr';
 import { createClient } from '@supabase/supabase-js';
 
+/**
+ * Creates a Supabase admin client (service role) on demand.
+ * MUST be called inside request handlers, never at module scope,
+ * to avoid build failures when env vars aren't available during static analysis.
+ */
+export function getSupabaseAdmin() {
+  return createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!
+  );
+}
+
 export async function requireAuth(request: NextRequest) {
   try {
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;

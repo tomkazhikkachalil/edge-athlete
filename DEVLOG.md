@@ -1,5 +1,47 @@
 # Development Log
 
+## April 3, 2026
+
+### Build-Breaking Fix: Module-Level Supabase Clients
+Fixed production build failures caused by Supabase clients being created at module scope in API routes. During static analysis, Next.js evaluates module-level code where environment variables aren't available, causing `supabaseUrl is required` errors.
+
+**Root Cause:** 26 API route files created Supabase admin clients (`createClient(...)`) at the top of the file outside request handlers.
+
+**Fix:**
+- Added `getSupabaseAdmin()` lazy factory function to `src/lib/auth-server.ts`
+- Moved all Supabase client creation inside request handler `try` blocks
+- Replaced module-level env var constants with inline `process.env` references
+
+**Files Changed (27):**
+- `src/lib/auth-server.ts` — Added `getSupabaseAdmin()` helper
+- 26 API routes under `src/app/api/` — Moved client init into handlers
+
+### Golf Stats Endpoint Fix
+Fixed `/api/golf/stats` returning 500 errors due to querying a non-existent `total_score` column.
+
+**Fix:** Removed `total_score` from the SELECT query and all calculation references in `src/app/api/golf/stats/route.ts`. The correct column is `gross_score`.
+
+### Notification Routes Auth Fix
+Fixed all notification API routes returning 500 instead of 401 for unauthenticated requests.
+
+**Root Cause:** `requireAuth()` throws a `Response` object on auth failure, but catch blocks didn't check for it, wrapping the 401 as a generic 500.
+
+**Fix:** Added `if (error instanceof Response) return error;` to catch blocks in 7 handlers across 5 files:
+- `notifications/route.ts` (GET, DELETE)
+- `notifications/unread-count/route.ts` (GET)
+- `notifications/preferences/route.ts` (GET, PATCH)
+- `notifications/mark-all-read/route.ts` (PATCH)
+- `notifications/[id]/route.ts` (PATCH, DELETE)
+- `notifications/[id]/action/route.ts` (POST)
+
+**Verification:**
+- Build: Passing (57 pages, 54 API routes, 0 errors)
+- Lint: No warnings or errors
+- All 22 database tables accessible
+- All notification endpoints return 401 for unauthenticated requests
+
+---
+
 ## January 8, 2026
 
 ### Mobile Navigation Fix

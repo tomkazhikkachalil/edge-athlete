@@ -1,13 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
-
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
-
-// Validate environment variables at module level
-if (!supabaseUrl || !supabaseServiceKey) {
-  console.error('Missing required Supabase environment variables for suggestions API');
-}
+import { getSupabaseAdmin } from '@/lib/auth-server';
 
 // Type for suggestions returned by the RPC function
 interface ConnectionSuggestion {
@@ -31,15 +23,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Profile ID required' }, { status: 400 });
     }
 
-    // Validate environment variables
-    if (!supabaseUrl || !supabaseServiceKey) {
-      return NextResponse.json(
-        { error: 'Server configuration error' },
-        { status: 500 }
-      );
-    }
-
-    const supabase = createClient(supabaseUrl, supabaseServiceKey);
+    const supabase = getSupabaseAdmin();
     let suggestions: ConnectionSuggestion[] = [];
 
     // Try the RPC function first
@@ -125,15 +109,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Profile IDs required' }, { status: 400 });
     }
 
-    // Validate environment variables
-    if (!supabaseUrl || !supabaseServiceKey) {
-      return NextResponse.json(
-        { error: 'Server configuration error' },
-        { status: 500 }
-      );
-    }
-
-    const supabase = createClient(supabaseUrl, supabaseServiceKey);
+    const supabase = getSupabaseAdmin();
 
     if (action === 'dismiss') {
       // Dismiss a suggestion

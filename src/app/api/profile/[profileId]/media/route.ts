@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServerClient } from '@supabase/ssr';
-import { createClient } from '@supabase/supabase-js';
+import { getSupabaseAdmin } from '@/lib/auth-server';
 
 // Helper function for cookie authentication
 function createSupabaseClient(request: NextRequest) {
@@ -24,18 +24,6 @@ function createSupabaseClient(request: NextRequest) {
     }
   );
 }
-
-// Admin client for calling database functions
-const supabaseAdmin = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!,
-  {
-    auth: {
-      autoRefreshToken: false,
-      persistSession: false
-    }
-  }
-);
 
 interface MediaItem {
   id: string;
@@ -104,6 +92,7 @@ export async function GET(
   { params }: { params: Promise<{ profileId: string }> }
 ) {
   try {
+    const supabaseAdmin = getSupabaseAdmin();
     const supabase = createSupabaseClient(request);
     const { searchParams } = new URL(request.url);
 
@@ -315,6 +304,7 @@ export async function POST(
   { params }: { params: Promise<{ profileId: string }> }
 ) {
   try {
+    const supabaseAdmin = getSupabaseAdmin();
     const supabase = createSupabaseClient(request);
 
     // Get authenticated user (optional)
