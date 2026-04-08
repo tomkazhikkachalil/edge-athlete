@@ -1,5 +1,47 @@
 # Development Log
 
+## April 7, 2026
+
+### Feed & Login Cleanup
+Removed all placeholder/fake UI that was misleading for early users.
+
+**Feed page (`src/app/feed/page.tsx`):**
+- Removed fake Stories section (hardcoded "Athlete 1–6" placeholders)
+- Removed Explore Reels placeholder grid
+- Replaced Upcoming Events with honest empty state ("coming soon")
+- Replaced Your Teams with Your Club empty state ("coming soon")
+- Wired Photo/Video, Stats, Achievement quick-action buttons to open the create post modal (were styled but had no `onClick` handlers)
+
+**Login page (`src/app/page.tsx`):**
+- Removed Google, Facebook, Apple OAuth buttons — they had no click handlers and did nothing on press. Email/password login is the primary auth method for the MVP.
+
+---
+
+### Mobile App Crash Fix
+Fixed a crash that prevented the app from loading on mobile devices entirely.
+
+**Root Cause:** `src/app/layout.tsx` loaded Tailwind CSS from CDN via `<script async>`, followed by an inline script setting `tailwind.config = {...}`. On slow mobile connections, the CDN script hadn't loaded when the inline script ran, causing `ReferenceError: tailwind is not defined` — crashing the entire React tree.
+
+**Fix:** Removed both scripts. Tailwind CSS 4 is already fully compiled at build time via `@tailwindcss/postcss` — the CDN script was redundant.
+
+---
+
+### Black Media Images Fix (Tailwind CSS v3 → v4 Migration)
+Fixed all media images appearing as solid black squares in post feeds and the profile media grid.
+
+**Root Cause (two layers):**
+
+1. **`LazyImage` component** used an IntersectionObserver + `opacity-0` initial state. If `onLoad` was slow, images stayed invisible on top of the `bg-black` media container in `PostCard`.
+
+2. **Tailwind CSS v3 → v4 breaking change** — `bg-opacity-*` utilities were removed in Tailwind CSS 4. After removing the CDN v3 script, every `bg-black bg-opacity-0` rendered as solid black at full opacity. The media grid overlay (`absolute inset-0 bg-black bg-opacity-0`) was a black sheet covering every image. This also broke all modal backdrops, carousel buttons, and hover overlays across the entire app.
+
+**Fixes:**
+- `LazyImage`: Replaced IntersectionObserver + opacity trick with a gray skeleton overlay (`z-10`) that sits on top while the image loads. Image always renders so `onLoad` fires reliably.
+- `PostCard`: Changed media container from `bg-black` → `bg-gray-100` (neutral fallback).
+- Global: Replaced all `bg-opacity-*` / `hover:bg-opacity-*` / `group-hover:bg-opacity-*` with Tailwind v4 slash syntax (`bg-black/50`, `hover:bg-black/70`, etc.) across **25 files**.
+
+---
+
 ## April 3, 2026
 
 ### Build-Breaking Fix: Module-Level Supabase Clients
@@ -148,9 +190,10 @@ Implemented bidirectional relationship management in the Fans modal:
 
 ## Project Status
 
-**Build:** Passing
+**Build:** Passing (57 pages, 54 API routes, 0 errors)
 **Lint:** No warnings or errors
 **Deployment:** Vercel (auto-deploy on push to main)
+**Last Verified:** April 7, 2026
 
 ---
 
