@@ -14,7 +14,10 @@
 -- Run in Supabase SQL Editor after deploying this migration.
 -- ============================================================================
 
-CREATE TABLE IF NOT EXISTS public.athlete_vitals (
+-- Drop if exists from a partial/failed run, then recreate clean.
+DROP TABLE IF EXISTS public.athlete_vitals CASCADE;
+
+CREATE TABLE public.athlete_vitals (
   id            UUID         DEFAULT gen_random_uuid() PRIMARY KEY,
   profile_id    UUID         NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
   metric_key    TEXT         NOT NULL,  -- e.g. 'bench_press', '40_yard_dash'
@@ -33,13 +36,13 @@ CREATE TABLE IF NOT EXISTS public.athlete_vitals (
 -- INDEXES
 -- ============================================================================
 
-CREATE INDEX IF NOT EXISTS idx_athlete_vitals_profile_id
+CREATE INDEX idx_athlete_vitals_profile_id
   ON public.athlete_vitals(profile_id);
 
-CREATE INDEX IF NOT EXISTS idx_athlete_vitals_profile_metric
+CREATE INDEX idx_athlete_vitals_profile_metric
   ON public.athlete_vitals(profile_id, metric_key);
 
-CREATE INDEX IF NOT EXISTS idx_athlete_vitals_profile_date
+CREATE INDEX idx_athlete_vitals_profile_date
   ON public.athlete_vitals(profile_id, recorded_at DESC);
 
 -- ============================================================================

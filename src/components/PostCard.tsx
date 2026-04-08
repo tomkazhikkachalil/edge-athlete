@@ -950,6 +950,19 @@ export default function PostCard({
           />
         )}
 
+        {/* Vitals badge — shown on training posts created from a vitals entry */}
+        {post.stats_data?.type === 'vitals_entry' && (
+          <div className="flex items-center gap-2 px-3 py-2 bg-violet-50 rounded-lg text-sm mb-2 mx-base">
+            <i className="fas fa-dumbbell text-violet-500 text-xs"></i>
+            <span className="font-semibold text-violet-700">
+              {post.stats_data.metric_label as string}
+            </span>
+            <span className="text-violet-600 font-medium">
+              {post.stats_data.value_display as string}
+            </span>
+          </div>
+        )}
+
         {/* Sport Stats */}
         {post.stats_data && post.sport_key === 'golf' && (
           <div className="bg-gray-50 rounded-lg p-micro mt-micro">

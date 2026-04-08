@@ -13,6 +13,7 @@ import {
 import AddVitalModal from './AddVitalModal';
 import CreatePostModal from './CreatePostModal';
 import PostCard from './PostCard';
+import PostDetailModal from './PostDetailModal';
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
@@ -29,6 +30,7 @@ interface VitalEntry {
   source: string;
   recorded_at: string;
   created_at: string;
+  linked_post_id: string | null;
 }
 
 interface PostMedia {
@@ -96,9 +98,10 @@ interface MetricCardProps {
   metricKey: string;
   entries: VitalEntry[];  // all entries for this metric, chronological (oldest first)
   athleteBirthday: string | null;
+  onOpenPost: (postId: string) => void;
 }
 
-function MetricCard({ metricKey, entries, athleteBirthday }: MetricCardProps) {
+function MetricCard({ metricKey, entries, athleteBirthday, onOpenPost }: MetricCardProps) {
   const [expanded, setExpanded] = useState(false);
   const metric = VITAL_METRICS_MAP[metricKey];
   if (!metric || entries.length === 0) return null;
@@ -263,8 +266,20 @@ function MetricCard({ metricKey, entries, athleteBirthday }: MetricCardProps) {
                           <p className="text-xs text-gray-500 mt-0.5 truncate">{entry.notes}</p>
                         )}
                       </div>
-                      <div className="text-xs text-gray-400 ml-3 shrink-0">
-                        {new Date(entry.recorded_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                      <div className="flex items-center gap-2 ml-3 shrink-0">
+                        <span className="text-xs text-gray-400">
+                          {new Date(entry.recorded_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                        </span>
+                        {entry.linked_post_id && (
+                          <button
+                            type="button"
+                            onClick={(e) => { e.stopPropagation(); onOpenPost(entry.linked_post_id!); }}
+                            className="text-violet-500 hover:text-violet-700 transition-colors"
+                            title="View media post"
+                          >
+                            <i className="fas fa-camera text-xs"></i>
+                          </button>
+                        )}
                       </div>
                     </div>
                   ))}
@@ -288,6 +303,7 @@ export default function VitalsTab({ profileId, currentUserId, isOwnProfile = fal
   const [error, setError] = useState('');
   const [showAddVital, setShowAddVital] = useState(false);
   const [showCreatePost, setShowCreatePost] = useState(false);
+  const [linkedPostId, setLinkedPostId] = useState<string | null>(null);
 
   const fetchData = useCallback(async () => {
     try {
@@ -400,6 +416,7 @@ export default function VitalsTab({ profileId, currentUserId, isOwnProfile = fal
                         metricKey={m.key}
                         entries={vitalsByMetric[m.key]}
                         athleteBirthday={athleteBirthday}
+                        onOpenPost={(postId) => setLinkedPostId(postId)}
                       />
                     ))}
                   </div>
@@ -489,6 +506,13 @@ export default function VitalsTab({ profileId, currentUserId, isOwnProfile = fal
           }}
         />
       )}
+
+      <PostDetailModal
+        postId={linkedPostId}
+        isOpen={linkedPostId !== null}
+        onClose={() => setLinkedPostId(null)}
+        currentUserId={currentUserId}
+      />
     </div>
   );
 }

@@ -20,20 +20,21 @@ export async function POST(request: NextRequest) {
 
     const body = await request.json();
     const {
-      postType = 'general', // 'general' or 'golf'
+      postType = 'general', // 'general', 'golf', or 'training'
       caption = '',
       hashtags = [],
       visibility = 'public',
       media = [],
       golfData = null,
-      taggedProfiles = [] // Array of profile IDs to tag in this post
+      taggedProfiles = [], // Array of profile IDs to tag in this post
+      stats_data: incomingStatsData = null, // Optional structured metadata (e.g. vitals_entry)
     } = body;
 
     // Use authenticated user's ID
     const userId = user.id;
 
     // Validate post type
-    if (!['general', 'golf'].includes(postType)) {
+    if (!['general', 'golf', 'training'].includes(postType)) {
       return NextResponse.json({ error: 'Invalid post type' }, { status: 400 });
     }
 
@@ -63,7 +64,8 @@ export async function POST(request: NextRequest) {
       tags: taggedProfiles, // Store tagged people IDs (not category tags)
       hashtags: hashtags,
       likes_count: 0,
-      comments_count: 0
+      comments_count: 0,
+      ...(incomingStatsData && postType !== 'golf' ? { stats_data: incomingStatsData } : {}),
     };
 
     let roundId: string | null = null;

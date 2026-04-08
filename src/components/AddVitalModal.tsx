@@ -1,12 +1,23 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import {
   VITAL_CATEGORIES,
   VITAL_METRICS_MAP,
   parseTimeToSeconds,
   formatSecondsToDisplay,
 } from '@/lib/vitals-config';
+
+const MAX_MEDIA_FILES = 4;
+const MAX_FILE_SIZE_BYTES = 5 * 1024 * 1024; // 5MB — same as CreatePostModal
+
+interface MediaFile {
+  id: string;
+  file: File;
+  preview: string;
+  url: string;
+  type: 'image' | 'video';
+}
 
 interface AddVitalModalProps {
   isOpen: boolean;
@@ -17,10 +28,12 @@ interface AddVitalModalProps {
 interface FormState {
   categoryKey: string;
   metricKey: string;
-  rawValue: string;  // what the user types
+  rawValue: string;
   notes: string;
   recordedAt: string;
 }
+
+type SubmitMode = 'metric_only' | 'with_post';
 
 const today = () => new Date().toISOString().split('T')[0];
 
@@ -32,16 +45,65 @@ export default function AddVitalModal({ isOpen, onClose, onSaved }: AddVitalModa
     notes: '',
     recordedAt: today(),
   });
+  const [mode, setMode] = useState<SubmitMode>('metric_only');
+  const [caption, setCaption] = useState('');
+  const [visibility, setVisibility] = useState<'public' | 'private'>('public');
+  const [mediaFiles, setMediaFiles] = useState<MediaFile[]>([]);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Reset form when modal opens
   useEffect(() => {
     if (isOpen) {
       setForm({ categoryKey: '', metricKey: '', rawValue: '', notes: '', recordedAt: today() });
+      setMode('metric_only');
+      setCaption('');
+      setVisibility('public');
+      setMediaFiles([]);
       setError('');
     }
   }, [isOpen]);
+
+  // Revoke object URLs on unmount and when files change
+  useEffect(() => {
+    return () => {
+      mediaFiles.forEach(f => URL.revokeObjectURL(f.preview));
+    };
+  }, [mediaFiles]);
+
+  const handleFileSelect = useCallback((files: FileList | null) => {
+    if (!files || files.length === 0) return;
+    if (mediaFiles.length + files.length > MAX_MEDIA_FILES) {
+      setError(`Maximum ${MAX_MEDIA_FILES} files allowed.`);
+      return;
+    }
+
+    const newFiles: MediaFile[] = [];
+    for (const file of Array.from(files)) {
+      if (file.size > MAX_FILE_SIZE_BYTES) {
+        setError(`${file.name} exceeds the 5MB limit.`);
+        continue;
+      }
+      const isImage = file.type.startsWith('image/');
+      const isVideo = file.type.startsWith('video/');
+      if (!isImage && !isVideo) {
+        setError(`${file.name} is not a supported image or video.`);
+        continue;
+      }
+      const preview = URL.createObjectURL(file);
+      newFiles.push({
+        id: `${Date.now()}-${Math.random()}`,
+        file,
+        preview,
+        url: preview,
+        type: isVideo ? 'video' : 'image',
+      });
+    }
+
+    setMediaFiles(prev => [...prev, ...newFiles]);
+    setError('');
+  }, [mediaFiles.length]);
 
   if (!isOpen) return null;
 
@@ -58,6 +120,47 @@ export default function AddVitalModal({ isOpen, onClose, onSaved }: AddVitalModa
     setError('');
   };
 
+  const removeFile = (id: string) => {
+    setMediaFiles(prev => {
+      const removed = prev.find(f => f.id === id);
+      if (removed) URL.revokeObjectURL(removed.preview);
+      return prev.filter(f => f.id !== id);
+    });
+  };
+
+  // Parse and validate metric value, returns { numericValue, displayValue } or null on error
+  const parseMetricValue = (): { numericValue: number; displayValue: string } | null => {
+    if (!selectedMetric) return null;
+    const trimmed = form.rawValue.trim();
+
+    if (selectedMetric.time_format === 'mm:ss') {
+      const n = parseTimeToSeconds(trimmed);
+      if (n === null) { setError('Enter time as M:SS (e.g. 4:32 or 22:15).'); return null; }
+      return { numericValue: n, displayValue: formatSecondsToDisplay(n, 'mm:ss') };
+    } else if (selectedMetric.time_format === 'decimal_seconds') {
+      const n = parseTimeToSeconds(trimmed);
+      if (n === null) { setError('Enter a decimal number (e.g. 4.95).'); return null; }
+      return { numericValue: n, displayValue: `${n} sec` };
+    } else {
+      const n = parseFloat(trimmed);
+      if (isNaN(n)) { setError('Enter a valid number.'); return null; }
+      return { numericValue: n, displayValue: `${n} ${selectedMetric.unit}` };
+    }
+  };
+
+  const uploadFile = async (file: File): Promise<string> => {
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('userId', ''); // auth handled server-side via cookie
+    const res = await fetch('/api/upload/post-media', { method: 'POST', body: formData });
+    if (!res.ok) {
+      const data = await res.json();
+      throw new Error(data.error || 'Upload failed');
+    }
+    const data = await res.json();
+    return data.url as string;
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
@@ -70,53 +173,101 @@ export default function AddVitalModal({ isOpen, onClose, onSaved }: AddVitalModa
     const metric = VITAL_METRICS_MAP[form.metricKey];
     if (!metric) { setError('Invalid metric selected.'); return; }
 
-    // Parse value
-    let numericValue: number | null = null;
-    let displayValue: string = form.rawValue.trim();
-
-    if (metric.time_format === 'mm:ss') {
-      numericValue = parseTimeToSeconds(form.rawValue);
-      if (numericValue === null) {
-        setError('Enter time as M:SS (e.g. 4:32 or 22:15).');
-        return;
-      }
-      displayValue = formatSecondsToDisplay(numericValue, 'mm:ss');
-    } else if (metric.time_format === 'decimal_seconds') {
-      numericValue = parseTimeToSeconds(form.rawValue);
-      if (numericValue === null) {
-        setError('Enter a decimal number (e.g. 4.95).');
-        return;
-      }
-      displayValue = `${numericValue} sec`;
-    } else {
-      numericValue = parseFloat(form.rawValue);
-      if (isNaN(numericValue)) {
-        setError('Enter a valid number.');
-        return;
-      }
-      displayValue = `${numericValue} ${metric.unit}`;
-    }
+    const parsed = parseMetricValue();
+    if (!parsed) return;
+    const { numericValue, displayValue } = parsed;
 
     setSaving(true);
-    try {
-      const res = await fetch('/api/vitals', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          metric_key: metric.key,
-          metric_category: form.categoryKey,
-          metric_label: metric.label,
-          value: numericValue,
-          value_display: displayValue,
-          unit: metric.unit,
-          notes: form.notes.trim() || null,
-          recorded_at: form.recordedAt,
-        }),
-      });
 
-      if (!res.ok) {
-        const data = await res.json();
-        throw new Error(data.error || 'Failed to save');
+    try {
+      if (mode === 'metric_only') {
+        // ── Quick entry ─────────────────────────────────────────────
+        const res = await fetch('/api/vitals', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            metric_key: metric.key,
+            metric_category: form.categoryKey,
+            metric_label: metric.label,
+            value: numericValue,
+            value_display: displayValue,
+            unit: metric.unit,
+            notes: form.notes.trim() || null,
+            recorded_at: form.recordedAt,
+          }),
+        });
+        if (!res.ok) {
+          const data = await res.json();
+          throw new Error(data.error || 'Failed to save');
+        }
+      } else {
+        // ── Metric + post ───────────────────────────────────────────
+        // 1. Upload media
+        const uploadedMedia: { url: string; type: 'image' | 'video'; sortOrder: number }[] = [];
+        for (let i = 0; i < mediaFiles.length; i++) {
+          const url = await uploadFile(mediaFiles[i].file);
+          uploadedMedia.push({ url, type: mediaFiles[i].type, sortOrder: i });
+        }
+
+        // 2. Create post
+        const postCaption = caption.trim() || `${metric.label} · ${displayValue}`;
+        const postRes = await fetch('/api/posts', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            postType: 'training',
+            caption: postCaption,
+            visibility,
+            media: uploadedMedia,
+            stats_data: {
+              type: 'vitals_entry',
+              metric_key: metric.key,
+              metric_label: metric.label,
+              value: numericValue,
+              value_display: displayValue,
+              unit: metric.unit,
+            },
+            taggedProfiles: [],
+          }),
+        });
+
+        if (!postRes.ok) {
+          const data = await postRes.json();
+          throw new Error(data.error || 'Failed to create post');
+        }
+
+        const postResult = await postRes.json();
+        const createdPostId: string = postResult.post.id;
+
+        // 3. Create vital (linked to post)
+        const vitalRes = await fetch('/api/vitals', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            metric_key: metric.key,
+            metric_category: form.categoryKey,
+            metric_label: metric.label,
+            value: numericValue,
+            value_display: displayValue,
+            unit: metric.unit,
+            notes: form.notes.trim() || null,
+            recorded_at: form.recordedAt,
+            linked_post_id: createdPostId,
+          }),
+        });
+
+        if (!vitalRes.ok) {
+          // Vital failed — attempt cleanup of orphaned post
+          try {
+            await fetch(`/api/posts/${createdPostId}`, { method: 'DELETE' });
+            throw new Error('Metric entry failed — the post was also removed. Please try again.');
+          } catch (cleanupErr) {
+            if (cleanupErr instanceof Error && cleanupErr.message.includes('Metric entry failed')) {
+              throw cleanupErr;
+            }
+            throw new Error('Metric entry failed. A post may have been created — check Training Activity.');
+          }
+        }
       }
 
       onSaved();
@@ -169,7 +320,7 @@ export default function AddVitalModal({ isOpen, onClose, onSaved }: AddVitalModa
             </div>
           </div>
 
-          {/* Metric — shown after category selected */}
+          {/* Metric */}
           {selectedCategory && (
             <div>
               <label className="block text-sm font-semibold text-gray-700 mb-1.5">Metric</label>
@@ -186,7 +337,7 @@ export default function AddVitalModal({ isOpen, onClose, onSaved }: AddVitalModa
             </div>
           )}
 
-          {/* Value — shown after metric selected */}
+          {/* Value */}
           {selectedMetric && (
             <div>
               <label className="block text-sm font-semibold text-gray-700 mb-1.5">
@@ -241,6 +392,133 @@ export default function AddVitalModal({ isOpen, onClose, onSaved }: AddVitalModa
             </div>
           )}
 
+          {/* Mode toggle */}
+          {selectedMetric && (
+            <div>
+              <label className="block text-sm font-semibold text-gray-700 mb-1.5">Save as</label>
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() => { setMode('metric_only'); setMediaFiles([]); setCaption(''); setError(''); }}
+                  className={`flex items-center justify-center gap-2 px-3 py-2.5 rounded-lg border text-sm font-medium transition-all ${
+                    mode === 'metric_only'
+                      ? 'border-violet-500 bg-violet-50 text-violet-700'
+                      : 'border-gray-200 text-gray-600 hover:border-gray-300 hover:bg-gray-50'
+                  }`}
+                >
+                  <i className="fas fa-chart-line text-xs"></i>
+                  Metric only
+                </button>
+                <button
+                  type="button"
+                  onClick={() => { setMode('with_post'); setError(''); }}
+                  className={`flex items-center justify-center gap-2 px-3 py-2.5 rounded-lg border text-sm font-medium transition-all ${
+                    mode === 'with_post'
+                      ? 'border-violet-500 bg-violet-50 text-violet-700'
+                      : 'border-gray-200 text-gray-600 hover:border-gray-300 hover:bg-gray-50'
+                  }`}
+                >
+                  <i className="fas fa-camera text-xs"></i>
+                  Add media
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Media upload section — only in "with_post" mode */}
+          {selectedMetric && mode === 'with_post' && (
+            <>
+              {/* Caption */}
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-1.5">
+                  Caption <span className="font-normal text-gray-400">(optional)</span>
+                </label>
+                <textarea
+                  value={caption}
+                  onChange={e => setCaption(e.target.value)}
+                  placeholder={`${selectedMetric?.label} · ${form.rawValue || '…'}`}
+                  rows={2}
+                  className="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-violet-500 resize-none"
+                />
+              </div>
+
+              {/* Media upload */}
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-1.5">
+                  Media <span className="font-normal text-gray-400">(up to {MAX_MEDIA_FILES} files, 5MB each)</span>
+                </label>
+
+                {/* Preview strip */}
+                {mediaFiles.length > 0 && (
+                  <div className="flex gap-2 mb-2 flex-wrap">
+                    {mediaFiles.map(f => (
+                      <div key={f.id} className="relative w-20 h-20 rounded-lg overflow-hidden border border-gray-200 bg-gray-100 shrink-0">
+                        {f.type === 'image' ? (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img src={f.preview} alt="" className="w-full h-full object-cover" />
+                        ) : (
+                          <div className="w-full h-full flex items-center justify-center">
+                            <i className="fas fa-play-circle text-2xl text-gray-400"></i>
+                          </div>
+                        )}
+                        <button
+                          type="button"
+                          onClick={() => removeFile(f.id)}
+                          className="absolute top-1 right-1 w-5 h-5 rounded-full bg-black/60 text-white flex items-center justify-center hover:bg-black/80 transition-colors"
+                        >
+                          <i className="fas fa-times text-xs" style={{ fontSize: '9px' }}></i>
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {/* Drop zone / file trigger */}
+                {mediaFiles.length < MAX_MEDIA_FILES && (
+                  <button
+                    type="button"
+                    onClick={() => fileInputRef.current?.click()}
+                    className="w-full border-2 border-dashed border-gray-300 rounded-lg py-4 px-3 text-sm text-gray-500 hover:border-violet-400 hover:text-violet-600 transition-colors flex items-center justify-center gap-2"
+                  >
+                    <i className="fas fa-cloud-upload-alt"></i>
+                    {mediaFiles.length === 0 ? 'Add photos or video' : 'Add more'}
+                  </button>
+                )}
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/*,video/*"
+                  multiple
+                  className="hidden"
+                  onChange={e => handleFileSelect(e.target.files)}
+                  onClick={e => { (e.target as HTMLInputElement).value = ''; }}
+                />
+              </div>
+
+              {/* Visibility */}
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-1.5">Visibility</label>
+                <div className="grid grid-cols-2 gap-2">
+                  {(['public', 'private'] as const).map(v => (
+                    <button
+                      key={v}
+                      type="button"
+                      onClick={() => setVisibility(v)}
+                      className={`flex items-center justify-center gap-2 px-3 py-2.5 rounded-lg border text-sm font-medium transition-all ${
+                        visibility === v
+                          ? 'border-violet-500 bg-violet-50 text-violet-700'
+                          : 'border-gray-200 text-gray-600 hover:border-gray-300 hover:bg-gray-50'
+                      }`}
+                    >
+                      <i className={`fas ${v === 'public' ? 'fa-globe' : 'fa-lock'} text-xs`}></i>
+                      {v.charAt(0).toUpperCase() + v.slice(1)}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </>
+          )}
+
           {/* Error */}
           {error && (
             <div className="bg-red-50 border border-red-200 text-red-700 px-3 py-2 rounded-lg text-sm">
@@ -263,10 +541,10 @@ export default function AddVitalModal({ isOpen, onClose, onSaved }: AddVitalModa
               className="flex-1 px-4 py-2.5 bg-violet-600 text-white rounded-lg text-sm font-semibold hover:bg-violet-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {saving ? (
-                <><i className="fas fa-spinner fa-spin mr-1.5"></i>Saving…</>
-              ) : (
-                'Save Entry'
-              )}
+                <><i className="fas fa-spinner fa-spin mr-1.5"></i>
+                  {mode === 'with_post' && mediaFiles.length > 0 ? 'Uploading…' : 'Saving…'}
+                </>
+              ) : mode === 'with_post' ? 'Save & Post' : 'Save Entry'}
             </button>
           </div>
         </form>

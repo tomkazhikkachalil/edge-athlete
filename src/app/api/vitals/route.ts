@@ -127,6 +127,7 @@ export async function POST(request: NextRequest) {
       unit,
       notes,
       recorded_at,
+      linked_post_id,
     } = body;
 
     if (!metric_key || !metric_category || !metric_label || !unit) {
@@ -153,6 +154,7 @@ export async function POST(request: NextRequest) {
         notes: notes || null,
         recorded_at: recorded_at || new Date().toISOString().split('T')[0],
         source: 'manual',
+        linked_post_id: linked_post_id || null,
       })
       .select()
       .single();
