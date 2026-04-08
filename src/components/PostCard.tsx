@@ -385,7 +385,7 @@ export default function PostCard({
 
       {/* Media */}
       {post.media && post.media.length > 0 && (
-        <div className="relative bg-black">
+        <div className="relative bg-gray-100">
           <div className="relative w-full flex items-center justify-center">
             {post.media[currentMediaIndex].media_type === 'image' ? (
               <LazyImage
