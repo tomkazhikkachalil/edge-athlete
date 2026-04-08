@@ -215,7 +215,7 @@ export default function PostDetailModal({
     <div className="fixed inset-0 z-[60] flex items-center justify-center">
       {/* Backdrop */}
       <div
-        className="absolute inset-0 bg-black bg-opacity-75"
+        className="absolute inset-0 bg-black/75"
         onClick={onClose}
       />
 
@@ -224,7 +224,7 @@ export default function PostDetailModal({
         {/* Close Button */}
         <button
           onClick={onClose}
-          className="absolute top-2 right-2 z-10 w-8 h-8 bg-black bg-opacity-50 hover:bg-opacity-70 text-white rounded-full flex items-center justify-center transition-colors"
+          className="absolute top-2 right-2 z-10 w-8 h-8 bg-black/50 hover:bg-black/70 text-white rounded-full flex items-center justify-center transition-colors"
           aria-label="Close"
         >
           <i className="fas fa-times text-sm"></i>
@@ -235,14 +235,14 @@ export default function PostDetailModal({
           <>
             <button
               onClick={() => onNavigate('prev')}
-              className="absolute left-4 top-1/2 -translate-y-1/2 z-10 w-10 h-10 bg-black bg-opacity-50 hover:bg-opacity-70 text-white rounded-full flex items-center justify-center transition-colors"
+              className="absolute left-4 top-1/2 -translate-y-1/2 z-10 w-10 h-10 bg-black/50 hover:bg-black/70 text-white rounded-full flex items-center justify-center transition-colors"
               aria-label="Previous post"
             >
               <i className="fas fa-chevron-left"></i>
             </button>
             <button
               onClick={() => onNavigate('next')}
-              className="absolute right-4 top-1/2 -translate-y-1/2 z-10 w-10 h-10 bg-black bg-opacity-50 hover:bg-opacity-70 text-white rounded-full flex items-center justify-center transition-colors"
+              className="absolute right-4 top-1/2 -translate-y-1/2 z-10 w-10 h-10 bg-black/50 hover:bg-black/70 text-white rounded-full flex items-center justify-center transition-colors"
               aria-label="Next post"
             >
               <i className="fas fa-chevron-right"></i>

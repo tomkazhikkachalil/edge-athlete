@@ -780,7 +780,7 @@ export default function CreatePostModal({
   const currentHashtags = HASHTAG_SUGGESTIONS[postType as keyof typeof HASHTAG_SUGGESTIONS] || HASHTAG_SUGGESTIONS.general;
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
       <div className="bg-white rounded-lg shadow-xl max-w-4xl w-full max-h-[90vh] flex flex-col">
         {/* Header */}
         <div className="flex items-center justify-between p-6 border-b border-gray-200">
@@ -1590,7 +1590,7 @@ export default function CreatePostModal({
                     }`}
                   >
                     {/* Media number badge */}
-                    <div className="absolute top-2 left-2 bg-black bg-opacity-60 text-white text-xs px-2 py-1 rounded">
+                    <div className="absolute top-2 left-2 bg-black/60 text-white text-xs px-2 py-1 rounded">
                       {index + 1}
                     </div>
 
@@ -1911,7 +1911,7 @@ function PostPreview({
   const tagOptions = TAG_OPTIONS[postType as keyof typeof TAG_OPTIONS] || TAG_OPTIONS.general;
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-[60] p-4">
+    <div className="fixed inset-0 bg-black/75 flex items-center justify-center z-[60] p-4">
       <div className="bg-white rounded-lg shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
         {/* Preview Header */}
         <div className="flex items-center justify-between p-4 border-b border-gray-200 bg-gray-50">
@@ -2061,7 +2061,7 @@ function PostPreview({
                         <video src={file.url} className="w-full h-full object-cover" />
                       )}
                       {index === 3 && mediaFiles.length > 4 && (
-                        <div className="absolute inset-0 bg-black bg-opacity-60 flex items-center justify-center">
+                        <div className="absolute inset-0 bg-black/60 flex items-center justify-center">
                           <span className="text-white text-2xl font-bold">+{mediaFiles.length - 4}</span>
                         </div>
                       )}

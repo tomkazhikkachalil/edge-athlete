@@ -410,14 +410,14 @@ export default function PostCard({
             <>
               <button
                 onClick={prevMedia}
-                className="absolute left-2 top-1/2 transform -translate-y-1/2 bg-black bg-opacity-50 text-white rounded-full w-11 h-11 flex items-center justify-center hover:bg-opacity-70"
+                className="absolute left-2 top-1/2 transform -translate-y-1/2 bg-black/50 text-white rounded-full w-11 h-11 flex items-center justify-center hover:bg-black/70"
                 aria-label="Previous image"
               >
                 <i className="fas fa-chevron-left text-sm"></i>
               </button>
               <button
                 onClick={nextMedia}
-                className="absolute right-2 top-1/2 transform -translate-y-1/2 bg-black bg-opacity-50 text-white rounded-full w-11 h-11 flex items-center justify-center hover:bg-opacity-70"
+                className="absolute right-2 top-1/2 transform -translate-y-1/2 bg-black/50 text-white rounded-full w-11 h-11 flex items-center justify-center hover:bg-black/70"
                 aria-label="Next image"
               >
                 <i className="fas fa-chevron-right text-sm"></i>
@@ -429,7 +429,7 @@ export default function PostCard({
                   <div
                     key={index}
                     className={`w-2 h-2 rounded-full ${
-                      index === currentMediaIndex ? 'bg-white' : 'bg-white bg-opacity-50'
+                      index === currentMediaIndex ? 'bg-white' : 'bg-white/50'
                     }`}
                   />
                 ))}

@@ -150,7 +150,7 @@ export default function DeleteAccountModal({ isOpen, onClose }: DeleteAccountMod
     <div className="fixed inset-0 z-[70] flex items-center justify-center p-4">
       {/* Backdrop */}
       <div
-        className="absolute inset-0 bg-black bg-opacity-75"
+        className="absolute inset-0 bg-black/75"
         onClick={handleClose}
       />
 

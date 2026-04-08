@@ -612,7 +612,7 @@ export default function AthleteProfilePage() {
         <>
           {/* Backdrop to capture clicks outside */}
           <div 
-            className="fixed inset-0 z-40 bg-black bg-opacity-10" 
+            className="fixed inset-0 z-40 bg-black/10" 
             onClick={cancelEditing}
             aria-hidden="true"
           />

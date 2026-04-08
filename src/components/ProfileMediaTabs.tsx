@@ -633,7 +633,7 @@ function MediaGridItem({ item, onClick }: MediaGridItemProps) {
                 preload="metadata"
               />
               <div className="absolute inset-0 flex items-center justify-center">
-                <div className="w-12 h-12 bg-black bg-opacity-50 rounded-full flex items-center justify-center">
+                <div className="w-12 h-12 bg-black/50 rounded-full flex items-center justify-center">
                   <i className="fas fa-play text-white text-lg ml-1"></i>
                 </div>
               </div>
@@ -670,7 +670,7 @@ function MediaGridItem({ item, onClick }: MediaGridItemProps) {
       )}
 
       {/* Overlay with indicators */}
-      <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-30 transition-all">
+      <div className="absolute inset-0 bg-black/0 group-hover:bg-black/30 transition-all">
         {/* Top indicators */}
         <div className="absolute top-2 right-2 flex gap-1">
           {hasStats && (
@@ -679,7 +679,7 @@ function MediaGridItem({ item, onClick }: MediaGridItemProps) {
             </span>
           )}
           {mediaCount > 1 && (
-            <span className="px-2 py-1 bg-black bg-opacity-60 text-white text-xs font-semibold rounded-full">
+            <span className="px-2 py-1 bg-black/60 text-white text-xs font-semibold rounded-full">
               <i className="fas fa-layer-group mr-1"></i>
               {mediaCount}
             </span>
