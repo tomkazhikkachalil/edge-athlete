@@ -8,9 +8,10 @@
  * - All sport-specific logic lives in adapters, not components
  */
 
-export type SportKey = 
+export type SportKey =
   | 'golf'
-  | 'ice_hockey' 
+  | 'training'
+  | 'ice_hockey'
   | 'volleyball'
   | 'track_field'
   | 'basketball'
@@ -77,6 +78,30 @@ export const SPORT_REGISTRY: Record<SportKey, SportDefinition> = {
       col5: 'Tournament'
     },
     primary_action: 'Add Round'
+  },
+
+  // === TRAINING — MVP content classification shortcut ===
+  // Note: 'training' is used as sport_key for training-tagged posts in Phase 1.
+  // Long-term, this should become a post_category field separate from sport_key.
+  training: {
+    sport_key: 'training',
+    display_name: 'Training',
+    brand_color_token: 'violet',
+    icon_id: 'fas fa-dumbbell',
+    enabled: true,
+    metric_labels: {
+      tile1: 'Sessions',
+      tile2: 'PRs',
+      tile3: 'Streak',
+      tile4: 'Level'
+    },
+    activity_columns: {
+      col1: 'Date',
+      col2: 'Type',
+      col3: 'Duration',
+      col4: 'Notes'
+    },
+    primary_action: 'Log Training'
   },
 
   // === ICE HOCKEY (Future Implementation) ===

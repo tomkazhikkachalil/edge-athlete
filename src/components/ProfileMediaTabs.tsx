@@ -9,6 +9,7 @@ import EditPostModal from './EditPostModal';
 import EquipmentSection from './EquipmentSection';
 import { useToast } from './Toast';
 import { formatGolfStatsSummary, formatGenericStatsSummary } from '@/lib/stats-summary';
+import VitalsTab from './VitalsTab';
 
 type TabType = 'all' | 'stats' | 'tagged' | 'equipment' | 'vitals' | 'achievements';
 type SortType = 'newest' | 'most_engaged';
@@ -364,19 +365,24 @@ export default function ProfileMediaTabs({ profileId, currentUserId, isOwnProfil
         <EquipmentSection profileId={profileId} isOwnProfile={isOwnProfile} />
       )}
 
-      {/* Vitals and Achievements tabs (coming soon) */}
-      {(activeTab === 'vitals' || activeTab === 'achievements') && (
+      {/* Vitals tab */}
+      {activeTab === 'vitals' && (
+        <VitalsTab
+          profileId={profileId}
+          currentUserId={currentUserId}
+          isOwnProfile={isOwnProfile}
+        />
+      )}
+
+      {/* Achievements tab (coming soon) */}
+      {activeTab === 'achievements' && (
         <div className="text-center py-16 px-4">
           <div className="w-20 h-20 mx-auto mb-6 rounded-full bg-gray-100 flex items-center justify-center">
-            {activeTab === 'vitals' && <Activity className="w-10 h-10 text-gray-400" />}
-            {activeTab === 'achievements' && <Trophy className="w-10 h-10 text-gray-400" />}
+            <Trophy className="w-10 h-10 text-gray-400" />
           </div>
-          <h3 className="text-xl font-bold text-gray-900 mb-2">
-            {activeTab === 'vitals' && 'Vitals Tracking'}
-            {activeTab === 'achievements' && 'Achievements'}
-          </h3>
+          <h3 className="text-xl font-bold text-gray-900 mb-2">Achievements</h3>
           <p className="text-gray-600 mb-6 max-w-md mx-auto">
-            This feature is coming soon! Track your progress and showcase your accomplishments.
+            This feature is coming soon! Showcase your accomplishments and milestones.
           </p>
           <div className="inline-flex items-center gap-2 px-4 py-2 bg-blue-50 text-blue-700 rounded-lg font-semibold text-sm">
             <Trophy className="w-4 h-4" />

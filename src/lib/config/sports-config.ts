@@ -3,7 +3,7 @@
  * Centralized configuration for sport icons, colors, and metadata
  */
 
-import { 
+import {
   Trophy,
   Target,
   Activity,
@@ -16,6 +16,7 @@ import {
   Swords,
   Wind,
   Music,
+  Dumbbell,
   type LucideIcon
 } from 'lucide-react';
 
@@ -67,6 +68,9 @@ export const SPORT_ICONS: Record<string, LucideIcon> = {
   cheer: Heart,
   bowling: Circle,
   
+  // Training
+  training: Dumbbell,
+
   // Default
   default: Trophy,
 } as const;
@@ -119,6 +123,9 @@ export const SPORT_COLORS: Record<string, string> = {
   cheer: '#F43F5E', // Rose
   bowling: '#64748B', // Slate
   
+  // Training - Violet
+  training: '#8B5CF6',
+
   // Default - Neutral
   default: '#6B7280',
 } as const;
@@ -170,6 +177,7 @@ export const SPORT_NAMES: Record<string, string> = {
   dance: 'Dance',
   cheer: 'Cheerleading',
   bowling: 'Bowling',
+  training: 'Training',
 } as const;
 
 /**
@@ -313,6 +321,9 @@ export const SPORT_TAILWIND_COLORS: Record<string, { bg: string; text: string; b
   cheer: { bg: 'bg-rose-500', text: 'text-rose-500', border: 'border-rose-500' },
   bowling: { bg: 'bg-slate-500', text: 'text-slate-500', border: 'border-slate-500' },
   
+  // Training - Violet
+  training: { bg: 'bg-violet-500', text: 'text-violet-500', border: 'border-violet-500' },
+
   // Default
   default: { bg: 'bg-gray-500', text: 'text-gray-500', border: 'border-gray-500' },
 };
