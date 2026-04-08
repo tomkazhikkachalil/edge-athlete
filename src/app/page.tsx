@@ -478,21 +478,6 @@ export default function Home() {
           {/* Login Section */}
           <div className="w-full lg:w-1/2 p-6 sm:p-8 lg:p-12">
             <h2 className="text-2xl sm:text-3xl font-bold text-blue-800 mb-6 sm:mb-8 text-center lg:text-left">Login to Your Account</h2>
-            <div className="flex flex-col space-y-3 sm:space-y-4 mb-6">
-              <button className="w-full py-3 px-4 rounded-md bg-red-500 text-white flex items-center justify-center hover:bg-red-600 transition duration-300 text-sm sm:text-base">
-                <i className="fab fa-google mr-2"></i> Login with Google
-              </button>
-              <button className="w-full py-3 px-4 rounded-md bg-blue-600 text-white flex items-center justify-center hover:bg-blue-700 transition duration-300 text-sm sm:text-base">
-                <i className="fab fa-facebook-f mr-2"></i> Login with Facebook
-              </button>
-              <button className="w-full py-3 px-4 rounded-md bg-black text-white flex items-center justify-center hover:bg-gray-800 transition duration-300 text-sm sm:text-base">
-                <i className="fab fa-apple mr-2"></i> Login with Apple
-              </button>
-            </div>
-            <div className="relative my-6">
-              <hr className="border-gray-300" />
-              <span className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 bg-white px-2 text-gray-500 text-sm">Or</span>
-            </div>
             {error && (
               <div className="bg-red-50 border border-red-200 text-red-600 px-4 py-3 rounded-md text-sm mb-4">
                 {error}

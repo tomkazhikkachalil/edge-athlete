@@ -327,26 +327,6 @@ export default function FeedPage() {
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 sm:gap-6">
           {/* Main Content */}
           <div className="lg:col-span-8">
-            {/* Stories Section */}
-            <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-3 sm:p-4 mb-4 sm:mb-6">
-              <div className="flex items-center gap-3 sm:gap-4 overflow-x-auto">
-                {/* Add Story */}
-                <div className="flex-shrink-0 text-center">
-                  <div className="w-14 h-14 sm:w-16 sm:h-16 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center cursor-pointer">
-                    <i className="fas fa-plus text-white text-base sm:text-lg"></i>
-                  </div>
-                  <p className="text-xs text-gray-600 mt-1">Add Story</p>
-                </div>
-                {/* Story placeholders */}
-                {[1, 2, 3, 4, 5, 6].map((i) => (
-                  <div key={i} className="flex-shrink-0 text-center">
-                    <div className="w-14 h-14 sm:w-16 sm:h-16 bg-gray-200 rounded-full cursor-pointer"></div>
-                    <p className="text-xs text-gray-600 mt-1">Athlete {i}</p>
-                  </div>
-                ))}
-              </div>
-            </div>
-
             {/* Post Creation Form */}
             <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-3 sm:p-4 mb-4 sm:mb-6">
               <div className="flex items-center gap-2 sm:gap-3">
@@ -375,15 +355,15 @@ export default function FeedPage() {
               </div>
               <div className="flex items-center justify-between mt-3 pt-3 border-t border-gray-100">
                 <div className="flex items-center gap-2 sm:gap-4">
-                  <button className="flex items-center gap-1 sm:gap-2 text-gray-600 hover:text-blue-600 transition-colors">
+                  <button onClick={() => setIsCreatePostModalOpen(true)} className="flex items-center gap-1 sm:gap-2 text-gray-600 hover:text-blue-600 transition-colors">
                     <i className="fas fa-image text-green-500"></i>
                     <span className="text-xs sm:text-sm">Photo/Video</span>
                   </button>
-                  <button className="flex items-center gap-1 sm:gap-2 text-gray-600 hover:text-blue-600 transition-colors">
+                  <button onClick={() => setIsCreatePostModalOpen(true)} className="flex items-center gap-1 sm:gap-2 text-gray-600 hover:text-blue-600 transition-colors">
                     <i className="fas fa-chart-line text-blue-500"></i>
                     <span className="text-xs sm:text-sm hidden sm:inline">Stats</span>
                   </button>
-                  <button className="flex items-center gap-1 sm:gap-2 text-gray-600 hover:text-blue-600 transition-colors">
+                  <button onClick={() => setIsCreatePostModalOpen(true)} className="flex items-center gap-1 sm:gap-2 text-gray-600 hover:text-blue-600 transition-colors">
                     <i className="fas fa-trophy text-yellow-500"></i>
                     <span className="text-xs sm:text-sm hidden sm:inline">Achievement</span>
                   </button>
@@ -465,70 +445,29 @@ export default function FeedPage() {
 
             {/* Upcoming Events */}
             <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
-              <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center justify-between mb-3">
                 <h3 className="font-bold text-gray-900">Upcoming Events</h3>
-                <button className="text-blue-600 text-sm hover:text-blue-700">View Calendar</button>
               </div>
-              <div className="space-y-3">
-                {[1, 2, 3].map((i) => (
-                  <div key={i} className="border border-gray-100 rounded-lg p-3">
-                    <div className="flex items-center gap-3">
-                      <div className="text-center">
-                        <p className="text-xs text-gray-500 uppercase">Apr</p>
-                        <p className="font-bold text-lg text-gray-900">{15 + i}</p>
-                      </div>
-                      <div className="flex-1">
-                        <h4 className="font-medium text-sm text-gray-900">Event Title</h4>
-                        <p className="text-xs text-gray-500">Location • Time</p>
-                        <p className="text-xs text-blue-600">Sport Category</p>
-                      </div>
-                    </div>
-                  </div>
-                ))}
+              <div className="flex flex-col items-center justify-center py-6 text-center">
+                <div className="w-10 h-10 bg-blue-50 rounded-full flex items-center justify-center mb-3">
+                  <i className="fas fa-calendar-days text-blue-400 text-lg"></i>
+                </div>
+                <p className="text-sm font-medium text-gray-700 mb-1">No upcoming events</p>
+                <p className="text-xs text-gray-400">Tournament and event scheduling is coming soon.</p>
               </div>
             </div>
 
-            {/* Associated Teams */}
+            {/* Your Club */}
             <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="font-bold text-gray-900">Your Teams</h3>
-                <button className="text-blue-600 text-sm hover:text-blue-700">Manage</button>
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="font-bold text-gray-900">Your Club</h3>
               </div>
-              <div className="space-y-3">
-                {[1, 2, 3].map((i) => (
-                  <div key={i} className="flex items-center gap-3">
-                    <div className="w-10 h-10 bg-gray-200 rounded-lg"></div>
-                    <div className="flex-1">
-                      <p className="font-medium text-sm text-gray-900">Team Name</p>
-                      <p className="text-xs text-gray-500">League • Season</p>
-                    </div>
-                    <div className="text-right">
-                      <p className="text-xs font-medium text-green-600">Active</p>
-                      <p className="text-xs text-gray-500">12 members</p>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            {/* Explore Reels */}
-            <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="font-bold text-gray-900">Explore Reels</h3>
-                <button className="text-blue-600 text-sm hover:text-blue-700">View All</button>
-              </div>
-              <div className="grid grid-cols-2 gap-2">
-                {[1, 2, 3, 4].map((i) => (
-                  <div key={i} className="aspect-[3/4] bg-gray-200 rounded-lg relative cursor-pointer group">
-                    <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-20 transition-all rounded-lg flex items-center justify-center">
-                      <i className="fas fa-play text-white opacity-0 group-hover:opacity-100 transition-opacity"></i>
-                    </div>
-                    <div className="absolute bottom-2 left-2 right-2">
-                      <p className="text-white text-xs font-medium">Reel Title</p>
-                      <p className="text-white text-xs opacity-75">@athlete</p>
-                    </div>
-                  </div>
-                ))}
+              <div className="flex flex-col items-center justify-center py-6 text-center">
+                <div className="w-10 h-10 bg-green-50 rounded-full flex items-center justify-center mb-3">
+                  <i className="fas fa-flag text-green-400 text-lg"></i>
+                </div>
+                <p className="text-sm font-medium text-gray-700 mb-1">No club linked</p>
+                <p className="text-xs text-gray-400">Club and team management is coming soon.</p>
               </div>
             </div>
           </div>
