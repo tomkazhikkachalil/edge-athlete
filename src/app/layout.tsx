@@ -23,25 +23,10 @@ export default function RootLayout({
   return (
     <html lang="en" className={inter.variable}>
       <head>
-        <script src="https://cdn.tailwindcss.com" async></script>
-        <script
-          dangerouslySetInnerHTML={{
-            __html: `
-              tailwind.config = {
-                theme: {
-                  extend: {
-                    fontFamily: {
-                      sans: ['var(--font-inter)', 'sans-serif']
-                    }
-                  }
-                }
-              };
-            `,
-          }}
-        />
         <link
           rel="stylesheet"
           href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"
+          crossOrigin="anonymous"
         />
       </head>
       <body className={`${inter.className} antialiased`}>
