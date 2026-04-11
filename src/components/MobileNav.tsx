@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth';
+import { useMessages } from '@/lib/messages';
 import { formatDisplayName, getInitials } from '@/lib/formatters';
 import { AvatarImage } from '@/components/OptimizedImage';
 
@@ -10,6 +11,7 @@ export default function MobileNav() {
   const [isOpen, setIsOpen] = useState(false);
   const router = useRouter();
   const { profile, signOut } = useAuth();
+  const { totalUnreadCount } = useMessages();
 
   const handleSignOut = async () => {
     await signOut();
@@ -114,6 +116,24 @@ export default function MobileNav() {
             >
               <i className="fas fa-user w-5 text-center"></i>
               <span className="font-medium">Profile</span>
+            </button>
+
+            <button
+              onClick={() => {
+                router.push('/messages');
+                setIsOpen(false);
+              }}
+              className="flex items-center gap-3 w-full px-4 py-3 text-left text-gray-700 hover:bg-blue-50 hover:text-blue-600 rounded-lg transition-colors"
+            >
+              <div className="relative w-5 flex justify-center">
+                <i className="fas fa-comment-alt text-center"></i>
+                {totalUnreadCount > 0 && (
+                  <span className="absolute -top-1.5 -right-2 inline-flex items-center justify-center min-w-[16px] h-4 text-xs font-bold text-white bg-red-600 rounded-full px-0.5">
+                    {totalUnreadCount > 99 ? '99+' : totalUnreadCount}
+                  </span>
+                )}
+              </div>
+              <span className="font-medium">Messages</span>
             </button>
 
             <button

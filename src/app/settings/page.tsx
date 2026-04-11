@@ -6,9 +6,10 @@ import { useRouter } from 'next/navigation';
 import AppHeader from '@/components/AppHeader';
 import AccountSettings from '@/components/settings/AccountSettings';
 import PrivacySettings from '@/components/settings/PrivacySettings';
+import MessagingSettings from '@/components/settings/MessagingSettings';
 import EditProfileTabs from '@/components/EditProfileTabs';
 
-type SettingsTab = 'account' | 'privacy' | 'notifications' | 'security';
+type SettingsTab = 'account' | 'privacy' | 'messaging' | 'notifications' | 'security';
 
 export default function SettingsPage() {
   const { user, profile, loading } = useAuth();
@@ -41,6 +42,7 @@ export default function SettingsPage() {
   const tabs: { id: SettingsTab; label: string; icon: string; disabled?: boolean }[] = [
     { id: 'account', label: 'Account', icon: 'fa-user-cog' },
     { id: 'privacy', label: 'Privacy', icon: 'fa-shield-alt' },
+    { id: 'messaging', label: 'Messaging', icon: 'fa-comment-alt' },
     { id: 'notifications', label: 'Notifications', icon: 'fa-bell', disabled: true },
     { id: 'security', label: 'Security', icon: 'fa-lock', disabled: true },
   ];
@@ -98,6 +100,7 @@ export default function SettingsPage() {
               <AccountSettings onEditProfile={() => setIsEditProfileModalOpen(true)} />
             )}
             {activeTab === 'privacy' && <PrivacySettings />}
+            {activeTab === 'messaging' && <MessagingSettings />}
             {activeTab === 'notifications' && (
               <div className="text-center py-12">
                 <i className="fas fa-bell text-gray-300 text-5xl mb-4"></i>

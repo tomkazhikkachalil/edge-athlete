@@ -281,9 +281,6 @@ export default function AthleteProfilePage() {
                 {getInitials(formatDisplayName(profile.first_name, null, profile.last_name, profile.full_name))}
               </div>
             )}
-            <div className="absolute -bottom-2 -right-2 bg-green-500 text-white rounded-full w-14 h-14 flex items-center justify-center font-bold text-2xl">
-              85
-            </div>
           </div>
 
           <div className="flex-1">
@@ -298,40 +295,34 @@ export default function AthleteProfilePage() {
               </div>
 
               {/* Badges */}
-              <div className="flex gap-3 mt-2">
-                {badges.slice(0, 2).map((badge, index) => (
-                  <div
-                    key={badge.id}
-                    className={`${index === 0 ? 'bg-gradient-to-r from-blue-600 to-blue-700' : 'bg-gradient-to-r from-purple-600 to-purple-700'} text-white px-4 py-1.5 rounded-full font-semibold flex items-center`}
-                  >
-                    {badge.icon_url && (
-                      <LazyImage
-                        src={badge.icon_url}
-                        alt={`${badge.label} logo`}
-                        className="w-5 h-5 mr-2"
-                        width={20}
-                        height={20}
-                      />
-                    )}
-                    {badge.label}
-                  </div>
-                ))}
-                {badges.length === 0 && (
-                  <>
-                    <div className="bg-gradient-to-r from-blue-600 to-blue-700 text-white px-4 py-1.5 rounded-full font-semibold">
-                      Athlete
+              {badges.length > 0 && (
+                <div className="flex gap-3 mt-2 flex-wrap">
+                  {badges.slice(0, 2).map((badge, index) => (
+                    <div
+                      key={badge.id}
+                      className={`${index === 0 ? 'bg-gradient-to-r from-blue-600 to-blue-700' : 'bg-gradient-to-r from-purple-600 to-purple-700'} text-white px-4 py-1.5 rounded-full font-semibold flex items-center`}
+                    >
+                      {badge.icon_url && (
+                        <LazyImage
+                          src={badge.icon_url}
+                          alt={`${badge.label} logo`}
+                          className="w-5 h-5 mr-2"
+                          width={20}
+                          height={20}
+                        />
+                      )}
+                      {badge.label}
                     </div>
-                    <div className="bg-gradient-to-r from-purple-600 to-purple-700 text-white px-4 py-1.5 rounded-full font-semibold">
-                      Elite
-                    </div>
-                  </>
-                )}
-              </div>
+                  ))}
+                </div>
+              )}
             </div>
             
-            <p className="text-black font-semibold text-lg mb-6">
-              {profile.bio || 'Elite Multi-sport Athlete'}
-            </p>
+            {profile.bio && (
+              <p className="text-black font-semibold text-lg mb-6">
+                {profile.bio}
+              </p>
+            )}
 
             {/* Stats Grid */}
             <div className="grid grid-cols-5 gap-6 p-4 bg-gray-50 rounded-xl mb-6">
@@ -411,187 +402,9 @@ export default function AthleteProfilePage() {
               </div>
             </div>
 
-            {/* Sports Achievements Grid */}
-            <div className="grid grid-cols-4 gap-6">
-              {/* Sport-specific achievement cards will be populated based on profile.sport */}
-              <div className="bg-blue-50 rounded-xl p-5 border-2 border-blue-100 min-h-[160px] flex flex-col">
-                <div className="flex items-center mb-4">
-                  <i className="fa-solid fa-trophy text-blue-600 text-2xl mr-2"></i>
-                  <span className="font-bold text-blue-800 text-lg">
-                    {profile.sport || 'Primary Sport'}
-                  </span>
-                </div>
-                <div className="flex-1 flex items-center">
-                  <div className="flex items-center gap-3">
-                    <div className="w-8 h-8 bg-blue-200 rounded-full flex items-center justify-center">
-                      <i className="fa-solid fa-medal text-blue-600"></i>
-                    </div>
-                    <div>
-                      <p className="font-semibold text-black">Elite Level</p>
-                      <p className="text-sm text-black font-semibold">{profile.position || 'Position'}</p>
-                    </div>
-                  </div>
-                </div>
-              </div>
-              
-              <div className="bg-purple-50 rounded-xl p-5 border-2 border-purple-100 min-h-[160px] flex flex-col">
-                <div className="flex items-center mb-4">
-                  <i className="fa-solid fa-star text-purple-600 text-2xl mr-2"></i>
-                  <span className="font-bold text-purple-800 text-lg">Achievements</span>
-                </div>
-                <div className="flex-1 flex items-center">
-                  <div className="flex items-center gap-3">
-                    <div className="w-8 h-8 bg-purple-200 rounded-full flex items-center justify-center">
-                      <i className="fa-solid fa-trophy text-purple-600"></i>
-                    </div>
-                    <div>
-                      <p className="font-semibold text-black">{badges.length} Badges</p>
-                      <p className="text-sm text-black font-semibold">Earned</p>
-                    </div>
-                  </div>
-                </div>
-              </div>
-              
-              <div className="bg-green-50 rounded-xl p-5 border-2 border-green-100 min-h-[160px] flex flex-col">
-                <div className="flex items-center mb-4">
-                  <i className="fa-solid fa-chart-line text-green-600 text-2xl mr-2"></i>
-                  <span className="font-bold text-green-800 text-lg">Performance</span>
-                </div>
-                <div className="flex-1 flex items-center">
-                  <div className="flex items-center gap-3">
-                    <div className="w-8 h-8 bg-green-200 rounded-full flex items-center justify-center">
-                      <i className="fa-solid fa-trending-up text-green-600"></i>
-                    </div>
-                    <div>
-                      <p className="font-semibold text-black">Trending Up</p>
-                      <p className="text-sm text-black font-semibold">Season Stats</p>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              <div className="bg-yellow-50 rounded-xl p-5 border-2 border-yellow-100 min-h-[160px] flex flex-col">
-                <div className="flex items-center mb-4">
-                  <i className="fa-solid fa-star text-yellow-500 text-2xl mr-2"></i>
-                  <span className="font-bold text-yellow-800 text-lg">Elite Status</span>
-                </div>
-                <div className="flex-1 flex flex-col justify-center space-y-2">
-                  <div className="flex items-center gap-3">
-                    <i className="fa-solid fa-ranking-star text-yellow-500 text-lg"></i>
-                    <p className="font-semibold text-sm text-black">Top Performer</p>
-                  </div>
-                  <div className="flex items-center gap-3">
-                    <i className="fa-solid fa-medal text-yellow-500 text-lg"></i>
-                    <p className="font-semibold text-sm text-black">Multi-sport Excellence</p>
-                  </div>
-                  <div className="flex items-center gap-3">
-                    <i className="fa-solid fa-trophy text-yellow-500 text-lg"></i>
-                    <p className="font-semibold text-sm text-black">Championship Level</p>
-                  </div>
-                </div>
-              </div>
-            </div>
           </div>
         </div>
         </div>
-
-        {/* Season Highlights */}
-        <div className="bg-white rounded-lg shadow-md p-6 sm:p-8 mb-6">
-        <h2 className="text-xl font-bold text-black mb-6">2024-25 Season Highlights</h2>
-        <div className="grid grid-cols-3 gap-4">
-          <div className="bg-blue-50 rounded-xl p-5 border border-blue-100">
-            <div className="flex items-center justify-between mb-2">
-              <div className="flex items-center gap-2">
-                <i className="fa-solid fa-trophy text-blue-600 text-lg"></i>
-                <h3 className="text-base font-bold text-blue-800">
-                  {profile.sport || 'Primary Sport'}
-                </h3>
-              </div>
-              <div className="flex items-center gap-2">
-                <span className="text-xs bg-blue-200 text-blue-800 px-2 py-1 rounded-full">Elite</span>
-              </div>
-            </div>
-            <div className="grid grid-cols-2 gap-2 mb-2">
-              <div className="bg-white rounded-lg p-3 text-center">
-                <p className="text-xs text-gray-900 font-bold">Performance</p>
-                <p className="text-xl font-bold text-blue-700">--</p>
-              </div>
-              <div className="bg-white rounded-lg p-3 text-center">
-                <p className="text-xs text-gray-900 font-bold">Achievements</p>
-                <p className="text-xl font-bold text-blue-700">--</p>
-              </div>
-              <div className="bg-white rounded-lg p-3 text-center">
-                <p className="text-xs text-gray-900 font-bold">Games</p>
-                <p className="text-xl font-bold text-blue-700">--</p>
-              </div>
-              <div className="bg-white rounded-lg p-3 text-center">
-                <p className="text-xs text-gray-900 font-bold">Rating</p>
-                <p className="text-xl font-bold text-blue-700">85</p>
-              </div>
-            </div>
-          </div>
-
-          <div className="bg-purple-50 rounded-xl p-5 border border-purple-100">
-            <div className="flex items-center justify-between mb-2">
-              <div className="flex items-center gap-2">
-                <i className="fa-solid fa-medal text-purple-600 text-lg"></i>
-                <h3 className="text-base font-bold text-purple-800">Secondary</h3>
-              </div>
-              <div className="flex items-center gap-2">
-                <span className="text-xs bg-purple-200 text-purple-800 px-2 py-1 rounded-full">Active</span>
-              </div>
-            </div>
-            <div className="grid grid-cols-2 gap-2 mb-2">
-              <div className="bg-white rounded-lg p-3 text-center">
-                <p className="text-xs text-gray-900 font-bold">Stats</p>
-                <p className="text-xl font-bold text-purple-700">--</p>
-              </div>
-              <div className="bg-white rounded-lg p-3 text-center">
-                <p className="text-xs text-gray-900 font-bold">Records</p>
-                <p className="text-xl font-bold text-purple-700">--</p>
-              </div>
-              <div className="bg-white rounded-lg p-3 text-center">
-                <p className="text-xs text-gray-900 font-bold">Events</p>
-                <p className="text-xl font-bold text-purple-700">--</p>
-              </div>
-              <div className="bg-white rounded-lg p-3 text-center">
-                <p className="text-xs text-gray-900 font-bold">Rating</p>
-                <p className="text-xl font-bold text-purple-700">--</p>
-              </div>
-            </div>
-          </div>
-
-          <div className="bg-green-50 rounded-xl p-5 border border-green-100">
-            <div className="flex items-center justify-between mb-2">
-              <div className="flex items-center gap-2">
-                <i className="fa-solid fa-running text-green-600 text-lg"></i>
-                <h3 className="text-base font-bold text-green-800">Fitness</h3>
-              </div>
-              <div className="flex items-center gap-2">
-                <span className="text-xs bg-green-200 text-green-800 px-2 py-1 rounded-full">Training</span>
-              </div>
-            </div>
-            <div className="grid grid-cols-2 gap-2 mb-2">
-              <div className="bg-white rounded-lg p-3 text-center">
-                <p className="text-xs text-gray-900 font-bold">Endurance</p>
-                <p className="text-xl font-bold text-green-700">--</p>
-              </div>
-              <div className="bg-white rounded-lg p-3 text-center">
-                <p className="text-xs text-gray-900 font-bold">Strength</p>
-                <p className="text-xl font-bold text-green-700">--</p>
-              </div>
-              <div className="bg-white rounded-lg p-3 text-center">
-                <p className="text-xs text-gray-900 font-bold">Speed</p>
-                <p className="text-xl font-bold text-green-700">--</p>
-              </div>
-              <div className="bg-white rounded-lg p-3 text-center">
-                <p className="text-xs text-gray-900 font-bold">Overall</p>
-                <p className="text-xl font-bold text-green-700">--</p>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
 
       {/* Media Section with Segmented Tabs */}
       <div className="bg-white rounded-lg shadow-md p-6">

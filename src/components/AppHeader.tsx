@@ -7,6 +7,7 @@ import { formatDisplayName, getInitials } from '@/lib/formatters';
 import { getHandle } from '@/lib/profile-display';
 import { AvatarImage } from '@/components/OptimizedImage';
 import NotificationBell from '@/components/NotificationBell';
+import MessagesBell from '@/components/messages/MessagesBell';
 import AdvancedSearchBar from '@/components/AdvancedSearchBar';
 
 interface AppHeaderProps {
@@ -39,6 +40,7 @@ export default function AppHeader({ showSearch = true, onCreatePost, onEditProfi
   const isActivePath = (path: string) => {
     if (path === '/feed') return pathname === '/feed';
     if (path === '/athlete') return pathname === '/athlete' || pathname?.startsWith('/athlete/');
+    if (path === '/messages') return pathname === '/messages' || pathname?.startsWith('/messages/');
     if (path === '/notifications') return pathname === '/notifications';
     return pathname === path;
   };
@@ -46,6 +48,7 @@ export default function AppHeader({ showSearch = true, onCreatePost, onEditProfi
   const navLinks = [
     { path: '/feed', label: 'Feed', icon: 'fa-home' },
     { path: '/athlete', label: 'Profile', icon: 'fa-user' },
+    { path: '/messages', label: 'Messages', icon: 'fa-comment-alt' },
     { path: '/app/followers', label: 'Connections', icon: 'fa-user-friends', hideOnMobile: true },
   ];
 
@@ -87,6 +90,7 @@ export default function AppHeader({ showSearch = true, onCreatePost, onEditProfi
 
             {/* Right - Actions */}
             <div className="flex items-center gap-2 sm:gap-3">
+              <MessagesBell />
               <NotificationBell />
 
               <button
@@ -304,6 +308,21 @@ export default function AppHeader({ showSearch = true, onCreatePost, onEditProfi
                 <span className="font-medium">{link.label}</span>
               </button>
             ))}
+
+            <button
+              onClick={() => {
+                router.push('/messages');
+                setIsMobileMenuOpen(false);
+              }}
+              className={`flex items-center gap-3 w-full px-4 py-3 text-left rounded-lg transition-colors ${
+                isActivePath('/messages')
+                  ? 'bg-blue-50 text-blue-600'
+                  : 'text-gray-700 hover:bg-blue-50 hover:text-blue-600'
+              }`}
+            >
+              <i className="fas fa-comment-alt w-5 text-center"></i>
+              <span className="font-medium">Messages</span>
+            </button>
 
             <button
               onClick={handleCreatePost}

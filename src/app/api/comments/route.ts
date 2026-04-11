@@ -82,11 +82,11 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { postId, content, parentCommentId } = body;
+    const { postId, content, parentCommentId, gif_url } = body;
 
-    if (!postId || !content?.trim()) {
+    if (!postId || (!content?.trim() && !gif_url)) {
       return NextResponse.json(
-        { error: 'Post ID and content are required' },
+        { error: 'Post ID and content or GIF are required' },
         { status: 400 }
       );
     }
@@ -123,7 +123,8 @@ export async function POST(request: NextRequest) {
       .insert({
         post_id: postId,
         profile_id: profile.id,
-        content: content.trim(),
+        content: content?.trim() || null,
+        gif_url: gif_url || null,
         parent_comment_id: parentCommentId || null
       })
       .select(`

@@ -1,5 +1,61 @@
 # Development Log
 
+## April 11, 2026
+
+### MVP Messaging System
+
+Built a full real-time messaging layer — DMs, group chats, rich media sharing, typing indicators, and unread badges.
+
+**Database (`012_messaging.sql`):**
+- 5 new tables: `conversations`, `conversation_participants`, `messages`, `message_reactions`, `user_blocks`
+- `messaging_permission` column on `profiles` (`everyone` / `fans_only` / `mutual_fans` / `nobody`)
+- `is_conversation_participant()` SECURITY DEFINER helper powers all RLS policies
+- Trigger auto-bumps `conversations.updated_at` on every new message
+- Extended `notifications` type CHECK to include `new_message`
+
+**API (10 new routes):**
+- `GET/POST /api/messages` — list conversations, create DM or group (respects messaging permission)
+- `GET /api/messages/unread-count` — aggregate unread badge count
+- `GET /api/messages/[conversationId]` — cursor-paginated message history + participants
+- `POST /api/messages/[conversationId]/messages` — send message, fan-out notifications
+- `PATCH /api/messages/[conversationId]/read` — mark conversation read
+- `PATCH /api/messages/[conversationId]` — update group name / avatar / mute
+- `POST/DELETE /api/messages/[conversationId]/participants` — add/remove members
+- `DELETE /api/messages/[conversationId]/messages/[messageId]` — soft-delete
+- `POST /api/messages/block` — block user + close DM
+
+**New files:**
+- `src/lib/messages.tsx` — `MessagesProvider` with per-conversation Realtime subscriptions + 30s poll fallback
+- `src/types/messages.ts` — full TypeScript types for all messaging entities
+- `src/components/messages/` — `ConversationList`, `ConversationItem`, `ChatWindow` (flex-col-reverse + IntersectionObserver infinite scroll), `MessageBubble` (5 types + soft-delete), `MessageInput` (auto-resize textarea + file attach), `TypingIndicator` (broadcast channel, 3s auto-clear), `SharedPostPreview`, `SharedProfilePreview`, `NewConversationModal`, `GroupSettingsModal`, `MessagesBell`
+- `src/components/settings/MessagingSettings.tsx` — 4-option permission radio cards
+- `src/app/messages/page.tsx` — desktop split-pane (`?c=` param), mobile full-width list
+- `src/app/messages/[conversationId]/page.tsx` — mobile-primary, redirects to `?c=` on desktop
+
+**Modified:** `AppHeader`, `MobileNav`, `settings/page.tsx`, `layout.tsx`
+
+---
+
+### Emoji + GIF Picker
+
+Added emoji and GIF support to the message composer and post comment input.
+
+**New files:**
+- `src/components/EmojiPickerButton.tsx` — lazy-loaded picker, opens upward, inserts Unicode at cursor
+- `src/components/GifPicker.tsx` — debounced Giphy search, trending on open, 2-column grid, GIPHY attribution
+- `src/app/api/gifs/search/route.ts` — server-side Giphy proxy (API key never exposed to browser)
+- `database/migrations/013_comment_gif.sql` — adds `gif_url TEXT` column to `post_comments`
+
+**Modified:**
+- `MessageInput` — emoji + GIF buttons; GIFs use CDN URL directly, no upload needed
+- `CommentSection` — emoji + GIF toolbar; GIF-only comments supported; renders inline
+- `POST /api/comments` — accepts and persists `gif_url`
+- `Comment` interface — `content` made nullable; `gif_url?: string | null` added
+
+**DB fix:** `post_comments.content` dropped `NOT NULL` constraint to allow GIF-only comments.
+
+---
+
 ## April 8, 2026
 
 ### Vitals Tracking — Full Feature Build

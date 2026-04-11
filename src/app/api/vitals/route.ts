@@ -40,7 +40,20 @@ export async function GET(request: NextRequest) {
     const isPublic = profile.visibility === 'public';
 
     if (!isOwner && !isPublic) {
-      return NextResponse.json({ error: 'This profile is private' }, { status: 403 });
+      // Allow approved followers to view private profile vitals
+      if (!currentUserId) {
+        return NextResponse.json({ error: 'This profile is private' }, { status: 403 });
+      }
+      const { data: followRecord } = await supabase
+        .from('follows')
+        .select('id')
+        .eq('follower_id', currentUserId)
+        .eq('following_id', profileId)
+        .eq('status', 'accepted')
+        .maybeSingle();
+      if (!followRecord) {
+        return NextResponse.json({ error: 'This profile is private' }, { status: 403 });
+      }
     }
 
     // Fetch all vitals entries (immutable time-series, newest first)

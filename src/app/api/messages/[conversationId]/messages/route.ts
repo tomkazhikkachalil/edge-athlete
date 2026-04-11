@@ -1,0 +1,148 @@
+import { NextRequest, NextResponse } from 'next/server';
+import { requireAuth, getSupabaseAdmin } from '@/lib/auth-server';
+
+// ── POST /api/messages/[conversationId]/messages ──────────────────────────────
+// Send a message. Media must be pre-uploaded via /api/upload/post-media.
+export async function POST(
+  request: NextRequest,
+  { params }: { params: Promise<{ conversationId: string }> }
+) {
+  try {
+    const supabase = getSupabaseAdmin();
+    const user = await requireAuth(request);
+    const { conversationId } = await params;
+    const body = await request.json();
+    const { type, content, media_url, media_type, shared_post_id, shared_profile_id } = body;
+
+    if (!type) {
+      return NextResponse.json({ error: 'Message type is required' }, { status: 400 });
+    }
+
+    // Guard: verify user is an active participant
+    const { data: myParticipant } = await supabase
+      .from('conversation_participants')
+      .select('id')
+      .eq('conversation_id', conversationId)
+      .eq('profile_id', user.id)
+      .is('left_at', null)
+      .maybeSingle();
+
+    if (!myParticipant) {
+      return NextResponse.json({ error: 'Conversation not found' }, { status: 404 });
+    }
+
+    // Validate content by type
+    if (type === 'text' && !content?.trim()) {
+      return NextResponse.json({ error: 'Text content is required' }, { status: 400 });
+    }
+    if ((type === 'image' || type === 'video') && !media_url) {
+      return NextResponse.json({ error: 'media_url is required for media messages' }, { status: 400 });
+    }
+    if (type === 'shared_post' && !shared_post_id) {
+      return NextResponse.json({ error: 'shared_post_id is required' }, { status: 400 });
+    }
+    if (type === 'shared_profile' && !shared_profile_id) {
+      return NextResponse.json({ error: 'shared_profile_id is required' }, { status: 400 });
+    }
+
+    // Insert message
+    const { data: message, error: msgError } = await supabase
+      .from('messages')
+      .insert({
+        conversation_id: conversationId,
+        sender_id: user.id,
+        type,
+        content: content?.trim() || null,
+        media_url: media_url || null,
+        media_type: media_type || null,
+        shared_post_id: shared_post_id || null,
+        shared_profile_id: shared_profile_id || null,
+      })
+      .select(`
+        id,
+        conversation_id,
+        sender_id,
+        type,
+        content,
+        media_url,
+        media_type,
+        shared_post_id,
+        shared_profile_id,
+        deleted_at,
+        created_at,
+        updated_at,
+        sender:profiles!messages_sender_id_fkey (
+          id,
+          first_name,
+          last_name,
+          full_name,
+          avatar_url,
+          handle
+        )
+      `)
+      .single();
+
+    if (msgError || !message) {
+      console.error('POST /api/messages/[id]/messages insert error:', msgError);
+      return NextResponse.json({ error: 'Failed to send message' }, { status: 500 });
+    }
+
+    // Fan out notifications to non-muted, non-sender active participants
+    const { data: recipients } = await supabase
+      .from('conversation_participants')
+      .select('profile_id')
+      .eq('conversation_id', conversationId)
+      .neq('profile_id', user.id)
+      .eq('is_muted', false)
+      .is('left_at', null);
+
+    if (recipients && recipients.length > 0) {
+      // Get conversation name for notification context
+      const { data: conv } = await supabase
+        .from('conversations')
+        .select('type, name')
+        .eq('id', conversationId)
+        .single();
+
+      const { data: senderProfile } = await supabase
+        .from('profiles')
+        .select('first_name, last_name, full_name')
+        .eq('id', user.id)
+        .single();
+
+      const senderName = senderProfile?.full_name ||
+        [senderProfile?.first_name, senderProfile?.last_name].filter(Boolean).join(' ') ||
+        'Someone';
+
+      const notifTitle = conv?.type === 'group' && conv?.name
+        ? `New message in ${conv.name}`
+        : `${senderName} sent you a message`;
+
+      const notifMessage = type === 'text'
+        ? (content?.slice(0, 80) || '')
+        : type === 'image' ? 'Sent a photo'
+        : type === 'video' ? 'Sent a video'
+        : type === 'shared_post' ? 'Shared a post'
+        : 'Shared a profile';
+
+      const notifications = recipients.map(r => ({
+        user_id: r.profile_id,
+        type: 'new_message',
+        actor_id: user.id,
+        title: notifTitle,
+        message: notifMessage,
+        action_url: `/messages?c=${conversationId}`,
+        is_read: false,
+        metadata: { conversation_id: conversationId, message_id: message.id },
+      }));
+
+      await supabase.from('notifications').insert(notifications);
+    }
+
+    return NextResponse.json({ message }, { status: 201 });
+  } catch (error) {
+    if (error instanceof Response) return error;
+    console.error('POST /api/messages/[id]/messages error:', error);
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+  }
+}

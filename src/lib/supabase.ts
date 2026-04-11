@@ -171,7 +171,8 @@ export interface Comment {
   post_id: string;
   profile_id: string;
   parent_comment_id?: string;
-  content: string;
+  content: string | null;
+  gif_url?: string | null;
   created_at: string;
   updated_at: string;
   likes_count?: number;

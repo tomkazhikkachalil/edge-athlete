@@ -1,10 +1,12 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import Image from 'next/image';
 import { Comment } from '@/lib/supabase';
 import { useAuth } from '@/lib/auth';
 import { formatDisplayName, getInitials } from '@/lib/formatters';
+import EmojiPickerButton from '@/components/EmojiPickerButton';
+import GifPicker from '@/components/GifPicker';
 
 interface CommentSectionProps {
   postId: string;
@@ -17,11 +19,14 @@ export default function CommentSection({ postId, initialCommentsCount = 0, onCom
   const [comments, setComments] = useState<Comment[]>([]);
   const [commentsCount, setCommentsCount] = useState(initialCommentsCount);
   const [newComment, setNewComment] = useState('');
+  const [gifUrl, setGifUrl] = useState<string | null>(null);
+  const [showGifPicker, setShowGifPicker] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showComments, setShowComments] = useState(false);
   const [error, setError] = useState('');
   const [likingComments, setLikingComments] = useState<Set<string>>(new Set());
+  const commentInputRef = useRef<HTMLInputElement>(null);
 
   const fetchComments = useCallback(async () => {
     setIsLoading(true);
@@ -54,9 +59,28 @@ export default function CommentSection({ postId, initialCommentsCount = 0, onCom
     setCommentsCount(initialCommentsCount);
   }, [initialCommentsCount]);
 
+  const handleEmojiSelect = (emoji: string) => {
+    const input = commentInputRef.current;
+    const pos = input?.selectionStart ?? newComment.length;
+    const next = newComment.slice(0, pos) + emoji + newComment.slice(pos);
+    setNewComment(next);
+    requestAnimationFrame(() => {
+      if (input) {
+        input.focus();
+        input.setSelectionRange(pos + emoji.length, pos + emoji.length);
+      }
+    });
+  };
+
+  const handleGifSelect = (url: string) => {
+    setGifUrl(url);
+    setShowGifPicker(false);
+  };
+
   const handleSubmitComment = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newComment.trim() || !user) return;
+    if (!newComment.trim() && !gifUrl) return;
+    if (!user) return;
 
     setIsSubmitting(true);
     setError('');
@@ -66,7 +90,8 @@ export default function CommentSection({ postId, initialCommentsCount = 0, onCom
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           postId,
-          content: newComment.trim()
+          content: newComment.trim() || null,
+          gif_url: gifUrl || null,
         })
       });
 
@@ -76,6 +101,7 @@ export default function CommentSection({ postId, initialCommentsCount = 0, onCom
       const updatedComments = [...comments, data.comment];
       setComments(updatedComments);
       setNewComment('');
+      setGifUrl(null);
 
       // Update local count and notify parent
       const newCount = updatedComments.length;
@@ -185,8 +211,45 @@ export default function CommentSection({ postId, initialCommentsCount = 0, onCom
           {/* Comment input */}
           {user && (
             <form onSubmit={handleSubmitComment} className="mb-4">
-              <div className="flex gap-2">
+              {/* GIF preview */}
+              {gifUrl && (
+                <div className="relative inline-block mb-2">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={gifUrl} alt="GIF" className="h-20 rounded-lg border border-gray-200 object-cover" />
+                  <button
+                    type="button"
+                    onClick={() => setGifUrl(null)}
+                    className="absolute -top-1.5 -right-1.5 w-5 h-5 bg-red-500 text-white rounded-full flex items-center justify-center hover:bg-red-600"
+                  >
+                    <i className="fas fa-times text-xs"></i>
+                  </button>
+                </div>
+              )}
+              <div className="flex items-center gap-1">
+                {/* Emoji picker */}
+                <div className="relative shrink-0">
+                  <EmojiPickerButton onEmojiSelect={handleEmojiSelect} />
+                </div>
+                {/* GIF picker */}
+                <div className="relative shrink-0">
+                  <button
+                    type="button"
+                    onClick={() => setShowGifPicker(prev => !prev)}
+                    disabled={isSubmitting}
+                    className="p-2 text-gray-400 hover:text-blue-500 transition-colors disabled:opacity-40 text-xs font-bold"
+                    title="Add a GIF"
+                  >
+                    GIF
+                  </button>
+                  {showGifPicker && (
+                    <GifPicker
+                      onGifSelect={handleGifSelect}
+                      onClose={() => setShowGifPicker(false)}
+                    />
+                  )}
+                </div>
                 <input
+                  ref={commentInputRef}
                   type="text"
                   value={newComment}
                   onChange={(e) => setNewComment(e.target.value)}
@@ -196,8 +259,8 @@ export default function CommentSection({ postId, initialCommentsCount = 0, onCom
                 />
                 <button
                   type="submit"
-                  disabled={!newComment.trim() || isSubmitting}
-                  className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                  disabled={(!newComment.trim() && !gifUrl) || isSubmitting}
+                  className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors shrink-0"
                 >
                   {isSubmitting ? 'Posting...' : 'Post'}
                 </button>
@@ -279,9 +342,20 @@ export default function CommentSection({ postId, initialCommentsCount = 0, onCom
                           </button>
                         )}
                       </div>
-                      <p className="text-sm text-gray-800 whitespace-pre-wrap break-words">
-                        {comment.content}
-                      </p>
+                      {comment.content && (
+                        <p className="text-sm text-gray-800 whitespace-pre-wrap break-words">
+                          {comment.content}
+                        </p>
+                      )}
+                      {comment.gif_url && (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img
+                          src={comment.gif_url}
+                          alt="GIF"
+                          className="mt-1 rounded-lg max-h-40 max-w-xs"
+                          loading="lazy"
+                        />
+                      )}
                     </div>
                     <div className="mt-1 px-3 flex items-center gap-3 text-xs text-gray-500">
                       <span>{formatTimeAgo(comment.created_at)}</span>

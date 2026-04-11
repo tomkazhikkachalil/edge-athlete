@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Inter } from 'next/font/google';
 import { AuthProvider } from "@/lib/auth";
 import { NotificationsProvider } from "@/lib/notifications";
+import { MessagesProvider } from "@/lib/messages";
 import "./globals.css";
 
 const inter = Inter({
@@ -32,7 +33,9 @@ export default function RootLayout({
       <body className={`${inter.className} antialiased`}>
         <AuthProvider>
           <NotificationsProvider>
-            {children}
+            <MessagesProvider>
+              {children}
+            </MessagesProvider>
           </NotificationsProvider>
         </AuthProvider>
       </body>
