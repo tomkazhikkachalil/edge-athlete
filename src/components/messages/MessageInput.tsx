@@ -1,9 +1,10 @@
 'use client';
 
-import { useState, useRef, useCallback } from 'react';
+import { useState, useRef, useCallback, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
 import EmojiPickerButton from '@/components/EmojiPickerButton';
-import GifPicker from '@/components/GifPicker';
+import GifPickerModal from '@/components/GifPickerModal';
+import { formatDisplayName } from '@/lib/formatters';
 import type { Message } from '@/types/messages';
 
 interface Props {
@@ -11,11 +12,13 @@ interface Props {
   currentUserId: string;
   onSend: (message: Message) => void;
   disabled?: boolean;
+  replyingTo?: Message | null;
+  onCancelReply?: () => void;
 }
 
 const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50MB
 
-export default function MessageInput({ conversationId, currentUserId, onSend, disabled }: Props) {
+export default function MessageInput({ conversationId, currentUserId, onSend, disabled, replyingTo, onCancelReply }: Props) {
   const [text, setText] = useState('');
   const [attachedFile, setAttachedFile] = useState<File | null>(null);
   const [attachedPreview, setAttachedPreview] = useState<string | null>(null);
@@ -28,6 +31,13 @@ export default function MessageInput({ conversationId, currentUserId, onSend, di
   const typingChannelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
   const typingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  // Autofocus textarea when entering reply mode
+  useEffect(() => {
+    if (replyingTo && textareaRef.current) {
+      textareaRef.current.focus();
+    }
+  }, [replyingTo]);
 
   // Broadcast typing indicator
   const broadcastTyping = useCallback(() => {
@@ -167,6 +177,7 @@ export default function MessageInput({ conversationId, currentUserId, onSend, di
       const body: Record<string, unknown> = { type: msgType };
       if (text.trim()) body.content = text.trim();
       if (mediaUrl) { body.media_url = mediaUrl; body.media_type = mediaType; }
+      if (replyingTo) body.parent_message_id = replyingTo.id;
 
       const res = await fetch(`/api/messages/${conversationId}/messages`, {
         method: 'POST',
@@ -185,6 +196,7 @@ export default function MessageInput({ conversationId, currentUserId, onSend, di
       // Reset
       setText('');
       removeAttachment();
+      onCancelReply?.();
       if (textareaRef.current) textareaRef.current.style.height = 'auto';
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to send message');
@@ -195,8 +207,72 @@ export default function MessageInput({ conversationId, currentUserId, onSend, di
 
   const canSend = (text.trim().length > 0 || attachedFile !== null || gifUrl !== null) && !sending && !disabled;
 
+  const replyingSenderName = replyingTo?.sender
+    ? formatDisplayName(replyingTo.sender.first_name, null, replyingTo.sender.last_name, replyingTo.sender.full_name)
+    : '';
+
+  const replyPreviewText = replyingTo
+    ? (replyingTo.content
+        ? (replyingTo.content.length > 80 ? replyingTo.content.slice(0, 80) + '…' : replyingTo.content)
+        : replyingTo.type === 'image' ? 'Photo'
+        : replyingTo.type === 'video' ? 'Video'
+        : replyingTo.type === 'gif_reaction' ? 'GIF'
+        : replyingTo.type === 'shared_post'
+          ? (replyingTo.shared_post?.caption
+              ? (replyingTo.shared_post.caption.length > 50 ? replyingTo.shared_post.caption.slice(0, 50) + '…' : replyingTo.shared_post.caption)
+              : 'Shared a post')
+        : replyingTo.type === 'shared_profile' ? 'Shared a profile'
+        : 'Message')
+    : '';
+
+  // Determine the best thumbnail for the reply preview
+  const replyThumbnailUrl = replyingTo
+    ? (replyingTo.media_url && (replyingTo.type === 'image' || replyingTo.media_type === 'image' || replyingTo.type === 'gif_reaction')
+        ? replyingTo.media_url
+        : replyingTo.type === 'shared_post' && replyingTo.shared_post?.media?.[0]?.media_type === 'image'
+          ? replyingTo.shared_post.media[0].media_url
+          : replyingTo.type === 'shared_profile' && replyingTo.shared_profile?.avatar_url
+            ? replyingTo.shared_profile.avatar_url
+            : null)
+    : null;
+
   return (
-    <div className="border-t border-gray-200 bg-white px-4 py-3">
+    <div className="border-t border-gray-200 bg-white">
+      {/* Reply preview bar */}
+      {replyingTo && (
+        <div className="flex items-center gap-2 px-4 py-2 bg-gray-50 border-b border-gray-200">
+          <div className="w-1 h-8 bg-blue-500 rounded-full shrink-0" />
+          <div className="flex-1 min-w-0">
+            <p className="text-xs font-semibold text-blue-600 truncate">
+              Replying to {replyingSenderName}
+            </p>
+            <p className="text-xs text-gray-500 truncate">{replyPreviewText}</p>
+          </div>
+          {replyThumbnailUrl && (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={replyThumbnailUrl}
+              alt=""
+              className="w-10 h-10 rounded object-cover shrink-0"
+            />
+          )}
+          {replyingTo.type === 'video' && !replyThumbnailUrl && (
+            <div className="w-10 h-10 bg-gray-800 rounded flex items-center justify-center shrink-0">
+              <i className="fas fa-play-circle text-white text-sm"></i>
+            </div>
+          )}
+          <button
+            type="button"
+            onClick={onCancelReply}
+            className="shrink-0 p-1 text-gray-400 hover:text-gray-600 transition-colors"
+            title="Cancel reply"
+          >
+            <i className="fas fa-times text-sm"></i>
+          </button>
+        </div>
+      )}
+
+      <div className="px-4 py-3">
       {/* Attachment preview */}
       {attachedPreview && (
         <div className="mb-2 relative inline-block">
@@ -230,24 +306,23 @@ export default function MessageInput({ conversationId, currentUserId, onSend, di
         </div>
 
         {/* GIF picker */}
-        <div className="relative shrink-0">
-          <button
-            type="button"
-            onClick={() => setShowGifPicker(prev => !prev)}
-            disabled={disabled || sending}
-            className="p-2 text-gray-400 hover:text-blue-500 transition-colors disabled:opacity-40 text-xs font-bold"
-            aria-label="Send GIF"
+        <button
+          type="button"
+          onClick={() => setShowGifPicker(prev => !prev)}
+          disabled={disabled || sending}
+          className="shrink-0 p-2 text-gray-400 hover:text-blue-500 transition-colors disabled:opacity-40 text-xs font-bold"
+          aria-label="Send GIF"
+          title="Send a GIF"
+        >
+          GIF
+        </button>
+        {showGifPicker && (
+          <GifPickerModal
             title="Send a GIF"
-          >
-            GIF
-          </button>
-          {showGifPicker && (
-            <GifPicker
-              onGifSelect={handleGifSelect}
-              onClose={() => setShowGifPicker(false)}
-            />
-          )}
-        </div>
+            onGifSelect={handleGifSelect}
+            onClose={() => setShowGifPicker(false)}
+          />
+        )}
 
         {/* Attachment button */}
         <button
@@ -274,7 +349,7 @@ export default function MessageInput({ conversationId, currentUserId, onSend, di
           value={text}
           onChange={handleTextChange}
           onKeyDown={handleKeyDown}
-          placeholder="Message…"
+          placeholder={replyingTo ? 'Reply…' : 'Message…'}
           rows={1}
           disabled={disabled || sending}
           className="flex-1 resize-none border border-gray-300 rounded-2xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-40 overflow-hidden"
@@ -295,6 +370,7 @@ export default function MessageInput({ conversationId, currentUserId, onSend, di
             <i className="fas fa-paper-plane text-sm"></i>
           )}
         </button>
+      </div>
       </div>
     </div>
   );

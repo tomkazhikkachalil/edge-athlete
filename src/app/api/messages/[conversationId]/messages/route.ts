@@ -12,7 +12,7 @@ export async function POST(
     const user = await requireAuth(request);
     const { conversationId } = await params;
     const body = await request.json();
-    const { type, content, media_url, media_type, shared_post_id, shared_profile_id } = body;
+    const { type, content, media_url, media_type, shared_post_id, shared_profile_id, parent_message_id } = body;
 
     if (!type) {
       return NextResponse.json({ error: 'Message type is required' }, { status: 400 });
@@ -44,6 +44,28 @@ export async function POST(
     if (type === 'shared_profile' && !shared_profile_id) {
       return NextResponse.json({ error: 'shared_profile_id is required' }, { status: 400 });
     }
+    if (type === 'gif_reaction') {
+      if (!media_url) {
+        return NextResponse.json({ error: 'media_url is required for gif_reaction' }, { status: 400 });
+      }
+      if (!parent_message_id) {
+        return NextResponse.json({ error: 'parent_message_id is required for gif_reaction' }, { status: 400 });
+      }
+    }
+
+    // Validate parent_message_id if provided (replies + gif_reactions)
+    if (parent_message_id) {
+      const { data: parentMsg } = await supabase
+        .from('messages')
+        .select('id')
+        .eq('id', parent_message_id)
+        .eq('conversation_id', conversationId)
+        .is('deleted_at', null)
+        .maybeSingle();
+      if (!parentMsg) {
+        return NextResponse.json({ error: 'Parent message not found' }, { status: 404 });
+      }
+    }
 
     // Insert message
     const { data: message, error: msgError } = await supabase
@@ -57,6 +79,7 @@ export async function POST(
         media_type: media_type || null,
         shared_post_id: shared_post_id || null,
         shared_profile_id: shared_profile_id || null,
+        parent_message_id: parent_message_id || null,
       })
       .select(`
         id,
@@ -68,6 +91,7 @@ export async function POST(
         media_type,
         shared_post_id,
         shared_profile_id,
+        parent_message_id,
         deleted_at,
         created_at,
         updated_at,
@@ -123,6 +147,7 @@ export async function POST(
         : type === 'image' ? 'Sent a photo'
         : type === 'video' ? 'Sent a video'
         : type === 'shared_post' ? 'Shared a post'
+        : type === 'gif_reaction' ? 'Reacted with a GIF'
         : 'Shared a profile';
 
       const notifications = recipients.map(r => ({

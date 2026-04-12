@@ -1,5 +1,5 @@
 export type ConversationType = 'direct' | 'group';
-export type MessageType = 'text' | 'image' | 'video' | 'shared_post' | 'shared_profile';
+export type MessageType = 'text' | 'image' | 'video' | 'shared_post' | 'shared_profile' | 'gif_reaction';
 export type ParticipantRole = 'admin' | 'member';
 export type MessagingPermission = 'everyone' | 'fans_only' | 'mutual_fans' | 'nobody';
 
@@ -43,6 +43,25 @@ export interface SharedProfilePreviewData {
   sport: string | null;
 }
 
+export interface AggregatedReaction {
+  emoji: string;
+  count: number;
+  reacted: boolean; // whether current user reacted with this emoji
+}
+
+export interface ReplyPreview {
+  id: string;
+  sender_id: string;
+  sender_name: string;
+  type: MessageType;
+  content: string | null;
+  media_url: string | null;
+  deleted_at: string | null;
+  // Rich preview data (populated for specific types)
+  shared_post?: SharedPostPreviewData | null;
+  shared_profile?: SharedProfilePreviewData | null;
+}
+
 export interface Message {
   id: string;
   conversation_id: string;
@@ -53,12 +72,16 @@ export interface Message {
   media_type: 'image' | 'video' | null;
   shared_post_id: string | null;
   shared_profile_id: string | null;
+  parent_message_id: string | null;
   deleted_at: string | null;
   created_at: string;
   updated_at: string;
   sender: ParticipantProfile;
   shared_post?: SharedPostPreviewData | null;
   shared_profile?: SharedProfilePreviewData | null;
+  reactions?: AggregatedReaction[];
+  gif_reactions?: Message[];
+  reply_to?: ReplyPreview | null;
 }
 
 export interface Conversation {

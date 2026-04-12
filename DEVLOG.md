@@ -1,5 +1,29 @@
 # Development Log
 
+## April 12, 2026
+
+### Flat Chat Flow — Replace Threaded Replies with Linear Conversation
+
+Replaced the Reddit-style threaded reply timeline (vertical lines, dots, nested ThreadItem components) with a compact single-line "replying to" reference bar. Replies now render as a natural flat chat stream instead of structured nested threads.
+
+**QuotedReply rewrite (`src/components/messages/QuotedReply.tsx`):**
+- Replaced ~280-line timeline renderer with ~75-line compact reference bar
+- Removed ThreadItem, SharedPostCompact, SharedProfileCompact sub-components
+- Single clickable row: `border-l-2` accent + optional thumbnail + "SenderName: snippet"
+- Type-aware snippets: text (60 chars), Photo, Video, GIF, post captions, profile names
+- Own messages: `bg-blue-700/30 border-blue-300`; others: `bg-gray-100 border-gray-400`
+- Click still scrolls to and highlights the original message
+
+**Ancestor chain removal (full stack):**
+- `MessageBubble.tsx`: Removed `replyChain`/`currentUserId` props from QuotedReply call
+- `ChatWindow.tsx`: Removed `ancestorChain` construction in `handleSend`
+- `route.ts` (messages API): Removed ancestor walk loop (0-4 sequential DB queries per page load), `parent_message_id` from parent query/map, `reply_chain` from response
+- `types/messages.ts`: Removed `reply_chain` field from `Message` interface
+
+**What stays:** `reply_to` (immediate parent reference), `parent_message_id` (reply targeting), all reaction systems (emoji, GIF), reply button + reply mode, scroll-to-message, rich shared_post/shared_profile data on `reply_to`.
+
+---
+
 ## April 11, 2026 (Session 2)
 
 ### Threaded Comments with Pinning & Smart Sort

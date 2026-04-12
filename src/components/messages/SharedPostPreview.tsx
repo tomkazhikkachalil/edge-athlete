@@ -1,6 +1,5 @@
 'use client';
 
-import { useRouter } from 'next/navigation';
 import LazyImage from '@/components/LazyImage';
 import { formatDisplayName, getInitials } from '@/lib/formatters';
 import type { SharedPostPreviewData } from '@/types/messages';
@@ -11,7 +10,6 @@ interface Props {
 }
 
 export default function SharedPostPreview({ post, onClick }: Props) {
-  const router = useRouter();
   const thumbnail = post.media?.[0];
   const authorName = formatDisplayName(
     post.profile?.first_name,
@@ -21,11 +19,7 @@ export default function SharedPostPreview({ post, onClick }: Props) {
   );
 
   const handleClick = () => {
-    if (onClick) {
-      onClick();
-    } else {
-      router.push(`/feed`);
-    }
+    onClick?.();
   };
 
   return (
@@ -35,19 +29,22 @@ export default function SharedPostPreview({ post, onClick }: Props) {
       className="w-full text-left rounded-lg border border-gray-200 bg-gray-50 hover:bg-gray-100 transition-colors overflow-hidden"
     >
       {thumbnail && (
-        <div className="w-full h-32 bg-gray-200 overflow-hidden">
+        <div className="w-full bg-gray-200 overflow-hidden">
           {thumbnail.media_type === 'image' ? (
             <LazyImage
               src={thumbnail.media_url}
               alt="Post media"
-              className="w-full h-full object-cover"
+              className="w-full h-auto max-h-80 object-contain"
               width={320}
-              height={128}
+              height={320}
             />
           ) : (
-            <div className="w-full h-full flex items-center justify-center bg-gray-800">
-              <i className="fas fa-play-circle text-white text-3xl"></i>
-            </div>
+            <video
+              src={thumbnail.media_url}
+              className="w-full max-h-80"
+              controls
+              onClick={(e) => e.stopPropagation()}
+            />
           )}
         </div>
       )}

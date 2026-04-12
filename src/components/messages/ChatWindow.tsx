@@ -11,7 +11,9 @@ import MessageBubble from './MessageBubble';
 import MessageInput from './MessageInput';
 import TypingIndicator from './TypingIndicator';
 import GroupSettingsModal from './GroupSettingsModal';
-import type { Message, Conversation } from '@/types/messages';
+import PostDetailModal from '@/components/PostDetailModal';
+import GifPickerModal from '@/components/GifPickerModal';
+import type { Message, Conversation, AggregatedReaction } from '@/types/messages';
 
 interface Props {
   conversationId: string;
@@ -31,11 +33,16 @@ export default function ChatWindow({ conversationId, onBack }: Props) {
   const [loadingMore, setLoadingMore] = useState(false);
   const [showMenu, setShowMenu] = useState(false);
   const [showGroupSettings, setShowGroupSettings] = useState(false);
+  const [viewingPostId, setViewingPostId] = useState<string | null>(null);
+  const [gifReactingMessageId, setGifReactingMessageId] = useState<string | null>(null);
+  const [replyingTo, setReplyingTo] = useState<Message | null>(null);
+  const replyingToRef = useRef<Message | null>(null);
   const [error, setError] = useState('');
 
   const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
   const sentinelRef = useRef<HTMLDivElement | null>(null);
   const menuRef = useRef<HTMLDivElement>(null);
+  const messageRefsMap = useRef<Map<string, HTMLDivElement>>(new Map());
 
   const currentUserId = user?.id ?? '';
 
@@ -90,7 +97,31 @@ export default function ChatWindow({ conversationId, onBack }: Props) {
         },
         async (payload: { new: unknown }) => {
           const newMsg = payload.new as Message;
-          // Fetch the full message with sender profile
+
+          // GIF reaction: attach to parent's gif_reactions instead of top-level list
+          if (newMsg.type === 'gif_reaction' && newMsg.parent_message_id) {
+            // Fetch full message with sender profile
+            const res = await fetch(`/api/messages/${conversationId}?limit=1`);
+            if (res.ok) {
+              const d = await res.json();
+              const parentMsg = (d.messages as Message[]).find(m => m.id === newMsg.parent_message_id);
+              const gifReaction = parentMsg?.gif_reactions?.find(gr => gr.id === newMsg.id) ?? newMsg;
+              setMessages(prev => prev.map(m =>
+                m.id === newMsg.parent_message_id
+                  ? { ...m, gif_reactions: [...(m.gif_reactions || []), gifReaction] }
+                  : m
+              ));
+            } else {
+              setMessages(prev => prev.map(m =>
+                m.id === newMsg.parent_message_id
+                  ? { ...m, gif_reactions: [...(m.gif_reactions || []), newMsg] }
+                  : m
+              ));
+            }
+            return;
+          }
+
+          // Regular message: fetch full and prepend
           const res = await fetch(`/api/messages/${conversationId}?limit=1`);
           if (res.ok) {
             const d = await res.json();
@@ -124,6 +155,23 @@ export default function ChatWindow({ conversationId, onBack }: Props) {
           setMessages(prev => prev.map(m => m.id === updated.id ? { ...m, ...updated } : m));
         }
       )
+      // Listen for reaction_update broadcasts (emoji reactions from other users)
+      .on('broadcast', { event: 'reaction_update' }, (payload: { payload: { message_id: string; reactions: AggregatedReaction[] } }) => {
+        const { message_id, reactions } = payload.payload;
+        // Search top-level AND nested gif_reactions
+        setMessages(prev => prev.map(m => {
+          if (m.id === message_id) return { ...m, reactions };
+          if (m.gif_reactions?.some(gr => gr.id === message_id)) {
+            return {
+              ...m,
+              gif_reactions: m.gif_reactions.map(gr =>
+                gr.id === message_id ? { ...gr, reactions } : gr
+              ),
+            };
+          }
+          return m;
+        }));
+      })
       .subscribe();
 
     channelRef.current = channel;
@@ -170,11 +218,35 @@ export default function ChatWindow({ conversationId, onBack }: Props) {
   }, [conversationId, nextCursor, loadingMore]);
 
   const handleSend = useCallback((message: Message) => {
+    // Enrich with reply_to if this was a reply
+    const replyTarget = replyingToRef.current;
+    let enriched = message;
+    if (message.parent_message_id && replyTarget && replyTarget.id === message.parent_message_id) {
+      const senderName = replyTarget.sender
+        ? (replyTarget.sender.full_name
+          || [replyTarget.sender.first_name, replyTarget.sender.last_name].filter(Boolean).join(' ')
+          || 'Unknown')
+        : 'Unknown';
+      enriched = {
+        ...message,
+        reply_to: {
+          id: replyTarget.id,
+          sender_id: replyTarget.sender_id,
+          sender_name: senderName,
+          type: replyTarget.type,
+          content: replyTarget.content,
+          media_url: replyTarget.media_url,
+          deleted_at: replyTarget.deleted_at,
+          shared_post: replyTarget.shared_post ?? null,
+          shared_profile: replyTarget.shared_profile ?? null,
+        },
+      };
+    }
     setMessages(prev => {
-      if (prev.some(m => m.id === message.id)) return prev;
-      return [message, ...prev];
+      if (prev.some(m => m.id === enriched.id)) return prev;
+      return [enriched, ...prev];
     });
-    addOptimisticMessage(conversationId, message);
+    addOptimisticMessage(conversationId, enriched);
   }, [conversationId, addOptimisticMessage]);
 
   const handleDeleteMessage = useCallback(async (messageId: string) => {
@@ -189,6 +261,166 @@ export default function ChatWindow({ conversationId, onBack }: Props) {
       // ignore
     }
   }, [conversationId]);
+
+  // Helper: update reactions on a message, searching top-level AND nested gif_reactions
+  const updateMessageReactions = useCallback(
+    (messageId: string, updater: (reactions: AggregatedReaction[]) => AggregatedReaction[]) => {
+      setMessages(prev => prev.map(m => {
+        // Check top-level message
+        if (m.id === messageId) {
+          return { ...m, reactions: updater([...(m.reactions || [])]) };
+        }
+        // Check nested gif_reactions
+        if (m.gif_reactions?.some(gr => gr.id === messageId)) {
+          return {
+            ...m,
+            gif_reactions: m.gif_reactions.map(gr =>
+              gr.id === messageId
+                ? { ...gr, reactions: updater([...(gr.reactions || [])]) }
+                : gr
+            ),
+          };
+        }
+        return m;
+      }));
+    },
+    []
+  );
+
+  // Helper: set reactions to an exact value (for authoritative server updates)
+  const setMessageReactions = useCallback(
+    (messageId: string, reactions: AggregatedReaction[]) => {
+      setMessages(prev => prev.map(m => {
+        if (m.id === messageId) return { ...m, reactions };
+        if (m.gif_reactions?.some(gr => gr.id === messageId)) {
+          return {
+            ...m,
+            gif_reactions: m.gif_reactions.map(gr =>
+              gr.id === messageId ? { ...gr, reactions } : gr
+            ),
+          };
+        }
+        return m;
+      }));
+    },
+    []
+  );
+
+  // Toggle emoji reaction on a message (works for top-level AND gif_reaction messages)
+  const handleToggleReaction = useCallback(async (messageId: string, emoji: string) => {
+    // Optimistic update
+    updateMessageReactions(messageId, (reactions) => {
+      const idx = reactions.findIndex(r => r.emoji === emoji);
+      if (idx >= 0) {
+        const r = reactions[idx];
+        if (r.reacted) {
+          if (r.count <= 1) {
+            reactions.splice(idx, 1);
+          } else {
+            reactions[idx] = { ...r, count: r.count - 1, reacted: false };
+          }
+        } else {
+          reactions[idx] = { ...r, count: r.count + 1, reacted: true };
+        }
+      } else {
+        reactions.push({ emoji, count: 1, reacted: true });
+      }
+      return reactions;
+    });
+
+    try {
+      const res = await fetch(
+        `/api/messages/${conversationId}/messages/${messageId}/reactions`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ emoji }),
+        }
+      );
+
+      if (res.ok) {
+        const data = await res.json();
+        // Update with authoritative server state
+        setMessageReactions(messageId, data.reactions);
+
+        // Broadcast to other users
+        channelRef.current?.send({
+          type: 'broadcast',
+          event: 'reaction_update',
+          payload: { message_id: messageId, reactions: data.reactions },
+        });
+      }
+    } catch {
+      // Revert on error by refetching (could be more surgical, but simple)
+    }
+  }, [conversationId]);
+
+  // Reply to a message
+  const handleReply = useCallback((message: Message) => {
+    setReplyingTo(message);
+    replyingToRef.current = message;
+    // Scroll the target into view so user sees what they're replying to
+    const el = messageRefsMap.current.get(message.id);
+    if (el) {
+      el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+  }, []);
+
+  const handleCancelReply = useCallback(() => {
+    setReplyingTo(null);
+    replyingToRef.current = null;
+  }, []);
+
+  // Scroll to a specific message (when tapping a quoted reply)
+  const handleScrollToMessage = useCallback((messageId: string) => {
+    const el = messageRefsMap.current.get(messageId);
+    if (el) {
+      el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      // Brief highlight
+      el.classList.add('ring-2', 'ring-blue-400', 'ring-offset-1', 'rounded-xl');
+      setTimeout(() => {
+        el.classList.remove('ring-2', 'ring-blue-400', 'ring-offset-1', 'rounded-xl');
+      }, 1500);
+    }
+  }, []);
+
+  // Initiate a GIF reaction on a message
+  const handleGifReact = useCallback((parentMessageId: string) => {
+    setGifReactingMessageId(parentMessageId);
+  }, []);
+
+  // Send the GIF reaction message
+  const handleGifReactSelect = useCallback(async (gifUrl: string) => {
+    if (!gifReactingMessageId) return;
+    const parentId = gifReactingMessageId;
+    setGifReactingMessageId(null);
+
+    try {
+      const res = await fetch(`/api/messages/${conversationId}/messages`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          type: 'gif_reaction',
+          media_url: gifUrl,
+          media_type: 'image',
+          parent_message_id: parentId,
+        }),
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        const gifMsg = data.message as Message;
+        // Attach to parent message's gif_reactions
+        setMessages(prev => prev.map(m =>
+          m.id === parentId
+            ? { ...m, gif_reactions: [...(m.gif_reactions || []), gifMsg] }
+            : m
+        ));
+      }
+    } catch {
+      // ignore
+    }
+  }, [conversationId, gifReactingMessageId]);
 
   const handleMuteToggle = useCallback(async () => {
     if (!conversation) return;
@@ -447,13 +679,29 @@ export default function ChatWindow({ conversationId, onBack }: Props) {
       {/* Messages (flex-col-reverse: newest at DOM top = visual bottom) */}
       <div className="flex-1 overflow-y-auto flex flex-col-reverse px-4 py-4 gap-0">
         {messages.map((msg, index) => (
-          <MessageBubble
+          <div
             key={msg.id}
-            message={msg}
-            isOwn={msg.sender_id === currentUserId}
-            showSender={shouldShowSender(msg, index)}
-            onDelete={handleDeleteMessage}
-          />
+            ref={(el) => {
+              if (el) messageRefsMap.current.set(msg.id, el);
+              else messageRefsMap.current.delete(msg.id);
+            }}
+            className={`transition-colors duration-300 rounded-xl ${
+              replyingTo?.id === msg.id ? 'bg-blue-50 ring-1 ring-blue-200' : ''
+            }`}
+          >
+            <MessageBubble
+              message={msg}
+              isOwn={msg.sender_id === currentUserId}
+              showSender={shouldShowSender(msg, index)}
+              currentUserId={currentUserId}
+              onDelete={handleDeleteMessage}
+              onViewPost={setViewingPostId}
+              onToggleReaction={handleToggleReaction}
+              onGifReact={handleGifReact}
+              onReply={handleReply}
+              onScrollToMessage={handleScrollToMessage}
+            />
+          </div>
         ))}
 
         {/* Sentinel: visually at top (end of flex-col-reverse), triggers loading older messages */}
@@ -487,6 +735,8 @@ export default function ChatWindow({ conversationId, onBack }: Props) {
         conversationId={conversationId}
         currentUserId={currentUserId}
         onSend={handleSend}
+        replyingTo={replyingTo}
+        onCancelReply={handleCancelReply}
       />
 
       {/* Group Settings Modal */}
@@ -503,6 +753,23 @@ export default function ChatWindow({ conversationId, onBack }: Props) {
             removeConversation(conversationId);
             router.push('/messages');
           }}
+        />
+      )}
+
+      {/* Post Detail Modal — opens when tapping a shared post */}
+      <PostDetailModal
+        postId={viewingPostId}
+        isOpen={!!viewingPostId}
+        onClose={() => setViewingPostId(null)}
+        currentUserId={currentUserId}
+      />
+
+      {/* GIF Reaction Picker Modal */}
+      {gifReactingMessageId && (
+        <GifPickerModal
+          title="React with a GIF"
+          onGifSelect={handleGifReactSelect}
+          onClose={() => setGifReactingMessageId(null)}
         />
       )}
     </div>

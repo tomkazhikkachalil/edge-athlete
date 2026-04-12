@@ -6,7 +6,7 @@ import { Comment } from '@/lib/supabase';
 import { useAuth } from '@/lib/auth';
 import { formatDisplayName, getInitials } from '@/lib/formatters';
 import EmojiPickerButton from '@/components/EmojiPickerButton';
-import GifPicker from '@/components/GifPicker';
+import GifPickerModal from '@/components/GifPickerModal';
 
 interface CommentSectionProps {
   postId: string;
@@ -476,23 +476,22 @@ export default function CommentSection({
         <div className="relative shrink-0">
           <EmojiPickerButton onEmojiSelect={handleReplyEmojiSelect} />
         </div>
-        <div className="relative shrink-0">
-          <button
-            type="button"
-            onClick={() => setShowReplyGifPicker(prev => !prev)}
-            disabled={isSubmitting}
-            className="p-2 text-gray-400 hover:text-blue-500 transition-colors disabled:opacity-40 text-xs font-bold"
+        <button
+          type="button"
+          onClick={() => setShowReplyGifPicker(prev => !prev)}
+          disabled={isSubmitting}
+          className="shrink-0 p-2 text-gray-400 hover:text-blue-500 transition-colors disabled:opacity-40 text-xs font-bold"
+          title="Add a GIF"
+        >
+          GIF
+        </button>
+        {showReplyGifPicker && (
+          <GifPickerModal
             title="Add a GIF"
-          >
-            GIF
-          </button>
-          {showReplyGifPicker && (
-            <GifPicker
-              onGifSelect={handleReplyGifSelect}
-              onClose={() => setShowReplyGifPicker(false)}
-            />
-          )}
-        </div>
+            onGifSelect={handleReplyGifSelect}
+            onClose={() => setShowReplyGifPicker(false)}
+          />
+        )}
         <input
           ref={replyInputRef}
           type="text"
@@ -565,23 +564,22 @@ export default function CommentSection({
                   <EmojiPickerButton onEmojiSelect={handleEmojiSelect} />
                 </div>
                 {/* GIF picker */}
-                <div className="relative shrink-0">
-                  <button
-                    type="button"
-                    onClick={() => setShowGifPicker(prev => !prev)}
-                    disabled={isSubmitting}
-                    className="p-2 text-gray-400 hover:text-blue-500 transition-colors disabled:opacity-40 text-xs font-bold"
+                <button
+                  type="button"
+                  onClick={() => setShowGifPicker(prev => !prev)}
+                  disabled={isSubmitting}
+                  className="shrink-0 p-2 text-gray-400 hover:text-blue-500 transition-colors disabled:opacity-40 text-xs font-bold"
+                  title="Add a GIF"
+                >
+                  GIF
+                </button>
+                {showGifPicker && (
+                  <GifPickerModal
                     title="Add a GIF"
-                  >
-                    GIF
-                  </button>
-                  {showGifPicker && (
-                    <GifPicker
-                      onGifSelect={handleGifSelect}
-                      onClose={() => setShowGifPicker(false)}
-                    />
-                  )}
-                </div>
+                    onGifSelect={handleGifSelect}
+                    onClose={() => setShowGifPicker(false)}
+                  />
+                )}
                 <input
                   ref={commentInputRef}
                   type="text"

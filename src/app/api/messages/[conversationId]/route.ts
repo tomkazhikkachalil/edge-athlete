@@ -64,6 +64,8 @@ export async function GET(
       .is('left_at', null);
 
     // Fetch messages (cursor-based, newest first)
+    // Exclude gif_reactions from top-level list — they'll be nested under parent.
+    // Replies (non-gif_reaction with parent_message_id) stay in the main list.
     let msgQuery = supabase
       .from('messages')
       .select(`
@@ -76,6 +78,7 @@ export async function GET(
         media_type,
         shared_post_id,
         shared_profile_id,
+        parent_message_id,
         deleted_at,
         created_at,
         updated_at,
@@ -89,6 +92,7 @@ export async function GET(
         )
       `)
       .eq('conversation_id', conversationId)
+      .neq('type', 'gif_reaction')
       .order('created_at', { ascending: false })
       .limit(limit + 1);
 
@@ -144,13 +148,230 @@ export async function GET(
       })
     );
 
-    // Compute unread count
+    // Enrich with emoji reactions and GIF reactions
+    const messageIds = enrichedMessages
+      .filter(m => !m.deleted_at)
+      .map(m => m.id);
+
+    // Fetch emoji reactions + GIF reactions in parallel
+    const [emojiReactionsResult, gifReactionsResult] = await Promise.all([
+      messageIds.length > 0
+        ? supabase
+            .from('message_reactions')
+            .select('message_id, emoji, profile_id')
+            .in('message_id', messageIds)
+        : Promise.resolve({ data: [] }),
+      messageIds.length > 0
+        ? supabase
+            .from('messages')
+            .select(`
+              id, conversation_id, sender_id, type, content,
+              media_url, media_type, parent_message_id,
+              deleted_at, created_at, updated_at,
+              sender:profiles!messages_sender_id_fkey (
+                id, first_name, last_name, full_name, avatar_url, handle
+              )
+            `)
+            .in('parent_message_id', messageIds)
+            .eq('type', 'gif_reaction')
+            .is('deleted_at', null)
+            .order('created_at', { ascending: true })
+        : Promise.resolve({ data: [] }),
+    ]);
+
+    // Aggregate emoji reactions per message
+    const reactionsByMessage = new Map<string, Map<string, { count: number; reacted: boolean }>>();
+    const reactionOrder = new Map<string, string[]>();
+
+    for (const r of emojiReactionsResult.data || []) {
+      if (!reactionsByMessage.has(r.message_id)) {
+        reactionsByMessage.set(r.message_id, new Map());
+        reactionOrder.set(r.message_id, []);
+      }
+      const msgReactions = reactionsByMessage.get(r.message_id)!;
+      if (!msgReactions.has(r.emoji)) {
+        msgReactions.set(r.emoji, { count: 0, reacted: false });
+        reactionOrder.get(r.message_id)!.push(r.emoji);
+      }
+      const entry = msgReactions.get(r.emoji)!;
+      entry.count++;
+      if (r.profile_id === user.id) entry.reacted = true;
+    }
+
+    // Fetch emoji reactions for GIF reaction messages and attach to each
+    const gifReactionMsgs = gifReactionsResult.data || [];
+    const gifReactionIds = gifReactionMsgs.map(gr => gr.id);
+
+    if (gifReactionIds.length > 0) {
+      const { data: grEmojiReactions } = await supabase
+        .from('message_reactions')
+        .select('message_id, emoji, profile_id')
+        .in('message_id', gifReactionIds);
+
+      // Build per-gif-reaction aggregation
+      const grReactionsByMsg = new Map<string, Map<string, { count: number; reacted: boolean }>>();
+      const grReactionOrder = new Map<string, string[]>();
+
+      for (const r of grEmojiReactions || []) {
+        if (!grReactionsByMsg.has(r.message_id)) {
+          grReactionsByMsg.set(r.message_id, new Map());
+          grReactionOrder.set(r.message_id, []);
+        }
+        const map = grReactionsByMsg.get(r.message_id)!;
+        if (!map.has(r.emoji)) {
+          map.set(r.emoji, { count: 0, reacted: false });
+          grReactionOrder.get(r.message_id)!.push(r.emoji);
+        }
+        const entry = map.get(r.emoji)!;
+        entry.count++;
+        if (r.profile_id === user.id) entry.reacted = true;
+      }
+
+      // Attach reactions to each gif reaction message
+      for (const gr of gifReactionMsgs) {
+        const map = grReactionsByMsg.get(gr.id);
+        const order = grReactionOrder.get(gr.id);
+        (gr as Record<string, unknown>).reactions = map && order
+          ? order.map(emoji => ({ emoji, ...map.get(emoji)! }))
+          : [];
+      }
+    }
+
+    // Group GIF reactions by parent message
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const gifReactionsByParent = new Map<string, any[]>();
+    for (const gr of gifReactionMsgs) {
+      const parentId = gr.parent_message_id;
+      if (!parentId) continue;
+      if (!gifReactionsByParent.has(parentId)) {
+        gifReactionsByParent.set(parentId, []);
+      }
+      gifReactionsByParent.get(parentId)!.push(gr);
+    }
+
+    // Fetch parent messages for replies (messages with parent_message_id that aren't gif_reactions)
+    const replyParentIds = enrichedMessages
+      .filter(m => m.parent_message_id && !m.deleted_at)
+      .map(m => m.parent_message_id as string);
+
+    const uniqueParentIds = [...new Set(replyParentIds)];
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const parentMessagesMap = new Map<string, { id: string; sender_id: string; type: string; content: string | null; media_url: string | null; deleted_at: string | null; sender_name: string; shared_post?: any; shared_profile?: any }>();
+
+    if (uniqueParentIds.length > 0) {
+      const { data: parentMsgs } = await supabase
+        .from('messages')
+        .select(`
+          id, sender_id, type, content, media_url, deleted_at,
+          shared_post_id, shared_profile_id,
+          sender:profiles!messages_sender_id_fkey (
+            first_name, last_name, full_name
+          )
+        `)
+        .in('id', uniqueParentIds);
+
+      for (const pm of parentMsgs || []) {
+        const rawSender = pm.sender as unknown;
+        const s = (Array.isArray(rawSender) ? rawSender[0] : rawSender) as { first_name: string | null; last_name: string | null; full_name: string | null } | null;
+        const senderName = s?.full_name
+          || [s?.first_name, s?.last_name].filter(Boolean).join(' ')
+          || 'Unknown';
+        parentMessagesMap.set(pm.id, {
+          id: pm.id,
+          sender_id: pm.sender_id,
+          type: pm.type,
+          content: pm.content,
+          media_url: pm.media_url,
+          deleted_at: pm.deleted_at,
+          sender_name: senderName,
+        });
+      }
+
+      // Enrich immediate parent messages that are shared_post or shared_profile types
+      const postParents = (parentMsgs || []).filter(pm => pm.type === 'shared_post' && pm.shared_post_id && !pm.deleted_at);
+      const profileParents = (parentMsgs || []).filter(pm => pm.type === 'shared_profile' && pm.shared_profile_id && !pm.deleted_at);
+
+      const [parentPostsResult, parentProfilesResult] = await Promise.all([
+        postParents.length > 0
+          ? supabase
+              .from('posts')
+              .select(`
+                id, caption, created_at,
+                profile:profiles!posts_profile_id_fkey (
+                  id, first_name, last_name, full_name, avatar_url, handle
+                ),
+                media:post_media (
+                  media_url, media_type
+                )
+              `)
+              .in('id', postParents.map(pm => pm.shared_post_id))
+          : Promise.resolve({ data: [] }),
+        profileParents.length > 0
+          ? supabase
+              .from('profiles')
+              .select('id, first_name, last_name, full_name, avatar_url, handle, bio, sport')
+              .in('id', profileParents.map(pm => pm.shared_profile_id))
+          : Promise.resolve({ data: [] }),
+      ]);
+
+      // Build lookup maps
+      const parentPostsById = new Map((parentPostsResult.data || []).map(p => [p.id, p]));
+      const parentProfilesById = new Map((parentProfilesResult.data || []).map(p => [p.id, p]));
+
+      // Attach to parentMessagesMap entries
+      for (const pm of postParents) {
+        const entry = parentMessagesMap.get(pm.id);
+        if (entry) entry.shared_post = parentPostsById.get(pm.shared_post_id) ?? null;
+      }
+      for (const pm of profileParents) {
+        const entry = parentMessagesMap.get(pm.id);
+        if (entry) entry.shared_profile = parentProfilesById.get(pm.shared_profile_id) ?? null;
+      }
+    }
+
+    // Helper: strip internal parent_message_id from map entries for client output
+    const toReplyPreview = (entry: typeof parentMessagesMap extends Map<string, infer V> ? V : never) => ({
+      id: entry.id,
+      sender_id: entry.sender_id,
+      sender_name: entry.sender_name,
+      type: entry.type,
+      content: entry.content,
+      media_url: entry.media_url,
+      deleted_at: entry.deleted_at,
+      ...(entry.shared_post ? { shared_post: entry.shared_post } : {}),
+      ...(entry.shared_profile ? { shared_profile: entry.shared_profile } : {}),
+    });
+
+    // Attach reactions, gif_reactions, and reply_to to each message
+    const messagesWithReactions = enrichedMessages.map(msg => {
+      const msgReactions = reactionsByMessage.get(msg.id);
+      const order = reactionOrder.get(msg.id);
+      const reactions = msgReactions && order
+        ? order.map(emoji => ({ emoji, ...msgReactions.get(emoji)! }))
+        : [];
+
+      const parentEntry = msg.parent_message_id
+        ? parentMessagesMap.get(msg.parent_message_id) ?? null
+        : null;
+      const reply_to = parentEntry ? toReplyPreview(parentEntry) : null;
+
+      return {
+        ...msg,
+        reactions,
+        gif_reactions: gifReactionsByParent.get(msg.id) || [],
+        reply_to,
+      };
+    });
+
+    // Compute unread count (exclude gif_reactions, include replies)
     let unreadQuery = supabase
       .from('messages')
       .select('id', { count: 'exact', head: true })
       .eq('conversation_id', conversationId)
       .neq('sender_id', user.id)
-      .is('deleted_at', null);
+      .is('deleted_at', null)
+      .neq('type', 'gif_reaction');
 
     if (myParticipant.last_read_at) {
       unreadQuery = unreadQuery.gt('created_at', myParticipant.last_read_at);
@@ -173,7 +394,7 @@ export async function GET(
         unread_count: unreadCount || 0,
         my_participant: myParticipantFull,
       },
-      messages: enrichedMessages,
+      messages: messagesWithReactions,
       has_more: hasMore,
       next_cursor: nextCursor,
     });
