@@ -116,19 +116,28 @@ export function getAgeAtDate(
  * "4.95"  → 4.95 (decimal seconds for sprint)
  * Returns null if unparseable.
  */
-export function parseTimeToSeconds(display: string): number | null {
+export function parseTimeToSeconds(display: string, format?: 'mm:ss' | 'decimal_seconds'): number | null {
   if (!display) return null;
   const trimmed = display.trim();
+
+  // For decimal_seconds format, only accept plain numbers (no colons)
+  if (format === 'decimal_seconds') {
+    if (trimmed.includes(':')) return null;
+    const num = parseFloat(trimmed);
+    return isNaN(num) || num < 0 ? null : num;
+  }
+
   if (trimmed.includes(':')) {
     const parts = trimmed.split(':');
     if (parts.length !== 2) return null;
     const mins = parseFloat(parts[0]);
     const secs = parseFloat(parts[1]);
     if (isNaN(mins) || isNaN(secs)) return null;
+    if (mins < 0 || secs < 0 || secs >= 60) return null;
     return mins * 60 + secs;
   }
   const num = parseFloat(trimmed);
-  return isNaN(num) ? null : num;
+  return isNaN(num) || num < 0 ? null : num;
 }
 
 /**
@@ -139,7 +148,7 @@ export function parseTimeToSeconds(display: string): number | null {
 export function formatSecondsToDisplay(seconds: number, timeFormat: 'decimal_seconds' | 'mm:ss'): string {
   if (timeFormat === 'mm:ss') {
     const mins = Math.floor(seconds / 60);
-    const secs = Math.round(seconds % 60);
+    const secs = Math.floor(seconds % 60);
     return `${mins}:${secs.toString().padStart(2, '0')}`;
   }
   return seconds.toString();

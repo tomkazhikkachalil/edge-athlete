@@ -1,11 +1,12 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { formatDistanceToNow } from 'date-fns';
 import { useRouter } from 'next/navigation';
 import LazyImage from './LazyImage';
 import ConfirmModal from './ConfirmModal';
 import CommentSection from './CommentSection';
+import SharePostModal from './SharePostModal';
 import SharedRoundQuickView from './golf/SharedRoundQuickView';
 import SharedRoundFullCard from './golf/SharedRoundFullCard';
 import ScoreEntryModal from './golf/ScoreEntryModal';
@@ -99,6 +100,9 @@ export default function PostCard({
   const [showFullScorecard, setShowFullScorecard] = useState(false);
   const [showScoreEntry, setShowScoreEntry] = useState(false);
   const [scoreEntryParticipantId, setScoreEntryParticipantId] = useState<string | null>(null);
+  const [commentSectionOpen, setCommentSectionOpen] = useState(false);
+  const [showShareModal, setShowShareModal] = useState(false);
+  const commentSectionRef = useRef<HTMLDivElement>(null);
 
   // Update isLiked state when post.likes array changes
   useEffect(() => {
@@ -149,6 +153,10 @@ export default function PostCard({
   };
 
   const handleComment = () => {
+    setCommentSectionOpen(true);
+    requestAnimationFrame(() => {
+      commentSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    });
     if (onComment) {
       onComment(post.id);
     }
@@ -191,81 +199,12 @@ export default function PostCard({
     }
   };
 
-  const handleShare = async () => {
-    const shareUrl = `${window.location.origin}/athlete/${post.profile.id}?post=${post.id}`;
-    const shareText = post.caption ? `${post.caption.substring(0, 100)}${post.caption.length > 100 ? '...' : ''}` : 'Check out this post!';
+  const shareUrl = typeof window !== 'undefined'
+    ? `${window.location.origin}/athlete/${post.profile.id}?post=${post.id}`
+    : '';
 
-    // Check if Web Share API is available and can be used
-    if (navigator.share && navigator.canShare) {
-      try {
-        const shareData = {
-          title: `Post by ${displayName}`,
-          text: shareText,
-          url: shareUrl
-        };
-
-        // Check if we can share this data
-        if (navigator.canShare(shareData)) {
-          await navigator.share(shareData);
-          return;
-        }
-      } catch (err) {
-        // User cancelled or error occurred
-        const error = err as Error;
-        if (error.name !== 'AbortError') {
-          // Fall through to clipboard fallback
-        } else {
-          // User cancelled, don't show error
-          return;
-        }
-      }
-    }
-
-    // Fallback: Copy to clipboard using modern API
-    try {
-      await navigator.clipboard.writeText(shareUrl);
-      showShareSuccess();
-      return;
-    } catch {
-      // Clipboard API blocked, use legacy method
-    }
-
-    // Final fallback: Use legacy execCommand method
-    try {
-      const textArea = document.createElement('textarea');
-      textArea.value = shareUrl;
-      textArea.style.position = 'fixed';
-      textArea.style.left = '-999999px';
-      textArea.style.top = '-999999px';
-      document.body.appendChild(textArea);
-      textArea.focus();
-      textArea.select();
-
-      const successful = document.execCommand('copy');
-      document.body.removeChild(textArea);
-
-      if (successful) {
-        showShareSuccess();
-      } else {
-        throw new Error('Copy command failed');
-      }
-    } catch {
-      // Show input field for manual copy as last resort
-      alert(`Copy this link:\n\n${shareUrl}`);
-    }
-  };
-
-  const showShareSuccess = () => {
-    const button = document.activeElement as HTMLElement;
-    if (button) {
-      const originalHTML = button.innerHTML;
-      button.innerHTML = '<i class="fas fa-check"></i>';
-      button.classList.add('text-green-500');
-      setTimeout(() => {
-        button.innerHTML = originalHTML;
-        button.classList.remove('text-green-500');
-      }, 2000);
-    }
+  const handleShare = () => {
+    setShowShareModal(true);
   };
 
   const handleDeleteClick = () => {
@@ -1003,11 +942,15 @@ export default function PostCard({
       </div>
 
       {/* Comments Section */}
-      <CommentSection
-        postId={post.id}
-        initialCommentsCount={post.comments_count}
-        onCommentCountChange={handleCommentCountChange}
-      />
+      <div ref={commentSectionRef}>
+        <CommentSection
+          postId={post.id}
+          postOwnerId={post.profile.id}
+          initialCommentsCount={post.comments_count}
+          isOpen={commentSectionOpen}
+          onCommentCountChange={handleCommentCountChange}
+        />
+      </div>
 
       {/* Delete Confirmation Modal */}
       <ConfirmModal
@@ -1072,6 +1015,16 @@ export default function PostCard({
           }}
         />
       )}
+
+      {/* Share Post Modal */}
+      <SharePostModal
+        isOpen={showShareModal}
+        onClose={() => setShowShareModal(false)}
+        postId={post.id}
+        postCaption={post.caption}
+        postAuthorName={displayName}
+        shareUrl={shareUrl}
+      />
     </div>
   );
 }

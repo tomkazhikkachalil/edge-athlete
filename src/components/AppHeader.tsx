@@ -310,21 +310,6 @@ export default function AppHeader({ showSearch = true, onCreatePost, onEditProfi
             ))}
 
             <button
-              onClick={() => {
-                router.push('/messages');
-                setIsMobileMenuOpen(false);
-              }}
-              className={`flex items-center gap-3 w-full px-4 py-3 text-left rounded-lg transition-colors ${
-                isActivePath('/messages')
-                  ? 'bg-blue-50 text-blue-600'
-                  : 'text-gray-700 hover:bg-blue-50 hover:text-blue-600'
-              }`}
-            >
-              <i className="fas fa-comment-alt w-5 text-center"></i>
-              <span className="font-medium">Messages</span>
-            </button>
-
-            <button
               onClick={handleCreatePost}
               className="flex items-center gap-3 w-full px-4 py-3 text-left text-gray-700 hover:bg-blue-50 hover:text-blue-600 rounded-lg transition-colors"
             >
@@ -386,7 +371,7 @@ export default function AppHeader({ showSearch = true, onCreatePost, onEditProfi
           {/* Footer */}
           <div className="p-4 border-t border-gray-200">
             <p className="text-xs text-gray-500 text-center">
-              Edge Athlete &copy; 2025
+              Edge Athlete &copy; 2026
             </p>
           </div>
         </div>

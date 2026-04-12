@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { supabase } from '@/lib/supabase';
 
 interface Props {
@@ -10,7 +10,7 @@ interface Props {
 
 export default function TypingIndicator({ conversationId, currentUserId }: Props) {
   const [typingUserIds, setTypingUserIds] = useState<Set<string>>(new Set());
-  const timeoutsRef: Record<string, ReturnType<typeof setTimeout>> = {};
+  const timeoutsRef = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
 
   const clearTyping = useCallback((userId: string) => {
     setTypingUserIds(prev => {
@@ -21,6 +21,8 @@ export default function TypingIndicator({ conversationId, currentUserId }: Props
   }, []);
 
   useEffect(() => {
+    const timeouts = timeoutsRef.current;
+
     const channel = supabase
       .channel(`typing:${conversationId}`)
       .on('broadcast', { event: 'typing' }, ({ payload }: { payload: { user_id: string } }) => {
@@ -34,14 +36,14 @@ export default function TypingIndicator({ conversationId, currentUserId }: Props
         });
 
         // Clear typing after 3 seconds of no new broadcast
-        if (timeoutsRef[userId]) clearTimeout(timeoutsRef[userId]);
-        timeoutsRef[userId] = setTimeout(() => clearTyping(userId), 3000);
+        if (timeouts[userId]) clearTimeout(timeouts[userId]);
+        timeouts[userId] = setTimeout(() => clearTyping(userId), 3000);
       })
       .subscribe();
 
     return () => {
       channel.unsubscribe();
-      Object.values(timeoutsRef).forEach(clearTimeout);
+      Object.values(timeouts).forEach(clearTimeout);
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [conversationId, currentUserId]);

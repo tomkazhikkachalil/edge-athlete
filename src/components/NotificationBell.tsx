@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
-import { useNotifications } from '@/lib/notifications';
+import { useNotifications, getNotificationText } from '@/lib/notifications';
 import { formatDisplayName, getInitials } from '@/lib/formatters';
 import { AvatarImage } from '@/components/OptimizedImage';
 
@@ -228,7 +228,7 @@ export default function NotificationBell() {
                           <p className={`text-sm font-medium flex-1 line-clamp-2 ${
                             !notification.is_read ? 'text-gray-900' : 'text-gray-600'
                           }`}>
-                            {notification.title}
+                            {getNotificationText(notification)}
                           </p>
                           {/* Blue dot indicator for unread AND not viewed */}
                           {!notification.is_read && !viewedNotifications.has(notification.id) && (

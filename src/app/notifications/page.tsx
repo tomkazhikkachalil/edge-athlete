@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Image from 'next/image';
 import { useAuth } from '@/lib/auth';
-import { useNotifications } from '@/lib/notifications';
+import { useNotifications, getNotificationText } from '@/lib/notifications';
 import { formatDisplayName, getInitials } from '@/lib/formatters';
 import AppHeader from '@/components/AppHeader';
 import EditProfileTabs from '@/components/EditProfileTabs';
@@ -313,7 +313,7 @@ export default function NotificationsPage() {
                           {/* Content */}
                           <div className="flex-1 min-w-0">
                             <p className="text-sm font-medium text-gray-900">
-                              {notification.title}
+                              {getNotificationText(notification)}
                             </p>
                             {notification.message && (
                               <p className="text-sm text-gray-600 mt-1">

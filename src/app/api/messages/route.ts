@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { requireAuth, getSupabaseAdmin } from '@/lib/auth-server';
 import type { Conversation, ConversationParticipant, Message } from '@/types/messages';
 
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 // ── GET /api/messages ─────────────────────────────────────────────────────────
 // List all active conversations for the current user, ordered by updated_at DESC.
 export async function GET(request: NextRequest) {
@@ -124,9 +126,9 @@ export async function GET(request: NextRequest) {
       participantsByConv[p.conversation_id].push(p as unknown as ConversationParticipant);
     }
 
-    // 4. Compute unread counts per conversation
+    // 4. Compute unread counts per conversation (parallel instead of sequential)
     const unreadCounts: Record<string, number> = {};
-    for (const pr of participantRows) {
+    const unreadPromises = participantRows.map(async (pr) => {
       let query = supabase
         .from('messages')
         .select('id', { count: 'exact', head: true })
@@ -140,7 +142,8 @@ export async function GET(request: NextRequest) {
 
       const { count } = await query;
       unreadCounts[pr.conversation_id] = count || 0;
-    }
+    });
+    await Promise.all(unreadPromises);
 
     // 5. Assemble conversations
     const conversations: Conversation[] = participantRows
@@ -189,15 +192,15 @@ export async function POST(request: NextRequest) {
     const { type, participantId, name, participantIds } = body;
 
     if (type === 'direct') {
-      if (!participantId) {
-        return NextResponse.json({ error: 'participantId is required for direct messages' }, { status: 400 });
+      if (!participantId || !UUID_RE.test(participantId)) {
+        return NextResponse.json({ error: 'Valid participantId is required for direct messages' }, { status: 400 });
       }
 
       if (participantId === user.id) {
         return NextResponse.json({ error: 'Cannot message yourself' }, { status: 400 });
       }
 
-      // Check if blocked
+      // Check if blocked — use separate .eq() filters instead of string interpolation
       const { data: blockCheck } = await supabase
         .from('user_blocks')
         .select('id')
@@ -246,8 +249,9 @@ export async function POST(request: NextRequest) {
         }
       }
 
-      // Check if DM already exists between these two users
-      const { data: existingParticipant } = await supabase
+      // Check if DM already exists between these two users.
+      // Fetch ALL direct conversations the current user is in, then check each.
+      const { data: myDirectConvos } = await supabase
         .from('conversation_participants')
         .select(`
           conversation_id,
@@ -257,21 +261,23 @@ export async function POST(request: NextRequest) {
         `)
         .eq('profile_id', user.id)
         .is('left_at', null)
-        .eq('conversation.type', 'direct')
-        .maybeSingle();
+        .eq('conversation.type', 'direct');
 
-      if (existingParticipant) {
-        // Check if participantId is also in that conversation
-        const { data: otherParticipant } = await supabase
+      if (myDirectConvos && myDirectConvos.length > 0) {
+        const convoIds = myDirectConvos.map(c => c.conversation_id);
+
+        // Single query: is the target participant in any of these conversations?
+        const { data: match } = await supabase
           .from('conversation_participants')
-          .select('id')
-          .eq('conversation_id', existingParticipant.conversation_id)
+          .select('conversation_id')
+          .in('conversation_id', convoIds)
           .eq('profile_id', participantId)
           .is('left_at', null)
+          .limit(1)
           .maybeSingle();
 
-        if (otherParticipant) {
-          return NextResponse.json({ conversationId: existingParticipant.conversation_id, existing: true });
+        if (match) {
+          return NextResponse.json({ conversationId: match.conversation_id, existing: true });
         }
       }
 

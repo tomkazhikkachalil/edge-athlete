@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import Image from 'next/image';
 import { Comment } from '@/lib/supabase';
 import { useAuth } from '@/lib/auth';
@@ -10,11 +10,19 @@ import GifPicker from '@/components/GifPicker';
 
 interface CommentSectionProps {
   postId: string;
+  postOwnerId?: string;
   initialCommentsCount?: number;
+  isOpen?: boolean;
   onCommentCountChange?: (newCount: number) => void;
 }
 
-export default function CommentSection({ postId, initialCommentsCount = 0, onCommentCountChange }: CommentSectionProps) {
+export default function CommentSection({
+  postId,
+  postOwnerId,
+  initialCommentsCount = 0,
+  isOpen,
+  onCommentCountChange
+}: CommentSectionProps) {
   const { user } = useAuth();
   const [comments, setComments] = useState<Comment[]>([]);
   const [commentsCount, setCommentsCount] = useState(initialCommentsCount);
@@ -26,7 +34,45 @@ export default function CommentSection({ postId, initialCommentsCount = 0, onCom
   const [showComments, setShowComments] = useState(false);
   const [error, setError] = useState('');
   const [likingComments, setLikingComments] = useState<Set<string>>(new Set());
+  const [replyingTo, setReplyingTo] = useState<string | null>(null);
+  const [replyText, setReplyText] = useState('');
+  const [replyGifUrl, setReplyGifUrl] = useState<string | null>(null);
+  const [showReplyGifPicker, setShowReplyGifPicker] = useState(false);
   const commentInputRef = useRef<HTMLInputElement>(null);
+  const replyInputRef = useRef<HTMLInputElement>(null);
+
+  // Organize comments into threads
+  const { rootComments, repliesByParent } = useMemo(() => {
+    const roots: Comment[] = [];
+    const replies: Record<string, Comment[]> = {};
+
+    comments.forEach(comment => {
+      if (comment.parent_comment_id) {
+        if (!replies[comment.parent_comment_id]) {
+          replies[comment.parent_comment_id] = [];
+        }
+        replies[comment.parent_comment_id].push(comment);
+      } else {
+        roots.push(comment);
+      }
+    });
+
+    // Sort roots: pinned first, then by likes (desc), then chronological
+    roots.sort((a, b) => {
+      if (a.is_pinned && !b.is_pinned) return -1;
+      if (!a.is_pinned && b.is_pinned) return 1;
+      const likeDiff = (b.likes_count || 0) - (a.likes_count || 0);
+      if (likeDiff !== 0) return likeDiff;
+      return new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
+    });
+
+    // Sort replies chronologically within each parent
+    Object.values(replies).forEach(arr => {
+      arr.sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
+    });
+
+    return { rootComments: roots, repliesByParent: replies };
+  }, [comments]);
 
   const fetchComments = useCallback(async () => {
     setIsLoading(true);
@@ -36,11 +82,7 @@ export default function CommentSection({ postId, initialCommentsCount = 0, onCom
       if (!response.ok) throw new Error('Failed to fetch comments');
 
       const data = await response.json();
-      const fetchedComments = data.comments || [];
-      setComments(fetchedComments);
-
-      // Don't update count here - trust the database count from props
-      // Count only updates when we add/delete comments
+      setComments(data.comments || []);
     } catch {
       setError('Failed to load comments');
     } finally {
@@ -53,6 +95,11 @@ export default function CommentSection({ postId, initialCommentsCount = 0, onCom
       fetchComments();
     }
   }, [showComments, fetchComments]);
+
+  // Open comments when parent requests it
+  useEffect(() => {
+    if (isOpen) setShowComments(true);
+  }, [isOpen]);
 
   // Update count when initialCommentsCount prop changes
   useEffect(() => {
@@ -72,9 +119,27 @@ export default function CommentSection({ postId, initialCommentsCount = 0, onCom
     });
   };
 
+  const handleReplyEmojiSelect = (emoji: string) => {
+    const input = replyInputRef.current;
+    const pos = input?.selectionStart ?? replyText.length;
+    const next = replyText.slice(0, pos) + emoji + replyText.slice(pos);
+    setReplyText(next);
+    requestAnimationFrame(() => {
+      if (input) {
+        input.focus();
+        input.setSelectionRange(pos + emoji.length, pos + emoji.length);
+      }
+    });
+  };
+
   const handleGifSelect = (url: string) => {
     setGifUrl(url);
     setShowGifPicker(false);
+  };
+
+  const handleReplyGifSelect = (url: string) => {
+    setReplyGifUrl(url);
+    setShowReplyGifPicker(false);
   };
 
   const handleSubmitComment = async (e: React.FormEvent) => {
@@ -98,17 +163,51 @@ export default function CommentSection({ postId, initialCommentsCount = 0, onCom
       if (!response.ok) throw new Error('Failed to post comment');
 
       const data = await response.json();
-      const updatedComments = [...comments, data.comment];
-      setComments(updatedComments);
+      setComments(prev => [...prev, data.comment]);
       setNewComment('');
       setGifUrl(null);
 
-      // Update local count and notify parent
-      const newCount = updatedComments.length;
+      const newCount = data.commentsCount ?? comments.length + 1;
       setCommentsCount(newCount);
       onCommentCountChange?.(newCount);
     } catch {
       setError('Failed to post comment');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleSubmitReply = async (parentCommentId: string) => {
+    if (!replyText.trim() && !replyGifUrl) return;
+    if (!user) return;
+
+    setIsSubmitting(true);
+    setError('');
+    try {
+      const response = await fetch('/api/comments', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          postId,
+          content: replyText.trim() || null,
+          gif_url: replyGifUrl || null,
+          parentCommentId,
+        })
+      });
+
+      if (!response.ok) throw new Error('Failed to post reply');
+
+      const data = await response.json();
+      setComments(prev => [...prev, data.comment]);
+      setReplyText('');
+      setReplyGifUrl(null);
+      setReplyingTo(null);
+
+      const newCount = data.commentsCount ?? comments.length + 1;
+      setCommentsCount(newCount);
+      onCommentCountChange?.(newCount);
+    } catch {
+      setError('Failed to post reply');
     } finally {
       setIsSubmitting(false);
     }
@@ -124,11 +223,11 @@ export default function CommentSection({ postId, initialCommentsCount = 0, onCom
 
       if (!response.ok) throw new Error('Failed to delete comment');
 
-      const updatedComments = comments.filter(c => c.id !== commentId);
-      setComments(updatedComments);
+      const data = await response.json();
+      // Remove the comment and any replies to it
+      setComments(prev => prev.filter(c => c.id !== commentId && c.parent_comment_id !== commentId));
 
-      // Update local count and notify parent
-      const newCount = updatedComments.length;
+      const newCount = data.commentsCount ?? Math.max(0, comments.length - 1);
       setCommentsCount(newCount);
       onCommentCountChange?.(newCount);
     } catch {
@@ -152,7 +251,6 @@ export default function CommentSection({ postId, initialCommentsCount = 0, onCom
 
       const data = await response.json();
 
-      // Update comment in state with new like count and liked status
       setComments(prevComments =>
         prevComments.map(comment =>
           comment.id === commentId
@@ -177,6 +275,32 @@ export default function CommentSection({ postId, initialCommentsCount = 0, onCom
     }
   };
 
+  const handlePinComment = async (commentId: string, isPinned: boolean) => {
+    try {
+      const response = await fetch('/api/comments', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          commentId,
+          postId,
+          action: isPinned ? 'unpin' : 'pin'
+        })
+      });
+
+      if (!response.ok) throw new Error('Failed to pin comment');
+
+      // Update local state
+      setComments(prev =>
+        prev.map(c => ({
+          ...c,
+          is_pinned: c.id === commentId ? !isPinned : (isPinned ? c.is_pinned : false)
+        }))
+      );
+    } catch {
+      setError('Failed to pin comment');
+    }
+  };
+
   const formatTimeAgo = (dateString: string) => {
     const date = new Date(dateString);
     const now = new Date();
@@ -193,6 +317,216 @@ export default function CommentSection({ postId, initialCommentsCount = 0, onCom
     if (weeks < 4) return `${weeks}w ago`;
     return date.toLocaleDateString();
   };
+
+  const isPostOwner = user?.id === postOwnerId;
+
+  // Render a single comment (used for both root and reply)
+  const renderComment = (comment: Comment, isReply: boolean = false) => {
+    const avatarSize = isReply ? 24 : 32;
+    const avatarClass = isReply
+      ? 'w-6 h-6 rounded-full'
+      : 'w-8 h-8 rounded-full';
+    const displayName = formatDisplayName(
+      comment.profile?.first_name,
+      null,
+      comment.profile?.last_name,
+      comment.profile?.full_name
+    );
+    const isLiked = comment.comment_likes?.some(like => like.profile_id === user?.id) ?? false;
+    const replyCount = repliesByParent[comment.id]?.length || 0;
+
+    return (
+      <div key={comment.id} className="flex gap-3">
+        {/* Avatar */}
+        <div className="flex-shrink-0">
+          {comment.profile?.avatar_url ? (
+            <Image
+              src={comment.profile.avatar_url}
+              alt={displayName}
+              width={avatarSize}
+              height={avatarSize}
+              className={`${avatarClass} object-cover`}
+            />
+          ) : (
+            <div className={`${avatarClass} bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white font-semibold ${isReply ? 'text-[10px]' : 'text-xs'}`}>
+              {getInitials(displayName)}
+            </div>
+          )}
+        </div>
+
+        {/* Comment content */}
+        <div className="flex-1 min-w-0">
+          <div className="bg-gray-50 rounded-lg px-3 py-2">
+            <div className="flex items-center justify-between mb-1">
+              <div className="flex items-center gap-2">
+                <span className="font-semibold text-sm text-gray-900">
+                  {displayName}
+                </span>
+                {comment.is_pinned && (
+                  <span className="flex items-center gap-1 text-xs text-amber-600 font-medium">
+                    <i className="fas fa-thumbtack text-[10px]" />
+                    Pinned
+                  </span>
+                )}
+              </div>
+              <div className="flex items-center gap-2">
+                {/* Pin/Unpin button (post owner only, root comments only) */}
+                {isPostOwner && !isReply && (
+                  <button
+                    onClick={() => handlePinComment(comment.id, !!comment.is_pinned)}
+                    className={`text-xs transition-colors ${
+                      comment.is_pinned
+                        ? 'text-amber-600 hover:text-amber-700'
+                        : 'text-gray-400 hover:text-amber-600'
+                    }`}
+                    title={comment.is_pinned ? 'Unpin comment' : 'Pin comment'}
+                  >
+                    <i className="fas fa-thumbtack" />
+                  </button>
+                )}
+                {/* Delete button (own comments only) */}
+                {user?.id === comment.profile_id && (
+                  <button
+                    onClick={() => handleDeleteComment(comment.id)}
+                    className="text-xs text-red-600 hover:text-red-700"
+                    title="Delete comment"
+                  >
+                    <i className="fas fa-trash" />
+                  </button>
+                )}
+              </div>
+            </div>
+            {comment.content && (
+              <p className="text-sm text-gray-800 whitespace-pre-wrap break-words">
+                {comment.content}
+              </p>
+            )}
+            {comment.gif_url && (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={comment.gif_url}
+                alt="GIF"
+                className="mt-1 rounded-lg max-h-40 max-w-xs"
+                loading="lazy"
+              />
+            )}
+          </div>
+
+          {/* Action bar */}
+          <div className="mt-1 px-3 flex items-center gap-3 text-xs text-gray-500">
+            <span>{formatTimeAgo(comment.created_at)}</span>
+
+            {/* Like button */}
+            {user && (
+              <button
+                onClick={() => handleLikeComment(comment.id)}
+                disabled={likingComments.has(comment.id)}
+                className={`flex items-center gap-1 transition-colors ${
+                  isLiked
+                    ? 'text-red-600 hover:text-red-700'
+                    : 'text-gray-500 hover:text-red-600'
+                } disabled:opacity-50`}
+                title="Like comment"
+              >
+                <i className={isLiked ? 'fas fa-heart' : 'far fa-heart'} />
+                {comment.likes_count ? (
+                  <span className="font-medium">{comment.likes_count}</span>
+                ) : null}
+              </button>
+            )}
+
+            {/* Reply button (only on root comments) */}
+            {user && !isReply && (
+              <button
+                onClick={() => {
+                  setReplyingTo(replyingTo === comment.id ? null : comment.id);
+                  setReplyText('');
+                  setReplyGifUrl(null);
+                  requestAnimationFrame(() => replyInputRef.current?.focus());
+                }}
+                className="text-gray-500 hover:text-blue-600 transition-colors font-medium"
+              >
+                Reply{replyCount > 0 ? ` (${replyCount})` : ''}
+              </button>
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  // Render the reply input form
+  const renderReplyForm = (parentCommentId: string) => (
+    <div className="ml-10 mt-2">
+      {/* Reply GIF preview */}
+      {replyGifUrl && (
+        <div className="relative inline-block mb-2">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={replyGifUrl} alt="GIF" className="h-16 rounded-lg border border-gray-200 object-cover" />
+          <button
+            type="button"
+            onClick={() => setReplyGifUrl(null)}
+            className="absolute -top-1.5 -right-1.5 w-5 h-5 bg-red-500 text-white rounded-full flex items-center justify-center hover:bg-red-600"
+          >
+            <i className="fas fa-times text-xs"></i>
+          </button>
+        </div>
+      )}
+      <div className="flex items-center gap-1">
+        <div className="relative shrink-0">
+          <EmojiPickerButton onEmojiSelect={handleReplyEmojiSelect} />
+        </div>
+        <div className="relative shrink-0">
+          <button
+            type="button"
+            onClick={() => setShowReplyGifPicker(prev => !prev)}
+            disabled={isSubmitting}
+            className="p-2 text-gray-400 hover:text-blue-500 transition-colors disabled:opacity-40 text-xs font-bold"
+            title="Add a GIF"
+          >
+            GIF
+          </button>
+          {showReplyGifPicker && (
+            <GifPicker
+              onGifSelect={handleReplyGifSelect}
+              onClose={() => setShowReplyGifPicker(false)}
+            />
+          )}
+        </div>
+        <input
+          ref={replyInputRef}
+          type="text"
+          value={replyText}
+          onChange={(e) => setReplyText(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' && !e.shiftKey) {
+              e.preventDefault();
+              handleSubmitReply(parentCommentId);
+            }
+          }}
+          placeholder="Write a reply..."
+          className="flex-1 px-3 py-1.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+          disabled={isSubmitting}
+        />
+        <button
+          type="button"
+          onClick={() => handleSubmitReply(parentCommentId)}
+          disabled={(!replyText.trim() && !replyGifUrl) || isSubmitting}
+          className="px-3 py-1.5 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors shrink-0"
+        >
+          {isSubmitting ? '...' : 'Reply'}
+        </button>
+        <button
+          type="button"
+          onClick={() => { setReplyingTo(null); setReplyText(''); setReplyGifUrl(null); }}
+          className="p-1.5 text-gray-400 hover:text-gray-600 transition-colors shrink-0"
+          title="Cancel"
+        >
+          <i className="fas fa-times text-sm"></i>
+        </button>
+      </div>
+    </div>
+  );
 
   return (
     <div className="border-t border-gray-200">
@@ -289,99 +623,24 @@ export default function CommentSection({ postId, initialCommentsCount = 0, onCom
             </div>
           )}
 
-          {!isLoading && comments.length > 0 && (
-            <div className="space-y-3">
-              {comments.map((comment) => (
-                <div key={comment.id} className="flex gap-3">
-                  {/* Avatar */}
-                  <div className="flex-shrink-0">
-                    {comment.profile?.avatar_url ? (
-                      <Image
-                        src={comment.profile.avatar_url}
-                        alt={formatDisplayName(
-                          comment.profile.first_name,
-                          null,
-                          comment.profile.last_name,
-                          comment.profile.full_name
-                        )}
-                        width={32}
-                        height={32}
-                        className="rounded-full object-cover"
-                      />
-                    ) : (
-                      <div className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white text-xs font-semibold">
-                        {getInitials(formatDisplayName(
-                          comment.profile?.first_name,
-                          null,
-                          comment.profile?.last_name,
-                          comment.profile?.full_name
-                        ))}
-                      </div>
-                    )}
-                  </div>
+          {!isLoading && rootComments.length > 0 && (
+            <div className="space-y-4">
+              {rootComments.map((comment) => (
+                <div key={comment.id}>
+                  {/* Root comment */}
+                  {renderComment(comment, false)}
 
-                  {/* Comment content */}
-                  <div className="flex-1 min-w-0">
-                    <div className="bg-gray-50 rounded-lg px-3 py-2">
-                      <div className="flex items-center justify-between mb-1">
-                        <span className="font-semibold text-sm text-gray-900">
-                          {formatDisplayName(
-                            comment.profile?.first_name,
-                            null,
-                            comment.profile?.last_name,
-                            comment.profile?.full_name
-                          )}
-                        </span>
-                        {user?.id === comment.profile_id && (
-                          <button
-                            onClick={() => handleDeleteComment(comment.id)}
-                            className="text-xs text-red-600 hover:text-red-700"
-                            title="Delete comment"
-                          >
-                            <i className="fas fa-trash" />
-                          </button>
-                        )}
-                      </div>
-                      {comment.content && (
-                        <p className="text-sm text-gray-800 whitespace-pre-wrap break-words">
-                          {comment.content}
-                        </p>
-                      )}
-                      {comment.gif_url && (
-                        // eslint-disable-next-line @next/next/no-img-element
-                        <img
-                          src={comment.gif_url}
-                          alt="GIF"
-                          className="mt-1 rounded-lg max-h-40 max-w-xs"
-                          loading="lazy"
-                        />
-                      )}
+                  {/* Replies */}
+                  {repliesByParent[comment.id] && repliesByParent[comment.id].length > 0 && (
+                    <div className="ml-10 mt-2 space-y-2 border-l-2 border-gray-200 pl-3">
+                      {repliesByParent[comment.id].map((reply) => (
+                        renderComment(reply, true)
+                      ))}
                     </div>
-                    <div className="mt-1 px-3 flex items-center gap-3 text-xs text-gray-500">
-                      <span>{formatTimeAgo(comment.created_at)}</span>
-                      {user && (
-                        <button
-                          onClick={() => handleLikeComment(comment.id)}
-                          disabled={likingComments.has(comment.id)}
-                          className={`flex items-center gap-1 transition-colors ${
-                            comment.comment_likes?.some(like => like.profile_id === user.id)
-                              ? 'text-red-600 hover:text-red-700'
-                              : 'text-gray-500 hover:text-red-600'
-                          } disabled:opacity-50`}
-                          title="Like comment"
-                        >
-                          <i className={`${
-                            comment.comment_likes?.some(like => like.profile_id === user.id)
-                              ? 'fas fa-heart'
-                              : 'far fa-heart'
-                          }`} />
-                          {comment.likes_count ? (
-                            <span className="font-medium">{comment.likes_count}</span>
-                          ) : null}
-                        </button>
-                      )}
-                    </div>
-                  </div>
+                  )}
+
+                  {/* Reply form */}
+                  {replyingTo === comment.id && renderReplyForm(comment.id)}
                 </div>
               ))}
             </div>

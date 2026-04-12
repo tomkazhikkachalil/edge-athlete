@@ -154,6 +154,11 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'value is required' }, { status: 400 });
     }
 
+    const numericValue = Number(value);
+    if (isNaN(numericValue) || !isFinite(numericValue)) {
+      return NextResponse.json({ error: 'value must be a valid number' }, { status: 400 });
+    }
+
     const { data, error } = await supabase
       .from('athlete_vitals')
       .insert({
@@ -161,7 +166,7 @@ export async function POST(request: NextRequest) {
         metric_key,
         metric_category,
         metric_label,
-        value: Number(value),
+        value: numericValue,
         value_display: value_display || null,
         unit,
         notes: notes || null,

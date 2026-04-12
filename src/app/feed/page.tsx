@@ -173,7 +173,7 @@ export default function FeedPage() {
         setPage(0);
       }
       
-      setHasMore(newPosts.length === 20);
+      setHasMore(newPosts.length >= 20);
       
     } catch {
       showError('Error', 'Failed to load feed');

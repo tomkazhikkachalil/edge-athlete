@@ -7,12 +7,13 @@ import { formatDistanceToNow } from 'date-fns';
 import { formatDisplayName, getInitials } from '@/lib/formatters';
 import LazyImage from '@/components/LazyImage';
 import { ToastContainer, useToast } from '@/components/Toast';
-import { useNotifications } from '@/lib/notifications';
+import { useNotifications, getNotificationText } from '@/lib/notifications';
 import AppHeader from '@/components/AppHeader';
 
 interface Notification {
   id: string;
   type: 'follow_request' | 'follow_accepted' | 'like' | 'comment' | 'mention' | 'system' | 'new_follower';
+  title: string;
   message?: string;
   is_read: boolean;
   read_at?: string;
@@ -290,35 +291,7 @@ export default function NotificationsPage() {
     }
   };
 
-  const getNotificationText = (notification: Notification) => {
-    const actorName = notification.actor
-      ? formatDisplayName(notification.actor.first_name, null, notification.actor.last_name, notification.actor.full_name)
-      : 'Someone';
-
-    switch (notification.type) {
-      case 'follow_request':
-        if (notification.action_status === 'accepted') {
-          return `You accepted ${actorName}'s fan request`;
-        } else if (notification.action_status === 'declined') {
-          return `You declined ${actorName}'s fan request`;
-        }
-        return `${actorName} wants to become your fan`;
-      case 'follow_accepted':
-        return `${actorName} accepted your fan request`;
-      case 'new_follower':
-        return `${actorName} is now your fan`;
-      case 'like':
-        return `${actorName} liked your post`;
-      case 'comment':
-        return `${actorName} commented on your post`;
-      case 'mention':
-        return `${actorName} mentioned you`;
-      case 'system':
-        return notification.message || 'System notification';
-      default:
-        return 'New notification';
-    }
-  };
+  // getNotificationText is now imported from @/lib/notifications
 
   if (authLoading || !user) {
     return null;

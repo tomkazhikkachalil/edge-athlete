@@ -4,6 +4,7 @@ import { createContext, useContext, useState, useEffect, useCallback, ReactNode 
 import { RealtimePostgresChangesPayload } from '@supabase/supabase-js';
 import { useAuth } from '@/lib/auth';
 import { supabase } from '@/lib/supabase';
+import { formatDisplayName } from '@/lib/formatters';
 
 export interface NotificationActor {
   id: string;
@@ -28,6 +29,42 @@ export interface Notification {
   comment_id?: string;
   follow_id?: string;
   actor?: NotificationActor;
+  action_status?: 'pending' | 'accepted' | 'declined';
+}
+
+/**
+ * Build notification display text from the current actor profile data.
+ * This avoids showing stale names from the frozen notification.title field.
+ * Falls back to notification.title for unknown types or missing actor.
+ */
+export function getNotificationText(notification: Notification): string {
+  const actorName = notification.actor
+    ? formatDisplayName(notification.actor.first_name, null, notification.actor.last_name, notification.actor.full_name)
+    : 'Someone';
+
+  switch (notification.type) {
+    case 'follow_request':
+      if (notification.action_status === 'accepted') {
+        return `You accepted ${actorName}'s fan request`;
+      } else if (notification.action_status === 'declined') {
+        return `You declined ${actorName}'s fan request`;
+      }
+      return `${actorName} wants to become your fan`;
+    case 'follow_accepted':
+      return `${actorName} accepted your fan request`;
+    case 'new_follower':
+      return `${actorName} is now your fan`;
+    case 'like':
+      return `${actorName} liked your post`;
+    case 'comment':
+      return `${actorName} commented on your post`;
+    case 'mention':
+      return `${actorName} mentioned you`;
+    case 'system':
+      return notification.message || 'System notification';
+    default:
+      return notification.title;
+  }
 }
 
 interface NotificationsContextType {

@@ -1,5 +1,110 @@
 # Development Log
 
+## April 11, 2026 (Session 2)
+
+### Threaded Comments with Pinning & Smart Sort
+
+Rebuilt the comment system into a full threaded conversation layer — replies nest under parents, post owners can pin a comment, and the sort order surfaces the best content first.
+
+**CommentSection rewrite (`src/components/CommentSection.tsx`):**
+- `useMemo` organizes comments into root comments and a `repliesByParent` map
+- Sort order: pinned first → most liked → chronological
+- Replies sorted chronologically within each parent thread
+- Reply form per comment with emoji + GIF pickers
+- Pinned comments show amber thumbtack icon + "Pinned" label
+- Pin button visible only to the post owner on root-level comments
+- 32px avatars for root comments, 24px for replies, indented with left border
+
+**Comments API (`src/app/api/comments/route.ts`):**
+- GET: Sort updated to `is_pinned DESC → likes_count DESC → created_at ASC`
+- POST: Now counts actual rows via admin client and syncs `posts.comments_count`
+- DELETE: Fetches `post_id` before deletion, recounts, syncs cached column
+- New PATCH handler: Pin/unpin comments (post owner only, one pinned per post)
+
+**Migration (`016_comment_pinning.sql`):**
+- `is_pinned BOOLEAN DEFAULT FALSE` column on `post_comments`
+- Partial index on `post_id WHERE is_pinned = TRUE`
+
+---
+
+### In-App Post Sharing (Message-First)
+
+Made internal messaging the primary share destination. Tapping Share on a post opens a modal with contacts front and center; external options are secondary.
+
+**New file (`src/components/SharePostModal.tsx`):**
+- Fetches conversations from `GET /api/messages` on open
+- Frequent contacts row: first 8 DM conversations as horizontal scrollable avatars
+- Full conversation list with search (client-side filter by name)
+- Multi-send: `sent` Set tracks which conversations received the post
+- Sends `{ type: 'shared_post', shared_post_id }` to existing message API
+- Secondary section: Copy Link + native Web Share API
+
+**PostCard changes (`src/components/PostCard.tsx`):**
+- `handleShare` replaced clipboard/Web Share with `setShowShareModal(true)`
+- Comment icon now opens comment section and scrolls to it (`useRef` + `scrollIntoView`)
+- `commentSectionOpen` state controls CommentSection visibility
+- CommentSection receives `postOwnerId` and `isOpen` props
+
+---
+
+### Like & Comment Count Accuracy
+
+Fixed inconsistent like/comment counts by making the API the single source of truth.
+
+**Like API (`src/app/api/posts/like/route.ts`):**
+- After like/unlike: counts actual rows from `post_likes` table
+- Syncs `posts.likes_count` cached column with true count
+
+**Comments API:** Same pattern — POST and DELETE both recount and sync.
+
+**Database triggers (`015_fix_like_comment_count_triggers.sql`):**
+- `update_post_likes_count()` trigger on INSERT/DELETE on `post_likes`
+- `update_post_comments_count()` trigger on INSERT/DELETE on `post_comments`
+- One-time recount of all existing posts
+- All references fully schema-qualified (`public.posts`, `public.post_likes`, etc.)
+
+---
+
+### Trigger Schema Qualification Fix
+
+Fixed PostgreSQL trigger functions that used `SET search_path = ''` but referenced tables and functions without `public.` prefix, causing likes and comments to silently fail.
+
+**Migration (`014_fix_notification_actor_name.sql`):**
+- Fixed 7 trigger functions: `notify_post_like`, `notify_post_comment`, `notify_new_follower`, `notify_follow_request`, `notify_follow_request_accepted`, `notify_mention`, `notify_shared_post`
+- All now use `public.posts`, `public.get_actor_display_name()`, `public.create_notification()`
+
+---
+
+### Security & Stability Fixes
+
+**Search API (`src/app/api/search/route.ts`):**
+- Added `sanitizeForFilter()` to prevent PostgREST injection via search terms
+
+**Messages API (`src/app/api/messages/route.ts`):**
+- UUID validation on participant IDs
+- Fixed DM lookup to check both participant orderings
+- Parallel unread count queries
+
+**Vitals API (`src/app/api/vitals/route.ts`):**
+- NaN/Infinity validation on numeric inputs
+
+**Vitals config (`src/lib/vitals-config.ts`):**
+- `parseTimeToSeconds` bounds validation and `Math.floor` fix
+
+**AddVitalModal (`src/components/AddVitalModal.tsx`):**
+- `parseTimeToSeconds` format parameter fix
+
+**Notifications (`src/lib/notifications.tsx`):**
+- Extracted shared `getNotificationText()` function used by `NotificationBell`, notifications page, and app notifications page
+
+**Other cleanup:**
+- Removed dead `MobileNav.tsx` component
+- Removed duplicate Messages button from `AppHeader`
+- Fixed `TypingIndicator` `useRef` cleanup
+- Fixed feed pagination (>= 20 instead of === 20)
+
+---
+
 ## April 11, 2026
 
 ### MVP Messaging System
@@ -284,10 +389,10 @@ Implemented bidirectional relationship management in the Fans modal:
 
 ## Project Status
 
-**Build:** Passing (57 pages, 54 API routes, 0 errors)
+**Build:** Passing (63 static pages, 0 errors)
 **Lint:** No warnings or errors
 **Deployment:** Vercel (auto-deploy on push to main)
-**Last Verified:** April 7, 2026
+**Last Verified:** April 11, 2026
 
 ---
 

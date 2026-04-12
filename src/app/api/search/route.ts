@@ -4,6 +4,12 @@ import { getSupabaseAdmin } from '@/lib/auth-server';
 // Feature flag for full-text search (set to false to use old ILIKE method)
 const USE_FULLTEXT_SEARCH = true;
 
+// Sanitize user input for use in PostgREST .or() / .ilike() filters.
+// Escapes characters that could break out of the filter expression.
+function sanitizeForFilter(input: string): string {
+  return input.replace(/[\\%_(),."']/g, '\\$&');
+}
+
 export async function GET(request: NextRequest) {
   try {
     const supabase = getSupabaseAdmin();
@@ -92,7 +98,8 @@ export async function GET(request: NextRequest) {
         }
       } catch {
         // Fallback to ILIKE search if full-text search fails
-        const searchPattern = `%${query}%`;
+        const safeQuery = sanitizeForFilter(query);
+        const searchPattern = `%${safeQuery}%`;
 
         const athleteQuery = supabase
           .from('profiles')
@@ -268,7 +275,8 @@ export async function GET(request: NextRequest) {
         }
       } catch {
         // Fallback to ILIKE search if full-text search fails
-        const searchPattern = `%${query}%`;
+        const safeClubQuery = sanitizeForFilter(query);
+        const searchPattern = `%${safeClubQuery}%`;
 
         const { data: clubs, error: clubsError } = await supabase
           .from('clubs')

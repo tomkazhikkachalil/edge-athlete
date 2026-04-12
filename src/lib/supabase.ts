@@ -176,6 +176,7 @@ export interface Comment {
   created_at: string;
   updated_at: string;
   likes_count?: number;
+  is_pinned?: boolean;
   profile?: Profile;
   comment_likes?: { profile_id: string }[];
 }

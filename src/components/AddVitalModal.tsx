@@ -134,11 +134,11 @@ export default function AddVitalModal({ isOpen, onClose, onSaved }: AddVitalModa
     const trimmed = form.rawValue.trim();
 
     if (selectedMetric.time_format === 'mm:ss') {
-      const n = parseTimeToSeconds(trimmed);
-      if (n === null) { setError('Enter time as M:SS (e.g. 4:32 or 22:15).'); return null; }
+      const n = parseTimeToSeconds(trimmed, 'mm:ss');
+      if (n === null) { setError('Enter time as M:SS (e.g. 4:32 or 22:15). Seconds must be 0–59.'); return null; }
       return { numericValue: n, displayValue: formatSecondsToDisplay(n, 'mm:ss') };
     } else if (selectedMetric.time_format === 'decimal_seconds') {
-      const n = parseTimeToSeconds(trimmed);
+      const n = parseTimeToSeconds(trimmed, 'decimal_seconds');
       if (n === null) { setError('Enter a decimal number (e.g. 4.95).'); return null; }
       return { numericValue: n, displayValue: `${n} sec` };
     } else {

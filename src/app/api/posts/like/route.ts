@@ -38,18 +38,19 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: 'Failed to unlike post' }, { status: 500 });
       }
 
-      // Get updated count after unlike
-      const { data: post } = await supabase
-        .from('posts')
-        .select('likes_count')
-        .eq('id', postId)
-        .single();
+      // Count actual rows and sync cached column
+      const { count } = await supabase
+        .from('post_likes')
+        .select('id', { count: 'exact', head: true })
+        .eq('post_id', postId);
 
+      const trueCount = count ?? 0;
+      await supabase.from('posts').update({ likes_count: trueCount }).eq('id', postId);
 
       return NextResponse.json({
         action: 'unliked',
         message: 'Post unliked successfully',
-        likesCount: post?.likes_count ?? 0
+        likesCount: trueCount
       });
     } else {
       // Like: Add the like
@@ -66,34 +67,34 @@ export async function POST(request: NextRequest) {
         // Handle unique constraint violation (23505 is PostgreSQL's duplicate key error)
         if (insertError.code === '23505' || insertError.message?.includes('duplicate')) {
           // User already liked this post (race condition), get current count
-          const { data: post } = await supabase
-            .from('posts')
-            .select('likes_count')
-            .eq('id', postId)
-            .single();
+          const { count } = await supabase
+            .from('post_likes')
+            .select('id', { count: 'exact', head: true })
+            .eq('post_id', postId);
 
           return NextResponse.json({
             action: 'liked',
             message: 'Post already liked',
-            likesCount: post?.likes_count ?? 0
+            likesCount: count ?? 0
           });
         }
 
         return NextResponse.json({ error: 'Failed to like post' }, { status: 500 });
       }
 
-      // Get updated count after like
-      const { data: post } = await supabase
-        .from('posts')
-        .select('likes_count')
-        .eq('id', postId)
-        .single();
+      // Count actual rows and sync cached column
+      const { count } = await supabase
+        .from('post_likes')
+        .select('id', { count: 'exact', head: true })
+        .eq('post_id', postId);
 
+      const trueCount = count ?? 0;
+      await supabase.from('posts').update({ likes_count: trueCount }).eq('id', postId);
 
       return NextResponse.json({
         action: 'liked',
         message: 'Post liked successfully',
-        likesCount: post?.likes_count ?? 0
+        likesCount: trueCount
       });
     }
 
