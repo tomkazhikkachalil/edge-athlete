@@ -28,7 +28,7 @@ export default function ConversationPage() {
   if (authLoading || !user) return null;
 
   return (
-    <div className="flex flex-col h-screen bg-white">
+    <div className="flex flex-col h-screen h-[100dvh] bg-white">
       <AppHeader showSearch={false} />
       <div className="flex-1 min-h-0">
         <ChatWindow

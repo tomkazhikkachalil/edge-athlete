@@ -44,9 +44,11 @@ export function MessagesProvider({ children }: { children: ReactNode }) {
       if (res.ok) {
         const data = await res.json();
         setTotalUnreadCount(data.count ?? 0);
+      } else {
+        console.error('Failed to refresh unread count — status:', res.status);
       }
-    } catch {
-      // Non-fatal
+    } catch (e) {
+      console.error('Failed to refresh unread count:', e);
     }
   }, [user]);
 
@@ -58,9 +60,11 @@ export function MessagesProvider({ children }: { children: ReactNode }) {
       if (res.ok) {
         const data = await res.json();
         setConversations(data.conversations || []);
+      } else {
+        console.error('Failed to fetch conversations — status:', res.status);
       }
-    } catch {
-      // Non-fatal
+    } catch (e) {
+      console.error('Failed to fetch conversations:', e);
     }
   }, [user]);
 
@@ -169,7 +173,11 @@ export function MessagesProvider({ children }: { children: ReactNode }) {
 
   const markConversationRead = useCallback(async (conversationId: string) => {
     try {
-      await fetch(`/api/messages/${conversationId}/read`, { method: 'PATCH' });
+      const res = await fetch(`/api/messages/${conversationId}/read`, { method: 'PATCH' });
+      if (!res.ok) {
+        console.error('Failed to mark conversation read — status:', res.status);
+        return;
+      }
       setConversations(prev =>
         prev.map(c =>
           c.id === conversationId
@@ -181,8 +189,8 @@ export function MessagesProvider({ children }: { children: ReactNode }) {
         const conv = conversations.find(c => c.id === conversationId);
         return Math.max(0, prev - (conv?.unread_count || 0));
       });
-    } catch {
-      // Non-fatal
+    } catch (e) {
+      console.error('Failed to mark conversation read:', e);
     }
   }, [conversations]);
 

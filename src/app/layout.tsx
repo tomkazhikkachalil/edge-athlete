@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Inter } from 'next/font/google';
 import { AuthProvider } from "@/lib/auth";
 import { NotificationsProvider } from "@/lib/notifications";
@@ -15,6 +15,14 @@ const inter = Inter({
 export const metadata: Metadata = {
   title: "Edge Athlete",
   description: "Connect athletes, clubs, leagues, and fans",
+};
+
+export const viewport: Viewport = {
+  width: 'device-width',
+  initialScale: 1,
+  maximumScale: 5,
+  viewportFit: 'cover',
+  themeColor: '#ffffff',
 };
 
 export default function RootLayout({

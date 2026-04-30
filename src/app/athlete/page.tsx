@@ -618,7 +618,7 @@ export default function AthleteProfilePage() {
           />
           {/* Edit box positioned directly over the content */}
           <div className="absolute inset-0 z-50 flex items-center justify-center">
-            <div className="bg-white border-2 border-blue-500 rounded-lg shadow-xl p-4 min-w-[300px]">
+            <div className="bg-white border-2 border-blue-500 rounded-lg shadow-xl p-4 min-w-[280px]">
             <div className="flex flex-col gap-2">
               <div className="flex items-center gap-2">
                 {multiline ? (

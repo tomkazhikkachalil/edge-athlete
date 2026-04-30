@@ -27,7 +27,7 @@ export default function GoodbyePage() {
         <div className="bg-white rounded-2xl shadow-xl p-8 sm:p-12 text-center">
           {/* Icon */}
           <div className="w-20 h-20 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-6">
-            <i className="fas fa-wave-pulse text-blue-600 text-3xl"></i>
+            <i className="fas fa-circle-check text-blue-600 text-3xl"></i>
           </div>
 
           {/* Heading */}
