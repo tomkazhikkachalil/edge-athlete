@@ -209,9 +209,11 @@ export default function ChatWindow({ conversationId, onBack }: Props) {
         setMessages(prev => [...prev, ...(d.messages || [])]);
         setHasMore(d.has_more ?? false);
         setNextCursor(d.next_cursor ?? null);
+      } else {
+        console.error('Failed to load older messages — status:', res.status);
       }
-    } catch {
-      // ignore
+    } catch (e) {
+      console.error('Failed to load older messages:', e);
     } finally {
       setLoadingMore(false);
     }
@@ -256,9 +258,11 @@ export default function ChatWindow({ conversationId, onBack }: Props) {
         setMessages(prev => prev.map(m =>
           m.id === messageId ? { ...m, deleted_at: new Date().toISOString() } : m
         ));
+      } else {
+        console.error('Failed to delete message — status:', res.status);
       }
-    } catch {
-      // ignore
+    } catch (e) {
+      console.error('Failed to delete message:', e);
     }
   }, [conversationId]);
 
@@ -308,8 +312,12 @@ export default function ChatWindow({ conversationId, onBack }: Props) {
 
   // Toggle emoji reaction on a message (works for top-level AND gif_reaction messages)
   const handleToggleReaction = useCallback(async (messageId: string, emoji: string) => {
+    // Snapshot current reactions BEFORE the optimistic mutation so we can revert on failure.
+    let priorReactions: AggregatedReaction[] = [];
+
     // Optimistic update
     updateMessageReactions(messageId, (reactions) => {
+      priorReactions = [...reactions]; // shallow copy is sufficient — items below are replaced, not mutated
       const idx = reactions.findIndex(r => r.emoji === emoji);
       if (idx >= 0) {
         const r = reactions[idx];
@@ -349,11 +357,17 @@ export default function ChatWindow({ conversationId, onBack }: Props) {
           event: 'reaction_update',
           payload: { message_id: messageId, reactions: data.reactions },
         });
+      } else {
+        // Server rejected the toggle — restore the prior reactions so UI matches server state.
+        setMessageReactions(messageId, priorReactions);
+        console.error('Failed to toggle reaction — status:', res.status);
       }
-    } catch {
-      // Revert on error by refetching (could be more surgical, but simple)
+    } catch (e) {
+      // Network failure — restore the prior reactions so UI matches server state.
+      setMessageReactions(messageId, priorReactions);
+      console.error('Failed to toggle reaction:', e);
     }
-  }, [conversationId]);
+  }, [conversationId, setMessageReactions, updateMessageReactions]);
 
   // Reply to a message
   const handleReply = useCallback((message: Message) => {
@@ -416,9 +430,11 @@ export default function ChatWindow({ conversationId, onBack }: Props) {
             ? { ...m, gif_reactions: [...(m.gif_reactions || []), gifMsg] }
             : m
         ));
+      } else {
+        console.error('Failed to send GIF reaction — status:', res.status);
       }
-    } catch {
-      // ignore
+    } catch (e) {
+      console.error('Failed to send GIF reaction:', e);
     }
   }, [conversationId, gifReactingMessageId]);
 
@@ -436,9 +452,11 @@ export default function ChatWindow({ conversationId, onBack }: Props) {
           ...prev,
           my_participant: { ...prev.my_participant, is_muted: !isMuted },
         } : prev);
+      } else {
+        console.error('Failed to toggle mute — status:', res.status);
       }
-    } catch {
-      // ignore
+    } catch (e) {
+      console.error('Failed to toggle mute:', e);
     }
     setShowMenu(false);
   }, [conversation, conversationId]);
@@ -453,9 +471,11 @@ export default function ChatWindow({ conversationId, onBack }: Props) {
       if (res.ok) {
         removeConversation(conversationId);
         router.push('/messages');
+      } else {
+        console.error('Failed to leave conversation — status:', res.status);
       }
-    } catch {
-      // ignore
+    } catch (e) {
+      console.error('Failed to leave conversation:', e);
     }
   }, [conversationId, currentUserId, removeConversation, router]);
 
@@ -474,9 +494,11 @@ export default function ChatWindow({ conversationId, onBack }: Props) {
       if (res.ok) {
         removeConversation(conversationId);
         router.push('/messages');
+      } else {
+        console.error('Failed to block user — status:', res.status);
       }
-    } catch {
-      // ignore
+    } catch (e) {
+      console.error('Failed to block user:', e);
     }
   }, [conversation, currentUserId, conversationId, removeConversation, router]);
 
