@@ -1,5 +1,62 @@
 # Development Log
 
+## April 29, 2026
+
+### Mobile-Readiness + Production-Stability Pass
+
+Two-commit pass focused on getting Edge Athlete cleanly Vercel-deployable on mobile, removing silent failure modes, and adding a recoverable error UI for real-world conditions (flaky networks, content blockers, cache mismatches).
+
+**Self-hosted Font Awesome (`src/app/layout.tsx`):**
+- Replaced CDN `<link>` (`cdnjs.cloudflare.com/.../font-awesome`) with local `@fortawesome/fontawesome-free` package import
+- Eliminates dependency on external CDN that can be blocked or fail on mobile networks; 456 icons now ship from app's own origin
+- Added explicit `viewport` export (`width: device-width`, `initialScale: 1`, `maximumScale: 5`, `viewportFit: 'cover'`, `themeColor: #ffffff`) so iOS notched devices honor safe areas
+
+**React Error Boundaries (`src/app/error.tsx`, `src/app/global-error.tsx`):**
+- Added Next.js route-level + global error boundaries
+- Failed renders now show a recoverable "Something went wrong / Try again / Go home" card instead of a white screen
+- "Go home" uses `window.location.assign('/')` (full reload) to escape any broken router state
+- Caught the cache-mismatch issue immediately in production after deploy — confirmed working as designed
+
+**ChatWindow silent-catch sweep (`src/components/messages/ChatWindow.tsx`):**
+- Replaced 7 silent `} catch { /* ignore */ }` blocks with `console.error` + non-OK response handling across `loadOlderMessages`, `handleDeleteMessage`, `handleToggleReaction`, `handleGifReactSelect`, `handleMuteToggle`, `handleLeave`, `handleBlock`
+- Reaction toggle now snapshots prior reactions before optimistic mutation and reverts on failure or non-2xx response — UI no longer permanently desyncs from server when network fails
+- Fixed React `exhaustive-deps` lint warning (added `setMessageReactions`, `updateMessageReactions` to callback deps)
+
+**MessagesProvider silent-catch sweep (`src/lib/messages.tsx`):**
+- Same fix pattern applied to `refreshUnreadCount`, `fetchConversations`, `markConversationRead`
+- Provider runs on every page for logged-in users; previously these failures were invisible
+
+**iOS Safari URL-bar fix (`src/app/messages/page.tsx`, `src/app/messages/[conversationId]/page.tsx`):**
+- Added `h-[100dvh]` alongside `h-screen` on the two messages pages
+- Modern browsers use dynamic viewport height (`dvh`) which tracks the actual visible area as Safari's URL bar shrinks/expands; older browsers ignore the unit and fall back to `h-screen`
+- Fixes chat input being clipped under the URL bar on scroll
+
+**Cosmetic mobile fixes:**
+- `src/app/goodbye/page.tsx`: replaced `fa-wave-pulse` (Font Awesome Pro, not in free package) with `fa-circle-check`
+- `src/app/athlete/page.tsx`: inline-edit popover `min-w-[300px]` → `min-w-[280px]` so it fits 320px-wide screens with margin
+
+**Migration runbook (`database/migrations/RUNBOOK_014-017.md`):**
+- New 430-line reference document for applying migrations 014–017 to Supabase
+- Per-migration: goal, pre-check SQL, apply step, post-check SQL, optional smoke test
+- At-a-glance status query at top to see which of the four are applied at any time
+- Rollback notes per migration
+- Most user-impacting: 017 (`message_reactions` schema needed for emoji/GIF reactions UI already shipped in production)
+
+**Commits shipped (auto-deployed to Vercel):**
+- `b957f94` — Self-host Font Awesome, add error boundaries, surface chat errors
+- `e341203` — Mobile-readiness pass — viewport, dvh, messages provider
+
+**Verified:** `npm run build` exit 0 (63 static pages), `npm run lint` zero warnings.
+
+**Pending Tom's action (DB-side, not blockers for code):**
+- Apply migrations 014–017 to Supabase using the new runbook
+- Most urgent: 017 (without it, the already-shipped reactions feature 500s in production)
+
+**Deferred for separate session (P1 silent-catch sweep):**
+- ~25 more silent catches across `feed/`, `followers/`, `notifications/`, `athlete/saved/`, server-side API routes (`posts`, `vitals`, `search`)
+
+---
+
 ## April 12, 2026
 
 ### Flat Chat Flow — Replace Threaded Replies with Linear Conversation
