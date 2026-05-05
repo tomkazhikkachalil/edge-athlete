@@ -79,7 +79,8 @@ export default function AdvancedSearchBar() {
       // API returns { query, results, total }, we need the results object
       setResults(data.results || { athletes: [], posts: [], clubs: [] });
       setShowResults(true);
-    } catch {
+    } catch (e) {
+      console.error('Failed to perform advanced search:', e);
     } finally {
       setLoading(false);
     }

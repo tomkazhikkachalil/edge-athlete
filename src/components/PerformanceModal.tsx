@@ -113,7 +113,8 @@ export default function PerformanceModal({
 
       await onSave(saveData);
       onClose();
-    } catch {
+    } catch (e) {
+      console.error('Failed to save performance:', e);
       setErrors({ general: 'Failed to save performance. Please try again.' });
     } finally {
       setSaving(false);

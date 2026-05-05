@@ -74,8 +74,11 @@ export default function NotificationsDropdown() {
         const data = await response.json();
         setNotifications(data.notifications || []);
         setUnreadCount(data.unreadCount || 0);
+      } else {
+        console.error('Failed to load notifications dropdown — status:', response.status);
       }
-    } catch {
+    } catch (e) {
+      console.error('Failed to load notifications dropdown:', e);
     }
   };
 
@@ -91,7 +94,8 @@ export default function NotificationsDropdown() {
         prev.map(n => notificationIds.includes(n.id) ? { ...n, read: true } : n)
       );
       setUnreadCount(prev => Math.max(0, prev - notificationIds.length));
-    } catch {
+    } catch (e) {
+      console.error('Failed to mark notifications read (dropdown):', e);
     }
   };
 
@@ -105,7 +109,8 @@ export default function NotificationsDropdown() {
 
       setNotifications(prev => prev.map(n => ({ ...n, read: true })));
       setUnreadCount(0);
-    } catch {
+    } catch (e) {
+      console.error('Failed to mark all notifications read (dropdown):', e);
     }
   };
 

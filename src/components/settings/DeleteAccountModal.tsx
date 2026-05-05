@@ -74,7 +74,8 @@ export default function DeleteAccountModal({ isOpen, onClose }: DeleteAccountMod
       setNeedsReauth(false);
       setReauthPassword('');
       showError('Success', 'Re-authenticated successfully');
-    } catch {
+    } catch (e) {
+      console.error('Failed to re-authenticate (delete account):', e);
       showError('Error', 'Invalid password. Please try again.');
     } finally {
       setIsReauthenticating(false);

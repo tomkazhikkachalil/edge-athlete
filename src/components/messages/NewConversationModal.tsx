@@ -45,9 +45,11 @@ export default function NewConversationModal({ onClose }: Props) {
       if (res.ok) {
         const data = await res.json();
         setSearchResults(data.results?.athletes || []);
+      } else {
+        console.error('Failed to search athletes (new conversation) — status:', res.status);
       }
-    } catch {
-      // ignore
+    } catch (e) {
+      console.error('Failed to search athletes (new conversation):', e);
     } finally {
       setSearching(false);
     }

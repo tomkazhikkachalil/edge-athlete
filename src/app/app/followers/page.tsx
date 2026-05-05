@@ -91,7 +91,8 @@ function FollowersContent() {
       } else if (activeTab === 'requests') {
         setRequests(data.requests || []);
       }
-    } catch {
+    } catch (e) {
+      console.error('Failed to load followers data:', e);
       showError('Error', 'Failed to load data');
     } finally {
       setLoading(false);
@@ -111,7 +112,8 @@ function FollowersContent() {
       setRequests(prev => prev.filter(r => r.id !== followId));
       showSuccess('Success', 'Fan request accepted');
       loadData(); // Reload to update counts
-    } catch {
+    } catch (e) {
+      console.error('Failed to accept fan request:', e);
       showError('Error', 'Failed to accept request');
     }
   };
@@ -128,7 +130,8 @@ function FollowersContent() {
 
       setRequests(prev => prev.filter(r => r.id !== followId));
       showSuccess('Success', 'Fan request declined');
-    } catch {
+    } catch (e) {
+      console.error('Failed to reject fan request:', e);
       showError('Error', 'Failed to reject request');
     }
   };
@@ -154,7 +157,8 @@ function FollowersContent() {
 
       showSuccess('Success', 'You are no longer a fan');
       loadData(); // Reload the lists
-    } catch {
+    } catch (e) {
+      console.error('Failed to unfollow:', e);
       showError('Error', 'Failed to unfollow');
     }
   };
@@ -177,7 +181,8 @@ function FollowersContent() {
 
       showSuccess('Success', 'Fan removed');
       loadData(); // Reload the lists
-    } catch {
+    } catch (e) {
+      console.error('Failed to remove fan:', e);
       showError('Error', 'Failed to remove follower');
     }
   };

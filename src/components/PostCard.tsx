@@ -193,7 +193,8 @@ export default function PostCard({
       // Update counts from server
       setLocalSavesCount(data.savesCount);
       setIsSaved(data.isSaved);
-    } catch {
+    } catch (e) {
+      console.error('Failed to toggle saved post:', e);
       // Revert on error
       setIsSaved(isSaved);
     }

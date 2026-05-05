@@ -174,8 +174,9 @@ export default function FeedPage() {
       }
       
       setHasMore(newPosts.length >= 20);
-      
-    } catch {
+
+    } catch (e) {
+      console.error('Failed to load feed:', e);
       showError('Error', 'Failed to load feed');
     } finally {
       setFeedLoading(false);
@@ -219,7 +220,8 @@ export default function FeedPage() {
           return post;
         })
       );
-    } catch {
+    } catch (e) {
+      console.error('Failed to like post:', e);
       showError('Error', 'Failed to like post');
     }
   };
@@ -295,7 +297,8 @@ export default function FeedPage() {
       // Remove post from local state
       setPosts(prevPosts => prevPosts.filter(post => post.id !== postId));
       showSuccess('Success', 'Post deleted successfully');
-    } catch {
+    } catch (e) {
+      console.error('Failed to delete post:', e);
       showError('Error', 'Failed to delete post');
     }
   };

@@ -40,8 +40,11 @@ export default function ConnectionSuggestions({
       if (response.ok) {
         const data = await response.json();
         setSuggestions(data.suggestions || []);
+      } else {
+        console.error('Failed to load connection suggestions — status:', response.status);
       }
-    } catch {
+    } catch (e) {
+      console.error('Failed to load connection suggestions:', e);
     } finally {
       setLoading(false);
     }
@@ -67,7 +70,8 @@ export default function ConnectionSuggestions({
 
       setDismissedIds(prev => new Set(prev).add(suggestedId));
       setSuggestions(prev => prev.filter(s => s.suggested_id !== suggestedId));
-    } catch {
+    } catch (e) {
+      console.error('Failed to dismiss connection suggestion:', e);
     }
   };
 

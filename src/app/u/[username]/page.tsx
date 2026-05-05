@@ -110,7 +110,8 @@ export default function PublicProfilePage() {
         }
 
         setProfileData(data);
-      } catch {
+      } catch (e) {
+        console.error('Failed to load public profile:', e);
         setError('Failed to load profile');
       } finally {
         setLoading(false);

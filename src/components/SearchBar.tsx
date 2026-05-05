@@ -41,9 +41,11 @@ export default function SearchBar() {
         setResults(data.results || { athletes: [], posts: [], clubs: [] });
         setShowResults(true);
       } else {
+        console.error('Failed to search — status:', response.status);
         setResults({ athletes: [], posts: [], clubs: [] });
       }
-    } catch {
+    } catch (e) {
+      console.error('Failed to search:', e);
       setResults({ athletes: [], posts: [], clubs: [] });
     } finally {
       setIsLoading(false);

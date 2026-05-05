@@ -107,9 +107,11 @@ export default function ProfileMediaTabs({ profileId, currentUserId, isOwnProfil
         if (onCountsChange) {
           onCountsChange(data);
         }
+      } else {
+        console.error('Failed to fetch media counts — status:', response.status);
       }
-    } catch {
-      // Silently handle media count fetch errors
+    } catch (e) {
+      console.error('Failed to fetch media counts:', e);
     }
   }, [profileId, onCountsChange]);
 
@@ -152,7 +154,8 @@ export default function ProfileMediaTabs({ profileId, currentUserId, isOwnProfil
       const newOffset = data.nextOffset || currentOffset + (data.items?.length || 0);
       setOffset(newOffset);
       offsetRef.current = newOffset;
-    } catch {
+    } catch (e) {
+      console.error('Failed to fetch profile media:', e);
       // Reset loading states on error
       setLoading(false);
       setLoadingMore(false);
@@ -239,7 +242,8 @@ export default function ProfileMediaTabs({ profileId, currentUserId, isOwnProfil
       setEditingPost(data.post);
       setIsEditPostModalOpen(true);
       setIsModalOpen(false); // Close detail modal
-    } catch {
+    } catch (e) {
+      console.error('Failed to fetch post for editing:', e);
       showError('Error', 'Failed to load post for editing');
     }
   };

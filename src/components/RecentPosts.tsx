@@ -70,7 +70,8 @@ export default function RecentPosts({
 
       // Notify parent of posts count
       onPostsLoad?.(postsData.length);
-    } catch {
+    } catch (e) {
+      console.error('Failed to load recent posts:', e);
       setError('Failed to load posts');
       showError('Error', 'Failed to load posts');
     } finally {
@@ -117,7 +118,8 @@ export default function RecentPosts({
           return post;
         })
       );
-    } catch {
+    } catch (e) {
+      console.error('Failed to like post (RecentPosts):', e);
       showError('Error', 'Failed to like post');
     }
   };

@@ -130,7 +130,8 @@ export default function SeasonHighlightsModal({
 
       await onSave(saveData);
       onClose();
-    } catch {
+    } catch (e) {
+      console.error('Failed to save season highlights:', e);
       setErrors({ general: 'Failed to save highlights. Please try again.' });
     } finally {
       setSaving(false);

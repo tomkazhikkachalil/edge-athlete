@@ -83,7 +83,8 @@ export default function CommentSection({
 
       const data = await response.json();
       setComments(data.comments || []);
-    } catch {
+    } catch (e) {
+      console.error('Failed to load comments:', e);
       setError('Failed to load comments');
     } finally {
       setIsLoading(false);
@@ -170,7 +171,8 @@ export default function CommentSection({
       const newCount = data.commentsCount ?? comments.length + 1;
       setCommentsCount(newCount);
       onCommentCountChange?.(newCount);
-    } catch {
+    } catch (e) {
+      console.error('Failed to post comment:', e);
       setError('Failed to post comment');
     } finally {
       setIsSubmitting(false);
@@ -206,7 +208,8 @@ export default function CommentSection({
       const newCount = data.commentsCount ?? comments.length + 1;
       setCommentsCount(newCount);
       onCommentCountChange?.(newCount);
-    } catch {
+    } catch (e) {
+      console.error('Failed to post reply:', e);
       setError('Failed to post reply');
     } finally {
       setIsSubmitting(false);
@@ -230,7 +233,8 @@ export default function CommentSection({
       const newCount = data.commentsCount ?? Math.max(0, comments.length - 1);
       setCommentsCount(newCount);
       onCommentCountChange?.(newCount);
-    } catch {
+    } catch (e) {
+      console.error('Failed to delete comment:', e);
       setError('Failed to delete comment');
     }
   };
@@ -264,7 +268,8 @@ export default function CommentSection({
             : comment
         )
       );
-    } catch {
+    } catch (e) {
+      console.error('Failed to like comment:', e);
       setError('Failed to like comment');
     } finally {
       setLikingComments(prev => {
@@ -296,7 +301,8 @@ export default function CommentSection({
           is_pinned: c.id === commentId ? !isPinned : (isPinned ? c.is_pinned : false)
         }))
       );
-    } catch {
+    } catch (e) {
+      console.error('Failed to pin comment:', e);
       setError('Failed to pin comment');
     }
   };

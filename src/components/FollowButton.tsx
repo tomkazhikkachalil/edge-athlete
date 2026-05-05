@@ -63,8 +63,8 @@ export default function FollowButton({
         setIsFollowing(false);
         setFollowStatus(null);
       }
-    } catch {
-      // Silently handle errors for now (table might not exist yet)
+    } catch (e) {
+      console.error('Failed to load follow stats (FollowButton):', e);
       setFollowersCount(0);
       setIsFollowing(false);
       setFollowStatus(null);

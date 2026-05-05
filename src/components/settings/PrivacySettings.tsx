@@ -35,7 +35,8 @@ export default function PrivacySettings() {
       setVisibility(newVisibility);
       await refreshProfile();
       showSuccess('Success', 'Privacy settings updated successfully');
-    } catch {
+    } catch (e) {
+      console.error('Failed to update privacy settings:', e);
       showError('Error', 'Failed to update privacy settings');
     } finally {
       setSaving(false);

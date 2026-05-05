@@ -44,7 +44,8 @@ export default function ParticipantAttestationModal({
     try {
       await onConfirm();
       onClose();
-    } catch {
+    } catch (e) {
+      console.error('Failed to confirm participant attestation:', e);
       setProcessing(false);
       setAction(null);
     }
@@ -56,7 +57,8 @@ export default function ParticipantAttestationModal({
     try {
       await onDecline();
       onClose();
-    } catch {
+    } catch (e) {
+      console.error('Failed to decline participant attestation:', e);
       setProcessing(false);
       setAction(null);
     }

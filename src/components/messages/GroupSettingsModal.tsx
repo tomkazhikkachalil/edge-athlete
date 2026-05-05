@@ -44,9 +44,11 @@ export default function GroupSettingsModal({ conversation, currentUserId, onClos
           const data = await res.json();
           const existingIds = new Set(activeParticipants.map(p => p.profile_id));
           setSearchResults((data.results?.athletes || []).filter((p: { id: string }) => !existingIds.has(p.id)));
+        } else {
+          console.error('Failed to search athletes (group settings) — status:', res.status);
         }
-      } catch {
-        // ignore
+      } catch (e) {
+        console.error('Failed to search athletes (group settings):', e);
       } finally {
         setSearching(false);
       }

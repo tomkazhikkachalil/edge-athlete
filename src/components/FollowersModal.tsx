@@ -84,7 +84,8 @@ export default function FollowersModal({ isOpen, onClose, profileId, initialTab 
         const myFollowingIds = new Set<string>(followingProfiles.map((p: Profile) => p.id));
         setMyFollowing(myFollowingIds);
       }
-    } catch {
+    } catch (e) {
+      console.error('Failed to load fan/following data:', e);
       setError('Failed to load data. Please try again.');
     } finally {
       setLoading(false);
@@ -131,8 +132,8 @@ export default function FollowersModal({ isOpen, onClose, profileId, initialTab 
       if (data.action === 'followed') {
         setMyFollowing(prev => new Set([...prev, targetId]));
       }
-    } catch {
-      // Silently fail - user can try again
+    } catch (e) {
+      console.error('Failed to become fan:', e);
     } finally {
       setActionLoading(null);
     }
@@ -165,8 +166,8 @@ export default function FollowersModal({ isOpen, onClose, profileId, initialTab 
           return newSet;
         });
       }
-    } catch {
-      // Silently fail - user can try again
+    } catch (e) {
+      console.error('Failed to unfollow:', e);
     } finally {
       setActionLoading(null);
     }
@@ -192,8 +193,8 @@ export default function FollowersModal({ isOpen, onClose, profileId, initialTab 
 
       // Update local state - remove from followers list
       setFollowers(prev => prev.filter(p => p.id !== fanId));
-    } catch {
-      // Silently fail - user can try again
+    } catch (e) {
+      console.error('Failed to remove fan:', e);
     } finally {
       setActionLoading(null);
     }

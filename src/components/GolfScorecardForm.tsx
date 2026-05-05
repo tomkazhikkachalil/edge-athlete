@@ -119,8 +119,11 @@ export default function GolfScorecardForm({ onDataChange }: GolfScorecardFormPro
       if (response.ok) {
         const data = await response.json();
         setAvailableCourses(data.courses || []);
+      } else {
+        console.error('Failed to search golf courses (scorecard) — status:', response.status);
       }
-    } catch {
+    } catch (e) {
+      console.error('Failed to search golf courses (scorecard):', e);
       setAvailableCourses([]);
     } finally {
       setSearchLoading(false);

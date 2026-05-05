@@ -36,7 +36,8 @@ export default function GifPicker({ onGifSelect, onClose, variant = 'popover' }:
       if (!res.ok) throw new Error('Failed to load GIFs');
       const data = await res.json();
       setGifs(data.gifs || []);
-    } catch {
+    } catch (e) {
+      console.error('Failed to load GIFs:', e);
       setError('Could not load GIFs. Check your connection.');
     } finally {
       setLoading(false);

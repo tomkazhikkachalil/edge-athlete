@@ -132,7 +132,8 @@ export default function EquipmentSection({ profileId, isOwnProfile = false }: Eq
         'Success',
         `Equipment ${newStatus === 'active' ? 'activated' : 'retired'} successfully`
       );
-    } catch {
+    } catch (e) {
+      console.error('Failed to update equipment status:', e);
       showError('Error', 'Failed to update equipment status');
     }
   };
@@ -153,7 +154,8 @@ export default function EquipmentSection({ profileId, isOwnProfile = false }: Eq
       // Remove from local state
       setEquipment(prev => prev.filter(e => e.id !== id));
       showSuccess('Success', 'Equipment deleted successfully');
-    } catch {
+    } catch (e) {
+      console.error('Failed to delete equipment:', e);
       showError('Error', 'Failed to delete equipment');
     }
   };

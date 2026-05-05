@@ -195,8 +195,11 @@ export default function CreatePostModal({
       if (response.ok) {
         const data = await response.json();
         setAvailableCourses(data.courses || []);
+      } else {
+        console.error('Failed to search golf courses — status:', response.status);
       }
-    } catch {
+    } catch (e) {
+      console.error('Failed to search golf courses:', e);
       setAvailableCourses([]);
     } finally {
       setSearchLoading(false);
@@ -685,10 +688,10 @@ export default function CreatePostModal({
             });
 
             if (!scoresResponse.ok) {
-              // Non-fatal - scorecard was created, scores can be added later
+              console.error('Failed to save participant scores — status:', scoresResponse.status);
             }
-          } catch {
-            // Non-fatal error
+          } catch (e) {
+            console.error('Failed to save participant scores (non-fatal — scorecard created):', e);
           }
         }
 
@@ -756,7 +759,8 @@ export default function CreatePostModal({
 
       // Close modal
       handleClose();
-    } catch {
+    } catch (e) {
+      console.error('Failed to create post:', e);
       showError('Failed to create post', 'Please try again');
     } finally {
       setIsSubmitting(false);

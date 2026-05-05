@@ -48,8 +48,8 @@ export default function MultiSportHighlights({ profileId, canEdit = true, onEdit
         }
 
         setHighlightData(data);
-      } catch {
-        // Error loading sport highlights
+      } catch (e) {
+        console.error('Failed to load sport highlights:', e);
       } finally {
         setLoading(false);
       }

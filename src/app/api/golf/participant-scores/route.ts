@@ -168,7 +168,8 @@ export async function POST(request: NextRequest) {
       message: `Scores saved for ${results.length} participant(s)`
     });
 
-  } catch {
+  } catch (e) {
+    console.error('POST /api/golf/participant-scores error:', e);
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }

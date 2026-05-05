@@ -32,11 +32,14 @@ export default function SharePostModal({
     try {
       setLoading(true);
       const response = await fetch('/api/messages');
-      if (!response.ok) return;
+      if (!response.ok) {
+        console.error('Failed to fetch conversations for share — status:', response.status);
+        return;
+      }
       const data = await response.json();
       setConversations(data.conversations || []);
-    } catch {
-      // Silently handle
+    } catch (e) {
+      console.error('Failed to fetch conversations for share:', e);
     } finally {
       setLoading(false);
     }
@@ -120,8 +123,8 @@ export default function SharePostModal({
       if (!response.ok) throw new Error('Failed to send');
 
       setSent(prev => new Set(prev).add(conversationId));
-    } catch {
-      // Could show error, but keep it simple
+    } catch (e) {
+      console.error('Failed to send shared post to conversation:', e);
     } finally {
       setSending(null);
     }

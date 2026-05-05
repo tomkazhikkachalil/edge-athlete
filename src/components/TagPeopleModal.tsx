@@ -71,7 +71,8 @@ export default function TagPeopleModal({
       );
 
       setSearchResults(filtered);
-    } catch {
+    } catch (e) {
+      console.error('Failed to search profiles for tagging:', e);
       setSearchResults([]);
     } finally {
       setLoading(false);
@@ -131,7 +132,8 @@ export default function TagPeopleModal({
       }
 
       onClose();
-    } catch {
+    } catch (e) {
+      console.error('Failed to add post tags:', e);
       showError('Failed to add tags');
     } finally {
       setSubmitting(false);

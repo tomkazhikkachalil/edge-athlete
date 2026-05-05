@@ -43,8 +43,9 @@ export default function SportActivityDetailPage() {
 
         // For other sports, show coming soon
         setLoading(false);
-        
-      } catch {
+
+      } catch (e) {
+        console.error('Failed to resolve sport activity route:', e);
         setNotFound(true);
         setLoading(false);
       }

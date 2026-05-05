@@ -131,7 +131,8 @@ export default function EditPostModal({
       }
 
       onClose();
-    } catch {
+    } catch (e) {
+      console.error('Failed to update post:', e);
       showError('Failed to update post');
     } finally {
       setIsSubmitting(false);

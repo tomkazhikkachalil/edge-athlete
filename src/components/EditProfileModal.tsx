@@ -132,7 +132,8 @@ export default function EditProfileModal({ isOpen, onClose, profile, badges, onS
 
       await onSave(profileData, badgeData);
       onClose();
-    } catch {
+    } catch (e) {
+      console.error('Failed to save profile changes:', e);
       setErrors({ general: 'Failed to save changes. Please try again.' });
     } finally {
       setSaving(false);

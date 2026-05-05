@@ -72,7 +72,8 @@ export default function MessagingSettings() {
       setPermission(newPermission);
       await refreshProfile();
       showSuccess('Success', 'Messaging settings updated');
-    } catch {
+    } catch (e) {
+      console.error('Failed to update messaging settings:', e);
       showError('Error', 'Failed to update messaging settings');
     } finally {
       setSaving(false);

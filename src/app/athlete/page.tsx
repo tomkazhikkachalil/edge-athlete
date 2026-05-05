@@ -122,7 +122,8 @@ export default function AthleteProfilePage() {
       if (performancesResult.status === 'fulfilled') {
         setPerformances(performancesResult.value);
       }
-    } catch {
+    } catch (e) {
+      console.error('Failed to load athlete profile data:', e);
       showError('Failed to load profile data', 'Some information may not be displayed correctly.');
     } finally {
       if (!skipLoadingState) {
@@ -138,8 +139,11 @@ export default function AthleteProfilePage() {
         const data = await response.json();
         setFollowersCount(data.followersCount || 0);
         setFollowingCount(data.followingCount || 0);
+      } else {
+        console.error('Failed to load follow stats — status:', response.status);
       }
-    } catch {
+    } catch (e) {
+      console.error('Failed to load follow stats:', e);
       setFollowersCount(0);
       setFollowingCount(0);
     }

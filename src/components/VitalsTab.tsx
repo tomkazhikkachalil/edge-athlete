@@ -318,7 +318,8 @@ export default function VitalsTab({ profileId, currentUserId, isOwnProfile = fal
       setVitals(data.vitals || []);
       setTrainingPosts(data.trainingPosts || []);
       setAthleteBirthday(data.athleteBirthday || null);
-    } catch {
+    } catch (e) {
+      console.error('Failed to load vitals data:', e);
       setError('Failed to load vitals data');
     } finally {
       setLoading(false);

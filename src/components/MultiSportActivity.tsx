@@ -44,8 +44,8 @@ export default function MultiSportActivity({ profileId, onEdit, onDelete }: Mult
         ...prev,
         [sportKey]: result.rows
       }));
-    } catch {
-      // Error loading activity
+    } catch (e) {
+      console.error('Failed to load multi-sport activity:', e);
       setActivityData(prev => ({
         ...prev,
         [sportKey]: []

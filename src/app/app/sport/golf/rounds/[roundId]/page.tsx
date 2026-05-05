@@ -79,8 +79,9 @@ export default function GolfRoundDetailPage() {
           setNotFound(true);
           setLoading(false);
         }
-        
-      } catch {
+
+      } catch (e) {
+        console.error('Failed to load golf round detail:', e);
         setNotFound(true);
         setLoading(false);
       }

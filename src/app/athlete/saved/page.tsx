@@ -137,7 +137,8 @@ export default function SavedPostsPage() {
       const validSavedPosts = (data || []).filter((sp: SavedPost) => sp.post !== null);
 
       setSavedPosts(validSavedPosts as SavedPost[]);
-    } catch {
+    } catch (e) {
+      console.error('Failed to load saved posts:', e);
       setError('An error occurred while loading saved posts');
     } finally {
       setLoading(false);
@@ -182,8 +183,11 @@ export default function SavedPostsPage() {
             return sp;
           })
         );
+      } else {
+        console.error('Failed to like saved post — status:', response.status);
       }
-    } catch {
+    } catch (e) {
+      console.error('Failed to like saved post:', e);
     }
   };
 

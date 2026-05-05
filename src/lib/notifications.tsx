@@ -109,8 +109,11 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
       if (response.ok) {
         const data = await response.json();
         setUnreadCount(data.count);
+      } else {
+        console.error('Failed to refresh notifications unread count — status:', response.status);
       }
-    } catch {
+    } catch (e) {
+      console.error('Failed to refresh notifications unread count:', e);
     }
   }, [user]);
 
@@ -140,7 +143,7 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
       }
 
       if (!response.ok) {
-        // Don't throw for other errors, just log and return
+        console.error('Failed to fetch notifications — status:', response.status);
         setLoading(false);
         return;
       }
@@ -157,8 +160,8 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
       setHasMore(data.has_more);
       setNextCursor(data.next_cursor);
 
-    } catch {
-      // Only log unexpected errors (network failures, etc.)
+    } catch (e) {
+      console.error('Failed to fetch notifications:', e);
     } finally {
       setLoading(false);
     }
@@ -192,6 +195,7 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
       }
 
       if (!response.ok) {
+        console.error('Failed to mark notification read — status:', response.status);
         // Rollback optimistic update on error
         setNotifications(prev =>
           prev.map(n => n.id === notificationId ? { ...n, is_read: false, read_at: undefined } : n)
@@ -199,7 +203,8 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
         setUnreadCount(prev => prev + 1);
       }
 
-    } catch {
+    } catch (e) {
+      console.error('Failed to mark notification read:', e);
       // Rollback optimistic update on error
       setNotifications(prev =>
         prev.map(n => n.id === notificationId ? { ...n, is_read: false, read_at: undefined } : n)
@@ -234,12 +239,14 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
       }
 
       if (!response.ok) {
+        console.error('Failed to mark all notifications read — status:', response.status);
         // Rollback optimistic update on error
         setNotifications(previousNotifications);
         setUnreadCount(previousUnreadCount);
       }
 
-    } catch {
+    } catch (e) {
+      console.error('Failed to mark all notifications read:', e);
       // Rollback optimistic update on error
       setNotifications(previousNotifications);
       setUnreadCount(previousUnreadCount);
@@ -261,6 +268,7 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
       }
 
       if (!response.ok) {
+        console.error('Failed to delete notification — status:', response.status);
         return;
       }
 
@@ -273,7 +281,8 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
         setUnreadCount(prev => Math.max(0, prev - 1));
       }
 
-    } catch {
+    } catch (e) {
+      console.error('Failed to delete notification:', e);
     }
   }, [user, notifications]);
 
@@ -292,6 +301,7 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
       }
 
       if (!response.ok) {
+        console.error('Failed to clear notifications — status:', response.status);
         return;
       }
 
@@ -300,7 +310,8 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
       setHasMore(false);
       setNextCursor(null);
 
-    } catch {
+    } catch (e) {
+      console.error('Failed to clear notifications:', e);
     }
   }, [user]);
 

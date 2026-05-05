@@ -162,7 +162,8 @@ export default function NotificationsPage() {
       setUnreadCount(data.unread_count || 0);
 
       // Note: totalCount removed as it was unused
-    } catch {
+    } catch (e) {
+      console.error('Failed to load notifications:', e);
       showError('Error', 'Failed to load notifications');
     } finally {
       setLoading(false);
@@ -189,7 +190,8 @@ export default function NotificationsPage() {
 
       // Decrease unread count
       setUnreadCount(prev => Math.max(0, prev - notificationIds.length));
-    } catch {
+    } catch (e) {
+      console.error('Failed to mark notifications read:', e);
     }
   };
 
@@ -202,7 +204,8 @@ export default function NotificationsPage() {
       setNotifications(prev => prev.map(n => ({ ...n, is_read: true, read_at: new Date().toISOString() })));
       setUnreadCount(0); // Reset unread count to 0
       showSuccess('Success', 'All notifications marked as read');
-    } catch {
+    } catch (e) {
+      console.error('Failed to mark all notifications read:', e);
       showError('Error', 'Failed to mark notifications as read');
     }
   };
@@ -237,7 +240,8 @@ export default function NotificationsPage() {
         'Success',
         action === 'accept' ? 'Fan request accepted' : 'Fan request declined'
       );
-    } catch {
+    } catch (e) {
+      console.error('Failed to process notification action:', e);
       showError('Error', 'Failed to process request');
     } finally {
       setActioningNotificationId(null);
