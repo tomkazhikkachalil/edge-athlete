@@ -1,5 +1,30 @@
 # Development Log
 
+## May 5, 2026
+
+### Codebase Audit — Low-Risk Polish
+
+Full-app scan (routes, components, lib, API) to identify safe improvements. Audit found 8 issues; implemented 2 fixes that carry zero behavioral risk.
+
+**Fix 1 — Remove debug text from followers page (`src/app/app/followers/page.tsx`):**
+- Removed visible `Debug: {followers.length} fans in state` paragraph that rendered in the empty-state UI in production
+- Replaced raw red error div (`Missing follower data for ID: ...`) with a silent `return null` — gracefully skips malformed entries instead of exposing internal state to users
+
+**Fix 2 — Enable Next.js image optimization (`src/components/LazyImage.tsx`):**
+- Removed `unoptimized={true}` that was forcing all images to bypass Next.js optimization
+- `next.config` already declares `remotePatterns` for `**.supabase.co` and `**.supabase.in`, plus `formats: ['image/webp', 'image/avif']` and a 1-year cache TTL
+- Net effect: all user/avatar/post images now get automatic WebP/AVIF conversion, responsive sizing, and CDN caching — zero code changes needed elsewhere
+
+**Not changed (documented for future PRs):**
+- ~380 console statements (needs selective per-file approach)
+- Duplicate formatters across `formatters.ts`, `athleteService.ts`, `profile-display.ts`, `name-resolver.ts` (different signatures; needs dedicated consolidation PR)
+- PostCard.tsx at 1030 lines (decomposition risks breaking state/refs)
+- z-index inconsistencies across modals (needs all-modal stacking test)
+
+**Verified:** `npm run build` exit 0, `npm run lint` zero warnings.
+
+---
+
 ## May 4, 2026
 
 ### AbortController + P1 Silent-Catch Sweep

@@ -61,7 +61,6 @@ export default function LazyImage({
         onError={() => { setHasError(true); onError?.(); }}
         loading={priority ? 'eager' : 'lazy'}
         priority={priority}
-        unoptimized={true}
       />
     </div>
   );

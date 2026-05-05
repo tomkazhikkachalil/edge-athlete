@@ -339,14 +339,11 @@ function FollowersContent() {
                     <i className="fas fa-users text-6xl text-gray-300 mb-4"></i>
                     <h3 className="text-xl font-bold text-gray-900 mb-2">No fans yet</h3>
                     <p className="text-gray-600">When people become your fans, they&apos;ll appear here.</p>
-                    <p className="text-xs text-gray-400 mt-2">Debug: {followers.length} fans in state</p>
                   </div>
                 ) : (
                   <div className="space-y-3">
                     {followers.map((f) => {
-                      if (!f.follower) {
-                        return <div key={f.id} className="bg-red-100 p-4 rounded">Missing follower data for ID: {f.id}</div>;
-                      }
+                      if (!f.follower) return null;
                       return <div key={f.id}>{renderProfileCard(f.follower, true, false)}</div>;
                     })}
                   </div>
