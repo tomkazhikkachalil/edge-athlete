@@ -40,11 +40,28 @@ Replaced ~70 silent `} catch { /* ignore */ }` blocks across 42 files with `cons
 
 **Commits in this pass:**
 - `95b8461` — fix: AbortController guard for MessagesProvider auto-fetches
-- (this commit) — fix: P1 silent-catch sweep across pages, components, API
+- `ae58286` — fix: P1 silent-catch sweep across pages, components, API
+- `2b4ae3b` — docs: Add pasteable SQL runbook companion for migrations 014-017
 
 **Verified:** `npm run build` exit 0 (63 static pages), `npm run lint` zero warnings.
 
 **Net effect:** ~70 previously-invisible failures now surface to DevTools console + Vercel runtime logs with file/handler context. Zero behavioral changes on happy paths. UI feedback (toasts/error banners) unchanged where it already existed.
+
+### Database migrations 014–017 — confirmed applied to Supabase
+
+Tom ran the full `RUNBOOK_014-017.sql` against the production Supabase project and confirmed the at-a-glance status query returns `m014_applied | m015_applied | m016_applied | m017_applied = t | t | t | t`.
+
+Latently-broken features now functional in production:
+- **014** — notifications display real first/last names instead of falling back to handle-style `full_name`
+- **015** — `posts.likes_count` / `posts.comments_count` stay in sync with row counts (one-time recount cleared any existing drift)
+- **016** — comment pinning UI works end-to-end (post owner can pin one comment per post)
+- **017** — emoji + GIF reactions in chat no longer 500 (the `message_reactions` row inserts and `parent_message_id` FK both now valid)
+
+Recommended manual smoke tests in production:
+- Send an emoji reaction to a chat message, then reload — reaction persists
+- Send a GIF as a reaction — GIF nests under parent message and persists
+- Pin a comment as the post owner — pinned comment renders at top with thumbtack icon
+- Like a post, then unlike — count updates correctly without drift
 
 ---
 
