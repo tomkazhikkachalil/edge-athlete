@@ -35,11 +35,14 @@ export function MessagesProvider({ children }: { children: ReactNode }) {
   // Track subscribed channel refs so we can clean them up
   const channelRefs = useRef<Map<string, ReturnType<typeof supabase.channel>>>(new Map());
   const pollTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  // Controller for the auto-fetches kicked off by the user-change effect.
+  // Aborted on logout / effect cleanup so navigation races don't surface as scary console errors.
+  const fetchAbortRef = useRef<AbortController | null>(null);
 
-  const refreshUnreadCount = useCallback(async () => {
+  const refreshUnreadCount = useCallback(async (signal?: AbortSignal) => {
     if (!user) return;
     try {
-      const res = await fetch('/api/messages/unread-count');
+      const res = await fetch('/api/messages/unread-count', { signal });
       if (res.status === 401) return;
       if (res.ok) {
         const data = await res.json();
@@ -48,14 +51,16 @@ export function MessagesProvider({ children }: { children: ReactNode }) {
         console.error('Failed to refresh unread count — status:', res.status);
       }
     } catch (e) {
+      // Intentional abort (navigation, logout, unmount) is not a real failure.
+      if (e instanceof Error && e.name === 'AbortError') return;
       console.error('Failed to refresh unread count:', e);
     }
   }, [user]);
 
-  const fetchConversations = useCallback(async () => {
+  const fetchConversations = useCallback(async (signal?: AbortSignal) => {
     if (!user) return;
     try {
-      const res = await fetch('/api/messages');
+      const res = await fetch('/api/messages', { signal });
       if (res.status === 401) return;
       if (res.ok) {
         const data = await res.json();
@@ -64,6 +69,8 @@ export function MessagesProvider({ children }: { children: ReactNode }) {
         console.error('Failed to fetch conversations — status:', res.status);
       }
     } catch (e) {
+      // Intentional abort (navigation, logout, unmount) is not a real failure.
+      if (e instanceof Error && e.name === 'AbortError') return;
       console.error('Failed to fetch conversations:', e);
     }
   }, [user]);
@@ -137,18 +144,31 @@ export function MessagesProvider({ children }: { children: ReactNode }) {
   // Initial load + setup
   useEffect(() => {
     if (user) {
+      // Cancel any in-flight fetches from a prior render so they don't race with this one.
+      fetchAbortRef.current?.abort();
+      const controller = new AbortController();
+      fetchAbortRef.current = controller;
+
       setLoading(true);
-      Promise.all([fetchConversations(), refreshUnreadCount()]).finally(() => {
-        setLoading(false);
+      Promise.all([
+        fetchConversations(controller.signal),
+        refreshUnreadCount(controller.signal),
+      ]).finally(() => {
+        // If a newer effect run aborted us, don't stomp its loading state.
+        if (!controller.signal.aborted) setLoading(false);
       });
 
-      // 30-second poll fallback for realtime gaps
+      // 30-second poll fallback for realtime gaps.
+      // Each poll cycle gets its own controller so a stale abort never kills future polls.
       pollTimerRef.current = setInterval(() => {
-        fetchConversations();
-        refreshUnreadCount();
+        const pollController = new AbortController();
+        fetchConversations(pollController.signal);
+        refreshUnreadCount(pollController.signal);
       }, 30_000);
     } else {
       // Clear state on logout
+      fetchAbortRef.current?.abort();
+      fetchAbortRef.current = null;
       setConversations([]);
       setTotalUnreadCount(0);
       setLoading(false);
@@ -164,6 +184,7 @@ export function MessagesProvider({ children }: { children: ReactNode }) {
     }
 
     return () => {
+      fetchAbortRef.current?.abort();
       if (pollTimerRef.current) {
         clearInterval(pollTimerRef.current);
         pollTimerRef.current = null;
