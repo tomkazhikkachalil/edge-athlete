@@ -98,30 +98,9 @@ export default function ChatWindow({ conversationId, onBack }: Props) {
         async (payload: { new: unknown }) => {
           const newMsg = payload.new as Message;
 
-          // GIF reaction: attach to parent's gif_reactions instead of top-level list
-          if (newMsg.type === 'gif_reaction' && newMsg.parent_message_id) {
-            // Fetch full message with sender profile
-            const res = await fetch(`/api/messages/${conversationId}?limit=1`);
-            if (res.ok) {
-              const d = await res.json();
-              const parentMsg = (d.messages as Message[]).find(m => m.id === newMsg.parent_message_id);
-              const gifReaction = parentMsg?.gif_reactions?.find(gr => gr.id === newMsg.id) ?? newMsg;
-              setMessages(prev => prev.map(m =>
-                m.id === newMsg.parent_message_id
-                  ? { ...m, gif_reactions: [...(m.gif_reactions || []), gifReaction] }
-                  : m
-              ));
-            } else {
-              setMessages(prev => prev.map(m =>
-                m.id === newMsg.parent_message_id
-                  ? { ...m, gif_reactions: [...(m.gif_reactions || []), newMsg] }
-                  : m
-              ));
-            }
-            return;
-          }
-
-          // Regular message: fetch full and prepend
+          // All messages — including GIF reactions — flow through the same
+          // fetch-full-and-prepend path. GIF reactions render as standalone
+          // messages with a QuotedReply preview of their parent.
           const res = await fetch(`/api/messages/${conversationId}?limit=1`);
           if (res.ok) {
             const d = await res.json();
@@ -155,22 +134,14 @@ export default function ChatWindow({ conversationId, onBack }: Props) {
           setMessages(prev => prev.map(m => m.id === updated.id ? { ...m, ...updated } : m));
         }
       )
-      // Listen for reaction_update broadcasts (emoji reactions from other users)
+      // Listen for reaction_update broadcasts (emoji reactions from other users).
+      // GIF reactions are now standalone messages, so a single top-level
+      // search is sufficient.
       .on('broadcast', { event: 'reaction_update' }, (payload: { payload: { message_id: string; reactions: AggregatedReaction[] } }) => {
         const { message_id, reactions } = payload.payload;
-        // Search top-level AND nested gif_reactions
-        setMessages(prev => prev.map(m => {
-          if (m.id === message_id) return { ...m, reactions };
-          if (m.gif_reactions?.some(gr => gr.id === message_id)) {
-            return {
-              ...m,
-              gif_reactions: m.gif_reactions.map(gr =>
-                gr.id === message_id ? { ...gr, reactions } : gr
-              ),
-            };
-          }
-          return m;
-        }));
+        setMessages(prev => prev.map(m =>
+          m.id === message_id ? { ...m, reactions } : m
+        ));
       })
       .subscribe();
 
@@ -266,27 +237,15 @@ export default function ChatWindow({ conversationId, onBack }: Props) {
     }
   }, [conversationId]);
 
-  // Helper: update reactions on a message, searching top-level AND nested gif_reactions
+  // Helper: update reactions on a message. GIF reactions are now standalone
+  // messages, so a single top-level search is sufficient.
   const updateMessageReactions = useCallback(
     (messageId: string, updater: (reactions: AggregatedReaction[]) => AggregatedReaction[]) => {
-      setMessages(prev => prev.map(m => {
-        // Check top-level message
-        if (m.id === messageId) {
-          return { ...m, reactions: updater([...(m.reactions || [])]) };
-        }
-        // Check nested gif_reactions
-        if (m.gif_reactions?.some(gr => gr.id === messageId)) {
-          return {
-            ...m,
-            gif_reactions: m.gif_reactions.map(gr =>
-              gr.id === messageId
-                ? { ...gr, reactions: updater([...(gr.reactions || [])]) }
-                : gr
-            ),
-          };
-        }
-        return m;
-      }));
+      setMessages(prev => prev.map(m =>
+        m.id === messageId
+          ? { ...m, reactions: updater([...(m.reactions || [])]) }
+          : m
+      ));
     },
     []
   );
@@ -294,23 +253,15 @@ export default function ChatWindow({ conversationId, onBack }: Props) {
   // Helper: set reactions to an exact value (for authoritative server updates)
   const setMessageReactions = useCallback(
     (messageId: string, reactions: AggregatedReaction[]) => {
-      setMessages(prev => prev.map(m => {
-        if (m.id === messageId) return { ...m, reactions };
-        if (m.gif_reactions?.some(gr => gr.id === messageId)) {
-          return {
-            ...m,
-            gif_reactions: m.gif_reactions.map(gr =>
-              gr.id === messageId ? { ...gr, reactions } : gr
-            ),
-          };
-        }
-        return m;
-      }));
+      setMessages(prev => prev.map(m =>
+        m.id === messageId ? { ...m, reactions } : m
+      ));
     },
     []
   );
 
-  // Toggle emoji reaction on a message (works for top-level AND gif_reaction messages)
+  // Toggle emoji reaction on a message (works for any message in the stream,
+  // including standalone GIF reactions).
   const handleToggleReaction = useCallback(async (messageId: string, emoji: string) => {
     // Snapshot current reactions BEFORE the optimistic mutation so we can revert on failure.
     let priorReactions: AggregatedReaction[] = [];
@@ -385,6 +336,16 @@ export default function ChatWindow({ conversationId, onBack }: Props) {
     replyingToRef.current = null;
   }, []);
 
+  // Apply an authoritative edit to a message in local state.
+  const handleMessageEdited = useCallback(
+    (messageId: string, content: string, edited_at: string) => {
+      setMessages(prev => prev.map(m =>
+        m.id === messageId ? { ...m, content, edited_at } : m
+      ));
+    },
+    []
+  );
+
   // Scroll to a specific message (when tapping a quoted reply)
   const handleScrollToMessage = useCallback((messageId: string) => {
     const el = messageRefsMap.current.get(messageId);
@@ -424,12 +385,39 @@ export default function ChatWindow({ conversationId, onBack }: Props) {
       if (res.ok) {
         const data = await res.json();
         const gifMsg = data.message as Message;
-        // Attach to parent message's gif_reactions
-        setMessages(prev => prev.map(m =>
-          m.id === parentId
-            ? { ...m, gif_reactions: [...(m.gif_reactions || []), gifMsg] }
-            : m
-        ));
+        // GIF reaction is a standalone reply now — prepend to the main
+        // messages list (newest-first ordering). The POST response does
+        // not include reply_to, so we synthesize it from the parent
+        // message already in local state (same shape as handleSend does
+        // for text replies). Dedupe in case the realtime INSERT got
+        // there first.
+        setMessages(prev => {
+          if (prev.some(m => m.id === gifMsg.id)) return prev;
+          const parentMsg = prev.find(m => m.id === parentId);
+          let enriched = gifMsg;
+          if (parentMsg) {
+            const senderName = parentMsg.sender
+              ? (parentMsg.sender.full_name
+                || [parentMsg.sender.first_name, parentMsg.sender.last_name].filter(Boolean).join(' ')
+                || 'Unknown')
+              : 'Unknown';
+            enriched = {
+              ...gifMsg,
+              reply_to: {
+                id: parentMsg.id,
+                sender_id: parentMsg.sender_id,
+                sender_name: senderName,
+                type: parentMsg.type,
+                content: parentMsg.content,
+                media_url: parentMsg.media_url,
+                deleted_at: parentMsg.deleted_at,
+                shared_post: parentMsg.shared_post ?? null,
+                shared_profile: parentMsg.shared_profile ?? null,
+              },
+            };
+          }
+          return [enriched, ...prev];
+        });
       } else {
         console.error('Failed to send GIF reaction — status:', res.status);
       }
@@ -715,13 +703,13 @@ export default function ChatWindow({ conversationId, onBack }: Props) {
               message={msg}
               isOwn={msg.sender_id === currentUserId}
               showSender={shouldShowSender(msg, index)}
-              currentUserId={currentUserId}
               onDelete={handleDeleteMessage}
               onViewPost={setViewingPostId}
               onToggleReaction={handleToggleReaction}
               onGifReact={handleGifReact}
               onReply={handleReply}
               onScrollToMessage={handleScrollToMessage}
+              onMessageEdited={handleMessageEdited}
             />
           </div>
         ))}

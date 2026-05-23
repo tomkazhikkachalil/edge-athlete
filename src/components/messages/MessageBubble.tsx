@@ -7,10 +7,13 @@ import LazyImage from '@/components/LazyImage';
 import { formatDisplayName, getInitials } from '@/lib/formatters';
 import SharedPostPreview from './SharedPostPreview';
 import SharedProfilePreview from './SharedProfilePreview';
-import ReactionBar from './ReactionBar';
-import GifReactionBubble from './GifReactionBubble';
+import ReactionBar, { rememberRecentEmoji } from './ReactionBar';
 import QuotedReply from './QuotedReply';
+import EditMessageInline from './EditMessageInline';
+import ReportMessageModal from './ReportMessageModal';
 import type { Message } from '@/types/messages';
+
+const EDIT_WINDOW_MS = 15 * 60 * 1000; // mirror server-side window for UI gating
 
 const EmojiPicker = dynamic(() => import('emoji-picker-react'), {
   ssr: false,
@@ -23,13 +26,13 @@ interface Props {
   message: Message;
   isOwn: boolean;
   showSender: boolean;
-  currentUserId: string;
   onDelete?: (messageId: string) => void;
   onViewPost?: (postId: string) => void;
   onToggleReaction: (messageId: string, emoji: string) => void;
   onGifReact: (parentMessageId: string) => void;
   onReply: (message: Message) => void;
   onScrollToMessage?: (messageId: string) => void;
+  onMessageEdited?: (messageId: string, content: string, edited_at: string) => void;
 }
 
 function getRelativeTime(dateStr: string): string {
@@ -46,17 +49,19 @@ export default function MessageBubble({
   message,
   isOwn,
   showSender,
-  currentUserId,
   onDelete,
   onViewPost,
   onToggleReaction,
   onGifReact,
   onReply,
   onScrollToMessage,
+  onMessageEdited,
 }: Props) {
   const [showMenu, setShowMenu] = useState(false);
   const [showQuickReact, setShowQuickReact] = useState(false);
   const [showFullPicker, setShowFullPicker] = useState(false);
+  const [editing, setEditing] = useState(false);
+  const [showReportModal, setShowReportModal] = useState(false);
   const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Long-press handlers for mobile — must be before any early return
@@ -103,6 +108,7 @@ export default function MessageBubble({
   };
 
   const handleQuickEmoji = (emoji: string) => {
+    rememberRecentEmoji(emoji);
     onToggleReaction(message.id, emoji);
     setShowQuickReact(false);
   };
@@ -113,6 +119,7 @@ export default function MessageBubble({
   };
 
   const handleFullPickerEmoji = (data: EmojiClickData) => {
+    rememberRecentEmoji(data.emoji);
     onToggleReaction(message.id, data.emoji);
     setShowFullPicker(false);
     setShowQuickReact(false);
@@ -124,8 +131,26 @@ export default function MessageBubble({
     setShowMenu(false);
   };
 
+  const handleStartEdit = () => {
+    setEditing(true);
+    setShowMenu(false);
+  };
+
+  const handleReport = () => {
+    setShowReportModal(true);
+    setShowMenu(false);
+  };
+
   const reactions = message.reactions || [];
-  const gifReactions = message.gif_reactions || [];
+
+  // Edit eligibility: own text message, within 15-min window, not deleted.
+  // Mirrors the server check so the UI doesn't expose options that will 403.
+  const editableAgeMs = Date.now() - new Date(message.created_at).getTime();
+  const canEdit =
+    isOwn
+    && message.type === 'text'
+    && !message.deleted_at
+    && editableAgeMs < EDIT_WINDOW_MS;
 
   return (
     <div className={`flex flex-col mb-2 ${isOwn ? 'items-end' : 'items-start'}`}>
@@ -167,9 +192,23 @@ export default function MessageBubble({
           )}
 
           {message.type === 'text' && (
-            <div className={`px-4 py-2.5 ${bubbleBase} max-w-full`}>
-              <p className="text-sm whitespace-pre-wrap break-words">{message.content}</p>
-            </div>
+            editing ? (
+              <EditMessageInline
+                conversationId={message.conversation_id}
+                messageId={message.id}
+                initialContent={message.content || ''}
+                isOwn={isOwn}
+                onCancel={() => setEditing(false)}
+                onUpdated={(fields) => {
+                  setEditing(false);
+                  onMessageEdited?.(message.id, fields.content, fields.edited_at);
+                }}
+              />
+            ) : (
+              <div className={`px-4 py-2.5 ${bubbleBase} max-w-full`}>
+                <p className="text-sm whitespace-pre-wrap break-words">{message.content}</p>
+              </div>
+            )
           )}
 
           {message.type === 'image' && message.media_url && (
@@ -178,6 +217,18 @@ export default function MessageBubble({
                 src={message.media_url}
                 alt="Sent image"
                 className="w-full max-h-64 object-cover"
+                width={300}
+                height={256}
+              />
+            </div>
+          )}
+
+          {message.type === 'gif_reaction' && message.media_url && (
+            <div className="rounded-2xl overflow-hidden max-w-xs border border-gray-200">
+              <LazyImage
+                src={message.media_url}
+                alt="GIF reply"
+                className="w-full max-h-64 object-contain"
                 width={300}
                 height={256}
               />
@@ -252,19 +303,15 @@ export default function MessageBubble({
               >
                 <i className="fas fa-reply text-xs text-gray-400"></i>
               </button>
-              {/* Context actions */}
-              {(message.type === 'text' || isOwn) && (
-                <>
-                  <div className="w-px h-4 bg-gray-200 mx-0.5" />
-                  <button
-                    onClick={() => { setShowMenu(prev => !prev); }}
-                    className="w-7 h-7 flex items-center justify-center rounded-full hover:bg-gray-100 transition-colors"
-                    aria-label="More options"
-                  >
-                    <i className="fas fa-ellipsis-h text-xs text-gray-400"></i>
-                  </button>
-                </>
-              )}
+              {/* Context actions — always available so Report is reachable on every incoming message */}
+              <div className="w-px h-4 bg-gray-200 mx-0.5" />
+              <button
+                onClick={() => { setShowMenu(prev => !prev); }}
+                className="w-7 h-7 flex items-center justify-center rounded-full hover:bg-gray-100 transition-colors"
+                aria-label="More options"
+              >
+                <i className="fas fa-ellipsis-h text-xs text-gray-400"></i>
+              </button>
             </div>
           </div>
 
@@ -308,17 +355,13 @@ export default function MessageBubble({
                   >
                     <i className="fas fa-reply text-xs text-gray-400"></i>
                   </button>
-                  {(message.type === 'text' || isOwn) && (
-                    <>
-                      <div className="w-px h-5 bg-gray-200 mx-0.5" />
-                      <button
-                        onClick={() => { setShowQuickReact(false); setShowMenu(true); }}
-                        className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-gray-100 active:bg-gray-200 transition-colors"
-                      >
-                        <i className="fas fa-ellipsis-h text-xs text-gray-400"></i>
-                      </button>
-                    </>
-                  )}
+                  <div className="w-px h-5 bg-gray-200 mx-0.5" />
+                  <button
+                    onClick={() => { setShowQuickReact(false); setShowMenu(true); }}
+                    className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-gray-100 active:bg-gray-200 transition-colors"
+                  >
+                    <i className="fas fa-ellipsis-h text-xs text-gray-400"></i>
+                  </button>
                 </div>
               </div>
             </>
@@ -369,6 +412,24 @@ export default function MessageBubble({
                     Copy
                   </button>
                 )}
+                {canEdit && (
+                  <button
+                    onClick={handleStartEdit}
+                    className="w-full text-left px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2"
+                  >
+                    <i className="fas fa-pen text-xs w-4"></i>
+                    Edit
+                  </button>
+                )}
+                {!isOwn && (
+                  <button
+                    onClick={handleReport}
+                    className="w-full text-left px-3 py-2 text-sm text-orange-600 hover:bg-orange-50 flex items-center gap-2"
+                  >
+                    <i className="fas fa-flag text-xs w-4"></i>
+                    Report
+                  </button>
+                )}
                 {isOwn && (
                   <button
                     onClick={handleDelete}
@@ -390,24 +451,26 @@ export default function MessageBubble({
           messageId={message.id}
           reactions={reactions}
           onToggleReaction={onToggleReaction}
+          align={isOwn ? 'right' : 'left'}
         />
       )}
 
-      {/* GIF reactions */}
-      {gifReactions.length > 0 && (
-        <GifReactionBubble
-          gifReactions={gifReactions}
-          currentUserId={currentUserId}
-          isOwnParent={isOwn}
-          onToggleReaction={onToggleReaction}
-          onReply={onReply}
-        />
-      )}
-
-      {/* Timestamp */}
+      {/* Timestamp + edited indicator */}
       <span className={`text-xs text-gray-400 mt-0.5 px-1 ${isOwn ? 'text-right' : 'text-left'}`}>
         {getRelativeTime(message.created_at)}
+        {message.edited_at && (
+          <span className="ml-1 italic" title={`Edited ${new Date(message.edited_at).toLocaleString()}`}>
+            · edited
+          </span>
+        )}
       </span>
+
+      {showReportModal && (
+        <ReportMessageModal
+          messageId={message.id}
+          onClose={() => setShowReportModal(false)}
+        />
+      )}
     </div>
   );
 }

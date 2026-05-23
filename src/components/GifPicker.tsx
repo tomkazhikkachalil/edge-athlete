@@ -17,13 +17,57 @@ interface Props {
   variant?: 'popover' | 'modal';
 }
 
+const RECENT_GIFS_KEY = 'ea:msg:recentGifs';
+const RECENT_GIFS_MAX = 12;
+
+function readRecentGifs(): GifItem[] {
+  if (typeof window === 'undefined') return [];
+  try {
+    const raw = window.localStorage.getItem(RECENT_GIFS_KEY);
+    if (!raw) return [];
+    const arr = JSON.parse(raw);
+    if (!Array.isArray(arr)) return [];
+    return arr
+      .filter((g): g is GifItem =>
+        g && typeof g === 'object'
+        && typeof g.id === 'string'
+        && typeof g.url === 'string'
+        && typeof g.preview_url === 'string'
+      )
+      .slice(0, RECENT_GIFS_MAX);
+  } catch {
+    return [];
+  }
+}
+
+function writeRecentGifs(next: GifItem[]) {
+  if (typeof window === 'undefined') return;
+  try {
+    window.localStorage.setItem(RECENT_GIFS_KEY, JSON.stringify(next.slice(0, RECENT_GIFS_MAX)));
+  } catch {
+    // localStorage quota / private-mode failures are non-critical
+  }
+}
+
+function rememberGif(gif: GifItem) {
+  const current = readRecentGifs();
+  const next = [gif, ...current.filter(g => g.id !== gif.id)].slice(0, RECENT_GIFS_MAX);
+  writeRecentGifs(next);
+}
+
 export default function GifPicker({ onGifSelect, onClose, variant = 'popover' }: Props) {
   const [query, setQuery] = useState('');
   const [gifs, setGifs] = useState<GifItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [recents, setRecents] = useState<GifItem[]>([]);
   const containerRef = useRef<HTMLDivElement>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Load recents once on mount
+  useEffect(() => {
+    setRecents(readRecentGifs());
+  }, []);
 
   const fetchGifs = useCallback(async (q: string) => {
     setLoading(true);
@@ -110,6 +154,36 @@ export default function GifPicker({ onGifSelect, onClose, variant = 'popover' }:
 
       {/* Grid */}
       <div className="flex-1 overflow-y-auto p-2">
+        {/* Recent GIFs strip — only visible when there's no active search query */}
+        {!query.trim() && recents.length > 0 && (
+          <div className="mb-2 pb-2 border-b border-gray-100">
+            <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide mb-1.5 px-1">Recent</p>
+            <div className={`grid ${cols} gap-1.5`}>
+              {recents.map(gif => (
+                <button
+                  key={`recent-${gif.id}`}
+                  type="button"
+                  onClick={() => {
+                    rememberGif(gif);
+                    onGifSelect(gif.url);
+                    onClose();
+                  }}
+                  className="rounded-lg overflow-hidden hover:ring-2 hover:ring-blue-500 transition-all focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={gif.preview_url}
+                    alt="Recent GIF"
+                    className="w-full object-cover"
+                    style={{ height: thumbH }}
+                    loading="lazy"
+                  />
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
         {loading ? (
           <div className={`grid ${cols} gap-1.5`}>
             {Array.from({ length: skeletonCount }).map((_, i) => (
@@ -127,6 +201,7 @@ export default function GifPicker({ onGifSelect, onClose, variant = 'popover' }:
                 key={gif.id}
                 type="button"
                 onClick={() => {
+                  rememberGif(gif);
                   onGifSelect(gif.url);
                   onClose();
                 }}

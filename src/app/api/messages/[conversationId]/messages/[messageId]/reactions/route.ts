@@ -80,24 +80,54 @@ export async function POST(
       }
     }
 
-    // Return fresh aggregated reactions for this message
+    // Return fresh aggregated reactions for this message. Reactor profiles
+    // are resolved via a separate fetch by id, instead of an FK-embed, so
+    // this route doesn't depend on a specific PostgREST constraint name.
     const { data: rawReactions } = await supabase
       .from('message_reactions')
       .select('emoji, profile_id')
       .eq('message_id', messageId);
 
-    // Aggregate by emoji
-    const emojiMap = new Map<string, { count: number; reacted: boolean }>();
+    type ReactorProfile = {
+      id: string;
+      first_name: string | null;
+      last_name: string | null;
+      full_name: string | null;
+      avatar_url: string | null;
+      handle: string | null;
+    };
+    type ReactionEntry = { count: number; reacted: boolean; reactors: ReactorProfile[] };
+
+    const reactorProfilesById = new Map<string, ReactorProfile>();
+    const reactorIds = Array.from(new Set(
+      (rawReactions || []).map(r => r.profile_id).filter(Boolean)
+    ));
+    if (reactorIds.length > 0) {
+      const { data: reactorProfiles } = await supabase
+        .from('profiles')
+        .select('id, first_name, last_name, full_name, avatar_url, handle')
+        .in('id', reactorIds);
+      for (const p of reactorProfiles || []) {
+        reactorProfilesById.set(p.id, p as ReactorProfile);
+      }
+    }
+
+    const emojiMap = new Map<string, ReactionEntry>();
     const insertionOrder: string[] = [];
 
     for (const r of rawReactions || []) {
       if (!emojiMap.has(r.emoji)) {
-        emojiMap.set(r.emoji, { count: 0, reacted: false });
+        emojiMap.set(r.emoji, { count: 0, reacted: false, reactors: [] });
         insertionOrder.push(r.emoji);
       }
       const entry = emojiMap.get(r.emoji)!;
       entry.count++;
       if (r.profile_id === user.id) entry.reacted = true;
+
+      const reactor = reactorProfilesById.get(r.profile_id);
+      if (reactor) {
+        entry.reactors.push(reactor);
+      }
     }
 
     const reactions = insertionOrder.map(emoji => ({

@@ -47,6 +47,9 @@ export interface AggregatedReaction {
   emoji: string;
   count: number;
   reacted: boolean; // whether current user reacted with this emoji
+  // Reactor profiles for this emoji. Optional so older payloads / responses
+  // that don't embed reactor info still type-check; UI degrades gracefully.
+  reactors?: ParticipantProfile[];
 }
 
 export interface ReplyPreview {
@@ -74,6 +77,7 @@ export interface Message {
   shared_profile_id: string | null;
   parent_message_id: string | null;
   deleted_at: string | null;
+  edited_at?: string | null;
   created_at: string;
   updated_at: string;
   sender: ParticipantProfile;

@@ -66,6 +66,15 @@ export async function GET(
     // Fetch messages (cursor-based, newest first)
     // Exclude gif_reactions from top-level list — they'll be nested under parent.
     // Replies (non-gif_reaction with parent_message_id) stay in the main list.
+    // NOTE: `edited_at` is added by migration 019. We deliberately do not
+    // include it in the SELECT here so this route keeps working on databases
+    // where 019 has not yet been applied. Once the migration is universally
+    // applied, this column can be added back to the SELECT (the Message type
+    // already accepts edited_at as optional).
+    //
+    // GIF reactions (type='gif_reaction') are NOT filtered out — they flow
+    // through the regular reply pipeline and render as standalone messages
+    // aligned to their sender, with a QuotedReply preview of the parent.
     let msgQuery = supabase
       .from('messages')
       .select(`
@@ -92,7 +101,6 @@ export async function GET(
         )
       `)
       .eq('conversation_id', conversationId)
-      .neq('type', 'gif_reaction')
       .order('created_at', { ascending: false })
       .limit(limit + 1);
 
@@ -148,40 +156,55 @@ export async function GET(
       })
     );
 
-    // Enrich with emoji reactions and GIF reactions
+    // Enrich with emoji reactions (the chip-style reactions on each message).
+    // GIF reactions are now part of `enrichedMessages` itself — they are
+    // ordinary messages with parent_message_id, surfaced through the same
+    // reply_to pipeline as text replies. The separate gif_reactions array is
+    // no longer needed.
     const messageIds = enrichedMessages
       .filter(m => !m.deleted_at)
       .map(m => m.id);
 
-    // Fetch emoji reactions + GIF reactions in parallel
-    const [emojiReactionsResult, gifReactionsResult] = await Promise.all([
-      messageIds.length > 0
-        ? supabase
-            .from('message_reactions')
-            .select('message_id, emoji, profile_id')
-            .in('message_id', messageIds)
-        : Promise.resolve({ data: [] }),
-      messageIds.length > 0
-        ? supabase
-            .from('messages')
-            .select(`
-              id, conversation_id, sender_id, type, content,
-              media_url, media_type, parent_message_id,
-              deleted_at, created_at, updated_at,
-              sender:profiles!messages_sender_id_fkey (
-                id, first_name, last_name, full_name, avatar_url, handle
-              )
-            `)
-            .in('parent_message_id', messageIds)
-            .eq('type', 'gif_reaction')
-            .is('deleted_at', null)
-            .order('created_at', { ascending: true })
-        : Promise.resolve({ data: [] }),
-    ]);
+    // Reactor profiles are fetched separately below to avoid coupling this
+    // query to a specific FK constraint name in the schema cache.
+    const emojiReactionsResult = messageIds.length > 0
+      ? await supabase
+          .from('message_reactions')
+          .select('message_id, emoji, profile_id')
+          .in('message_id', messageIds)
+      : { data: [] };
 
-    // Aggregate emoji reactions per message
-    const reactionsByMessage = new Map<string, Map<string, { count: number; reacted: boolean }>>();
+    // Aggregate emoji reactions per message, tracking reactor profiles per emoji.
+    type ReactorProfile = {
+      id: string;
+      first_name: string | null;
+      last_name: string | null;
+      full_name: string | null;
+      avatar_url: string | null;
+      handle: string | null;
+    };
+    type ReactionEntry = { count: number; reacted: boolean; reactors: ReactorProfile[] };
+    const reactionsByMessage = new Map<string, Map<string, ReactionEntry>>();
     const reactionOrder = new Map<string, string[]>();
+
+    // Resolve reactor profiles via a separate fetch keyed by profile id so
+    // we don't depend on a specific FK constraint name in PostgREST's schema
+    // cache. Profile data is then merged into the aggregation below. Best
+    // effort — if this fetch fails the reactions still render, just without
+    // names/avatars in the "who reacted" popover.
+    const reactorProfilesById = new Map<string, ReactorProfile>();
+    const reactorIds = Array.from(new Set(
+      (emojiReactionsResult.data || []).map(r => r.profile_id).filter(Boolean)
+    ));
+    if (reactorIds.length > 0) {
+      const { data: reactorProfiles } = await supabase
+        .from('profiles')
+        .select('id, first_name, last_name, full_name, avatar_url, handle')
+        .in('id', reactorIds);
+      for (const p of reactorProfiles || []) {
+        reactorProfilesById.set(p.id, p as ReactorProfile);
+      }
+    }
 
     for (const r of emojiReactionsResult.data || []) {
       if (!reactionsByMessage.has(r.message_id)) {
@@ -190,66 +213,22 @@ export async function GET(
       }
       const msgReactions = reactionsByMessage.get(r.message_id)!;
       if (!msgReactions.has(r.emoji)) {
-        msgReactions.set(r.emoji, { count: 0, reacted: false });
+        msgReactions.set(r.emoji, { count: 0, reacted: false, reactors: [] });
         reactionOrder.get(r.message_id)!.push(r.emoji);
       }
       const entry = msgReactions.get(r.emoji)!;
       entry.count++;
       if (r.profile_id === user.id) entry.reacted = true;
-    }
 
-    // Fetch emoji reactions for GIF reaction messages and attach to each
-    const gifReactionMsgs = gifReactionsResult.data || [];
-    const gifReactionIds = gifReactionMsgs.map(gr => gr.id);
-
-    if (gifReactionIds.length > 0) {
-      const { data: grEmojiReactions } = await supabase
-        .from('message_reactions')
-        .select('message_id, emoji, profile_id')
-        .in('message_id', gifReactionIds);
-
-      // Build per-gif-reaction aggregation
-      const grReactionsByMsg = new Map<string, Map<string, { count: number; reacted: boolean }>>();
-      const grReactionOrder = new Map<string, string[]>();
-
-      for (const r of grEmojiReactions || []) {
-        if (!grReactionsByMsg.has(r.message_id)) {
-          grReactionsByMsg.set(r.message_id, new Map());
-          grReactionOrder.set(r.message_id, []);
-        }
-        const map = grReactionsByMsg.get(r.message_id)!;
-        if (!map.has(r.emoji)) {
-          map.set(r.emoji, { count: 0, reacted: false });
-          grReactionOrder.get(r.message_id)!.push(r.emoji);
-        }
-        const entry = map.get(r.emoji)!;
-        entry.count++;
-        if (r.profile_id === user.id) entry.reacted = true;
-      }
-
-      // Attach reactions to each gif reaction message
-      for (const gr of gifReactionMsgs) {
-        const map = grReactionsByMsg.get(gr.id);
-        const order = grReactionOrder.get(gr.id);
-        (gr as Record<string, unknown>).reactions = map && order
-          ? order.map(emoji => ({ emoji, ...map.get(emoji)! }))
-          : [];
+      const reactor = reactorProfilesById.get(r.profile_id);
+      if (reactor) {
+        entry.reactors.push(reactor);
       }
     }
 
-    // Group GIF reactions by parent message
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const gifReactionsByParent = new Map<string, any[]>();
-    for (const gr of gifReactionMsgs) {
-      const parentId = gr.parent_message_id;
-      if (!parentId) continue;
-      if (!gifReactionsByParent.has(parentId)) {
-        gifReactionsByParent.set(parentId, []);
-      }
-      gifReactionsByParent.get(parentId)!.push(gr);
-    }
-
-    // Fetch parent messages for replies (messages with parent_message_id that aren't gif_reactions)
+    // Fetch parent messages for replies. Now that GIF reactions are part of
+    // enrichedMessages they are included here automatically — both text
+    // replies and GIF reactions get their reply_to populated below.
     const replyParentIds = enrichedMessages
       .filter(m => m.parent_message_id && !m.deleted_at)
       .map(m => m.parent_message_id as string);
@@ -343,7 +322,9 @@ export async function GET(
       ...(entry.shared_profile ? { shared_profile: entry.shared_profile } : {}),
     });
 
-    // Attach reactions, gif_reactions, and reply_to to each message
+    // Attach reactions and reply_to to each message. GIF reactions are now
+    // standalone messages in this list, so the legacy `gif_reactions` array
+    // is intentionally omitted from the response payload.
     const messagesWithReactions = enrichedMessages.map(msg => {
       const msgReactions = reactionsByMessage.get(msg.id);
       const order = reactionOrder.get(msg.id);
@@ -359,19 +340,18 @@ export async function GET(
       return {
         ...msg,
         reactions,
-        gif_reactions: gifReactionsByParent.get(msg.id) || [],
         reply_to,
       };
     });
 
-    // Compute unread count (exclude gif_reactions, include replies)
+    // Compute unread count. GIF reactions count as replies (same treatment
+    // as text replies) — they're real messages in the chat stream.
     let unreadQuery = supabase
       .from('messages')
       .select('id', { count: 'exact', head: true })
       .eq('conversation_id', conversationId)
       .neq('sender_id', user.id)
-      .is('deleted_at', null)
-      .neq('type', 'gif_reaction');
+      .is('deleted_at', null);
 
     if (myParticipant.last_read_at) {
       unreadQuery = unreadQuery.gt('created_at', myParticipant.last_read_at);

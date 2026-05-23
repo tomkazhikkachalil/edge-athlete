@@ -135,6 +135,29 @@ body {
   border-radius: 4px;
 }
 
+/* ── Messaging microinteractions ────────────────────────────────────────────
+ * Small CSS-only motions for reactions and message edits. No new dependency
+ * required. Disabled automatically by the prefers-reduced-motion block below.
+ */
+@keyframes ea-reaction-pop {
+  0%   { transform: scale(0.85); }
+  60%  { transform: scale(1.08); }
+  100% { transform: scale(1); }
+}
+
+.ea-reaction-chip {
+  animation: ea-reaction-pop 180ms ease-out;
+}
+
+@keyframes ea-edit-pulse {
+  0%   { box-shadow: 0 0 0 0 rgba(59, 130, 246, 0.35); }
+  100% { box-shadow: 0 0 0 6px rgba(59, 130, 246, 0); }
+}
+
+.ea-edit-pulse {
+  animation: ea-edit-pulse 600ms ease-out;
+}
+
 /* Respect reduced-motion preference — disables animations for users
  * who have motion sensitivity set at the OS level. */
 @media (prefers-reduced-motion: reduce) {
