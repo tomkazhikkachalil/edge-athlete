@@ -33,6 +33,11 @@ export default function Error({
         <p className="text-gray-600 mb-6">
           We hit an unexpected error. You can try again, or head back to the home page.
         </p>
+        {process.env.NODE_ENV !== 'production' && error.message && (
+          <p className="text-xs text-left text-red-700 bg-red-50 border border-red-100 rounded-md p-2 mb-6 font-mono break-all">
+            {error.message.length > 280 ? error.message.slice(0, 280) + '…' : error.message}
+          </p>
+        )}
         <div className="flex flex-col sm:flex-row gap-3 justify-center">
           <button
             type="button"

@@ -44,6 +44,24 @@ export default function GlobalError({
           <p style={{ color: '#4b5563', marginBottom: '1.5rem' }}>
             The application hit an unexpected error. Please try again.
           </p>
+          {process.env.NODE_ENV !== 'production' && error.message && (
+            <p
+              style={{
+                fontSize: '0.75rem',
+                textAlign: 'left',
+                color: '#b91c1c',
+                backgroundColor: '#fef2f2',
+                border: '1px solid #fee2e2',
+                borderRadius: '0.375rem',
+                padding: '0.5rem',
+                marginBottom: '1.5rem',
+                fontFamily: 'ui-monospace, SFMono-Regular, monospace',
+                wordBreak: 'break-all',
+              }}
+            >
+              {error.message.length > 280 ? error.message.slice(0, 280) + '…' : error.message}
+            </p>
+          )}
           <button
             type="button"
             onClick={reset}

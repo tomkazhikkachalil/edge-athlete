@@ -6,6 +6,12 @@ import { useAuth } from '@/lib/auth';
 import { supabase } from '@/lib/supabase';
 import { formatDisplayName } from '@/lib/formatters';
 
+// Web Notification API is missing in some runtimes (older iOS Safari, in-app
+// browsers, embedded WebViews, some Brave / enterprise configurations).
+// Centralize the support check so we never reference the global blindly.
+const isNotificationAPISupported = () =>
+  typeof window !== 'undefined' && typeof Notification !== 'undefined';
+
 export interface NotificationActor {
   id: string;
   first_name?: string;
@@ -357,13 +363,20 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
         // Optional: Play notification sound
         // playNotificationSound();
 
-        // Optional: Show browser notification
-        if (Notification.permission === 'granted') {
+        // Optional: Show browser notification. Guarded so that runtimes
+        // without the Notification global (some embedded WebViews, older
+        // iOS Safari, etc.) don't throw and cascade up to the route-level
+        // error boundary.
+        if (isNotificationAPISupported() && Notification.permission === 'granted') {
           const notification = payload.new as Notification;
-          new Notification(notification.title, {
-            body: notification.message || '',
-            icon: '/icon-192x192.png'
-          });
+          try {
+            new Notification(notification.title, {
+              body: notification.message || '',
+              icon: '/icon-192x192.png',
+            });
+          } catch (err) {
+            console.warn('Failed to show browser notification:', err);
+          }
         }
       })
       // Listen for notification updates (e.g., action_status changes)
@@ -397,9 +410,10 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
         }
       });
 
-    // Request notification permission
-    if (typeof window !== 'undefined' && Notification.permission === 'default') {
-      Notification.requestPermission();
+    // Request notification permission. requestPermission is async and can
+    // reject silently in non-secure contexts; swallow rejections.
+    if (isNotificationAPISupported() && Notification.permission === 'default') {
+      Notification.requestPermission().catch(() => { /* permission denied / unsupported context */ });
     }
 
     return () => {
