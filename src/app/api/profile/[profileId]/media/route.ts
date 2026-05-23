@@ -108,6 +108,16 @@ export async function GET(
     const sort = searchParams.get('sort') || 'newest'; // newest | most_engaged
     const mediaType = searchParams.get('mediaType') || 'all'; // all | photos | videos | posts
 
+    // Sport / year filters: comma-separated. Empty / missing = no filter (NULL to RPC).
+    const sportKeysParam = searchParams.get('sportKeys');
+    const filterSportKeys: string[] | null = sportKeysParam
+      ? sportKeysParam.split(',').map(s => s.trim()).filter(Boolean)
+      : null;
+    const yearsParam = searchParams.get('years');
+    const filterYears: number[] | null = yearsParam
+      ? yearsParam.split(',').map(y => parseInt(y, 10)).filter(n => Number.isInteger(n) && n > 1900 && n < 2200)
+      : null;
+
     if (!profileId) {
       return NextResponse.json({ error: 'Profile ID is required' }, { status: 400 });
     }
@@ -125,18 +135,35 @@ export async function GET(
       functionName = 'get_profile_tagged_media';
     }
 
-    // Call database function
-    const { data: mediaItems, error: mediaError } = await supabaseAdmin.rpc(functionName, {
+    // Build RPC payload — only include filter args when they're actually set so
+    // the call resolves against the original 4-arg signature when no filter is
+    // applied. This keeps the unfiltered default view working whether or not
+    // migration 018 (which adds the filter args) has been applied yet.
+    const rpcParams: Record<string, unknown> = {
       target_profile_id: profileId,
       viewer_id: viewerId,
       media_limit: limit,
-      media_offset: offset
-    });
+      media_offset: offset,
+    };
+    if (filterSportKeys && filterSportKeys.length > 0) {
+      rpcParams.filter_sport_keys = filterSportKeys;
+    }
+    if (filterYears && filterYears.length > 0) {
+      rpcParams.filter_years = filterYears;
+    }
+
+    const { data: mediaItems, error: mediaError } = await supabaseAdmin.rpc(functionName, rpcParams);
 
     if (mediaError) {
       console.error(`Error fetching ${tab} media:`, mediaError);
       console.error('Function called:', functionName);
-      console.error('Parameters:', { target_profile_id: profileId, viewer_id: viewerId, media_limit: limit, media_offset: offset });
+      console.error('Filter params present:', {
+        sportKeys: !!rpcParams.filter_sport_keys,
+        years: !!rpcParams.filter_years,
+      });
+      if (rpcParams.filter_sport_keys || rpcParams.filter_years) {
+        console.error('Hint: ensure migration 018_profile_media_sport_year_filters.sql is applied in Supabase.');
+      }
       return NextResponse.json({
         error: 'Failed to fetch media',
         details: mediaError.message,

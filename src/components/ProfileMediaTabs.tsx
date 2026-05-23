@@ -2,14 +2,33 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { formatDistanceToNow } from 'date-fns';
-import { Camera, BarChart3, Tag, Dumbbell, Activity, Trophy } from 'lucide-react';
+import { Camera, BarChart3, Tag, Dumbbell, Activity, Trophy, Filter } from 'lucide-react';
 import OptimizedImage from './OptimizedImage';
 import PostDetailModal from './PostDetailModal';
 import EditPostModal from './EditPostModal';
 import EquipmentSection from './EquipmentSection';
+import SportYearFilter from './SportYearFilter';
 import { useToast } from './Toast';
 import { formatGolfStatsSummary, formatGenericStatsSummary } from '@/lib/stats-summary';
 import VitalsTab from './VitalsTab';
+import { getAllSports, SPORT_NAMES } from '@/lib/config/sports-config';
+
+// Static filter catalogs — the dropdowns are aspirational (show the whole
+// platform's sport list and a wide year range, not just what this athlete
+// has posted). Picking a sport/year with no posts simply yields the empty
+// state, which is acceptable.
+const FILTER_START_YEAR = 2000;
+
+const ALL_SPORT_KEYS: string[] = getAllSports()
+  .slice()
+  .sort((a, b) => (SPORT_NAMES[a] ?? a).localeCompare(SPORT_NAMES[b] ?? b));
+
+const ALL_YEARS: number[] = (() => {
+  const now = new Date().getFullYear();
+  const years: number[] = [];
+  for (let y = now; y >= FILTER_START_YEAR; y--) years.push(y);
+  return years;
+})();
 
 type TabType = 'all' | 'stats' | 'tagged' | 'equipment' | 'vitals' | 'achievements';
 type SortType = 'newest' | 'most_engaged';
@@ -64,6 +83,8 @@ interface TabCounts {
   achievements: number;
 }
 
+type MediaCountsResponse = TabCounts;
+
 interface ProfileMediaTabsProps {
   profileId: string;
   currentUserId?: string;
@@ -75,6 +96,8 @@ export default function ProfileMediaTabs({ profileId, currentUserId, isOwnProfil
   const [activeTab, setActiveTab] = useState<TabType>('all');
   const [sort, setSort] = useState<SortType>('newest');
   const [mediaFilter, setMediaFilter] = useState<MediaFilterType>('all');
+  const [selectedSports, setSelectedSports] = useState<string[]>([]);
+  const [selectedYears, setSelectedYears] = useState<number[]>([]);
   const [items, setItems] = useState<MediaItem[]>([]);
   const [counts, setCounts] = useState<TabCounts>({ all: 0, stats: 0, tagged: 0, equipment: 0, vitals: 0, achievements: 0 });
   const [loading, setLoading] = useState(true);
@@ -93,7 +116,9 @@ export default function ProfileMediaTabs({ profileId, currentUserId, isOwnProfil
   // Toast notifications
   const { showSuccess, showError } = useToast();
 
-  // Fetch counts for tab badges
+  // Fetch counts for tab badges. Tab counts reflect the full profile and are
+  // intentionally NOT affected by the sport/year filter selections, so badges
+  // stay stable as users toggle filters.
   const fetchCounts = useCallback(async () => {
     try {
       const response = await fetch(`/api/profile/${profileId}/media`, {
@@ -101,11 +126,18 @@ export default function ProfileMediaTabs({ profileId, currentUserId, isOwnProfil
       });
 
       if (response.ok) {
-        const data = await response.json();
-        setCounts(data);
-        // Notify parent component of count changes
+        const data: MediaCountsResponse = await response.json();
+        const tabCounts: TabCounts = {
+          all: data.all,
+          stats: data.stats,
+          tagged: data.tagged,
+          equipment: data.equipment ?? 0,
+          vitals: data.vitals ?? 0,
+          achievements: data.achievements ?? 0,
+        };
+        setCounts(tabCounts);
         if (onCountsChange) {
-          onCountsChange(data);
+          onCountsChange(tabCounts);
         }
       } else {
         console.error('Failed to fetch media counts — status:', response.status);
@@ -134,6 +166,8 @@ export default function ProfileMediaTabs({ profileId, currentUserId, isOwnProfil
         limit: '20',
         offset: currentOffset.toString()
       });
+      if (selectedSports.length > 0) params.set('sportKeys', selectedSports.join(','));
+      if (selectedYears.length > 0) params.set('years', selectedYears.join(','));
 
       const response = await fetch(`/api/profile/${profileId}/media?${params}`);
 
@@ -168,17 +202,17 @@ export default function ProfileMediaTabs({ profileId, currentUserId, isOwnProfil
       setLoading(false);
       setLoadingMore(false);
     }
-  }, [profileId, activeTab, sort, mediaFilter]);
+  }, [profileId, activeTab, sort, mediaFilter, selectedSports, selectedYears]);
 
   // Load counts on mount and when profileId changes
   useEffect(() => {
     fetchCounts();
   }, [fetchCounts]);
 
-  // Load media when tab/filter/sort/profileId changes
+  // Load media when tab/filter/sort/profileId or sport/year filters change
   useEffect(() => {
     fetchMedia(true);
-  }, [activeTab, sort, mediaFilter, profileId, fetchMedia]);
+  }, [activeTab, sort, mediaFilter, profileId, selectedSports, selectedYears, fetchMedia]);
 
   // Infinite scroll observer
   useEffect(() => {
@@ -398,10 +432,10 @@ export default function ProfileMediaTabs({ profileId, currentUserId, isOwnProfil
       {/* Media/Stats/Tagged tabs */}
       {(activeTab === 'all' || activeTab === 'stats' || activeTab === 'tagged') && (
         <>
-          {/* Filters (only shown for media/stats/tagged tabs) */}
+          {/* Filter row — Sport + Year sit inline with Sort and Media Type */}
           {(activeTab === 'all' || activeTab === 'stats' || activeTab === 'tagged') && (
             <div className="flex items-center justify-between gap-4 flex-wrap">
-              <div className="flex items-center gap-3">
+              <div className="flex items-center gap-3 flex-wrap">
                 {/* Sort dropdown */}
                 <select
                   value={sort}
@@ -423,13 +457,66 @@ export default function ProfileMediaTabs({ profileId, currentUserId, isOwnProfil
                   <option value="videos">Videos Only</option>
                   <option value="posts">Posts Only</option>
                 </select>
+
+                {/* Sport + Year multi-select dropdowns — open to the full
+                    platform catalog, not just sports/years this athlete has
+                    posted in. */}
+                <SportYearFilter
+                  availableSports={ALL_SPORT_KEYS}
+                  availableYears={ALL_YEARS}
+                  selectedSports={selectedSports}
+                  selectedYears={selectedYears}
+                  onSportsChange={setSelectedSports}
+                  onYearsChange={setSelectedYears}
+                />
               </div>
 
-              <div className="text-sm text-gray-600">
+              <div className="inline-flex items-center px-3 py-1 rounded-full bg-blue-50 text-blue-700 text-sm font-semibold whitespace-nowrap">
                 {items.length} {items.length === 1 ? 'item' : 'items'}
               </div>
             </div>
           )}
+
+          {/* Filter status + clear-all — always visible on post-based tabs so
+              the reset affordance is discoverable. Two states: muted when no
+              filters active, brand-colored when filters are applied. */}
+          {(activeTab === 'all' || activeTab === 'stats' || activeTab === 'tagged') && (() => {
+            const activeCount = selectedSports.length + selectedYears.length;
+            const hasActive = activeCount > 0;
+
+            return (
+              <div className="flex items-center justify-between gap-3 px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg">
+                <div className="flex items-center gap-2 text-sm">
+                  <Filter
+                    className={`w-4 h-4 ${hasActive ? 'text-blue-600' : 'text-gray-400'}`}
+                    aria-hidden="true"
+                  />
+                  <span className={hasActive ? 'font-medium text-gray-800' : 'text-gray-500'}>
+                    {hasActive
+                      ? `${activeCount} active filter${activeCount === 1 ? '' : 's'}`
+                      : 'No filters applied'}
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  disabled={!hasActive}
+                  onClick={() => {
+                    setSelectedSports([]);
+                    setSelectedYears([]);
+                  }}
+                  className={`inline-flex items-center gap-1 text-sm font-semibold transition-colors ${
+                    hasActive
+                      ? 'text-blue-600 hover:text-blue-700 cursor-pointer'
+                      : 'text-gray-400 cursor-not-allowed'
+                  }`}
+                  aria-label="Clear all sport and year filters"
+                >
+                  <span aria-hidden="true">×</span>
+                  Clear all filters
+                </button>
+              </div>
+            );
+          })()}
 
           {/* Loading state */}
           {loading && (
