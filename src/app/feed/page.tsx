@@ -1,18 +1,22 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import dynamic from 'next/dynamic';
 import { useAuth } from '@/lib/auth';
 import { useRouter } from 'next/navigation';
 import PostCard from '@/components/PostCard';
-import CreatePostModal from '@/components/CreatePostModal';
-import EditPostModal from '@/components/EditPostModal';
-import EditProfileTabs from '@/components/EditProfileTabs';
 import AppHeader from '@/components/AppHeader';
 import ConnectionSuggestions from '@/components/ConnectionSuggestions';
 import { ToastContainer, useToast } from '@/components/Toast';
 import { getSupabaseBrowserClient } from '@/lib/supabase';
 import LazyImage from '@/components/LazyImage';
 import { getInitials, formatDisplayName } from '@/lib/formatters';
+
+// Heavy modals (~2100 / ~1090 / ~330 lines) — split into their own chunks,
+// loaded only when the user opens them. Cuts First Load JS on /feed.
+const CreatePostModal = dynamic(() => import('@/components/CreatePostModal'), { ssr: false });
+const EditPostModal = dynamic(() => import('@/components/EditPostModal'), { ssr: false });
+const EditProfileTabs = dynamic(() => import('@/components/EditProfileTabs'), { ssr: false });
 
 interface Post {
   id: string;

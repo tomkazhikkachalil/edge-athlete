@@ -1,19 +1,23 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import dynamic from 'next/dynamic';
 import { useAuth } from '@/lib/auth';
 import { useRouter } from 'next/navigation';
 import { AthleteService } from '@/lib/athleteService';
-import EditProfileTabs from '@/components/EditProfileTabs';
 import { ToastContainer, useToast } from '@/components/Toast';
 import MultiSportHighlights from '@/components/MultiSportHighlights';
-import SeasonHighlightsModal from '@/components/SeasonHighlightsModal';
-import PerformanceModal from '@/components/PerformanceModal';
 import LazyImage from '@/components/LazyImage';
-import CreatePostModal from '@/components/CreatePostModal';
 import ProfileMediaTabs from '@/components/ProfileMediaTabs';
 import AppHeader from '@/components/AppHeader';
-import FollowersModal from '@/components/FollowersModal';
+
+// Heavy / rarely-open modals — split into their own chunks. Cuts First Load
+// JS on /athlete (~257 kB → lighter, modals fetch on open).
+const EditProfileTabs = dynamic(() => import('@/components/EditProfileTabs'), { ssr: false });
+const CreatePostModal = dynamic(() => import('@/components/CreatePostModal'), { ssr: false });
+const SeasonHighlightsModal = dynamic(() => import('@/components/SeasonHighlightsModal'), { ssr: false });
+const PerformanceModal = dynamic(() => import('@/components/PerformanceModal'), { ssr: false });
+const FollowersModal = dynamic(() => import('@/components/FollowersModal'), { ssr: false });
 import type { AthleteBadge, SeasonHighlight, Performance, Profile } from '@/lib/supabase';
 import {
   formatHeight,

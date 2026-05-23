@@ -1,13 +1,16 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import dynamic from 'next/dynamic';
 import { useAuth } from '@/lib/auth';
 import { useRouter } from 'next/navigation';
 import AppHeader from '@/components/AppHeader';
 import AccountSettings from '@/components/settings/AccountSettings';
 import PrivacySettings from '@/components/settings/PrivacySettings';
 import MessagingSettings from '@/components/settings/MessagingSettings';
-import EditProfileTabs from '@/components/EditProfileTabs';
+
+// 1091-line modal — only loaded on demand
+const EditProfileTabs = dynamic(() => import('@/components/EditProfileTabs'), { ssr: false });
 
 type SettingsTab = 'account' | 'privacy' | 'messaging' | 'notifications' | 'security';
 

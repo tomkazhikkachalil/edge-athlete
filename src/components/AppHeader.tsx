@@ -55,7 +55,7 @@ export default function AppHeader({ showSearch = true, onCreatePost, onEditProfi
   return (
     <>
       {/* Desktop & Tablet Header */}
-      <header className="bg-white shadow-sm border-b border-gray-200 sticky top-0 z-40">
+      <header className="bg-white shadow-sm border-b border-gray-200 sticky top-0 z-40 safe-top safe-x">
         <div className="max-w-7xl mx-auto px-4 sm:px-6">
           <div className="flex items-center justify-between h-16">
             {/* Left - Logo & Navigation */}
@@ -244,7 +244,7 @@ export default function AppHeader({ showSearch = true, onCreatePost, onEditProfi
 
       {/* Mobile Menu Drawer */}
       <div
-        className={`fixed top-0 right-0 h-full w-64 bg-white shadow-lg z-50 transform transition-transform duration-300 ease-in-out md:hidden ${
+        className={`fixed top-0 right-0 h-full w-72 max-w-[85vw] bg-white shadow-lg z-50 transform transition-transform duration-300 ease-in-out md:hidden safe-top safe-bottom ${
           isMobileMenuOpen ? 'translate-x-0' : 'translate-x-full'
         }`}
       >
@@ -255,7 +255,7 @@ export default function AppHeader({ showSearch = true, onCreatePost, onEditProfi
               <h2 className="text-lg font-bold text-gray-900">Menu</h2>
               <button
                 onClick={() => setIsMobileMenuOpen(false)}
-                className="text-gray-500 hover:text-gray-700"
+                className="text-gray-500 hover:text-gray-700 p-2 -m-2 rounded-lg"
                 aria-label="Close menu"
               >
                 <i className="fas fa-times text-xl"></i>

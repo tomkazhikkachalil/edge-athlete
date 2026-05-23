@@ -1,13 +1,16 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import dynamic from 'next/dynamic';
 import { useRouter } from 'next/navigation';
 import Image from 'next/image';
 import { useAuth } from '@/lib/auth';
 import { useNotifications, getNotificationText } from '@/lib/notifications';
 import { formatDisplayName, getInitials } from '@/lib/formatters';
 import AppHeader from '@/components/AppHeader';
-import EditProfileTabs from '@/components/EditProfileTabs';
+
+// 1091-line modal — only loaded when user opens Edit Profile
+const EditProfileTabs = dynamic(() => import('@/components/EditProfileTabs'), { ssr: false });
 
 type Tab = 'all' | 'unread' | 'follow' | 'engagement' | 'system';
 

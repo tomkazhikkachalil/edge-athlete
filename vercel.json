@@ -52,11 +52,5 @@
         }
       ]
     }
-  ],
-  "rewrites": [
-    {
-      "source": "/(.*)",
-      "destination": "/$1"
-    }
   ]
 }
