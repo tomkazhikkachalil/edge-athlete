@@ -12,6 +12,7 @@ import type { SportKey } from './SportRegistry';
 import type { SportAdapter } from './SportAdapter';
 import { DisabledSportAdapter } from './SportAdapter';
 import { GolfAdapter } from './adapters/GolfAdapter';
+import { StatLinePostAdapter } from './adapters/StatLinePostAdapter';
 
 /**
  * Adapter Registry Class
@@ -32,11 +33,13 @@ class AdapterRegistry {
   private registerDefaultAdapters(): void {
     // Golf - V1 Implementation (Enabled)
     this.register(new GolfAdapter());
-    
+
+    // Stat-line sports — generic adapter over posts.stats_data (Enabled)
+    this.register(new StatLinePostAdapter('ice_hockey'));
+    this.register(new StatLinePostAdapter('volleyball'));
+
     // Other Sports - Disabled (Coming Soon)
     const disabledSports: SportKey[] = [
-      'ice_hockey',
-      'volleyball', 
       'track_field',
       'basketball',
       'soccer',

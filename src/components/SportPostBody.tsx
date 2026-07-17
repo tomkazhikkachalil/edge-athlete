@@ -6,6 +6,8 @@
 // See docs/MULTI_SPORT_ROADMAP.md ("Feed rendering" seam).
 import GolfRoundCard from './golf/GolfRoundCard';
 import GolfStatsSummaryCard from './golf/GolfStatsSummaryCard';
+import StatLineCard from './StatLineCard';
+import { isStatLineData } from '@/lib/sports/stat-schemas';
 import type { GolfRound } from '@/types/golf';
 
 interface SportPostBodyProps {
@@ -24,6 +26,10 @@ export default function SportPostBody({ sportKey, golfRound, statsData }: SportP
         </>
       );
     default:
+      // Stat-line sports (ice hockey, volleyball, …) — schema-driven card
+      if (isStatLineData(statsData)) {
+        return <StatLineCard line={statsData} />;
+      }
       return null;
   }
 }

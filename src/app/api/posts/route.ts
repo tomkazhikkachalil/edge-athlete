@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { getEnabledSports } from '@/lib/sports/SportRegistry';
 import { requireAuth, getSupabaseAdmin } from '@/lib/auth-server';
 
 // Interface for tagged profiles
@@ -33,8 +34,10 @@ export async function POST(request: NextRequest) {
     // Use authenticated user's ID
     const userId = user.id;
 
-    // Validate post type
-    if (!['general', 'golf', 'training'].includes(postType)) {
+    // Validate post type: 'general' plus any registry-enabled sport.
+    // Enabling a sport in SportRegistry automatically allows its posts here.
+    const validPostTypes = ['general', ...getEnabledSports().map(s => s.sport_key)];
+    if (!validPostTypes.includes(postType)) {
       return NextResponse.json({ error: 'Invalid post type' }, { status: 400 });
     }
 

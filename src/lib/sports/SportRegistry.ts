@@ -104,18 +104,18 @@ export const SPORT_REGISTRY: Record<SportKey, SportDefinition> = {
     primary_action: 'Log Training'
   },
 
-  // === ICE HOCKEY (Future Implementation) ===
+  // === ICE HOCKEY (Stat-line implementation — posts.stats_data) ===
   ice_hockey: {
     sport_key: 'ice_hockey',
     display_name: 'Ice Hockey',
     brand_color_token: 'blue',
     icon_id: 'fas fa-hockey-puck',
-    enabled: false,
+    enabled: true,
     metric_labels: {
       tile1: 'Goals',
       tile2: 'Assists',
-      tile3: 'Games',
-      tile4: 'Rating'
+      tile3: 'Points',
+      tile4: 'Games'
     },
     activity_columns: {
       col1: 'Date',
@@ -127,18 +127,18 @@ export const SPORT_REGISTRY: Record<SportKey, SportDefinition> = {
     primary_action: 'Add Game'
   },
 
-  // === VOLLEYBALL (Future Implementation) ===
+  // === VOLLEYBALL (Stat-line implementation — posts.stats_data) ===
   volleyball: {
     sport_key: 'volleyball',
     display_name: 'Volleyball',
     brand_color_token: 'orange',
     icon_id: 'fas fa-volleyball-ball',
-    enabled: false,
+    enabled: true,
     metric_labels: {
       tile1: 'Kills',
-      tile2: 'Blocks',
-      tile3: 'Sets',
-      tile4: 'Rating'
+      tile2: 'Digs',
+      tile3: 'Aces',
+      tile4: 'Matches'
     },
     activity_columns: {
       col1: 'Date',

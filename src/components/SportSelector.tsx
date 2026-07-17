@@ -181,7 +181,6 @@ export default function SportSelector({ selectedSport, onSelectSport, onClose }:
             <i className="fas fa-info-circle mt-0.5"></i>
             <p>
               <span className="font-semibold">Coming Soon:</span> More sports will be available in future updates.
-              Currently, only Golf is fully active.
             </p>
           </div>
         </div>

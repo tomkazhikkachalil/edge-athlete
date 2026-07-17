@@ -9,6 +9,8 @@ import SportSelector from '@/components/SportSelector';
 import MultiPlayerScorecardGrid, { type PlayerScoreData, type PlayerHoleScore } from '@/components/golf/MultiPlayerScorecardGrid';
 import SharedRoundQuickView from '@/components/golf/SharedRoundQuickView';
 import { getSportDefinition, type SportKey } from '@/lib/sports/SportRegistry';
+import StatLineForm, { emptyStatLine, statLineHasContent } from '@/components/StatLineForm';
+import { getStatSchema, type StatLineData } from '@/lib/sports/stat-schemas';
 import type { HoleData, GolfCourse } from '@/types/golf';
 import type { CompleteGolfScorecard, ParticipantRole } from '@/types/group-posts';
 
@@ -121,6 +123,9 @@ export default function CreatePostModal({
   // Post type and content
   const [postType, setPostType] = useState<SportKey | 'general'>(defaultSportKey);
   const [showSportSelector, setShowSportSelector] = useState(false);
+  // Stat-line sports (ice hockey, volleyball, …) — schema-driven stat entry
+  const [statLineData, setStatLineData] = useState<StatLineData | null>(null);
+  const isStatLineSport = postType !== 'general' && getStatSchema(postType) !== null;
   const [caption, setCaption] = useState('');
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
   const [hashtags, setHashtags] = useState<string[]>([]);
@@ -290,6 +295,7 @@ export default function CreatePostModal({
     setHashtags([]);
     setMediaFiles([]);
     setGolfRoundData(null);
+    setStatLineData(null);
     setVisibility('public');
     setShowHashtagSuggestions(false);
     setCustomHashtag('');
@@ -555,6 +561,15 @@ export default function CreatePostModal({
       return caption.trim().length > 0 || mediaFiles.length > 0;
     }
 
+    // Stat-line sports: postable with a caption, media, or any entered stats
+    if (isStatLineSport) {
+      return (
+        caption.trim().length > 0 ||
+        mediaFiles.length > 0 ||
+        (statLineData !== null && statLineHasContent(statLineData))
+      );
+    }
+
     // Golf posts
     if (postType === 'golf') {
       if (roundType === 'individual') {
@@ -730,6 +745,10 @@ export default function CreatePostModal({
           sortOrder: index
         })),
         golfData: postType === 'golf' ? golfRoundData : undefined,
+        stats_data:
+          isStatLineSport && statLineData && statLineHasContent(statLineData)
+            ? statLineData
+            : undefined,
         taggedProfiles: taggedProfiles // Add tagged people
       };
 
@@ -840,6 +859,17 @@ export default function CreatePostModal({
               </div>
             </button>
           </div>
+
+          {/* Stat-line sport form (ice hockey, volleyball, …) */}
+          {isStatLineSport && (
+            <div className="mb-6">
+              <StatLineForm
+                sportKey={postType as SportKey}
+                value={statLineData ?? emptyStatLine(postType as SportKey)}
+                onChange={setStatLineData}
+              />
+            </div>
+          )}
 
           {/* Golf Round Type Selection */}
           {postType === 'golf' && (
@@ -1767,7 +1797,10 @@ export default function CreatePostModal({
       {showSportSelector && (
         <SportSelector
           selectedSport={postType}
-          onSelectSport={(sport) => setPostType(sport)}
+          onSelectSport={(sport) => {
+            setPostType(sport);
+            setStatLineData(null); // stat entries are per-sport
+          }}
           onClose={() => setShowSportSelector(false)}
         />
       )}

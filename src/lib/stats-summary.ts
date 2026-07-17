@@ -2,6 +2,8 @@
  * Utility functions for formatting stats summaries in profile media tiles
  */
 
+import { getStatSchema, isStatLineData, formatResult } from '@/lib/sports/stat-schemas';
+
 interface GolfRoundData {
   course?: string | null;
   gross_score?: number | null;  // Changed from total_score
@@ -107,6 +109,25 @@ export function formatGolfStatsSummary(golfRound: GolfRoundData | null): StatsSu
  */
 export function formatGenericStatsSummary(statsData: Record<string, unknown> | null): StatsSummary | null {
   if (!statsData || Object.keys(statsData).length === 0) {
+    return null;
+  }
+
+  // Stat-line sports (ice hockey, volleyball, …) — schema-driven summary
+  if (isStatLineData(statsData)) {
+    const schema = getStatSchema(statsData.sport_key);
+    if (schema) {
+      const headline = schema.headline(statsData.stats);
+      const result = formatResult(statsData);
+      const context = [result, statsData.opponent ? `vs ${statsData.opponent}` : null]
+        .filter(Boolean)
+        .join(' ');
+      if (headline || context) {
+        return {
+          primaryLine: headline ?? context,
+          secondaryLine: headline ? (context || null) : null,
+        };
+      }
+    }
     return null;
   }
 
