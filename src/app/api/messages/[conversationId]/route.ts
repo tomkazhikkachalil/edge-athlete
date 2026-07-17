@@ -66,11 +66,9 @@ export async function GET(
     // Fetch messages (cursor-based, newest first)
     // Exclude gif_reactions from top-level list — they'll be nested under parent.
     // Replies (non-gif_reaction with parent_message_id) stay in the main list.
-    // NOTE: `edited_at` is added by migration 019. We deliberately do not
-    // include it in the SELECT here so this route keeps working on databases
-    // where 019 has not yet been applied. Once the migration is universally
-    // applied, this column can be added back to the SELECT (the Message type
-    // already accepts edited_at as optional).
+    // NOTE: `edited_at` comes from migration 019 (applied). It is included in
+    // the SELECT so the "edited" indicator survives page reloads, not just
+    // realtime payloads.
     //
     // GIF reactions (type='gif_reaction') are NOT filtered out — they flow
     // through the regular reply pipeline and render as standalone messages
@@ -91,6 +89,7 @@ export async function GET(
         deleted_at,
         created_at,
         updated_at,
+        edited_at,
         sender:profiles!messages_sender_id_fkey (
           id,
           first_name,
