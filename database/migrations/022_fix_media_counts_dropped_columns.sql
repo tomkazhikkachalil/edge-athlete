@@ -1,26 +1,31 @@
 -- ============================================================================
 -- Migration 022 — Fix get_profile_media_counts after migration 020
 -- ============================================================================
--- Migration 020 dropped posts.game_id / match_id / race_id (verified 0 rows,
--- 0 APP-SOURCE references). But the get_profile_media_counts() RPC body — which
--- lives in the database, not the repo — still referenced p.game_id, so the
--- media-counts endpoint (tab badges) started failing with:
+-- Migration 020 dropped posts.game_id / match_id / race_id. The live
+-- get_profile_media_counts() body still referenced p.game_id (in the
+-- "stats media count" branch), so the tab-counts endpoint failed with:
 --   "column p.game_id does not exist"  (Postgres 42703)
 --
--- The other three media RPCs (get_profile_all_media / _stats_media /
--- _tagged_media) were already recreated cleanly by migration 018 and are fine
--- — this migration only fixes the counts function.
+-- This version is reconstructed from the ACTUAL live function body (which was
+-- schema-qualified with public.* by an earlier search-path hardening) and
+-- changes exactly ONE thing: the stats-media predicate drops the three
+-- removed sport-FK columns. A post now counts as "stats media" if it has
+-- stats_data OR round_id — which still covers the stat-line sports
+-- (ice hockey, volleyball, basketball, soccer, baseball) because their data
+-- lives in posts.stats_data.
 --
--- The "stats media" definition now matches the idx_posts_stats_media index as
--- recreated in migration 020: a post counts as stats media if it has
--- stats_data OR round_id. This correctly includes the stat-line sports
--- (ice hockey, volleyball, basketball, soccer, baseball) — their data lives in
--- posts.stats_data — so no coverage is lost by removing the dead FK columns.
+-- Everything else (public.* qualification, privacy predicates, SECURITY
+-- DEFINER) is preserved exactly. Idempotent (CREATE OR REPLACE).
 --
--- Idempotent: CREATE OR REPLACE. Safe to run more than once.
+-- ⚠️ Run in the Supabase SQL Editor for project ref: htwhmdoiszhhmwuflgci
+--    Watch for a green "Success" — a red error means it did NOT apply.
+--    Then verify:
+--      SELECT * FROM get_profile_media_counts(
+--        '2132330f-e125-43e9-99c1-20bd09e6113f'::uuid, NULL);
+--    → should return one row of three numbers, NOT an error.
 -- ============================================================================
 
-CREATE OR REPLACE FUNCTION get_profile_media_counts(
+CREATE OR REPLACE FUNCTION public.get_profile_media_counts(
   target_profile_id UUID,
   viewer_id UUID DEFAULT NULL
 )
@@ -35,7 +40,7 @@ BEGIN
     -- All media count
     (
       SELECT COUNT(DISTINCT p.id)
-      FROM posts p
+      FROM public.posts p
       WHERE (
         p.profile_id = target_profile_id
         OR target_profile_id::TEXT = ANY(p.tags)
@@ -48,7 +53,7 @@ BEGIN
           viewer_id IS NOT NULL
           AND p.visibility = 'private'
           AND EXISTS (
-            SELECT 1 FROM follows f
+            SELECT 1 FROM public.follows f
             WHERE f.follower_id = viewer_id
             AND f.following_id = p.profile_id
             AND f.status = 'accepted'
@@ -57,11 +62,12 @@ BEGIN
       )
     ) AS all_media_count,
 
-    -- Stats media count — stats_data OR round_id (game_id/match_id/race_id
-    -- removed in migration 020; stat-line sports flow through stats_data).
+    -- Stats media count — stats_data OR round_id ONLY.
+    -- (game_id / match_id / race_id were dropped in migration 020; stat-line
+    --  sports flow through stats_data, so coverage is unchanged.)
     (
       SELECT COUNT(DISTINCT p.id)
-      FROM posts p
+      FROM public.posts p
       WHERE (
         p.profile_id = target_profile_id
         OR target_profile_id::TEXT = ANY(p.tags)
@@ -78,7 +84,7 @@ BEGIN
           viewer_id IS NOT NULL
           AND p.visibility = 'private'
           AND EXISTS (
-            SELECT 1 FROM follows f
+            SELECT 1 FROM public.follows f
             WHERE f.follower_id = viewer_id
             AND f.following_id = p.profile_id
             AND f.status = 'accepted'
@@ -90,7 +96,7 @@ BEGIN
     -- Tagged media count
     (
       SELECT COUNT(DISTINCT p.id)
-      FROM posts p
+      FROM public.posts p
       WHERE target_profile_id::TEXT = ANY(p.tags)
       AND p.profile_id != target_profile_id
       AND (
@@ -101,7 +107,7 @@ BEGIN
           viewer_id IS NOT NULL
           AND p.visibility = 'private'
           AND EXISTS (
-            SELECT 1 FROM follows f
+            SELECT 1 FROM public.follows f
             WHERE f.follower_id = viewer_id
             AND f.following_id = p.profile_id
             AND f.status = 'accepted'
@@ -112,6 +118,6 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql STABLE SECURITY DEFINER;
 
--- Verification:
--- SELECT * FROM get_profile_media_counts('<a profile id>'::uuid, NULL);
---   → returns one row (all/stats/tagged), no error.
+-- Verification (run after):
+-- SELECT * FROM get_profile_media_counts('2132330f-e125-43e9-99c1-20bd09e6113f'::uuid, NULL);
+--   → one row (all/stats/tagged), no error.
