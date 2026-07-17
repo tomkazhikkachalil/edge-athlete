@@ -59,10 +59,9 @@ interface RecentPost {
   post_media: PostMedia[];
 }
 
-interface GolfStats {
-  roundsPlayed: number;
-  averageScore: number | null;
-  bestScore: number | null;
+interface SportStats {
+  label: string;
+  tiles: Array<{ label: string; value: string }>;
 }
 
 interface ProfileData {
@@ -73,7 +72,7 @@ interface ProfileData {
     label: string;
     color_token: string;
   }>;
-  golfStats: GolfStats | null;
+  sportStats: SportStats | null;
 }
 
 export default function PublicProfilePage() {
@@ -203,7 +202,7 @@ export default function PublicProfilePage() {
 
   if (!profileData) return null;
 
-  const { profile, recentPosts, badges, golfStats } = profileData;
+  const { profile, recentPosts, badges, sportStats } = profileData;
   const displayName = formatDisplayName(profile.first_name, profile.middle_name, profile.last_name, profile.full_name);
 
   return (
@@ -373,27 +372,17 @@ export default function PublicProfilePage() {
           </div>
         )}
 
-        {/* Golf Stats */}
-        {golfStats && (
+        {/* Sport Stats — sport-aware (golf, ice hockey, volleyball, …) */}
+        {sportStats && (
           <div className="mt-4 bg-white rounded-xl shadow-sm border border-gray-200 p-4">
-            <h2 className="text-sm font-semibold text-gray-700 mb-3">Golf Stats</h2>
+            <h2 className="text-sm font-semibold text-gray-700 mb-3">{sportStats.label}</h2>
             <div className="grid grid-cols-3 gap-4">
-              <div className="text-center">
-                <span className="block text-2xl font-bold text-gray-900">{golfStats.roundsPlayed}</span>
-                <span className="text-xs text-gray-500">Rounds</span>
-              </div>
-              <div className="text-center">
-                <span className="block text-2xl font-bold text-gray-900">
-                  {golfStats.averageScore ?? '-'}
-                </span>
-                <span className="text-xs text-gray-500">Avg Score</span>
-              </div>
-              <div className="text-center">
-                <span className="block text-2xl font-bold text-gray-900">
-                  {golfStats.bestScore ?? '-'}
-                </span>
-                <span className="text-xs text-gray-500">Best Score</span>
-              </div>
+              {sportStats.tiles.map(tile => (
+                <div key={tile.label} className="text-center">
+                  <span className="block text-2xl font-bold text-gray-900">{tile.value}</span>
+                  <span className="text-xs text-gray-500">{tile.label}</span>
+                </div>
+              ))}
             </div>
           </div>
         )}

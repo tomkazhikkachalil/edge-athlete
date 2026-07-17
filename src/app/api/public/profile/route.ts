@@ -1,4 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { SPORT_REGISTRY, getSportDefinition, type SportKey } from '@/lib/sports/SportRegistry';
+import { getStatSchema, isStatLineData } from '@/lib/sports/stat-schemas';
+
+/** profiles.sport stores a display label or key — resolve to a SportKey. */
+function resolveSportKey(sport: string | null): SportKey | null {
+  if (!sport) return null;
+  const lower = sport.toLowerCase();
+  if (lower in SPORT_REGISTRY) return lower as SportKey;
+  const match = Object.values(SPORT_REGISTRY).find(
+    def => def.display_name.toLowerCase() === lower
+  );
+  return match ? match.sport_key : null;
+}
 import { getSupabaseAdmin } from '@/lib/auth-server';
 
 export async function GET(request: NextRequest) {
@@ -105,9 +118,12 @@ export async function GET(request: NextRequest) {
       .eq('profile_id', profile.id)
       .order('position', { ascending: true });
 
-    // Fetch golf stats if applicable
-    let golfStats = null;
-    if (profile.sport === 'golf' || profile.sport === 'Golf') {
+    // Sport stats card — sport-aware (golf: rounds; stat-line sports: posts).
+    // Generic shape: { label, tiles: [{label, value}] } | null.
+    let sportStats: { label: string; tiles: Array<{ label: string; value: string }> } | null = null;
+    const profileSportKey = resolveSportKey(profile.sport);
+
+    if (profileSportKey === 'golf') {
       const { data: rounds } = await supabase
         .from('golf_rounds')
         .select('gross_score, par')
@@ -122,10 +138,51 @@ export async function GET(request: NextRequest) {
           : null;
         const bestScore = scores.length > 0 ? Math.min(...scores) : null;
 
-        golfStats = {
-          roundsPlayed: rounds.length,
-          averageScore: avgScore,
-          bestScore: bestScore
+        sportStats = {
+          label: 'Golf Stats',
+          tiles: [
+            { label: 'Rounds', value: String(rounds.length) },
+            { label: 'Avg Score', value: avgScore !== null ? String(avgScore) : '-' },
+            { label: 'Best Score', value: bestScore !== null ? String(bestScore) : '-' },
+          ],
+        };
+      }
+    } else if (profileSportKey && getStatSchema(profileSportKey)) {
+      // Stat-line sports: aggregate PUBLIC posts only (this is a public page)
+      const schema = getStatSchema(profileSportKey)!;
+      const { data: statPosts } = await supabase
+        .from('posts')
+        .select('stats_data')
+        .eq('profile_id', profile.id)
+        .eq('sport_key', profileSportKey)
+        .eq('visibility', 'public')
+        .not('stats_data', 'is', null)
+        .limit(100);
+
+      const lines = (statPosts || [])
+        .map(p => p.stats_data)
+        .filter(isStatLineData);
+
+      if (lines.length > 0) {
+        const totals: Record<string, number> = {};
+        for (const line of lines) {
+          for (const f of schema.fields) {
+            const v = line.stats[f.key];
+            if (typeof v === 'number' && Number.isFinite(v)) {
+              totals[f.key] = (totals[f.key] ?? 0) + v;
+            }
+          }
+        }
+        const topFields = schema.fields
+          .filter(f => (totals[f.key] ?? 0) > 0)
+          .slice(0, 2);
+        const sportDef = getSportDefinition(profileSportKey);
+        sportStats = {
+          label: `${sportDef.display_name} Stats`,
+          tiles: [
+            { label: `${schema.activityNoun}s`, value: String(lines.length) },
+            ...topFields.map(f => ({ label: f.label, value: String(totals[f.key]) })),
+          ].slice(0, 3),
         };
       }
     }
@@ -139,7 +196,9 @@ export async function GET(request: NextRequest) {
       },
       recentPosts: recentPosts || [],
       badges: badges || [],
-      golfStats
+      sportStats,
+      // Deprecated alias — kept one release so cached clients keep working
+      golfStats: null
     });
 
   } catch (error) {
