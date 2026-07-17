@@ -34,18 +34,23 @@ class AdapterRegistry {
     // Golf - V1 Implementation (Enabled)
     this.register(new GolfAdapter());
 
-    // Stat-line sports — generic adapter over posts.stats_data (Enabled)
-    this.register(new StatLinePostAdapter('ice_hockey'));
-    this.register(new StatLinePostAdapter('volleyball'));
+    // Stat-line sports — generic adapter over posts.stats_data (Enabled).
+    // Keep this list in sync with enabled stat-line sports in SportRegistry
+    // and the schemas in stat-schemas.ts.
+    const statLineSports: SportKey[] = [
+      'ice_hockey',
+      'volleyball',
+      'basketball',
+      'soccer',
+      'baseball'
+    ];
+    statLineSports.forEach(sportKey => this.register(new StatLinePostAdapter(sportKey)));
 
     // Other Sports - Disabled (Coming Soon)
     const disabledSports: SportKey[] = [
       'track_field',
-      'basketball',
-      'soccer',
       'tennis',
       'swimming',
-      'baseball',
       'football'
     ];
     

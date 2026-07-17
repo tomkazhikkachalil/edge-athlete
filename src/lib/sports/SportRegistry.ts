@@ -179,12 +179,12 @@ export const SPORT_REGISTRY: Record<SportKey, SportDefinition> = {
     display_name: 'Basketball',
     brand_color_token: 'orange',
     icon_id: 'fas fa-basketball-ball',
-    enabled: false,
+    enabled: true,
     metric_labels: {
       tile1: 'PPG',
       tile2: 'RPG',
       tile3: 'APG',
-      tile4: 'FG%'
+      tile4: 'Games'
     },
     activity_columns: {
       col1: 'Date',
@@ -202,12 +202,12 @@ export const SPORT_REGISTRY: Record<SportKey, SportDefinition> = {
     display_name: 'Soccer',
     brand_color_token: 'emerald',
     icon_id: 'fas fa-futbol',
-    enabled: false,
+    enabled: true,
     metric_labels: {
       tile1: 'Goals',
       tile2: 'Assists',
-      tile3: 'Games',
-      tile4: 'Rating'
+      tile3: 'Saves',
+      tile4: 'Matches'
     },
     activity_columns: {
       col1: 'Date',
@@ -271,12 +271,12 @@ export const SPORT_REGISTRY: Record<SportKey, SportDefinition> = {
     display_name: 'Baseball',
     brand_color_token: 'indigo',
     icon_id: 'fas fa-baseball-ball',
-    enabled: false,
+    enabled: true,
     metric_labels: {
-      tile1: 'AVG',
+      tile1: 'Hits',
       tile2: 'HR',
       tile3: 'RBI',
-      tile4: 'OPS'
+      tile4: 'Games'
     },
     activity_columns: {
       col1: 'Date',

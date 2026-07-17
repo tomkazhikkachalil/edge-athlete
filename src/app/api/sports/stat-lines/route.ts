@@ -1,8 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseAdmin, requireAuth } from '@/lib/auth-server';
-import { getStatSchema, isStatLineData, formatResult, type StatLineData } from '@/lib/sports/stat-schemas';
-import { getSportDefinition } from '@/lib/sports/SportRegistry';
-import type { SportKey } from '@/lib/sports/SportRegistry';
+import { getStatSchema, isStatLineData, formatResult, computeProfileTile, type StatLineData } from '@/lib/sports/stat-schemas';
 
 /**
  * GET /api/sports/stat-lines?profileId=...&sport=ice_hockey
@@ -68,9 +66,12 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    // Aggregate totals across all stat fields
+    const statLines = lines.map(l => l.line);
+    const entryCount = lines.length;
+
+    // Aggregate field totals (kept for API consumers / debugging)
     const totals: Record<string, number> = {};
-    for (const { line } of lines) {
+    for (const line of statLines) {
       for (const f of schema.fields) {
         const v = line.stats[f.key];
         if (typeof v === 'number' && Number.isFinite(v)) {
@@ -78,31 +79,16 @@ export async function GET(request: NextRequest) {
         }
       }
     }
-    const entryCount = lines.length;
 
-    // Map registry tile labels -> computed values per sport
-    const sportDef = getSportDefinition(sport as SportKey);
-    const tileValue = (label: string): string | null => {
-      const key = label.toLowerCase();
-      if (key === 'games' || key === 'matches') return entryCount > 0 ? String(entryCount) : null;
-      if (key === 'points' && sport === 'ice_hockey') {
-        const pts = (totals.goals ?? 0) + (totals.assists ?? 0);
-        return pts > 0 ? String(pts) : null;
-      }
-      const field = schema.fields.find(
-        f => f.label.toLowerCase() === key || f.shortLabel.toLowerCase() === key
-      );
-      if (field && typeof totals[field.key] === 'number' && totals[field.key] > 0) {
-        return String(totals[field.key]);
-      }
-      return null;
-    };
-
-    const labels = sportDef.metric_labels;
-    const highlights = [labels.tile1, labels.tile2, labels.tile3, labels.tile4]
-      .concat(labels.tile5 ? [labels.tile5] : [])
-      .concat(labels.tile6 ? [labels.tile6] : [])
-      .map(label => ({ label, value: tileValue(label) }));
+    // Profile highlight tiles — computed correctly per stat type (count / sum
+    // / per-entry average) from the schema's profileTiles definition. No
+    // fragile label-matching; averages like PPG aggregate correctly.
+    const highlights = entryCount === 0
+      ? schema.profileTiles.map(t => ({ label: t.label, value: null }))
+      : schema.profileTiles.map(t => ({
+          label: t.label,
+          value: computeProfileTile(t, statLines),
+        }));
 
     // Activity rows (newest first) matching the registry's activity_columns
     const recentActivity = lines.slice(0, 25).map(({ postId, createdAt, line }) => ({
