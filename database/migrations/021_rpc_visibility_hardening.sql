@@ -1,0 +1,53 @@
+-- ============================================================================
+-- Migration 021 — RPC Visibility Hardening (defense-in-depth)
+-- ============================================================================
+-- The API layer now filters private profiles out of search / handle-search /
+-- profile-media results (commit bd1de44). This migration hardens the same at
+-- the SOURCE so the RPCs are safe even if called directly or from a new caller.
+--
+-- ⚠️ REVIEW BEFORE RUNNING. The current function bodies are NOT in the repo —
+-- they live only in the database. Do NOT paste this blindly. In the Supabase
+-- SQL Editor, first dump each function's current definition:
+--
+--   SELECT pg_get_functiondef(oid)
+--   FROM pg_proc
+--   WHERE proname IN (
+--     'search_profiles', 'search_by_handle', 'check_handle_availability',
+--     'search_posts', 'generate_connection_suggestions',
+--     'get_profile_all_media', 'get_profile_stats_media', 'get_profile_tagged_media'
+--   );
+--
+-- Then, for each, add a visibility predicate. The pattern is:
+--
+--   -- search_profiles / search_by_handle: only return public profiles, OR
+--   -- the profile matching the calling viewer (if the function takes a
+--   -- viewer/current-user arg — search_profiles currently does not, so
+--   -- public-only is the safe default there).
+--   ... WHERE p.visibility = 'public' ...
+--
+--   -- get_profile_*_media: these already take viewer_id. Add a guard that
+--   -- returns no rows when the target profile is private and the viewer is
+--   -- neither the owner nor an accepted follower, e.g.:
+--   IF NOT (
+--     target.visibility = 'public'
+--     OR viewer_id = target_profile_id
+--     OR EXISTS (SELECT 1 FROM follows f
+--                WHERE f.follower_id = viewer_id
+--                  AND f.following_id = target_profile_id
+--                  AND f.status = 'accepted')
+--   ) THEN
+--     RETURN;  -- empty
+--   END IF;
+--
+-- Because the exact column names / return types differ per function, this file
+-- intentionally does NOT contain blind CREATE OR REPLACE statements — apply the
+-- predicate above to each dumped definition and run them one at a time,
+-- re-running the behavioral test (docs/SECURITY_AUDIT_2026-07-17.md) after each.
+--
+-- Until this is applied, the API-layer filters in commit bd1de44 are the
+-- protection — they fully cover the HTTP surface today.
+-- ============================================================================
+
+-- (No-op placeholder — see the review instructions above. Fill in per-function
+--  CREATE OR REPLACE statements after dumping the current definitions.)
+SELECT 'Review migration 021 header before applying — no automatic changes.' AS notice;

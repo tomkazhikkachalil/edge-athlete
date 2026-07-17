@@ -39,14 +39,22 @@ from the **session** (never body/query), ownership check on mutations,
    `visibility` gate; a private post fetched by direct id would return. Add a
    privacy check if private-post confidentiality matters.
 
-## 🔍 Postgres RPCs to verify (privacy delegated to SQL, invoked via admin client)
+## 🔍 Postgres RPCs — verified July 17, 2026 (behavioral test vs live private profile)
 
-These bypass RLS via the admin client and delegate privacy to the function
-body — **confirm each filters `visibility='public'` (or the viewer):**
-- `search_profiles`, `search_posts` (`/api/search`)
-- `search_by_handle`, `check_handle_availability` (`/api/handles/*`)
-- `get_profile_all_media`, `get_profile_stats_media`, `get_profile_tagged_media` (`/api/profile/[id]/media`)
-- `generate_connection_suggestions` (`/api/suggestions`)
+**FOUND LEAKING — fixed at API layer (`bd1de44`):**
+- `search_profiles` — returned private profiles. `/api/search` now filters public-or-own.
+- `search_by_handle` — leaked private handle/name/avatar. `/api/handles/search` now drops private (non-own).
+- `get_profile_*_media` — returned a private profile's media to anon. `/api/profile/[id]/media` now gates on profile visibility.
+
+**Still to verify / defense-in-depth (SQL — user action):**
+- The three RPCs above are patched at the API layer but STILL leak if called
+  directly or from another caller. Fix them at the source — see
+  `database/migrations/021_rpc_visibility_hardening.sql` (a starting point;
+  the actual function bodies must be reviewed in the Supabase SQL Editor,
+  since their definitions aren't in the repo).
+- `search_posts`, `check_handle_availability`, `generate_connection_suggestions` —
+  not yet behaviorally tested; verify they filter visibility.
+- `suggestions` fallback path (non-RPC) already filters `visibility='public'`.
 
 ## 🟢 Confirmed OK
 Notifications (all), messages (all), comments, posts CRUD, tags, sport-settings,
