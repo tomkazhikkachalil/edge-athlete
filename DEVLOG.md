@@ -49,6 +49,21 @@ AppHeader nav. Queries validated live against Supabase.
 2. **Push to deploy** when ready — all work is committed locally on `main`;
    nothing has been pushed.
 
+### SECURITY — full API auth audit + 12 fixes (subagent-driven)
+Systematic sweep of all 67 API routes found the IDOR/leak class widespread.
+Fixed 10 HIGH + 2 MEDIUM:
+- HIGH (`b340147`,`ec30cec`,`efabbeb`): profile GET/PUT, golf/stats,
+  performances POST+DELETE, season-highlights, follow, posts/like,
+  upload/avatar, upload/post-media DELETE, equipment GET — all were
+  RLS-bypassing admin client + no auth (IDOR writes/deletes + private-data
+  reads). Now require auth, derive actor from session, ownership/privacy
+  checks. All 8 batch endpoints verified 401 unauth via local prod server.
+- MEDIUM: vitals GET (public profile leaked private training posts → now
+  visibility-filtered for non-owners); ai/text + ai/image (unauthenticated
+  PAID OpenAI proxy → now require auth). Verified 401.
+- Remaining MEDIUM + Postgres-RPC privacy verification documented in
+  `docs/SECURITY_AUDIT_2026-07-17.md`.
+
 ### Sport-aware public profile + /api/profile security fix
 - `/api/public/profile` + `u/[username]`: golf-only stats card → generic
   `sportStats {label, tiles}` (golf: rounds/avg/best; stat-line sports:

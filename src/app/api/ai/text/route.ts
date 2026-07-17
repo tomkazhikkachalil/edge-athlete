@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { OpenAI } from 'openai';
 import { apiRateLimiter } from '@/lib/rate-limit';
+import { requireAuth } from '@/lib/auth-server';
 
 /**
  * Generic AI text processing endpoint
@@ -15,6 +16,10 @@ import { apiRateLimiter } from '@/lib/rate-limit';
  */
 export async function POST(request: NextRequest) {
   try {
+    // Auth required — this proxies a PAID OpenAI call; anonymous access is a
+    // cost/abuse vector.
+    await requireAuth(request);
+
     // Get IP for rate limiting
     const ip = request.headers.get('x-forwarded-for') || 'unknown';
     const rateLimitCheck = apiRateLimiter.check(ip, 'ai-text');
