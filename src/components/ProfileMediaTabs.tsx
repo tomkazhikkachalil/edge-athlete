@@ -34,6 +34,12 @@ type TabType = 'all' | 'stats' | 'tagged' | 'equipment' | 'vitals' | 'achievemen
 type SortType = 'newest' | 'most_engaged';
 type MediaFilterType = 'all' | 'photos' | 'videos' | 'posts';
 
+// Tabs backed by the media endpoint (/api/profile/[id]/media). The others
+// (equipment, vitals, achievements) render their own components and must NOT
+// hit the media endpoint — it rejects their tab names with a 400.
+const MEDIA_TABS: TabType[] = ['all', 'stats', 'tagged'];
+const isMediaTab = (t: TabType): boolean => MEDIA_TABS.includes(t);
+
 interface MediaItem {
   id: string;
   caption: string | null;
@@ -209,8 +215,11 @@ export default function ProfileMediaTabs({ profileId, currentUserId, isOwnProfil
     fetchCounts();
   }, [fetchCounts]);
 
-  // Load media when tab/filter/sort/profileId or sport/year filters change
+  // Load media when tab/filter/sort/profileId or sport/year filters change.
+  // Only the media-backed tabs (all/stats/tagged) call the media endpoint;
+  // equipment/vitals/achievements render their own components.
   useEffect(() => {
+    if (!isMediaTab(activeTab)) return;
     fetchMedia(true);
   }, [activeTab, sort, mediaFilter, profileId, selectedSports, selectedYears, fetchMedia]);
 
