@@ -2,30 +2,38 @@
 -- Migration 022 — Fix get_profile_media_counts after migration 020
 -- ============================================================================
 -- Migration 020 dropped posts.game_id / match_id / race_id. The live
--- get_profile_media_counts() body still referenced p.game_id (in the
--- "stats media count" branch), so the tab-counts endpoint failed with:
---   "column p.game_id does not exist"  (Postgres 42703)
+-- get_profile_media_counts() body still referenced p.game_id → the tab-counts
+-- endpoint failed with "column p.game_id does not exist" (42703).
 --
--- This version is reconstructed from the ACTUAL live function body (which was
--- schema-qualified with public.* by an earlier search-path hardening) and
--- changes exactly ONE thing: the stats-media predicate drops the three
--- removed sport-FK columns. A post now counts as "stats media" if it has
--- stats_data OR round_id — which still covers the stat-line sports
--- (ice hockey, volleyball, basketball, soccer, baseball) because their data
--- lives in posts.stats_data.
+-- Prior CREATE OR REPLACE attempts did not take effect (a stale/overloaded
+-- definition kept winning), so this version is BULLETPROOF: it force-drops
+-- EVERY overload of the function by name, then creates the single correct one.
 --
--- Everything else (public.* qualification, privacy predicates, SECURITY
--- DEFINER) is preserved exactly. Idempotent (CREATE OR REPLACE).
+-- The only behavioral change vs the live body: the "stats media" predicate is
+-- stats_data OR round_id (the dropped sport-FK columns removed). Stat-line
+-- sports (hockey, volleyball, basketball, soccer, baseball) still count —
+-- their data lives in posts.stats_data.
 --
--- ⚠️ Run in the Supabase SQL Editor for project ref: htwhmdoiszhhmwuflgci
---    Watch for a green "Success" — a red error means it did NOT apply.
---    Then verify:
---      SELECT * FROM get_profile_media_counts(
---        '2132330f-e125-43e9-99c1-20bd09e6113f'::uuid, NULL);
---    → should return one row of three numbers, NOT an error.
+-- ⚠️ Supabase SQL Editor, project ref: htwhmdoiszhhmwuflgci. Run the WHOLE
+--    file. Expect green "Success"; then the final SELECT returns one row.
 -- ============================================================================
 
-CREATE OR REPLACE FUNCTION public.get_profile_media_counts(
+-- 1. Drop every overload of get_profile_media_counts in public (no stale copy).
+DO $$
+DECLARE r RECORD;
+BEGIN
+  FOR r IN
+    SELECT oid::regprocedure AS sig
+    FROM pg_proc
+    WHERE proname = 'get_profile_media_counts'
+      AND pronamespace = 'public'::regnamespace
+  LOOP
+    EXECUTE 'DROP FUNCTION ' || r.sig::text;
+  END LOOP;
+END $$;
+
+-- 2. Create the single correct definition.
+CREATE FUNCTION public.get_profile_media_counts(
   target_profile_id UUID,
   viewer_id UUID DEFAULT NULL
 )
@@ -62,9 +70,7 @@ BEGIN
       )
     ) AS all_media_count,
 
-    -- Stats media count — stats_data OR round_id ONLY.
-    -- (game_id / match_id / race_id were dropped in migration 020; stat-line
-    --  sports flow through stats_data, so coverage is unchanged.)
+    -- Stats media count — stats_data OR round_id ONLY (dropped columns removed)
     (
       SELECT COUNT(DISTINCT p.id)
       FROM public.posts p
@@ -118,6 +124,7 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql STABLE SECURITY DEFINER;
 
--- Verification (run after):
--- SELECT * FROM get_profile_media_counts('2132330f-e125-43e9-99c1-20bd09e6113f'::uuid, NULL);
---   → one row (all/stats/tagged), no error.
+-- 3. Verify in the same run — should return one row, no error.
+SELECT * FROM public.get_profile_media_counts(
+  '2132330f-e125-43e9-99c1-20bd09e6113f'::uuid, NULL
+);
