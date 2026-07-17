@@ -9,8 +9,10 @@ import type { SportKey } from './sports/SportRegistry';
 
 // Feature Flag Configuration
 export const FEATURE_FLAGS = {
-  // Sports Features - Controls which sports are enabled in the UI
-  FEATURE_SPORTS: ['golf', 'ice_hockey', 'volleyball'] as SportKey[],
+  // Sports Features - Controls which sports are enabled in the UI.
+  // MUST stay in sync with `enabled: true` sports in SportRegistry.ts and the
+  // statLineSports list in AdapterRegistry.ts (see CLAUDE.md "Add a New Sport").
+  FEATURE_SPORTS: ['golf', 'ice_hockey', 'volleyball', 'basketball', 'soccer', 'baseball'] as SportKey[],
   
   // Future feature flags can be added here
   // FEATURE_PUBLIC_PROFILES: false,

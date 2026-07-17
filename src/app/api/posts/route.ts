@@ -415,8 +415,10 @@ export async function GET(request: NextRequest) {
     const postId = searchParams.get('postId');
     const userId = searchParams.get('userId');
     const sportKey = searchParams.get('sportKey');
-    const limit = parseInt(searchParams.get('limit') || '20');
-    const offset = parseInt(searchParams.get('offset') || '0');
+    // Guard against NaN (e.g. ?limit=abc) which would produce an invalid
+    // .range() and 500. Clamp to sane bounds.
+    const limit = Math.min(Math.max(parseInt(searchParams.get('limit') || '20', 10) || 20, 1), 100);
+    const offset = Math.max(parseInt(searchParams.get('offset') || '0', 10) || 0, 0);
 
     // Get current authenticated user (for privacy checks)
     let currentUserId: string | null = null;
@@ -456,8 +458,10 @@ export async function GET(request: NextRequest) {
           )
         `)
         .eq('id', postId)
-        .single();
+        .maybeSingle();
 
+      // maybeSingle() returns null (not an error) for a missing row, so a
+      // bogus/deleted postId correctly yields 404 instead of a 500.
       if (error) {
         console.error('Post fetch error:', error);
         return NextResponse.json({ error: 'Failed to fetch post' }, { status: 500 });

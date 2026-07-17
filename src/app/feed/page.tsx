@@ -48,6 +48,7 @@ interface Post {
 interface RealtimePostPayload {
   new: {
     id: string;
+    profile_id: string;
     likes_count: number;
     comments_count: number;
     caption: string | null;
@@ -89,6 +90,19 @@ export default function FeedPage() {
 
     const supabase = getSupabaseBrowserClient();
 
+    // Scope realtime inserts to authors this user follows. Without this, the
+    // filter `visibility=eq.public` injects EVERY public post platform-wide
+    // into the feed. Loaded once at subscribe time; new follows show up after
+    // the next feed load, which is acceptable for a live-append nicety.
+    let followedIds = new Set<string>();
+    (async () => {
+      const { data } = await supabase
+        .from('follows')
+        .select('following_id')
+        .eq('follower_id', user.id)
+        .eq('status', 'accepted');
+      followedIds = new Set((data || []).map((r: { following_id: string }) => r.following_id));
+    })();
 
     // Subscribe to INSERT events on posts table
     const channel = supabase
@@ -102,6 +116,11 @@ export default function FeedPage() {
           filter: `visibility=eq.public`
         },
         async (payload: RealtimePostPayload) => {
+          // Own posts are handled by handlePostCreated (with full data);
+          // skip here to avoid a duplicate. Others: only followed authors.
+          const authorId = payload.new.profile_id;
+          if (authorId === user.id) return;
+          if (!followedIds.has(authorId)) return;
 
           // Fetch the complete post with profile and media
           const { data: newPost } = await supabase
@@ -135,7 +154,11 @@ export default function FeedPage() {
             .single();
 
           if (newPost) {
-            setPosts(prev => [newPost as Post, ...prev]);
+            setPosts(prev => {
+              // Dedup guard — never render the same post id twice.
+              if (prev.some(p => p.id === (newPost as Post).id)) return prev;
+              return [newPost as Post, ...prev];
+            });
             showSuccess('New Post', 'A new post has been added to your feed');
           }
         }

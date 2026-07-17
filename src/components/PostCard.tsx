@@ -574,7 +574,8 @@ export default function PostCard({
           }
           onSave={async (scores) => {
             try {
-              const response = await fetch(`/api/golf/scorecards/${post.group_scorecard!.group_post.id}/scores`, {
+              // The endpoint's [id] is the PARTICIPANT id, not the group_post id.
+              const response = await fetch(`/api/golf/scorecards/${scoreEntryParticipantId}/scores`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ scores })
