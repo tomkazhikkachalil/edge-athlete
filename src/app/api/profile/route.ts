@@ -1,8 +1,28 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase';
+import { requireAuth } from '@/lib/auth-server';
+import { canViewProfile } from '@/lib/privacy';
+
+// Fields safe to return to a viewer who is NOT the profile owner.
+// Contact details (email, phone) are owner-only.
+const CONTACT_FIELDS = ['email', 'phone'] as const;
+
+// Minimal subset for blocked viewers — exactly what PrivateProfileView needs.
+const MINIMAL_FIELDS = [
+  'id', 'full_name', 'first_name', 'middle_name', 'last_name',
+  'avatar_url', 'handle', 'sport', 'school', 'visibility', 'user_type',
+] as const;
+
+// user_type values a user may set on their own account. Organization types
+// (club, league) will be provisioned through a separate flow.
+const SELF_SERVICE_USER_TYPES = ['athlete', 'fan'] as const;
 
 export async function GET(request: NextRequest) {
   try {
+    // Auth required — this endpoint returns non-public profile fields.
+    // (Anonymous surfaces use /api/public/profile instead.)
+    const user = await requireAuth(request);
+
     const { searchParams } = new URL(request.url);
     const profileId = searchParams.get('id');
     
@@ -64,14 +84,38 @@ export async function GET(request: NextRequest) {
       console.error('Performances error:', performancesError);
     }
 
+    // Privacy-shape the profile server-side (the browser must never receive
+    // fields the viewer isn't entitled to).
+    const isOwner = user.id === profileId;
+    let shapedProfile: Record<string, unknown> = profile;
+
+    if (!isOwner) {
+      const { canView } = await canViewProfile(profileId, user.id);
+      if (canView) {
+        shapedProfile = { ...profile };
+        for (const f of CONTACT_FIELDS) delete shapedProfile[f];
+      } else {
+        // Blocked (private profile, not an approved fan): minimal card only
+        shapedProfile = {};
+        for (const f of MINIMAL_FIELDS) shapedProfile[f] = profile[f] ?? null;
+        return NextResponse.json({
+          profile: shapedProfile,
+          badges: [],
+          seasonHighlights: [],
+          performances: []
+        });
+      }
+    }
+
     return NextResponse.json({
-      profile,
+      profile: shapedProfile,
       badges: badges || [],
       seasonHighlights: seasonHighlights || [],
       performances: performances || []
     });
 
   } catch (error) {
+    if (error instanceof Response) return error;
     console.error('API error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
@@ -79,16 +123,36 @@ export async function GET(request: NextRequest) {
 
 export async function PUT(request: NextRequest) {
   try {
-    
+    // Auth required — only the owner may update their profile.
+    const user = await requireAuth(request);
+
     const body = await request.json();
     
     // Validate required fields
-    if (!body.profileData || !body.userId) {
+    if (!body.profileData) {
       console.error('Profile API: Missing required fields');
-      return NextResponse.json({ error: 'Profile data and user ID are required' }, { status: 400 });
+      return NextResponse.json({ error: 'Profile data is required' }, { status: 400 });
     }
 
-    const { profileData, userId } = body;
+    const { profileData } = body;
+    const userId = user.id;
+
+    // Reject spoofed userId (legacy clients send it; it must match the session)
+    if (body.userId && body.userId !== user.id) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
+
+    // Never mass-assign identity/system fields
+    delete profileData.id;
+    delete profileData.email;
+    delete profileData.created_at;
+    delete profileData.updated_at;
+
+    // user_type: self-service values only (org types provisioned separately)
+    if (profileData.user_type !== undefined &&
+        !SELF_SERVICE_USER_TYPES.includes(profileData.user_type)) {
+      return NextResponse.json({ error: 'Invalid account type' }, { status: 400 });
+    }
     
     // Clean up profileData - convert empty strings to null for optional fields
     const cleanedProfileData = { ...profileData };
@@ -160,6 +224,7 @@ export async function PUT(request: NextRequest) {
     return NextResponse.json(response);
 
   } catch (error) {
+    if (error instanceof Response) return error;
     console.error('Profile API: Unexpected error:', error);
     console.error('Profile API: Error stack:', error instanceof Error ? error.stack : 'No stack trace');
     return NextResponse.json({ 
