@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { getSportDefinition, getSportAdapter, type SportKey } from '@/lib/sports';
+import { getSportDefinition, getSportAdapter, getPrimarySports, type SportKey } from '@/lib/sports';
 import { getPlaceholder } from '@/lib/config';
 import { COPY } from '@/lib/copy';
 import { cssClasses } from '@/lib/design-tokens';
@@ -25,12 +25,12 @@ interface MultiSportActivityProps {
 }
 
 export default function MultiSportActivity({ profileId, onEdit, onDelete }: MultiSportActivityProps) {
-  const [activeSportKey, setActiveSportKey] = useState<SportKey>('golf'); // Golf is default active
+  // Registry-derived tabs — newly enabled sports appear automatically.
+  const primarySportKeys: SportKey[] = getPrimarySports().map(s => s.sport_key);
+
+  const [activeSportKey, setActiveSportKey] = useState<SportKey>(primarySportKeys[0] ?? 'golf');
   const [activityData, setActivityData] = useState<Record<SportKey, ActivityRow[]>>({} as Record<SportKey, ActivityRow[]>);
   const [loading, setLoading] = useState<Record<SportKey, boolean>>({} as Record<SportKey, boolean>);
-
-  // Primary sports to show as tabs
-  const primarySportKeys: SportKey[] = ['golf', 'ice_hockey', 'volleyball'];
 
   // Load activity data for a specific sport
   const loadSportActivity = useCallback(async (sportKey: SportKey) => {
@@ -227,13 +227,12 @@ export default function MultiSportActivity({ profileId, onEdit, onDelete }: Mult
                   <div className="flex justify-end space-x-2">
                     <button
                       onClick={() => {
-                        if (activeSportKey === 'golf' && adapter.isEnabled()) {
-                          // Navigate to golf round detail
-                          window.location.href = `/app/sport/golf/rounds/${row.id}`;
-                        } else {
-                          // For other sports, show coming soon
-                          // Activity detail coming soon
+                        if (adapter.isEnabled()) {
+                          // Generic per-sport activity route; it handles any
+                          // sport-specific redirects (e.g. golf → rounds view).
+                          window.location.href = `/app/sport/${activeSportKey}/activity/${row.id}`;
                         }
+                        // Disabled sports: no-op (detail coming soon)
                       }}
                       className="text-blue-600 hover:text-blue-800 transition-colors"
                       title={adapter.isEnabled() ? `View ${sportDef.activity_columns.col2.slice(0, -1)} Details` : 'Coming soon'}

@@ -8,12 +8,14 @@
 // Sport Registry exports
 export type { SportKey, SportDefinition, SportMetricLabels, SportActivityColumns } from './SportRegistry';
 import type { SportKey } from './SportRegistry';
-export { 
-  SPORT_REGISTRY, 
-  getSportDefinition, 
+export {
+  SPORT_REGISTRY,
+  getSportDefinition,
   getEnabledSports as getEnabledSportsFromRegistry,
   getAllSports as getAllSportsFromRegistry,
-  getDisabledSports 
+  getDisabledSports,
+  getPrimarySports,
+  TEASER_SPORT_KEYS
 } from './SportRegistry';
 
 // Sport Adapter exports  

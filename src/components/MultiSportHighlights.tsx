@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { getSportDefinition, getAllSports, getSportAdapter, type SportKey } from '@/lib/sports';
+import { getSportDefinition, getAllSports, getSportAdapter, getPrimarySports, type SportKey } from '@/lib/sports';
 import { getSeasonDisplayName, PLACEHOLDERS } from '@/lib/config';
 import { COPY } from '@/lib/copy';
 import { getSportColorClasses, getNeutralColorClasses, cssClasses } from '@/lib/design-tokens';
@@ -170,8 +170,8 @@ export default function MultiSportHighlights({ profileId, canEdit = true, onEdit
     );
   }
 
-  // Show primary sports (golf + 2 most important disabled sports)
-  const primarySportKeys: SportKey[] = ['golf', 'ice_hockey', 'volleyball'];
+  // Registry-derived primary sports — newly enabled sports appear automatically.
+  const primarySportKeys: SportKey[] = getPrimarySports().map(s => s.sport_key);
   const hasAnyData = primarySportKeys.some(key => 
     highlightData[key]?.some(tile => tile.value !== null)
   );

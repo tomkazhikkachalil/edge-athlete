@@ -328,3 +328,24 @@ export const getAllSports = (): SportDefinition[] => {
 export const getDisabledSports = (): SportDefinition[] => {
   return Object.values(SPORT_REGISTRY).filter(sport => !sport.enabled);
 };
+/**
+ * Sports teased on profile surfaces while still disabled (marketing the
+ * multi-sport future). Single source of truth — do not hardcode sport lists
+ * in components.
+ */
+export const TEASER_SPORT_KEYS: SportKey[] = ['ice_hockey', 'volleyball'];
+
+/**
+ * Sports shown as first-class profile surfaces (highlight cards, activity
+ * tabs). Excludes cross-cutting activity types like 'training'. Derived from
+ * enablement so newly enabled sports appear automatically; falls back to
+ * teaser sports to keep at least `min` cards visible during early MVP.
+ */
+export const getPrimarySports = (min = 3): SportDefinition[] => {
+  const primary = getEnabledSports().filter(s => s.sport_key !== 'training');
+  if (primary.length >= min) return primary;
+  const teasers = TEASER_SPORT_KEYS
+    .map(key => SPORT_REGISTRY[key])
+    .filter(s => !s.enabled);
+  return [...primary, ...teasers].slice(0, Math.max(min, primary.length));
+};
