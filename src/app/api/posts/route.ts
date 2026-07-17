@@ -55,6 +55,8 @@ export async function POST(request: NextRequest) {
       comments_count: number;
       round_id?: string;
       stats_data?: Record<string, unknown>;
+      activity_mode?: string;
+      /** @deprecated Dual-written alongside activity_mode until golf_mode is dropped (migration 021+). */
       golf_mode?: string;
     } = {
       profile_id: userId,
@@ -171,9 +173,12 @@ export async function POST(request: NextRequest) {
         }
       }
 
-      // Add golf references to post
+      // Add golf references to post.
+      // activity_mode is the sport-agnostic column (migration 020); golf_mode
+      // is dual-written for rollback safety until it is dropped (021+).
       if (roundId) {
         postData.round_id = roundId;
+        postData.activity_mode = 'round_recap';
         postData.golf_mode = 'round_recap';
       }
     }
