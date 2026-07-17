@@ -1,5 +1,38 @@
 # Development Log
 
+## July 17, 2026 — Proactive bug hunt (2 subagents) + 9 fixes
+
+Ran two thorough read-only bug-hunt subagents (React components; API routes +
+stat-line feature) after the pattern of latent bugs. Triaged + fixed:
+
+HIGH:
+- features.ts FEATURE_SPORTS missing basketball/soccer/baseball (my regression
+  from the 3-sport add) → their profile highlight cards showed 'Coming Soon'
+  despite being fully wired. Now synced to the registry.
+- PostCard 'Add scores': POSTed group_post id where the endpoint expects the
+  participant id → score entry failed 100%. Now uses scoreEntryParticipantId.
+- feed realtime: no dedup (own post rendered twice, React key error) + filter
+  was all-public (every stranger's post injected). Now dedups + follow-scoped.
+
+MEDIUM:
+- api/posts GET .single() → 500 on missing post (404 branch was dead) → maybeSingle.
+- api/posts limit/offset parseInt NaN guard (?limit=abc → 500) → clamped.
+- ProfileMediaTabs race: out-of-order responses overwrote the grid → request-seq guard.
+- media counts: equipment/vitals badges always 0 (RPC doesn't cover those
+  tables) → endpoint now counts them, privacy-gated.
+
+LOW:
+- StatLineCard 'Invalid Date' guard; parseInt NaN guards in notifications/
+  suggestions/golf-courses routes.
+
+Deliberately NOT fixed (documented): NotificationsDropdown has stale API
+contracts but is DEAD CODE (not rendered anywhere — NotificationBell is the
+live one); post deep-links (?post=) don't auto-open (UX enhancement, not a
+bug). Both are safe to leave.
+
+Verified: each fix tsc+lint clean, build exit 0; equipment/vitals counts +
+NaN guard confirmed live. Pushed 5c31b88..d992519.
+
 ## July 17, 2026 — Media-counts hotfix RESOLVED
 
 Migration 022 applied + verified live: `get_profile_media_counts` now returns
