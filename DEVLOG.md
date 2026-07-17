@@ -1,5 +1,18 @@
 # Development Log
 
+## July 17, 2026 — Maintenance checklist + sync
+
+- `npm run lint` — zero warnings/errors.
+- `npm run build` — **exit 0**, 67 routes, clean from a fresh `.next`. One
+  benign, pre-existing NON-CRITICAL warning remains: `@supabase/realtime-js`
+  references `process.versions` (Node API) in the Edge Runtime import trace,
+  pulled in transitively by `@supabase/ssr` in `src/middleware.ts` (auth).
+  Does not fail the build or deploy; left untouched to avoid destabilizing the
+  auth middleware (a documented Next.js + Supabase interaction).
+- Working tree already in sync with origin (bug-hunt fixes pushed
+  5c31b88..19300f3). This entry is the maintenance-log commit.
+- Pushed `main` → GitHub → Vercel auto-deploy.
+
 ## July 17, 2026 — Proactive bug hunt (2 subagents) + 9 fixes
 
 Ran two thorough read-only bug-hunt subagents (React components; API routes +
