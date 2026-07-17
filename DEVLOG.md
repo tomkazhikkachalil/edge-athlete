@@ -43,11 +43,9 @@ only server-side (posts by private-visibility authors excluded). Added to
 AppHeader nav. Queries validated live against Supabase.
 
 ### Pending Actions (user)
-1. **Run `database/migrations/020_schema_cleanup_multisport.sql`** in the
-   Supabase SQL Editor — confirm the dashboard project ref is
-   `htwhmdoiszhhmwuflgci` and that the editor reports success. Code no longer
-   depends on it (defensive retry), but the cleanup + `activity_mode` backfill
-   are still wanted.
+1. ~~Run migration 020~~ ✅ **APPLIED + VERIFIED** (second attempt, July 17):
+   dead columns/tables gone, `activity_mode` backfilled 17/17 posts, zero
+   mismatches. `golf_mode` retained until 021 as designed.
 2. **Push to deploy** when ready — all work is committed locally on `main`;
    nothing has been pushed.
 
