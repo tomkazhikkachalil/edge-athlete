@@ -9,7 +9,7 @@ export async function GET(request: NextRequest) {
 
     const unreadOnly = searchParams.get('unread_only') === 'true';
     const type = searchParams.get('type');
-    const limit = parseInt(searchParams.get('limit') || '20');
+    const limit = Math.min(Math.max(parseInt(searchParams.get('limit') || '20', 10) || 20, 1), 100);
     const cursor = searchParams.get('cursor'); // created_at timestamp for pagination
 
     // Build query

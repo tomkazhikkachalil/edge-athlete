@@ -20,7 +20,7 @@ export async function GET(request: NextRequest) {
     const user = await requireAuth(request);
     const { searchParams } = new URL(request.url);
     const profileId = searchParams.get('profileId');
-    const limit = parseInt(searchParams.get('limit') || '10');
+    const limit = Math.min(Math.max(parseInt(searchParams.get('limit') || '10', 10) || 10, 1), 100);
 
     if (!profileId) {
       return NextResponse.json({ error: 'Profile ID required' }, { status: 400 });

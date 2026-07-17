@@ -112,6 +112,7 @@ export default function ProfileMediaTabs({ profileId, currentUserId, isOwnProfil
   const [, setOffset] = useState(0);
   const observerTarget = useRef<HTMLDivElement>(null);
   const offsetRef = useRef(0); // Use ref for offset to avoid dependency issues
+  const requestSeqRef = useRef(0); // Guards against out-of-order responses (tab/filter switches)
 
   // Modal state
   const [selectedPostIndex, setSelectedPostIndex] = useState<number | null>(null);
@@ -155,6 +156,10 @@ export default function ProfileMediaTabs({ profileId, currentUserId, isOwnProfil
 
   // Fetch media items
   const fetchMedia = useCallback(async (resetItems = false) => {
+    // Sequence guard: if a newer fetch starts (fast tab/filter switching),
+    // this one's response is ignored so it can't overwrite the grid with
+    // stale data.
+    const seq = ++requestSeqRef.current;
     try {
       if (resetItems) {
         setLoading(true);
@@ -184,6 +189,9 @@ export default function ProfileMediaTabs({ profileId, currentUserId, isOwnProfil
 
       const data = await response.json();
 
+      // Ignore this response if a newer fetch has superseded it.
+      if (seq !== requestSeqRef.current) return;
+
       if (resetItems) {
         setItems(data.items || []);
       } else {
@@ -196,17 +204,19 @@ export default function ProfileMediaTabs({ profileId, currentUserId, isOwnProfil
       offsetRef.current = newOffset;
     } catch (e) {
       console.error('Failed to fetch profile media:', e);
-      // Reset loading states on error
-      setLoading(false);
-      setLoadingMore(false);
+      // Ignore stale errors — a newer fetch owns the UI now.
+      if (seq !== requestSeqRef.current) return;
       // Show empty state on error
       if (resetItems) {
         setItems([]);
         setHasMore(false);
       }
     } finally {
-      setLoading(false);
-      setLoadingMore(false);
+      // Only the latest request controls the loading state.
+      if (seq === requestSeqRef.current) {
+        setLoading(false);
+        setLoadingMore(false);
+      }
     }
   }, [profileId, activeTab, sort, mediaFilter, selectedSports, selectedYears]);
 

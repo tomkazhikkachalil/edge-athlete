@@ -390,10 +390,40 @@ export async function POST(
       tagged_media_count: 0
     };
 
+    // Equipment & vitals counts for their tab badges. The media RPC doesn't
+    // cover these tables, so they were always 0. Gate on profile visibility
+    // for non-owners (private profiles shouldn't expose these counts).
+    let equipment = 0;
+    let vitals = 0;
+    let canSee = viewerId === profileId;
+    if (!canSee) {
+      const { data: prof } = await supabaseAdmin
+        .from('profiles')
+        .select('visibility')
+        .eq('id', profileId)
+        .single();
+      if (prof?.visibility === 'public') {
+        canSee = true;
+      } else if (prof) {
+        const { canView } = await canViewProfile(profileId, viewerId);
+        canSee = canView;
+      }
+    }
+    if (canSee) {
+      const [{ count: eqCount }, { count: vitCount }] = await Promise.all([
+        supabaseAdmin.from('athlete_equipment').select('id', { count: 'exact', head: true }).eq('profile_id', profileId),
+        supabaseAdmin.from('athlete_vitals').select('id', { count: 'exact', head: true }).eq('profile_id', profileId),
+      ]);
+      equipment = eqCount ?? 0;
+      vitals = vitCount ?? 0;
+    }
+
     return NextResponse.json({
       all: parseInt(result.all_media_count || '0', 10),
       stats: parseInt(result.stats_media_count || '0', 10),
-      tagged: parseInt(result.tagged_media_count || '0', 10)
+      tagged: parseInt(result.tagged_media_count || '0', 10),
+      equipment,
+      vitals
     });
 
   } catch (error) {

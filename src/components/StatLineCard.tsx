@@ -32,15 +32,16 @@ export default function StatLineCard({ line }: { line: StatLineData }) {
             <div className="font-bold text-slate-900 text-sm truncate">
               {line.opponent ? `vs ${line.opponent}` : `${sportDef.display_name} ${schema.activityNoun}`}
             </div>
-            {line.date && (
-              <div className="text-xs text-slate-600">
-                {new Date(`${line.date}T00:00:00`).toLocaleDateString('en-US', {
-                  month: 'short',
-                  day: 'numeric',
-                  year: 'numeric',
-                })}
-              </div>
-            )}
+            {(() => {
+              if (!line.date) return null;
+              const d = new Date(`${line.date}T00:00:00`);
+              if (Number.isNaN(d.getTime())) return null; // guard malformed dates
+              return (
+                <div className="text-xs text-slate-600">
+                  {d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                </div>
+              );
+            })()}
           </div>
         </div>
         {result && (

@@ -7,7 +7,7 @@ export async function GET(request: NextRequest) {
     const query = searchParams.get('q') || '';
     const courseId = searchParams.get('id');
     const courseName = searchParams.get('name');
-    const limit = parseInt(searchParams.get('limit') || '10');
+    const limit = Math.min(Math.max(parseInt(searchParams.get('limit') || '10', 10) || 10, 1), 100);
     const useLocalOnly = searchParams.get('localOnly') === 'true';
     const country = searchParams.get('country') || undefined;
     const state = searchParams.get('state') || undefined;
