@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getSupabaseAdmin } from '@/lib/auth-server';
+import { getSupabaseAdmin, requireAuth } from '@/lib/auth-server';
 
 // Feature flag for full-text search (set to false to use old ILIKE method)
 const USE_FULLTEXT_SEARCH = true;
@@ -13,6 +13,19 @@ function sanitizeForFilter(input: string): string {
 export async function GET(request: NextRequest) {
   try {
     const supabase = getSupabaseAdmin();
+
+    // Optional auth — search is public, but private profiles must not appear
+    // in results for anyone but their owner. (The underlying search_profiles /
+    // ILIKE queries run through the RLS-bypassing admin client and do NOT
+    // filter visibility, so we enforce it here.)
+    let viewerId: string | null = null;
+    try {
+      const user = await requireAuth(request);
+      viewerId = user.id;
+    } catch {
+      viewerId = null;
+    }
+
     const { searchParams } = new URL(request.url);
     const query = searchParams.get('q')?.trim();
     const type = searchParams.get('type') || 'all'; // all, athletes, posts, clubs
@@ -292,6 +305,12 @@ export async function GET(request: NextRequest) {
       }
     }
 
+    // Privacy filter: drop private profiles from athlete results unless the
+    // requester is that profile's owner. Covers both the full-text and ILIKE
+    // paths in one place.
+    results.athletes = (results.athletes as Array<{ id: string; visibility: string | null }>)
+      .filter(a => a.visibility === 'public' || a.id === viewerId);
+
     return NextResponse.json({
       query,
       results,
@@ -299,6 +318,7 @@ export async function GET(request: NextRequest) {
     });
 
   } catch (error) {
+    if (error instanceof Response) return error;
     console.error('Search error:', error);
     return NextResponse.json({ error: 'Search failed' }, { status: 500 });
   }

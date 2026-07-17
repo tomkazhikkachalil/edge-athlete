@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServerClient } from '@supabase/ssr';
 import { getSupabaseAdmin } from '@/lib/auth-server';
+import { canViewProfile } from '@/lib/privacy';
 
 // Helper function for cookie authentication
 function createSupabaseClient(request: NextRequest) {
@@ -120,6 +121,30 @@ export async function GET(
 
     if (!profileId) {
       return NextResponse.json({ error: 'Profile ID is required' }, { status: 400 });
+    }
+
+    // Privacy gate: a private profile's media must not be returned to viewers
+    // who can't see the profile. The get_profile_*_media RPCs take viewer_id
+    // but don't reliably gate profile-level visibility, so enforce it here.
+    // Only gate PRIVATE profiles — public profiles are viewable by anyone
+    // (including anonymous viewers), and canViewProfile() returns false for a
+    // null viewer regardless of visibility, so we must not call it for public
+    // profiles.
+    if (viewerId !== profileId) {
+      const { data: targetProfile } = await supabaseAdmin
+        .from('profiles')
+        .select('visibility')
+        .eq('id', profileId)
+        .single();
+      if (!targetProfile) {
+        return NextResponse.json({ items: [], hasMore: false });
+      }
+      if (targetProfile.visibility !== 'public') {
+        const { canView } = await canViewProfile(profileId, viewerId);
+        if (!canView) {
+          return NextResponse.json({ items: [], hasMore: false });
+        }
+      }
     }
 
     // Validate tab
