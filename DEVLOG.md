@@ -61,8 +61,17 @@ Fixed 10 HIGH + 2 MEDIUM:
 - MEDIUM: vitals GET (public profile leaked private training posts → now
   visibility-filtered for non-owners); ai/text + ai/image (unauthenticated
   PAID OpenAI proxy → now require auth). Verified 401.
-- Remaining MEDIUM + Postgres-RPC privacy verification documented in
-  `docs/SECURITY_AUDIT_2026-07-17.md`.
+- MEDIUM batch: suggestions (auth+ownership), upload temp (auth), follow/stats
+  (session viewer), posts/[id] (private-post gate), vitals training-posts,
+  ai/text + ai/image (paid-proxy auth). All verified 401/gated.
+- **RPC verification found 3 MORE real leaks** (behavioral test vs the live
+  private profile): search_profiles, search_by_handle, and get_profile_*_media
+  all returned PRIVATE profiles to anonymous users (name, avatar, handle,
+  media). Closed at the API layer (`bd1de44`) — verified private-closed +
+  public-still-works for anon. Defense-in-depth SQL hardening templated in
+  `database/migrations/021_rpc_visibility_hardening.sql` (needs review — RPC
+  bodies aren't in the repo). Full record: `docs/SECURITY_AUDIT_2026-07-17.md`.
+- **Net security: 15 holes closed** (10 HIGH + 2 MEDIUM + 3 RPC leaks).
 
 ### Sport-aware public profile + /api/profile security fix
 - `/api/public/profile` + `u/[username]`: golf-only stats card → generic
