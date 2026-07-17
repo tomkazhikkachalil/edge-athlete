@@ -13,8 +13,13 @@ feed card (`StatLineCard`), profile aggregates (`/api/sports/stat-lines` +
 `StatLinePostAdapter`), and media-tile summaries all derive from it.
 
 **Adding another stat-line sport = 2 edits:** a schema in `stat-schemas.ts`
-+ `enabled: true` in `SportRegistry` (and register a `StatLinePostAdapter`
-instance). No component or API changes.
+(fields + `profileTiles` + headline) + `enabled: true` in `SportRegistry`
+(add the key to the `statLineSports` list in `AdapterRegistry`). No
+component or API changes. Profile tiles use `profileTiles` computations
+(count/sum/avg) so rate stats (PPG, AVG) aggregate correctly.
+
+**Live sports (July 17, 2026):** golf (deep tables: golf_rounds/golf_holes),
+ice hockey, volleyball, basketball, soccer, baseball (stat-line), + training.
 
 **Graduating a sport to deep tables** (like golf's `golf_rounds`/`golf_holes`):
 do it when features demand per-period/per-set detail. Keep the stat-line as

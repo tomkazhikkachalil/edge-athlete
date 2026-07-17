@@ -49,9 +49,32 @@ AppHeader nav. Queries validated live against Supabase.
 2. **Push to deploy** when ready — all work is committed locally on `main`;
    nothing has been pushed.
 
+### Sport-aware public profile + /api/profile security fix
+- `/api/public/profile` + `u/[username]`: golf-only stats card → generic
+  `sportStats {label, tiles}` (golf: rounds/avg/best; stat-line sports:
+  games + top stat totals from PUBLIC posts). (`d4cf9f6`)
+- **Security (`b340147`):** `/api/profile` GET+PUT had no auth — PUT could
+  update any profile by id (IDOR), GET leaked full PII (email/phone/GPA/
+  SAT/DOB) for any id. Now require auth + ownership; PUT strips
+  id/email/timestamps + validates user_type; GET privacy-shapes
+  server-side (owner=full, viewer=minus-contact, blocked=minimal).
+  Verified 401 on both unauth'd endpoints via local prod server.
+
+### 3 more sports — basketball, soccer, baseball (`e998698`) → 7 total
+Stat-line architecture validated: 3 sports added with zero DDL, no
+component changes. New `profileTiles` (count/sum/avg) + `computeProfileTile`
+fix profile-tile aggregation (PPG/RPG now correct per-game means, not
+broken sums). Live-verified basketball averages via REST round-trip.
+
+### Verification discipline
+Ice hockey + basketball verified end-to-end against LIVE data (insert via
+REST → read back → run through real type-guard/schema/aggregation logic →
+delete test data → confirm DB restored). Not just build-green.
+
 **End-of-session verification:** `npx tsc --noEmit` clean; `npm run lint`
-zero warnings; `npm run build` exit 0 — 67 routes (new: `/explore`,
-`/api/explore`, `/api/sports/stat-lines`).
+zero warnings; `npm run build` exit 0 — 67 routes. 11 commits ahead of
+origin (unpushed). 7 sports live: golf (deep tables), ice hockey,
+volleyball, basketball, soccer, baseball (stat-line), + training.
 
 ---
 
