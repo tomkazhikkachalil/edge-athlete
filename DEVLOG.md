@@ -1,5 +1,16 @@
 # Development Log
 
+## July 17, 2026 — Media-counts hotfix RESOLVED
+
+Migration 022 applied + verified live: `get_profile_media_counts` now returns
+`{all:4, stats:2, tagged:1}` for the test profile via both the direct RPC and
+the production endpoint (HTTP 200, no `game_id` error). Root cause of the
+repeated failed applies: a stale/overloaded copy of the function that plain
+`CREATE OR REPLACE` wasn't targeting — resolved by a DO block that drops ALL
+overloads by name before recreating. These counts are per-profile by design
+(media-tab badges on one athlete's profile), which matched the observed
+numbers. Console error gone; production clean.
+
 ## July 17, 2026 — Hotfix: media-counts 500 (migration 020 fallout)
 
 **Regression from migration 020.** Dropping posts.game_id/match_id/race_id
