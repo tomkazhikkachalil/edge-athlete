@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getSupabaseAdmin } from '@/lib/auth-server';
+import { getSupabaseAdmin, requireAuth } from '@/lib/auth-server';
+import { canViewProfile } from '@/lib/privacy';
 
 export async function GET(request: NextRequest) {
   try {
@@ -8,6 +9,23 @@ export async function GET(request: NextRequest) {
 
     if (!profileId) {
       return NextResponse.json({ error: 'Profile ID is required' }, { status: 400 });
+    }
+
+    // Auth + privacy: golf rounds are performance data. Non-owners may only
+    // see them if the profile's privacy allows it (public or approved fan).
+    const viewer = await requireAuth(request);
+    if (viewer.id !== profileId) {
+      const { canView } = await canViewProfile(profileId, viewer.id);
+      if (!canView) {
+        // Return an empty-but-valid stats shape rather than 403 — the profile
+        // page renders "—" tiles for viewers without access.
+        return NextResponse.json({
+          highlights: [],
+          recentRounds: [],
+          totalRounds: 0,
+          completedRounds: 0,
+        });
+      }
     }
 
     const supabase = getSupabaseAdmin();
@@ -133,6 +151,7 @@ export async function GET(request: NextRequest) {
     });
 
   } catch (error) {
+    if (error instanceof Response) return error;
     console.error('Golf stats API error:', error);
     return NextResponse.json(
       { error: 'Internal server error' },

@@ -41,7 +41,7 @@ export class GolfAdapter extends BaseSportAdapter {
   async getHighlights(profileId: string, _season?: string): Promise<HighlightTile[]> {
     try {
       // Fetch real golf stats from API
-      const response = await fetch(`/api/golf/stats?profileId=${profileId}`);
+      const response = await fetch(`/api/golf/stats?profileId=${profileId}`, { credentials: 'include' });
 
       if (!response.ok) {
         // Fall back to empty tiles on error
@@ -78,7 +78,7 @@ export class GolfAdapter extends BaseSportAdapter {
   async getRecentActivity(profileId: string, limit = 10, _cursor?: string): Promise<ActivityResult> {
     try {
       // Fetch real golf rounds from API
-      const response = await fetch(`/api/golf/stats?profileId=${profileId}`);
+      const response = await fetch(`/api/golf/stats?profileId=${profileId}`, { credentials: 'include' });
 
       if (!response.ok) {
         return { rows: [], hasMore: false };
