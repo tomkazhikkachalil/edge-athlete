@@ -47,6 +47,7 @@ export default function AppHeader({ showSearch = true, onCreatePost, onEditProfi
 
   const navLinks = [
     { path: '/feed', label: 'Feed', icon: 'fa-home' },
+    { path: '/explore', label: 'Explore', icon: 'fa-compass' },
     { path: '/athlete', label: 'Profile', icon: 'fa-user' },
     { path: '/messages', label: 'Messages', icon: 'fa-comment-alt' },
     { path: '/app/followers', label: 'Connections', icon: 'fa-user-friends', hideOnMobile: true },
