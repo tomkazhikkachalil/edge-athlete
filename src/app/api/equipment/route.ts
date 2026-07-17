@@ -1,9 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAuth, getSupabaseAdmin } from '@/lib/auth-server';
+import { canViewProfile } from '@/lib/privacy';
 
 // GET - Fetch equipment for a profile
 export async function GET(request: NextRequest) {
   try {
+    // The admin client bypasses RLS, so this route MUST enforce privacy
+    // itself (the old "RLS will handle privacy" comment was false — a private
+    // athlete's equipment was readable by anyone with their profileId).
+    const viewer = await requireAuth(request);
     const supabase = getSupabaseAdmin();
     const { searchParams } = new URL(request.url);
     const profileId = searchParams.get('profileId');
@@ -12,7 +17,15 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Profile ID is required' }, { status: 400 });
     }
 
-    // Fetch equipment (RLS will handle privacy)
+    if (viewer.id !== profileId) {
+      const { canView } = await canViewProfile(profileId, viewer.id);
+      if (!canView) {
+        // Not permitted to view this profile — return empty, not a 403, so the
+        // profile page renders cleanly for limited viewers.
+        return NextResponse.json({ equipment: [] });
+      }
+    }
+
     const { data: equipment, error } = await supabase
       .from('athlete_equipment')
       .select('*')
@@ -26,6 +39,7 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({ equipment: equipment || [] });
   } catch (error) {
+    if (error instanceof Response) return error;
     console.error('Equipment GET error:', error);
     return NextResponse.json({ error: 'Failed to fetch equipment' }, { status: 500 });
   }

@@ -1,22 +1,21 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabase, supabaseAdmin } from '@/lib/supabase';
+import { requireAuth } from '@/lib/auth-server';
 
 export async function POST(request: NextRequest) {
   try {
-    
+    // Auth required — the avatar is always written to the session user's
+    // profile, never a body-supplied userId (that let anyone overwrite any
+    // user's avatar).
+    const user = await requireAuth(request);
+
     const formData = await request.formData();
     const file = formData.get('avatar') as File;
-    const userId = formData.get('userId') as string;
-    
-    
+    const userId = user.id;
+
     if (!file) {
       console.error('Avatar API: No file provided');
       return NextResponse.json({ error: 'No file provided' }, { status: 400 });
-    }
-
-    if (!userId) {
-      console.error('Avatar API: No user ID provided');
-      return NextResponse.json({ error: 'User ID required' }, { status: 400 });
     }
 
     // Validate file type
@@ -108,6 +107,7 @@ export async function POST(request: NextRequest) {
     });
 
   } catch (error) {
+    if (error instanceof Response) return error;
     console.error('Avatar API: Unexpected error:', error);
     console.error('Avatar API: Error details:', error instanceof Error ? error.stack : error);
     return NextResponse.json({ 

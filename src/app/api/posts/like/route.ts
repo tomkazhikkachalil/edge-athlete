@@ -1,14 +1,18 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getSupabaseAdmin } from '@/lib/auth-server';
+import { getSupabaseAdmin, requireAuth } from '@/lib/auth-server';
 
 export async function POST(request: NextRequest) {
   try {
+    // The liking profile is ALWAYS the session user — never a body-supplied
+    // profileId (that let anyone forge/remove likes as any user).
+    const user = await requireAuth(request);
     const supabase = getSupabaseAdmin();
     const body = await request.json();
-    const { postId, profileId } = body;
+    const { postId } = body;
+    const profileId = user.id;
 
-    if (!postId || !profileId) {
-      return NextResponse.json({ error: 'Post ID and Profile ID are required' }, { status: 400 });
+    if (!postId) {
+      return NextResponse.json({ error: 'Post ID is required' }, { status: 400 });
     }
 
     // Check if the user already liked this post
@@ -99,6 +103,7 @@ export async function POST(request: NextRequest) {
     }
 
   } catch (error) {
+    if (error instanceof Response) return error;
     console.error('Error processing like request:', error);
     return NextResponse.json({ error: 'Failed to process like request' }, { status: 500 });
   }

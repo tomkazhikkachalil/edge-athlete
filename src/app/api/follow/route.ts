@@ -1,15 +1,18 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getSupabaseAdmin } from '@/lib/auth-server';
+import { getSupabaseAdmin, requireAuth } from '@/lib/auth-server';
 
 export async function POST(request: NextRequest) {
   try {
+    // The follower is ALWAYS the session user — never trust a body-supplied
+    // followerId (that let anyone forge follows/unfollows as any user).
+    const user = await requireAuth(request);
     const supabase = getSupabaseAdmin();
     const body = await request.json();
-    const { followerId, followingId, message } = body;
+    const { followingId, message } = body;
+    const followerId = user.id;
 
-
-    if (!followerId || !followingId) {
-      return NextResponse.json({ error: 'Follower ID and Following ID are required' }, { status: 400 });
+    if (!followingId) {
+      return NextResponse.json({ error: 'Following ID is required' }, { status: 400 });
     }
 
     if (followerId === followingId) {
@@ -104,6 +107,7 @@ export async function POST(request: NextRequest) {
     }
 
   } catch (error) {
+    if (error instanceof Response) return error;
     console.error('Follow API error:', error);
     return NextResponse.json({ error: 'Failed to process follow request' }, { status: 500 });
   }

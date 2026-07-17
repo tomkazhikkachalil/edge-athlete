@@ -86,16 +86,20 @@ export async function POST(request: NextRequest) {
 
 export async function DELETE(request: NextRequest) {
   try {
+    // Auth required — derive the owner from the session, not the query string.
+    // Previously any caller could delete another user's media by passing a
+    // matching filePath + userId.
+    const user = await requireAuth(request);
     const supabase = getSupabaseAdmin();
     const { searchParams } = new URL(request.url);
     const filePath = searchParams.get('filePath');
-    const userId = searchParams.get('userId');
+    const userId = user.id;
 
-    if (!filePath || !userId) {
-      return NextResponse.json({ error: 'File path and user ID are required' }, { status: 400 });
+    if (!filePath) {
+      return NextResponse.json({ error: 'File path is required' }, { status: 400 });
     }
 
-    // Verify the file belongs to the user (security check)
+    // Verify the file belongs to the session user
     if (!filePath.includes(`posts/${userId}/`)) {
       return NextResponse.json({ error: 'Unauthorized file access' }, { status: 403 });
     }
@@ -116,6 +120,7 @@ export async function DELETE(request: NextRequest) {
     });
 
   } catch (error) {
+    if (error instanceof Response) return error;
     console.error('File delete error:', error);
     return NextResponse.json({ error: 'Failed to delete file' }, { status: 500 });
   }
