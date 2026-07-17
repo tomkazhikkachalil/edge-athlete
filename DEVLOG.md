@@ -1,5 +1,23 @@
 # Development Log
 
+## July 17, 2026 — Maintenance & Deploy
+
+Full maintenance checklist run before syncing to production:
+- `npm run lint` — zero warnings.
+- `npm run build` — clean from a fresh `.next` cache, exit 0, 67 routes.
+- Working tree clean; 20 feature/fix commits from this session.
+- Pushed `main` → GitHub (`tomkazhikkachalil/edge-athlete`) → Vercel auto-deploy.
+
+Deploying: 7 sports live, Explore page, sport-aware profiles, schema
+cleanup (migration 020 applied), and **15 security fixes** (10 HIGH + 2
+MEDIUM + 3 RPC private-profile leaks — all verified). See the session detail
+below and `docs/SECURITY_AUDIT_2026-07-17.md`.
+
+Post-deploy reminders (not blocking): review + apply
+`database/migrations/021_rpc_visibility_hardening.sql` (SQL defense-in-depth
+for the RPC leaks already closed at the API layer); composer extraction
+deferred (tech-debt, do interactively).
+
 ## July 17, 2026 (continued) — Autonomous Build-Out Session
 
 **Mode change:** User granted full autonomous mode — no per-change confirmations; stop only for anything that costs money.
