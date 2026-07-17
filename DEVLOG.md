@@ -1,5 +1,62 @@
 # Development Log
 
+## July 17, 2026 (continued) — Autonomous Build-Out Session
+
+**Mode change:** User granted full autonomous mode — no per-change confirmations; stop only for anything that costs money.
+
+### Migration 020 status — NOT applied (defensive fix shipped)
+User ran 020 in the SQL Editor but live verification shows it did not land
+(`posts.activity_mode` absent, dead tables still present; Postgres 42703, not
+cache lag). Likely causes: wrong project in the dashboard (app uses ref
+`htwhmdoiszhhmwuflgci`), the script errored + rolled back, or wrong file
+pasted. **Code is now safe either way:** `api/posts` retries the insert once
+without `activity_mode` on 42703/PGRST204 (`27a0b25`). **020 still needs to
+run — see Pending Actions below.**
+
+### Phase B — Sport dispatch seams (`ceb51ed`)
+- PostCard 1030 → 612 lines: inline golf scorecard + stats block extracted
+  verbatim to `golf/GolfRoundCard` + `golf/GolfStatsSummaryCard`, dispatched
+  via new `SportPostBody` keyed on `sport_key`.
+- `SportRegistry`: new `getPrimarySports()` + `TEASER_SPORT_KEYS`;
+  `MultiSportActivity`/`MultiSportHighlights` now registry-derived (no
+  hardcoded sport lists); activity-row nav generalized to
+  `/app/sport/[sport_key]/activity/[id]`.
+
+### Ice hockey + volleyball LIVE end-to-end (`85840a8`)
+**Stat-line architecture** — zero DDL: sports whose per-game data fits a stat
+line store `{type:'stat_line', sport_key, date, opponent, result, stats}` in
+`posts.stats_data`. Single source of truth `src/lib/sports/stat-schemas.ts`;
+composer form (`StatLineForm`), feed card (`StatLineCard` via `SportPostBody`),
+profile highlights/activity (`StatLinePostAdapter` + `/api/sports/stat-lines`),
+and media-tile summaries all derive from it. Adding another stat-line sport =
+schema + registry enable. Both sports enabled in `SportRegistry`;
+`api/posts` postType allowlist now derives from registry-enabled sports.
+Activity detail page renders stat lines (was "coming soon"). The stat-lines
+API enforces owner-vs-public visibility (stricter than the golf sibling —
+noted as a gap to backport). Full decision record in
+`docs/MULTI_SPORT_ROADMAP.md`.
+
+### Explore page (`ae1902a`)
+New `/explore` + `/api/explore`: browse-first discovery — sport filter chips
+(registry-derived), responsive athlete grid, recent public activity. Public-
+only server-side (posts by private-visibility authors excluded). Added to
+AppHeader nav. Queries validated live against Supabase.
+
+### Pending Actions (user)
+1. **Run `database/migrations/020_schema_cleanup_multisport.sql`** in the
+   Supabase SQL Editor — confirm the dashboard project ref is
+   `htwhmdoiszhhmwuflgci` and that the editor reports success. Code no longer
+   depends on it (defensive retry), but the cleanup + `activity_mode` backfill
+   are still wanted.
+2. **Push to deploy** when ready — all work is committed locally on `main`;
+   nothing has been pushed.
+
+**End-of-session verification:** `npx tsc --noEmit` clean; `npm run lint`
+zero warnings; `npm run build` exit 0 — 67 routes (new: `/explore`,
+`/api/explore`, `/api/sports/stat-lines`).
+
+---
+
 ## July 17, 2026
 
 ### Session Restart — Verification, Backup, Multi-Sport Audit + Schema Cleanup (Phase A)

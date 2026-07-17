@@ -1,7 +1,24 @@
 # Multi-Sport Roadmap — Audit Findings & Deferred Work
 
-**Date:** July 17, 2026
-**Status:** Golf MVP phase. This doc records exactly what must change to add sport #2 without guesswork, based on a full code + database audit.
+**Date:** July 17, 2026 (updated same day — sports #2/#3 shipped)
+**Status:** Golf fully implemented; **ice hockey + volleyball live via the stat-line architecture** (see below). This doc records the audit findings and what remains for deeper sport build-outs.
+
+## Stat-line architecture (DECIDED July 17, 2026)
+
+Sports whose per-game data fits a stat line store one structured object in
+`posts.stats_data` (`{type:'stat_line', sport_key, date, opponent, result,
+result_score, stats}`) — zero DDL, scoped by `sport_key`. Single source of
+truth: `src/lib/sports/stat-schemas.ts` — the composer form (`StatLineForm`),
+feed card (`StatLineCard`), profile aggregates (`/api/sports/stat-lines` +
+`StatLinePostAdapter`), and media-tile summaries all derive from it.
+
+**Adding another stat-line sport = 2 edits:** a schema in `stat-schemas.ts`
++ `enabled: true` in `SportRegistry` (and register a `StatLinePostAdapter`
+instance). No component or API changes.
+
+**Graduating a sport to deep tables** (like golf's `golf_rounds`/`golf_holes`):
+do it when features demand per-period/per-set detail. Keep the stat-line as
+the summary layer; the deep tables hang off it.
 
 Guiding principle: *build for today, architect for tomorrow.* We deliberately did **not** genericize the surfaces below yet — refactoring before a second sport exists to validate the abstraction produces the wrong abstraction. This doc is the map for when that day comes.
 
@@ -23,9 +40,8 @@ Ordered by size. Each item = a seam the adapter interface needs before "drop in 
 - `src/app/api/posts/route.ts` — create route branches on `postType === 'golf'` and inserts/updates `golf_rounds` + `golf_holes` directly; read paths embed `golf_rounds(golf_holes(...))`.
 - **Needed seam:** `adapter.composePost()` (currently a stub in GolfAdapter) — adapter owns sport-table writes; core route only writes `posts` + calls the adapter.
 
-### 2. Feed rendering
-- `src/components/PostCard.tsx` (~lines 496–850) — full inline golf scorecard gated on `sport_key === 'golf'`.
-- **Needed seam:** extract to `components/golf/GolfScorecardCard.tsx`; dispatch by `sport_key` (a lightweight `renderPostBody` registry, not necessarily in the adapter class).
+### 2. Feed rendering — ✅ DONE (July 17, 2026)
+- Extracted to `golf/GolfRoundCard` + `golf/GolfStatsSummaryCard`, dispatched by `SportPostBody` (sport_key-keyed). Stat-line sports render via `StatLineCard` in the default case. PostCard: 1030 → 612 lines.
 
 ### 3. Post composer
 - `src/components/CreatePostModal.tsx` (2113 lines) + `CreatePostModalSteps.tsx` — golf course search, tee/par/hole state, scorecard forms inline.
@@ -41,8 +57,8 @@ Ordered by size. Each item = a seam the adapter interface needs before "drop in 
 - **Needed seam:** settings-schema-per-sport (adapter or registry driven), equipment categories per sport.
 
 ### 6. Consolidations / small fixes (can do anytime, low risk)
-- **Two parallel sport registries:** `src/lib/sports/SportRegistry.ts` vs `src/lib/config/sports-config.ts` (icons/colors/names duplicated). Merge to one source of truth.
-- `MultiSportHighlights` / `MultiSportActivity` hardcode `['golf','ice_hockey','volleyball']` and default `'golf'` → derive from `getEnabledSports()`.
+- **Two parallel sport registries:** `src/lib/sports/SportRegistry.ts` vs `src/lib/config/sports-config.ts` (icons/colors/names duplicated). Merge to one source of truth. (Still open.)
+- ~~`MultiSportHighlights` / `MultiSportActivity` hardcode sport lists~~ ✅ DONE — derived via `getPrimarySports()` (July 17, 2026).
 - `src/lib/stats-summary.ts` — move `formatGolfStatsSummary` into GolfAdapter (generic sibling already exists).
 - `src/lib/supabase.ts:185–217` — `GolfSettings`/`HockeySettings`/`BasketballSettings` types belong per-adapter.
 - `src/lib/copy.ts` — `FEATURES.GOLF` block, `getSportRoute()` special-cases golf.
