@@ -183,11 +183,29 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    const { data: post, error: postError } = await supabase
+    let { data: post, error: postError } = await supabase
       .from('posts')
       .insert(postData)
       .select()
       .single();
+
+    // Defensive: migration 020 adds posts.activity_mode. If it hasn't been
+    // applied yet, Postgres/PostgREST rejects the column (42703 / PGRST204).
+    // Retry once without it so post creation never breaks on migration lag.
+    if (
+      postError &&
+      postData.activity_mode !== undefined &&
+      (postError.code === '42703' || postError.code === 'PGRST204') &&
+      (postError.message || '').includes('activity_mode')
+    ) {
+      console.warn('[POST] activity_mode column missing (migration 020 not applied) — retrying insert without it');
+      delete postData.activity_mode;
+      ({ data: post, error: postError } = await supabase
+        .from('posts')
+        .insert(postData)
+        .select()
+        .single());
+    }
 
     if (postError) {
       console.error('[POST] Post creation error:', postError);
