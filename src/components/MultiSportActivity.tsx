@@ -25,12 +25,37 @@ interface MultiSportActivityProps {
 }
 
 export default function MultiSportActivity({ profileId, onEdit, onDelete }: MultiSportActivityProps) {
-  // Registry-derived tabs — newly enabled sports appear automatically.
-  const primarySportKeys: SportKey[] = getPrimarySports().map(s => s.sport_key);
-
+  // The athlete's active sports become the tabs (loaded below); falls back to
+  // a few enabled sports for athletes with no activity yet.
+  const [primarySportKeys, setPrimarySportKeys] = useState<SportKey[]>(
+    () => getPrimarySports(3).slice(0, 3).map(s => s.sport_key)
+  );
   const [activeSportKey, setActiveSportKey] = useState<SportKey>(primarySportKeys[0] ?? 'golf');
   const [activityData, setActivityData] = useState<Record<SportKey, ActivityRow[]>>({} as Record<SportKey, ActivityRow[]>);
   const [loading, setLoading] = useState<Record<SportKey, boolean>>({} as Record<SportKey, boolean>);
+
+  // Resolve the athlete's active sports and drive the tabs from them.
+  useEffect(() => {
+    if (!profileId) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch(`/api/profile/${profileId}/active-sports`, {
+          credentials: 'include',
+        });
+        if (!res.ok || cancelled) return;
+        const json = await res.json();
+        const keys = (json.sportKeys || []) as SportKey[];
+        if (keys.length > 0 && !cancelled) {
+          setPrimarySportKeys(keys);
+          setActiveSportKey(prev => (keys.includes(prev) ? prev : keys[0]));
+        }
+      } catch {
+        // keep the fallback tabs
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [profileId]);
 
   // Load activity data for a specific sport
   const loadSportActivity = useCallback(async (sportKey: SportKey) => {

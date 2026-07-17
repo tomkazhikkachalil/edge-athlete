@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { getSportDefinition, getAllSports, getSportAdapter, getPrimarySports, type SportKey } from '@/lib/sports';
+import { getSportDefinition, getSportAdapter, getPrimarySports, type SportKey } from '@/lib/sports';
 import { getSeasonDisplayName, PLACEHOLDERS } from '@/lib/config';
 import { COPY } from '@/lib/copy';
 import { getSportColorClasses, getNeutralColorClasses, cssClasses } from '@/lib/design-tokens';
@@ -19,33 +19,56 @@ interface MultiSportHighlightsProps {
 
 export default function MultiSportHighlights({ profileId, canEdit = true, onEdit }: MultiSportHighlightsProps) {
   const [highlightData, setHighlightData] = useState<Record<SportKey, HighlightTile[]>>({} as Record<SportKey, HighlightTile[]>);
+  const [displaySportKeys, setDisplaySportKeys] = useState<SportKey[]>([]);
   const [loading, setLoading] = useState(true);
 
   // Load highlight data for all sports
   useEffect(() => {
     const loadHighlights = async () => {
       try {
-        const allSports = getAllSports();
-        const data: Record<SportKey, HighlightTile[]> = {} as Record<SportKey, HighlightTile[]>;
-        
-        // Load highlights for each sport (enabled sports get real data, others get placeholders)
-        for (const adapter of allSports) {
-          const sportDef = getSportDefinition(adapter.sportKey);
-          if (adapter.isEnabled()) {
-            // Enabled sports (Golf) get real data
-            data[adapter.sportKey] = await adapter.getHighlights(profileId);
-          } else {
-            // Disabled sports get placeholder tiles with registry labels
-            data[adapter.sportKey] = [
-              { label: sportDef.metric_labels.tile1, value: null },
-              { label: sportDef.metric_labels.tile2, value: null },
-              { label: sportDef.metric_labels.tile3, value: null },
-              { label: sportDef.metric_labels.tile4, value: null },
-              ...(sportDef.metric_labels.tile5 ? [{ label: sportDef.metric_labels.tile5, value: null }] : []),
-              ...(sportDef.metric_labels.tile6 ? [{ label: sportDef.metric_labels.tile6, value: null }] : [])
-            ];
+        // Which sports does this athlete actually participate in? Show those
+        // instead of every enabled sport (which would be mostly-empty cards).
+        let sportKeys: SportKey[] = [];
+        try {
+          const res = await fetch(`/api/profile/${profileId}/active-sports`, {
+            credentials: 'include',
+          });
+          if (res.ok) {
+            const json = await res.json();
+            sportKeys = (json.sportKeys || []) as SportKey[];
           }
+        } catch {
+          // fall through to fallback below
         }
+
+        // Fallback for athletes with no activity yet: a few enabled sports as
+        // prompts so the profile isn't blank and encourages a first post.
+        if (sportKeys.length === 0) {
+          sportKeys = getPrimarySports(3).slice(0, 3).map(s => s.sport_key);
+        }
+
+        setDisplaySportKeys(sportKeys);
+
+        const data: Record<SportKey, HighlightTile[]> = {} as Record<SportKey, HighlightTile[]>;
+        // Load highlights only for the sports we're going to show.
+        await Promise.all(
+          sportKeys.map(async sportKey => {
+            const adapter = getSportAdapter(sportKey);
+            const sportDef = getSportDefinition(sportKey);
+            if (adapter.isEnabled()) {
+              data[sportKey] = await adapter.getHighlights(profileId);
+            } else {
+              data[sportKey] = [
+                { label: sportDef.metric_labels.tile1, value: null },
+                { label: sportDef.metric_labels.tile2, value: null },
+                { label: sportDef.metric_labels.tile3, value: null },
+                { label: sportDef.metric_labels.tile4, value: null },
+                ...(sportDef.metric_labels.tile5 ? [{ label: sportDef.metric_labels.tile5, value: null }] : []),
+                ...(sportDef.metric_labels.tile6 ? [{ label: sportDef.metric_labels.tile6, value: null }] : [])
+              ];
+            }
+          })
+        );
 
         setHighlightData(data);
       } catch (e) {
@@ -170,9 +193,9 @@ export default function MultiSportHighlights({ profileId, canEdit = true, onEdit
     );
   }
 
-  // Registry-derived primary sports — newly enabled sports appear automatically.
-  const primarySportKeys: SportKey[] = getPrimarySports().map(s => s.sport_key);
-  const hasAnyData = primarySportKeys.some(key => 
+  // Show the athlete's active sports (loaded above); registry order.
+  const primarySportKeys: SportKey[] = displaySportKeys;
+  const hasAnyData = primarySportKeys.some(key =>
     highlightData[key]?.some(tile => tile.value !== null)
   );
 
