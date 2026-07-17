@@ -1,5 +1,27 @@
 # Development Log
 
+## July 17, 2026 — Hotfix: media-counts 500 (migration 020 fallout)
+
+**Regression from migration 020.** Dropping posts.game_id/match_id/race_id
+broke the `get_profile_media_counts()` RPC, whose body still referenced
+p.game_id (the 020 audit checked app source, not in-DB function bodies) →
+`POST /api/profile/[id]/media` (tab-badge counts) returned 500
+("column p.game_id does not exist"). Media items still loaded (the other
+three media RPCs were recreated cleanly by migration 018).
+
+Fix (two parts):
+- `database/migrations/022_fix_media_counts_dropped_columns.sql` — recreates
+  the counts RPC with the stats-media definition = stats_data OR round_id
+  (matches the 020 index; stat-line sports flow through stats_data). **User
+  must run this in Supabase SQL Editor for real counts.**
+- Code resilience (deployed): the counts endpoint now degrades to
+  `{all:0,stats:0,tagged:0,degraded:true}` (HTTP 200) on RPC error instead of
+  500 — no console error in the gap before 022 is applied.
+
+Verified: only get_profile_media_counts was affected (all/stats/tagged RPCs
+tested OK; no views/triggers reference the dropped columns). Endpoint returns
+200 degraded locally against the still-broken RPC. Lint + build clean.
+
 ## July 17, 2026 — Maintenance & Deploy
 
 Full maintenance checklist run before syncing to production:

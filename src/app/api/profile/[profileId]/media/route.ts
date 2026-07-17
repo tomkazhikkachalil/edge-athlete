@@ -376,8 +376,12 @@ export async function POST(
     });
 
     if (countError) {
-      console.error('Error fetching media counts:', countError);
-      return NextResponse.json({ error: 'Failed to fetch counts' }, { status: 500 });
+      // Graceful degradation: if the counts RPC is temporarily broken (e.g.
+      // migration 022 not yet applied — the RPC referenced posts.game_id which
+      // migration 020 dropped), return zero badge counts with 200 instead of a
+      // 500. Tab badges show nothing; media itself still loads via the GET RPCs.
+      console.error('media counts RPC failed (returning zero counts):', countError.message);
+      return NextResponse.json({ all: 0, stats: 0, tagged: 0, degraded: true });
     }
 
     const result = counts && counts.length > 0 ? counts[0] : {
