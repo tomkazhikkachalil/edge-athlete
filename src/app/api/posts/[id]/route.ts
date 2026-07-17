@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getSupabaseAdmin } from '@/lib/auth-server';
+import { getSupabaseAdmin, requireAuth } from '@/lib/auth-server';
+import { canViewProfile } from '@/lib/privacy';
 
 export async function GET(
   request: NextRequest,
@@ -8,6 +9,16 @@ export async function GET(
   try {
     const supabase = getSupabaseAdmin();
     const { id: postId } = await params;
+
+    // Optional auth — public posts are viewable by anyone; private posts are
+    // gated below. (Admin client bypasses RLS, so we gate here.)
+    let viewerId: string | null = null;
+    try {
+      const user = await requireAuth(request);
+      viewerId = user.id;
+    } catch {
+      viewerId = null;
+    }
 
     const { data: post, error } = await supabase
       .from('posts')
@@ -71,8 +82,25 @@ export async function GET(
       return NextResponse.json({ error: 'Post not found' }, { status: 404 });
     }
 
+    // Private-post gate: a private post is visible only to its owner and to
+    // viewers permitted to see the author's profile. Return 404 (not 403) so
+    // the endpoint doesn't confirm a hidden post's existence.
+    if (post.visibility === 'private') {
+      const ownerId = post.profile_id as string;
+      const isOwner = viewerId === ownerId;
+      let allowed = isOwner;
+      if (!allowed && viewerId) {
+        const { canView } = await canViewProfile(ownerId, viewerId);
+        allowed = canView;
+      }
+      if (!allowed) {
+        return NextResponse.json({ error: 'Post not found' }, { status: 404 });
+      }
+    }
+
     return NextResponse.json({ post });
   } catch (error) {
+    if (error instanceof Response) return error;
     console.error('Error fetching post:', error);
     return NextResponse.json(
       { error: 'Internal server error' },

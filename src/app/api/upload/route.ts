@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getSupabaseAdmin } from '@/lib/auth-server';
+import { getSupabaseAdmin, requireAuth } from '@/lib/auth-server';
 import { v4 as uuidv4 } from 'uuid';
 
 const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
@@ -8,22 +8,11 @@ const ALLOWED_VIDEO_TYPES = ['video/mp4', 'video/webm', 'video/quicktime'];
 
 export async function POST(request: NextRequest) {
   try {
+    // Auth required — anonymous uploads were a storage/cost abuse vector.
+    const user = await requireAuth(request);
+    const userId = user.id;
     const supabase = getSupabaseAdmin();
-    // Get the authenticated user
-    const authHeader = request.headers.get('authorization');
-    let userId: string | null = null;
-    
-    if (authHeader?.startsWith('Bearer ')) {
-      const token = authHeader.substring(7);
-      const { data: { user }, error } = await supabase.auth.getUser(token);
-      if (!error && user) {
-        userId = user.id;
-      }
-    }
-    
-    // For now, allow uploads without auth (we'll add proper auth later)
-    // In production, you should require authentication
-    
+
     const formData = await request.formData();
     const file = formData.get('file') as File;
     
@@ -83,6 +72,7 @@ export async function POST(request: NextRequest) {
     });
     
   } catch (err) {
+    if (err instanceof Response) return err;
     console.error('Upload processing error:', err);
     return NextResponse.json({ error: 'Failed to process upload' }, { status: 500 });
   }

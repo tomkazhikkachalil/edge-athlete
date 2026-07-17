@@ -1,13 +1,23 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getSupabaseAdmin } from '@/lib/auth-server';
+import { getSupabaseAdmin, requireAuth } from '@/lib/auth-server';
 
 export async function GET(request: NextRequest) {
   try {
     const supabase = getSupabaseAdmin();
     const { searchParams } = new URL(request.url);
     const profileId = searchParams.get('profileId');
-    const currentUserId = searchParams.get('currentUserId');
-    
+
+    // The "do I follow this profile" relationship is about the SESSION user —
+    // never a spoofable query param (that let anyone probe A-follows-B).
+    // Counts themselves are public, so auth is optional.
+    let currentUserId: string | null = null;
+    try {
+      const user = await requireAuth(request);
+      currentUserId = user.id;
+    } catch {
+      currentUserId = null;
+    }
+
     if (!profileId) {
       return NextResponse.json({ error: 'Profile ID is required' }, { status: 400 });
     }

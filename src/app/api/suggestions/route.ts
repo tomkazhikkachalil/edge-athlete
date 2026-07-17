@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getSupabaseAdmin } from '@/lib/auth-server';
+import { getSupabaseAdmin, requireAuth } from '@/lib/auth-server';
 
 // Type for suggestions returned by the RPC function
 interface ConnectionSuggestion {
@@ -15,12 +15,18 @@ interface ConnectionSuggestion {
 
 export async function GET(request: NextRequest) {
   try {
+    // Suggestions (and the follow-graph they can reveal) are personal — the
+    // caller may only fetch their own. profileId must match the session user.
+    const user = await requireAuth(request);
     const { searchParams } = new URL(request.url);
     const profileId = searchParams.get('profileId');
     const limit = parseInt(searchParams.get('limit') || '10');
 
     if (!profileId) {
       return NextResponse.json({ error: 'Profile ID required' }, { status: 400 });
+    }
+    if (profileId !== user.id) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
     const supabase = getSupabaseAdmin();
@@ -92,6 +98,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ suggestions });
 
   } catch (error) {
+    if (error instanceof Response) return error;
     console.error('Suggestions fetch error:', error);
     return NextResponse.json(
       { error: error instanceof Error ? error.message : 'Failed to fetch suggestions' },
@@ -102,11 +109,14 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
+    // Dismissals are written for the session user only.
+    const user = await requireAuth(request);
     const body = await request.json();
-    const { profileId, suggestedProfileId, action } = body;
+    const { suggestedProfileId, action } = body;
+    const profileId = user.id;
 
-    if (!profileId || !suggestedProfileId) {
-      return NextResponse.json({ error: 'Profile IDs required' }, { status: 400 });
+    if (!suggestedProfileId) {
+      return NextResponse.json({ error: 'Suggested profile ID required' }, { status: 400 });
     }
 
     const supabase = getSupabaseAdmin();
@@ -132,6 +142,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Invalid action' }, { status: 400 });
 
   } catch (error) {
+    if (error instanceof Response) return error;
     console.error('Suggestion action error:', error);
     return NextResponse.json(
       { error: error instanceof Error ? error.message : 'Failed to process suggestion action' },
