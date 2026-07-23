@@ -1,5 +1,22 @@
 # Development Log
 
+## July 23, 2026 — Sprint 2: round detail page is REAL
+
+- NEW /api/golf/rounds/[roundId]: GET (owner or profile-viewable; 404 not
+  403 for hidden), PATCH (owner-only hole upsert on round_id+hole_number
+  with strict validation, then calculate_round_stats recalc), DELETE
+  (owner-only; holes cascade, posts.round_id SET NULL so posts survive).
+- Rewrote /app/sport/golf/rounds/[roundId]/page.tsx: replaced the
+  hardcoded Math.random() Pebble Beach mock with real data; Edit is now
+  INLINE hole editing (score/putts/FIR-cycle/GIR-toggle per row, 40px+
+  targets, numeric keyboards) — the seed of future live scoring; Delete
+  wired with ConfirmModal; partial-round badge; FIR denominator from
+  par>3 holes (was hardcoded /14); conditions row; mobile edge-to-edge
+  scroll table; dead /login redirect fixed to /.
+- Query shape verified live against production (first real round found
+  is a 9-hole Eagle Creek round — partial-round path exercised by real
+  data).
+
 ## July 23, 2026 — Roadmap + Sprint 1 kickoff (CI gate, health, env docs)
 
 Strategic assessment completed (3 survey subagents: product completeness,

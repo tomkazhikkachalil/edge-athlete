@@ -1,96 +1,199 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth';
-import { getSportAdapter } from '@/lib/sports';
+import AppHeader from '@/components/AppHeader';
+import ConfirmModal from '@/components/ConfirmModal';
+import { ToastContainer, useToast } from '@/components/Toast';
+
+interface GolfHole {
+  hole_number: number;
+  par: number | null;
+  strokes: number;
+  putts: number | null;
+  fairway_hit: boolean | null;
+  green_in_regulation: boolean;
+  distance_yards: number | null;
+  notes: string | null;
+}
 
 interface GolfRound {
   id: string;
+  profile_id: string;
   date: string;
   course: string;
-  score: number;
+  course_location: string | null;
+  tee: string | null;
+  holes: number;
+  round_type: string;
   par: number;
-  holes: Array<{
-    hole: number;
-    par: number;
-    strokes: number;
-    fairway?: boolean;
-    gir?: boolean;
-    putts?: number;
-  }>;
-  notes?: string;
+  gross_score: number | null;
+  total_putts: number | null;
+  fir_percentage: number | null;
+  gir_percentage: number | null;
+  weather: string | null;
+  temperature: number | null;
+  wind: string | null;
+  course_rating: number | null;
+  slope_rating: number | null;
+  notes: string | null;
+  is_complete: boolean;
+  golf_holes: GolfHole[];
+}
+
+// Editable copy of a hole row while in edit mode
+interface EditableHole {
+  hole_number: number;
+  par: number | null;
+  strokes: string; // string in inputs; validated on save
+  putts: string;
+  fairway_hit: boolean | null;
+  green_in_regulation: boolean;
 }
 
 export default function GolfRoundDetailPage() {
   const params = useParams();
   const router = useRouter();
   const { user, loading: authLoading } = useAuth();
+  const { toasts, dismissToast, showSuccess, showError } = useToast();
+
   const [round, setRound] = useState<GolfRound | null>(null);
+  const [isOwner, setIsOwner] = useState(false);
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
+
+  // Edit mode
+  const [editing, setEditing] = useState(false);
+  const [editHoles, setEditHoles] = useState<EditableHole[]>([]);
+  const [saving, setSaving] = useState(false);
+
+  // Delete
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   const roundId = params.roundId as string;
 
   useEffect(() => {
     if (!authLoading && !user) {
-      router.push('/login');
+      router.push('/');
       return;
     }
   }, [user, authLoading, router]);
 
-  useEffect(() => {
-    const loadRoundDetail = async () => {
-      if (!user?.id || !roundId) return;
-
-      try {
-        // TODO: Replace with actual API call to get round details
-        // const response = await fetch(`/api/golf/rounds/${roundId}`);
-        // if (!response.ok) {
-        //   setNotFound(true);
-        //   return;
-        // }
-        // const roundData = await response.json();
-        // setRound(roundData);
-        
-        // For now, show sample round data
-        const golfAdapter = getSportAdapter('golf');
-        if (golfAdapter.isEnabled()) {
-          setTimeout(() => {
-            setRound({
-              id: roundId,
-              date: '2024-03-15',
-              course: 'Pebble Beach Golf Links',
-              score: 82,
-              par: 72,
-              holes: Array.from({ length: 18 }, (_, i) => ({
-                hole: i + 1,
-                par: i < 4 ? 4 : i < 14 ? [4, 3, 5][i % 3] : 4,
-                strokes: Math.floor(Math.random() * 3) + 3,
-                fairway: Math.random() > 0.3,
-                gir: Math.random() > 0.4,
-                putts: Math.floor(Math.random() * 2) + 2,
-              })),
-              notes: 'Great day on the course! Weather was perfect and I played well from the tee.'
-            });
-            setLoading(false);
-          }, 800);
-        } else {
-          setNotFound(true);
-          setLoading(false);
-        }
-
-      } catch (e) {
-        console.error('Failed to load golf round detail:', e);
+  const loadRound = useCallback(async () => {
+    if (!roundId) return;
+    try {
+      setLoading(true);
+      const response = await fetch(`/api/golf/rounds/${roundId}`);
+      if (!response.ok) {
         setNotFound(true);
-        setLoading(false);
+        return;
       }
-    };
-
-    if (user?.id) {
-      loadRoundDetail();
+      const data = await response.json();
+      setRound(data.round);
+      setIsOwner(!!data.isOwner);
+    } catch (e) {
+      console.error('Failed to load golf round detail:', e);
+      setNotFound(true);
+    } finally {
+      setLoading(false);
     }
-  }, [user?.id, roundId]);
+  }, [roundId]);
+
+  useEffect(() => {
+    if (user?.id) loadRound();
+  }, [user?.id, loadRound]);
+
+  const startEditing = () => {
+    if (!round) return;
+    setEditHoles(
+      round.golf_holes.map(h => ({
+        hole_number: h.hole_number,
+        par: h.par,
+        strokes: String(h.strokes ?? ''),
+        putts: h.putts === null ? '' : String(h.putts),
+        fairway_hit: h.fairway_hit,
+        green_in_regulation: h.green_in_regulation,
+      }))
+    );
+    setEditing(true);
+  };
+
+  const updateEditHole = (holeNumber: number, patch: Partial<EditableHole>) => {
+    setEditHoles(prev => prev.map(h => (h.hole_number === holeNumber ? { ...h, ...patch } : h)));
+  };
+
+  const handleSave = async () => {
+    if (saving) return;
+
+    // Client-side validation mirror of the API's rules
+    const payload = [];
+    for (const h of editHoles) {
+      const strokes = parseInt(h.strokes, 10);
+      if (!Number.isInteger(strokes) || strokes < 1 || strokes > 20) {
+        showError('Invalid score', `Hole ${h.hole_number}: score must be between 1 and 20.`);
+        return;
+      }
+      const putts = h.putts === '' ? null : parseInt(h.putts, 10);
+      if (putts !== null && (!Number.isInteger(putts) || putts < 0 || putts > 10)) {
+        showError('Invalid putts', `Hole ${h.hole_number}: putts must be between 0 and 10.`);
+        return;
+      }
+      payload.push({
+        hole_number: h.hole_number,
+        par: h.par,
+        strokes,
+        putts,
+        fairway_hit: h.fairway_hit,
+        green_in_regulation: h.green_in_regulation,
+      });
+    }
+
+    setSaving(true);
+    try {
+      const response = await fetch(`/api/golf/rounds/${roundId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ holes: payload }),
+      });
+      const data = await response.json();
+      if (!response.ok) {
+        showError('Save failed', data.error || 'Could not save changes.');
+        return;
+      }
+      setRound(data.round);
+      setEditing(false);
+      showSuccess('Round updated', 'Scores saved and stats recalculated.');
+    } catch (e) {
+      console.error('Failed to save round:', e);
+      showError('Save failed', 'Could not save changes. Please try again.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleDelete = async () => {
+    if (deleting) return;
+    setDeleting(true);
+    try {
+      const response = await fetch(`/api/golf/rounds/${roundId}`, { method: 'DELETE' });
+      if (!response.ok) {
+        const data = await response.json();
+        showError('Delete failed', data.error || 'Could not delete round.');
+        setDeleting(false);
+        setShowDeleteConfirm(false);
+        return;
+      }
+      showSuccess('Round deleted');
+      router.push('/athlete');
+    } catch (e) {
+      console.error('Failed to delete round:', e);
+      showError('Delete failed', 'Could not delete round. Please try again.');
+      setDeleting(false);
+      setShowDeleteConfirm(false);
+    }
+  };
 
   if (authLoading || loading) {
     return (
@@ -103,175 +206,314 @@ export default function GolfRoundDetailPage() {
     );
   }
 
-  if (!user) {
-    return null; // Will redirect
-  }
+  if (!user) return null; // redirecting
 
   if (notFound || !round) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="text-center">
-          <h1 className="text-4xl font-bold text-gray-900 mb-4">Round Not Found</h1>
-          <p className="text-gray-600 mb-8">This golf round does not exist or you don&apos;t have access to it.</p>
-          <button
-            onClick={() => router.back()}
-            className="inline-flex items-center px-4 py-2 border border-transparent text-base font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 transition-colors"
-          >
-            <i className="fas fa-arrow-left mr-2"></i>
-            Go Back
-          </button>
+      <div className="min-h-screen bg-gray-50">
+        <AppHeader showSearch={false} />
+        <div className="flex items-center justify-center py-20">
+          <div className="text-center px-4">
+            <h1 className="text-2xl sm:text-4xl font-bold text-gray-900 mb-4">Round Not Found</h1>
+            <p className="text-gray-600 mb-8">This golf round does not exist or you don&apos;t have access to it.</p>
+            <button
+              onClick={() => router.back()}
+              className="inline-flex items-center px-4 py-2 border border-transparent text-base font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 transition-colors"
+            >
+              <i className="fas fa-arrow-left mr-2"></i>
+              Go Back
+            </button>
+          </div>
         </div>
       </div>
     );
   }
 
-  const scoreToPar = round.score - round.par;
-  const fairwaysHit = round.holes.filter(h => h.fairway).length;
-  const girsHit = round.holes.filter(h => h.gir).length;
-  const totalPutts = round.holes.reduce((sum, h) => sum + (h.putts || 0), 0);
+  const holes = round.golf_holes || [];
+  const holesPlayed = holes.length;
+  const grossScore = round.gross_score ?? holes.reduce((sum, h) => sum + (h.strokes || 0), 0);
+  const parPlayed = holes.reduce((sum, h) => sum + (h.par || 0), 0) || round.par;
+  const scoreToPar = grossScore - parPlayed;
+  const fairwayEligible = holes.filter(h => (h.par ?? 4) > 3);
+  const fairwaysHit = fairwayEligible.filter(h => h.fairway_hit === true).length;
+  const girsHit = holes.filter(h => h.green_in_regulation).length;
+  const totalPutts = round.total_putts ?? holes.reduce((sum, h) => sum + (h.putts || 0), 0);
+  const conditions = [round.weather, round.temperature != null ? `${round.temperature}°` : null, round.wind]
+    .filter(Boolean)
+    .join(' · ');
 
   return (
     <div className="min-h-screen bg-gray-50">
-      {/* Navigation */}
+      <AppHeader showSearch={false} />
+      <ToastContainer toasts={toasts} onDismiss={dismissToast} />
+
+      {/* Navigation + actions */}
       <div className="bg-white border-b border-gray-200">
-        <div className="max-w-4xl mx-auto px-4 py-4">
-          <div className="flex items-center justify-between">
+        <div className="max-w-4xl mx-auto px-4 py-3">
+          <div className="flex items-center justify-between gap-2">
             <button
               onClick={() => router.back()}
-              className="inline-flex items-center text-sm text-gray-600 hover:text-gray-900 transition-colors"
+              className="inline-flex items-center min-h-[44px] text-sm text-gray-600 hover:text-gray-900 transition-colors"
             >
               <i className="fas fa-arrow-left mr-2"></i>
-              Back to Activity
+              Back
             </button>
-            <div className="flex items-center space-x-4">
-              <button
-                className="inline-flex items-center px-3 py-1 border border-gray-300 rounded-md text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 transition-colors"
-                title="Edit round"
-              >
-                <i className="fas fa-edit mr-1"></i>
-                Edit
-              </button>
-              <button
-                className="inline-flex items-center px-3 py-1 border border-red-300 rounded-md text-sm font-medium text-red-700 bg-white hover:bg-red-50 transition-colors"
-                title="Delete round"
-              >
-                <i className="fas fa-trash mr-1"></i>
-                Delete
-              </button>
-            </div>
+            {isOwner && !editing && (
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={startEditing}
+                  className="inline-flex items-center min-h-[44px] px-3 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 transition-colors"
+                >
+                  <i className="fas fa-edit mr-1"></i>
+                  Edit
+                </button>
+                <button
+                  onClick={() => setShowDeleteConfirm(true)}
+                  className="inline-flex items-center min-h-[44px] px-3 py-2 border border-red-300 rounded-md text-sm font-medium text-red-700 bg-white hover:bg-red-50 transition-colors"
+                >
+                  <i className="fas fa-trash mr-1"></i>
+                  Delete
+                </button>
+              </div>
+            )}
+            {isOwner && editing && (
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => setEditing(false)}
+                  disabled={saving}
+                  className="inline-flex items-center min-h-[44px] px-3 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 transition-colors disabled:opacity-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleSave}
+                  disabled={saving}
+                  className="inline-flex items-center min-h-[44px] px-4 py-2 rounded-md text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 transition-colors disabled:opacity-50"
+                >
+                  {saving ? (
+                    <><i className="fas fa-spinner fa-spin mr-2"></i>Saving…</>
+                  ) : (
+                    <><i className="fas fa-check mr-1"></i>Save</>
+                  )}
+                </button>
+              </div>
+            )}
           </div>
         </div>
       </div>
 
-      <div className="max-w-4xl mx-auto px-4 py-section space-y-6">
-        {/* Round Header */}
-        <div className="bg-white rounded-lg shadow-sm p-base">
-          <div className="flex items-start justify-between mb-4">
-            <div>
-              <h1 className="text-h1 text-gray-900 mb-2">{round.course}</h1>
-              <p className="text-gray-600">
+      <div className="max-w-4xl mx-auto px-4 py-6 space-y-6">
+        {/* Round header */}
+        <div className="bg-white rounded-lg shadow-sm p-4 sm:p-6">
+          <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4 mb-4">
+            <div className="min-w-0">
+              <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 mb-1 break-words">{round.course}</h1>
+              {round.course_location && (
+                <p className="text-sm text-gray-500 mb-1">{round.course_location}</p>
+              )}
+              <p className="text-gray-600 text-sm">
                 <i className="fas fa-calendar mr-2"></i>
-                {new Date(round.date).toLocaleDateString('en-US', { 
-                  weekday: 'long', 
-                  year: 'numeric', 
-                  month: 'long', 
-                  day: 'numeric' 
+                {new Date(round.date + 'T00:00:00').toLocaleDateString('en-US', {
+                  weekday: 'long', year: 'numeric', month: 'long', day: 'numeric',
                 })}
               </p>
+              <div className="flex flex-wrap gap-2 mt-2 text-xs text-gray-600">
+                {round.tee && <span className="px-2 py-1 bg-gray-100 rounded-full">{round.tee} tees</span>}
+                <span className="px-2 py-1 bg-gray-100 rounded-full">{round.round_type === 'indoor' ? 'Indoor / Sim' : 'Outdoor'}</span>
+                <span className="px-2 py-1 bg-gray-100 rounded-full">{holesPlayed} holes</span>
+                {!round.is_complete && <span className="px-2 py-1 bg-yellow-100 text-yellow-700 rounded-full">Partial round</span>}
+              </div>
             </div>
-            <div className="text-right">
-              <div className="text-h1 text-gray-900">{round.score}</div>
+            <div className="text-left sm:text-right flex-shrink-0">
+              <div className="text-4xl font-bold text-gray-900">{grossScore}</div>
               <div className={`text-sm font-medium ${
-                scoreToPar === 0 ? 'text-blue-600' : 
-                scoreToPar > 0 ? 'text-red-600' : 'text-green-600'
+                scoreToPar === 0 ? 'text-blue-600' : scoreToPar > 0 ? 'text-red-600' : 'text-green-600'
               }`}>
                 {scoreToPar === 0 ? 'E' : scoreToPar > 0 ? `+${scoreToPar}` : scoreToPar}
+                <span className="text-gray-400 font-normal"> · par {parPlayed}</span>
               </div>
             </div>
           </div>
-          
-          {/* Round Stats */}
+
+          {/* Stats */}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4 pt-4 border-t border-gray-200">
             <div className="text-center">
-              <div className="text-h3 text-gray-900">{fairwaysHit}/14</div>
-              <div className="text-chip text-gray-500 uppercase">Fairways</div>
+              <div className="text-lg font-semibold text-gray-900">
+                {fairwayEligible.length > 0 ? `${fairwaysHit}/${fairwayEligible.length}` : '—'}
+              </div>
+              <div className="text-xs text-gray-500 uppercase">Fairways</div>
             </div>
             <div className="text-center">
-              <div className="text-h3 text-gray-900">{girsHit}/18</div>
-              <div className="text-chip text-gray-500 uppercase">GIR</div>
+              <div className="text-lg font-semibold text-gray-900">{girsHit}/{holesPlayed}</div>
+              <div className="text-xs text-gray-500 uppercase">GIR</div>
             </div>
             <div className="text-center">
-              <div className="text-h3 text-gray-900">{totalPutts}</div>
-              <div className="text-chip text-gray-500 uppercase">Putts</div>
+              <div className="text-lg font-semibold text-gray-900">{totalPutts || '—'}</div>
+              <div className="text-xs text-gray-500 uppercase">Putts</div>
             </div>
             <div className="text-center">
-              <div className="text-h3 text-gray-900">{(totalPutts / 18).toFixed(1)}</div>
-              <div className="text-chip text-gray-500 uppercase">Putts/Hole</div>
+              <div className="text-lg font-semibold text-gray-900">
+                {totalPutts && holesPlayed ? (totalPutts / holesPlayed).toFixed(1) : '—'}
+              </div>
+              <div className="text-xs text-gray-500 uppercase">Putts/Hole</div>
             </div>
           </div>
+
+          {conditions && (
+            <p className="mt-4 pt-4 border-t border-gray-200 text-sm text-gray-600">
+              <i className="fas fa-cloud-sun mr-2"></i>
+              {conditions}
+            </p>
+          )}
         </div>
 
         {/* Scorecard */}
-        <div className="bg-white rounded-lg shadow-sm p-base">
-          <h2 className="text-h2 text-gray-900 mb-4">
+        <div className="bg-white rounded-lg shadow-sm p-4 sm:p-6">
+          <h2 className="text-xl font-bold text-gray-900 mb-4">
             <i className="fas fa-golf-ball mr-2"></i>
             Scorecard
           </h2>
-          <div className="overflow-x-auto">
-            <table className="min-w-full">
-              <thead className="bg-gray-50">
-                <tr>
-                  <th className="px-3 py-2 text-left text-xs text-gray-500 uppercase">Hole</th>
-                  <th className="px-3 py-2 text-center text-xs text-gray-500 uppercase">Par</th>
-                  <th className="px-3 py-2 text-center text-xs text-gray-500 uppercase">Score</th>
-                  <th className="px-3 py-2 text-center text-xs text-gray-500 uppercase">+/-</th>
-                  <th className="px-3 py-2 text-center text-xs text-gray-500 uppercase">FIR</th>
-                  <th className="px-3 py-2 text-center text-xs text-gray-500 uppercase">GIR</th>
-                  <th className="px-3 py-2 text-center text-xs text-gray-500 uppercase">Putts</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-200">
-                {round.holes.map((hole) => {
-                  const holeScore = hole.strokes - hole.par;
-                  return (
-                    <tr key={hole.hole} className="hover:bg-gray-50">
-                      <td className="px-3 py-2 text-sm font-medium text-gray-900">{hole.hole}</td>
-                      <td className="px-3 py-2 text-sm text-gray-900 text-center">{hole.par}</td>
-                      <td className="px-3 py-2 text-sm text-gray-900 text-center font-medium">{hole.strokes}</td>
-                      <td className={`px-3 py-2 text-sm text-center font-medium ${
-                        holeScore === 0 ? 'text-blue-600' : 
-                        holeScore > 0 ? 'text-red-600' : 'text-green-600'
-                      }`}>
-                        {holeScore === 0 ? 'E' : holeScore > 0 ? `+${holeScore}` : holeScore}
-                      </td>
-                      <td className="px-3 py-2 text-center">
-                        {hole.par > 3 && (
-                          <i className={`fas ${hole.fairway ? 'fa-check text-green-600' : 'fa-times text-red-600'}`}></i>
-                        )}
-                      </td>
-                      <td className="px-3 py-2 text-center">
-                        <i className={`fas ${hole.gir ? 'fa-check text-green-600' : 'fa-times text-red-600'}`}></i>
-                      </td>
-                      <td className="px-3 py-2 text-sm text-gray-900 text-center">{hole.putts}</td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
+          {holes.length === 0 ? (
+            <p className="text-sm text-gray-500">No hole-by-hole data was recorded for this round.</p>
+          ) : (
+            <div className="overflow-x-auto -mx-4 sm:mx-0 px-4 sm:px-0">
+              <table className="min-w-full">
+                <thead className="bg-gray-50">
+                  <tr>
+                    <th className="px-3 py-2 text-left text-xs text-gray-500 uppercase">Hole</th>
+                    <th className="px-3 py-2 text-center text-xs text-gray-500 uppercase">Par</th>
+                    <th className="px-3 py-2 text-center text-xs text-gray-500 uppercase">Score</th>
+                    <th className="px-3 py-2 text-center text-xs text-gray-500 uppercase">+/-</th>
+                    <th className="px-3 py-2 text-center text-xs text-gray-500 uppercase">FIR</th>
+                    <th className="px-3 py-2 text-center text-xs text-gray-500 uppercase">GIR</th>
+                    <th className="px-3 py-2 text-center text-xs text-gray-500 uppercase">Putts</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-200">
+                  {(editing ? editHoles : holes).map(hole => {
+                    if (editing) {
+                      const eh = hole as EditableHole;
+                      return (
+                        <tr key={eh.hole_number}>
+                          <td className="px-3 py-2 text-sm font-medium text-gray-900">{eh.hole_number}</td>
+                          <td className="px-3 py-2 text-sm text-gray-900 text-center">{eh.par ?? '—'}</td>
+                          <td className="px-2 py-1 text-center">
+                            <input
+                              type="number"
+                              inputMode="numeric"
+                              min={1}
+                              max={20}
+                              value={eh.strokes}
+                              onChange={e => updateEditHole(eh.hole_number, { strokes: e.target.value })}
+                              className="w-14 min-h-[40px] px-1 py-1 text-center border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                              aria-label={`Hole ${eh.hole_number} score`}
+                            />
+                          </td>
+                          <td className="px-3 py-2 text-sm text-gray-400 text-center">—</td>
+                          <td className="px-2 py-1 text-center">
+                            {(eh.par ?? 4) > 3 ? (
+                              <button
+                                type="button"
+                                onClick={() => updateEditHole(eh.hole_number, {
+                                  fairway_hit: eh.fairway_hit === true ? false : eh.fairway_hit === false ? null : true,
+                                })}
+                                className="min-w-[40px] min-h-[40px] rounded-md hover:bg-gray-100"
+                                title="Cycle: hit → missed → n/a"
+                                aria-label={`Hole ${eh.hole_number} fairway`}
+                              >
+                                {eh.fairway_hit === true && <i className="fas fa-check text-green-600"></i>}
+                                {eh.fairway_hit === false && <i className="fas fa-times text-red-600"></i>}
+                                {eh.fairway_hit === null && <span className="text-gray-400 text-xs">n/a</span>}
+                              </button>
+                            ) : (
+                              <span className="text-gray-300">—</span>
+                            )}
+                          </td>
+                          <td className="px-2 py-1 text-center">
+                            <button
+                              type="button"
+                              onClick={() => updateEditHole(eh.hole_number, { green_in_regulation: !eh.green_in_regulation })}
+                              className="min-w-[40px] min-h-[40px] rounded-md hover:bg-gray-100"
+                              aria-label={`Hole ${eh.hole_number} green in regulation`}
+                            >
+                              <i className={`fas ${eh.green_in_regulation ? 'fa-check text-green-600' : 'fa-times text-red-600'}`}></i>
+                            </button>
+                          </td>
+                          <td className="px-2 py-1 text-center">
+                            <input
+                              type="number"
+                              inputMode="numeric"
+                              min={0}
+                              max={10}
+                              value={eh.putts}
+                              onChange={e => updateEditHole(eh.hole_number, { putts: e.target.value })}
+                              className="w-14 min-h-[40px] px-1 py-1 text-center border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                              aria-label={`Hole ${eh.hole_number} putts`}
+                            />
+                          </td>
+                        </tr>
+                      );
+                    }
+
+                    const h = hole as GolfHole;
+                    const holeScore = h.par !== null ? h.strokes - h.par : null;
+                    return (
+                      <tr key={h.hole_number} className="hover:bg-gray-50">
+                        <td className="px-3 py-2 text-sm font-medium text-gray-900">{h.hole_number}</td>
+                        <td className="px-3 py-2 text-sm text-gray-900 text-center">{h.par ?? '—'}</td>
+                        <td className="px-3 py-2 text-sm text-gray-900 text-center font-medium">{h.strokes}</td>
+                        <td className={`px-3 py-2 text-sm text-center font-medium ${
+                          holeScore === null ? 'text-gray-400'
+                            : holeScore === 0 ? 'text-blue-600'
+                            : holeScore > 0 ? 'text-red-600' : 'text-green-600'
+                        }`}>
+                          {holeScore === null ? '—' : holeScore === 0 ? 'E' : holeScore > 0 ? `+${holeScore}` : holeScore}
+                        </td>
+                        <td className="px-3 py-2 text-center">
+                          {(h.par ?? 4) > 3 ? (
+                            h.fairway_hit === null ? (
+                              <span className="text-gray-400 text-xs">n/a</span>
+                            ) : (
+                              <i className={`fas ${h.fairway_hit ? 'fa-check text-green-600' : 'fa-times text-red-600'}`}></i>
+                            )
+                          ) : (
+                            <span className="text-gray-300">—</span>
+                          )}
+                        </td>
+                        <td className="px-3 py-2 text-center">
+                          <i className={`fas ${h.green_in_regulation ? 'fa-check text-green-600' : 'fa-times text-red-600'}`}></i>
+                        </td>
+                        <td className="px-3 py-2 text-sm text-gray-900 text-center">{h.putts ?? '—'}</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
         </div>
 
         {/* Notes */}
         {round.notes && (
-          <div className="bg-white rounded-lg shadow-sm p-base">
-            <h2 className="text-h2 text-gray-900 mb-4">
+          <div className="bg-white rounded-lg shadow-sm p-4 sm:p-6">
+            <h2 className="text-xl font-bold text-gray-900 mb-4">
               <i className="fas fa-sticky-note mr-2"></i>
               Round Notes
             </h2>
-            <p className="text-gray-700 leading-relaxed">{round.notes}</p>
+            <p className="text-gray-700 leading-relaxed break-words">{round.notes}</p>
           </div>
         )}
       </div>
+
+      <ConfirmModal
+        isOpen={showDeleteConfirm}
+        title="Delete this round?"
+        message="The round and its hole-by-hole scores will be permanently deleted. Any post that shared this round will remain, but its scorecard will no longer appear."
+        confirmText={deleting ? 'Deleting…' : 'Delete round'}
+        confirmButtonClass="bg-red-600 hover:bg-red-700 text-white"
+        onConfirm={handleDelete}
+        onCancel={() => setShowDeleteConfirm(false)}
+      />
     </div>
   );
 }
