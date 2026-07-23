@@ -20,6 +20,11 @@ matches fallback semantics exactly, SECURITY DEFINER + empty search_path,
 force-drop-overloads pattern from 022). No code change needed — route already
 prefers the RPC.
 
+024 VERIFIED LIVE (after Tom ran it): RPC returns 0 matching manual fallback
+count for both real users; back-dated last_read_at → 7 (correct); NULL
+last_read_at → 7 (never-read branch correct); original timestamp restored
+exactly. Unread-badge endpoint now takes the single-aggregate fast path.
+
 ## July 22, 2026 — Drop posts.golf_mode (migration 023)
 
 Completes the schema cleanup started in migration 020. activity_mode has been
