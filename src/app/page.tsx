@@ -625,6 +625,15 @@ export default function Home() {
         </div>
       </div>
       
+      <footer className="py-4 px-4">
+        <div className="flex flex-wrap items-center justify-center gap-4 text-xs text-gray-500">
+          <Link href="/terms" className="hover:text-gray-700">Terms</Link>
+          <Link href="/privacy" className="hover:text-gray-700">Privacy</Link>
+          <Link href="/contact" className="hover:text-gray-700">Contact</Link>
+          <span>&copy; {new Date().getFullYear()} Edge Athlete</span>
+        </div>
+      </footer>
+
       {/* Waitlist Popup */}
       <WaitlistPopup
         isOpen={showWaitlist}

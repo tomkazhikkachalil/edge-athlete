@@ -8,6 +8,8 @@ import AppHeader from '@/components/AppHeader';
 import AccountSettings from '@/components/settings/AccountSettings';
 import PrivacySettings from '@/components/settings/PrivacySettings';
 import MessagingSettings from '@/components/settings/MessagingSettings';
+import NotificationSettings from '@/components/settings/NotificationSettings';
+import SecuritySettings from '@/components/settings/SecuritySettings';
 
 // 1091-line modal — only loaded on demand
 const EditProfileTabs = dynamic(() => import('@/components/EditProfileTabs'), { ssr: false });
@@ -46,8 +48,8 @@ export default function SettingsPage() {
     { id: 'account', label: 'Account', icon: 'fa-user-cog' },
     { id: 'privacy', label: 'Privacy', icon: 'fa-shield-alt' },
     { id: 'messaging', label: 'Messaging', icon: 'fa-comment-alt' },
-    { id: 'notifications', label: 'Notifications', icon: 'fa-bell', disabled: true },
-    { id: 'security', label: 'Security', icon: 'fa-lock', disabled: true },
+    { id: 'notifications', label: 'Notifications', icon: 'fa-bell' },
+    { id: 'security', label: 'Security', icon: 'fa-lock' },
   ];
 
   return (
@@ -104,28 +106,8 @@ export default function SettingsPage() {
             )}
             {activeTab === 'privacy' && <PrivacySettings />}
             {activeTab === 'messaging' && <MessagingSettings />}
-            {activeTab === 'notifications' && (
-              <div className="text-center py-12">
-                <i className="fas fa-bell text-gray-300 text-5xl mb-4"></i>
-                <h3 className="text-lg font-semibold text-gray-900 mb-2">
-                  Notification Settings
-                </h3>
-                <p className="text-gray-600">
-                  Notification preferences will be available soon.
-                </p>
-              </div>
-            )}
-            {activeTab === 'security' && (
-              <div className="text-center py-12">
-                <i className="fas fa-lock text-gray-300 text-5xl mb-4"></i>
-                <h3 className="text-lg font-semibold text-gray-900 mb-2">
-                  Security Settings
-                </h3>
-                <p className="text-gray-600">
-                  Security settings will be available soon.
-                </p>
-              </div>
-            )}
+            {activeTab === 'notifications' && <NotificationSettings />}
+            {activeTab === 'security' && <SecuritySettings />}
           </div>
         </div>
       </div>

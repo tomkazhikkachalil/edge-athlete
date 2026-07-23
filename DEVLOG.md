@@ -1,5 +1,24 @@
 # Development Log
 
+## July 23, 2026 — Sprint 5: trust & support (items 1–3)
+
+- Settings → Notifications tab LIVE (was a "Coming Soon" stub): toggle
+  groups for the 10 in-app notification types, optimistic updates with
+  revert, wired to the allowlisted PATCH that had zero clients since
+  bug hunt #2. push/email toggles deliberately OMITTED — those delivery
+  channels don't exist yet; no dishonest switches.
+- Settings → Security tab LIVE: password change with current-password
+  re-auth first (same pattern as DeleteAccountModal), pointer to the
+  forgot-password flow.
+- /contact page: public form wired to the previously caller-less
+  /api/contact (rate-limited endpoint, SMTP-gated).
+- /terms + /privacy: plain-language MVP legal pages describing what the
+  app ACTUALLY does (Supabase/Vercel processors, visibility controls,
+  deletion rights, handicap-is-an-estimate). NOTE: general template —
+  real counsel review before large-scale launch.
+- Footer links (Terms · Privacy · Contact) on the landing page and in
+  the app drawer.
+
 ## July 23, 2026 — Sprint 4 kickoff: first-run onboarding
 
 - Migration 029: profiles.onboarded_at + backfill (= created_at) so

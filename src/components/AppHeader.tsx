@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import Link from 'next/link';
 import { useRouter, usePathname } from 'next/navigation';
 import { useAuth } from '@/lib/auth';
 import { formatDisplayName, getInitials } from '@/lib/formatters';
@@ -371,6 +372,13 @@ export default function AppHeader({ showSearch = true, onCreatePost, onEditProfi
 
           {/* Footer */}
           <div className="p-4 border-t border-gray-200">
+            <div className="flex items-center justify-center gap-3 text-xs mb-2">
+              <Link href="/terms" className="text-gray-500 hover:text-gray-700">Terms</Link>
+              <span className="text-gray-300">·</span>
+              <Link href="/privacy" className="text-gray-500 hover:text-gray-700">Privacy</Link>
+              <span className="text-gray-300">·</span>
+              <Link href="/contact" className="text-gray-500 hover:text-gray-700">Contact</Link>
+            </div>
             <p className="text-xs text-gray-500 text-center">
               Edge Athlete &copy; {new Date().getFullYear()}
             </p>
