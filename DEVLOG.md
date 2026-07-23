@@ -34,13 +34,31 @@ Group golf flow — mobile + perf slice (from dedicated audit):
   in PARALLEL after group-post create (was a 3-await waterfall), and
   score-save failures surface a toast instead of silent console.error.
 
-Audit backlog (next slices, documented in audit): batch the per-post
-group_posts feed enrichment into one .in() query + drop hole_scores from
-list payload; extract lib/golf/scoring.ts (par/to-par/classification
-duplicated across 4 files, all hardcoding par 4); converge the two
-scorecard-table implementations; useSharedRound hook as the Realtime
-seam for live scoring; RoundTypeBadge/StatusBadge shared components;
-"add myself" from auth context instead of /api/profile fetch.
+Feed batching + golf domain library slice:
+- GET /api/posts list enrichment BATCHED: golf rounds, group scorecards,
+  and tagged profiles now fetch as 3 .in() queries for the whole page
+  (was up to 3 queries PER POST — a 20-post feed of shared rounds cost
+  ~60 round-trips, now 3). Query shapes verified live via PostgREST.
+- Single-post branch (?postId=) now enriches group_scorecard too — it
+  never did, which would have broken PostCard's targeted refetch after
+  score entry (the shape is shared, so feed and refetch agree).
+- NEW lib/golf/scoring.ts: holePar/classifyScore/toParLabel/
+  toParColorClass/calcPlayerTotals + SCORE_CELL_FILL/RING style maps.
+  Single source of truth for scoring math that was duplicated (with
+  par-4 hardcodes) across MultiPlayerScorecardGrid, SharedRoundFullCard,
+  ScoreEntryModal, and CreatePostModal's preview. This is the foundation
+  for future live scoring + game formats (formats = scoring strategies).
+- NEW lib/golf/scorecard-transform.ts: GROUP_SCORECARD_SELECT + the
+  CompleteGolfScorecard transform, shared by both API branches.
+- All 4 consumers migrated. Bonus bug found during migration: the grid
+  styled every cell against par 4 (a local `const holePar = 4` shadowed
+  real hole data) — cells now classify against actual hole pars; the
+  create-preview's to-par now uses real course/manual pars too.
+
+Remaining audit backlog: converge the two scorecard-table
+implementations; useSharedRound hook (Realtime seam); RoundTypeBadge/
+StatusBadge shared components; "add myself" from auth context; lazy-load
+hole_scores on expand (payload trim).
 
 ## July 23, 2026 — Roadmap + Sprint 1 kickoff (CI gate, health, env docs)
 

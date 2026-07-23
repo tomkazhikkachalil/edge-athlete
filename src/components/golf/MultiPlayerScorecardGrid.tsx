@@ -3,6 +3,7 @@
 import { useState, useCallback, memo } from 'react';
 import LazyImage from '@/components/LazyImage';
 import { getInitials, formatDisplayName, formatShortName } from '@/lib/formatters';
+import { holePar, classifyScore, calcPlayerTotals, SCORE_CELL_FILL } from '@/lib/golf/scoring';
 
 export interface PlayerHoleScore {
   hole_number: number;
@@ -48,72 +49,22 @@ function MultiPlayerScorecardGrid({
   const [showStats, setShowStats] = useState(showDetailedStats);
   const [activeTab, setActiveTab] = useState<'front9' | 'back9'>('front9');
 
-  // Get par for a specific hole
-  const getHolePar = useCallback((holeNum: number): number => {
-    if (holeData) {
-      const hole = holeData.find(h => h.hole === holeNum);
-      if (hole) return hole.par;
-    }
-    return 4; // Default to par 4 if no hole data
-  }, [holeData]);
+  // Par lookup — shared domain logic (lib/golf/scoring)
+  const getHolePar = useCallback(
+    (holeNum: number): number => holePar(holeNum, holeData),
+    [holeData]
+  );
 
-  // Calculate totals for a player
-  const calculateTotals = useCallback((player: PlayerScoreData) => {
-    const scored = player.hole_scores.filter(h => h.strokes !== undefined && h.strokes > 0);
-    if (scored.length === 0) return {
-      front9: 0,
-      back9: 0,
-      total: 0,
-      toPar: 0,
-      eagles: 0,
-      birdies: 0,
-      pars: 0,
-      bogeys: 0,
-      doublePlus: 0
-    };
+  // Totals — shared domain logic (lib/golf/scoring)
+  const calculateTotals = useCallback(
+    (player: PlayerScoreData) => calcPlayerTotals(player.hole_scores, holeData),
+    [holeData]
+  );
 
-    const front9 = scored
-      .filter(h => h.hole_number <= 9)
-      .reduce((sum, h) => sum + (h.strokes || 0), 0);
-
-    const back9 = scored
-      .filter(h => h.hole_number > 9)
-      .reduce((sum, h) => sum + (h.strokes || 0), 0);
-
-    const total = front9 + back9;
-
-    // Calculate actual par based on completed holes
-    const actualPar = scored.reduce((sum, hole) => sum + getHolePar(hole.hole_number), 0);
-    const toPar = total - actualPar;
-
-    // Calculate score type counts
-    let eagles = 0, birdies = 0, pars = 0, bogeys = 0, doublePlus = 0;
-    scored.forEach(hole => {
-      const holePar = getHolePar(hole.hole_number);
-      const diff = (hole.strokes || 0) - holePar;
-      if (diff <= -2) eagles++;
-      else if (diff === -1) birdies++;
-      else if (diff === 0) pars++;
-      else if (diff === 1) bogeys++;
-      else if (diff >= 2) doublePlus++;
-    });
-
-    return { front9, back9, total, toPar, eagles, birdies, pars, bogeys, doublePlus };
-  }, [getHolePar]);
-
-  // Get score style (birdie, par, bogey, etc.)
-  const getScoreStyle = (strokes: number | undefined, holePar: number = 4) => {
-    if (!strokes) return '';
-
-    const diff = strokes - holePar;
-
-    if (diff <= -2) return 'bg-blue-100 text-blue-800 font-bold border-2 border-blue-400 rounded-full'; // Eagle or better
-    if (diff === -1) return 'bg-blue-50 text-blue-700 font-semibold border-2 border-blue-300 rounded-full'; // Birdie
-    if (diff === 0) return 'text-gray-900'; // Par
-    if (diff === 1) return 'bg-red-50 text-red-700 font-semibold border-2 border-red-300'; // Bogey
-    if (diff >= 2) return 'bg-red-100 text-red-800 font-bold border-2 border-red-400'; // Double bogey+
-
-    return '';
+  // Cell style — shared classification (lib/golf/scoring)
+  const getScoreStyle = (strokes: number | undefined, par: number = 4) => {
+    const cls = classifyScore(strokes, par);
+    return cls ? SCORE_CELL_FILL[cls] : '';
   };
 
   // Handle score input change
@@ -139,8 +90,6 @@ function MultiPlayerScorecardGrid({
   const displayHoles = is18Holes
     ? (activeTab === 'front9' ? front9Holes : back9Holes)
     : allHoleNumbers;
-
-  const holePar = 4; // Default par for each hole
 
   return (
     <div className="w-full overflow-x-auto">
@@ -318,11 +267,11 @@ function MultiPlayerScorecardGrid({
                             max="15"
                             value={strokes || ''}
                             onChange={(e) => handleScoreChange(player.participant_id, holeNum, 'strokes', e.target.value)}
-                            className={`w-12 h-10 text-center text-sm border border-gray-300 rounded focus:ring-2 focus:ring-green-500 focus:border-green-500 ${getScoreStyle(strokes, holePar)}`}
+                            className={`w-12 h-10 text-center text-sm border border-gray-300 rounded focus:ring-2 focus:ring-green-500 focus:border-green-500 ${getScoreStyle(strokes, getHolePar(holeNum))}`}
                             placeholder="-"
                           />
                         ) : (
-                          <div className={`w-12 h-10 mx-auto flex items-center justify-center text-sm ${getScoreStyle(strokes, holePar)}`}>
+                          <div className={`w-12 h-10 mx-auto flex items-center justify-center text-sm ${getScoreStyle(strokes, getHolePar(holeNum))}`}>
                             {strokes || '-'}
                           </div>
                         )}

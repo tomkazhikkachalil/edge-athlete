@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { holePar } from '@/lib/golf/scoring';
 import type { GolfHoleScore } from '@/types/group-posts';
 import type { HoleData } from '@/types/golf';
 
@@ -42,7 +43,7 @@ export default function ScoreEntryModal({
         putts: existing?.putts ?? null,
         fairway_hit: existing?.fairway_hit ?? null,
         green_in_regulation: existing?.green_in_regulation ?? null,
-        par: 4, // Estimated par
+        par: holePar(i, null), // shared fallback (no course hole data in this modal yet)
       });
     }
     return holes;

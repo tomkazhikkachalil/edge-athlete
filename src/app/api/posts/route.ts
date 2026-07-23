@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getEnabledSports } from '@/lib/sports/SportRegistry';
 import { requireAuth, getSupabaseAdmin } from '@/lib/auth-server';
+import { GROUP_SCORECARD_SELECT, transformGroupPostToScorecard } from '@/lib/golf/scorecard-transform';
 
 // Interface for tagged profiles
 interface TaggedProfile {
@@ -531,6 +532,22 @@ export async function GET(request: NextRequest) {
         golfRound = roundData;
       }
 
+      // Fetch shared golf scorecard if exists (same shape as the feed list —
+      // PostCard's targeted refetch after score entry depends on this)
+      let groupScorecard = null;
+      if (post.group_post_id) {
+        const { data: groupData, error: groupError } = await supabase
+          .from('group_posts')
+          .select(GROUP_SCORECARD_SELECT)
+          .eq('id', post.group_post_id)
+          .maybeSingle();
+        if (groupError) {
+          console.error('[GET] Error fetching group scorecard (single):', groupError);
+        } else {
+          groupScorecard = transformGroupPostToScorecard(groupData);
+        }
+      }
+
       // Fetch tagged profiles if exists
       let taggedProfiles: TaggedProfile[] = [];
       if (post.tags && post.tags.length > 0) {
@@ -576,6 +593,7 @@ export async function GET(request: NextRequest) {
           })),
         likes: post.post_likes || [],
         golf_round: golfRound,
+        group_scorecard: groupScorecard,
         tagged_profiles: taggedProfiles
       };
 
@@ -689,159 +707,71 @@ export async function GET(request: NextRequest) {
       savedPostIds = new Set((savedRows || []).map(r => r.post_id));
     }
 
-    // Fetch golf rounds with hole-by-hole data for posts that have round_id
-    // AND fetch shared golf scorecards for posts with group_post_id
-    // AND fetch tagged profiles for posts with tags
-    const postsWithRounds = await Promise.all(
-      finalVisiblePosts.map(async (post) => {
-        let golfRound = null;
-        let groupScorecard = null;
-        let taggedProfiles: TaggedProfile[] = [];
+    // Batched enrichment — ONE query per data type instead of one per post.
+    // (The old per-post Promise.all fired a deep group_posts query and a
+    // golf_rounds query for EVERY post in the page: a feed of shared rounds
+    // cost N nested round-trips.)
+    const roundIds = [...new Set(finalVisiblePosts.map(p => p.round_id).filter(Boolean))];
+    const groupPostIds = [...new Set(finalVisiblePosts.map(p => p.group_post_id).filter(Boolean))];
+    const tagProfileIds = [...new Set(finalVisiblePosts.flatMap(p => p.tags || []))];
 
-        // Fetch individual golf round if exists
-        if (post.round_id) {
-          const { data: roundData, error: roundError } = await supabase
+    const [roundsResult, groupsResult, tagProfilesResult] = await Promise.all([
+      roundIds.length > 0
+        ? supabase
             .from('golf_rounds')
             .select(`
               *,
               golf_holes (
-                hole_number,
-                par,
-                strokes,
-                putts,
-                fairway_hit,
-                green_in_regulation,
-                distance_yards,
-                club_off_tee,
-                notes
+                hole_number, par, strokes, putts, fairway_hit,
+                green_in_regulation, distance_yards, club_off_tee, notes
               )
             `)
-            .eq('id', post.round_id)
-            .single();
-
-          if (roundError) {
-            console.error('[GET] Error fetching golf round:', roundError);
-          } else if (roundData && roundData.golf_holes) {
-            // Sort holes by hole number
-            roundData.golf_holes.sort((a: { hole_number: number }, b: { hole_number: number }) => a.hole_number - b.hole_number);
-            golfRound = roundData;
-          }
-        }
-
-        // Fetch shared golf scorecard if exists
-        if (post.group_post_id) {
-          const { data: groupData, error: groupError } = await supabase
-            .from('group_posts')
-            .select(`
-              id,
-              creator_id,
-              type,
-              title,
-              description,
-              date,
-              location,
-              visibility,
-              status,
-              created_at,
-              golf_data:golf_scorecard_data (
-                id,
-                course_name,
-                course_id,
-                round_type,
-                holes_played,
-                tee_color,
-                slope_rating,
-                course_rating
-              ),
-              participants:group_post_participants (
-                id,
-                status,
-                role,
-                attested_at,
-                profile:profiles (
-                  id,
-                  first_name,
-                  last_name,
-                  full_name,
-                  avatar_url,
-                  handle
-                ),
-                scores:golf_participant_scores (
-                  id,
-                  total_score,
-                  to_par,
-                  holes_completed,
-                  scores_confirmed,
-                  hole_scores:golf_hole_scores (
-                    hole_number,
-                    strokes,
-                    putts,
-                    fairway_hit,
-                    green_in_regulation
-                  )
-                )
-              )
-            `)
-            .eq('id', post.group_post_id)
-            .single();
-
-          if (groupError) {
-            console.error('[GET] Error fetching group scorecard:', groupError);
-          } else if (groupData) {
-            // Transform the raw group_posts row into the CompleteGolfScorecard
-            // shape PostCard/SharedRoundQuickView expect:
-            //   { group_post, golf_data, participants: [{ participant: {..., profile}, scores: {..., hole_scores} }] }
-            // Shipping the raw row crashes the feed (reads like
-            // participants[i].participant.status on undefined).
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            const { golf_data, participants, ...groupPostFields } = groupData as any;
-            const golfData = Array.isArray(golf_data) ? golf_data[0] : golf_data;
-            if (golfData) {
-              // eslint-disable-next-line @typescript-eslint/no-explicit-any
-              const transformedParticipants = (participants || []).map((p: any) => {
-                const { scores, profile, ...participantFields } = p;
-                const scoreRec = Array.isArray(scores) ? scores[0] : scores;
-                const holeScores = (scoreRec?.hole_scores || [])
-                  .slice()
-                  .sort((a: { hole_number: number }, b: { hole_number: number }) => a.hole_number - b.hole_number);
-                return {
-                  participant: { ...participantFields, profile },
-                  scores: scoreRec
-                    ? { ...scoreRec, hole_scores: holeScores }
-                    : { id: null, total_score: null, to_par: null, holes_completed: 0, scores_confirmed: false, hole_scores: [] },
-                };
-              });
-              groupScorecard = {
-                group_post: groupPostFields,
-                golf_data: golfData,
-                participants: transformedParticipants,
-              };
-            }
-          }
-        }
-
-        // Fetch tagged profiles if post has tags
-        if (post.tags && post.tags.length > 0) {
-          const { data: profiles, error: profilesError } = await supabase
+            .in('id', roundIds)
+        : Promise.resolve({ data: [], error: null }),
+      groupPostIds.length > 0
+        ? supabase.from('group_posts').select(GROUP_SCORECARD_SELECT).in('id', groupPostIds)
+        : Promise.resolve({ data: [], error: null }),
+      tagProfileIds.length > 0
+        ? supabase
             .from('profiles')
             .select('id, first_name, middle_name, last_name, full_name, avatar_url, handle')
-            .in('id', post.tags);
+            .in('id', tagProfileIds)
+        : Promise.resolve({ data: [], error: null }),
+    ]);
 
-          if (profilesError) {
-            console.error('[GET] Error fetching tagged profiles:', profilesError);
-          } else if (profiles) {
-            taggedProfiles = profiles;
-          }
-        }
+    if (roundsResult.error) console.error('[GET] Error fetching golf rounds:', roundsResult.error);
+    if (groupsResult.error) console.error('[GET] Error fetching group scorecards:', groupsResult.error);
+    if (tagProfilesResult.error) console.error('[GET] Error fetching tagged profiles:', tagProfilesResult.error);
 
-        return {
-          ...post,
-          golf_round: golfRound,
-          group_scorecard: groupScorecard,
-          tagged_profiles: taggedProfiles
-        };
-      })
-    );
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const roundsById = new Map<string, any>();
+    for (const round of roundsResult.data || []) {
+      if (round.golf_holes) {
+        round.golf_holes.sort((a: { hole_number: number }, b: { hole_number: number }) => a.hole_number - b.hole_number);
+      }
+      roundsById.set(round.id, round);
+    }
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const scorecardsByGroupId = new Map<string, any>();
+    for (const groupRow of groupsResult.data || []) {
+      const scorecard = transformGroupPostToScorecard(groupRow);
+      if (scorecard) scorecardsByGroupId.set(groupRow.id, scorecard);
+    }
+
+    const tagProfilesById = new Map<string, TaggedProfile>();
+    for (const profile of tagProfilesResult.data || []) {
+      tagProfilesById.set(profile.id, profile as TaggedProfile);
+    }
+
+    const postsWithRounds = finalVisiblePosts.map(post => ({
+      ...post,
+      golf_round: post.round_id ? roundsById.get(post.round_id) ?? null : null,
+      group_scorecard: post.group_post_id ? scorecardsByGroupId.get(post.group_post_id) ?? null : null,
+      tagged_profiles: (post.tags || [])
+        .map((id: string) => tagProfilesById.get(id))
+        .filter((p: TaggedProfile | undefined): p is TaggedProfile => !!p),
+    }));
 
     // Transform the data to match the expected format
     const transformedPosts = postsWithRounds

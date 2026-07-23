@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useCallback, useRef, useEffect } from 'react';
+import { calcPlayerTotals } from '@/lib/golf/scoring';
 import { useToast } from '@/components/Toast';
 import LazyImage from '@/components/LazyImage';
 import GolfScorecardForm from '@/components/GolfScorecardForm';
@@ -73,6 +74,7 @@ interface PostPreviewProps {
   visibility: 'public' | 'private';
   golfData: GolfRoundData | null;
   taggedPeople?: {id: string; name: string}[];
+  holeParSource?: { hole: number; par: number }[] | null;
   // Shared round data
   roundType?: 'individual' | 'shared';
   sharedRoundDetails?: SharedRoundDetails;
@@ -1756,6 +1758,9 @@ export default function CreatePostModal({
       {/* Preview Modal */}
       {showPreview && (
         <PostPreview
+          holeParSource={courseHoleData.length > 0
+            ? courseHoleData
+            : manualParEntry.map((par, idx) => ({ hole: idx + 1, par })).filter(h => h.par > 0)}
           postType={postType}
           caption={caption}
           tags={selectedTags}
@@ -1815,7 +1820,8 @@ function transformToScorecardPreview(
   sharedRoundDetails: SharedRoundDetails,
   sharedRoundParticipants: {id: string; name: string; avatar_url?: string}[],
   playerScores: PlayerScore[],
-  userId: string
+  userId: string,
+  holeParSource: { hole: number; par: number }[] | null = null
 ): CompleteGolfScorecard {
   // Create mock group_post
   const mockGroupPost = {
@@ -1862,13 +1868,13 @@ function transformToScorecardPreview(
     let toPar: number | null = null;
 
     if (playerScore && playerScore.hole_scores) {
-      const scoredHoles = playerScore.hole_scores.filter(h => h.strokes !== undefined && h.strokes > 0);
-      if (scoredHoles.length > 0) {
-        totalScore = scoredHoles.reduce((sum, h) => sum + (h.strokes || 0), 0);
-        holesCompleted = scoredHoles.length;
-        // Assume par 4 for each hole if not provided
-        const parTotal = scoredHoles.length * 4;
-        toPar = totalScore - parTotal;
+      // Shared domain math — uses REAL course hole pars when available
+      // (the old inline version assumed par 4 for every hole)
+      const totals = calcPlayerTotals(playerScore.hole_scores, holeParSource);
+      if (totals.played > 0) {
+        totalScore = totals.total;
+        holesCompleted = totals.played;
+        toPar = totals.toPar;
       }
     }
 
@@ -1944,6 +1950,7 @@ function PostPreview({
   sharedRoundParticipants = [],
   playerScores = [],
   userId = '',
+  holeParSource = null,
   onClose,
   onPost
 }: PostPreviewProps) {
@@ -2068,7 +2075,8 @@ function PostPreview({
                             sharedRoundDetails,
                             sharedRoundParticipants,
                             playerScores,
-                            userId
+                            userId,
+                            holeParSource
                           )}
                           onExpand={() => {
                             // In preview mode, we can just show a message or do nothing

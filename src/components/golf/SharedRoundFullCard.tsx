@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { formatDisplayName, getInitials } from '@/lib/formatters';
+import { classifyScore, SCORE_CELL_RING, holePar } from '@/lib/golf/scoring';
 import LazyImage from '../LazyImage';
 import type { CompleteGolfScorecard } from '@/types/group-posts';
 
@@ -41,8 +42,10 @@ export default function SharedRoundFullCard({
   const front9 = allHoleNumbers.filter(h => h <= 9);
   const back9 = allHoleNumbers.filter(h => h > 9);
 
-  // Calculate estimated par per hole (4 default)
-  const estimatedPar = 4;
+  // Per-hole par via the shared domain helper. The feed payload has no
+  // course hole data yet, so this resolves to the documented fallback (4) —
+  // one shared assumption instead of a magic number per component.
+  const estimatedPar = holePar(1, null);
 
   // Find current user's participant record
   const currentUserParticipant = participants.find(
@@ -150,23 +153,10 @@ export default function SharedRoundFullCard({
                             );
                           }
 
-                          const diff = hole.strokes - estimatedPar;
-                          let textColor = 'text-gray-900 font-semibold';
-                          let border = '';
-
-                          if (diff === -2) { // Eagle
-                            border = 'ring-2 ring-blue-500 ring-inset';
-                            textColor = 'text-blue-600 font-black';
-                          } else if (diff === -1) { // Birdie
-                            border = 'ring-1 ring-blue-400 ring-inset';
-                            textColor = 'text-blue-600 font-bold';
-                          } else if (diff === 1) { // Bogey
-                            border = 'border border-red-400';
-                            textColor = 'text-red-600 font-semibold';
-                          } else if (diff >= 2) { // Double+
-                            border = 'ring-2 ring-red-500 ring-inset';
-                            textColor = 'text-red-600 font-bold';
-                          }
+                          const scoreClass = classifyScore(hole.strokes, estimatedPar);
+                          const cellStyle = scoreClass ? SCORE_CELL_RING[scoreClass] : SCORE_CELL_RING.par;
+                          const textColor = cellStyle.text;
+                          const border = cellStyle.ring;
 
                           return (
                             <td key={holeNum} className="text-center py-2 px-1">
