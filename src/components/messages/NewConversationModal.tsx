@@ -72,7 +72,7 @@ export default function NewConversationModal({ onClose }: Props) {
       const d = await res.json();
       await fetchConversations();
       onClose();
-      router.push(`/messages?c=${d.conversation.id}`);
+      router.push(`/messages?c=${d.conversationId}`);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to create conversation');
     } finally {
@@ -110,7 +110,7 @@ export default function NewConversationModal({ onClose }: Props) {
       const d = await res.json();
       await fetchConversations();
       onClose();
-      router.push(`/messages?c=${d.conversation.id}`);
+      router.push(`/messages?c=${d.conversationId}`);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to create group');
     } finally {

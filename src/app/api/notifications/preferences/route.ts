@@ -45,16 +45,47 @@ export async function GET(request: NextRequest) {
   }
 }
 
+// Only the real boolean preference columns may be updated. Never pass the
+// raw body to update() — this route runs on the admin client (bypasses RLS),
+// so an unfiltered body could overwrite user_id/id (mass assignment).
+const ALLOWED_PREFERENCE_KEYS = new Set([
+  'follow_requests_enabled',
+  'follow_accepted_enabled',
+  'new_followers_enabled',
+  'likes_enabled',
+  'comments_enabled',
+  'mentions_enabled',
+  'tags_enabled',
+  'achievements_enabled',
+  'system_announcements_enabled',
+  'club_updates_enabled',
+  'push_enabled',
+  'email_enabled',
+]);
+
 export async function PATCH(request: NextRequest) {
   try {
     const supabaseAdmin = getSupabaseAdmin();
     const user = await requireAuth(request);
     const body = await request.json();
 
+    const updates: Record<string, boolean> = {};
+    for (const [key, value] of Object.entries(body ?? {})) {
+      if (!ALLOWED_PREFERENCE_KEYS.has(key)) {
+        return NextResponse.json({ error: `Unknown preference: ${key}` }, { status: 400 });
+      }
+      if (typeof value !== 'boolean') {
+        return NextResponse.json({ error: `Preference ${key} must be a boolean` }, { status: 400 });
+      }
+      updates[key] = value;
+    }
+    if (Object.keys(updates).length === 0) {
+      return NextResponse.json({ error: 'No valid preference fields provided' }, { status: 400 });
+    }
 
     const { data: preferences, error } = await supabaseAdmin
       .from('notification_preferences')
-      .update(body)
+      .update(updates)
       .eq('user_id', user.id)
       .select()
       .single();

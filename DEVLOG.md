@@ -1,5 +1,44 @@
 # Development Log
 
+## July 22, 2026 — Bug hunt #2 (messaging + notifications, 2 subagents): HIGH fixes
+
+7 CONFIRMED HIGHs, all fixed:
+
+Messaging:
+- NewConversationModal read `d.conversation.id` but the API returns
+  `conversationId` → every new DM/group created server-side but never
+  navigated to (modal just closed). Primary entry point broken.
+- fans_only messaging permission was INVERTED (checked target-follows-
+  sender instead of sender-follows-target): real fans got 403, people the
+  target followed could bypass the setting.
+- Group creation bypassed blocks + messaging_permission entirely — a
+  blocked user could recreate contact via a 2-person "group". Group path
+  now enforces the same block/permission rules as DMs (batched queries),
+  plus UUID validation of participantIds (used to 500).
+
+Notifications:
+- TAGGING BROKEN IN PROD (confirmed live: 42703 'record new has no field
+  tags'): archived fix-trigger-functions-schema.sql redefined
+  notify_profile_tagged() for the posts table but the trigger fires on
+  post_tags → /api/tags 500s; post-create tags silently dropped.
+  Migration 025 recreates the function correctly (delegates to
+  create_notification; preference-gated via tags_enabled).
+- Preferences PATCH passed the raw body to update() on the admin client
+  (mass assignment — could transplant rows onto victims). Now allowlisted
+  to the 12 boolean columns; no client calls it yet, so zero breakage.
+- /app/notifications (the page the bell links to) used a stale API
+  contract: offset/unreadOnly params the API ignores → 'Load more'
+  duplicated rows forever, default Unread tab showed everything; Accept/
+  Decline gated on action_status that's never set; click handlers ignored
+  action_url. Fixed by CONSOLIDATION: healthy /notifications page (uses
+  the context, correct contracts, navigates via action_url) now lives at
+  /app/notifications; /notifications redirects to it. Fixes H2+H3+M3+M5
+  in one move with no DB change (the action endpoint accepts NULL
+  action_status).
+
+Verified: tsc clean, lint clean, build exit 0. Migration 025 pending
+(needs to run in Supabase). MEDIUM/LOW batches next.
+
 ## July 22, 2026 — Mobile responsiveness audit (3 subagents) + HIGH fixes
 
 Ran three parallel read-only audits: core pages; shared components; nav/

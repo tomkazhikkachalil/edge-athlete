@@ -225,12 +225,14 @@ export async function POST(request: NextRequest) {
       }
 
       if (permission === 'fans_only') {
-        // Check if user is a fan of (follows) the target
+        // Sender must be a fan of (follow) the target — "only athletes who
+        // follow you can send you messages". (Was inverted: checked that the
+        // target follows the sender.)
         const { data: followRecord } = await supabase
           .from('follows')
           .select('id')
-          .eq('follower_id', participantId)
-          .eq('following_id', user.id)
+          .eq('follower_id', user.id)
+          .eq('following_id', participantId)
           .eq('status', 'accepted')
           .maybeSingle();
 
@@ -319,6 +321,46 @@ export async function POST(request: NextRequest) {
 
       // Deduplicate and exclude self
       const otherIds = [...new Set(participantIds.filter((id: string) => id !== user.id))];
+
+      if (otherIds.length === 0) {
+        return NextResponse.json({ error: 'At least 1 other participant is required' }, { status: 400 });
+      }
+      if (otherIds.some((id) => typeof id !== 'string' || !UUID_RE.test(id))) {
+        return NextResponse.json({ error: 'Invalid participant id' }, { status: 400 });
+      }
+
+      // Enforce blocks + messaging permissions for every member — same rules
+      // as DMs. A 2-person "group" is functionally a DM, so group creation
+      // must not be a bypass for blocks or messaging_permission.
+      const idList = otherIds.join(',');
+      const { data: groupBlocks } = await supabase
+        .from('user_blocks')
+        .select('id')
+        .or(`and(blocker_id.eq.${user.id},blocked_id.in.(${idList})),and(blocked_id.eq.${user.id},blocker_id.in.(${idList}))`)
+        .limit(1);
+
+      if (groupBlocks && groupBlocks.length > 0) {
+        return NextResponse.json({ error: 'Cannot message one or more selected users' }, { status: 403 });
+      }
+
+      const [{ data: memberProfiles }, { data: iFollowRows }, { data: followMeRows }] = await Promise.all([
+        supabase.from('profiles').select('id, messaging_permission').in('id', otherIds),
+        supabase.from('follows').select('following_id').eq('follower_id', user.id).in('following_id', otherIds).eq('status', 'accepted'),
+        supabase.from('follows').select('follower_id').eq('following_id', user.id).in('follower_id', otherIds).eq('status', 'accepted'),
+      ]);
+      const iFollow = new Set((iFollowRows || []).map(f => f.following_id));
+      const followsMe = new Set((followMeRows || []).map(f => f.follower_id));
+
+      for (const member of memberProfiles || []) {
+        const perm = member.messaging_permission || 'everyone';
+        if (
+          perm === 'nobody' ||
+          (perm === 'fans_only' && !iFollow.has(member.id)) ||
+          (perm === 'mutual_fans' && !(iFollow.has(member.id) && followsMe.has(member.id)))
+        ) {
+          return NextResponse.json({ error: 'One or more selected users are not accepting messages from you' }, { status: 403 });
+        }
+      }
 
       const { data: conv, error: convError } = await supabase
         .from('conversations')
