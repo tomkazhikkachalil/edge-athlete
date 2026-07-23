@@ -49,9 +49,9 @@ export default function GolfScorecardForm({ onDataChange }: GolfScorecardFormPro
   const [courseRating, setCourseRating] = useState<number | undefined>();
   const [courseSlope, setCourseSlope] = useState<number | undefined>();
   const [teeBox, setTeeBox] = useState('white');
-  const [holeCount] = useState<number>(18); // Fixed to 18 holes
+  const [holeCount, setHoleCount] = useState<number>(18);
   const [roundType, setRoundType] = useState<'outdoor' | 'indoor'>('outdoor');
-  const [startingHole] = useState<'front' | 'back'>('front'); // Fixed to front 9 start
+  const [startingHole, setStartingHole] = useState<'front' | 'back'>('front'); // 9-hole rounds: front (1-9) or back (10-18)
 
   // Round conditions
   const [weather, setWeather] = useState('');
@@ -70,6 +70,28 @@ export default function GolfScorecardForm({ onDataChange }: GolfScorecardFormPro
   const [availableCourses, setAvailableCourses] = useState<GolfCourse[]>([]);
   const [searchLoading, setSearchLoading] = useState(false);
   const [selectedCourse, setSelectedCourse] = useState<GolfCourse | null>(null);
+
+  // Switch between 18- and 9-hole rounds. Adjusts the default course par
+  // (72 <-> 36) only when the current value IS the other mode's default, so a
+  // custom par the user typed is never stomped. Also snaps the scorecard's
+  // tab filter to a valid state for the new mode.
+  const handleHoleCountChange = (count: number) => {
+    setHoleCount(count);
+    if (count === 9 && coursePar === 72) setCoursePar(36);
+    if (count === 18 && coursePar === 36) setCoursePar(72);
+    if (count === 18) {
+      setActiveTab('front');
+    } else {
+      setActiveTab(startingHole === 'back' ? 'back' : 'front');
+    }
+  };
+
+  // 9-hole rounds can start on the back nine (holes 10-18). The table's
+  // front/back filter keys off activeTab, so keep it in sync.
+  const handleStartingHoleChange = (start: 'front' | 'back') => {
+    setStartingHole(start);
+    if (holeCount === 9) setActiveTab(start);
+  };
 
   // Initialize holes data
   useEffect(() => {
@@ -93,12 +115,11 @@ export default function GolfScorecardForm({ onDataChange }: GolfScorecardFormPro
         par = standardPars18[i % 18] || 4;
       }
       const baseYardage = par === 3 ? 150 : par === 4 ? 380 : 520;
-      const yardageVariation = Math.floor(Math.random() * 40) - 20;
 
       newHolesData.push({
         hole: holeNumber,
         par: par,
-        yardage: baseYardage + yardageVariation,
+        yardage: baseYardage,
         fairway: par === 3 ? 'na' : undefined
       });
     }
@@ -448,6 +469,57 @@ export default function GolfScorecardForm({ onDataChange }: GolfScorecardFormPro
                 </option>
               ))}
             </select>
+          </div>
+
+          {/* Holes: 18 or 9 (front/back) */}
+          <div>
+            <label className="text-sm font-medium text-gray-700 block mb-1">
+              Holes
+            </label>
+            <div className="flex flex-wrap items-center gap-2">
+              <div className="flex gap-2">
+                {[18, 9].map(count => (
+                  <button
+                    key={count}
+                    type="button"
+                    onClick={() => handleHoleCountChange(count)}
+                    className={`px-4 py-2 min-h-[44px] rounded-md text-sm font-medium transition-colors ${
+                      holeCount === count
+                        ? 'bg-green-600 text-white'
+                        : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                    }`}
+                  >
+                    {count} holes
+                  </button>
+                ))}
+              </div>
+              {holeCount === 9 && (
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={() => handleStartingHoleChange('front')}
+                    className={`px-3 py-2 min-h-[44px] rounded-md text-xs font-medium transition-colors ${
+                      startingHole === 'front'
+                        ? 'bg-blue-600 text-white'
+                        : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                    }`}
+                  >
+                    Front 9 (1–9)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleStartingHoleChange('back')}
+                    className={`px-3 py-2 min-h-[44px] rounded-md text-xs font-medium transition-colors ${
+                      startingHole === 'back'
+                        ? 'bg-blue-600 text-white'
+                        : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                    }`}
+                  >
+                    Back 9 (10–18)
+                  </button>
+                </div>
+              )}
+            </div>
           </div>
 
           {/* Round Type - Indoor/Outdoor */}

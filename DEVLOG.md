@@ -75,6 +75,18 @@ Rounds list page slice:
   logging 9-hole rounds through the hardcoded-18 form. Confirms the
   9-hole entry fix as next priority.
 
+9-hole support slice:
+- GolfScorecardForm: holeCount/startingHole state UNFROZEN (were
+  setterless useStates hardcoding 18/front). New Holes selector
+  (18/9) + Front 9 / Back 9 choice for 9-hole rounds. Course par
+  auto-adjusts 72<->36 only when it matches the other mode's default
+  (custom pars never stomped); activeTab synced so the table filter
+  stays valid. Discovery: the rest of the form (12 filter sites, OUT/
+  IN/TOTAL labels, actualIndex math, init effect) was ALREADY 9-hole
+  and back-9 aware — only the two selectors were frozen.
+- Also removed the Math.random() yardage jitter from hole init
+  (deterministic placeholder yardages now).
+
 ## July 23, 2026 — Roadmap + Sprint 1 kickoff (CI gate, health, env docs)
 
 Strategic assessment completed (3 survey subagents: product completeness,
