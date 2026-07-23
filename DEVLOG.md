@@ -27,6 +27,21 @@ pagination.
 
 Verified: typecheck clean, lint clean, build exit 0 (68 routes now).
 
+Sprint 1 slice 2 — password reset + email-confirmation UX:
+- /forgot-password: resetPasswordForEmail with generic always-success
+  response (no account-existence probing); rate-limit errors surfaced.
+- /reset-password: PKCE code exchange (auto via browser client) with
+  PASSWORD_RECOVERY/SIGNED_IN listener + brief session polling; invalid/
+  expired-link state with re-request CTA; updateUser(password) →
+  redirect to /feed. Handles the opened-in-different-browser PKCE case.
+- Login form: "Forgot password?" link; "Email not confirmed" errors now
+  detected and offer a one-click supabase.auth.resend — previously users
+  with confirmation enabled were stuck at a generic login failure.
+- NOTE: Supabase Redirect URLs already wildcard (site/**), which covers
+  /reset-password on both prod and localhost.
+
+Verified: typecheck clean, lint clean, build exit 0 (70 routes).
+
 ## July 22, 2026 — Maintenance checklist + sync (end of session)
 
 - `npm run lint` — zero warnings/errors.

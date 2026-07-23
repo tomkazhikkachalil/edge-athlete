@@ -3,6 +3,8 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/lib/auth';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
+import { supabase } from '@/lib/supabase';
 import WaitlistPopup from '@/components/WaitlistPopup';
 import HandleSelector from '@/components/HandleSelector';
 
@@ -25,6 +27,8 @@ export default function Home() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
+  const [unconfirmedEmail, setUnconfirmedEmail] = useState<string | null>(null);
+  const [resendingConfirmation, setResendingConfirmation] = useState(false);
   const [showWaitlist, setShowWaitlist] = useState(false);
   const [waitlistUserType, setWaitlistUserType] = useState('');
 
@@ -204,7 +208,16 @@ export default function Home() {
       
       if (error) {
         const errorMessage = error instanceof Error ? error.message : 'Invalid email or password';
-        setError(errorMessage);
+        // Supabase returns "Email not confirmed" when confirmation is enabled
+        // and the user hasn't clicked their verification link — without this
+        // branch they'd be stuck at "invalid credentials" with no way out.
+        if (/email not confirmed/i.test(errorMessage)) {
+          setUnconfirmedEmail(email);
+          setError('Your email address has not been confirmed yet. Check your inbox for the confirmation link, or resend it below.');
+        } else {
+          setUnconfirmedEmail(null);
+          setError(errorMessage);
+        }
       } else {
         setSuccess('Login successful! Redirecting to your profile...');
         // The redirect will happen automatically via useEffect when user state changes
@@ -214,6 +227,28 @@ export default function Home() {
       console.error('Login error:', err);
     } finally {
       setIsSubmitting(false);
+    }
+  };
+
+  const handleResendConfirmation = async () => {
+    if (!unconfirmedEmail || resendingConfirmation) return;
+    setResendingConfirmation(true);
+    try {
+      const { error: resendError } = await supabase.auth.resend({
+        type: 'signup',
+        email: unconfirmedEmail,
+      });
+      if (resendError) {
+        setError(resendError.message || 'Failed to resend confirmation email.');
+      } else {
+        setError('');
+        setSuccess(`Confirmation email resent to ${unconfirmedEmail}. Check your inbox.`);
+        setUnconfirmedEmail(null);
+      }
+    } catch {
+      setError('Failed to resend confirmation email.');
+    } finally {
+      setResendingConfirmation(false);
     }
   };
 
@@ -481,6 +516,16 @@ export default function Home() {
             {error && (
               <div className="bg-red-50 border border-red-200 text-red-600 px-4 py-3 rounded-md text-sm mb-4">
                 {error}
+                {unconfirmedEmail && (
+                  <button
+                    type="button"
+                    onClick={handleResendConfirmation}
+                    disabled={resendingConfirmation}
+                    className="block mt-2 font-semibold text-blue-600 hover:text-blue-700 disabled:opacity-50"
+                  >
+                    {resendingConfirmation ? 'Resending…' : 'Resend confirmation email'}
+                  </button>
+                )}
               </div>
             )}
             {success && (
@@ -508,6 +553,11 @@ export default function Home() {
                   placeholder="Enter your password"
                   required
                 />
+                <div className="mt-2 text-right">
+                  <Link href="/forgot-password" className="text-sm text-blue-600 hover:text-blue-700 font-medium">
+                    Forgot password?
+                  </Link>
+                </div>
               </div>
               <button 
                 type="submit" 
