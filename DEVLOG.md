@@ -3,9 +3,9 @@
 ## July 23, 2026 — Sprint 4 kickoff: first-run onboarding
 
 - Migration 029: profiles.onboarded_at + backfill (= created_at) so
-  ONLY fresh signups see the wizard. PENDING: run in Supabase — until
-  then all users have NULL onboarded_at and would hit /onboarding once
-  (skippable, marks itself complete; annoying not harmful — run soon).
+  ONLY fresh signups see the wizard. VERIFIED LIVE (after Tom ran it):
+  column present, backfill = created_at on both existing profiles,
+  zero NULLs remaining. Existing users skip the wizard entirely.
 - NEW /onboarding: 3 skippable steps — (1) avatar upload (reuses
   /api/upload/avatar, client-side type/size validation, preview),
   (2) find golfers (reuses ConnectionSuggestions compact), (3) "Log
