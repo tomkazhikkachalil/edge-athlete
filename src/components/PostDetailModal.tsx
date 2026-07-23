@@ -34,7 +34,7 @@ interface PostData {
     caption?: string | null;
     position: number;
   }>;
-  post_likes?: { profile_id: string }[];
+  likes?: { profile_id: string }[];
   saved_posts?: { profile_id: string }[];
   golf_round?: unknown;
   [key: string]: unknown; // Allow additional properties from API
@@ -166,16 +166,16 @@ export default function PostDetailModal({
   const handleLike = async (postId: string) => {
     if (!post || !currentUserId) return;
 
-    const isLiked = post.post_likes?.some((like) => like.profile_id === currentUserId);
+    const isLiked = post.likes?.some((like) => like.profile_id === currentUserId);
     const newLikesCount = isLiked ? post.likes_count - 1 : post.likes_count + 1;
 
     // Optimistic update
     setPost({
       ...post,
       likes_count: newLikesCount,
-      post_likes: isLiked
-        ? post.post_likes?.filter((like) => like.profile_id !== currentUserId)
-        : [...(post.post_likes || []), { profile_id: currentUserId }]
+      likes: isLiked
+        ? post.likes?.filter((like) => like.profile_id !== currentUserId)
+        : [...(post.likes || []), { profile_id: currentUserId }]
     });
 
     // Call API

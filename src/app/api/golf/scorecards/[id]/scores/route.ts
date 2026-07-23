@@ -30,7 +30,7 @@ function createSupabaseClient(request: NextRequest) {
  * [id] is the participant_id from group_post_participants table
  * Body:
  *   - scores: Array of { hole_number, strokes, putts?, fairway_hit?, green_in_regulation? }
- *   - entered_by: UUID of who is entering (optional, defaults to current user)
+ *   - entered_by is always the session user (never body-supplied)
  */
 export async function POST(
   request: NextRequest,
@@ -47,7 +47,7 @@ export async function POST(
   try {
     const { id: participant_id } = await params;
     const body = await request.json();
-    const { scores, entered_by } = body;
+    const { scores } = body; // entered_by is always the session user
 
     // Validate scores array
     if (!scores || !Array.isArray(scores) || scores.length === 0) {
@@ -109,7 +109,7 @@ export async function POST(
         .from('golf_participant_scores')
         .insert({
           participant_id,
-          entered_by: entered_by || user.id,
+          entered_by: user.id, // session user — body-supplied entered_by could forge attribution
           scores_confirmed: isParticipant, // Auto-confirm if entering own scores
         })
         .select('id')

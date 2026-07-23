@@ -1,12 +1,20 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getSupabaseAdmin } from '@/lib/auth-server';
+import { getSupabaseAdmin, requireAuth } from '@/lib/auth-server';
 
 export async function GET(request: NextRequest) {
   try {
     const supabase = getSupabaseAdmin();
     const { searchParams } = new URL(request.url);
     const handle = searchParams.get('handle');
-    const currentUserId = searchParams.get('currentUserId');
+    // Prefer the session user over the spoofable query param (only affects
+    // "it's already yours" availability answers, but be correct anyway)
+    let currentUserId = searchParams.get('currentUserId');
+    try {
+      const user = await requireAuth(request);
+      currentUserId = user.id;
+    } catch {
+      // anonymous (e.g. signup flow) — fall back to the param
+    }
 
     if (!handle) {
       return NextResponse.json(

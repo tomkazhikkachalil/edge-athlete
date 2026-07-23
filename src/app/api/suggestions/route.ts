@@ -130,7 +130,7 @@ export async function POST(request: NextRequest) {
           suggested_profile_id: suggestedProfileId,
           dismissed: true,
           dismissed_at: new Date().toISOString()
-        });
+        }, { onConflict: 'profile_id,suggested_profile_id' }); // re-dismiss used to 500 on the UNIQUE constraint
 
       if (error) {
         return NextResponse.json({ error: error.message }, { status: 500 });

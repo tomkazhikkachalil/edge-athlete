@@ -89,8 +89,10 @@ export async function GET(request: NextRequest) {
               sport: string | null;
               school: string | null;
               visibility: string | null;
+              handle?: string | null;
             }) => ({
               id: athlete.id,
+              handle: athlete.handle ?? null,
               full_name: athlete.full_name,
               first_name: athlete.first_name,
               middle_name: athlete.middle_name,

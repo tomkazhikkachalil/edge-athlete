@@ -32,9 +32,10 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const postId = searchParams.get('postId');
 
-    if (!postId) {
+    const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    if (!postId || !UUID_RE.test(postId)) {
       return NextResponse.json(
-        { error: 'Post ID is required' },
+        { error: 'Valid Post ID is required' },
         { status: 400 }
       );
     }
@@ -119,6 +120,20 @@ export async function POST(request: NextRequest) {
         { error: 'Profile not found' },
         { status: 404 }
       );
+    }
+
+    // A reply's parent must belong to the SAME post (a crafted request could
+    // otherwise thread a reply under a comment on a different post)
+    if (parentCommentId) {
+      const { data: parentComment } = await supabase
+        .from('post_comments')
+        .select('id')
+        .eq('id', parentCommentId)
+        .eq('post_id', postId)
+        .maybeSingle();
+      if (!parentComment) {
+        return NextResponse.json({ error: 'Parent comment not found' }, { status: 404 });
+      }
     }
 
     // Create comment
@@ -208,11 +223,17 @@ export async function DELETE(request: NextRequest) {
 
     const postId = commentData?.post_id;
 
-    // Delete comment (RLS will ensure user can only delete their own)
-    const { error: deleteError } = await supabase
+    // Delete comment (RLS will ensure user can only delete their own).
+    // count:'exact' so a no-op (not yours / already gone) returns 404
+    // instead of a false success.
+    const { error: deleteError, count: deletedCount } = await supabase
       .from('post_comments')
-      .delete()
+      .delete({ count: 'exact' })
       .eq('id', commentId);
+
+    if (!deleteError && !deletedCount) {
+      return NextResponse.json({ error: 'Comment not found' }, { status: 404 });
+    }
 
     if (deleteError) {
       console.error('Error deleting comment:', deleteError);

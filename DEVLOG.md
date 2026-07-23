@@ -99,6 +99,37 @@ Posts (11):
 - Like endpoint: existence + visibility gate (404, no UUID probing, no
   liking unviewable posts).
 
+LOW fixes (same day, 17 items):
+- Avatar validation/upload errors now surface via toast (were written to
+  an error key nothing renders); social InlineEdits show their "Add ..."
+  placeholders (formatSocialHandleDisplay's "—" is truthy).
+- Suggestions: dismiss upsert onConflict (re-dismiss 500'd); suggestion
+  only dismissed on actual follow (unfollow dismissed it too);
+  FollowButton no longer force-redirects to /feed after following.
+- Media route limit/offset NaN clamp; follow API 404s missing targets +
+  caps message at 200 chars server-side; search full-text athlete
+  mapping includes handle.
+- EditProfileTabs: handle errors render (errors.handle, was .username);
+  bio maxLength=500 enforced.
+- handles/check derives currentUserId from the session when present.
+- PostDetailModal reads post.likes (API field) — optimistic like state
+  was always false in the modal; interface updated.
+- UUID validation: GET /api/posts postId/userId, GET /api/comments
+  postId (garbage → 400/404 instead of PostgREST 22P02 → 500).
+- Comments: reply parent must belong to the same post; DELETE returns
+  404 when RLS deleted 0 rows (was false success).
+- Post DELETE removes media FILES from storage (best effort, managed
+  paths only) — files were orphaned forever.
+- scorecards/[id]/scores: entered_by forced to session user (was body-
+  forgeable); PUT /api/posts preserves visibility when omitted (default
+  'public' would silently flip private posts).
+- RecentPosts.tsx deleted (dead code, zero importers, latent infinite-
+  refetch loop).
+
+Documented, NOT fixed: athletic-score staleness on own profile
+(cosmetic, placeholder metric); NULL-visibility profiles excluded from
+search results (safe default).
+
 ## July 22, 2026 — Bug hunt #2 (messaging + notifications, 2 subagents): HIGH fixes
 
 7 CONFIRMED HIGHs, all fixed:

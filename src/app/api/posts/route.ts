@@ -410,6 +410,15 @@ export async function GET(request: NextRequest) {
     const limit = Math.min(Math.max(parseInt(searchParams.get('limit') || '20', 10) || 20, 1), 100);
     const offset = Math.max(parseInt(searchParams.get('offset') || '0', 10) || 0, 0);
 
+    // Reject non-UUID ids up front (garbage used to hit PostgREST as 22P02 → 500)
+    const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    if (postId && !UUID_RE.test(postId)) {
+      return NextResponse.json({ error: 'Post not found' }, { status: 404 });
+    }
+    if (userId && !UUID_RE.test(userId)) {
+      return NextResponse.json({ error: 'Invalid userId' }, { status: 400 });
+    }
+
     // Get current authenticated user (for privacy checks)
     let currentUserId: string | null = null;
     try {
@@ -899,15 +908,16 @@ export async function PUT(request: NextRequest) {
       caption = '',
       taggedProfiles,
       hashtags = [],
-      visibility = 'public'
+      visibility
     } = body;
 
     if (!postId) {
       return NextResponse.json({ error: 'Post ID is required' }, { status: 400 });
     }
 
-    // Validate visibility
-    if (!['public', 'private'].includes(visibility)) {
+    // Validate visibility when provided; when omitted, the existing value is
+    // preserved (defaulting to 'public' would silently flip private posts).
+    if (visibility !== undefined && !['public', 'private'].includes(visibility)) {
       return NextResponse.json({ error: 'Invalid visibility setting' }, { status: 400 });
     }
 
@@ -932,7 +942,7 @@ export async function PUT(request: NextRequest) {
       .from('posts')
       .update({
         caption: caption,
-        visibility: visibility,
+        ...(visibility !== undefined ? { visibility } : {}),
         hashtags: hashtags,
         updated_at: new Date().toISOString(),
         // tags = tagged people IDs. Only overwrite when the caller explicitly
@@ -996,6 +1006,28 @@ export async function DELETE(request: NextRequest) {
     // Check ownership
     if (post.profile_id !== user.id) {
       return NextResponse.json({ error: 'Unauthorized to delete this post' }, { status: 403 });
+    }
+
+    // Remove the media FILES from storage (best effort — DB rows cascade,
+    // but files never did, orphaning storage forever). Only paths we manage.
+    const { data: mediaRows } = await supabase
+      .from('post_media')
+      .select('media_url')
+      .eq('post_id', postId);
+    if (mediaRows && mediaRows.length > 0) {
+      const byBucket = new Map<string, string[]>();
+      for (const row of mediaRows) {
+        const m = /\/storage\/v1\/object\/public\/([^/]+)\/(.+)$/.exec(row.media_url || '');
+        if (m) {
+          const paths = byBucket.get(m[1]) || [];
+          paths.push(decodeURIComponent(m[2]));
+          byBucket.set(m[1], paths);
+        }
+      }
+      for (const [bucket, paths] of byBucket) {
+        const { error: storageError } = await supabase.storage.from(bucket).remove(paths);
+        if (storageError) console.warn('[DELETE] Storage cleanup failed:', storageError);
+      }
     }
 
     // Delete associated media records first (cascade should handle this, but being explicit)

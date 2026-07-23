@@ -499,12 +499,18 @@ export default function AthleteProfilePage() {
     const maxSize = 5 * 1024 * 1024; // 5MB
     const allowedTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
     
+    // Surface validation failures via toast — errors['avatar-upload'] is
+    // never rendered anywhere, so a thrown error here failed silently.
     if (file.size > maxSize) {
-      throw new Error('File size must be less than 5MB');
+      showError('Upload failed', 'File size must be less than 5MB');
+      if (fileInput) fileInput.value = '';
+      return;
     }
-    
+
     if (!allowedTypes.includes(file.type)) {
-      throw new Error('Please select a valid image file (JPG, PNG, GIF, or WebP)');
+      showError('Upload failed', 'Please select a valid image file (JPG, PNG, GIF, or WebP)');
+      if (fileInput) fileInput.value = '';
+      return;
     }
 
     if (!user?.id) {
@@ -526,7 +532,8 @@ export default function AthleteProfilePage() {
       const result = await response.json();
 
       if (!response.ok) {
-        throw new Error(result.error || 'Failed to upload avatar');
+        showError('Upload failed', result.error || 'Failed to upload avatar');
+        return;
       }
 
       // Refresh the data to show the new avatar
@@ -1030,7 +1037,7 @@ export default function AthleteProfilePage() {
                 <i className="fab fa-twitter text-blue-400 text-lg" aria-label="Twitter" aria-hidden="true"></i>
                 <InlineEdit
                   field="social_twitter"
-                  value={formatSocialHandleDisplay(profile?.social_twitter)}
+                  value={profile?.social_twitter ? formatSocialHandleDisplay(profile.social_twitter) : ''}
                   placeholder={getPlaceholder('ADD_TWITTER')}
                   className="text-sm text-gray-600"
                   ariaLabel="Twitter handle"
@@ -1040,7 +1047,7 @@ export default function AthleteProfilePage() {
                 <i className="fab fa-instagram text-pink-500 text-lg" aria-label="Instagram" aria-hidden="true"></i>
                 <InlineEdit
                   field="social_instagram"
-                  value={formatSocialHandleDisplay(profile?.social_instagram)}
+                  value={profile?.social_instagram ? formatSocialHandleDisplay(profile.social_instagram) : ''}
                   placeholder={getPlaceholder('ADD_INSTAGRAM')}
                   className="text-sm text-gray-600"
                   ariaLabel="Instagram handle"
@@ -1050,7 +1057,7 @@ export default function AthleteProfilePage() {
                 <i className="fab fa-facebook text-blue-600 text-lg" aria-label="Facebook" aria-hidden="true"></i>
                 <InlineEdit
                   field="social_facebook"
-                  value={formatSocialHandleDisplay(profile?.social_facebook)}
+                  value={profile?.social_facebook ? formatSocialHandleDisplay(profile.social_facebook) : ''}
                   placeholder="Add Facebook"
                   className="text-sm text-gray-600"
                   ariaLabel="Facebook handle"

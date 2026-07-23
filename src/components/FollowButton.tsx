@@ -1,7 +1,6 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth';
 import { useToast } from './Toast';
 
@@ -22,7 +21,6 @@ export default function FollowButton({
   showCount = false,
   className = ''
 }: FollowButtonProps) {
-  const router = useRouter();
   const { user } = useAuth();
   const currentUserId = propCurrentUserId || user?.id;
 
@@ -142,11 +140,8 @@ export default function FollowButton({
           ? 'Fan request sent! They will be notified.'
           : 'You are now a fan of this athlete!';
         showSuccess('Success', message);
-
-        // Redirect to feed after successful follow
-        setTimeout(() => {
-          router.push('/feed');
-        }, 500);
+        // (No redirect — the hard-coded push to /feed yanked users out of
+        // whatever page or modal they were following from.)
       } else {
         showSuccess('Removed', 'You are no longer a fan of this athlete');
       }

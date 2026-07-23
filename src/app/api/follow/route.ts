@@ -74,25 +74,29 @@ export async function POST(request: NextRequest) {
         message: 'User unfollowed successfully'
       });
     } else {
-      // Check if target profile is private
+      // Check the target exists (a bogus id used to surface as an FK-500)
+      // and whether it's private
       const { data: targetProfile, error: profileError } = await supabase
         .from('profiles')
         .select('visibility')
         .eq('id', followingId)
-        .single();
+        .maybeSingle();
 
       if (profileError) {
         console.error('[FOLLOW API] Profile fetch error:', profileError);
       }
+      if (!targetProfile) {
+        return NextResponse.json({ error: 'Profile not found' }, { status: 404 });
+      }
 
-      const isPrivate = targetProfile?.visibility === 'private';
+      const isPrivate = targetProfile.visibility === 'private';
 
       // Follow: Create the follow relationship with pending status for private profiles
       const insertData = {
         follower_id: followerId,
         following_id: followingId,
         status: isPrivate ? 'pending' : 'accepted',
-        message: message || null
+        message: typeof message === 'string' ? message.slice(0, 200) : null // server-side cap (client caps at 200)
       };
 
 

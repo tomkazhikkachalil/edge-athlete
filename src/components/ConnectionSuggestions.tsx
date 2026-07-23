@@ -184,9 +184,10 @@ export default function ConnectionSuggestions({
                 profileId={suggestion.suggested_id}
                 currentUserId={profileId}
                 size="sm"
-                onFollowChange={() => {
-                  // Optionally refresh suggestions or remove this one
-                  handleDismiss(suggestion.suggested_id);
+                onFollowChange={(isFollowing) => {
+                  // Only dismiss once they actually followed — an unfollow
+                  // used to permanently dismiss the suggestion too
+                  if (isFollowing) handleDismiss(suggestion.suggested_id);
                 }}
               />
               <button

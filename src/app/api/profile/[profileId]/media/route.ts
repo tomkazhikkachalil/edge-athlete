@@ -104,8 +104,9 @@ export async function GET(
     // Parameters (await params in Next.js 15)
     const { profileId } = await params;
     const tab = searchParams.get('tab') || 'all'; // all | stats | tagged
-    const limit = parseInt(searchParams.get('limit') || '20', 10);
-    const offset = parseInt(searchParams.get('offset') || '0', 10);
+    // NaN-guard (?limit=abc used to reach the RPC and 500)
+    const limit = Math.min(Math.max(parseInt(searchParams.get('limit') || '20', 10) || 20, 1), 100);
+    const offset = Math.max(parseInt(searchParams.get('offset') || '0', 10) || 0, 0);
     const sort = searchParams.get('sort') || 'newest'; // newest | most_engaged
     const mediaType = searchParams.get('mediaType') || 'all'; // all | photos | videos | posts
 

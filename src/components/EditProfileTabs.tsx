@@ -404,9 +404,9 @@ export default function EditProfileTabs({
       const message = error instanceof Error ? error.message : 'Failed to save changes';
       showError('Save Failed', message);
       
-      // Set field-specific errors if needed
-      if (message.includes('username')) {
-        setErrors({ username: message });
+      // Set field-specific errors if needed — the UI reads errors.handle
+      if (message.toLowerCase().includes('username') || message.toLowerCase().includes('handle')) {
+        setErrors({ handle: message });
       }
     } finally {
       setIsSubmitting(false);
@@ -585,6 +585,7 @@ export default function EditProfileTabs({
         <textarea
           id="bio"
           rows={4}
+          maxLength={500}
           value={basicForm.bio || ''}
           onChange={(e) => setBasicForm(prev => ({ ...prev, bio: e.target.value }))}
           className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
