@@ -75,6 +75,16 @@ Rounds list page slice:
   logging 9-hole rounds through the hardcoded-18 form. Confirms the
   9-hole entry fix as next priority.
 
+Waitlist fix slice (closes Sprint 2):
+- Migration 027: waitlist table (email + user_type club/league/fan/
+  guest, UNIQUE pair, RLS enabled with NO policies = service-role only).
+  PENDING: needs to run in Supabase.
+- Route actually persists now (was a no-op discarding every lead from
+  4 of 5 landing CTAs): normalizes email/type, validates against
+  allowlist, duplicate signup = friendly success, non-dup errors 500.
+- EmailService.sendWaitlistNotification: best-effort owner email on NEW
+  signups when SMTP configured (never fails the request).
+
 9-hole support slice:
 - GolfScorecardForm: holeCount/startingHole state UNFROZEN (were
   setterless useStates hardcoding 18/front). New Holes selector

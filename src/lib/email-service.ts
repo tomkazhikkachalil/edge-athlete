@@ -75,6 +75,19 @@ This email was sent from your website's contact form.
   }
 
   /**
+   * Notify the site owner of a new waitlist signup. Best-effort — callers
+   * should not fail the request if this throws.
+   */
+  async sendWaitlistNotification(email: string, userType: string): Promise<void> {
+    await this.transporter.sendMail({
+      from: process.env.EMAIL_FROM || 'noreply@yourdomain.com',
+      to: process.env.CONTACT_EMAIL || process.env.EMAIL_FROM,
+      subject: `Waitlist signup: ${userType}`,
+      text: `New waitlist signup\n\nEmail: ${email}\nInterested as: ${userType}\n\n— Edge Athlete`,
+    });
+  }
+
+  /**
    * Test email connection
    */
   async testConnection(): Promise<boolean> {

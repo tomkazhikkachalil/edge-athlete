@@ -1,4 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { getSupabaseAdmin } from '@/lib/auth-server';
+import { emailService } from '@/lib/email-service';
+
+// Landing-page values ('Club', 'League'…) normalize to these
+const VALID_USER_TYPES = ['club', 'league', 'fan', 'guest'];
 
 export async function POST(request: NextRequest) {
   try {
@@ -14,39 +19,57 @@ export async function POST(request: NextRequest) {
 
     // Basic email validation
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(email)) {
+    const normalizedEmail = String(email).trim().toLowerCase();
+    if (normalizedEmail.length > 320 || !emailRegex.test(normalizedEmail)) {
       return NextResponse.json(
         { error: 'Please enter a valid email address' },
         { status: 400 }
       );
     }
 
-    // For now, just log the waitlist submission
-    // In production, you would save this to your database or send to an email service
+    const normalizedType = String(userType).trim().toLowerCase();
+    if (!VALID_USER_TYPES.includes(normalizedType)) {
+      return NextResponse.json(
+        { error: 'Invalid user type' },
+        { status: 400 }
+      );
+    }
 
-    // You could also save to a database:
-    // await supabaseAdmin.from('waitlist').insert({
-    //   email: email.toLowerCase(),
-    //   user_type: userType,
-    //   created_at: new Date().toISOString()
-    // });
+    // Persist. Duplicate (email, user_type) is a friendly no-op — the person
+    // is already on the list, so tell them it worked.
+    const supabase = getSupabaseAdmin();
+    const { error: insertError } = await supabase
+      .from('waitlist')
+      .insert({ email: normalizedEmail, user_type: normalizedType });
 
-    // Or send a notification email:
-    // await sendNotificationEmail(
-    //   'admin@yourdomain.com',
-    //   'New Waitlist Signup',
-    //   `New waitlist signup: ${email} wants to be a ${userType}`
-    // );
+    if (insertError && insertError.code !== '23505') {
+      console.error('Waitlist insert error:', insertError);
+      return NextResponse.json(
+        { error: 'Could not join the waitlist right now. Please try again.' },
+        { status: 500 }
+      );
+    }
+
+    const isNewSignup = !insertError;
+
+    // Best-effort owner notification — only for NEW signups and only when
+    // SMTP is configured. Never fails the request.
+    if (isNewSignup && process.env.SMTP_USER && process.env.SMTP_PASS) {
+      try {
+        await emailService.sendWaitlistNotification(normalizedEmail, normalizedType);
+      } catch (emailError) {
+        console.error('Waitlist notification email failed (non-fatal):', emailError);
+      }
+    }
 
     return NextResponse.json(
-      { 
+      {
         message: 'Successfully added to waitlist',
-        email: email.toLowerCase(),
-        userType 
+        email: normalizedEmail,
+        userType: normalizedType,
       },
       { status: 201 }
     );
-
   } catch (error: unknown) {
     console.error('Waitlist API error:', error);
     return NextResponse.json(
