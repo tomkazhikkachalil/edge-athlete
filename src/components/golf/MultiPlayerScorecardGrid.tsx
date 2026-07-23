@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, memo } from 'react';
 import LazyImage from '@/components/LazyImage';
 import { getInitials, formatDisplayName, formatShortName } from '@/lib/formatters';
 
@@ -36,7 +36,7 @@ interface MultiPlayerScorecardGridProps {
   holeData?: { hole: number; par: number; yardage?: number }[]; // Par and yardage per hole
 }
 
-export default function MultiPlayerScorecardGrid({
+function MultiPlayerScorecardGrid({
   players,
   holes,
   coursePar: _coursePar = holes * 4, // eslint-disable-line @typescript-eslint/no-unused-vars -- Default par 4 per hole
@@ -421,7 +421,7 @@ export default function MultiPlayerScorecardGrid({
       </div>
 
       {/* Legend */}
-      <div className="mt-4 flex items-center gap-4 text-xs text-gray-600">
+      <div className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-2 text-xs text-gray-600">
         <div className="flex items-center gap-2">
           <div className="w-6 h-6 bg-blue-50 border-2 border-blue-300 rounded-full"></div>
           <span>Birdie</span>
@@ -440,7 +440,7 @@ export default function MultiPlayerScorecardGrid({
         </div>
         {showStats && (
           <>
-            <div className="flex items-center gap-1 ml-4">
+            <div className="flex items-center gap-1">
               <span className="text-green-600 font-semibold">F</span>
               <span>= Fairway Hit</span>
             </div>
@@ -454,3 +454,7 @@ export default function MultiPlayerScorecardGrid({
     </div>
   );
 }
+
+// Memoized: the grid re-rendered on every keystroke of the parent modal
+// (2000+ line component) even when its own props hadn't changed.
+export default memo(MultiPlayerScorecardGrid);

@@ -17,6 +17,31 @@
   is a 9-hole Eagle Creek round — partial-round path exercised by real
   data).
 
+Group golf flow — mobile + perf slice (from dedicated audit):
+- Mobile: legends + summary rows now wrap at 375px (QuickView, FullCard,
+  MultiPlayerScorecardGrid); participant-row badges/scores flex-shrink-0
+  protected; tap targets fixed (remove-participant chip, FullCard "Add",
+  modal × closes → 44px); ParticipantAttestationModal scrollable
+  (had NO max-h — long invites overflowed off-screen); dead "Manage"
+  button in QuickView now opens the full card.
+- Visual: under-par color standardized to green across all shared-round
+  surfaces (was blue in QuickView + leaderboard, green elsewhere).
+- Perf: score save no longer window.location.reload()s the entire feed —
+  targeted single-post refetch swaps the updated scorecard into local
+  state (also the seam live scoring needs); MultiPlayerScorecardGrid +
+  PostCard memoized (grid re-rendered on every keystroke of the 2146-line
+  modal); shared-round creation steps 2+3 (scorecard + scores) now run
+  in PARALLEL after group-post create (was a 3-await waterfall), and
+  score-save failures surface a toast instead of silent console.error.
+
+Audit backlog (next slices, documented in audit): batch the per-post
+group_posts feed enrichment into one .in() query + drop hole_scores from
+list payload; extract lib/golf/scoring.ts (par/to-par/classification
+duplicated across 4 files, all hardcoding par 4); converge the two
+scorecard-table implementations; useSharedRound hook as the Realtime
+seam for live scoring; RoundTypeBadge/StatusBadge shared components;
+"add myself" from auth context instead of /api/profile fetch.
+
 ## July 23, 2026 — Roadmap + Sprint 1 kickoff (CI gate, health, env docs)
 
 Strategic assessment completed (3 survey subagents: product completeness,

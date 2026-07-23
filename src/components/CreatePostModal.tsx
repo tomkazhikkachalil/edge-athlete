@@ -641,8 +641,14 @@ export default function CreatePostModal({
         const groupPostResult = await groupPostResponse.json();
         const groupPostId = groupPostResult.group_post.id;
 
-        // Step 2: Create golf scorecard data
-        const golfDataResponse = await fetch('/api/golf/scorecards', {
+        // Steps 2+3 in PARALLEL: scorecard metadata and participant scores
+        // are independent once the group post exists (the old sequential
+        // waterfall added a full round-trip to every shared-round create).
+        const hasScores = playerScores.length > 0 && playerScores.some(p =>
+          p.hole_scores.some(h => h.strokes !== undefined && h.strokes > 0)
+        );
+
+        const scorecardPromise = fetch('/api/golf/scorecards', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           credentials: 'include',
@@ -661,18 +667,8 @@ export default function CreatePostModal({
           }),
         });
 
-        if (!golfDataResponse.ok) {
-          // Non-fatal - group post was created
-        }
-
-        // Step 3: Save participant scores if any were entered
-        const hasScores = playerScores.length > 0 && playerScores.some(p =>
-          p.hole_scores.some(h => h.strokes !== undefined && h.strokes > 0)
-        );
-
-        if (hasScores) {
-          try {
-            const scoresResponse = await fetch('/api/golf/participant-scores', {
+        const scoresPromise = hasScores
+          ? fetch('/api/golf/participant-scores', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               credentials: 'include',
@@ -700,14 +696,19 @@ export default function CreatePostModal({
                     })
                 }))
               }),
-            });
+            })
+          : Promise.resolve(null);
 
-            if (!scoresResponse.ok) {
-              console.error('Failed to save participant scores — status:', scoresResponse.status);
-            }
-          } catch (e) {
-            console.error('Failed to save participant scores (non-fatal — scorecard created):', e);
-          }
+        const [golfDataResult, scoresResult] = await Promise.allSettled([scorecardPromise, scoresPromise]);
+
+        if (golfDataResult.status === 'rejected' || (golfDataResult.status === 'fulfilled' && !golfDataResult.value.ok)) {
+          // Non-fatal — group post was created; scorecard metadata missing
+          console.error('Failed to create golf scorecard data');
+        }
+        if (hasScores && (scoresResult.status === 'rejected' || (scoresResult.status === 'fulfilled' && scoresResult.value && !scoresResult.value.ok))) {
+          // Surface it — silently losing entered scores erodes trust
+          console.error('Failed to save participant scores');
+          showError('Round created, but some scores could not be saved. You can re-enter them from the post.');
         }
 
         showSuccess('Shared round created successfully! Participants will be notified. 🎉');
@@ -1313,7 +1314,8 @@ export default function CreatePostModal({
                           {participant.name}
                           <button
                             onClick={() => removeParticipant(participant.id)}
-                            className="ml-1 hover:text-green-900"
+                            className="ml-1 hover:text-green-900 min-w-[32px] min-h-[32px] -my-1.5 -mr-2 flex items-center justify-center rounded-full hover:bg-green-200"
+                            aria-label={`Remove ${participant.name}`}
                           >
                             <i className="fas fa-times text-xs"></i>
                           </button>

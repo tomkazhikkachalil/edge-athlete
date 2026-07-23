@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, memo } from 'react';
 import { formatDistanceToNow } from 'date-fns';
 import { useRouter } from 'next/navigation';
 import LazyImage from './LazyImage';
@@ -76,7 +76,7 @@ interface PostCardProps {
   showActions?: boolean;
 }
 
-export default function PostCard({
+function PostCard({
   post,
   currentUserId,
   onLike,
@@ -88,6 +88,9 @@ export default function PostCard({
 }: PostCardProps) {
   const router = useRouter();
   const [currentMediaIndex, setCurrentMediaIndex] = useState(0);
+  // Local override after score entry — replaces the old full-page reload
+  const [scorecardOverride, setScorecardOverride] = useState<CompleteGolfScorecard | null>(null);
+  const groupScorecard = scorecardOverride ?? post.group_scorecard;
   const [isLiked, setIsLiked] = useState(
     post.likes?.some(like => like.profile_id === currentUserId) || false
   );
@@ -519,9 +522,9 @@ export default function PostCard({
         />
 
         {/* Shared Round Scorecard - Multi-Player */}
-        {post.group_scorecard && (
+        {groupScorecard && (
           <SharedRoundQuickView
-            scorecard={post.group_scorecard}
+            scorecard={groupScorecard}
             onExpand={() => setShowFullScorecard(true)}
             currentUserId={currentUserId}
           />
@@ -566,9 +569,9 @@ export default function PostCard({
       />
 
       {/* Shared Round Full Scorecard Modal */}
-      {showFullScorecard && post.group_scorecard && (
+      {showFullScorecard && groupScorecard && (
         <SharedRoundFullCard
-          scorecard={post.group_scorecard}
+          scorecard={groupScorecard}
           currentUserId={currentUserId}
           onClose={() => setShowFullScorecard(false)}
           onAddScores={(participantId) => {
@@ -580,13 +583,13 @@ export default function PostCard({
       )}
 
       {/* Score Entry Modal */}
-      {showScoreEntry && post.group_scorecard && scoreEntryParticipantId && (
+      {showScoreEntry && groupScorecard && scoreEntryParticipantId && (
         <ScoreEntryModal
-          groupPostId={post.group_scorecard.group_post.id}
+          groupPostId={groupScorecard.group_post.id}
           participantId={scoreEntryParticipantId}
-          holesPlayed={post.group_scorecard.golf_data.holes_played}
+          holesPlayed={groupScorecard.golf_data.holes_played}
           existingScores={
-            post.group_scorecard.participants
+            groupScorecard.participants
               .find(p => p.participant.id === scoreEntryParticipantId)
               ?.scores.hole_scores || []
           }
@@ -604,8 +607,19 @@ export default function PostCard({
                 throw new Error(data.error || 'Failed to save scores');
               }
 
-              // Reload the page to show updated scores
-              window.location.reload();
+              // Targeted refresh: refetch just this post and swap in the
+              // updated scorecard (a full page reload threw the whole feed
+              // away — and is a dead end for future live scoring).
+              const refreshed = await fetch(`/api/posts?postId=${post.id}`);
+              if (refreshed.ok) {
+                const refreshedData = await refreshed.json();
+                if (refreshedData.post?.group_scorecard) {
+                  setScorecardOverride(refreshedData.post.group_scorecard);
+                }
+              }
+              setShowScoreEntry(false);
+              setScoreEntryParticipantId(null);
+              setShowFullScorecard(true);
             } catch (err) {
               throw err;
             }
@@ -630,3 +644,7 @@ export default function PostCard({
     </div>
   );
 }
+
+// Memoized: feed-level state changes (toasts, realtime inserts) re-rendered
+// every card including heavy scorecard subtrees.
+export default memo(PostCard);

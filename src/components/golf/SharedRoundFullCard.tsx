@@ -235,7 +235,7 @@ export default function SharedRoundFullCard({
                           {isCurrentUser && onAddScores ? (
                             <button
                               onClick={() => onAddScores(participant.id)}
-                              className="text-xs text-blue-600 hover:text-blue-800 font-bold"
+                              className="text-xs text-blue-600 hover:text-blue-800 font-bold px-3 py-2 -m-1 min-h-[40px] rounded-md hover:bg-blue-50"
                             >
                               Add
                             </button>
@@ -290,7 +290,8 @@ export default function SharedRoundFullCard({
 
             <button
               onClick={onClose}
-              className="text-white hover:text-gray-200 text-2xl font-bold ml-4"
+              className="text-white hover:text-gray-200 text-2xl font-bold ml-4 min-w-[44px] min-h-[44px] flex items-center justify-center"
+              aria-label="Close"
             >
               <i className="fas fa-times"></i>
             </button>
@@ -397,7 +398,7 @@ export default function SharedRoundFullCard({
                           <div className="text-right">
                             <div className="text-3xl font-black text-green-900">{scores.total_score}</div>
                             {scores.to_par !== null && (
-                              <div className={`text-sm font-bold ${scores.to_par < 0 ? 'text-blue-600' : scores.to_par > 0 ? 'text-red-600' : 'text-gray-600'}`}>
+                              <div className={`text-sm font-bold ${scores.to_par < 0 ? 'text-green-600' : scores.to_par > 0 ? 'text-red-600' : 'text-gray-600'}`}>
                                 {scores.to_par >= 0 ? '+' : ''}{scores.to_par}
                               </div>
                             )}
@@ -533,7 +534,7 @@ export default function SharedRoundFullCard({
               )}
 
               {/* Legend */}
-              <div className="flex items-center gap-4 text-xs text-gray-600 mb-4">
+              <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-xs text-gray-600 mb-4">
                 <div className="flex items-center gap-1">
                   <div className="w-5 h-5 rounded ring-2 ring-blue-500 ring-inset bg-white"></div>
                   <span>Eagle (-2)</span>

@@ -68,7 +68,7 @@ export default function SharedRoundQuickView({
             )}
           </div>
 
-          <div className="flex items-center gap-3 text-sm text-green-800 font-semibold">
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-green-800 font-semibold">
             <span>{formattedDate}</span>
             <span>•</span>
             <span>{golf_data.holes_played} Holes</span>
@@ -166,18 +166,19 @@ export default function SharedRoundQuickView({
                 {/* Name */}
                 <span className="font-bold text-gray-900 text-sm truncate">{displayName}</span>
 
-                {/* Status Badge */}
-                <div className="ml-2">
+                {/* Status Badge — flex-shrink-0 so a long name truncates
+                    instead of eating the badge */}
+                <div className="ml-2 flex-shrink-0">
                   {statusBadge}
                 </div>
               </div>
 
               {/* Score */}
               {scores.total_score !== null && (
-                <div className="ml-2 flex items-baseline gap-1">
+                <div className="ml-2 flex items-baseline gap-1 flex-shrink-0">
                   <span className="text-lg font-black text-green-900">{scores.total_score}</span>
                   {scores.to_par !== null && (
-                    <span className={`text-sm font-bold ${scores.to_par < 0 ? 'text-blue-600' : scores.to_par > 0 ? 'text-red-600' : 'text-gray-600'}`}>
+                    <span className={`text-sm font-bold ${scores.to_par < 0 ? 'text-green-600' : scores.to_par > 0 ? 'text-red-600' : 'text-gray-600'}`}>
                       ({scores.to_par >= 0 ? '+' : ''}{scores.to_par})
                     </span>
                   )}
@@ -227,8 +228,9 @@ export default function SharedRoundQuickView({
 
         {isOwner && statusCounts.pending > 0 && (
           <button
-            className="flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg transition-colors text-sm"
-            title="Manage participants"
+            onClick={onExpand}
+            className="flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg transition-colors text-sm min-h-[44px]"
+            aria-label="Manage participants"
           >
             <i className="fas fa-cog"></i>
             Manage

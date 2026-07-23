@@ -133,7 +133,8 @@ export default function ScoreEntryModal({
             <h2 className="text-xl font-black">Enter Scores</h2>
             <button
               onClick={onClose}
-              className="text-white hover:text-gray-200 text-xl font-bold"
+              className="text-white hover:text-gray-200 text-xl font-bold min-w-[44px] min-h-[44px] -m-2 flex items-center justify-center"
+              aria-label="Close"
             >
               <i className="fas fa-times"></i>
             </button>
