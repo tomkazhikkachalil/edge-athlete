@@ -1,5 +1,22 @@
 # Development Log
 
+## July 22, 2026 — Maintenance checklist + sync (end of session)
+
+- `npm run lint` — zero warnings/errors.
+- `npm run build` — exit 0 from a fresh `.next`, 67 routes. The one known
+  benign warning (@supabase/realtime-js referencing process.versions in
+  the Edge Runtime import trace via @supabase/ssr in middleware) remains
+  documented and non-blocking.
+- Session totals: migrations 023–026 shipped AND verified live (golf_mode
+  dropped, unread RPC created + joined_at floor, tag trigger fixed —
+  tagging restored in production); full mobile responsiveness audit fixed
+  across HIGH/MEDIUM/LOW; bug hunt #2 (messaging + notifications): 7 HIGH
+  + 7 MEDIUM + 14 LOW fixed; bug hunt #3 (posts + profiles): 9 HIGH + 25
+  MEDIUM + 17 LOW fixed. ~80 fixes total, each tier verified with
+  tsc/lint/build before push.
+- Working tree clean, main in sync with origin. This entry is the
+  maintenance-log commit. Pushed main → GitHub → Vercel auto-deploy.
+
 ## July 22, 2026 — Bug hunt #3 (posts + profiles, 2 subagents): HIGH fixes
 
 9 CONFIRMED HIGHs fixed (4 profiles, 5 posts):
