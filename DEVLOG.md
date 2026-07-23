@@ -90,6 +90,13 @@ LOW fixes (same day, 14 items):
   churn); mark-all-read rollback resyncs badge from server instead of
   restoring a possibly-stale snapshot.
 
+MIGRATIONS 025 + 026 VERIFIED LIVE (after Tom ran them):
+- 025: the exact post_tags insert that 42703'd now returns 201 and the
+  trigger creates a correct notification (type/user/actor/post/title).
+- 026: just-joined + never-read participant counts 0 (old logic: 7);
+  joined-before-history + never-read counts 7 (correct); state restored
+  exactly. Tagging is functional in production again.
+
 Documented, NOT fixed (PLAUSIBLE-only or zero observable effect):
 - M9: soft-delete UPDATE events may not reach other participants
   (Realtime RLS behavior — needs runtime verification; refetch corrects).
