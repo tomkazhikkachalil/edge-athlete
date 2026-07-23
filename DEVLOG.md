@@ -50,6 +50,24 @@ Computed handicap slice:
 - Hand-verified the math against prod rounds (differentials -0.3/12.2/
   9.5 from gross 71@71.4/133, 83@69.5/125, 80@69.5/125).
 
+Shared-round notifications slice (closes the social loop):
+- Migration 028: extends notifications type CHECK with 'group_invite' +
+  'group_update' (same pattern as 012's new_message). PENDING: run in
+  Supabase — until then the new notification inserts fail (best-effort,
+  logged; round actions unaffected).
+- NEW lib/golf/group-notifications.ts: notifyGroupInvites (invitees,
+  never creator), notifyAttestation (creator hears confirmed/declined/
+  maybe), notifyScoresPosted (creator hears scores; when ALL confirmed
+  participants have scored → one-time 'leaderboard final' fan-out to
+  every confirmed participant, deduped via metadata marker, skipped for
+  <2 confirmed). All best-effort; self-notify guards throughout.
+- Wired: group-posts POST (invites, with deep-link action_url to the
+  feed post — captured its id at creation), attest route (creator
+  notify), scorecards/[id]/scores POST (scores + completion). Direct
+  inserts (create_notification's gate would drop unknown types).
+- Bell + notifications page: golf-ball / trophy icons for the new
+  types; text falls back to the server-built titles (014 convention).
+
 ## July 23, 2026 — Sprint 2: round detail page is REAL
 
 - NEW /api/golf/rounds/[roundId]: GET (owner or profile-viewable; 404 not

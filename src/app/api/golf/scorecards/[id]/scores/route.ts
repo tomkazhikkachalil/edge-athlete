@@ -1,4 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { getSupabaseAdmin } from '@/lib/auth-server';
+import { notifyScoresPosted, groupPostActionUrl } from '@/lib/golf/group-notifications';
 import { createServerClient } from '@supabase/ssr';
 
 // Helper function for cookie authentication (Next.js 15 pattern)
@@ -194,6 +196,31 @@ export async function POST(
 
     if (fetchError) {
       console.error('Error fetching updated scores:', fetchError);
+    }
+
+    // Notify the creator (+ leaderboard-final fan-out when everyone has
+    // scored). Best-effort — never fails the save.
+    {
+      const admin = getSupabaseAdmin();
+      const groupPostId = (participant.group_post as { id: string }).id;
+      const creatorId = (participant.group_post as { creator_id: string }).creator_id;
+      const { data: groupMeta } = await admin
+        .from('group_posts')
+        .select('title')
+        .eq('id', groupPostId)
+        .maybeSingle();
+      await notifyScoresPosted(
+        {
+          supabase: admin,
+          groupPostId,
+          title: groupMeta?.title || 'Shared round',
+          actionUrl: await groupPostActionUrl(admin, groupPostId, creatorId),
+        },
+        creatorId,
+        // Attribute to the score OWNER (entered_by is the session user, but
+        // the social event is "this player's scores are in")
+        participant.profile_id
+      );
     }
 
     return NextResponse.json({

@@ -1,4 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { getSupabaseAdmin } from '@/lib/auth-server';
+import { notifyGroupInvites } from '@/lib/golf/group-notifications';
 import { createServerClient } from '@supabase/ssr';
 
 // Helper function for cookie authentication (Next.js 15 pattern)
@@ -219,7 +221,7 @@ export async function POST(request: NextRequest) {
     // feed surface of its own — without this row, shared rounds never appear
     // anywhere (the feed renders posts, and GET /api/posts attaches the
     // group scorecard via posts.group_post_id).
-    const { error: feedPostError } = await supabase
+    const { data: feedPost, error: feedPostError } = await supabase
       .from('posts')
       .insert({
         profile_id: user.id,
@@ -231,11 +233,27 @@ export async function POST(request: NextRequest) {
         hashtags: [],
         likes_count: 0,
         comments_count: 0,
-      });
+      })
+      .select('id')
+      .single();
 
     if (feedPostError) {
       console.error('Error creating feed post for group post:', feedPostError);
       // Non-fatal — the group post exists; participants are still notified.
+    }
+
+    // Notify invited participants (best-effort — the round exists regardless)
+    if (participant_ids && Array.isArray(participant_ids) && participant_ids.length > 0) {
+      await notifyGroupInvites(
+        {
+          supabase: getSupabaseAdmin(),
+          groupPostId: groupPost.id,
+          title,
+          actionUrl: feedPost ? `/athlete/${user.id}?post=${feedPost.id}` : null,
+        },
+        user.id,
+        participant_ids as string[]
+      );
     }
 
     // Fetch complete group post with participants

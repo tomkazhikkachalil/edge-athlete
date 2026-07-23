@@ -1,4 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { getSupabaseAdmin } from '@/lib/auth-server';
+import { notifyAttestation, groupPostActionUrl } from '@/lib/golf/group-notifications';
 import { createServerClient } from '@supabase/ssr';
 
 // Helper function for cookie authentication (Next.js 15 pattern)
@@ -107,6 +109,29 @@ export async function POST(
     if (updateError) {
       console.error('Error updating participant status:', updateError);
       return NextResponse.json({ error: 'Failed to update attestation status' }, { status: 500 });
+    }
+
+    // Notify the round creator (best-effort)
+    {
+      const admin = getSupabaseAdmin();
+      const { data: groupPost } = await admin
+        .from('group_posts')
+        .select('creator_id, title')
+        .eq('id', id)
+        .maybeSingle();
+      if (groupPost) {
+        await notifyAttestation(
+          {
+            supabase: admin,
+            groupPostId: id,
+            title: groupPost.title || 'Shared round',
+            actionUrl: await groupPostActionUrl(admin, id, groupPost.creator_id),
+          },
+          groupPost.creator_id,
+          user.id,
+          status as 'confirmed' | 'declined' | 'maybe'
+        );
+      }
     }
 
     // Fetch updated group post for context

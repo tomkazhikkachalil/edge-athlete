@@ -119,6 +119,10 @@ export default function NotificationBell() {
 
   const getNotificationIcon = (type: string) => {
     switch (type) {
+      case 'group_invite':
+        return 'fa-golf-ball';
+      case 'group_update':
+        return 'fa-trophy';
       case 'follow_request':
       case 'follow_accepted':
       case 'new_follower':
