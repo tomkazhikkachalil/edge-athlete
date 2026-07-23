@@ -65,6 +65,31 @@ MEDIUM fixes (same day, 7 CONFIRMED):
 - ChatWindow realtime INSERTs re-sort by created_at (out-of-order fetch
   resolution could misorder messages).
 
+LOW fixes (same day, 14 items):
+- Messages GET honors ?limit= (clamped 1-50) — ChatWindow's realtime
+  limit=1 fetch used to pull 50 enriched messages per incoming message.
+- Message POST validates type against the enum + UUID-shape checks on
+  shared_post_id/shared_profile_id/parent_message_id (was 500 via DB
+  CHECK); block/unblock UUID-validate blockedId.
+- new_message notification fan-out skips blocked pairs (both directions)
+  — blocks prevented DM creation but not group-message notifications.
+- Participants add: already-active members excluded from the upsert
+  (used to demote admins to member and reset joined_at).
+- DM dedupe now finds conversations either side left and reactivates
+  them (block→unblock or leave used to spawn a parallel duplicate DM).
+- Unread counts floored at joined_at (migration 026 + route fallback +
+  conversation list) — new group members were charged for full history.
+- /messages/[conversationId]: ChatWindow keyed by conversation id.
+- ReactionDetails closes via effect (was onClose() during render).
+- NewConversationModal search: 300ms debounce + sequence guard.
+- Notifications: mark-all-read/clear-all return real counts
+  ({count:'exact'}); [id] PATCH validates is_read boolean and clears
+  read_at on unread; preferences GET handles the 23505 first-call race.
+- Notifications lib: reconnect timer cleared on unmount; refetch on
+  SUBSCRIBED closes the fetch→subscribe gap (via ref to avoid channel
+  churn); mark-all-read rollback resyncs badge from server instead of
+  restoring a possibly-stale snapshot.
+
 Documented, NOT fixed (PLAUSIBLE-only or zero observable effect):
 - M9: soft-delete UPDATE events may not reach other participants
   (Realtime RLS behavior — needs runtime verification; refetch corrects).

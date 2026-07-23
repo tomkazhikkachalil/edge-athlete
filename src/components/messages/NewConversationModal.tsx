@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import LazyImage from '@/components/LazyImage';
 import { formatDisplayName, getInitials } from '@/lib/formatters';
@@ -33,27 +33,38 @@ export default function NewConversationModal({ onClose }: Props) {
   const [creating, setCreating] = useState(false);
   const [error, setError] = useState('');
 
-  const handleSearch = useCallback(async (q: string) => {
-    setSearchQuery(q);
-    if (!q.trim()) {
+  // Debounced + sequence-guarded search: without the guard, out-of-order
+  // responses could display results for a stale query.
+  const searchSeq = useRef(0);
+  useEffect(() => {
+    if (!searchQuery.trim()) {
       setSearchResults([]);
+      setSearching(false);
       return;
     }
-    setSearching(true);
-    try {
-      const res = await fetch(`/api/search?q=${encodeURIComponent(q)}&type=athletes`);
-      if (res.ok) {
-        const data = await res.json();
-        setSearchResults(data.results?.athletes || []);
-      } else {
-        console.error('Failed to search athletes (new conversation) — status:', res.status);
+    const seq = ++searchSeq.current;
+    const timer = setTimeout(async () => {
+      setSearching(true);
+      try {
+        const res = await fetch(`/api/search?q=${encodeURIComponent(searchQuery)}&type=athletes`);
+        if (seq !== searchSeq.current) return; // stale response
+        if (res.ok) {
+          const data = await res.json();
+          if (seq !== searchSeq.current) return;
+          setSearchResults(data.results?.athletes || []);
+        } else {
+          console.error('Failed to search athletes (new conversation) — status:', res.status);
+        }
+      } catch (e) {
+        console.error('Failed to search athletes (new conversation):', e);
+      } finally {
+        if (seq === searchSeq.current) setSearching(false);
       }
-    } catch (e) {
-      console.error('Failed to search athletes (new conversation):', e);
-    } finally {
-      setSearching(false);
-    }
-  }, []);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
+
+  const handleSearch = (q: string) => setSearchQuery(q);
 
   const handleSelectDM = async (profile: SearchProfile) => {
     if (creating) return;

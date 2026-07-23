@@ -31,6 +31,19 @@ export async function POST(
       return NextResponse.json({ error: 'Conversation not found' }, { status: 404 });
     }
 
+    // Validate type against the known enum (unknown types used to hit the DB
+    // CHECK constraint → 500 instead of 400) and UUID-shaped reference ids.
+    const VALID_MESSAGE_TYPES = ['text', 'image', 'video', 'gif_reaction', 'shared_post', 'shared_profile'];
+    if (!VALID_MESSAGE_TYPES.includes(type)) {
+      return NextResponse.json({ error: 'Invalid message type' }, { status: 400 });
+    }
+    const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    for (const [field, value] of [['shared_post_id', shared_post_id], ['shared_profile_id', shared_profile_id], ['parent_message_id', parent_message_id]] as const) {
+      if (value && (typeof value !== 'string' || !UUID_RE.test(value))) {
+        return NextResponse.json({ error: `Invalid ${field}` }, { status: 400 });
+      }
+    }
+
     // Validate content by type
     if (type === 'text' && !content?.trim()) {
       return NextResponse.json({ error: 'Text content is required' }, { status: 400 });
@@ -150,7 +163,19 @@ export async function POST(
         : type === 'gif_reaction' ? 'Reacted with a GIF'
         : 'Shared a profile';
 
-      const notifications = recipients.map(r => ({
+      // Don't notify across a block in either direction (blocks prevent DM
+      // creation, but blocked pairs can still share a pre-existing group).
+      const recipientIds = recipients.map(r => r.profile_id);
+      const { data: blockRows } = await supabase
+        .from('user_blocks')
+        .select('blocker_id, blocked_id')
+        .or(`and(blocked_id.eq.${user.id},blocker_id.in.(${recipientIds.join(',')})),and(blocker_id.eq.${user.id},blocked_id.in.(${recipientIds.join(',')}))`);
+      const blockedSet = new Set(
+        (blockRows || []).flatMap(b => [b.blocker_id, b.blocked_id]).filter(id => id !== user.id)
+      );
+      const notifRecipients = recipients.filter(r => !blockedSet.has(r.profile_id));
+
+      const notifications = notifRecipients.map(r => ({
         user_id: r.profile_id,
         type: 'new_message',
         actor_id: user.id,
@@ -161,7 +186,9 @@ export async function POST(
         metadata: { conversation_id: conversationId, message_id: message.id },
       }));
 
-      await supabase.from('notifications').insert(notifications);
+      if (notifications.length > 0) {
+        await supabase.from('notifications').insert(notifications);
+      }
     }
 
     return NextResponse.json({ message }, { status: 201 });

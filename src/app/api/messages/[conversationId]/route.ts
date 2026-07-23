@@ -13,7 +13,10 @@ export async function GET(
     const { conversationId } = await params;
     const { searchParams } = new URL(request.url);
     const cursor = searchParams.get('cursor');
-    const limit = 50;
+    // Honor ?limit= (clamped 1–50; default 50). ChatWindow's realtime handler
+    // passes limit=1 to fetch just the newest message.
+    const rawLimit = parseInt(searchParams.get('limit') || '50', 10);
+    const limit = Number.isNaN(rawLimit) ? 50 : Math.min(Math.max(rawLimit, 1), 50);
 
     // Guard: verify user is an active participant
     const { data: myParticipant } = await supabase

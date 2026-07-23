@@ -16,7 +16,7 @@ export async function GET(request: NextRequest) {
       // Fallback: manual count if RPC doesn't exist yet
       const { data: participants } = await supabase
         .from('conversation_participants')
-        .select('conversation_id, last_read_at')
+        .select('conversation_id, last_read_at, joined_at')
         .eq('profile_id', user.id)
         .is('left_at', null);
 
@@ -33,8 +33,13 @@ export async function GET(request: NextRequest) {
           .neq('sender_id', user.id)
           .is('deleted_at', null);
 
-        if (p.last_read_at) {
-          query = query.gt('created_at', p.last_read_at);
+        // Floor at the later of last_read_at / joined_at (mirrors the RPC in
+        // migration 026): new group members aren't charged for prior history.
+        const unreadFloor = p.last_read_at && p.last_read_at > p.joined_at
+          ? p.last_read_at
+          : p.joined_at;
+        if (unreadFloor) {
+          query = query.gt('created_at', unreadFloor);
         }
 
         const { count } = await query;

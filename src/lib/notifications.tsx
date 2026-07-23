@@ -104,6 +104,15 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     notificationsRef.current = notifications;
   }, [notifications]);
+
+  // Realtime channel reconnect timer — cleared on unmount so an orphaned
+  // timeout can't resubscribe a removed channel.
+  const retryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Latest fetchNotifications for the realtime effect — its identity changes
+  // with the pagination cursor, and depending on it directly would tear down
+  // and resubscribe the channel on every page load.
+  const fetchNotificationsRef = useRef<((options?: { unreadOnly?: boolean; type?: string; reset?: boolean }) => Promise<void>) | null>(null);
   const [unreadCount, setUnreadCount] = useState(0);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -184,6 +193,10 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
     }
   }, [user, nextCursor]);
 
+  useEffect(() => {
+    fetchNotificationsRef.current = fetchNotifications;
+  }, [fetchNotifications]);
+
   // Mark notification as read (with optimistic update)
   const markAsRead = useCallback(async (notificationId: string) => {
     if (!user) return;
@@ -236,7 +249,6 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
 
     // Save previous state for rollback
     const previousNotifications = [...notifications];
-    const previousUnreadCount = unreadCount;
 
     // OPTIMISTIC UPDATE: Update UI immediately
     setNotifications(prev =>
@@ -257,18 +269,22 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
 
       if (!response.ok) {
         console.error('Failed to mark all notifications read — status:', response.status);
-        // Rollback optimistic update on error
+        // Rollback optimistic update on error. Restore the list, but resync
+        // the badge from the server — the snapshot count could clobber a
+        // realtime increment that arrived mid-flight.
         setNotifications(previousNotifications);
-        setUnreadCount(previousUnreadCount);
+        fetchNotifications({ reset: true });
       }
 
     } catch (e) {
       console.error('Failed to mark all notifications read:', e);
-      // Rollback optimistic update on error
+      // Rollback optimistic update on error (badge resynced from the server —
+      // the snapshot count could clobber a realtime increment that arrived
+      // mid-flight)
       setNotifications(previousNotifications);
-      setUnreadCount(previousUnreadCount);
+      fetchNotifications({ reset: true });
     }
-  }, [user, notifications, unreadCount]);
+  }, [user, notifications, fetchNotifications]);
 
   // Delete notification
   const deleteNotification = useCallback(async (notificationId: string) => {
@@ -438,10 +454,16 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
         // Track connection status
         if (status === 'SUBSCRIBED') {
           setConnectionStatus('connected');
+          // Close the gap: rows created between the initial fetch and the
+          // subscription becoming live would otherwise be missed until the
+          // next manual refresh.
+          fetchNotificationsRef.current?.({ reset: true });
         } else if (status === 'CHANNEL_ERROR') {
           setConnectionStatus('disconnected');
-          // Auto-reconnect after 3 seconds
-          setTimeout(() => {
+          // Auto-reconnect after 3 seconds (tracked so unmount cancels it —
+          // an orphaned timer could resubscribe a removed channel)
+          if (retryTimerRef.current) clearTimeout(retryTimerRef.current);
+          retryTimerRef.current = setTimeout(() => {
             channel.subscribe();
           }, 3000);
         } else if (status === 'TIMED_OUT') {
@@ -456,6 +478,10 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
     }
 
     return () => {
+      if (retryTimerRef.current) {
+        clearTimeout(retryTimerRef.current);
+        retryTimerRef.current = null;
+      }
       channel.unsubscribe();
       setConnectionStatus('connecting');
     };

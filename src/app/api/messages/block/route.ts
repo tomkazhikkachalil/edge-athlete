@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAuth, getSupabaseAdmin } from '@/lib/auth-server';
 
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 // ── POST /api/messages/block ──────────────────────────────────────────────────
 // Block a user: insert into user_blocks and close any DM between them.
 export async function POST(request: NextRequest) {
@@ -10,8 +12,8 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const { blockedId } = body;
 
-    if (!blockedId) {
-      return NextResponse.json({ error: 'blockedId is required' }, { status: 400 });
+    if (!blockedId || typeof blockedId !== 'string' || !UUID_RE.test(blockedId)) {
+      return NextResponse.json({ error: 'Valid blockedId is required' }, { status: 400 });
     }
     if (blockedId === user.id) {
       return NextResponse.json({ error: 'Cannot block yourself' }, { status: 400 });
@@ -76,8 +78,8 @@ export async function DELETE(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const blockedId = searchParams.get('blockedId');
 
-    if (!blockedId) {
-      return NextResponse.json({ error: 'blockedId is required' }, { status: 400 });
+    if (!blockedId || typeof blockedId !== 'string' || !UUID_RE.test(blockedId)) {
+      return NextResponse.json({ error: 'Valid blockedId is required' }, { status: 400 });
     }
 
     const { error } = await supabase

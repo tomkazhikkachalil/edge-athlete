@@ -12,7 +12,7 @@ export async function PATCH(request: NextRequest) {
       .update({
         is_read: true,
         read_at: new Date().toISOString()
-      })
+      }, { count: 'exact' })
       .eq('user_id', user.id)
       .eq('is_read', false); // Only update unread notifications
 

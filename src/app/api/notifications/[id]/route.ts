@@ -12,12 +12,15 @@ export async function PATCH(
     const body = await request.json();
     const { is_read } = body;
 
-    // Update notification
-    const updateData: { is_read: boolean; read_at?: string } = { is_read };
-
-    if (is_read) {
-      updateData.read_at = new Date().toISOString();
+    if (typeof is_read !== 'boolean') {
+      return NextResponse.json({ error: 'is_read must be a boolean' }, { status: 400 });
     }
+
+    // Update notification — marking unread also clears read_at
+    const updateData: { is_read: boolean; read_at: string | null } = {
+      is_read,
+      read_at: is_read ? new Date().toISOString() : null,
+    };
 
     const { error } = await supabaseAdmin
       .from('notifications')

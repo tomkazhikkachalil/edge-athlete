@@ -26,6 +26,16 @@ export async function GET(request: NextRequest) {
         .single();
 
       if (createError) {
+        // 23505: two concurrent first-calls raced on the unique(user_id)
+        // constraint — the row exists now, so fetch and return it.
+        if (createError.code === '23505') {
+          const { data: existing } = await supabaseAdmin
+            .from('notification_preferences')
+            .select('*')
+            .eq('user_id', user.id)
+            .maybeSingle();
+          if (existing) return NextResponse.json({ preferences: existing });
+        }
         console.error('[NOTIFICATIONS API] Error creating preferences:', createError);
         return NextResponse.json({ error: createError.message }, { status: 500 });
       }

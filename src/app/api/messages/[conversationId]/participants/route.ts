@@ -45,9 +45,20 @@ export async function POST(
       return NextResponse.json({ error: 'Cannot add participants to a direct message' }, { status: 400 });
     }
 
+    // Skip profiles who are already ACTIVE members — upserting them would
+    // demote admins to 'member' and reset their joined_at.
+    const candidateIds = profileIds.filter((id: string) => id !== user.id);
+    const { data: activeRows } = await supabase
+      .from('conversation_participants')
+      .select('profile_id')
+      .eq('conversation_id', conversationId)
+      .in('profile_id', candidateIds)
+      .is('left_at', null);
+    const alreadyActive = new Set((activeRows || []).map(r => r.profile_id));
+
     // Upsert participants (re-add if they previously left)
-    const newParticipants = profileIds
-      .filter((id: string) => id !== user.id)
+    const newParticipants = candidateIds
+      .filter((id: string) => !alreadyActive.has(id))
       .map((id: string) => ({
         conversation_id: conversationId,
         profile_id: id,

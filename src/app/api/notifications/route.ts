@@ -109,7 +109,7 @@ export async function DELETE(request: NextRequest) {
       // Delete all notifications for this user
       const { error, count } = await supabaseAdmin
         .from('notifications')
-        .delete()
+        .delete({ count: 'exact' })
         .eq('user_id', user.id);
 
       if (error) {

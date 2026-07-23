@@ -147,8 +147,13 @@ export async function GET(request: NextRequest) {
         .neq('sender_id', user.id)
         .is('deleted_at', null);
 
-      if (pr.last_read_at) {
-        query = query.gt('created_at', pr.last_read_at);
+      // Unread floor: the later of last_read_at and joined_at — a newly added
+      // group member must not be charged for the conversation's prior history.
+      const unreadFloor = pr.last_read_at && pr.last_read_at > pr.joined_at
+        ? pr.last_read_at
+        : pr.joined_at;
+      if (unreadFloor) {
+        query = query.gt('created_at', unreadFloor);
       }
 
       const { count } = await query;
@@ -262,18 +267,20 @@ export async function POST(request: NextRequest) {
         }
       }
 
-      // Check if DM already exists between these two users.
-      // Fetch ALL direct conversations the current user is in, then check each.
+      // Check if a DM already exists between these two users — INCLUDING ones
+      // either side previously left (block→unblock, manual leave). Requiring
+      // both sides active here used to create a second parallel DM while the
+      // other user still saw the old one. Instead, reactivate the old DM.
       const { data: myDirectConvos } = await supabase
         .from('conversation_participants')
         .select(`
           conversation_id,
+          left_at,
           conversation:conversations!inner (
             id, type
           )
         `)
         .eq('profile_id', user.id)
-        .is('left_at', null)
         .eq('conversation.type', 'direct');
 
       if (myDirectConvos && myDirectConvos.length > 0) {
@@ -282,14 +289,21 @@ export async function POST(request: NextRequest) {
         // Single query: is the target participant in any of these conversations?
         const { data: match } = await supabase
           .from('conversation_participants')
-          .select('conversation_id')
+          .select('conversation_id, left_at')
           .in('conversation_id', convoIds)
           .eq('profile_id', participantId)
-          .is('left_at', null)
           .limit(1)
           .maybeSingle();
 
         if (match) {
+          const mine = myDirectConvos.find(c => c.conversation_id === match.conversation_id);
+          if (match.left_at || mine?.left_at) {
+            await supabase
+              .from('conversation_participants')
+              .update({ left_at: null })
+              .eq('conversation_id', match.conversation_id)
+              .in('profile_id', [user.id, participantId]);
+          }
           return NextResponse.json({ conversationId: match.conversation_id, existing: true });
         }
       }

@@ -57,10 +57,15 @@ export default function ReactionDetails({
     };
   }, [onClose]);
 
-  if (tabs.length === 0 || !activeEmoji) {
-    onClose();
-    return null;
-  }
+  // Close via effect, not during render — calling onClose() mid-render is a
+  // React "setState while rendering" error (hit when reactions are removed
+  // via broadcast while this popover is open).
+  const shouldClose = tabs.length === 0 || !activeEmoji;
+  useEffect(() => {
+    if (shouldClose) onClose();
+  }, [shouldClose, onClose]);
+
+  if (shouldClose) return null;
 
   const active = tabs.find(t => t.emoji === activeEmoji);
   const reactors: ParticipantProfile[] = active?.reactors ?? [];

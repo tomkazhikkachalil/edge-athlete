@@ -32,6 +32,7 @@ export default function ConversationPage() {
       <AppHeader showSearch={false} />
       <div className="flex-1 min-h-0">
         <ChatWindow
+          key={conversationId}
           conversationId={conversationId}
           onBack={() => router.push('/messages')}
         />
