@@ -52,9 +52,10 @@ Computed handicap slice:
 
 Shared-round notifications slice (closes the social loop):
 - Migration 028: extends notifications type CHECK with 'group_invite' +
-  'group_update' (same pattern as 012's new_message). PENDING: run in
-  Supabase — until then the new notification inserts fail (best-effort,
-  logged; round actions unaffected).
+  'group_update' (same pattern as 012's new_message). VERIFIED LIVE
+  (after Tom ran it): group_invite + group_update inserts 201, bogus
+  type still 23514, existing types unaffected, test rows cleaned. The
+  shared-round social loop is LIVE.
 - NEW lib/golf/group-notifications.ts: notifyGroupInvites (invitees,
   never creator), notifyAttestation (creator hears confirmed/declined/
   maybe), notifyScoresPosted (creator hears scores; when ALL confirmed
