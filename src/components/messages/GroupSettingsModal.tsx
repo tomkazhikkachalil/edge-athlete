@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import LazyImage from '@/components/LazyImage';
 import { formatDisplayName, getInitials } from '@/lib/formatters';
 import type { Conversation, ConversationParticipant } from '@/types/messages';
@@ -25,7 +25,12 @@ export default function GroupSettingsModal({ conversation, currentUserId, onClos
 
   const myParticipant = conversation.my_participant;
   const isAdmin = myParticipant?.role === 'admin';
-  const activeParticipants = conversation.participants.filter(p => !p.left_at);
+  // Memoized: this array is a dependency of the search-debounce effect below —
+  // a fresh identity every render would re-trigger the effect in a loop.
+  const activeParticipants = useMemo(
+    () => conversation.participants.filter(p => !p.left_at),
+    [conversation.participants]
+  );
 
   useEffect(() => {
     setName(conversation.name || '');

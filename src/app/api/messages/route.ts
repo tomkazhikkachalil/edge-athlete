@@ -76,38 +76,49 @@ export async function GET(request: NextRequest) {
       console.error('GET /api/messages allParticipants error:', allPError);
     }
 
-    // 3. Fetch last message for each conversation
-    const { data: lastMessages, error: lmError } = await supabase
-      .from('messages')
-      .select(`
-        id,
-        conversation_id,
-        sender_id,
-        type,
-        content,
-        media_url,
-        media_type,
-        shared_post_id,
-        shared_profile_id,
-        deleted_at,
-        created_at,
-        updated_at,
-        sender:profiles!messages_sender_id_fkey (
-          id,
-          first_name,
-          last_name,
-          full_name,
-          avatar_url,
-          handle
-        )
-      `)
-      .in('conversation_id', conversationIds)
-      .is('deleted_at', null)
-      .order('created_at', { ascending: false });
-
-    if (lmError) {
-      console.error('GET /api/messages lastMessages error:', lmError);
-    }
+    // 3. Fetch the last message for each conversation — one limit-1 query per
+    // conversation, in parallel. (A single unbounded .in() query silently
+    // truncates at PostgREST's 1000-row cap once total message volume grows,
+    // making older conversations render "No messages yet".)
+    const lastMessageResults = await Promise.all(
+      conversationIds.map(cid =>
+        supabase
+          .from('messages')
+          .select(`
+            id,
+            conversation_id,
+            sender_id,
+            type,
+            content,
+            media_url,
+            media_type,
+            shared_post_id,
+            shared_profile_id,
+            deleted_at,
+            created_at,
+            updated_at,
+            sender:profiles!messages_sender_id_fkey (
+              id,
+              first_name,
+              last_name,
+              full_name,
+              avatar_url,
+              handle
+            )
+          `)
+          .eq('conversation_id', cid)
+          .is('deleted_at', null)
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .maybeSingle()
+      )
+    );
+    const lastMessages = lastMessageResults
+      .map(r => {
+        if (r.error) console.error('GET /api/messages lastMessage error:', r.error);
+        return r.data;
+      })
+      .filter((m): m is NonNullable<typeof m> => m !== null);
 
     // Group last messages by conversation (first = newest)
     const lastMessageByConv: Record<string, Message> = {};

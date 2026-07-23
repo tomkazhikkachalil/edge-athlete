@@ -220,6 +220,11 @@ export default function MessageBubble({
                 width={300}
                 height={256}
               />
+              {message.content && (
+                <div className={`px-3 py-2 ${bubbleBase} rounded-none`}>
+                  <p className="text-sm whitespace-pre-wrap break-words">{message.content}</p>
+                </div>
+              )}
             </div>
           )}
 
@@ -243,6 +248,11 @@ export default function MessageBubble({
                 className="w-full max-h-64"
                 style={{ maxWidth: 300 }}
               />
+              {message.content && (
+                <div className={`px-3 py-2 ${bubbleBase} rounded-none`}>
+                  <p className="text-sm whitespace-pre-wrap break-words">{message.content}</p>
+                </div>
+              )}
             </div>
           )}
 

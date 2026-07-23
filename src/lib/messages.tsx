@@ -29,11 +29,19 @@ const MessagesContext = createContext<MessagesContextType | undefined>(undefined
 export function MessagesProvider({ children }: { children: ReactNode }) {
   const { user } = useAuth();
   const [conversations, setConversations] = useState<Conversation[]>([]);
+  // Live mirror of `conversations` for callbacks that consumers capture once
+  // at mount (e.g. ChatWindow's realtime handler) — reading the state directly
+  // there would see a stale snapshot and corrupt the unread total.
+  const conversationsRef = useRef<Conversation[]>([]);
   const [totalUnreadCount, setTotalUnreadCount] = useState(0);
   const [loading, setLoading] = useState(false);
 
   // Track subscribed channel refs so we can clean them up
   const channelRefs = useRef<Map<string, ReturnType<typeof supabase.channel>>>(new Map());
+
+  useEffect(() => {
+    conversationsRef.current = conversations;
+  }, [conversations]);
   const pollTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   // Controller for the auto-fetches kicked off by the user-change effect.
   // Aborted on logout / effect cleanup so navigation races don't surface as scary console errors.
@@ -199,6 +207,11 @@ export function MessagesProvider({ children }: { children: ReactNode }) {
         console.error('Failed to mark conversation read — status:', res.status);
         return;
       }
+      // Read the CURRENT unread count from the ref, not the `conversations`
+      // closure — consumers capture this callback once at mount, so a state
+      // read here could be arbitrarily stale and over-decrement the total.
+      const conv = conversationsRef.current.find(c => c.id === conversationId);
+      const unread = conv?.unread_count || 0;
       setConversations(prev =>
         prev.map(c =>
           c.id === conversationId
@@ -206,14 +219,13 @@ export function MessagesProvider({ children }: { children: ReactNode }) {
             : c
         )
       );
-      setTotalUnreadCount(prev => {
-        const conv = conversations.find(c => c.id === conversationId);
-        return Math.max(0, prev - (conv?.unread_count || 0));
-      });
+      if (unread > 0) {
+        setTotalUnreadCount(prev => Math.max(0, prev - unread));
+      }
     } catch (e) {
       console.error('Failed to mark conversation read:', e);
     }
-  }, [conversations]);
+  }, []);
 
   const addOptimisticMessage = useCallback((conversationId: string, message: Message) => {
     setConversations(prev =>

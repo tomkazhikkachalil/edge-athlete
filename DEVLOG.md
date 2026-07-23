@@ -39,6 +39,41 @@ Notifications:
 Verified: tsc clean, lint clean, build exit 0. Migration 025 pending
 (needs to run in Supabase). MEDIUM/LOW batches next.
 
+MEDIUM fixes (same day, 7 CONFIRMED):
+- Deleted-message content no longer shipped in API responses (main list +
+  reply previews) — UI hid it but the JSON contained full content.
+- Shared-post enrichment now privacy-filtered (admin client bypassed
+  posts RLS): owner-profile visibility AND post visibility enforced,
+  follower checks cached per request; applied to top-level and
+  reply-parent shared posts.
+- Reaction broadcasts: receivers recompute `reacted` from the reactors
+  list (sender's flags used to overwrite everyone's own-reaction state).
+- Conversation list last-messages: per-conversation limit-1 parallel
+  queries (unbounded .in() query silently truncated at PostgREST's
+  1000-row cap → "No messages yet" on older conversations).
+- GroupSettingsModal search: activeParticipants memoized (fresh array
+  identity re-triggered the debounce effect in an infinite ~300ms loop).
+- markConversationRead reads unread from a conversationsRef (mount-time
+  stale closure could underflow the badge, hiding other convos' unread).
+- Media captions: image/video messages now render their text content
+  (was saved but never displayed anywhere).
+- Realtime notifications: INSERT enriches actor profile (was "Someone"
+  + generic icon); UPDATE merges instead of replaces (kept actor) and
+  decrements the badge on unread→read transitions (cross-tab/page sync).
+- Comment likes now render "liked your comment" (comment_id discriminates;
+  all likes said "liked your post").
+- ChatWindow realtime INSERTs re-sort by created_at (out-of-order fetch
+  resolution could misorder messages).
+
+Documented, NOT fixed (PLAUSIBLE-only or zero observable effect):
+- M9: soft-delete UPDATE events may not reach other participants
+  (Realtime RLS behavior — needs runtime verification; refetch corrects).
+- M10: MessageInput + TypingIndicator subscribe the same typing: topic on
+  one client; Phoenix may close the prior channel (needs runtime verify).
+- notif-M6: create_notification's gate has no comment_reply/team_update
+  branches — but nothing creates those types anyway; revisit when comment
+  reply notifications are actually built.
+
 ## July 22, 2026 — Mobile responsiveness audit (3 subagents) + HIGH fixes
 
 Ran three parallel read-only audits: core pages; shared components; nav/

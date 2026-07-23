@@ -108,7 +108,11 @@ export default function ChatWindow({ conversationId, onBack }: Props) {
             const msg = full ?? newMsg;
             setMessages(prev => {
               if (prev.some(m => m.id === msg.id)) return prev;
-              return [msg, ...prev];
+              // Re-sort: two quick INSERT events resolve their fetches in any
+              // order, so a plain prepend can misorder the list.
+              return [msg, ...prev].sort((a, b) =>
+                new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+              );
             });
             if (msg.sender_id !== currentUserId) {
               markConversationRead(conversationId);
@@ -116,7 +120,9 @@ export default function ChatWindow({ conversationId, onBack }: Props) {
           } else {
             setMessages(prev => {
               if (prev.some(m => m.id === newMsg.id)) return prev;
-              return [newMsg, ...prev];
+              return [newMsg, ...prev].sort((a, b) =>
+                new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+              );
             });
           }
         }
@@ -139,9 +145,19 @@ export default function ChatWindow({ conversationId, onBack }: Props) {
       // search is sufficient.
       .on('broadcast', { event: 'reaction_update' }, (payload: { payload: { message_id: string; reactions: AggregatedReaction[] } }) => {
         const { message_id, reactions } = payload.payload;
-        setMessages(prev => prev.map(m =>
-          m.id === message_id ? { ...m, reactions } : m
-        ));
+        // The broadcast's `reacted` flags were computed for the SENDER —
+        // recompute them for this viewer from the reactors list (falling back
+        // to the prior local flag if reactors weren't included).
+        setMessages(prev => prev.map(m => {
+          if (m.id !== message_id) return m;
+          const localized = reactions.map(r => ({
+            ...r,
+            reacted: r.reactors
+              ? r.reactors.some(p => p.id === currentUserId)
+              : (m.reactions?.find(pr => pr.emoji === r.emoji)?.reacted ?? false),
+          }));
+          return { ...m, reactions: localized };
+        }));
       })
       .subscribe();
 

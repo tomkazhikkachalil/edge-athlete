@@ -1,6 +1,6 @@
 'use client';
 
-import { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react';
+import { createContext, useContext, useState, useEffect, useCallback, useRef, ReactNode } from 'react';
 import { RealtimePostgresChangesPayload } from '@supabase/supabase-js';
 import { useAuth } from '@/lib/auth';
 import { supabase } from '@/lib/supabase';
@@ -34,6 +34,7 @@ export interface Notification {
   post_id?: string;
   comment_id?: string;
   follow_id?: string;
+  actor_id?: string;
   actor?: NotificationActor;
   action_status?: 'pending' | 'accepted' | 'declined';
 }
@@ -61,7 +62,10 @@ export function getNotificationText(notification: Notification): string {
     case 'new_follower':
       return `${actorName} is now your fan`;
     case 'like':
-      return `${actorName} liked your post`;
+      // Comment likes are created with type 'like' + comment_id set
+      return notification.comment_id
+        ? `${actorName} liked your comment`
+        : `${actorName} liked your post`;
     case 'comment':
       return `${actorName} commented on your post`;
     case 'mention':
@@ -93,6 +97,13 @@ const NotificationsContext = createContext<NotificationsContextType | undefined>
 export function NotificationsProvider({ children }: { children: ReactNode }) {
   const { user } = useAuth();
   const [notifications, setNotifications] = useState<Notification[]>([]);
+  // Live mirror of `notifications` — realtime handlers need the current list
+  // (e.g. to detect an unread→read transition) without stale closures.
+  const notificationsRef = useRef<Notification[]>([]);
+
+  useEffect(() => {
+    notificationsRef.current = notifications;
+  }, [notifications]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -352,10 +363,26 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
         schema: 'public',
         table: 'notifications',
         filter: `user_id=eq.${user.id}`
-      }, (payload: RealtimePostgresChangesPayload<Notification>) => {
+      }, async (payload: RealtimePostgresChangesPayload<Notification>) => {
 
-        // Add new notification to the beginning of the list
-        setNotifications(prev => [payload.new as Notification, ...prev]);
+        // Raw realtime rows carry actor_id but not the joined actor profile —
+        // without it every live notification renders as "Someone ...".
+        // Fetch the actor before inserting (best effort).
+        let incoming = payload.new as Notification;
+        if (incoming.actor_id && !incoming.actor) {
+          const { data: actor } = await supabase
+            .from('profiles')
+            .select('id, first_name, last_name, full_name, avatar_url')
+            .eq('id', incoming.actor_id)
+            .maybeSingle();
+          if (actor) incoming = { ...incoming, actor: actor as NotificationActor };
+        }
+
+        // Add new notification to the beginning of the list (skip if already
+        // present, e.g. delivered while a refetch was in flight)
+        setNotifications(prev =>
+          prev.some(n => n.id === incoming.id) ? prev : [incoming, ...prev]
+        );
 
         // Increase unread count
         setUnreadCount(prev => prev + 1);
@@ -387,11 +414,23 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
         filter: `user_id=eq.${user.id}`
       }, (payload: RealtimePostgresChangesPayload<Notification>) => {
 
-        // Update the notification in the list
+        // Update the notification in the list. MERGE rather than replace —
+        // the raw realtime row has no joined `actor`, and replacing wholesale
+        // would wipe the name/avatar fetched earlier. Also keep the unread
+        // badge in sync when a notification transitions unread → read
+        // (e.g. marked read on the notifications page or in another tab).
         const updatedNotification = payload.new as Notification;
         if (updatedNotification?.id) {
+          const existing = notificationsRef.current.find(n => n.id === updatedNotification.id);
+          if (existing && !existing.is_read && updatedNotification.is_read) {
+            setUnreadCount(prev => Math.max(0, prev - 1));
+          }
           setNotifications(prev =>
-            prev.map(n => n.id === updatedNotification.id ? updatedNotification : n)
+            prev.map(n =>
+              n.id === updatedNotification.id
+                ? { ...n, ...updatedNotification, actor: n.actor ?? updatedNotification.actor }
+                : n
+            )
           );
         }
       })

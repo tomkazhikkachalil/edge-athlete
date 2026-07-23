@@ -120,16 +120,46 @@ export async function GET(
       ? messages[messages.length - 1].created_at
       : null;
 
+    // Privacy filter for shared posts: this route runs on the admin client
+    // (bypasses posts RLS), so post visibility must be enforced here. A shared
+    // post is viewable when the owner's profile is visible to the viewer AND
+    // (the post is public OR the viewer follows the owner). Per-owner access
+    // is cached for the duration of the request.
+    const ownerAccessCache = new Map<string, { profilePublic: boolean; isFollower: boolean }>();
+    const filterViewableSharedPost = async <T extends { visibility?: string | null; profile: unknown } | null>(post: T): Promise<T | null> => {
+      if (!post) return null;
+      const owner = (Array.isArray(post.profile) ? post.profile[0] : post.profile) as { id?: string } | null;
+      const ownerId = owner?.id;
+      if (!ownerId) return null;
+      if (ownerId === user.id) return post;
+      let access = ownerAccessCache.get(ownerId);
+      if (!access) {
+        const [{ data: ownerProfile }, { data: follow }] = await Promise.all([
+          supabase.from('profiles').select('visibility').eq('id', ownerId).maybeSingle(),
+          supabase.from('follows').select('id').eq('follower_id', user.id).eq('following_id', ownerId).eq('status', 'accepted').maybeSingle(),
+        ]);
+        access = { profilePublic: ownerProfile?.visibility !== 'private', isFollower: !!follow };
+        ownerAccessCache.set(ownerId, access);
+      }
+      const profileOk = access.profilePublic || access.isFollower;
+      const postOk = post.visibility !== 'private' || access.isFollower;
+      return profileOk && postOk ? post : null;
+    };
+
     // Enrich shared content for non-deleted messages
     const enrichedMessages = await Promise.all(
       messages.map(async (msg) => {
-        if (msg.deleted_at) return msg;
+        if (msg.deleted_at) {
+          // Soft-deleted: the UI shows "Message deleted" — never ship the
+          // original content/media back to clients.
+          return { ...msg, content: null, media_url: null, media_type: null, shared_post_id: null, shared_profile_id: null };
+        }
 
         if (msg.type === 'shared_post' && msg.shared_post_id) {
           const { data: post } = await supabase
             .from('posts')
             .select(`
-              id, caption, created_at,
+              id, caption, visibility, created_at,
               profile:profiles!posts_profile_id_fkey (
                 id, first_name, last_name, full_name, avatar_url, handle
               ),
@@ -139,7 +169,7 @@ export async function GET(
             `)
             .eq('id', msg.shared_post_id)
             .maybeSingle();
-          return { ...msg, shared_post: post };
+          return { ...msg, shared_post: await filterViewableSharedPost(post) };
         }
 
         if (msg.type === 'shared_profile' && msg.shared_profile_id) {
@@ -259,8 +289,10 @@ export async function GET(
           id: pm.id,
           sender_id: pm.sender_id,
           type: pm.type,
-          content: pm.content,
-          media_url: pm.media_url,
+          // Soft-deleted parents render as "Message deleted" — never ship
+          // the original content/media in the reply preview.
+          content: pm.deleted_at ? null : pm.content,
+          media_url: pm.deleted_at ? null : pm.media_url,
           deleted_at: pm.deleted_at,
           sender_name: senderName,
         });
@@ -275,7 +307,7 @@ export async function GET(
           ? supabase
               .from('posts')
               .select(`
-                id, caption, created_at,
+                id, caption, visibility, created_at,
                 profile:profiles!posts_profile_id_fkey (
                   id, first_name, last_name, full_name, avatar_url, handle
                 ),
@@ -297,10 +329,11 @@ export async function GET(
       const parentPostsById = new Map((parentPostsResult.data || []).map(p => [p.id, p]));
       const parentProfilesById = new Map((parentProfilesResult.data || []).map(p => [p.id, p]));
 
-      // Attach to parentMessagesMap entries
+      // Attach to parentMessagesMap entries (privacy-filtered, same as
+      // top-level shared posts)
       for (const pm of postParents) {
         const entry = parentMessagesMap.get(pm.id);
-        if (entry) entry.shared_post = parentPostsById.get(pm.shared_post_id) ?? null;
+        if (entry) entry.shared_post = await filterViewableSharedPost(parentPostsById.get(pm.shared_post_id) ?? null);
       }
       for (const pm of profileParents) {
         const entry = parentMessagesMap.get(pm.id);
