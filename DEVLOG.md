@@ -1,5 +1,25 @@
 # Development Log
 
+## July 22, 2026 — Migration 023 verified live + migration 024 (unread RPC)
+
+Verified 023 against production Supabase after Tom ran it:
+- golf_mode gone (42703 on select), activity_mode serving data.
+- Post insert with activity_mode works (test row inserted + deleted).
+- RPC smoke test: get_profile_media_counts, calculate_round_stats,
+  check_handle_availability, search_posts, search_profiles all pass.
+
+NOTE: 023 was run in Supabase BEFORE the code push (reverse of the documented
+order) — brief window where golf-post creation would have 500'd. Closed by
+deploying 9c1d8a6; no lasting impact.
+
+Sweep finding → migration 024: get_unread_message_count RPC was called by
+/api/messages/unread-count but NEVER defined in any migration. The route's
+silent fallback masked it — every unread-badge poll errored (PGRST202) then
+ran an N+1 count loop per conversation. 024 creates the RPC (single aggregate,
+matches fallback semantics exactly, SECURITY DEFINER + empty search_path,
+force-drop-overloads pattern from 022). No code change needed — route already
+prefers the RPC.
+
 ## July 22, 2026 — Drop posts.golf_mode (migration 023)
 
 Completes the schema cleanup started in migration 020. activity_mode has been
