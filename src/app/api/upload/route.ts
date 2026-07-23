@@ -3,8 +3,19 @@ import { getSupabaseAdmin, requireAuth } from '@/lib/auth-server';
 import { v4 as uuidv4 } from 'uuid';
 
 const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
-const ALLOWED_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
-const ALLOWED_VIDEO_TYPES = ['video/mp4', 'video/webm', 'video/quicktime'];
+// Extensions derived from the validated MIME type — never from the client
+// filename (which is attacker-controlled).
+const ALLOWED_IMAGE_TYPES: Record<string, string> = {
+  'image/jpeg': 'jpg',
+  'image/png': 'png',
+  'image/gif': 'gif',
+  'image/webp': 'webp',
+};
+const ALLOWED_VIDEO_TYPES: Record<string, string> = {
+  'video/mp4': 'mp4',
+  'video/webm': 'webm',
+  'video/quicktime': 'mov',
+};
 
 export async function POST(request: NextRequest) {
   try {
@@ -27,17 +38,19 @@ export async function POST(request: NextRequest) {
     
     // Validate file type
     const fileType = file.type;
-    const isImage = ALLOWED_IMAGE_TYPES.includes(fileType);
-    const isVideo = ALLOWED_VIDEO_TYPES.includes(fileType);
-    
+    const isImage = fileType in ALLOWED_IMAGE_TYPES;
+    const isVideo = fileType in ALLOWED_VIDEO_TYPES;
+
     if (!isImage && !isVideo) {
       return NextResponse.json({ error: 'Invalid file type' }, { status: 400 });
     }
-    
-    // Generate unique filename
-    const fileExt = file.name.split('.').pop();
+
+    // Generate unique filename. Always under the authenticated user's prefix —
+    // the old `temp/` fallback was an unowned dumping ground (and userId can
+    // never be absent here: requireAuth guarantees it).
+    const fileExt = isImage ? ALLOWED_IMAGE_TYPES[fileType] : ALLOWED_VIDEO_TYPES[fileType];
     const fileName = `${uuidv4()}.${fileExt}`;
-    const filePath = userId ? `${userId}/${fileName}` : `temp/${fileName}`;
+    const filePath = `${userId}/${fileName}`;
     
     // Convert File to ArrayBuffer then to Buffer
     const arrayBuffer = await file.arrayBuffer();

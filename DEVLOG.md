@@ -42,6 +42,25 @@ Sprint 1 slice 2 — password reset + email-confirmation UX:
 
 Verified: typecheck clean, lint clean, build exit 0 (70 routes).
 
+Sprint 1 slice 3 — hardening trio:
+- /api/upload: removed the dead temp/ path fallback (files always under
+  the authenticated user's prefix); extension now derived from the MIME
+  allowlist instead of the client filename (same fix the avatar route
+  got July 22).
+- vercel.json: HSTS (2y, includeSubDomains), Permissions-Policy
+  (camera/mic/geo off), and a Report-Only CSP (self + supabase +
+  giphy connect-src; frame-ancestors none). Report-Only = observe
+  violations in console before enforcing.
+- Unbounded-query caps: /api/comments paginated (default 100, max 200,
+  hasMore/nextOffset added — response shape backward compatible);
+  /api/followers followers+following branches capped (default 200,
+  max 500, limit/offset params).
+
+Sprint 1 remaining: Sentry + Upstash rate limiting (blocked on account
+credentials from Tom).
+
+Verified: typecheck clean, lint clean, build exit 0.
+
 ## July 22, 2026 — Maintenance checklist + sync (end of session)
 
 - `npm run lint` — zero warnings/errors.

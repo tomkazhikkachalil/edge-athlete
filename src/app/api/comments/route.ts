@@ -40,6 +40,12 @@ export async function GET(request: NextRequest) {
       );
     }
 
+    // Bounded page (was unbounded — a viral post's thread would load every
+    // comment in one response). Default generous enough that current clients
+    // see no behavior change at MVP scale; hasMore lets a future UI paginate.
+    const limit = Math.min(Math.max(parseInt(searchParams.get('limit') || '100', 10) || 100, 1), 200);
+    const offset = Math.max(parseInt(searchParams.get('offset') || '0', 10) || 0, 0);
+
     const supabase = createSupabaseServerClient(request);
 
     // Fetch comments with profile data and likes
@@ -63,7 +69,8 @@ export async function GET(request: NextRequest) {
       .eq('post_id', postId)
       .order('is_pinned', { ascending: false, nullsFirst: false })
       .order('likes_count', { ascending: false })
-      .order('created_at', { ascending: true });
+      .order('created_at', { ascending: true })
+      .range(offset, offset + limit); // limit+1 rows to compute hasMore
 
     if (error) {
       console.error('Error fetching comments:', error);
@@ -73,7 +80,13 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    return NextResponse.json({ comments: comments || [] });
+    const rows = comments || [];
+    const hasMore = rows.length > limit;
+    return NextResponse.json({
+      comments: hasMore ? rows.slice(0, limit) : rows,
+      hasMore,
+      nextOffset: offset + Math.min(rows.length, limit)
+    });
   } catch (error) {
     console.error('Error in GET /api/comments:', error);
     return NextResponse.json(

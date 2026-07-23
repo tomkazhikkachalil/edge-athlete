@@ -21,6 +21,10 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const type = searchParams.get('type') || 'followers'; // 'followers', 'following', 'requests'
     const profileId = searchParams.get('profileId') || user.id;
+    // Bounded pages (were unbounded — a large account would ship its entire
+    // follower list in one response). Defaults generous for MVP scale.
+    const limit = Math.min(Math.max(parseInt(searchParams.get('limit') || '200', 10) || 200, 1), 500);
+    const offset = Math.max(parseInt(searchParams.get('offset') || '0', 10) || 0, 0);
 
     // Privacy gate: another user's followers/following lists are only
     // visible if their profile is visible to the viewer. Without this, any
@@ -59,7 +63,8 @@ export async function GET(request: NextRequest) {
         `)
         .eq('following_id', profileId)
         .eq('status', 'accepted')
-        .order('created_at', { ascending: false });
+        .order('created_at', { ascending: false })
+        .range(offset, offset + limit - 1);
 
       if (error) {
         console.error('[FOLLOWERS API] Error fetching followers:', error);
@@ -111,7 +116,8 @@ export async function GET(request: NextRequest) {
         : followingQuery.eq('status', 'accepted');
 
       const { data: following, error } = await followingQuery
-        .order('created_at', { ascending: false });
+        .order('created_at', { ascending: false })
+        .range(offset, offset + limit - 1);
 
       if (error) {
         return NextResponse.json({ error: error.message }, { status: 500 });
