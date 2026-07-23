@@ -476,8 +476,8 @@ export default function EditProfileModal({ isOpen, onClose, profile, badges, onS
               <div className="space-y-3">
                 {badgeData.map((badge, index) => (
                   <div key={badge.id} className="p-3 border border-gray-200 rounded-md">
-                    <div className="grid grid-cols-12 gap-2 items-center">
-                      <div className="col-span-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-12 gap-2 items-center">
+                      <div className="sm:col-span-4">
                         <input
                           type="text"
                           value={badge.label}
@@ -486,7 +486,7 @@ export default function EditProfileModal({ isOpen, onClose, profile, badges, onS
                           className="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
                         />
                       </div>
-                      <div className="col-span-3">
+                      <div className="sm:col-span-3">
                         <select
                           value={badge.color_token}
                           onChange={(e) => updateBadge(index, { color_token: e.target.value })}
@@ -500,7 +500,7 @@ export default function EditProfileModal({ isOpen, onClose, profile, badges, onS
                           <option value="gray">Gray</option>
                         </select>
                       </div>
-                      <div className="col-span-3">
+                      <div className="sm:col-span-3">
                         <input
                           type="url"
                           value={badge.icon_url || ''}
@@ -509,7 +509,7 @@ export default function EditProfileModal({ isOpen, onClose, profile, badges, onS
                           className="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
                         />
                       </div>
-                      <div className="col-span-2 flex items-center space-x-1">
+                      <div className="sm:col-span-2 flex items-center space-x-1">
                         {index > 0 && (
                           <button
                             type="button"

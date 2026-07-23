@@ -260,7 +260,7 @@ export default function ScoreEntryModal({
           {/* Hole Navigation Grid */}
           <div>
             <div className="text-xs font-bold text-gray-700 mb-2">Jump to Hole:</div>
-            <div className="grid grid-cols-9 gap-1">
+            <div className="grid grid-cols-6 sm:grid-cols-9 gap-1">
               {Array.from({ length: holesPlayed }, (_, i) => i + 1).map(holeNum => {
                 const hole = holeData[holeNum - 1];
                 const hasScore = hole.strokes !== null;

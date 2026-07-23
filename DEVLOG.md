@@ -18,12 +18,27 @@ HIGH (all fixed):
   render right-aligned → 288px picker opened off-screen at 375px. Now
   honors the existing align prop (same pattern as ReactionDetails).
 
-MEDIUM/LOW backlog (documented in audit, not yet fixed): notifications
-page 5-tab bar lacks overflow-x-auto; EditProfileModal badge editor
-grid-cols-12 no stacking; ScoreEntryModal hole-jump 29px touch targets;
-PostCard caption missing break-words; messaging touch targets <44px;
-SharePostModal bottom sheet lacks safe-area padding; assorted hover-only
-overlays (info not lost — tiles tap through).
+MEDIUM (all fixed, same day):
+- /athlete own profile: InlineEdit popup now viewport-centered on mobile
+  (fixed sm:absolute + max-w clamp; was min-w-[280px] centered over
+  ~130px vitals cards, clipping at screen edges); vitals/social sections
+  px-4 sm:px-8; social row flex-wrap.
+- EditProfileModal badge editor: grid-cols-1 sm:grid-cols-12 (spans made
+  sm:-only — col-span-N on a 1-col grid creates implicit columns).
+- ScoreEntryModal hole-jump: grid-cols-6 sm:grid-cols-9 (29px→~46px
+  touch targets at 375px).
+- PostCard caption: break-words (long URLs/hashtags forced horizontal
+  scroll of the whole card).
+- Notifications page (/notifications) 5-tab bar: overflow-x-auto +
+  whitespace-nowrap flex-shrink-0 tabs.
+- MessageBubble long-press quick-react row: w-8→w-9 buttons (44px would
+  overflow — 9 buttons ≈ 396px > 375px viewport), flex-wrap + max-w
+  clamp as guards. MultiSportActivity view/edit/delete icons: p-2.
+
+LOW backlog (not fixed, cosmetic): SharePostModal bottom sheet safe-area
+padding; hover-only overlays (info not lost — tiles tap through);
+GifPickerModal vh→dvh; EmojiPickerButton nested-in-ReactionBar edge case;
+goodbye page © 2025.
 
 Well-handled (verified): golf scorecard tables (overflow-x-auto + sticky
 columns everywhere), all modals (max-h + inner scroll), messages two-pane

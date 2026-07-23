@@ -427,7 +427,7 @@ export default function PostCard({
       <div className="px-6 py-4">
         {/* Caption */}
         {post.caption && (
-          <p className="text-gray-900 text-base font-medium leading-relaxed mb-3">{post.caption}</p>
+          <p className="text-gray-900 text-base font-medium leading-relaxed mb-3 break-words">{post.caption}</p>
         )}
 
         {/* Hashtags */}

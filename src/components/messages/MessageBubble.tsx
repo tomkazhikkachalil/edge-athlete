@@ -324,25 +324,25 @@ export default function MessageBubble({
                   isOwn ? 'right-0' : 'left-0'
                 } bottom-full mb-1`}
               >
-                <div className="flex items-center gap-0.5 bg-white border border-gray-200 rounded-full shadow-lg px-1.5 py-1">
+                <div className="flex flex-wrap items-center gap-0.5 bg-white border border-gray-200 rounded-full shadow-lg px-1.5 py-1 max-w-[calc(100vw-3rem)]">
                   {QUICK_EMOJIS.map((emoji) => (
                     <button
                       key={emoji}
                       onClick={() => handleQuickEmoji(emoji)}
-                      className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-gray-100 active:bg-gray-200 transition-colors text-base"
+                      className="w-9 h-9 flex items-center justify-center rounded-full hover:bg-gray-100 active:bg-gray-200 transition-colors text-base"
                     >
                       {emoji}
                     </button>
                   ))}
                   <button
                     onClick={handleGifReactClick}
-                    className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-gray-100 active:bg-gray-200 transition-colors text-[10px] font-bold text-gray-500"
+                    className="w-9 h-9 flex items-center justify-center rounded-full hover:bg-gray-100 active:bg-gray-200 transition-colors text-[10px] font-bold text-gray-500"
                   >
                     GIF
                   </button>
                   <button
                     onClick={() => setShowFullPicker(prev => !prev)}
-                    className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-gray-100 active:bg-gray-200 transition-colors text-base text-gray-400"
+                    className="w-9 h-9 flex items-center justify-center rounded-full hover:bg-gray-100 active:bg-gray-200 transition-colors text-base text-gray-400"
                     title="More emojis"
                   >
                     +
@@ -350,7 +350,7 @@ export default function MessageBubble({
                   <div className="w-px h-5 bg-gray-200 mx-0.5" />
                   <button
                     onClick={handleReply}
-                    className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-gray-100 active:bg-gray-200 transition-colors"
+                    className="w-9 h-9 flex items-center justify-center rounded-full hover:bg-gray-100 active:bg-gray-200 transition-colors"
                     title="Reply"
                   >
                     <i className="fas fa-reply text-xs text-gray-400"></i>
@@ -358,7 +358,7 @@ export default function MessageBubble({
                   <div className="w-px h-5 bg-gray-200 mx-0.5" />
                   <button
                     onClick={() => { setShowQuickReact(false); setShowMenu(true); }}
-                    className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-gray-100 active:bg-gray-200 transition-colors"
+                    className="w-9 h-9 flex items-center justify-center rounded-full hover:bg-gray-100 active:bg-gray-200 transition-colors"
                   >
                     <i className="fas fa-ellipsis-h text-xs text-gray-400"></i>
                   </button>

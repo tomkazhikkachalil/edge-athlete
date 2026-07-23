@@ -625,8 +625,8 @@ export default function AthleteProfilePage() {
             aria-hidden="true"
           />
           {/* Edit box positioned directly over the content */}
-          <div className="absolute inset-0 z-50 flex items-center justify-center">
-            <div className="bg-white border-2 border-blue-500 rounded-lg shadow-xl p-4 min-w-[280px]">
+          <div className="fixed sm:absolute inset-0 z-50 flex items-center justify-center p-4 sm:p-0">
+            <div className="bg-white border-2 border-blue-500 rounded-lg shadow-xl p-4 min-w-[280px] max-w-[calc(100vw-2rem)]">
             <div className="flex flex-col gap-2">
               <div className="flex items-center gap-2">
                 {multiline ? (
@@ -927,7 +927,7 @@ export default function AthleteProfilePage() {
           </div>
           
           {/* Vitals Section */}
-          <div className="border-t border-gray-200 bg-gray-50 px-8 py-6">
+          <div className="border-t border-gray-200 bg-gray-50 px-4 sm:px-8 py-6">
             <h3 className="text-lg font-semibold text-gray-900 mb-4">Vitals</h3>
             <div className="grid grid-cols-2 md:grid-cols-5 gap-6">
               <div className="text-center bg-white rounded-lg border border-gray-200 p-4">
@@ -989,8 +989,8 @@ export default function AthleteProfilePage() {
           </div>
           
           {/* Social Media Section */}
-          <div className="border-t border-gray-200 px-8 py-4">
-            <div className="flex items-center justify-center gap-6" role="list" aria-label="Social media links">
+          <div className="border-t border-gray-200 px-4 sm:px-8 py-4">
+            <div className="flex flex-wrap items-center justify-center gap-4 sm:gap-6" role="list" aria-label="Social media links">
               <div className="flex items-center gap-2" role="listitem">
                 <i className="fab fa-twitter text-blue-400 text-lg" aria-label="Twitter" aria-hidden="true"></i>
                 <InlineEdit

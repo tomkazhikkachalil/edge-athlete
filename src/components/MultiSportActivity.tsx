@@ -259,7 +259,7 @@ export default function MultiSportActivity({ profileId, onEdit, onDelete }: Mult
                         }
                         // Disabled sports: no-op (detail coming soon)
                       }}
-                      className="text-blue-600 hover:text-blue-800 transition-colors"
+                      className="p-2 text-blue-600 hover:text-blue-800 transition-colors"
                       title={adapter.isEnabled() ? `View ${sportDef.activity_columns.col2.slice(0, -1)} Details` : 'Coming soon'}
                     >
                       <i className={`fas ${adapter.isEnabled() ? 'fa-eye' : 'fa-clock'} icon-edit`}></i>
@@ -267,7 +267,7 @@ export default function MultiSportActivity({ profileId, onEdit, onDelete }: Mult
                     {row.canEdit && adapter.isEnabled() && (
                       <button
                         onClick={() => handleEditActivity(row.id)}
-                        className="text-green-600 hover:text-green-800 transition-colors"
+                        className="p-2 text-green-600 hover:text-green-800 transition-colors"
                         title={`Edit ${sportDef.activity_columns.col2.slice(0, -1)}`}
                       >
                         <i className="fas fa-edit icon-edit"></i>
@@ -276,7 +276,7 @@ export default function MultiSportActivity({ profileId, onEdit, onDelete }: Mult
                     {row.canDelete && (
                       <button
                         onClick={() => handleDeleteActivity(row.id)}
-                        className="text-red-600 hover:text-red-800 transition-colors"
+                        className="p-2 text-red-600 hover:text-red-800 transition-colors"
                         title={`Delete ${sportDef.activity_columns.col2.slice(0, -1)}`}
                       >
                         <i className="fas fa-trash icon-edit"></i>

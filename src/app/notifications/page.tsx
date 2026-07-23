@@ -216,7 +216,7 @@ export default function NotificationsPage() {
           </div>
 
           {/* Tabs */}
-          <div className="flex items-center gap-1 mt-6 border-b border-gray-200">
+          <div className="flex items-center gap-1 mt-6 border-b border-gray-200 overflow-x-auto">
             {[
               { id: 'all' as Tab, label: 'All', count: notifications.length },
               { id: 'unread' as Tab, label: 'Unread', count: unreadCount },
@@ -227,7 +227,7 @@ export default function NotificationsPage() {
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id)}
-                className={`px-4 py-3 text-sm font-medium transition-colors relative ${
+                className={`px-4 py-3 text-sm font-medium transition-colors relative whitespace-nowrap flex-shrink-0 ${
                   activeTab === tab.id
                     ? 'text-blue-600 border-b-2 border-blue-600'
                     : 'text-gray-600 hover:text-gray-900'
