@@ -35,10 +35,22 @@ MEDIUM (all fixed, same day):
   overflow — 9 buttons ≈ 396px > 375px viewport), flex-wrap + max-w
   clamp as guards. MultiSportActivity view/edit/delete icons: p-2.
 
-LOW backlog (not fixed, cosmetic): SharePostModal bottom sheet safe-area
-padding; hover-only overlays (info not lost — tiles tap through);
-GifPickerModal vh→dvh; EmojiPickerButton nested-in-ReactionBar edge case;
-goodbye page © 2025.
+LOW (fixed, same day):
+- PostCard media carousel: touch swipe added (50px threshold; arrows kept).
+- SharePostModal + GifPickerModal bottom sheets: .modal-sheet-bottom
+  safe-area class; GifPickerModal 70vh→70dvh.
+- Emoji pickers (EmojiPickerButton + MessageBubble full picker):
+  width min(300px, calc(100vw-2rem)) — no more edge spill.
+- Touch-target bumps: MessageInput emoji/GIF/attach p-2.5, send w-11
+  (44px); ConversationList new-conversation w-10; ReactionBar chips py-1,
+  add-button w-7.
+- Copyright year now dynamic (goodbye page said 2025, AppHeader 2026).
+- Own-profile h1 text-3xl sm:text-4xl.
+
+Deliberately NOT changed: hover-only thumbnail overlays (u/[username],
+ProfileMediaTabs) — both auditors confirmed no info is lost (tiles tap
+through to the full post); the only CSS-only "fix" would permanently
+darken every thumbnail on mobile.
 
 Well-handled (verified): golf scorecard tables (overflow-x-auto + sticky
 columns everywhere), all modals (max-h + inner scroll), messages two-pane

@@ -310,7 +310,7 @@ export default function MessageInput({ conversationId, currentUserId, onSend, di
           type="button"
           onClick={() => setShowGifPicker(prev => !prev)}
           disabled={disabled || sending}
-          className="shrink-0 p-2 text-gray-400 hover:text-blue-500 transition-colors disabled:opacity-40 text-xs font-bold"
+          className="shrink-0 p-2.5 text-gray-400 hover:text-blue-500 transition-colors disabled:opacity-40 text-xs font-bold"
           aria-label="Send GIF"
           title="Send a GIF"
         >
@@ -329,7 +329,7 @@ export default function MessageInput({ conversationId, currentUserId, onSend, di
           type="button"
           onClick={() => fileInputRef.current?.click()}
           disabled={disabled || sending}
-          className="shrink-0 p-2 text-gray-400 hover:text-gray-600 transition-colors disabled:opacity-40"
+          className="shrink-0 p-2.5 text-gray-400 hover:text-gray-600 transition-colors disabled:opacity-40"
           aria-label="Attach file"
         >
           <i className="fas fa-paperclip text-lg"></i>
@@ -361,7 +361,7 @@ export default function MessageInput({ conversationId, currentUserId, onSend, di
           type="button"
           onClick={handleSend}
           disabled={!canSend}
-          className="shrink-0 w-10 h-10 bg-blue-600 text-white rounded-full flex items-center justify-center hover:bg-blue-700 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+          className="shrink-0 w-11 h-11 bg-blue-600 text-white rounded-full flex items-center justify-center hover:bg-blue-700 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
           aria-label="Send message"
         >
           {sending ? (

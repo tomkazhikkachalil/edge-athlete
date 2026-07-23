@@ -372,7 +372,7 @@ export default function AppHeader({ showSearch = true, onCreatePost, onEditProfi
           {/* Footer */}
           <div className="p-4 border-t border-gray-200">
             <p className="text-xs text-gray-500 text-center">
-              Edge Athlete &copy; 2026
+              Edge Athlete &copy; {new Date().getFullYear()}
             </p>
           </div>
         </div>

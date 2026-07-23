@@ -50,7 +50,7 @@ export default function ConversationList({
         <button
           type="button"
           onClick={onNewConversation}
-          className="w-8 h-8 flex items-center justify-center text-gray-600 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+          className="w-10 h-10 flex items-center justify-center text-gray-600 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
           aria-label="New conversation"
         >
           <i className="fas fa-edit text-base"></i>

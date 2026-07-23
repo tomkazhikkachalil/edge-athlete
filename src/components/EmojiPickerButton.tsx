@@ -48,7 +48,7 @@ export default function EmojiPickerButton({ onEmojiSelect, className = '' }: Pro
       <button
         type="button"
         onClick={() => setOpen(prev => !prev)}
-        className="shrink-0 p-2 text-gray-400 hover:text-yellow-500 transition-colors"
+        className="shrink-0 p-2.5 text-gray-400 hover:text-yellow-500 transition-colors"
         aria-label="Add emoji"
         title="Add emoji"
       >
@@ -61,7 +61,7 @@ export default function EmojiPickerButton({ onEmojiSelect, className = '' }: Pro
             onEmojiClick={handleEmojiClick}
             lazyLoadEmojis
             height={350}
-            width={300}
+            width="min(300px, calc(100vw - 2rem))"
             searchPlaceholder="Search emoji…"
           />
         </div>

@@ -171,7 +171,7 @@ export default function SharePostModal({
   return (
     <div className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center z-50" onClick={onClose}>
       <div
-        className="bg-white rounded-t-2xl sm:rounded-2xl w-full sm:max-w-md max-h-[85vh] flex flex-col overflow-hidden"
+        className="bg-white rounded-t-2xl sm:rounded-2xl w-full sm:max-w-md max-h-[85vh] flex flex-col overflow-hidden modal-sheet-bottom"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}

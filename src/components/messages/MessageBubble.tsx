@@ -380,7 +380,7 @@ export default function MessageBubble({
                   onEmojiClick={handleFullPickerEmoji}
                   lazyLoadEmojis
                   height={350}
-                  width={300}
+                  width="min(300px, calc(100vw - 2rem))"
                   searchPlaceholder="Search emoji…"
                 />
               </div>

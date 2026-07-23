@@ -232,6 +232,20 @@ export default function PostCard({
     }
   };
 
+  // Touch swipe for the media carousel (mobile has no hover/arrow affordance)
+  const touchStartX = useRef<number | null>(null);
+  const handleMediaTouchStart = (e: React.TouchEvent) => {
+    touchStartX.current = e.touches[0].clientX;
+  };
+  const handleMediaTouchEnd = (e: React.TouchEvent) => {
+    if (touchStartX.current === null) return;
+    const deltaX = e.changedTouches[0].clientX - touchStartX.current;
+    touchStartX.current = null;
+    if (Math.abs(deltaX) < 50) return; // ignore taps/small drags
+    if (deltaX < 0) nextMedia();
+    else prevMedia();
+  };
+
   const prevMedia = () => {
     if (post.media.length > 1) {
       setCurrentMediaIndex((prev) => (prev - 1 + post.media.length) % post.media.length);
@@ -326,7 +340,11 @@ export default function PostCard({
 
       {/* Media */}
       {post.media && post.media.length > 0 && (
-        <div className="relative bg-gray-100">
+        <div
+          className="relative bg-gray-100"
+          onTouchStart={handleMediaTouchStart}
+          onTouchEnd={handleMediaTouchEnd}
+        >
           <div className="relative w-full flex items-center justify-center">
             {post.media[currentMediaIndex].media_type === 'image' ? (
               <LazyImage

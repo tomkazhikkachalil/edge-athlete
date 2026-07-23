@@ -817,7 +817,7 @@ export default function AthleteProfilePage() {
               {/* Profile Information */}
               <div className="flex-1 min-w-0">
                 <div className="mb-6">
-                  <h1 className="text-4xl font-bold text-gray-900 mb-2">
+                  <h1 className="text-3xl sm:text-4xl font-bold text-gray-900 mb-2">
                     {formatDisplayName(profile?.first_name, null, profile?.last_name, profile?.full_name) || 'Add your name in Edit Profile'}
                   </h1>
                   {profile && getHandle(profile) && (

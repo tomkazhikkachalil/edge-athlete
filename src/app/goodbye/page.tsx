@@ -100,7 +100,7 @@ export default function GoodbyePage() {
         {/* Bottom Branding */}
         <div className="text-center mt-8">
           <p className="text-sm text-gray-500">
-            Edge Athlete &copy; 2025 - Building the future of sports
+            Edge Athlete &copy; {new Date().getFullYear()} - Building the future of sports
           </p>
         </div>
       </div>
