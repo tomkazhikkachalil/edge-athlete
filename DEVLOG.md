@@ -78,7 +78,9 @@ Rounds list page slice:
 Waitlist fix slice (closes Sprint 2):
 - Migration 027: waitlist table (email + user_type club/league/fan/
   guest, UNIQUE pair, RLS enabled with NO policies = service-role only).
-  PENDING: needs to run in Supabase.
+  VERIFIED LIVE (after Tom ran it): service-role insert 201, duplicate
+  23505, CHECK rejects bad types, anon read empty + anon insert 42501
+  (RLS holds), test row cleaned up.
 - Route actually persists now (was a no-op discarding every lead from
   4 of 5 landing CTAs): normalizes email/type, validates against
   allowlist, duplicate signup = friendly success, non-dup errors 500.
