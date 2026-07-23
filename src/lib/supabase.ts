@@ -80,6 +80,7 @@ export interface Profile {
   location?: string;
   postal_code?: string;
   user_type: 'athlete' | 'club' | 'league' | 'fan';
+  onboarded_at?: string | null; // null = first-run onboarding not yet completed
   created_at: string;
   updated_at: string;
   // Extended athlete profile fields

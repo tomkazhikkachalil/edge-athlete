@@ -62,6 +62,18 @@ export default function FeedPage() {
   const [posts, setPosts] = useState<Post[]>([]);
   const [feedLoading, setFeedLoading] = useState(true);
   const [isCreatePostModalOpen, setIsCreatePostModalOpen] = useState(false);
+
+  // Deep link: /feed?create=1 opens the composer (used by onboarding's
+  // "Log your first round"). window.location instead of useSearchParams —
+  // this page is statically prerendered and must not need a Suspense wrap.
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('create') === '1') {
+      setIsCreatePostModalOpen(true);
+      window.history.replaceState(null, '', '/feed');
+    }
+  }, []);
   const [isEditPostModalOpen, setIsEditPostModalOpen] = useState(false);
   const [isEditProfileModalOpen, setIsEditProfileModalOpen] = useState(false);
   const [editingPost, setEditingPost] = useState<Post | null>(null);

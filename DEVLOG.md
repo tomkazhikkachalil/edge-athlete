@@ -1,5 +1,26 @@
 # Development Log
 
+## July 23, 2026 — Sprint 4 kickoff: first-run onboarding
+
+- Migration 029: profiles.onboarded_at + backfill (= created_at) so
+  ONLY fresh signups see the wizard. PENDING: run in Supabase — until
+  then all users have NULL onboarded_at and would hit /onboarding once
+  (skippable, marks itself complete; annoying not harmful — run soon).
+- NEW /onboarding: 3 skippable steps — (1) avatar upload (reuses
+  /api/upload/avatar, client-side type/size validation, preview),
+  (2) find golfers (reuses ConnectionSuggestions compact), (3) "Log
+  your first round" → /feed?create=1 or plain feed. Progress dots,
+  back navigation, every screen skippable. Finish/skip stamps
+  onboarded_at via PUT /api/profile then refreshes the auth context.
+  Race guard: the already-onboarded redirect is suppressed while
+  finishing (refreshProfile would otherwise override the destination).
+- Landing page redirect: logged-in users route by onboarded_at
+  (waits for the profile row — no guessing).
+- Feed deep link: /feed?create=1 opens the composer (read via
+  window.location in an effect, NOT useSearchParams — the page is
+  statically prerendered and must not need a Suspense wrap); param
+  cleaned from the URL after opening.
+
 ## July 23, 2026 — Sprint 3 kickoff: Golf Trends dashboard
 
 - NEW GET /api/golf/trends: chronological per-round series (to_par,

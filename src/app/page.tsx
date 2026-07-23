@@ -32,15 +32,17 @@ export default function Home() {
   const [showWaitlist, setShowWaitlist] = useState(false);
   const [waitlistUserType, setWaitlistUserType] = useState('');
 
-  const { signIn, user, loading, initialAuthCheckComplete } = useAuth();
+  const { signIn, user, profile, loading, initialAuthCheckComplete } = useAuth();
   const router = useRouter();
 
-  // Redirect to athlete profile if user is already logged in
+  // Redirect once logged in: brand-new users (no onboarded_at) get the
+  // first-run onboarding; everyone else goes to their profile. Wait for the
+  // profile row so we don't guess.
   useEffect(() => {
-    if (!loading && user) {
-      router.push('/athlete');
+    if (!loading && user && profile) {
+      router.push(profile.onboarded_at ? '/athlete' : '/onboarding');
     }
-  }, [user, loading, router]);
+  }, [user, profile, loading, router]);
 
   // Show loading state while auth is being determined - prevent flash of login page
   if (loading || !initialAuthCheckComplete) {
