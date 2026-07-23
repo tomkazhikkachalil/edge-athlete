@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback, useMemo } from 'react';
+import ScoreEntryModal from '@/components/golf/ScoreEntryModal';
 import { useToast } from '@/components/Toast';
 import type { GolfCourse } from '@/lib/golf-courses-db';
 import type { HoleData } from '@/types/golf';
@@ -63,6 +64,7 @@ export default function GolfScorecardForm({ onDataChange }: GolfScorecardFormPro
   // Scorecard data
   const [holesData, setHolesData] = useState<HoleData[]>([]);
   const [activeTab, setActiveTab] = useState<'front' | 'back'>('front');
+  const [showQuickEntry, setShowQuickEntry] = useState(false);
 
   // Course search
   const [courseSearchOpen, setCourseSearchOpen] = useState(false);
@@ -669,16 +671,26 @@ export default function GolfScorecardForm({ onDataChange }: GolfScorecardFormPro
       {/* Scorecard */}
       <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
         <div className="bg-gradient-to-r from-green-600 to-green-700 text-white p-4">
-          <h3 className="text-lg font-semibold flex items-center justify-between">
+          <h3 className="text-lg font-semibold flex flex-wrap items-center justify-between gap-2">
             <span>
               <i className="fas fa-clipboard-list mr-2"></i>
               Scorecard
             </span>
-            {stats && (
-              <span className="text-2xl font-bold">
-                {stats.totalScore} ({stats.differential})
-              </span>
-            )}
+            <span className="flex items-center gap-3">
+              <button
+                type="button"
+                onClick={() => setShowQuickEntry(true)}
+                className="bg-white/20 hover:bg-white/30 text-white text-sm font-semibold px-3 py-2 min-h-[40px] rounded-md transition-colors"
+              >
+                <i className="fas fa-bolt mr-1"></i>
+                Quick entry
+              </button>
+              {stats && (
+                <span className="text-2xl font-bold">
+                  {stats.totalScore} ({stats.differential})
+                </span>
+              )}
+            </span>
           </h3>
         </div>
 
@@ -1094,6 +1106,49 @@ export default function GolfScorecardForm({ onDataChange }: GolfScorecardFormPro
           </div>
         </div>
       </div>
+
+      {/* Quick entry: hole-by-hole stepper (same modal shared rounds use).
+          Maps in/out of this form's holesData — the 72-field table stays for
+          those who prefer it; this is the mobile-friendly path. */}
+      {showQuickEntry && (
+        <ScoreEntryModal
+          groupPostId=""
+          participantId=""
+          holesPlayed={holeCount}
+          startingHoleNumber={holeCount === 9 && startingHole === 'back' ? 10 : 1}
+          existingScores={holesData
+            .filter(h => h.score !== undefined && h.score !== null)
+            .map(h => ({
+              hole_number: h.hole,
+              strokes: h.score as number,
+              putts: h.putts ?? null,
+              fairway_hit: h.fairway === 'hit' ? true : h.fairway === 'left' || h.fairway === 'right' ? false : null,
+              green_in_regulation: h.gir ?? null,
+            })) as never}
+          onSave={async (scores) => {
+            setHolesData(prev => prev.map(hole => {
+              const entered = scores.find(sc => sc.hole_number === hole.hole);
+              if (!entered) return hole;
+              return {
+                ...hole,
+                score: entered.strokes,
+                putts: entered.putts,
+                fairway: hole.par === 3
+                  ? 'na'
+                  : entered.fairway_hit === true ? 'hit'
+                  // boolean miss loses direction — keep an existing left/right,
+                  // else default to 'left'
+                  : entered.fairway_hit === false
+                    ? (hole.fairway === 'left' || hole.fairway === 'right' ? hole.fairway : 'left')
+                  : hole.fairway,
+                gir: entered.green_in_regulation ?? hole.gir,
+              };
+            }));
+          }}
+          onClose={() => setShowQuickEntry(false)}
+        />
+      )}
     </div>
+
   );
 }

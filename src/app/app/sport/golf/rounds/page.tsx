@@ -216,11 +216,20 @@ export default function GolfRoundsListPage() {
             <h2 className="text-lg font-semibold text-gray-900 mb-2">
               {courseSearch || holesFilter !== 'all' ? 'No rounds match those filters' : 'No rounds logged yet'}
             </h2>
-            <p className="text-sm text-gray-500">
+            <p className="text-sm text-gray-500 mb-4">
               {courseSearch || holesFilter !== 'all'
                 ? 'Try clearing the filters above.'
-                : 'Log your first round from the Create Post button — it will show up here.'}
+                : 'Log your first round and it will show up here.'}
             </p>
+            {!courseSearch && holesFilter === 'all' && (
+              <Link
+                href="/feed?create=1"
+                className="inline-flex items-center bg-green-600 text-white px-5 py-2.5 rounded-lg hover:bg-green-700 transition-colors font-medium"
+              >
+                <i className="fas fa-golf-ball mr-2"></i>
+                Log a round
+              </Link>
+            )}
           </div>
         ) : (
           <div className="space-y-3">

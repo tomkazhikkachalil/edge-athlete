@@ -9,6 +9,8 @@ interface ScoreEntryModalProps {
   groupPostId: string;
   participantId: string;
   holesPlayed: number;
+  /** First hole number (10 for back-9 rounds). Defaults to 1. */
+  startingHoleNumber?: number;
   existingScores?: GolfHoleScore[];
   onSave: (scores: Array<{
     hole_number: number;
@@ -24,6 +26,7 @@ export default function ScoreEntryModal({
   groupPostId: _groupPostId, // eslint-disable-line @typescript-eslint/no-unused-vars
   participantId: _participantId, // eslint-disable-line @typescript-eslint/no-unused-vars
   holesPlayed,
+  startingHoleNumber = 1,
   existingScores = [],
   onSave,
   onClose
@@ -36,9 +39,10 @@ export default function ScoreEntryModal({
   const [holeData, setHoleData] = useState<HoleData[]>(() => {
     const holes: HoleData[] = [];
     for (let i = 1; i <= holesPlayed; i++) {
-      const existing = existingScores.find(s => s.hole_number === i);
+      const holeNumber = startingHoleNumber + i - 1;
+      const existing = existingScores.find(s => s.hole_number === holeNumber);
       holes.push({
-        hole_number: i,
+        hole_number: holeNumber,
         strokes: existing?.strokes ?? null,
         putts: existing?.putts ?? null,
         fairway_hit: existing?.fairway_hit ?? null,
@@ -158,7 +162,7 @@ export default function ScoreEntryModal({
           {/* Current Hole Display */}
           <div className="text-center mb-6">
             <div className="text-5xl font-black text-green-900 mb-2">
-              Hole {currentHole}
+              Hole {currentHoleData.hole_number}
             </div>
             <div className="text-sm text-gray-600">
               Par {4} {/* Estimated par */}
@@ -280,7 +284,7 @@ export default function ScoreEntryModal({
                         : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
                     }`}
                   >
-                    {holeNum}
+                    {hole.hole_number}
                   </button>
                 );
               })}

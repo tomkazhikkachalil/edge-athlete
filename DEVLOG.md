@@ -21,6 +21,30 @@
   statically prerendered and must not need a Suspense wrap); param
   cleaned from the URL after opening.
 
+Golf-first empty states:
+- Feed empty state: "Your feed starts with a round" + green "Log your
+  first round" primary CTA (was generic "Create First Post").
+- Rounds list empty state links to /feed?create=1.
+
+Course search — "courses you've played" layer:
+- GET /api/golf/courses now merges REAL courses from logged golf_rounds
+  ahead of the static-7/API results: requester's own courses first,
+  then platform-wide, deduped by name, max 5, rating/slope/par/location
+  auto-fill from the most recent round there. No fabricated data —
+  improves as the platform grows. selectCourse degrades gracefully
+  (history entries have holes: [] → keeps default hole grid).
+  Query shape verified live (searching "eagle" surfaces Eagle Creek
+  with 70.3/128 auto-fill).
+
+Mobile quick entry:
+- ScoreEntryModal gains startingHoleNumber (back-9 rounds label holes
+  10-18 correctly, incl. jump grid).
+- GolfScorecardForm: "Quick entry" button in the scorecard header opens
+  the same hole-by-hole stepper shared rounds use (big tap targets,
+  progress bar); maps in/out of holesData (fairway boolean ↔
+  hit/left/right/na, GIR, putts). The full table remains for desktop
+  preference — one entry UX across individual and shared flows.
+
 ## July 23, 2026 — Sprint 3 kickoff: Golf Trends dashboard
 
 - NEW GET /api/golf/trends: chronological per-round series (to_par,

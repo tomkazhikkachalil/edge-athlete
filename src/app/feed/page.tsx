@@ -446,19 +446,29 @@ export default function FeedPage() {
                 </div>
               ) : posts.length === 0 ? (
                 <div className="bg-white rounded-lg shadow-md border-2 border-gray-300 p-8 text-center">
-                  <div className="text-gray-400 mb-4">
-                    <i className="fas fa-users text-4xl"></i>
+                  <div className="text-green-500 mb-4">
+                    <i className="fas fa-golf-ball text-4xl"></i>
                   </div>
-                  <h3 className="text-lg font-medium text-gray-900 mb-2">No posts yet</h3>
+                  <h3 className="text-lg font-medium text-gray-900 mb-2">Your feed starts with a round</h3>
                   <p className="text-gray-600 mb-6">
-                    Be the first to share something! Create a post to get the community started.
+                    Log your most recent round — your scores, stats, and trends build from there.
+                    Following other golfers fills this feed up too.
                   </p>
-                  <button
-                    onClick={() => setIsCreatePostModalOpen(true)}
-                    className="bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700 transition-colors font-medium"
-                  >
-                    Create First Post
-                  </button>
+                  <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
+                    <button
+                      onClick={() => setIsCreatePostModalOpen(true)}
+                      className="w-full sm:w-auto bg-green-600 text-white px-6 py-3 rounded-lg hover:bg-green-700 transition-colors font-medium"
+                    >
+                      <i className="fas fa-golf-ball mr-2"></i>
+                      Log your first round
+                    </button>
+                    <button
+                      onClick={() => setIsCreatePostModalOpen(true)}
+                      className="w-full sm:w-auto bg-gray-100 text-gray-700 px-6 py-3 rounded-lg hover:bg-gray-200 transition-colors font-medium"
+                    >
+                      Create a post
+                    </button>
+                  </div>
                 </div>
               ) : (
                 <>
