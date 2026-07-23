@@ -72,20 +72,16 @@ export async function requireAuth(request: NextRequest) {
 export async function requireAdmin(request: NextRequest) {
   const user = await requireAuth(request);
 
-  // Create admin client to check role
-  const supabaseAdmin = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!
-  );
+  // Admin = email on the ADMIN_EMAILS allowlist (comma-separated env var,
+  // server-only). The old implementation checked a profiles.role column
+  // that does not exist — it 403'd for everyone. An env allowlist is the
+  // right size for the MVP; a real roles system can replace it later.
+  const adminEmails = (process.env.ADMIN_EMAILS || '')
+    .split(',')
+    .map(e => e.trim().toLowerCase())
+    .filter(Boolean);
 
-  // Check if user has admin role
-  const { data: profile } = await supabaseAdmin
-    .from('profiles')
-    .select('role')
-    .eq('id', user.id)
-    .single();
-
-  if (profile?.role !== 'admin') {
+  if (!user.email || !adminEmails.includes(user.email.toLowerCase())) {
     throw new Response(
       JSON.stringify({ error: 'Admin access required' }),
       { status: 403, headers: { 'Content-Type': 'application/json' } }

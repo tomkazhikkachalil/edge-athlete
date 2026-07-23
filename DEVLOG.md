@@ -19,6 +19,27 @@
 - Footer links (Terms · Privacy · Contact) on the landing page and in
   the app drawer.
 
+Sprint 5 item 4 — admin-lite:
+- requireAdmin REWIRED: was checking a profiles.role column that doesn't
+  exist (403'd for EVERYONE, incl. real admins) → now an ADMIN_EMAILS
+  env allowlist (documented in .env.example). Right-sized for MVP; a
+  roles system can replace it later.
+- /dashboard REPLACED (was the legacy orphan with dead no-onClick
+  buttons) with an admin console: message-reports triage queue
+  (message_reports has been written since migration 019 with NOTHING
+  reading it — reports went to a black hole) with status filters +
+  reviewing/resolve/dismiss actions, and a user-lookup search. Renders
+  a clean "admin access required" for non-admins.
+- NEW GET/PATCH /api/admin/reports + GET /api/admin/users, both
+  requireAdmin-gated.
+- NOTE: needs ADMIN_EMAILS set in Vercel (+ .env.local) to grant access;
+  without it /dashboard shows the not-authorized state for everyone.
+
+Admin-lite (item 4, closes Sprint 5):
+- requireAdmin REWIRED: it checked a profiles.role column that doesn't
+  exist (always 403'd). Now an ADMIN_EMAILS env allowlist (comma-
+  separated, server-only, case-insensitive)
+
 ## July 23, 2026 — Sprint 4 kickoff: first-run onboarding
 
 - Migration 029: profiles.onboarded_at + backfill (= created_at) so
