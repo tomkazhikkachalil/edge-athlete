@@ -1,5 +1,32 @@
 # Development Log
 
+## July 23, 2026 — Roadmap + Sprint 1 kickoff (CI gate, health, env docs)
+
+Strategic assessment completed (3 survey subagents: product completeness,
+production readiness, golf depth) → 6-sprint roadmap saved to
+docs/ROADMAP_2026-07.md. Headline findings: blind in production (no
+monitoring/tests/CI), golf loop doesn't compound (fake round-detail page,
+no history list/trends/computed handicap), no password reset, waitlist API
+is a no-op discarding 4 of 5 landing CTAs' leads, in-memory rate limiter
+non-functional on serverless.
+
+Sprint 1 slice 1 shipped:
+- .github/workflows/ci.yml — typecheck + lint + build on push/PR
+  (placeholder Supabase env for build; real values stay in Vercel).
+- package.json: `typecheck` (tsc --noEmit) + `verify` scripts.
+- /api/health — liveness + Supabase round-trip check (200/503) for uptime
+  monitors. No auth; exposes only up/down + latency.
+- .env.example rewritten — previously omitted ALL required Supabase vars
+  (and Giphy) while documenting only optional ones; a fresh deploy
+  following it could not boot.
+
+Remaining Sprint 1 (needs Tom's account setup): Sentry (DSN), Upstash
+Redis (rate limiting). No-external-deps items still queued: password
+reset flow, upload temp/ fix, HSTS/CSP headers, comments/followers
+pagination.
+
+Verified: typecheck clean, lint clean, build exit 0 (68 routes now).
+
 ## July 22, 2026 — Maintenance checklist + sync (end of session)
 
 - `npm run lint` — zero warnings/errors.
