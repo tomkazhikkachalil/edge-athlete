@@ -60,6 +60,21 @@ implementations; useSharedRound hook (Realtime seam); RoundTypeBadge/
 StatusBadge shared components; "add myself" from auth context; lazy-load
 hole_scores on expand (payload trim).
 
+Rounds list page slice:
+- NEW GET /api/golf/rounds: paginated round summaries (no hole detail),
+  filters (holes 9/18, course ilike sanitized, year), sort, count-exact
+  hasMore; own rounds default, others behind canViewProfile.
+- NEW /app/sport/golf/rounds page: mobile-first round cards (score +
+  to-par via lib/golf/scoring, putts/FIR/GIR chips, partial badge),
+  debounced course search with stale-response guard, 9/18 filter,
+  newest/oldest toggle, dedup'd load-more; filter-aware empty states.
+- Entry point: "View all rounds →" link in profile Recent Activity
+  header (golf tab).
+- Verified live: 9 real rounds in prod. DATA NOTE: several rounds have
+  holes=18 with par 36 and 9-hole-looking scores — users have been
+  logging 9-hole rounds through the hardcoded-18 form. Confirms the
+  9-hole entry fix as next priority.
+
 ## July 23, 2026 — Roadmap + Sprint 1 kickoff (CI gate, health, env docs)
 
 Strategic assessment completed (3 survey subagents: product completeness,

@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
+import Link from 'next/link';
 import { getSportDefinition, getSportAdapter, getPrimarySports, type SportKey } from '@/lib/sports';
 import { getPlaceholder } from '@/lib/config';
 import { COPY } from '@/lib/copy';
@@ -300,6 +301,11 @@ export default function MultiSportActivity({ profileId, onEdit, onDelete }: Mult
           <p className={`${cssClasses.TYPOGRAPHY.CHIP} text-gray-500 mt-1`}>
             <i className={`fas fa-sort-amount-down ${cssClasses.TYPOGRAPHY.CHIP} mr-1`}></i>
             {COPY.SORTING.NEWEST_OLDEST}
+            {activeSportKey === 'golf' && (
+              <Link href="/app/sport/golf/rounds" className="ml-3 text-blue-600 hover:text-blue-700 font-medium">
+                View all rounds →
+              </Link>
+            )}
           </p>
         </div>
         
