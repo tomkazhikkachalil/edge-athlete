@@ -81,10 +81,16 @@ export async function GET(request: NextRequest) {
         process.env.SUPABASE_SERVICE_ROLE_KEY!
       );
 
-      const { data: following, error } = await supabaseAdmin
+      // includeStatus=true (self only) also returns PENDING outgoing requests
+      // with a status field, so clients can render "Requested" instead of
+      // conflating pending with not-following.
+      const includeStatus = searchParams.get('includeStatus') === 'true' && profileId === user.id;
+
+      let followingQuery = supabaseAdmin
         .from('follows')
         .select(`
           id,
+          status,
           created_at,
           following:following_id (
             id,
@@ -98,8 +104,13 @@ export async function GET(request: NextRequest) {
             school
           )
         `)
-        .eq('follower_id', profileId)
-        .eq('status', 'accepted')
+        .eq('follower_id', profileId);
+
+      followingQuery = includeStatus
+        ? followingQuery.in('status', ['accepted', 'pending'])
+        : followingQuery.eq('status', 'accepted');
+
+      const { data: following, error } = await followingQuery
         .order('created_at', { ascending: false });
 
       if (error) {

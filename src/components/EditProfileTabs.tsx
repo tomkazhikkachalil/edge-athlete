@@ -210,7 +210,8 @@ export default function EditProfileTabs({
     setErrors({});
 
     try {
-      let updateData: Partial<Profile> = {};
+      // Values may also be '' — the server's clear-to-null convention
+      let updateData: Record<string, unknown> = {};
       let hasChanges = false;
 
       switch (tabId) {
@@ -225,13 +226,35 @@ export default function EditProfileTabs({
             throw new Error('First name and last name are required');
           }
 
+          // Handle changes go through the dedicated handle system (reserved
+          // names, format validation, history, rate limiting) — the generic
+          // profile PUT deliberately strips `handle`.
+          {
+            const newHandle = basicForm.handle.trim().replace(/^@/, '').toLowerCase();
+            const currentHandle = (profile?.handle || '').toString().replace(/^@/, '').toLowerCase();
+            if (newHandle && newHandle !== currentHandle) {
+              const handleRes = await fetch('/api/handles/update', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ handle: newHandle }),
+              });
+              if (!handleRes.ok) {
+                const err = await handleRes.json();
+                throw new Error(err.error || 'Failed to update handle');
+              }
+            }
+          }
+
+          // Empty strings are sent intentionally — the server converts '' to
+          // null, which is the only way a user can CLEAR a field. (Sending
+          // `undefined` drops the key from JSON and the value can never be
+          // emptied.)
           updateData = {
             first_name: basicForm.first_name.trim(),
-            middle_name: basicForm.middle_name.trim() || undefined,
+            middle_name: basicForm.middle_name.trim(),
             last_name: basicForm.last_name.trim(),
             full_name: basicForm.full_name.trim() || undefined, // fallback display name (not editable)
-            handle: basicForm.handle.trim() || undefined, // unique @handle identifier
-            bio: basicForm.bio.trim() || undefined,
+            bio: basicForm.bio.trim(),
             visibility: basicForm.visibility,
           };
           hasChanges = true;
@@ -258,23 +281,25 @@ export default function EditProfileTabs({
             weightDisplay = undefined;
           }
           
+          // Empty strings intentional — server converts '' to null (clears)
           updateData = {
-            height_cm: heightValidation.value || undefined,
-            weight_display: weightDisplay,
+            height_cm: heightValidation.value ?? '',
+            weight_display: weightDisplay ?? '',
             weight_unit: vitalsForm.weight_unit || 'lbs',
-            dob: vitalsForm.dob || undefined,
-            location: vitalsForm.location.trim() || undefined,
-            class_year: vitalsForm.class_year ? parseInt(String(vitalsForm.class_year)) : undefined,
+            dob: vitalsForm.dob || '',
+            location: vitalsForm.location.trim(),
+            class_year: vitalsForm.class_year ? parseInt(String(vitalsForm.class_year)) : '',
           };
           // Update vitals in database
           hasChanges = true;
           break;
 
         case 'socials':
+          // Empty strings intentional — server converts '' to null (clears)
           updateData = {
-            social_twitter: socialsForm.social_twitter.trim() || undefined,
-            social_instagram: socialsForm.social_instagram.trim() || undefined,
-            social_facebook: socialsForm.social_facebook.trim() || undefined,
+            social_twitter: socialsForm.social_twitter.trim(),
+            social_instagram: socialsForm.social_instagram.trim(),
+            social_facebook: socialsForm.social_facebook.trim(),
           };
           hasChanges = true;
           break;

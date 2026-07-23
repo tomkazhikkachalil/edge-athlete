@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, createContext, useContext } from 'react';
 import dynamic from 'next/dynamic';
 import { useAuth } from '@/lib/auth';
 import { useRouter } from 'next/navigation';
@@ -33,6 +33,141 @@ import {
   PLACEHOLDERS,
   getPlaceholder
 } from '@/lib/config';
+
+
+// ── InlineEdit: module-scope so its component identity is STABLE across the
+// page's renders. When it was defined inside AthleteProfilePage, every
+// keystroke created a new function identity → React unmounted/remounted the
+// whole edit popup → the caret jumped to the end (and IME input broke).
+// Shared page state flows in via context.
+interface InlineEditContextValue {
+  editingField: string | null;
+  tempValues: Record<string, string>;
+  setTempValue: (field: string, value: string) => void;
+  isSubmitting: boolean;
+  error: string | undefined;
+  startEditing: (field: string, value: string) => void;
+  cancelEditing: () => void;
+  saveInlineEdit: () => void;
+}
+const InlineEditContext = createContext<InlineEditContextValue | null>(null);
+
+function InlineEdit({
+  field,
+  value,
+  placeholder,
+  className = "",
+  multiline = false,
+  inputType = "text",
+  ariaLabel
+}: {
+  field: string;
+  value: string;
+  placeholder: string;
+  className?: string;
+  multiline?: boolean;
+  inputType?: string;
+  ariaLabel?: string;
+}) {
+  const ctx = useContext(InlineEditContext);
+  if (!ctx) return null;
+  const { editingField, tempValues, setTempValue, isSubmitting, error, startEditing, cancelEditing, saveInlineEdit } = ctx;
+
+  const isEditing = editingField === field;
+  const displayValue = value || placeholder;
+  const isEmpty = !value;
+
+  if (isEditing) {
+    return (
+      <div className="relative">
+        {/* Invisible copy of the display content keeps the field's footprint,
+            so the sm:absolute popup anchors to the FIELD (a positioned
+            ancestor) instead of resolving against the document top. */}
+        <div className={`px-2 py-1 min-h-[44px] invisible ${className}`} aria-hidden="true">
+          {displayValue}
+        </div>
+        {/* Backdrop to capture clicks outside */}
+        <div
+          className="fixed inset-0 z-40 bg-black/10"
+          onClick={cancelEditing}
+          aria-hidden="true"
+        />
+        {/* Edit box: viewport-centered on mobile, anchored to the field on sm+ */}
+        <div className="fixed sm:absolute inset-0 z-50 flex items-center justify-center p-4 sm:p-0">
+          <div className="bg-white border-2 border-blue-500 rounded-lg shadow-xl p-4 min-w-[280px] max-w-[calc(100vw-2rem)]">
+          <div className="flex flex-col gap-2">
+            <div className="flex items-center gap-2">
+              {multiline ? (
+                <textarea
+                  value={tempValues[field] || ''}
+                  onChange={(e) => setTempValue(field, e.target.value)}
+                  className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none min-h-[44px]"
+                  style={{ direction: 'ltr', unicodeBidi: 'normal' }}
+                  dir="ltr"
+                  rows={3}
+                  autoFocus
+                  aria-label={ariaLabel || `Edit ${field}`}
+                  disabled={isSubmitting}
+                />
+              ) : (
+                <input
+                  type={inputType}
+                  value={tempValues[field] || ''}
+                  onChange={(e) => setTempValue(field, e.target.value)}
+                  className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent min-h-[44px]"
+                  autoFocus
+                  aria-label={ariaLabel || `Edit ${field}`}
+                  disabled={isSubmitting}
+                />
+              )}
+              <button
+                onClick={saveInlineEdit}
+                disabled={isSubmitting}
+                className="min-w-[44px] min-h-[44px] px-3 py-2 bg-green-600 text-white rounded-md text-sm hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                aria-label="Save changes"
+              >
+                {isSubmitting ? (
+                  <i className="fas fa-spinner fa-spin" aria-hidden="true"></i>
+                ) : (
+                  '✓'
+                )}
+              </button>
+              <button
+                onClick={cancelEditing}
+                disabled={isSubmitting}
+                className="min-w-[44px] min-h-[44px] px-3 py-2 bg-gray-500 text-white rounded-md text-sm hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-gray-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                aria-label="Cancel editing"
+              >
+                ✕
+              </button>
+            </div>
+            {error && (
+              <div className="text-red-600 text-sm px-2" role="alert">
+                {error}
+              </div>
+            )}
+          </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="relative">
+      <button
+        type="button"
+        className={`cursor-pointer hover:bg-blue-50 hover:outline hover:outline-2 hover:outline-blue-300 rounded-md px-2 py-1 min-h-[44px] text-left w-full focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors ${className} ${
+          isEmpty ? 'text-gray-500 italic' : ''
+        }`}
+        onClick={() => startEditing(field, value)}
+        aria-label={ariaLabel || `Edit ${field}: ${displayValue}`}
+      >
+        {displayValue}
+      </button>
+    </div>
+  );
+}
 
 export default function AthleteProfilePage() {
   const { user, profile, loading, refreshProfile, initialAuthCheckComplete } = useAuth();
@@ -591,116 +726,6 @@ export default function AthleteProfilePage() {
     await refreshProfile();
   });
 
-  // Inline editable component
-  const InlineEdit = ({ 
-    field, 
-    value, 
-    placeholder, 
-    className = "",
-    multiline = false,
-    inputType = "text",
-    ariaLabel
-  }: { 
-    field: string; 
-    value: string; 
-    placeholder: string; 
-    className?: string;
-    multiline?: boolean;
-    inputType?: string;
-    ariaLabel?: string;
-  }) => {
-    const isEditing = editingField === field;
-    const displayValue = value || placeholder;
-    const isSubmitting = submitStates['inline-edit'];
-    const error = errors['inline-edit'];
-    const isEmpty = !value;
-    
-    if (isEditing) {
-      return (
-        <>
-          {/* Backdrop to capture clicks outside */}
-          <div 
-            className="fixed inset-0 z-40 bg-black/10" 
-            onClick={cancelEditing}
-            aria-hidden="true"
-          />
-          {/* Edit box positioned directly over the content */}
-          <div className="fixed sm:absolute inset-0 z-50 flex items-center justify-center p-4 sm:p-0">
-            <div className="bg-white border-2 border-blue-500 rounded-lg shadow-xl p-4 min-w-[280px] max-w-[calc(100vw-2rem)]">
-            <div className="flex flex-col gap-2">
-              <div className="flex items-center gap-2">
-                {multiline ? (
-                  <textarea
-                    value={tempValues[field] || ''}
-                    onChange={(e) => setTempValues({ ...tempValues, [field]: e.target.value })}
-                    className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none min-h-[44px]"
-                    style={{ direction: 'ltr', unicodeBidi: 'normal' }}
-                    dir="ltr"
-                    rows={3}
-                    autoFocus
-                    aria-label={ariaLabel || `Edit ${field}`}
-                    disabled={isSubmitting}
-                  />
-                ) : (
-                  <input
-                    type={inputType}
-                    value={tempValues[field] || ''}
-                    onChange={(e) => setTempValues({ ...tempValues, [field]: e.target.value })}
-                    className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent min-h-[44px]"
-                    autoFocus
-                    aria-label={ariaLabel || `Edit ${field}`}
-                    disabled={isSubmitting}
-                  />
-                )}
-                <button
-                  onClick={saveInlineEdit}
-                  disabled={isSubmitting}
-                  className="min-w-[44px] min-h-[44px] px-3 py-2 bg-green-600 text-white rounded-md text-sm hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                  aria-label="Save changes"
-                >
-                  {isSubmitting ? (
-                    <i className="fas fa-spinner fa-spin" aria-hidden="true"></i>
-                  ) : (
-                    '✓'
-                  )}
-                </button>
-                <button
-                  onClick={cancelEditing}
-                  disabled={isSubmitting}
-                  className="min-w-[44px] min-h-[44px] px-3 py-2 bg-gray-500 text-white rounded-md text-sm hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-gray-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                  aria-label="Cancel editing"
-                >
-                  ✕
-                </button>
-              </div>
-              {error && (
-                <div className="text-red-600 text-sm px-2" role="alert">
-                  {error}
-                </div>
-              )}
-            </div>
-            </div>
-          </div>
-        </>
-      );
-    }
-
-    return (
-      <div className="relative">
-        <button
-          type="button"
-          className={`cursor-pointer hover:bg-blue-50 hover:outline hover:outline-2 hover:outline-blue-300 rounded-md px-2 py-1 min-h-[44px] text-left w-full focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors ${className} ${
-            isEmpty ? 'text-gray-500 italic' : ''
-          }`}
-          onClick={() => startEditing(field, value)}
-          aria-label={ariaLabel || `Edit ${field}: ${displayValue}`}
-        >
-          {displayValue}
-        </button>
-      </div>
-    );
-  };
-
   // Show loading state during initial auth resolution
   if (loading || !initialAuthCheckComplete) {
     return (
@@ -734,6 +759,16 @@ export default function AthleteProfilePage() {
   }
 
   return (
+    <InlineEditContext.Provider value={{
+      editingField,
+      tempValues,
+      setTempValue: (field, value) => setTempValues(prev => ({ ...prev, [field]: value })),
+      isSubmitting: submitStates['inline-edit'],
+      error: errors['inline-edit'],
+      startEditing,
+      cancelEditing,
+      saveInlineEdit,
+    }}>
     <div className="min-h-screen bg-gray-50">
       {/* Unified Header */}
       <AppHeader
@@ -1119,5 +1154,6 @@ export default function AthleteProfilePage() {
         initialTab={followersModalTab}
       />
     </div>
+    </InlineEditContext.Provider>
   );
 }

@@ -3,9 +3,10 @@ import { supabaseAdmin } from '@/lib/supabase';
 import { requireAuth } from '@/lib/auth-server';
 import { canViewProfile } from '@/lib/privacy';
 
-// Fields safe to return to a viewer who is NOT the profile owner.
-// Contact details (email, phone) are owner-only.
-const CONTACT_FIELDS = ['email', 'phone'] as const;
+// Fields stripped for any viewer who is NOT the profile owner: contact
+// details plus PII the UI never shows to other users (signup birthday,
+// gender, postal code, nickname) — no reason to ship them to the browser.
+const OWNER_ONLY_FIELDS = ['email', 'phone', 'birthday', 'gender', 'postal_code', 'nickname'] as const;
 
 // Minimal subset for blocked viewers — exactly what PrivateProfileView needs.
 const MINIMAL_FIELDS = [
@@ -55,7 +56,7 @@ export async function GET(request: NextRequest) {
     const { data: badges, error: badgesError } = await supabaseAdmin
       .from('athlete_badges')
       .select('*')
-      .eq('athlete_id', profileId)
+      .eq('profile_id', profileId)
       .order('created_at', { ascending: false });
 
     if (badgesError && badgesError.code !== 'PGRST116') {
@@ -66,7 +67,7 @@ export async function GET(request: NextRequest) {
     const { data: seasonHighlights, error: highlightsError } = await supabaseAdmin
       .from('season_highlights')
       .select('*')
-      .eq('athlete_id', profileId)
+      .eq('profile_id', profileId)
       .order('season', { ascending: false });
 
     if (highlightsError && highlightsError.code !== 'PGRST116') {
@@ -77,7 +78,7 @@ export async function GET(request: NextRequest) {
     const { data: performances, error: performancesError } = await supabaseAdmin
       .from('performances')
       .select('*')
-      .eq('athlete_id', profileId)
+      .eq('profile_id', profileId)
       .order('date', { ascending: false });
 
     if (performancesError && performancesError.code !== 'PGRST116') {
@@ -93,7 +94,7 @@ export async function GET(request: NextRequest) {
       const { canView } = await canViewProfile(profileId, user.id);
       if (canView) {
         shapedProfile = { ...profile };
-        for (const f of CONTACT_FIELDS) delete shapedProfile[f];
+        for (const f of OWNER_ONLY_FIELDS) delete shapedProfile[f];
       } else {
         // Blocked (private profile, not an approved fan): minimal card only
         shapedProfile = {};
@@ -147,6 +148,13 @@ export async function PUT(request: NextRequest) {
     delete profileData.email;
     delete profileData.created_at;
     delete profileData.updated_at;
+    // Handle changes MUST go through /api/handles/update (reserved-name
+    // check, format validation, history, rate limiting) — never this route.
+    delete profileData.handle;
+    delete profileData.handle_updated_at;
+    delete profileData.handle_change_count;
+    // Avatar changes go through /api/upload/avatar
+    delete profileData.avatar_url;
 
     // user_type: self-service values only (org types provisioned separately)
     if (profileData.user_type !== undefined &&
@@ -175,17 +183,32 @@ export async function PUT(request: NextRequest) {
     }
     
     // Convert empty strings to null for optional text fields (keeps them as empty strings if that's intended)
-    const optionalFields = ['username', 'bio', 'location', 'social_twitter', 'social_instagram', 'social_facebook'];
+    const optionalFields = ['username', 'bio', 'location', 'middle_name', 'social_twitter', 'social_instagram', 'social_facebook'];
     optionalFields.forEach(field => {
       if (cleanedProfileData[field] === '') {
         cleanedProfileData[field] = null;
       }
     });
     
-    // Don't null out weight_unit - keep it as is
-    if (cleanedProfileData.weight_unit !== undefined) {
+    // Keep weight_kg in sync whenever the display weight changes — public
+    // surfaces (/u pages, /api/public/profile) read weight_kg, and without
+    // this derivation they show stale/no weight after an edit.
+    if (cleanedProfileData.weight_display !== undefined) {
+      if (cleanedProfileData.weight_display === '' || cleanedProfileData.weight_display === null) {
+        cleanedProfileData.weight_display = null;
+        cleanedProfileData.weight_kg = null;
+      } else {
+        const disp = parseFloat(cleanedProfileData.weight_display);
+        if (Number.isFinite(disp) && disp > 0) {
+          const unit = cleanedProfileData.weight_unit || 'lbs';
+          cleanedProfileData.weight_kg =
+            unit === 'kg' ? disp
+            : unit === 'stone' ? Math.round(disp * 6.35029 * 100) / 100
+            : Math.round(disp * 0.453592 * 100) / 100;
+        }
+      }
     }
-    
+
     
     if (!supabaseAdmin) {
       console.error('Profile API: supabaseAdmin not configured - missing SUPABASE_SERVICE_ROLE_KEY');

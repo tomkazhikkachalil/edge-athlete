@@ -1,14 +1,15 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { useAuth } from '@/lib/auth';
-import { useRouter, useParams } from 'next/navigation';
+import { useRouter, useParams, useSearchParams } from 'next/navigation';
 import { ToastContainer, useToast } from '@/components/Toast';
 import LazyImage from '@/components/LazyImage';
 import AppHeader from '@/components/AppHeader';
 import FollowButton from '@/components/FollowButton';
 import PrivateProfileView from '@/components/PrivateProfileView';
 import ProfileMediaTabs from '@/components/ProfileMediaTabs';
+import PostDetailModal from '@/components/PostDetailModal';
 import FollowersModal from '@/components/FollowersModal';
 import type { Profile, AthleteBadge } from '@/lib/supabase';
 // Privacy checks moved to API route
@@ -25,7 +26,16 @@ export default function AthleteProfilePage() {
   const { user, loading: authLoading } = useAuth();
   const router = useRouter();
   const params = useParams();
+  const searchParams = useSearchParams();
   const athleteId = params.id as string;
+  // Share links point to /athlete/<id>?post=<postId> — open that post.
+  // Without this reader every shared post link just showed the profile.
+  const [deepLinkPostId, setDeepLinkPostId] = useState<string | null>(null);
+
+  useEffect(() => {
+    const postParam = searchParams.get('post');
+    if (postParam) setDeepLinkPostId(postParam);
+  }, [searchParams]);
   
   // Profile data
   const [profile, setProfile] = useState<Profile | null>(null);
@@ -71,13 +81,19 @@ export default function AthleteProfilePage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [athleteId, user]);
 
+  // Guards against out-of-order responses when navigating between athlete
+  // profiles (same route, new param — the component stays mounted).
+  const requestSeqRef = useRef(0);
+
   const loadAthleteProfile = async () => {
+    const seq = ++requestSeqRef.current;
     try {
       setLoading(true);
       setError(null);
 
       // Load profile data
       const response = await fetch(`/api/profile?id=${athleteId}`);
+      if (seq !== requestSeqRef.current) return; // stale response
       if (!response.ok) {
         if (response.status === 404) {
           setError('Athlete not found');
@@ -87,6 +103,7 @@ export default function AthleteProfilePage() {
       }
 
       const profileData = await response.json();
+      if (seq !== requestSeqRef.current) return; // stale response
       setProfile(profileData.profile);
       setBadges(profileData.badges || []);
       // Note: seasonHighlights and performances are fetched by API but not displayed yet
@@ -95,6 +112,7 @@ export default function AthleteProfilePage() {
 
       // Check privacy access via API
       const privacyResponse = await fetch(`/api/privacy/check?profileId=${athleteId}`);
+      if (seq !== requestSeqRef.current) return; // stale response
       let canView = false;
       if (privacyResponse.ok) {
         const privacyCheck = await privacyResponse.json();
@@ -112,10 +130,11 @@ export default function AthleteProfilePage() {
       }
 
     } catch (e) {
+      if (seq !== requestSeqRef.current) return; // stale response
       console.error('Failed to load public athlete profile:', e);
       setError('Failed to load athlete profile');
     } finally {
-      setLoading(false);
+      if (seq === requestSeqRef.current) setLoading(false);
     }
   };
 
@@ -428,6 +447,18 @@ export default function AthleteProfilePage() {
 
       {/* Toast Container */}
       <ToastContainer toasts={toasts} onDismiss={dismissToast} />
+
+      {/* Shared-post deep link (?post=) */}
+      <PostDetailModal
+        postId={deepLinkPostId}
+        isOpen={!!deepLinkPostId}
+        onClose={() => {
+          setDeepLinkPostId(null);
+          // Drop the ?post= param without a full navigation
+          window.history.replaceState(null, '', `/athlete/${athleteId}`);
+        }}
+        currentUserId={user?.id}
+      />
 
       {/* Followers/Following Modal */}
       <FollowersModal

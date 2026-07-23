@@ -15,6 +15,35 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Post ID is required' }, { status: 400 });
     }
 
+    // Existence + visibility gate (admin client bypasses RLS): only posts
+    // the viewer can actually see may be liked. Also prevents probing for
+    // valid post UUIDs (missing/hidden both return 404, and bogus IDs no
+    // longer surface as FK-violation 500s).
+    const { data: targetPost } = await supabase
+      .from('posts')
+      .select('id, profile_id, visibility, profiles:profile_id (visibility)')
+      .eq('id', postId)
+      .maybeSingle();
+
+    if (!targetPost) {
+      return NextResponse.json({ error: 'Post not found' }, { status: 404 });
+    }
+
+    const postOwner = (Array.isArray(targetPost.profiles) ? targetPost.profiles[0] : targetPost.profiles) as { visibility?: string } | null;
+    const publiclyVisible = targetPost.visibility === 'public' && postOwner?.visibility === 'public';
+    if (targetPost.profile_id !== profileId && !publiclyVisible) {
+      const { data: follow } = await supabase
+        .from('follows')
+        .select('id')
+        .eq('follower_id', profileId)
+        .eq('following_id', targetPost.profile_id)
+        .eq('status', 'accepted')
+        .maybeSingle();
+      if (!follow) {
+        return NextResponse.json({ error: 'Post not found' }, { status: 404 });
+      }
+    }
+
     // Check if the user already liked this post
     const { data: existingLike, error: checkError } = await supabase
       .from('post_likes')

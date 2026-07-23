@@ -298,11 +298,14 @@ export async function PATCH(request: NextRequest) {
         return NextResponse.json({ error: 'Failed to pin comment' }, { status: 500 });
       }
     } else {
-      // Unpin the comment
+      // Unpin the comment — scoped to the ownership-verified post, exactly
+      // like the pin path (without .eq('post_id') any post owner could unpin
+      // comments on other people's posts via a foreign commentId).
       const { error: unpinError } = await admin
         .from('post_comments')
         .update({ is_pinned: false })
-        .eq('id', commentId);
+        .eq('id', commentId)
+        .eq('post_id', postId);
 
       if (unpinError) {
         console.error('Error unpinning comment:', unpinError);

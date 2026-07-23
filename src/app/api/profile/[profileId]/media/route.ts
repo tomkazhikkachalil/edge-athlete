@@ -198,6 +198,11 @@ export async function GET(
     }
 
     let items = mediaItems as MediaItem[] || [];
+    // Pagination must be computed from the RAW page (pre-filter): the media-
+    // type filter shrinks the page, and using the filtered count made
+    // hasMore false too early and nextOffset re-read consumed rows
+    // (duplicate tiles + duplicate React keys under Photos/Videos filters).
+    const rawCount = items.length;
 
     // Client-side filtering for media type
     if (mediaType !== 'all' && items.length > 0) {
@@ -335,13 +340,13 @@ export async function GET(
       }));
     }
 
-    // Calculate hasMore for pagination
-    const hasMore = items.length === limit;
+    // Calculate hasMore for pagination — from the raw (pre-filter) page size
+    const hasMore = rawCount === limit;
 
     return NextResponse.json({
       items,
       hasMore,
-      nextOffset: offset + items.length
+      nextOffset: offset + rawCount
     });
 
   } catch (error) {

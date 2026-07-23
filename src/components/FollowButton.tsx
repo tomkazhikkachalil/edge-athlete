@@ -57,6 +57,7 @@ export default function FollowButton({
         setFollowersCount(data.followersCount);
         setIsFollowing(data.isFollowing);
         setFollowStatus(data.followStatus);
+        return data as { followersCount: number; isFollowing: boolean; followStatus: string | null };
       } else {
         // If the table doesn't exist yet, just show default values
         setFollowersCount(0);
@@ -123,18 +124,18 @@ export default function FollowButton({
       const data = await response.json();
 
       const newFollowingStatus = data.action === 'followed';
-      const newFollowersCount = newFollowingStatus ? followersCount + 1 : followersCount - 1;
 
       setIsFollowing(newFollowingStatus);
-      setFollowersCount(newFollowersCount);
       setFollowMessage(''); // Reset message
 
-      // Reload stats from server to ensure accurate state
-      // This is crucial when a follow request is rejected - we need fresh data
-      await loadFollowStats();
+      // Reload stats from server to ensure accurate state, and report THAT
+      // count to the parent. Locally computed ±1 was wrong for private
+      // profiles: a pending fan request incremented the visible Fans count,
+      // and cancelling one could render -1 (server only counts accepted).
+      const fresh = await loadFollowStats();
 
-      // Notify parent component
-      onFollowChange?.(newFollowingStatus, newFollowersCount);
+      // Notify parent component with server-accurate values
+      onFollowChange?.(newFollowingStatus, fresh?.followersCount ?? followersCount);
 
       if (newFollowingStatus) {
         const message = data.isPending

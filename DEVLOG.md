@@ -45,6 +45,60 @@ Posts:
 
 Verified: tsc clean, lint clean, build exit 0. MEDIUM/LOW next.
 
+MEDIUM fixes (same day, 25 items — all CONFIRMED):
+
+Profiles (14):
+- /api/profile GET: athlete_id → profile_id on badges/highlights/
+  performances (verified live: no athlete_id column anywhere) — public
+  profiles can now actually show badges.
+- /api/profile GET: non-owner responses also strip birthday/gender/
+  postal_code/nickname (PII the UI never shows others).
+- /api/profile PUT: strips handle/handle_* /avatar_url from mass-assign;
+  derives weight_kg from weight_display+unit (fixes the /u-page weight
+  schism); middle_name added to ''→null list.
+- EditProfileTabs: fields can now be CLEARED ('' sent instead of
+  undefined); handle changes routed through /api/handles/update.
+- /api/public/profile: post_media url/type → media_url/media_type (u
+  pages showed "No public posts yet" forever); private branch returns
+  profileId so "Become a Fan" links to /athlete/<id> (was handle → 500).
+- FollowButton: reports server-accurate counts to parent (pending
+  request no longer bumps the visible Fans count; cancel can't hit -1).
+- FollowersModal: pending requests render "Requested" (includeStatus=
+  true param on /api/followers, self only); clicking cancels cleanly;
+  private-profile follow no longer shows instant "Unfollow".
+- InlineEdit hoisted to module scope w/ context — was redefined every
+  render, remounting the popup per keystroke (caret jumped to end);
+  editing branch keeps field footprint so sm:absolute anchors to the
+  field (popup could render off-screen at document top).
+- Request-race guards: athlete/[id] (seq ref), u/[username] (cancelled
+  flag), FollowersModal (seq ref).
+- Media route pagination computed from RAW pre-filter page (Photos/
+  Videos filters used to kill infinite scroll / duplicate tiles).
+- Avatar upload: DB-update failure now 500 (+ uploaded file removed);
+  old avatar file deleted after successful swap; MIME allowlist (no
+  SVG), extension derived from MIME; storage writes via admin client.
+
+Posts (11):
+- Feed list now ships saved_posts/saves_count (bookmark tap was
+  silently UNSAVING already-saved posts) + profile.handle.
+- hasMore computed from raw pre-privacy-filter page (server) + feed
+  uses it; Load More in-flight guard + id-dedupe on append.
+- display_order: (sortOrder ?? index)+1 — first two media items shared
+  order 1 and could render swapped.
+- Unpin scoped to ownership-verified post (any post owner could unpin
+  comments on other people's posts).
+- /api/tags GET: requireAuth + profile/post visibility gates (was fully
+  anonymous admin-client tag enumeration incl. private posts).
+- Same-day/same-course golf post reuses the round ONLY when it brings
+  no new hole data (used to silently rewrite the first post's
+  scorecard); round/hole insert failures now abort with 500 (+ round
+  cleanup) instead of success-with-lost-scorecard.
+- Share deep-links work: /athlete/<id>?post= opens PostDetailModal.
+- Toast callbacks useCallback-stable (feed realtime channel was torn
+  down/resubscribed every render — events in the gap were dropped).
+- Like endpoint: existence + visibility gate (404, no UUID probing, no
+  liking unviewable posts).
+
 ## July 22, 2026 — Bug hunt #2 (messaging + notifications, 2 subagents): HIGH fixes
 
 7 CONFIRMED HIGHs, all fixed:

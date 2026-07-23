@@ -65,7 +65,10 @@ export async function GET(request: NextRequest) {
     if (profile.visibility !== 'public') {
       return NextResponse.json({
         error: 'Profile is private',
-        isPrivate: true
+        isPrivate: true,
+        // The id lets the private-profile page link "Become a Fan" to
+        // /athlete/<id> (that route resolves UUIDs, not handles).
+        profileId: profile.id
       }, { status: 403 });
     }
 
@@ -102,8 +105,8 @@ export async function GET(request: NextRequest) {
         comments_count,
         post_media (
           id,
-          url,
-          type
+          media_url,
+          media_type
         )
       `)
       .eq('profile_id', profile.id)

@@ -75,7 +75,11 @@ export async function POST(request: NextRequest) {
 
     // Create golf entities if provided (comprehensive scorecard)
     if (postType === 'golf' && golfData) {
-      // Check for existing round on same date/course
+      // A second same-day/same-course post may REUSE the existing round, but
+      // only when it brings no new hole data — the old behavior overwrote the
+      // round's metadata and delete-reinserted its holes, silently rewriting
+      // the FIRST post's scorecard (both posts share round_id).
+      const hasNewHoleData = !!(golfData.holesData && golfData.holesData.length > 0);
       const { data: existingRounds } = await supabase
         .from('golf_rounds')
         .select('id')
@@ -84,26 +88,9 @@ export async function POST(request: NextRequest) {
         .eq('course', golfData.courseName)
         .limit(1);
 
-      if (existingRounds && existingRounds.length > 0) {
-        // Use existing round
+      if (existingRounds && existingRounds.length > 0 && !hasNewHoleData) {
+        // Attach this post to the existing round as-is (no rewrite)
         roundId = existingRounds[0].id;
-
-        // Update existing round with comprehensive data
-        await supabase
-          .from('golf_rounds')
-          .update({
-            course_location: golfData.courseLocation || null,
-            tee: golfData.teeBox || null,
-            holes: parseInt(golfData.holes) || 18,
-            round_type: golfData.roundType || 'outdoor',
-            par: golfData.coursePar || 72,
-            weather: golfData.weather || null,
-            temperature: golfData.temperature || null,
-            wind: golfData.wind || null,
-            course_rating: golfData.courseRating || null,
-            slope_rating: golfData.courseSlope || null
-          })
-          .eq('id', roundId);
       } else {
         // Create new comprehensive round
         const { data: newRound, error: roundError } = await supabase
@@ -126,11 +113,13 @@ export async function POST(request: NextRequest) {
           .select()
           .single();
 
-        if (roundError) {
+        if (roundError || !newRound) {
+          // The post hasn't been created yet — abort so the user's full
+          // hole-by-hole entry isn't silently discarded behind a "success".
           console.error('Round creation error:', roundError);
-        } else {
-          roundId = newRound.id;
+          return NextResponse.json({ error: 'Failed to save golf round' }, { status: 500 });
         }
+        roundId = newRound.id;
       }
 
       // Now handle hole-by-hole data
@@ -163,6 +152,10 @@ export async function POST(request: NextRequest) {
 
           if (holesError) {
             console.error('Holes creation error:', holesError);
+            // Pre-post: abort rather than leave a zero-hole round and a
+            // "successful" post with a missing scorecard.
+            await supabase.from('golf_rounds').delete().eq('id', roundId);
+            return NextResponse.json({ error: 'Failed to save hole-by-hole scores' }, { status: 500 });
           }
 
           // Calculate round stats
@@ -229,7 +222,7 @@ export async function POST(request: NextRequest) {
         post_id: post.id,
         media_url: file.url,
         media_type: file.type,
-        display_order: file.sortOrder || index + 1,
+        display_order: (file.sortOrder ?? index) + 1, // ?? — sortOrder 0 is valid (|| collapsed slots 0 and 1)
         thumbnail_url: file.thumbnailUrl || null
       }));
 
@@ -669,6 +662,24 @@ export async function GET(request: NextRequest) {
     // Apply final visibility filter (organization-based features not yet implemented)
     const finalVisiblePosts = visiblePosts;
 
+    // hasMore must reflect the RAW page size (pre-privacy-filter): a page
+    // where many posts were filtered out used to make clients stop paginating
+    // even though older visible posts exist.
+    const rawPageCount = (posts || []).length;
+
+    // Attach the viewer's saved state — PostCard reads post.saved_posts.
+    // Without it every feed post rendered unsaved, and tapping the bookmark
+    // on an already-saved post silently UNSAVED it (the endpoint toggles).
+    let savedPostIds = new Set<string>();
+    if (currentUserId && finalVisiblePosts.length > 0) {
+      const { data: savedRows } = await supabase
+        .from('saved_posts')
+        .select('post_id')
+        .eq('profile_id', currentUserId)
+        .in('post_id', finalVisiblePosts.map(p => p.id));
+      savedPostIds = new Set((savedRows || []).map(r => r.post_id));
+    }
+
     // Fetch golf rounds with hole-by-hole data for posts that have round_id
     // AND fetch shared golf scorecards for posts with group_post_id
     // AND fetch tagged profiles for posts with tags
@@ -843,13 +854,16 @@ export async function GET(request: NextRequest) {
           created_at: post.created_at,
           likes_count: post.likes_count ?? 0,
           comments_count: post.comments_count ?? 0,
+          saves_count: post.saves_count ?? 0,
+          saved_posts: currentUserId && savedPostIds.has(post.id) ? [{ profile_id: currentUserId }] : [],
           profile: {
           id: post.profiles.id,
           first_name: post.profiles.first_name,
           middle_name: post.profiles.middle_name,
           last_name: post.profiles.last_name,
           full_name: post.profiles.full_name,
-          avatar_url: post.profiles.avatar_url
+          avatar_url: post.profiles.avatar_url,
+          handle: post.profiles.handle
         },
         media: (post.post_media || [])
           .sort((a: { display_order: number }, b: { display_order: number }) => a.display_order - b.display_order)
@@ -865,7 +879,7 @@ export async function GET(request: NextRequest) {
           tagged_profiles: post.tagged_profiles || []
         }));
 
-    return NextResponse.json({ posts: transformedPosts });
+    return NextResponse.json({ posts: transformedPosts, hasMore: rawPageCount === limit });
 
   } catch (error) {
     console.error('Posts fetch error:', error);

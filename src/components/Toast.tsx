@@ -132,34 +132,37 @@ export function ToastContainer({ toasts, onDismiss }: ToastContainerProps) {
   );
 }
 
-// Hook for managing toasts
+// Hook for managing toasts.
+// All callbacks are useCallback-stable: consumers put them in useEffect
+// dependency arrays (e.g. the feed's realtime effect), and fresh identities
+// every render caused channel teardown/resubscribe churn on each toast.
 export function useToast() {
   const [toasts, setToasts] = useState<ToastMessage[]>([]);
 
-  const addToast = (toast: Omit<ToastMessage, 'id'>) => {
+  const addToast = useCallback((toast: Omit<ToastMessage, 'id'>) => {
     const id = Date.now().toString();
     setToasts(prev => [...prev, { ...toast, id }]);
-  };
+  }, []);
 
-  const dismissToast = (id: string) => {
+  const dismissToast = useCallback((id: string) => {
     setToasts(prev => prev.filter(toast => toast.id !== id));
-  };
+  }, []);
 
-  const showSuccess = (title: string, message?: string) => {
+  const showSuccess = useCallback((title: string, message?: string) => {
     addToast({ type: 'success', title, message });
-  };
+  }, [addToast]);
 
-  const showError = (title: string, message?: string) => {
+  const showError = useCallback((title: string, message?: string) => {
     addToast({ type: 'error', title, message, duration: 6000 });
-  };
+  }, [addToast]);
 
-  const showInfo = (title: string, message?: string) => {
+  const showInfo = useCallback((title: string, message?: string) => {
     addToast({ type: 'info', title, message });
-  };
+  }, [addToast]);
 
-  const showWarning = (title: string, message?: string) => {
+  const showWarning = useCallback((title: string, message?: string) => {
     addToast({ type: 'warning', title, message });
-  };
+  }, [addToast]);
 
   return {
     toasts,

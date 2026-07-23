@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import Image from 'next/image';
 import { useAuth } from '@/lib/auth';
@@ -33,6 +33,7 @@ export default function FollowersModal({ isOpen, onClose, profileId, initialTab 
   const [followers, setFollowers] = useState<Profile[]>([]);
   const [following, setFollowing] = useState<Profile[]>([]);
   const [myFollowing, setMyFollowing] = useState<Set<string>>(new Set()); // IDs of people I'm a fan of
+  const [myPending, setMyPending] = useState<Set<string>>(new Set()); // IDs with an outgoing pending request
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [actionLoading, setActionLoading] = useState<string | null>(null); // Track which button is loading
@@ -40,7 +41,12 @@ export default function FollowersModal({ isOpen, onClose, profileId, initialTab 
   // Is this the current user's own profile?
   const isOwnProfile = user?.id === profileId;
 
+  // Guards against out-of-order responses when the modal is reopened for a
+  // different profile while a previous load is still in flight.
+  const requestSeqRef = useRef(0);
+
   const loadData = useCallback(async () => {
+    const seq = ++requestSeqRef.current;
     setLoading(true);
     setError(null);
 
@@ -63,34 +69,38 @@ export default function FollowersModal({ isOpen, onClose, profileId, initialTab 
       const followersProfiles = (followersData.followers || []).map((item: { follower?: Profile }) => item.follower).filter(Boolean);
       const followingProfiles = (followingData.following || []).map((item: { following?: Profile }) => item.following).filter(Boolean);
 
+      if (seq !== requestSeqRef.current) return; // stale response
       setFollowers(followersProfiles);
       setFollowing(followingProfiles);
 
-      // If viewing someone else's profile, also fetch who I'm following
-      // to show "You're a Fan" / "Become a Fan" status
-      if (user && !isOwnProfile) {
-        const myFollowingResponse = await fetch(`/api/followers?profileId=${user.id}&type=following`);
-        if (myFollowingResponse.ok) {
-          const myFollowingData = await myFollowingResponse.json();
-          const myFollowingIds = new Set(
-            (myFollowingData.following || [])
-              .map((item: { following?: Profile }) => item.following?.id)
-              .filter(Boolean)
-          );
-          setMyFollowing(myFollowingIds as Set<string>);
+      // Fetch my own follow states WITH pending status, so a pending fan
+      // request renders as "Requested" instead of being conflated with
+      // not-following (clicking "Become a Fan" on a pending target silently
+      // cancelled the request).
+      if (user) {
+        const myStatesResponse = await fetch(`/api/followers?profileId=${user.id}&type=following&includeStatus=true`);
+        if (myStatesResponse.ok) {
+          const myStatesData = await myStatesResponse.json();
+          const accepted = new Set<string>();
+          const pending = new Set<string>();
+          for (const item of (myStatesData.following || []) as Array<{ status?: string; following?: Profile }>) {
+            const id = item.following?.id;
+            if (!id) continue;
+            if (item.status === 'pending') pending.add(id);
+            else accepted.add(id);
+          }
+          if (seq !== requestSeqRef.current) return; // stale response
+          setMyFollowing(accepted);
+          setMyPending(pending);
         }
-      } else if (isOwnProfile) {
-        // On own profile, "following" list IS who I'm a fan of
-        const myFollowingIds = new Set<string>(followingProfiles.map((p: Profile) => p.id));
-        setMyFollowing(myFollowingIds);
       }
     } catch (e) {
       console.error('Failed to load fan/following data:', e);
       setError('Failed to load data. Please try again.');
     } finally {
-      setLoading(false);
+      if (seq === requestSeqRef.current) setLoading(false);
     }
-  }, [profileId, user, isOwnProfile]);
+  }, [profileId, user]);
 
   useEffect(() => {
     if (isOpen) {
@@ -128,9 +138,17 @@ export default function FollowersModal({ isOpen, onClose, profileId, initialTab 
 
       const data = await response.json();
 
-      // Update local state
+      // Update local state. A follow of a private profile is only a REQUEST
+      // (isPending) — track it separately so the button shows "Requested".
       if (data.action === 'followed') {
-        setMyFollowing(prev => new Set([...prev, targetId]));
+        if (data.isPending) {
+          setMyPending(prev => new Set([...prev, targetId]));
+        } else {
+          setMyFollowing(prev => new Set([...prev, targetId]));
+        }
+      } else if (data.action === 'unfollowed') {
+        // Toggled off a pending request (button showed "Requested")
+        setMyPending(prev => { const n = new Set(prev); n.delete(targetId); return n; });
       }
     } catch (e) {
       console.error('Failed to become fan:', e);
@@ -165,6 +183,7 @@ export default function FollowersModal({ isOpen, onClose, profileId, initialTab 
           newSet.delete(targetId);
           return newSet;
         });
+        setMyPending(prev => { const n = new Set(prev); n.delete(targetId); return n; });
       }
     } catch (e) {
       console.error('Failed to unfollow:', e);
@@ -316,6 +335,7 @@ export default function FollowersModal({ isOpen, onClose, profileId, initialTab 
                 const handle = getHandle(profile);
                 const isMe = user?.id === profile.id;
                 const amFanOfThem = myFollowing.has(profile.id);
+                const requestedThem = myPending.has(profile.id);
                 const isLoadingThis = actionLoading === profile.id;
 
                 return (
@@ -384,10 +404,16 @@ export default function FollowersModal({ isOpen, onClose, profileId, initialTab 
                               <button
                                 onClick={(e) => handleBecomeFan(profile.id, e)}
                                 disabled={isLoadingThis}
-                                className="px-3 py-1.5 text-xs font-medium text-white bg-blue-600 rounded-full hover:bg-blue-700 transition-colors disabled:opacity-50 whitespace-nowrap"
+                                className={`px-3 py-1.5 text-xs font-medium rounded-full transition-colors disabled:opacity-50 whitespace-nowrap ${
+                                  requestedThem
+                                    ? 'text-gray-700 bg-gray-200 hover:bg-gray-300'
+                                    : 'text-white bg-blue-600 hover:bg-blue-700'
+                                }`}
                               >
                                 {isLoadingThis ? (
                                   <i className="fas fa-spinner fa-spin"></i>
+                                ) : requestedThem ? (
+                                  'Requested'
                                 ) : (
                                   'Become a Fan'
                                 )}
@@ -426,10 +452,16 @@ export default function FollowersModal({ isOpen, onClose, profileId, initialTab 
                               <button
                                 onClick={(e) => handleBecomeFan(profile.id, e)}
                                 disabled={isLoadingThis}
-                                className="px-3 py-1.5 text-xs font-medium text-white bg-blue-600 rounded-full hover:bg-blue-700 transition-colors disabled:opacity-50 whitespace-nowrap"
+                                className={`px-3 py-1.5 text-xs font-medium rounded-full transition-colors disabled:opacity-50 whitespace-nowrap ${
+                                  requestedThem
+                                    ? 'text-gray-700 bg-gray-200 hover:bg-gray-300'
+                                    : 'text-white bg-blue-600 hover:bg-blue-700'
+                                }`}
                               >
                                 {isLoadingThis ? (
                                   <i className="fas fa-spinner fa-spin"></i>
+                                ) : requestedThem ? (
+                                  'Requested'
                                 ) : (
                                   'Become a Fan'
                                 )}

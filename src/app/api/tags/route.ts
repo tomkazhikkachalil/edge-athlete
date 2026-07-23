@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getSupabaseAdmin } from '@/lib/auth-server';
+import { getSupabaseAdmin, requireAuth } from '@/lib/auth-server';
+import { canViewProfile } from '@/lib/privacy';
 import { createServerClient } from '@supabase/ssr';
 
 // Helper to get authenticated user from cookie
@@ -120,6 +121,11 @@ export async function POST(request: NextRequest) {
 export async function GET(request: NextRequest) {
   try {
     const supabase = getSupabaseAdmin();
+    // Auth + privacy gates — this route runs on the admin client and used to
+    // let anyone (logged out) enumerate all tags on any post or every post a
+    // profile is tagged in, including private ones.
+    const user = await requireAuth(request);
+
     const { searchParams } = new URL(request.url);
     const postId = searchParams.get('postId');
     const profileId = searchParams.get('profileId'); // Get tagged posts for a profile
@@ -129,6 +135,39 @@ export async function GET(request: NextRequest) {
         { error: 'Missing required parameter: postId or profileId' },
         { status: 400 }
       );
+    }
+
+    if (profileId && profileId !== user.id) {
+      const { canView } = await canViewProfile(profileId, user.id);
+      if (!canView) {
+        return NextResponse.json({ error: 'This profile is private' }, { status: 403 });
+      }
+    }
+
+    if (postId) {
+      // Same visibility rule as GET /api/posts?postId=
+      const { data: post } = await supabase
+        .from('posts')
+        .select('id, profile_id, visibility, profiles:profile_id (visibility)')
+        .eq('id', postId)
+        .maybeSingle();
+      if (!post) {
+        return NextResponse.json({ error: 'Post not found' }, { status: 404 });
+      }
+      const owner = (Array.isArray(post.profiles) ? post.profiles[0] : post.profiles) as { visibility?: string } | null;
+      const publiclyVisible = post.visibility === 'public' && owner?.visibility === 'public';
+      if (post.profile_id !== user.id && !publiclyVisible) {
+        const { data: follow } = await supabase
+          .from('follows')
+          .select('id')
+          .eq('follower_id', user.id)
+          .eq('following_id', post.profile_id)
+          .eq('status', 'accepted')
+          .maybeSingle();
+        if (!follow) {
+          return NextResponse.json({ error: 'Post not found' }, { status: 404 });
+        }
+      }
     }
 
     let query = supabase

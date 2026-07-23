@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import dynamic from 'next/dynamic';
 import { useAuth } from '@/lib/auth';
 import { useRouter } from 'next/navigation';
@@ -66,6 +66,7 @@ export default function FeedPage() {
   const [isEditProfileModalOpen, setIsEditProfileModalOpen] = useState(false);
   const [editingPost, setEditingPost] = useState<Post | null>(null);
   const [hasMore, setHasMore] = useState(true);
+  const loadInFlightRef = useRef(false);
   const [page, setPage] = useState(0);
   const { toasts, dismissToast, showError, showSuccess } = useToast();
 
@@ -175,6 +176,10 @@ export default function FeedPage() {
   // instant feedback like Instagram/Facebook. Feed refreshes via pull-to-refresh.
 
   const loadFeed = async (loadMore = false) => {
+    // In-flight guard: a double-tapped "Load More" used to fetch the same
+    // offset twice and append duplicate posts (duplicate React keys).
+    if (loadMore && loadInFlightRef.current) return;
+    loadInFlightRef.current = true;
     try {
       if (!loadMore) {
         setFeedLoading(true);
@@ -193,19 +198,27 @@ export default function FeedPage() {
       const newPosts = data.posts || [];
       
       if (loadMore) {
-        setPosts(prev => [...prev, ...newPosts]);
+        // Dedupe on append as a second line of defense
+        setPosts(prev => {
+          const seen = new Set(prev.map(p => p.id));
+          return [...prev, ...newPosts.filter((p: { id: string }) => !seen.has(p.id))];
+        });
         setPage(currentPage);
       } else {
         setPosts(newPosts);
         setPage(0);
       }
       
-      setHasMore(newPosts.length >= 20);
+      // Prefer the API's hasMore (computed from the RAW pre-privacy-filter
+      // page) — a filtered page can legitimately contain <20 visible posts
+      // while older visible posts still exist.
+      setHasMore(typeof data.hasMore === 'boolean' ? data.hasMore : newPosts.length >= 20);
 
     } catch (e) {
       console.error('Failed to load feed:', e);
       showError('Error', 'Failed to load feed');
     } finally {
+      loadInFlightRef.current = false;
       setFeedLoading(false);
     }
   };

@@ -45,7 +45,7 @@ interface PublicProfile {
 
 interface PostMedia {
   id: string;
-  url: string;
+  media_url: string;
   type: string;
 }
 
@@ -84,9 +84,13 @@ export default function PublicProfilePage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isPrivate, setIsPrivate] = useState(false);
+  const [privateProfileId, setPrivateProfileId] = useState<string | null>(null);
   const [profileData, setProfileData] = useState<ProfileData | null>(null);
 
   useEffect(() => {
+    // cancelled guard: navigating /u/a -> /u/b keeps this component mounted;
+    // a slow response for the previous handle must not overwrite the new one
+    let cancelled = false;
     const loadPublicProfile = async () => {
       if (!username) return;
 
@@ -96,12 +100,14 @@ export default function PublicProfilePage() {
 
         const response = await fetch(`/api/public/profile?handle=${encodeURIComponent(username)}`);
         const data = await response.json();
+        if (cancelled) return;
 
         if (!response.ok) {
           if (response.status === 404) {
             setError('Profile not found');
           } else if (response.status === 403 && data.isPrivate) {
             setIsPrivate(true);
+            setPrivateProfileId(data.profileId || null);
           } else {
             setError(data.error || 'Failed to load profile');
           }
@@ -110,14 +116,16 @@ export default function PublicProfilePage() {
 
         setProfileData(data);
       } catch (e) {
+        if (cancelled) return;
         console.error('Failed to load public profile:', e);
         setError('Failed to load profile');
       } finally {
-        setLoading(false);
+        if (!cancelled) setLoading(false);
       }
     };
 
     loadPublicProfile();
+    return () => { cancelled = true; };
   }, [username]);
 
   // Redirect logged-in users viewing their own profile
@@ -179,9 +187,9 @@ export default function PublicProfilePage() {
             <p className="text-gray-600 mb-6">
               @{username} has a private profile. Become a fan to see their content.
             </p>
-            {user ? (
+            {user && privateProfileId ? (
               <Link
-                href={`/athlete/${username}`}
+                href={`/athlete/${privateProfileId}`}
                 className="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
               >
                 Become a Fan
@@ -399,7 +407,7 @@ export default function PublicProfilePage() {
                 >
                   {post.post_media && post.post_media[0] ? (
                     <LazyImage
-                      src={post.post_media[0].url}
+                      src={post.post_media[0].media_url}
                       alt=""
                       className="w-full h-full object-cover"
                     />
