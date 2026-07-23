@@ -167,14 +167,12 @@ function FollowersContent() {
     if (!user) return;
 
     try {
-      // Remove means deleting their follow of you
+      // Remove means deleting their follow of you — the API anchors the
+      // followed side to the session user, so only fanId is sent.
       const response = await fetch('/api/follow', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          followerId: profileId,  // They are the follower
-          followingId: user.id    // You are being followed
-        })
+        body: JSON.stringify({ action: 'remove_fan', fanId: profileId })
       });
 
       if (!response.ok) throw new Error('Failed to remove follower');

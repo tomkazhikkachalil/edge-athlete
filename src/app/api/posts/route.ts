@@ -468,6 +468,30 @@ export async function GET(request: NextRequest) {
         return NextResponse.json({ error: 'Post not found' }, { status: 404 });
       }
 
+      // Privacy gate — mirror the list branch's rules exactly (own post;
+      // public post on public profile; accepted follower). This branch runs
+      // on the admin client, so without this check anyone with a UUID could
+      // read private posts. 404, not 403, so a hidden post's existence isn't
+      // confirmed.
+      const isOwnPost = currentUserId === post.profile_id;
+      const publiclyVisible = post.visibility === 'public' && post.profiles?.visibility === 'public';
+      if (!isOwnPost && !publiclyVisible) {
+        let allowed = false;
+        if (currentUserId) {
+          const { data: follow } = await supabase
+            .from('follows')
+            .select('id')
+            .eq('follower_id', currentUserId)
+            .eq('following_id', post.profile_id)
+            .eq('status', 'accepted')
+            .maybeSingle();
+          allowed = !!follow;
+        }
+        if (!allowed) {
+          return NextResponse.json({ error: 'Post not found' }, { status: 404 });
+        }
+      }
+
       // Check if profile data exists (critical for transformation)
       if (!post.profiles) {
         console.error('[GET] Post found but profile data missing:', postId);
@@ -744,16 +768,35 @@ export async function GET(request: NextRequest) {
           if (groupError) {
             console.error('[GET] Error fetching group scorecard:', groupError);
           } else if (groupData) {
-            // Sort hole scores by hole number for each participant
-            if (groupData.participants) {
+            // Transform the raw group_posts row into the CompleteGolfScorecard
+            // shape PostCard/SharedRoundQuickView expect:
+            //   { group_post, golf_data, participants: [{ participant: {..., profile}, scores: {..., hole_scores} }] }
+            // Shipping the raw row crashes the feed (reads like
+            // participants[i].participant.status on undefined).
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const { golf_data, participants, ...groupPostFields } = groupData as any;
+            const golfData = Array.isArray(golf_data) ? golf_data[0] : golf_data;
+            if (golfData) {
               // eslint-disable-next-line @typescript-eslint/no-explicit-any
-              groupData.participants.forEach((participant: any) => {
-                if (participant.scores?.hole_scores) {
-                  participant.scores.hole_scores.sort((a: { hole_number: number }, b: { hole_number: number }) => a.hole_number - b.hole_number);
-                }
+              const transformedParticipants = (participants || []).map((p: any) => {
+                const { scores, profile, ...participantFields } = p;
+                const scoreRec = Array.isArray(scores) ? scores[0] : scores;
+                const holeScores = (scoreRec?.hole_scores || [])
+                  .slice()
+                  .sort((a: { hole_number: number }, b: { hole_number: number }) => a.hole_number - b.hole_number);
+                return {
+                  participant: { ...participantFields, profile },
+                  scores: scoreRec
+                    ? { ...scoreRec, hole_scores: holeScores }
+                    : { id: null, total_score: null, to_par: null, holes_completed: 0, scores_confirmed: false, hole_scores: [] },
+                };
               });
+              groupScorecard = {
+                group_post: groupPostFields,
+                golf_data: golfData,
+                participants: transformedParticipants,
+              };
             }
-            groupScorecard = groupData;
           }
         }
 
@@ -840,7 +883,7 @@ export async function PUT(request: NextRequest) {
     const {
       postId,
       caption = '',
-      taggedProfiles = [],
+      taggedProfiles,
       hashtags = [],
       visibility = 'public'
     } = body;
@@ -876,9 +919,12 @@ export async function PUT(request: NextRequest) {
       .update({
         caption: caption,
         visibility: visibility,
-        tags: taggedProfiles, // Store tagged people IDs (not category tags)
         hashtags: hashtags,
-        updated_at: new Date().toISOString()
+        updated_at: new Date().toISOString(),
+        // tags = tagged people IDs. Only overwrite when the caller explicitly
+        // sends taggedProfiles — EditPostModal doesn't, and defaulting to []
+        // used to silently wipe every post's tagged people on edit.
+        ...(Array.isArray(taggedProfiles) ? { tags: taggedProfiles } : {})
       })
       .eq('id', postId)
       .select()

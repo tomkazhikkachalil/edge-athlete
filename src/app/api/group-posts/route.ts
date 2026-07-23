@@ -215,6 +215,29 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    // Create the FEED post that carries this group post. group_posts has no
+    // feed surface of its own — without this row, shared rounds never appear
+    // anywhere (the feed renders posts, and GET /api/posts attaches the
+    // group scorecard via posts.group_post_id).
+    const { error: feedPostError } = await supabase
+      .from('posts')
+      .insert({
+        profile_id: user.id,
+        sport_key: type === 'golf_round' ? 'golf' : 'general',
+        caption: description || title,
+        visibility: visibility || 'public',
+        group_post_id: groupPost.id,
+        tags: [],
+        hashtags: [],
+        likes_count: 0,
+        comments_count: 0,
+      });
+
+    if (feedPostError) {
+      console.error('Error creating feed post for group post:', feedPostError);
+      // Non-fatal — the group post exists; participants are still notified.
+    }
+
     // Fetch complete group post with participants
     const { data: completeGroupPost } = await supabase
       .from('group_posts')

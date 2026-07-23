@@ -14,7 +14,6 @@ import type { Profile, AthleteBadge } from '@/lib/supabase';
 // Privacy checks moved to API route
 import {
   formatHeight,
-  formatWeightWithUnit,
   formatAge,
   formatDisplayName,
   getInitials,
@@ -338,8 +337,11 @@ export default function AthleteProfilePage() {
               <div className="text-center md:border-l">
                 <p className="font-bold text-gray-900">Weight</p>
                 <p className="font-bold text-xl text-black mt-1">
+                  {/* weight_display is already in the display unit — do NOT run
+                      it through formatWeightWithUnit (which expects kg and
+                      converts; 150 lbs was rendering as "331 lbs") */}
                   {profile.weight_display && profile.weight_unit
-                    ? formatWeightWithUnit(profile.weight_display, profile.weight_unit)
+                    ? `${profile.weight_display} ${profile.weight_unit}`
                     : '--'}
                 </p>
               </div>

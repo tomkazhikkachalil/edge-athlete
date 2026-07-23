@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { requireAuth } from '@/lib/auth-server';
+import { canViewProfile } from '@/lib/privacy';
 
 export async function GET(request: NextRequest) {
 
@@ -20,6 +21,16 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const type = searchParams.get('type') || 'followers'; // 'followers', 'following', 'requests'
     const profileId = searchParams.get('profileId') || user.id;
+
+    // Privacy gate: another user's followers/following lists are only
+    // visible if their profile is visible to the viewer. Without this, any
+    // authenticated user could enumerate a private profile's social graph.
+    if (profileId !== user.id && (type === 'followers' || type === 'following')) {
+      const { canView } = await canViewProfile(profileId, user.id);
+      if (!canView) {
+        return NextResponse.json({ error: 'This profile is private' }, { status: 403 });
+      }
+    }
 
 
     if (type === 'followers') {

@@ -311,6 +311,41 @@ export async function GET(request: NextRequest) {
     results.athletes = (results.athletes as Array<{ id: string; visibility: string | null }>)
       .filter(a => a.visibility === 'public' || a.id === viewerId);
 
+    // Privacy filter for POSTS: drop posts authored by private profiles
+    // unless the viewer is the author or an accepted follower. The RPC/ILIKE
+    // paths only check post-level visibility, so a private athlete's posts
+    // (post visibility defaults to 'public') would otherwise leak with
+    // caption, author, and media while the athlete themselves is hidden.
+    const postList = results.posts as Array<{ profile?: { id?: string } | null }>;
+    const authorIds = [...new Set(postList.map(p => p.profile?.id).filter((id): id is string => !!id))];
+    if (authorIds.length > 0) {
+      const { data: authorProfiles } = await supabase
+        .from('profiles')
+        .select('id, visibility')
+        .in('id', authorIds);
+      const privateAuthors = new Set(
+        (authorProfiles || []).filter(a => a.visibility !== 'public').map(a => a.id)
+      );
+      if (viewerId) privateAuthors.delete(viewerId);
+
+      let followedPrivate = new Set<string>();
+      if (viewerId && privateAuthors.size > 0) {
+        const { data: myFollows } = await supabase
+          .from('follows')
+          .select('following_id')
+          .eq('follower_id', viewerId)
+          .eq('status', 'accepted')
+          .in('following_id', [...privateAuthors]);
+        followedPrivate = new Set((myFollows || []).map(f => f.following_id));
+      }
+
+      results.posts = postList.filter(p => {
+        const authorId = p.profile?.id;
+        if (!authorId) return false; // unresolvable author — don't leak
+        return !privateAuthors.has(authorId) || followedPrivate.has(authorId);
+      }) as typeof results.posts;
+    }
+
     return NextResponse.json({
       query,
       results,

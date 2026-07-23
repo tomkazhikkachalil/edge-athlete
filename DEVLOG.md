@@ -1,5 +1,50 @@
 # Development Log
 
+## July 22, 2026 — Bug hunt #3 (posts + profiles, 2 subagents): HIGH fixes
+
+9 CONFIRMED HIGHs fixed (4 profiles, 5 posts):
+
+Profiles:
+- "Remove Fan" was 100% broken: clients sent followerId but the hardened
+  follow API ignores body followerId (session-anchored) → always 400
+  "Cannot follow yourself". Added explicit action:'remove_fan' (session
+  user must be the FOLLOWED side); both clients updated.
+- /api/followers leaked private profiles' full social graph to any
+  authenticated user (admin client, no gate) → canViewProfile gate on
+  followers/following for non-self profileId.
+- Search leaked private profiles' posts (post-level visibility only was
+  checked; author visibility never) → author-visibility filter added
+  covering both full-text and ILIKE paths (= posts-hunt M8, same bug).
+- Public profile weight double-converted: weight_display (already in
+  display units) was passed through formatWeightWithUnit (expects kg) —
+  150 lbs rendered as "331 lbs". Now raw display like the own-profile page.
+
+Posts:
+- GET /api/posts?postId= (the endpoint PostDetailModal/ProfileMediaTabs
+  actually use) had NO privacy gate on the admin client — anyone with a
+  UUID could read private posts incl. media + hole-by-hole data. Gate now
+  mirrors the list branch exactly (own / public+public / accepted
+  follower), 404 not 403.
+- Editing a post wiped its tagged people: EditPostModal sent `tags`
+  (ignored), PUT defaulted taggedProfiles=[] and overwrote. PUT now only
+  writes tags when taggedProfiles is explicitly provided; removed the
+  modal's misleading category-tags UI (chips vs profile UUIDs — could
+  never match, only corrupt).
+- Shared-round scores silently discarded: participant-scores insert
+  included par/distance_yards columns that don't exist in live
+  golf_hole_scores (verified 42703) → columns dropped; failures now
+  tracked and all-failed returns 500 instead of success:true.
+- Shared golf rounds NEVER appeared in feed: nothing created a posts row
+  with group_post_id (live check: group_posts has 0 rows ever). POST
+  /api/group-posts now creates the feed post.
+- group_scorecard shape mismatch would crash PostCard the moment the
+  above fix landed: raw group_posts row shipped where components expect
+  CompleteGolfScorecard → GET now transforms ({group_post, golf_data,
+  participants:[{participant:{...profile}, scores:{...hole_scores}}]}),
+  with a safe default scores object for scoreless participants.
+
+Verified: tsc clean, lint clean, build exit 0. MEDIUM/LOW next.
+
 ## July 22, 2026 — Bug hunt #2 (messaging + notifications, 2 subagents): HIGH fixes
 
 7 CONFIRMED HIGHs, all fixed:

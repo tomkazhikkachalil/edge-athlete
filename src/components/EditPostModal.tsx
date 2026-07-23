@@ -20,23 +20,6 @@ interface EditPostModalProps {
 }
 
 // Tags for categorization
-const TAG_OPTIONS = {
-  general: [
-    { value: 'training', label: 'Training', color: 'blue' },
-    { value: 'competition', label: 'Competition', color: 'red' },
-    { value: 'achievement', label: 'Achievement', color: 'green' },
-    { value: 'team', label: 'Team', color: 'purple' },
-    { value: 'lifestyle', label: 'Lifestyle', color: 'yellow' }
-  ],
-  golf: [
-    { value: 'tournament', label: 'Tournament', color: 'red' },
-    { value: 'practice', label: 'Practice Round', color: 'blue' },
-    { value: 'casual', label: 'Casual Round', color: 'green' },
-    { value: 'lesson', label: 'Lesson', color: 'purple' },
-    { value: 'achievement', label: 'Personal Best', color: 'yellow' }
-  ]
-};
-
 // Popular hashtags suggestions
 const HASHTAG_SUGGESTIONS = {
   general: ['#Athletics', '#SportLife', '#Training', '#Fitness', '#Athlete', '#PersonalBest', '#GameDay', '#Champions'],
@@ -53,7 +36,6 @@ export default function EditPostModal({
   const captionRef = useRef<HTMLTextAreaElement>(null);
 
   const [caption, setCaption] = useState(post.caption || '');
-  const [selectedTags, setSelectedTags] = useState<string[]>(post.tags || []);
   const [hashtags, setHashtags] = useState<string[]>(post.hashtags || []);
   const [visibility, setVisibility] = useState(post.visibility || 'public');
   const [showHashtagSuggestions, setShowHashtagSuggestions] = useState(false);
@@ -61,24 +43,14 @@ export default function EditPostModal({
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const postType = post.sport_key || 'general';
-  const currentTags = TAG_OPTIONS[postType as keyof typeof TAG_OPTIONS] || TAG_OPTIONS.general;
   const currentHashtagSuggestions = HASHTAG_SUGGESTIONS[postType as keyof typeof HASHTAG_SUGGESTIONS] || HASHTAG_SUGGESTIONS.general;
 
   // Reset form when post changes
   useEffect(() => {
     setCaption(post.caption || '');
-    setSelectedTags(post.tags || []);
     setHashtags(post.hashtags || []);
     setVisibility(post.visibility || 'public');
   }, [post]);
-
-  const toggleTag = (tagValue: string) => {
-    setSelectedTags(prev =>
-      prev.includes(tagValue)
-        ? prev.filter(t => t !== tagValue)
-        : [...prev, tagValue]
-    );
-  };
 
   const addHashtag = (tag: string) => {
     const formattedTag = tag.startsWith('#') ? tag : `#${tag}`;
@@ -112,7 +84,6 @@ export default function EditPostModal({
         body: JSON.stringify({
           postId: post.id,
           caption: caption.trim(),
-          tags: selectedTags,
           hashtags: hashtags,
           visibility: visibility
         }),
@@ -169,28 +140,6 @@ export default function EditPostModal({
               placeholder="Write your caption here..."
               className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 min-h-[120px] resize-none"
             />
-          </div>
-
-          {/* Tags */}
-          <div className="mb-6">
-            <label className="block text-sm font-semibold text-gray-700 mb-2">
-              Tags
-            </label>
-            <div className="flex flex-wrap gap-2">
-              {currentTags.map((tag) => (
-                <button
-                  key={tag.value}
-                  onClick={() => toggleTag(tag.value)}
-                  className={`px-3 py-1 rounded-full text-sm font-medium transition-colors ${
-                    selectedTags.includes(tag.value)
-                      ? `bg-${tag.color}-500 text-white`
-                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                  }`}
-                >
-                  {tag.label}
-                </button>
-              ))}
-            </div>
           </div>
 
           {/* Hashtags */}

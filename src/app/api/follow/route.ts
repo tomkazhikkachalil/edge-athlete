@@ -8,8 +8,28 @@ export async function POST(request: NextRequest) {
     const user = await requireAuth(request);
     const supabase = getSupabaseAdmin();
     const body = await request.json();
-    const { followingId, message } = body;
+    const { followingId, message, action, fanId } = body;
     const followerId = user.id;
+
+    // Remove one of YOUR OWN fans: the session user is the followed side,
+    // deleting someone else's follow of them. Session-anchored — a caller can
+    // only ever remove followers from their own list.
+    if (action === 'remove_fan') {
+      if (!fanId || typeof fanId !== 'string') {
+        return NextResponse.json({ error: 'fanId is required' }, { status: 400 });
+      }
+      const { error: removeError } = await supabase
+        .from('follows')
+        .delete()
+        .eq('follower_id', fanId)
+        .eq('following_id', user.id);
+
+      if (removeError) {
+        console.error('[FOLLOW API] Remove fan error:', removeError);
+        return NextResponse.json({ error: 'Failed to remove fan' }, { status: 500 });
+      }
+      return NextResponse.json({ action: 'removed_fan', message: 'Fan removed successfully' });
+    }
 
     if (!followingId) {
       return NextResponse.json({ error: 'Following ID is required' }, { status: 400 });

@@ -87,6 +87,7 @@ export async function POST(request: NextRequest) {
 
     // Process each participant's scores
     const results = [];
+    const failures: Array<{ participant_id: string; error: string }> = [];
     for (const participantScore of participant_scores) {
       const { participant_id, hole_scores } = participantScore;
 
@@ -139,14 +140,15 @@ export async function POST(request: NextRequest) {
         par?: number;
         yardage?: number;
       }) => ({
+        // NOTE: golf_hole_scores has no par/distance_yards columns (verified
+        // against the live schema) — including them made every insert fail
+        // with 42703 and silently discarded all creator-entered scores.
         golf_participant_id: participantScoreRecord.id,
         hole_number: hole.hole_number,
         strokes: hole.strokes,
         putts: hole.putts || null,
         fairway_hit: hole.fairway_hit || null,
-        green_in_regulation: hole.green_in_regulation || null,
-        par: hole.par || null,
-        distance_yards: hole.yardage || null
+        green_in_regulation: hole.green_in_regulation || null
       }));
 
       const { error: holeScoresError } = await supabase
@@ -159,12 +161,25 @@ export async function POST(request: NextRequest) {
           score_record_id: participantScoreRecord.id,
           holes_entered: holeScoreRecords.length
         });
+      } else {
+        console.error('[PARTICIPANT SCORES] hole insert failed:', holeScoresError);
+        failures.push({ participant_id, error: holeScoresError.message });
       }
+    }
+
+    // If every participant's scores failed to save, that's an error — don't
+    // report success (the old behavior silently discarded all scores).
+    if (results.length === 0 && failures.length > 0) {
+      return NextResponse.json({
+        error: 'Failed to save scores',
+        failures
+      }, { status: 500 });
     }
 
     return NextResponse.json({
       success: true,
       results,
+      failures,
       message: `Scores saved for ${results.length} participant(s)`
     });
 
