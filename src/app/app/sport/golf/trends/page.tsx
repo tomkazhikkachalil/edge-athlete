@@ -7,6 +7,7 @@ import { useAuth } from '@/lib/auth';
 import AppHeader from '@/components/AppHeader';
 import TrendLineChart from '@/components/golf/TrendLineChart';
 import { toParLabel, toParColorClass } from '@/lib/golf/scoring';
+import { formatHandicapIndex } from '@/lib/golf/handicap';
 
 interface TrendPoint {
   round_id: string;
@@ -21,6 +22,11 @@ interface TrendPoint {
   gir_pct: number | null;
 }
 
+interface HandicapPoint {
+  date: string;
+  index: number;
+}
+
 interface TrendSummary {
   rounds: number;
   avgToParLast5: number | null;
@@ -29,6 +35,8 @@ interface TrendSummary {
   avgPuttsPerHole: number | null;
   avgFirPct: number | null;
   avgGirPct: number | null;
+  handicapIndex: number | null;
+  handicapRounds: number;
 }
 
 type HolesFilter = 'all' | '9' | '18';
@@ -43,6 +51,7 @@ export default function GolfTrendsPage() {
 
   const [series, setSeries] = useState<TrendPoint[]>([]);
   const [summary, setSummary] = useState<TrendSummary | null>(null);
+  const [handicapSeries, setHandicapSeries] = useState<HandicapPoint[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -74,6 +83,7 @@ export default function GolfTrendsPage() {
         if (seq !== requestSeqRef.current) return;
         setSeries(data.series);
         setSummary(data.summary);
+        setHandicapSeries(data.handicapSeries || []);
       } catch (e) {
         if (seq !== requestSeqRef.current) return;
         console.error('Failed to load trends:', e);
@@ -182,7 +192,15 @@ export default function GolfTrendsPage() {
           <>
             {/* Stat tiles */}
             {summary && (
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
+              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3 mb-6">
+                <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 text-center">
+                  <div className="text-2xl font-bold text-green-700">
+                    {summary.handicapIndex !== null ? formatHandicapIndex(summary.handicapIndex) : '—'}
+                  </div>
+                  <div className="text-xs text-gray-500 uppercase mt-1">
+                    Handicap est.{summary.handicapIndex !== null ? ` · ${summary.handicapRounds} rds` : ''}
+                  </div>
+                </div>
                 <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 text-center">
                   <div className={`text-2xl font-bold ${toParColorClass(summary.avgToParLast5)}`}>
                     {summary.avgToParLast5 !== null
@@ -211,6 +229,25 @@ export default function GolfTrendsPage() {
                 </div>
               </div>
             )}
+
+            {/* Handicap trend (full width) */}
+            {handicapSeries.length >= 2 ? (
+              <div className="mb-4">
+                <TrendLineChart
+                  title="Handicap index (estimated)"
+                  points={handicapSeries.map(p => ({ label: shortDate(p.date), value: p.index }))}
+                  color="#16a34a"
+                  rollingWindow={0}
+                  formatValue={v => formatHandicapIndex(Math.round(v * 10) / 10)}
+                />
+              </div>
+            ) : summary?.handicapIndex === null ? (
+              <div className="mb-4 bg-blue-50 border border-blue-200 rounded-lg p-4 text-sm text-blue-800">
+                <i className="fas fa-info-circle mr-2"></i>
+                Your estimated handicap appears after 3+ 18-hole rounds logged with a course
+                rating and slope (find them on the course&apos;s scorecard).
+              </div>
+            ) : null}
 
             {/* Charts */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
@@ -243,7 +280,7 @@ export default function GolfTrendsPage() {
 
             <p className="text-xs text-gray-400 mt-4">
               9- and 18-hole rounds are compared by to-par and per-hole stats. Use the filters to
-              isolate one format. Rounds without putts/FIR/GIR data are omitted from those charts.
+              isolate one format. Rounds without putts/FIR/GIR data are omitted from those charts. The handicap is a WHS-style estimate from your 18-hole rounds with rating &amp; slope — not an official index.
             </p>
           </>
         )}

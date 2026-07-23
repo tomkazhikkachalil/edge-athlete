@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseAdmin, requireAuth } from '@/lib/auth-server';
 import { canViewProfile } from '@/lib/privacy';
+import { isHandicapEligible, scoreDifferential, handicapIndex } from '@/lib/golf/handicap';
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -95,6 +96,34 @@ export async function GET(request: NextRequest) {
     const firValues = series.map(p => p.fir_pct).filter((v): v is number => v !== null);
     const girValues = series.map(p => p.gir_pct).filter((v): v is number => v !== null);
 
+    // Handicap: WHS-style estimate from 18-hole rounds with rating+slope —
+    // independent of the page's holes/limit filters (its own light fetch).
+    const { data: hcRounds } = await supabase
+      .from('golf_rounds')
+      .select('date, holes, gross_score, course_rating, slope_rating, created_at')
+      .eq('profile_id', profileId)
+      .eq('holes', 18)
+      .not('gross_score', 'is', null)
+      .not('course_rating', 'is', null)
+      .not('slope_rating', 'is', null)
+      .order('date', { ascending: true })
+      .order('created_at', { ascending: true })
+      .limit(60);
+
+    const eligible = (hcRounds || []).filter(isHandicapEligible);
+    const diffs = eligible.map(r =>
+      scoreDifferential(r.gross_score as number, r.course_rating as number, r.slope_rating as number)
+    );
+    const currentHandicap = handicapIndex(diffs);
+
+    // Index-over-time: recompute after each eligible round (from the 3rd on)
+    const handicapSeries = eligible
+      .map((r, i) => {
+        const result = handicapIndex(diffs.slice(0, i + 1));
+        return result ? { date: r.date, index: result.index } : null;
+      })
+      .filter((p): p is { date: string; index: number } => p !== null);
+
     const summary = {
       rounds: series.length,
       avgToParLast5: avg(lastN(5).map(p => p.to_par)),
@@ -103,9 +132,11 @@ export async function GET(request: NextRequest) {
       avgPuttsPerHole: avg(puttsValues),
       avgFirPct: avg(firValues),
       avgGirPct: avg(girValues),
+      handicapIndex: currentHandicap?.index ?? null,
+      handicapRounds: currentHandicap?.roundsCounted ?? eligible.length,
     };
 
-    return NextResponse.json({ series, summary, isOwner: profileId === user.id });
+    return NextResponse.json({ series, summary, handicapSeries, isOwner: profileId === user.id });
   } catch (error) {
     if (error instanceof Response) return error;
     console.error('GET /api/golf/trends error:', error);

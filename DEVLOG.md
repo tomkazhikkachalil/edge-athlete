@@ -29,6 +29,27 @@
   9 points, domain -1→+16, rolling avg 5.8→7.0, zero out-of-bounds
   coords. Visual phone check pending (on Tom's list).
 
+Computed handicap slice:
+- NEW lib/golf/handicap.ts: WHS-style scoreDifferential + handicapIndex
+  (lowest-N-of-20 with the full WHS small-sample table, 54.0 cap),
+  formatHandicapIndex (+X.X for plus handicaps). Clearly documented as
+  an ESTIMATE (no ESR/PCC/adjusted-gross).
+- Data-hygiene guards, PROVEN NECESSARY by prod data: 18-hole gross
+  >= 55 (world record) + differential >= -10. Without them, a
+  mislabeled 9-hole round (gross 52 stored as 18 holes) produced a
+  -15.8 differential → +16.8 "handicap". With guards: only the 3 real
+  18-hole rounds qualify → +2.3 estimate (faithful WHS small-sample
+  behavior: 3 rounds = lowest 1 diff − 2.0).
+- Trends API: handicap computed on its own light fetch (independent of
+  page filters, 18-hole-only by definition); handicapSeries = index
+  recomputed after each eligible round for the chart.
+- Trends page: handicap tile (first position, shows rounds counted) +
+  full-width "Handicap index (estimated)" chart (no rolling overlay —
+  the index is already smoothed); explainer card when <3 eligible
+  rounds telling users to log rating & slope; footnote updated.
+- Hand-verified the math against prod rounds (differentials -0.3/12.2/
+  9.5 from gross 71@71.4/133, 83@69.5/125, 80@69.5/125).
+
 ## July 23, 2026 — Sprint 2: round detail page is REAL
 
 - NEW /api/golf/rounds/[roundId]: GET (owner or profile-viewable; 404 not
