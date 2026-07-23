@@ -1,5 +1,24 @@
 # Development Log
 
+## July 22, 2026 — Drop posts.golf_mode (migration 023)
+
+Completes the schema cleanup started in migration 020. activity_mode has been
+live and stable since July 17; the golf_mode rollback window is over.
+
+- Code: removed the golf_mode dual-write from `src/app/api/posts/route.ts`
+  (only writer; zero readers). Kept the defensive activity_mode retry —
+  harmless and guards against migration-lag ordering mistakes.
+- DB: `023_drop_golf_mode.sql` drops the column. No CASCADE — hidden
+  dependencies fail loudly. Pre-flight includes a pg_proc scan for live
+  function bodies referencing golf_mode (the migration-022 lesson: Postgres
+  doesn't block DROP COLUMN on functions; they break at runtime).
+
+ORDER: deploy this code FIRST, then run 023 in Supabase (reverse of 020's
+ordering — old code dual-writes the column, so dropping it first would 500
+golf post creation).
+
+Verified: lint clean, fresh build exit 0 (67 routes).
+
 ## July 17, 2026 — Maintenance checklist + sync
 
 - `npm run lint` — zero warnings/errors.

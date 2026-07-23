@@ -1,0 +1,43 @@
+-- ============================================================================
+-- Migration 023 — Drop posts.golf_mode (completes cleanup started in 020)
+-- ============================================================================
+-- Migration 020 (July 17, 2026) generalized posts.golf_mode into the
+-- sport-agnostic posts.activity_mode and backfilled all values. golf_mode was
+-- kept one release for rollback safety, with the code dual-writing both
+-- columns. The activity_mode path has been live and stable since July 17,
+-- 2026 — this migration removes the deprecated column.
+--
+-- ORDER OF OPERATIONS: deploy the code that stops writing golf_mode
+-- (src/app/api/posts/route.ts — dual-write removed) BEFORE running this
+-- migration. If the column is dropped while the old dual-writing code is
+-- still live, golf post creation fails with 42703/PGRST204.
+--
+-- PRE-FLIGHT (run before executing; both must come back clean):
+--
+-- 1. Backfill is complete — every golf_mode value is mirrored in
+--    activity_mode (expect 0):
+--      SELECT count(*) FROM posts
+--        WHERE golf_mode IS NOT NULL
+--          AND activity_mode IS DISTINCT FROM golf_mode;
+--
+-- 2. No live function still references the column (expect 0 rows).
+--    Lesson from migration 022: the live DB can hold function bodies that
+--    aren't in the repo, and Postgres does NOT block DROP COLUMN on them —
+--    they break at runtime instead.
+--      SELECT n.nspname, p.proname
+--        FROM pg_proc p
+--        JOIN pg_namespace n ON n.oid = p.pronamespace
+--        WHERE n.nspname = 'public'
+--          AND pg_get_functiondef(p.oid) ILIKE '%golf_mode%';
+--
+-- Views/indexes that depend on the column WOULD block the drop below (we
+-- intentionally do not use CASCADE, so a hidden dependency fails loudly
+-- instead of being silently dropped).
+-- ============================================================================
+
+ALTER TABLE posts DROP COLUMN IF EXISTS golf_mode;
+
+-- ── Verification (run after) ────────────────────────────────────────────────
+-- SELECT column_name FROM information_schema.columns
+--   WHERE table_name = 'posts' AND column_name IN ('golf_mode','activity_mode');
+--   → expect: activity_mode only
