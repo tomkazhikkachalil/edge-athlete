@@ -123,7 +123,7 @@ export default function ReactionBar({
       {/* Add reaction button */}
       <div className="relative">
         {showPicker ? (
-          <div className="absolute bottom-full mb-2 left-0 z-30 bg-white rounded-xl shadow-xl border border-gray-200 p-2 w-72 max-w-[80vw]">
+          <div className={`absolute bottom-full mb-2 z-30 bg-white rounded-xl shadow-xl border border-gray-200 p-2 w-72 max-w-[80vw] ${align === 'right' ? 'right-0' : 'left-0'}`}>
             {recents.length > 0 && (
               <div className="mb-2 pb-2 border-b border-gray-100">
                 <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide mb-1 px-1">Recent</p>

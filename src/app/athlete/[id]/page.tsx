@@ -268,28 +268,28 @@ export default function AthleteProfilePage() {
 
         {/* Profile Info Section */}
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 sm:p-6 mb-6">
-          <div className="flex items-center space-x-8">
+          <div className="flex flex-col sm:flex-row items-center sm:items-start gap-4 sm:gap-6 lg:gap-8">
           {/* Profile Image with Score Badge */}
-          <div className="relative">
+          <div className="relative flex-shrink-0">
             {profile.avatar_url ? (
               <LazyImage
                 src={profile.avatar_url}
                 alt="Profile Picture"
-                className="w-48 h-48 rounded-full object-cover border-4 border-blue-500"
+                className="w-32 h-32 sm:w-40 sm:h-40 lg:w-48 lg:h-48 rounded-full object-cover border-4 border-blue-500"
                 width={192}
                 height={192}
               />
             ) : (
-              <div className="w-48 h-48 rounded-full bg-blue-500 border-4 border-blue-500 flex items-center justify-center text-white text-5xl font-bold">
+              <div className="w-32 h-32 sm:w-40 sm:h-40 lg:w-48 lg:h-48 rounded-full bg-blue-500 border-4 border-blue-500 flex items-center justify-center text-white text-4xl sm:text-5xl font-bold">
                 {getInitials(formatDisplayName(profile.first_name, null, profile.last_name, profile.full_name))}
               </div>
             )}
           </div>
 
-          <div className="flex-1">
+          <div className="flex-1 min-w-0 w-full">
             <div className="mb-3">
-              <div className="flex items-center gap-2 mb-1">
-                <h1 className="text-3xl font-bold text-black">
+              <div className="flex flex-wrap items-center gap-2 mb-1">
+                <h1 className="text-2xl sm:text-3xl font-bold text-black">
                   {formatDisplayName(profile.first_name, null, profile.last_name, profile.full_name)}
                 </h1>
                 {getHandle(profile) && (
@@ -328,14 +328,14 @@ export default function AthleteProfilePage() {
             )}
 
             {/* Stats Grid */}
-            <div className="grid grid-cols-5 gap-6 p-4 bg-gray-50 rounded-xl mb-6">
+            <div className="grid grid-cols-2 md:grid-cols-5 gap-4 sm:gap-6 p-4 bg-gray-50 rounded-xl mb-6">
               <div className="text-center">
                 <p className="font-bold text-gray-900">Height</p>
                 <p className="font-bold text-xl text-black mt-1">
                   {profile.height_cm ? formatHeight(profile.height_cm) : '--'}
                 </p>
               </div>
-              <div className="text-center border-l">
+              <div className="text-center md:border-l">
                 <p className="font-bold text-gray-900">Weight</p>
                 <p className="font-bold text-xl text-black mt-1">
                   {profile.weight_display && profile.weight_unit
@@ -343,19 +343,19 @@ export default function AthleteProfilePage() {
                     : '--'}
                 </p>
               </div>
-              <div className="text-center border-l">
+              <div className="text-center md:border-l">
                 <p className="font-bold text-gray-900">Age</p>
                 <p className="font-bold text-xl text-black mt-1">
                   {profile.dob ? formatAge(profile.dob) : '--'}
                 </p>
               </div>
-              <div className="text-center border-l">
+              <div className="text-center md:border-l">
                 <p className="font-bold text-gray-900">Location</p>
                 <p className="font-bold text-xl text-black mt-1">
                   {profile.location || '--'}
                 </p>
               </div>
-              <div className="text-center border-l">
+              <div className="text-center md:border-l">
                 <p className="font-bold text-gray-900">Posts</p>
                 <p className="font-bold text-xl text-black mt-1">{postsCount}</p>
               </div>
@@ -363,7 +363,7 @@ export default function AthleteProfilePage() {
 
             {/* Social Links & Follow Stats */}
             <div className="bg-gray-50 rounded-xl p-4 mb-6">
-              <div className="flex items-center gap-8">
+              <div className="flex flex-wrap items-center gap-4 sm:gap-8">
                 <button
                   onClick={() => {
                     setFollowersModalTab('following');

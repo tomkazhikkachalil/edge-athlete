@@ -1,5 +1,37 @@
 # Development Log
 
+## July 22, 2026 — Mobile responsiveness audit (3 subagents) + HIGH fixes
+
+Ran three parallel read-only audits: core pages; shared components; nav/
+messaging/settings. Foundation verified solid (viewport export with
+zoom allowed + viewportFit cover, safe-area helpers, iOS 16px input rule).
+
+HIGH (all fixed):
+- /athlete/[id] public profile never got the mobile treatment its sibling
+  /athlete (own profile) has — header locked side-by-side (no stacking),
+  fixed 192px avatar, 5-col stats grid with no mobile base. At 375px the
+  info column had ~87px. Fixed by mirroring own-profile patterns:
+  flex-col sm:flex-row, w-32→sm:w-40→lg:w-48 avatar, grid-cols-2
+  md:grid-cols-5 (border-l dividers now md:-only), plus flex-wrap on
+  name/handle + follow-stats rows, min-w-0 text column, responsive h1.
+- ReactionBar add-reaction popover hardcoded left-0 while own messages
+  render right-aligned → 288px picker opened off-screen at 375px. Now
+  honors the existing align prop (same pattern as ReactionDetails).
+
+MEDIUM/LOW backlog (documented in audit, not yet fixed): notifications
+page 5-tab bar lacks overflow-x-auto; EditProfileModal badge editor
+grid-cols-12 no stacking; ScoreEntryModal hole-jump 29px touch targets;
+PostCard caption missing break-words; messaging touch targets <44px;
+SharePostModal bottom sheet lacks safe-area padding; assorted hover-only
+overlays (info not lost — tiles tap through).
+
+Well-handled (verified): golf scorecard tables (overflow-x-auto + sticky
+columns everywhere), all modals (max-h + inner scroll), messages two-pane
+collapse + dvh + composer above keyboard, notification dropdowns
+(calc(100vw-1rem) cap), header/drawer at 375px, settings tabs.
+
+Verified: tsc clean, lint clean, build exit 0 (67 routes).
+
 ## July 22, 2026 — Migration 023 verified live + migration 024 (unread RPC)
 
 Verified 023 against production Supabase after Tom ran it:
