@@ -1,5 +1,34 @@
 # Development Log
 
+## July 23, 2026 — Sprint 3 kickoff: Golf Trends dashboard
+
+- NEW GET /api/golf/trends: chronological per-round series (to_par,
+  putts_per_hole, fir/gir pct) + summary aggregates (avg-to-par last 5 /
+  all, best round, avg putts/hole, avg FIR/GIR). Stored 0% FIR/GIR
+  treated as UNTRACKED (nulls, excluded from charts) — validated against
+  prod data where FIR is 0 on every round because nobody tracks
+  fairways yet. Filters: holes 9/18, last N (max 200). Privacy-gated.
+- NEW TrendLineChart component: plain SVG, zero dependencies (skipped
+  recharts — lighter + full spec control). Built per the dataviz skill:
+  2px line, 4px markers with surface ring, recessive grid, first/last
+  date labels, crosshair + tooltip with full-column hit targets (mouse +
+  touch), dashed NEUTRAL 5-round rolling-average overlay (derived
+  reference line — direct-labeled + legend + dash pattern, identity
+  never color-alone). Palette validator run: green passes all checks;
+  gray's chroma-floor flag is intentional (neutral derived overlay, not
+  a categorical series).
+- NEW /app/sport/golf/trends page: 4 stat tiles (avg to par last 5,
+  best round, putts/hole, avg GIR) + 4 single-axis charts (score to par,
+  putts/hole, FIR%, GIR% — separate charts, never dual-axis), one
+  filter row (all/18/9 × last 10/25/all-time), per-chart and page-level
+  empty states, honest footnote about 9-vs-18 comparability. Rounds
+  list = the table view (linked).
+- Entry points: Trends link on rounds list header + profile Recent
+  Activity (golf).
+- Verified with REAL prod data through the exact API + chart math:
+  9 points, domain -1→+16, rolling avg 5.8→7.0, zero out-of-bounds
+  coords. Visual phone check pending (on Tom's list).
+
 ## July 23, 2026 — Sprint 2: round detail page is REAL
 
 - NEW /api/golf/rounds/[roundId]: GET (owner or profile-viewable; 404 not

@@ -302,9 +302,14 @@ export default function MultiSportActivity({ profileId, onEdit, onDelete }: Mult
             <i className={`fas fa-sort-amount-down ${cssClasses.TYPOGRAPHY.CHIP} mr-1`}></i>
             {COPY.SORTING.NEWEST_OLDEST}
             {activeSportKey === 'golf' && (
-              <Link href="/app/sport/golf/rounds" className="ml-3 text-blue-600 hover:text-blue-700 font-medium">
-                View all rounds →
-              </Link>
+              <>
+                <Link href="/app/sport/golf/rounds" className="ml-3 text-blue-600 hover:text-blue-700 font-medium">
+                  View all rounds →
+                </Link>
+                <Link href="/app/sport/golf/trends" className="ml-3 text-blue-600 hover:text-blue-700 font-medium">
+                  Trends →
+                </Link>
+              </>
             )}
           </p>
         </div>

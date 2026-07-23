@@ -145,12 +145,21 @@ export default function GolfRoundsListPage() {
               </p>
             )}
           </div>
-          <Link
-            href="/athlete"
-            className="text-sm text-blue-600 hover:text-blue-700 font-medium min-h-[44px] flex items-center"
-          >
-            ← Profile
-          </Link>
+          <div className="flex items-center gap-4">
+            <Link
+              href="/app/sport/golf/trends"
+              className="text-sm text-blue-600 hover:text-blue-700 font-medium min-h-[44px] flex items-center"
+            >
+              <i className="fas fa-chart-line mr-1"></i>
+              Trends
+            </Link>
+            <Link
+              href="/athlete"
+              className="text-sm text-blue-600 hover:text-blue-700 font-medium min-h-[44px] flex items-center"
+            >
+              ← Profile
+            </Link>
+          </div>
         </div>
 
         {/* Filters */}
