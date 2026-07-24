@@ -1,7 +1,7 @@
 'use client';
 
 import { formatDisplayName, getInitials } from '@/lib/formatters';
-import { isRoundLive } from '@/lib/golf/round-status';
+import { isRoundLive, isActiveParticipant } from '@/lib/golf/round-status';
 import { asGameFormat, calcStablefordTotal, calcMatchStatus, GAME_FORMAT_LABELS } from '@/lib/golf/formats';
 import LazyImage from '../LazyImage';
 import type { CompleteGolfScorecard } from '@/types/group-posts';
@@ -21,12 +21,12 @@ export default function SharedRoundQuickView({
 
   // Filter confirmed participants with scores
   const confirmedWithScores = participants.filter(
-    p => p.participant.status === 'confirmed' && p.scores.total_score !== null
+    p => isActiveParticipant(p.participant.status) && p.scores.total_score !== null
   );
 
   // Count participants by status
   const statusCounts = {
-    confirmed: participants.filter(p => p.participant.status === 'confirmed').length,
+    confirmed: participants.filter(p => isActiveParticipant(p.participant.status)).length,
     pending: participants.filter(p => p.participant.status === 'pending').length,
     declined: participants.filter(p => p.participant.status === 'declined').length,
   };
@@ -58,7 +58,7 @@ export default function SharedRoundQuickView({
 
   // Match play status — only meaningful head-to-head (exactly 2 players with scores)
   const matchScorers = gameFormat === 'match'
-    ? participants.filter(p => p.participant.status === 'confirmed' && (p.scores.hole_scores?.length || 0) > 0)
+    ? participants.filter(p => isActiveParticipant(p.participant.status) && (p.scores.hole_scores?.length || 0) > 0)
     : [];
   const matchStatus = matchScorers.length === 2
     ? calcMatchStatus(matchScorers[0].scores.hole_scores, matchScorers[1].scores.hole_scores, golf_data.holes_played)

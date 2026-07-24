@@ -65,10 +65,11 @@ export async function POST(
       );
     }
 
-    // Verify participant has confirmed attendance
-    if (participant.status !== 'confirmed') {
+    // Under the auto-confirm model only an explicit decline blocks score
+    // entry (legacy 'pending' rows count as playing — see isActiveParticipant)
+    if (participant.status === 'declined') {
       return NextResponse.json(
-        { error: 'Participant must confirm attendance before entering scores' },
+        { error: 'This participant declined the round' },
         { status: 400 }
       );
     }

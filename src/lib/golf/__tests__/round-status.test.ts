@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { resolveRoundStatus, isRoundLive } from '../round-status';
+import { resolveRoundStatus, isRoundLive, isActiveParticipant } from '../round-status';
 
 const p = (confirmed: boolean, holesCompleted: number) => ({ confirmed, holesCompleted });
 
@@ -67,6 +67,17 @@ describe('resolveRoundStatus', () => {
     expect(
       resolveRoundStatus({ status: 'active', holesPlayed: 0, participants: [p(true, 18)] })
     ).toBeNull();
+  });
+});
+
+describe('isActiveParticipant', () => {
+  it('counts everyone except an explicit decline (auto-confirm model)', () => {
+    expect(isActiveParticipant('confirmed')).toBe(true);
+    expect(isActiveParticipant('pending')).toBe(true); // legacy pre-033 rows
+    expect(isActiveParticipant('maybe')).toBe(true);
+    expect(isActiveParticipant(null)).toBe(true);
+    expect(isActiveParticipant(undefined)).toBe(true);
+    expect(isActiveParticipant('declined')).toBe(false);
   });
 });
 

@@ -31,6 +31,7 @@ export const GROUP_SCORECARD_SELECT = `
   ),
   participants:group_post_participants (
     id,
+    profile_id,
     status,
     role,
     attested_at,

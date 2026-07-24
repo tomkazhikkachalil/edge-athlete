@@ -174,13 +174,17 @@ export async function POST(request: NextRequest) {
       // Non-fatal - group post still created
     }
 
-    // Add invited participants if provided
+    // Add invited participants if provided. AUTO-CONFIRMED (July 24 product
+    // decision): anyone invited can score immediately — the attestation step
+    // is retired (its UI never shipped and it dead-ended invitees at
+    // 'pending', which the scores API rejected).
     if (participant_ids && Array.isArray(participant_ids) && participant_ids.length > 0) {
       const participantInserts = participant_ids.map((profile_id: string) => ({
         group_post_id: groupPost.id,
         profile_id,
         role: 'participant',
-        status: 'pending', // Invited participants start as pending
+        status: 'confirmed', // auto-confirm (see comment above)
+        attested_at: new Date().toISOString(),
       }));
 
       const { error: participantsError } = await supabase

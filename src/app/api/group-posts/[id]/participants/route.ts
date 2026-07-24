@@ -116,12 +116,14 @@ export async function POST(
       );
     }
 
-    // Add participants
+    // Add participants — AUTO-CONFIRMED (same model as creation-time invites:
+    // anyone invited can score immediately; only an explicit decline excludes)
     const participantInserts = participant_ids.map((profile_id: string) => ({
       group_post_id: id,
       profile_id,
       role: role || 'participant',
-      status: 'pending',
+      status: 'confirmed',
+      attested_at: new Date().toISOString(),
     }));
 
     const { data: newParticipants, error: insertError } = await supabase

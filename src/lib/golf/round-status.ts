@@ -19,6 +19,17 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 
 export type RoundStatus = 'pending' | 'active' | 'completed' | 'cancelled';
 
+/**
+ * Whether a participant counts as playing in the round. Under the
+ * auto-confirm model (migration 033) invitees are confirmed at insert, so
+ * ONLY an explicit decline excludes someone — legacy 'pending'/'maybe' rows
+ * and any future re-invite state all count. Single definition used by
+ * rosters, score gates, and the lifecycle machine.
+ */
+export function isActiveParticipant(status: string | null | undefined): boolean {
+  return status !== 'declined';
+}
+
 /** How long after its (date-only) round date an 'active' round still counts as
  *  live. Covers timezone slop + a full day of play; beyond it a round someone
  *  abandoned mid-entry stops showing as LIVE. */
@@ -39,8 +50,8 @@ export function resolveRoundStatus(input: {
 
   if (status === 'completed' || status === 'cancelled') return null;
 
-  // Only confirmed participants who have actually entered something count —
-  // invitees who never score shouldn't hold the round open.
+  // Only active (non-declined) participants who have actually entered
+  // something count — invitees who never score shouldn't hold the round open.
   const scoring = participants.filter(p => p.confirmed && p.holesCompleted > 0);
   if (scoring.length === 0) return null;
 
@@ -106,7 +117,7 @@ export async function advanceRoundStatus(
     }) => {
       const scores = Array.isArray(p.scores) ? p.scores[0] : p.scores;
       return {
-        confirmed: p.status === 'confirmed',
+        confirmed: isActiveParticipant(p.status),
         holesCompleted: scores?.holes_completed ?? 0,
       };
     });

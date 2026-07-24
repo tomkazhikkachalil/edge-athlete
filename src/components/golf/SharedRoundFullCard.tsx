@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { formatDisplayName, getInitials } from '@/lib/formatters';
 import { classifyScore, SCORE_CELL_RING, holePar } from '@/lib/golf/scoring';
-import { isRoundLive } from '@/lib/golf/round-status';
+import { isRoundLive, isActiveParticipant } from '@/lib/golf/round-status';
 import { useBodyScrollLock } from '@/hooks/useBodyScrollLock';
 import { asGameFormat, calcStablefordTotal, calcMatchStatus, GAME_FORMAT_LABELS } from '@/lib/golf/formats';
 import ConfirmModal from '../ConfirmModal';
@@ -48,7 +48,7 @@ export default function SharedRoundFullCard({
     calcStablefordTotal(holeScores || []).points;
 
   const matchScorers = gameFormat === 'match'
-    ? participants.filter(p => p.participant.status === 'confirmed' && (p.scores.hole_scores?.length || 0) > 0)
+    ? participants.filter(p => isActiveParticipant(p.participant.status) && (p.scores.hole_scores?.length || 0) > 0)
     : [];
   const matchStatus = matchScorers.length === 2
     ? calcMatchStatus(matchScorers[0].scores.hole_scores, matchScorers[1].scores.hole_scores, golf_data.holes_played)
@@ -160,7 +160,7 @@ export default function SharedRoundFullCard({
 
                 {/* Player Rows */}
                 {participants
-                  .filter(p => p.participant.status === 'confirmed')
+                  .filter(p => isActiveParticipant(p.participant.status))
                   .map(({ participant, scores }) => {
                     const profile = participant.profile!;
                     const displayName = formatDisplayName(
@@ -244,7 +244,7 @@ export default function SharedRoundFullCard({
 
                 {/* Pending/No Scores Rows */}
                 {participants
-                  .filter(p => p.participant.status === 'confirmed' && !p.scores.total_score)
+                  .filter(p => isActiveParticipant(p.participant.status) && !p.scores.total_score)
                   .map(({ participant }) => {
                     const profile = participant.profile!;
                     const displayName = formatDisplayName(
@@ -464,7 +464,7 @@ export default function SharedRoundFullCard({
                 </div>
                 <div className="divide-y divide-gray-200">
                   {participants
-                    .filter(p => p.participant.status === 'confirmed' && p.scores.total_score !== null)
+                    .filter(p => isActiveParticipant(p.participant.status) && p.scores.total_score !== null)
                     .sort((a, b) =>
                       gameFormat === 'stableford'
                         ? stablefordPointsFor(b.scores.hole_scores) - stablefordPointsFor(a.scores.hole_scores)
@@ -548,7 +548,7 @@ export default function SharedRoundFullCard({
 
                   {/* Players without scores */}
                   {participants
-                    .filter(p => p.participant.status === 'confirmed' && !p.scores.total_score)
+                    .filter(p => isActiveParticipant(p.participant.status) && !p.scores.total_score)
                     .map(({ participant }) => {
                       const profile = participant.profile!;
                       const displayName = formatDisplayName(
@@ -646,7 +646,7 @@ export default function SharedRoundFullCard({
                 <div className="bg-blue-100 border-2 border-blue-300 rounded-lg p-4 mb-4">
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                     {participants
-                      .filter(p => p.participant.status === 'confirmed' && p.scores.total_score)
+                      .filter(p => isActiveParticipant(p.participant.status) && p.scores.total_score)
                       .map(({ participant, scores }) => {
                         const profile = participant.profile!;
                         const displayName = formatDisplayName(
