@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getServerClient } from '@/lib/auth-server';
+import { getServerClient, getSupabaseAdmin } from '@/lib/auth-server';
+import { advanceRoundStatus } from '@/lib/golf/round-status';
 
 export async function POST(request: NextRequest) {
   try {
@@ -152,6 +153,13 @@ export async function POST(request: NextRequest) {
         error: 'Failed to save scores',
         failures
       }, { status: 500 });
+    }
+
+    // Advance the round lifecycle off this batch write (a full after-the-fact
+    // scorecard goes straight to 'completed'; partial entry marks it 'active').
+    // Best-effort — never fails the save.
+    if (results.length > 0) {
+      await advanceRoundStatus(getSupabaseAdmin(), group_post_id);
     }
 
     return NextResponse.json({

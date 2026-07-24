@@ -3,6 +3,8 @@
 import { useState } from 'react';
 import { formatDisplayName, getInitials } from '@/lib/formatters';
 import { classifyScore, SCORE_CELL_RING, holePar } from '@/lib/golf/scoring';
+import { isRoundLive } from '@/lib/golf/round-status';
+import ConfirmModal from '../ConfirmModal';
 import LazyImage from '../LazyImage';
 import type { CompleteGolfScorecard } from '@/types/group-posts';
 
@@ -11,16 +13,51 @@ interface SharedRoundFullCardProps {
   currentUserId?: string;
   onClose: () => void;
   onAddScores?: (participantId: string) => void;
+  /** Called after the creator ends the round so the parent refetches the scorecard. */
+  onStatusChange?: () => void;
 }
 
 export default function SharedRoundFullCard({
   scorecard,
   currentUserId,
   onClose,
-  onAddScores
+  onAddScores,
+  onStatusChange
 }: SharedRoundFullCardProps) {
   const { group_post, golf_data, participants } = scorecard;
   const [activeTab, setActiveTab] = useState<'overview' | 'scorecard'>('overview');
+  const [showEndConfirm, setShowEndConfirm] = useState(false);
+  const [endingRound, setEndingRound] = useState(false);
+  const [endRoundError, setEndRoundError] = useState<string | null>(null);
+
+  const roundLive = isRoundLive(group_post);
+  const isCreator = currentUserId === group_post.creator_id;
+
+  // Creator's manual escape hatch for a round left 'active' (e.g. players
+  // stopped entering scores mid-round). Normal completion happens
+  // automatically server-side when everyone who scored has finished.
+  const handleEndRound = async () => {
+    setEndingRound(true);
+    setEndRoundError(null);
+    try {
+      const response = await fetch(`/api/group-posts/${group_post.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: 'completed' })
+      });
+      if (!response.ok) {
+        const data = await response.json().catch(() => ({}));
+        throw new Error(data.error || 'Failed to end round');
+      }
+      onStatusChange?.();
+    } catch (err) {
+      console.error('End round failed:', err);
+      setEndRoundError(err instanceof Error ? err.message : 'Failed to end round');
+    } finally {
+      setEndingRound(false);
+      setShowEndConfirm(false);
+    }
+  };
 
   // Format date
   const formattedDate = new Date(group_post.date).toLocaleDateString('en-US', {
@@ -251,7 +288,21 @@ export default function SharedRoundFullCard({
         <div className="bg-gradient-to-r from-green-600 to-green-700 text-white p-6">
           <div className="flex items-start justify-between">
             <div className="flex-1">
-              <h2 className="text-2xl font-black mb-2">{golf_data.course_name}</h2>
+              <div className="flex items-center gap-3 mb-2 flex-wrap">
+                <h2 className="text-2xl font-black">{golf_data.course_name}</h2>
+                {roundLive && (
+                  <span className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-red-600 text-white text-xs font-bold rounded-full">
+                    <span className="w-1.5 h-1.5 bg-white rounded-full animate-pulse" aria-hidden="true"></span>
+                    LIVE
+                  </span>
+                )}
+                {group_post.status === 'completed' && (
+                  <span className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-green-900 text-white text-xs font-bold rounded-full">
+                    <i className="fas fa-flag-checkered text-[10px]"></i>
+                    FINAL
+                  </span>
+                )}
+              </div>
               <div className="flex items-center gap-4 text-sm font-semibold flex-wrap">
                 <span>{formattedDate}</span>
                 <span>•</span>
@@ -278,14 +329,31 @@ export default function SharedRoundFullCard({
               </div>
             </div>
 
-            <button
-              onClick={onClose}
-              className="text-white hover:text-gray-200 text-2xl font-bold ml-4 min-w-[44px] min-h-[44px] flex items-center justify-center"
-              aria-label="Close"
-            >
-              <i className="fas fa-times"></i>
-            </button>
+            <div className="flex items-center gap-2 ml-4">
+              {isCreator && group_post.status === 'active' && (
+                <button
+                  onClick={() => setShowEndConfirm(true)}
+                  disabled={endingRound}
+                  className="flex items-center gap-2 bg-white/15 hover:bg-white/25 disabled:opacity-60 text-white text-sm font-bold px-3 py-2 rounded-lg transition-colors min-h-[44px]"
+                >
+                  <i className="fas fa-flag-checkered"></i>
+                  {endingRound ? 'Ending…' : 'End Round'}
+                </button>
+              )}
+              <button
+                onClick={onClose}
+                className="text-white hover:text-gray-200 text-2xl font-bold min-w-[44px] min-h-[44px] flex items-center justify-center"
+                aria-label="Close"
+              >
+                <i className="fas fa-times"></i>
+              </button>
+            </div>
           </div>
+          {endRoundError && (
+            <div className="mt-2 text-sm font-semibold text-red-100 bg-red-600/60 rounded px-3 py-1.5">
+              {endRoundError}
+            </div>
+          )}
         </div>
 
         {/* Tabs */}
@@ -591,6 +659,18 @@ export default function SharedRoundFullCard({
           </button>
         </div>
       </div>
+
+      {/* End Round confirmation */}
+      <ConfirmModal
+        isOpen={showEndConfirm}
+        title="End Round"
+        message="Mark this round as final? The live leaderboard stops updating as LIVE, but players can still add or fix scores afterward."
+        confirmText="End Round"
+        cancelText="Keep Playing"
+        confirmButtonClass="bg-green-700 hover:bg-green-800"
+        onConfirm={handleEndRound}
+        onCancel={() => setShowEndConfirm(false)}
+      />
     </div>
   );
 }

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseAdmin, getServerClient } from '@/lib/auth-server';
 import { notifyScoresPosted, groupPostActionUrl } from '@/lib/golf/group-notifications';
+import { advanceRoundStatus } from '@/lib/golf/round-status';
 
 /**
  * POST /api/golf/scorecards/[id]/scores
@@ -180,6 +181,12 @@ export async function POST(
       const admin = getSupabaseAdmin();
       const groupPostId = (participant.group_post as { id: string }).id;
       const creatorId = (participant.group_post as { creator_id: string }).creator_id;
+
+      // Advance the round lifecycle (pending → active → completed) off this
+      // score write. Best-effort like the notifications below. Runs before
+      // them so the DB trigger's Realtime event → client refresh picks up the
+      // new status in the same round-trip.
+      await advanceRoundStatus(admin, groupPostId);
       const { data: groupMeta } = await admin
         .from('group_posts')
         .select('title')

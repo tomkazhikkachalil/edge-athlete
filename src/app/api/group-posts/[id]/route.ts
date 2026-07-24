@@ -106,6 +106,16 @@ export async function PATCH(
     // Extract allowed fields
     const { title, description, date, location, visibility, status } = body;
 
+    // Validate status up front — otherwise the DB CHECK constraint rejects it
+    // as an opaque 500 instead of a clear 400.
+    const validStatuses = ['pending', 'active', 'completed', 'cancelled'];
+    if (status !== undefined && !validStatuses.includes(status)) {
+      return NextResponse.json(
+        { error: `Invalid status. Must be one of: ${validStatuses.join(', ')}` },
+        { status: 400 }
+      );
+    }
+
     // Build update object
     const updates: Record<string, unknown> = {};
     if (title !== undefined) updates.title = title;

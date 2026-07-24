@@ -1,6 +1,7 @@
 'use client';
 
 import { formatDisplayName, getInitials } from '@/lib/formatters';
+import { isRoundLive } from '@/lib/golf/round-status';
 import LazyImage from '../LazyImage';
 import type { CompleteGolfScorecard } from '@/types/group-posts';
 
@@ -53,6 +54,21 @@ export default function SharedRoundQuickView({
           <div className="flex items-center gap-2 mb-1 flex-wrap">
             <i className="fas fa-users text-green-600 text-base"></i>
             <span className="font-bold text-green-900 text-base">{golf_data.course_name}</span>
+
+            {/* Round lifecycle badge: LIVE while scores are streaming in,
+                FINAL once everyone who scored has finished */}
+            {isRoundLive(group_post) && (
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-red-600 text-white text-xs font-bold rounded-full">
+                <span className="w-1.5 h-1.5 bg-white rounded-full animate-pulse" aria-hidden="true"></span>
+                LIVE
+              </span>
+            )}
+            {group_post.status === 'completed' && (
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-gray-700 text-white text-xs font-bold rounded-full">
+                <i className="fas fa-flag-checkered text-[10px]"></i>
+                FINAL
+              </span>
+            )}
 
             {/* Round Type Badge */}
             {golf_data.round_type === 'indoor' ? (
