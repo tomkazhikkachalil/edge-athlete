@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { formatDisplayName, getInitials } from '@/lib/formatters';
 import { classifyScore, SCORE_CELL_RING, holePar } from '@/lib/golf/scoring';
 import { isRoundLive } from '@/lib/golf/round-status';
+import { asGameFormat, calcStablefordTotal, calcMatchStatus, GAME_FORMAT_LABELS } from '@/lib/golf/formats';
 import ConfirmModal from '../ConfirmModal';
 import LazyImage from '../LazyImage';
 import type { CompleteGolfScorecard } from '@/types/group-posts';
@@ -32,6 +33,27 @@ export default function SharedRoundFullCard({
 
   const roundLive = isRoundLive(group_post);
   const isCreator = currentUserId === group_post.creator_id;
+
+  // Game format drives the leaderboard: stroke (lowest strokes), stableford
+  // (highest points), match (head-to-head status banner, 2 scorers).
+  const gameFormat = asGameFormat(golf_data.game_format);
+  const stablefordPointsFor = (holeScores: { hole_number: number; strokes: number }[] | undefined) =>
+    calcStablefordTotal(holeScores || []).points;
+
+  const matchScorers = gameFormat === 'match'
+    ? participants.filter(p => p.participant.status === 'confirmed' && (p.scores.hole_scores?.length || 0) > 0)
+    : [];
+  const matchStatus = matchScorers.length === 2
+    ? calcMatchStatus(matchScorers[0].scores.hole_scores, matchScorers[1].scores.hole_scores, golf_data.holes_played)
+    : null;
+  const matchLeaderName = matchStatus && matchStatus.leaderIndex !== null
+    ? formatDisplayName(
+        matchScorers[matchStatus.leaderIndex].participant.profile!.first_name,
+        null,
+        matchScorers[matchStatus.leaderIndex].participant.profile!.last_name,
+        matchScorers[matchStatus.leaderIndex].participant.profile!.full_name
+      )
+    : null;
 
   // Creator's manual escape hatch for a round left 'active' (e.g. players
   // stopped entering scores mid-round). Normal completion happens
@@ -302,6 +324,12 @@ export default function SharedRoundFullCard({
                     FINAL
                   </span>
                 )}
+                {gameFormat !== 'stroke' && (
+                  <span className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-purple-700 text-white text-xs font-bold rounded-full">
+                    <i className={`fas ${gameFormat === 'stableford' ? 'fa-star' : 'fa-people-arrows'} text-[10px]`}></i>
+                    {GAME_FORMAT_LABELS[gameFormat].toUpperCase()}
+                  </span>
+                )}
               </div>
               <div className="flex items-center gap-4 text-sm font-semibold flex-wrap">
                 <span>{formattedDate}</span>
@@ -389,18 +417,44 @@ export default function SharedRoundFullCard({
           {/* Overview Tab */}
           {activeTab === 'overview' && (
             <div className="space-y-4">
+              {/* Match play status banner */}
+              {matchStatus && matchStatus.thru > 0 && (
+                <div className="flex items-center gap-3 bg-purple-50 border-2 border-purple-300 rounded-lg px-4 py-3">
+                  <i className="fas fa-people-arrows text-purple-600 text-lg"></i>
+                  <div>
+                    <div className="text-base font-black text-purple-900">
+                      {matchStatus.leaderIndex === null
+                        ? matchStatus.summary
+                        : `${matchLeaderName} ${matchStatus.final ? 'wins' : ''} ${matchStatus.summary}`.replace(/\s+/g, ' ')}
+                    </div>
+                    {!matchStatus.final && (
+                      <div className="text-xs font-semibold text-purple-700">
+                        {matchStatus.remaining} hole{matchStatus.remaining === 1 ? '' : 's'} remaining
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
               {/* Leaderboard */}
               <div className="bg-white rounded-lg border-2 border-green-300 overflow-hidden">
                 <div className="bg-green-100 px-4 py-3 border-b-2 border-green-300">
                   <h3 className="text-lg font-black text-green-900">
                     <i className="fas fa-trophy mr-2"></i>
                     Leaderboard
+                    {gameFormat === 'stableford' && (
+                      <span className="ml-2 text-sm font-bold text-green-700">(points — highest wins)</span>
+                    )}
                   </h3>
                 </div>
                 <div className="divide-y divide-gray-200">
                   {participants
                     .filter(p => p.participant.status === 'confirmed' && p.scores.total_score !== null)
-                    .sort((a, b) => (a.scores.total_score || Infinity) - (b.scores.total_score || Infinity))
+                    .sort((a, b) =>
+                      gameFormat === 'stableford'
+                        ? stablefordPointsFor(b.scores.hole_scores) - stablefordPointsFor(a.scores.hole_scores)
+                        : (a.scores.total_score || Infinity) - (b.scores.total_score || Infinity)
+                    )
                     .map(({ participant, scores }, index) => {
                       const profile = participant.profile!;
                       const displayName = formatDisplayName(
@@ -452,13 +506,25 @@ export default function SharedRoundFullCard({
                             </div>
                           </div>
 
-                          {/* Score */}
+                          {/* Score — stableford leads with points, others with strokes */}
                           <div className="text-right">
-                            <div className="text-3xl font-black text-green-900">{scores.total_score}</div>
-                            {scores.to_par !== null && (
-                              <div className={`text-sm font-bold ${scores.to_par < 0 ? 'text-green-600' : scores.to_par > 0 ? 'text-red-600' : 'text-gray-600'}`}>
-                                {scores.to_par >= 0 ? '+' : ''}{scores.to_par}
-                              </div>
+                            {gameFormat === 'stableford' ? (
+                              <>
+                                <div className="text-3xl font-black text-green-900">
+                                  {stablefordPointsFor(scores.hole_scores)}
+                                  <span className="text-sm font-bold text-gray-500 ml-1">pts</span>
+                                </div>
+                                <div className="text-sm font-bold text-gray-600">{scores.total_score} strokes</div>
+                              </>
+                            ) : (
+                              <>
+                                <div className="text-3xl font-black text-green-900">{scores.total_score}</div>
+                                {scores.to_par !== null && (
+                                  <div className={`text-sm font-bold ${scores.to_par < 0 ? 'text-green-600' : scores.to_par > 0 ? 'text-red-600' : 'text-gray-600'}`}>
+                                    {scores.to_par >= 0 ? '+' : ''}{scores.to_par}
+                                  </div>
+                                )}
+                              </>
                             )}
                           </div>
                         </div>

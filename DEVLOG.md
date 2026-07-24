@@ -1,5 +1,67 @@
 # Development Log
 
+## July 23, 2026 — Game formats: Stableford + Match Play (live scoring phase 2b)
+
+⚠️ **DEPLOY ORDER: run migration 032 in Supabase BEFORE pushing this commit.**
+The feed's scorecard query now selects golf_scorecard_data.game_format;
+PostgREST errors on unknown columns (42703), which would blank every
+shared-round scorecard until the column exists. Migration is idempotent,
+backfills existing rounds to 'stroke'.
+
+- Migration 032: golf_scorecard_data.game_format TEXT NOT NULL DEFAULT
+  'stroke' CHECK (stroke/stableford/match). Formats are pure display/
+  scoring strategies over the SAME stored hole scores — no score storage
+  changes, so switching format later can't lose data.
+- NEW src/lib/golf/formats.ts (the strategy layer the scoring.ts header
+  promised): stablefordPoints (standard gross allocation: albatross 5,
+  eagle 4, birdie 3, par 2, bogey 1, double+ 0) + calcStablefordTotal;
+  calcMatchStatus (head-to-head, only holes BOTH players scored count,
+  standard result grammar: "3&2", "1 UP", "All Square", "2 UP thru 14");
+  asGameFormat safe-parse (absent/garbage → 'stroke', so pre-migration
+  payloads degrade to exactly the old behavior).
+- CreatePostModal: Game Format picker (3-button row, stroke default) in
+  shared-round details; sent on scorecard create. /api/golf/scorecards
+  validates it (400) and omits when absent so the DB default applies.
+- SharedRoundQuickView + FullCard: purple format badge (non-stroke only);
+  stableford leaderboards rank by points DESC and lead with "N pts"
+  (strokes secondary); match play shows a status banner (leader name +
+  summary, "N holes remaining" while live) and suppresses the stroke
+  leader badge. Match banner only renders with exactly 2 scoring players —
+  any other count falls back to stroke display silently.
+- 12 new unit tests (allocation table, totals, match grammar incl. early
+  close-out, final-hole win, halved, uneven entry). 59 total pass.
+- tsc/lint/build clean (only the documented benign realtime-js/Edge
+  middleware warning).
+## July 23, 2026 — Round lifecycle: in-progress status + LIVE/FINAL badges (live scoring phase 2a)
+
+group_posts.status (schema had it since 004; nothing ever set it past
+'pending') now tracks the round's real lifecycle, derived from score
+activity — no migration needed, pushed + deployed (0e65fcc).
+
+- NEW src/lib/golf/round-status.ts: resolveRoundStatus pure state machine
+  — pending → active on first score activity; → completed when every
+  CONFIRMED participant WITH scores has finished all holes (invitees who
+  never score can't hold a round open; a full after-the-fact batch goes
+  straight to completed and never lingers as LIVE); completed/cancelled
+  terminal. advanceRoundStatus applies it via service-role (RLS only lets
+  the creator update group_posts, but any participant's save advances the
+  round) with a status-guard on the UPDATE against concurrent saves.
+- Both score-write routes (per-hole/batch scorecards/[id]/scores + bulk
+  participant-scores) call it best-effort after successful saves — same
+  pattern as the notification side-effects. The status ride-along means
+  the existing Realtime score event → client refresh picks up the new
+  status with no extra publication (031 unchanged, group_posts NOT added).
+- isRoundLive client guard: active AND round date within ±48h — an
+  abandoned 'active' round quietly stops advertising itself as live.
+- UI: pulsing red LIVE badge + gray FINAL badge on SharedRoundQuickView
+  and FullCard header. Creator-only "End Round" button (escape hatch for
+  abandoned rounds) with ConfirmModal + inline error, refreshes through
+  the useSharedRound seam. NOTE: pre-existing rounds stay 'pending'
+  forever (scores predate the transitions) — they show no badge, same as
+  before; only rounds with score activity after this deploy advance.
+- PATCH /api/group-posts/[id] status now allowlist-validated (400, was an
+  opaque DB CHECK 500).
+- 15 new unit tests (state machine + live-window guard).
 ## July 23, 2026 — Maintenance checklist + sync (post zod-fix)
 
 - `npm ci --dry-run` — clean, no peer conflicts (the Vercel-install-parity

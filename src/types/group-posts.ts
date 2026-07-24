@@ -107,12 +107,15 @@ export interface GroupPostMedia {
 
 export type RoundType = 'outdoor' | 'indoor';
 
+export type GolfGameFormat = 'stroke' | 'stableford' | 'match';
+
 export interface GolfScorecardData {
   id: string;
   group_post_id: string;
   course_name: string;
   course_id: string | null;
   round_type: RoundType;
+  game_format?: GolfGameFormat; // absent on payloads predating migration 032
   holes_played: number; // 1-18
   tee_color: string | null;
   slope_rating: number | null;
@@ -194,6 +197,7 @@ export interface CreateGolfScorecardRequest {
   course_name: string;
   course_id?: string;
   round_type: RoundType;
+  game_format?: GolfGameFormat; // defaults to 'stroke'
   holes_played: number;
   tee_color?: string;
   slope_rating?: number;

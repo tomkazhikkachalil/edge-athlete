@@ -153,6 +153,7 @@ export default function CreatePostModal({
     date: new Date().toISOString().split('T')[0], // Today's date
     holesPlayed: 18,
     roundTypeIndoorOutdoor: 'outdoor' as 'outdoor' | 'indoor',
+    gameFormat: 'stroke' as 'stroke' | 'stableford' | 'match',
     teeColor: '',
     weather: '',
     temperature: '',
@@ -315,6 +316,7 @@ export default function CreatePostModal({
       date: new Date().toISOString().split('T')[0],
       holesPlayed: 18,
       roundTypeIndoorOutdoor: 'outdoor',
+      gameFormat: 'stroke',
       teeColor: '',
       weather: '',
       temperature: '',
@@ -658,6 +660,7 @@ export default function CreatePostModal({
             group_post_id: groupPostId,
             course_name: sharedRoundDetails.courseName,
             round_type: sharedRoundDetails.roundTypeIndoorOutdoor,
+            game_format: sharedRoundDetails.gameFormat,
             holes_played: sharedRoundDetails.holesPlayed,
             tee_color: sharedRoundDetails.teeColor || undefined,
             weather_conditions: sharedRoundDetails.weather || undefined,
@@ -1073,6 +1076,44 @@ export default function CreatePostModal({
                       Indoor
                     </button>
                   </div>
+                </div>
+
+                {/* Game Format */}
+                <div className="mb-4">
+                  <label className="block text-sm font-semibold text-gray-900 mb-2">
+                    Game Format
+                  </label>
+                  <div className="grid grid-cols-3 gap-3">
+                    {([
+                      { value: 'stroke', label: 'Stroke Play', icon: 'fa-golf-ball' },
+                      { value: 'stableford', label: 'Stableford', icon: 'fa-star' },
+                      { value: 'match', label: 'Match Play', icon: 'fa-people-arrows' },
+                    ] as const).map(({ value, label, icon }) => (
+                      <button
+                        key={value}
+                        type="button"
+                        onClick={() => setSharedRoundDetails(prev => ({ ...prev, gameFormat: value }))}
+                        className={`px-3 py-3 rounded-lg font-semibold text-sm transition-all ${
+                          sharedRoundDetails.gameFormat === value
+                            ? 'bg-green-600 text-white'
+                            : 'bg-white text-gray-700 border-2 border-gray-300 hover:border-green-300'
+                        }`}
+                      >
+                        <i className={`fas ${icon} mr-1.5`}></i>
+                        {label}
+                      </button>
+                    ))}
+                  </div>
+                  {sharedRoundDetails.gameFormat === 'stableford' && (
+                    <p className="mt-2 text-xs text-gray-600">
+                      Points per hole — eagle 4, birdie 3, par 2, bogey 1. Highest points wins.
+                    </p>
+                  )}
+                  {sharedRoundDetails.gameFormat === 'match' && (
+                    <p className="mt-2 text-xs text-gray-600">
+                      Head-to-head holes won — best with exactly 2 players. Scores are still recorded per hole.
+                    </p>
+                  )}
                 </div>
 
                 {/* Tee Color (optional, outdoor only) */}

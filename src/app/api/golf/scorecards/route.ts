@@ -33,6 +33,7 @@ export async function POST(request: NextRequest) {
       course_name,
       course_id,
       round_type,
+      game_format,
       holes_played,
       tee_color,
       slope_rating,
@@ -62,6 +63,14 @@ export async function POST(request: NextRequest) {
     if (holes_played < 1 || holes_played > 18) {
       return NextResponse.json(
         { error: 'holes_played must be between 1 and 18' },
+        { status: 400 }
+      );
+    }
+
+    // Validate game_format (optional — DB defaults to 'stroke')
+    if (game_format !== undefined && !['stroke', 'stableford', 'match'].includes(game_format)) {
+      return NextResponse.json(
+        { error: 'game_format must be "stroke", "stableford", or "match"' },
         { status: 400 }
       );
     }
@@ -99,6 +108,8 @@ export async function POST(request: NextRequest) {
         course_name,
         course_id,
         round_type,
+        // Omit when not provided so the DB default ('stroke') applies.
+        ...(game_format !== undefined ? { game_format } : {}),
         holes_played,
         tee_color,
         slope_rating,

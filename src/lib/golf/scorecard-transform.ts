@@ -23,6 +23,7 @@ export const GROUP_SCORECARD_SELECT = `
     course_name,
     course_id,
     round_type,
+    game_format,
     holes_played,
     tee_color,
     slope_rating,

@@ -2,6 +2,7 @@
 
 import { formatDisplayName, getInitials } from '@/lib/formatters';
 import { isRoundLive } from '@/lib/golf/round-status';
+import { asGameFormat, calcStablefordTotal, calcMatchStatus, GAME_FORMAT_LABELS } from '@/lib/golf/formats';
 import LazyImage from '../LazyImage';
 import type { CompleteGolfScorecard } from '@/types/group-posts';
 
@@ -37,10 +38,37 @@ export default function SharedRoundQuickView({
     year: 'numeric'
   });
 
-  // Find leader (lowest score)
+  // Game format shapes how the leaderboard reads: stroke (lowest total),
+  // stableford (highest points), match (head-to-head status, 2 scorers).
+  const gameFormat = asGameFormat(golf_data.game_format);
+
+  const stablefordPointsFor = (holeScores: { hole_number: number; strokes: number }[] | undefined) =>
+    calcStablefordTotal(holeScores || []).points;
+
+  // Find leader — lowest strokes, or highest points under stableford
   const leader = confirmedWithScores.length > 0
-    ? confirmedWithScores.reduce((prev, curr) =>
-        (curr.scores.total_score || Infinity) < (prev.scores.total_score || Infinity) ? curr : prev
+    ? confirmedWithScores.reduce((prev, curr) => {
+        if (gameFormat === 'stableford') {
+          return stablefordPointsFor(curr.scores.hole_scores) > stablefordPointsFor(prev.scores.hole_scores)
+            ? curr : prev;
+        }
+        return (curr.scores.total_score || Infinity) < (prev.scores.total_score || Infinity) ? curr : prev;
+      })
+    : null;
+
+  // Match play status — only meaningful head-to-head (exactly 2 players with scores)
+  const matchScorers = gameFormat === 'match'
+    ? participants.filter(p => p.participant.status === 'confirmed' && (p.scores.hole_scores?.length || 0) > 0)
+    : [];
+  const matchStatus = matchScorers.length === 2
+    ? calcMatchStatus(matchScorers[0].scores.hole_scores, matchScorers[1].scores.hole_scores, golf_data.holes_played)
+    : null;
+  const matchLeaderName = matchStatus && matchStatus.leaderIndex !== null
+    ? formatDisplayName(
+        matchScorers[matchStatus.leaderIndex].participant.profile!.first_name,
+        null,
+        matchScorers[matchStatus.leaderIndex].participant.profile!.last_name,
+        matchScorers[matchStatus.leaderIndex].participant.profile!.full_name
       )
     : null;
 
@@ -67,6 +95,14 @@ export default function SharedRoundQuickView({
               <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-gray-700 text-white text-xs font-bold rounded-full">
                 <i className="fas fa-flag-checkered text-[10px]"></i>
                 FINAL
+              </span>
+            )}
+
+            {/* Game Format Badge (stroke play is the default — no badge) */}
+            {gameFormat !== 'stroke' && (
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-purple-600 text-white text-xs font-bold rounded-full">
+                <i className={`fas ${gameFormat === 'stableford' ? 'fa-star' : 'fa-people-arrows'} text-[10px]`}></i>
+                {GAME_FORMAT_LABELS[gameFormat].toUpperCase()}
               </span>
             )}
 
@@ -97,21 +133,44 @@ export default function SharedRoundQuickView({
           </div>
         </div>
 
-        {/* Leader Score Badge (if any) */}
-        {leader && leader.scores.total_score !== null && (
+        {/* Leader Score Badge (if any) — match play uses the status banner instead */}
+        {leader && leader.scores.total_score !== null && gameFormat !== 'match' && (
           <div className="ml-3">
             <div className="bg-white rounded-lg px-3 py-1.5 shadow-md border-2 border-green-300 text-center">
               <div className="text-xs text-green-700 font-semibold">Leader</div>
-              <div className="text-2xl font-black text-green-900 leading-none">{leader.scores.total_score}</div>
-              {leader.scores.to_par !== null && (
-                <div className={`text-xs font-bold ${leader.scores.to_par < 0 ? 'text-blue-600' : leader.scores.to_par > 0 ? 'text-red-600' : 'text-gray-600'}`}>
-                  {leader.scores.to_par >= 0 ? '+' : ''}{leader.scores.to_par}
-                </div>
+              {gameFormat === 'stableford' ? (
+                <>
+                  <div className="text-2xl font-black text-green-900 leading-none">
+                    {stablefordPointsFor(leader.scores.hole_scores)}
+                  </div>
+                  <div className="text-xs font-bold text-gray-600">pts</div>
+                </>
+              ) : (
+                <>
+                  <div className="text-2xl font-black text-green-900 leading-none">{leader.scores.total_score}</div>
+                  {leader.scores.to_par !== null && (
+                    <div className={`text-xs font-bold ${leader.scores.to_par < 0 ? 'text-blue-600' : leader.scores.to_par > 0 ? 'text-red-600' : 'text-gray-600'}`}>
+                      {leader.scores.to_par >= 0 ? '+' : ''}{leader.scores.to_par}
+                    </div>
+                  )}
+                </>
               )}
             </div>
           </div>
         )}
       </div>
+
+      {/* Match play status banner */}
+      {matchStatus && matchStatus.thru > 0 && (
+        <div className="flex items-center gap-2 bg-white/70 border border-purple-300 rounded-lg px-3 py-2 mb-3">
+          <i className="fas fa-people-arrows text-purple-600"></i>
+          <span className="text-sm font-bold text-purple-900">
+            {matchStatus.leaderIndex === null
+              ? matchStatus.summary
+              : `${matchLeaderName} ${matchStatus.final ? 'wins' : ''} ${matchStatus.summary}`.replace(/\s+/g, ' ')}
+          </span>
+        </div>
+      )}
 
       {/* Participants List */}
       <div className="space-y-2 mb-3">
@@ -189,14 +248,26 @@ export default function SharedRoundQuickView({
                 </div>
               </div>
 
-              {/* Score */}
+              {/* Score — stableford leads with points, others with strokes */}
               {scores.total_score !== null && (
                 <div className="ml-2 flex items-baseline gap-1 flex-shrink-0">
-                  <span className="text-lg font-black text-green-900">{scores.total_score}</span>
-                  {scores.to_par !== null && (
-                    <span className={`text-sm font-bold ${scores.to_par < 0 ? 'text-green-600' : scores.to_par > 0 ? 'text-red-600' : 'text-gray-600'}`}>
-                      ({scores.to_par >= 0 ? '+' : ''}{scores.to_par})
-                    </span>
+                  {gameFormat === 'stableford' ? (
+                    <>
+                      <span className="text-lg font-black text-green-900">
+                        {stablefordPointsFor(scores.hole_scores)}
+                      </span>
+                      <span className="text-xs font-bold text-gray-600">pts</span>
+                      <span className="text-xs text-gray-500 ml-1">({scores.total_score})</span>
+                    </>
+                  ) : (
+                    <>
+                      <span className="text-lg font-black text-green-900">{scores.total_score}</span>
+                      {scores.to_par !== null && (
+                        <span className={`text-sm font-bold ${scores.to_par < 0 ? 'text-green-600' : scores.to_par > 0 ? 'text-red-600' : 'text-gray-600'}`}>
+                          ({scores.to_par >= 0 ? '+' : ''}{scores.to_par})
+                        </span>
+                      )}
+                    </>
                   )}
                   {scores.holes_completed < golf_data.holes_played && (
                     <span className="text-xs text-gray-600 ml-1">
