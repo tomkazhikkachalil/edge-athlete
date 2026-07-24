@@ -53,6 +53,16 @@ export function draftKey(participantId: string): string {
 }
 
 /**
+ * Drafts exist only for participants with a stable id (shared-round scoring).
+ * The solo quick-entry renders ScoreEntryModal with participantId="" — an
+ * empty id would collapse every solo round onto ONE localStorage key and
+ * resurrect round A's typed holes inside round B. No id → no draft.
+ */
+function canDraft(participantId: string): boolean {
+  return participantId.length > 0;
+}
+
+/**
  * Parse + validate a raw draft string. Pure (testable without a DOM).
  * Returns null for garbage, wrong participant, or expired drafts.
  */
@@ -61,7 +71,7 @@ export function parseDraft(
   participantId: string,
   now: number = Date.now()
 ): ScoreDraft | null {
-  if (!raw) return null;
+  if (!raw || !canDraft(participantId)) return null;
   try {
     const d = JSON.parse(raw) as ScoreDraft;
     if (
@@ -121,6 +131,7 @@ function storage(): Storage | null {
 }
 
 export function readDraft(participantId: string, now: number = Date.now()): ScoreDraft | null {
+  if (!canDraft(participantId)) return null;
   const s = storage();
   if (!s) return null;
   try {
@@ -135,6 +146,7 @@ export function writeDraft(
   holes: Record<number, DraftHole>,
   now: number = Date.now()
 ): void {
+  if (!canDraft(participantId)) return;
   const s = storage();
   if (!s) return;
   try {
@@ -156,6 +168,7 @@ export function removeHoleFromDraft(participantId: string, holeNumber: number): 
 }
 
 export function clearDraft(participantId: string): void {
+  if (!canDraft(participantId)) return;
   const s = storage();
   if (!s) return;
   try {

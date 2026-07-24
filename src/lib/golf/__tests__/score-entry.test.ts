@@ -77,6 +77,12 @@ describe('parseDraft', () => {
     expect(parseDraft(validDraft(), 'p2', NOW)).toBeNull();
   });
 
+  it('rejects the empty participantId (solo quick-entry has no draft identity)', () => {
+    // "" === "" would otherwise match — one shared key across ALL solo rounds
+    // would resurrect round A's typed holes inside round B.
+    expect(parseDraft(validDraft({ participantId: '' }), '', NOW)).toBeNull();
+  });
+
   it('rejects expired drafts (48h TTL)', () => {
     expect(parseDraft(validDraft({ savedAt: NOW - DRAFT_TTL_MS - 1 }), 'p1', NOW)).toBeNull();
     expect(parseDraft(validDraft({ savedAt: NOW - DRAFT_TTL_MS + 1000 }), 'p1', NOW)).not.toBeNull();

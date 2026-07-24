@@ -9,6 +9,7 @@
 // 'new_message'). Self-notification guards are handled here.
 
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { isActiveParticipant } from '@/lib/golf/round-status';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Admin = SupabaseClient<any, 'public', any>;
@@ -126,7 +127,11 @@ export async function notifyScoresPosted(
       .select('profile_id, status, scores:golf_participant_scores (total_score)')
       .eq('group_post_id', ctx.groupPostId);
 
-    const confirmed = (participants || []).filter(p => p.status === 'confirmed');
+    // Same playing-roster rule as everywhere else: everyone but 'declined'
+    // counts (legacy pre-033 'pending'/'maybe' rows CAN score, so gating the
+    // completion check on 'confirmed' would fire "final leaderboard" early —
+    // and the dedupe marker makes that one-shot).
+    const confirmed = (participants || []).filter(p => isActiveParticipant(p.status));
     if (confirmed.length < 2) return; // solo "groups" don't get a leaderboard moment
 
     const allScored = confirmed.every(p => {
