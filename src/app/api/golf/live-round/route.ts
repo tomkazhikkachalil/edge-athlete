@@ -30,13 +30,14 @@ export async function GET(request: NextRequest) {
       .select(`
         id,
         status,
+        scores:golf_participant_scores ( holes_completed ),
         group_post:group_post_id (
           id,
           type,
           status,
           date,
           post_id,
-          golf_data:golf_scorecard_data ( course_name )
+          golf_data:golf_scorecard_data ( course_name, holes_played )
         )
       `)
       .eq('profile_id', user.id)
@@ -56,14 +57,17 @@ export async function GET(request: NextRequest) {
         const gp = Array.isArray(r.group_post) ? r.group_post[0] : r.group_post;
         if (!gp || gp.type !== 'golf_round') return null;
         const golfData = Array.isArray(gp.golf_data) ? gp.golf_data[0] : gp.golf_data;
+        const scores = Array.isArray(r.scores) ? r.scores[0] : r.scores;
         return {
           participant_id: r.id,
+          holes_completed: scores?.holes_completed ?? null,
           group_post: {
             id: gp.id,
             status: gp.status,
             date: gp.date,
             post_id: gp.post_id,
             course_name: golfData?.course_name ?? null,
+            holes_played: golfData?.holes_played ?? null,
           },
         };
       })

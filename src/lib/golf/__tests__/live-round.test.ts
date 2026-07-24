@@ -35,4 +35,49 @@ describe('pickLiveRound', () => {
     const bad = { participant_id: 'p', group_post: { id: 'x', status: 'active', date: null } } as LiveRoundRow;
     expect(pickLiveRound([bad], NOW)).toBeNull();
   });
+
+  it('excludes a round whose own card is already complete', () => {
+    // Round stays 'active' until the SLOWEST player finishes — a player who
+    // finished 18/18 has nothing to resume and must not see the banner.
+    const done = {
+      ...row('a', 'active', '2026-07-24'),
+      holes_completed: 18,
+      group_post: { ...row('a', 'active', '2026-07-24').group_post, holes_played: 18 },
+    };
+    expect(pickLiveRound([done], NOW)).toBeNull();
+  });
+
+  it('keeps a mid-card round, and rounds with unknown completion', () => {
+    const base = row('a', 'active', '2026-07-24');
+    const midCard = {
+      ...base,
+      holes_completed: 9,
+      group_post: { ...base.group_post, holes_played: 18 },
+    };
+    expect(pickLiveRound([midCard], NOW)?.group_post.id).toBe('a');
+    // No scores row yet (holes_completed null) → still resumable
+    const noScores = {
+      ...base,
+      holes_completed: null,
+      group_post: { ...base.group_post, holes_played: 18 },
+    };
+    expect(pickLiveRound([noScores], NOW)?.group_post.id).toBe('a');
+    // Legacy row without holes_played → never suppress on unknown length
+    expect(pickLiveRound([{ ...base, holes_completed: 18 }], NOW)?.group_post.id).toBe('a');
+  });
+
+  it('falls through to an unfinished round when the newest card is done', () => {
+    const doneBase = row('newer', 'active', '2026-07-24');
+    const done = {
+      ...doneBase,
+      holes_completed: 9,
+      group_post: { ...doneBase.group_post, holes_played: 9 },
+    };
+    const open = {
+      ...row('older', 'active', '2026-07-23'),
+      holes_completed: 3,
+      group_post: { ...row('older', 'active', '2026-07-23').group_post, holes_played: 18 },
+    };
+    expect(pickLiveRound([done, open], NOW)?.group_post.id).toBe('older');
+  });
 });

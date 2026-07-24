@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getEnabledSports } from '@/lib/sports/SportRegistry';
 import { requireAuth, getSupabaseAdmin } from '@/lib/auth-server';
 import { GROUP_SCORECARD_SELECT, transformGroupPostToScorecard } from '@/lib/golf/scorecard-transform';
+import { isActiveParticipant } from '@/lib/golf/round-status';
 
 // Interface for tagged profiles
 interface TaggedProfile {
@@ -489,6 +490,20 @@ export async function GET(request: NextRequest) {
             .eq('status', 'accepted')
             .maybeSingle();
           allowed = !!follow;
+
+          // Shared-round participants can always open the round's post: the
+          // resume banner and useSharedRound's refresh deep-link here, and an
+          // invited player need not follow the creator (or be able to see a
+          // private profile) to score the round they're playing in.
+          if (!allowed && post.group_post_id) {
+            const { data: participantRow } = await supabase
+              .from('group_post_participants')
+              .select('status')
+              .eq('group_post_id', post.group_post_id)
+              .eq('profile_id', currentUserId)
+              .maybeSingle();
+            allowed = !!participantRow && isActiveParticipant(participantRow.status);
+          }
         }
         if (!allowed) {
           return NextResponse.json({ error: 'Post not found' }, { status: 404 });

@@ -24,10 +24,11 @@ export default function SharedRoundQuickView({
     p => isActiveParticipant(p.participant.status) && p.scores.total_score !== null
   );
 
-  // Count participants by status
+  // Count participants by the playing-roster rule (everyone but 'declined'
+  // is in — legacy 'pending'/'maybe' rows can score under auto-confirm, so
+  // counting them separately would double-count them).
   const statusCounts = {
     confirmed: participants.filter(p => isActiveParticipant(p.participant.status)).length,
-    pending: participants.filter(p => p.participant.status === 'pending').length,
     declined: participants.filter(p => p.participant.status === 'declined').length,
   };
 
@@ -183,34 +184,29 @@ export default function SharedRoundQuickView({
             profile.full_name
           );
 
-          // Determine status badge
+          // Status badge follows the same roster rule as the counters:
+          // declined is the only non-playing state; every other participant
+          // is in the round (auto-confirm) and just may not have scores yet.
           let statusBadge = null;
-          if (participant.status === 'confirmed' && scores.total_score !== null) {
+          if (participant.status === 'declined') {
+            statusBadge = (
+              <span className="flex items-center gap-1 text-xs font-semibold text-gray-500">
+                <i className="fas fa-times-circle"></i>
+                Declined
+              </span>
+            );
+          } else if (scores.total_score !== null) {
             statusBadge = (
               <span className="flex items-center gap-1 text-xs font-semibold text-green-700">
                 <i className="fas fa-check-circle"></i>
                 Confirmed
               </span>
             );
-          } else if (participant.status === 'confirmed') {
+          } else {
             statusBadge = (
               <span className="flex items-center gap-1 text-xs font-semibold text-blue-600">
                 <i className="fas fa-clock"></i>
                 Awaiting scores
-              </span>
-            );
-          } else if (participant.status === 'pending') {
-            statusBadge = (
-              <span className="flex items-center gap-1 text-xs font-semibold text-yellow-600">
-                <i className="fas fa-hourglass-half"></i>
-                Pending
-              </span>
-            );
-          } else if (participant.status === 'declined') {
-            statusBadge = (
-              <span className="flex items-center gap-1 text-xs font-semibold text-gray-500">
-                <i className="fas fa-times-circle"></i>
-                Declined
               </span>
             );
           }
@@ -294,10 +290,10 @@ export default function SharedRoundQuickView({
               <span className="font-bold text-green-900">{statusCounts.confirmed}</span>
             </div>
           )}
-          {statusCounts.pending > 0 && (
+          {statusCounts.declined > 0 && (
             <div>
-              <span className="font-semibold text-yellow-700">Pending: </span>
-              <span className="font-bold text-yellow-800">{statusCounts.pending}</span>
+              <span className="font-semibold text-gray-600">Declined: </span>
+              <span className="font-bold text-gray-700">{statusCounts.declined}</span>
             </div>
           )}
         </div>
@@ -313,7 +309,7 @@ export default function SharedRoundQuickView({
           View Full Scorecard
         </button>
 
-        {isOwner && statusCounts.pending > 0 && (
+        {isOwner && (
           <button
             onClick={onExpand}
             className="flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg transition-colors text-sm min-h-[44px]"

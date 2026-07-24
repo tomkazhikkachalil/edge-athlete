@@ -95,12 +95,27 @@ export async function POST(
         .select('id')
         .single();
 
-      if (insertError) {
+      if (insertError?.code === '23505') {
+        // Lost a first-save race: the keepalive flush (pagehide/visibility)
+        // can land concurrently with the foreground save, both see no row,
+        // both insert, the loser hits UNIQUE(participant_id). The row exists
+        // now — use it rather than failing a save that must block navigation.
+        const { data: raced, error: racedError } = await supabase
+          .from('golf_participant_scores')
+          .select('id')
+          .eq('participant_id', participant_id)
+          .single();
+        if (racedError || !raced) {
+          console.error('Error resolving raced golf participant scores:', racedError);
+          return NextResponse.json({ error: 'Failed to create golf participant scores' }, { status: 500 });
+        }
+        golf_participant_id = raced.id;
+      } else if (insertError || !newGolfParticipant) {
         console.error('Error creating golf participant scores:', insertError);
         return NextResponse.json({ error: 'Failed to create golf participant scores' }, { status: 500 });
+      } else {
+        golf_participant_id = newGolfParticipant.id;
       }
-
-      golf_participant_id = newGolfParticipant.id;
     } else if (golfParticipantScore) {
       golf_participant_id = golfParticipantScore.id;
     } else {
