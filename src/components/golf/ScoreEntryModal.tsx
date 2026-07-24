@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { holePar } from '@/lib/golf/scoring';
+import { firstUnscoredHole } from '@/lib/golf/score-entry';
 import { useBodyScrollLock } from '@/hooks/useBodyScrollLock';
 import type { GolfHoleScore } from '@/types/group-posts';
 import type { HoleData } from '@/types/golf';
@@ -47,7 +48,11 @@ export default function ScoreEntryModal({
   // Mounted only while open — lock background scroll for the whole lifetime
   useBodyScrollLock();
 
-  const [currentHole, setCurrentHole] = useState(1);
+  // Resume where the round left off: a returning player who saved 6 holes
+  // lands on hole 7, not hole 1.
+  const [currentHole, setCurrentHole] = useState(
+    () => firstUnscoredHole(existingScores, holesPlayed, startingHoleNumber)
+  );
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -139,8 +144,11 @@ export default function ScoreEntryModal({
     }
   };
 
+  // One rule for ALL navigation: you can't leave a hole that didn't save.
+  // (Previous/Jump used to ignore persistHole's result and clear the error —
+  // a failed save was silently swallowed and the hole lost on exit.)
   const handlePrevious = async () => {
-    if (isLive) await persistHole(currentHole);
+    if (isLive && !(await persistHole(currentHole))) return;
     if (currentHole > 1) {
       setCurrentHole(prev => prev - 1);
       setError(null);
@@ -148,7 +156,8 @@ export default function ScoreEntryModal({
   };
 
   const handleJumpToHole = async (holeNum: number) => {
-    if (isLive) await persistHole(currentHole);
+    if (holeNum === currentHole) return;
+    if (isLive && !(await persistHole(currentHole))) return;
     setCurrentHole(holeNum);
     setError(null);
   };
@@ -361,7 +370,8 @@ export default function ScoreEntryModal({
                   <button
                     key={holeNum}
                     onClick={() => handleJumpToHole(holeNum)}
-                    className={`relative py-2 px-1 min-h-[40px] rounded text-xs font-bold transition-colors ${
+                    disabled={savingHole !== null}
+                    className={`relative py-2 px-1 min-h-[40px] rounded text-xs font-bold transition-colors disabled:opacity-60 ${
                       isCurrent
                         ? 'bg-green-600 text-white ring-2 ring-green-800'
                         : hasScore
@@ -388,7 +398,7 @@ export default function ScoreEntryModal({
           <div className="flex items-center justify-between gap-3">
             <button
               onClick={handlePrevious}
-              disabled={currentHole === 1}
+              disabled={currentHole === 1 || savingHole !== null}
               className="flex-1 bg-gray-600 hover:bg-gray-700 disabled:bg-gray-400 disabled:cursor-not-allowed text-white font-bold py-3 px-4 rounded-lg transition-colors"
             >
               <i className="fas fa-chevron-left mr-2"></i>
