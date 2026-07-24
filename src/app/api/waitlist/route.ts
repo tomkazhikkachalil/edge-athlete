@@ -1,39 +1,23 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { z } from 'zod';
 import { getSupabaseAdmin } from '@/lib/auth-server';
 import { emailService } from '@/lib/email-service';
+import { parseBody, emailString } from '@/lib/validation';
 
-// Landing-page values ('Club', 'League'…) normalize to these
-const VALID_USER_TYPES = ['club', 'league', 'fan', 'guest'];
+// Landing-page values ('Club', 'League'…) arrive mixed-case → normalize.
+const WaitlistSchema = z.object({
+  email: emailString,
+  userType: z
+    .string()
+    .transform(s => s.trim().toLowerCase())
+    .pipe(z.enum(['club', 'league', 'fan', 'guest'])),
+});
 
 export async function POST(request: NextRequest) {
   try {
-    const body = await request.json();
-    const { email, userType } = body;
-
-    if (!email || !userType) {
-      return NextResponse.json(
-        { error: 'Email and user type are required' },
-        { status: 400 }
-      );
-    }
-
-    // Basic email validation
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    const normalizedEmail = String(email).trim().toLowerCase();
-    if (normalizedEmail.length > 320 || !emailRegex.test(normalizedEmail)) {
-      return NextResponse.json(
-        { error: 'Please enter a valid email address' },
-        { status: 400 }
-      );
-    }
-
-    const normalizedType = String(userType).trim().toLowerCase();
-    if (!VALID_USER_TYPES.includes(normalizedType)) {
-      return NextResponse.json(
-        { error: 'Invalid user type' },
-        { status: 400 }
-      );
-    }
+    const parsed = await parseBody(request, WaitlistSchema);
+    if (!parsed.success) return parsed.response;
+    const { email: normalizedEmail, userType: normalizedType } = parsed.data;
 
     // Persist. Duplicate (email, user_type) is a friendly no-op — the person
     // is already on the list, so tell them it worked.

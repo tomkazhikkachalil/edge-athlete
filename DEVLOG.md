@@ -1,5 +1,32 @@
 # Development Log
 
+## July 23, 2026 — Sprint 6 FINAL: zod input validation (pattern + first routes)
+
+Roadmap's last item. It's explicitly incremental — the risk is a schema
+being STRICTER than current behavior and 400'ing valid production traffic,
+so I established the pattern well + converted a curated set with behavior
+matched exactly, leaving the rest to adopt route-by-route.
+
+- Added zod. NEW src/lib/validation.ts: parseBody(request, schema) →
+  {success,data} | {success:false,response:400}; reusable primitives
+  (uuid, boundedText, optionalText, emailString). Malformed JSON now
+  yields a clean 400 instead of a 500.
+- Converted 3 routes, behavior-matched:
+  * /api/contact — name/email/message bounds (also drops the manual
+    email regex).
+  * /api/waitlist — email + userType enum with Club→club normalization
+    (verified the schema output equals the old hand-rolled logic).
+  * /api/notifications/preferences PATCH — the hand-rolled boolean
+    allowlist → a .partial().strict() schema (strict = the same
+    mass-assignment guard, now declarative).
+- 7 new unit tests (src/lib/__tests__/validation.test.ts) incl. the
+  malformed-JSON→400 and strict-rejects-unknown-keys cases. Suite now
+  32 tests (25 golf + 7 validation), all green in ~200ms, in CI.
+- REMAINING (incremental, documented in validation.ts): the complex
+  mutation routes (posts POST, golf round PATCH, messages POST) keep
+  their existing thorough manual validation for now — convert as
+  touched, using the established pattern. Not converted blindly to
+  avoid a big-bang regression.
 ## July 23, 2026 — Sprint 6 kickoff: first automated tests (golf math)
 
 The project had ZERO tests. Started the test suite with the highest-ROI,

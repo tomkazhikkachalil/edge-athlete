@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { z } from 'zod';
 import { requireAuth, getSupabaseAdmin } from '@/lib/auth-server';
+import { parseBody } from '@/lib/validation';
 
 export async function GET(request: NextRequest) {
   try {
@@ -55,40 +57,37 @@ export async function GET(request: NextRequest) {
   }
 }
 
-// Only the real boolean preference columns may be updated. Never pass the
-// raw body to update() — this route runs on the admin client (bypasses RLS),
-// so an unfiltered body could overwrite user_id/id (mass assignment).
-const ALLOWED_PREFERENCE_KEYS = new Set([
-  'follow_requests_enabled',
-  'follow_accepted_enabled',
-  'new_followers_enabled',
-  'likes_enabled',
-  'comments_enabled',
-  'mentions_enabled',
-  'tags_enabled',
-  'achievements_enabled',
-  'system_announcements_enabled',
-  'club_updates_enabled',
-  'push_enabled',
-  'email_enabled',
-]);
+// Only the real boolean preference columns may be updated (each optional).
+// Never pass the raw body to update() — this route runs on the admin client
+// (bypasses RLS), so an unfiltered body could overwrite user_id/id (mass
+// assignment). `.strict()` rejects any key not listed here.
+const PreferencesSchema = z
+  .object({
+    follow_requests_enabled: z.boolean(),
+    follow_accepted_enabled: z.boolean(),
+    new_followers_enabled: z.boolean(),
+    likes_enabled: z.boolean(),
+    comments_enabled: z.boolean(),
+    mentions_enabled: z.boolean(),
+    tags_enabled: z.boolean(),
+    achievements_enabled: z.boolean(),
+    system_announcements_enabled: z.boolean(),
+    club_updates_enabled: z.boolean(),
+    push_enabled: z.boolean(),
+    email_enabled: z.boolean(),
+  })
+  .partial()
+  .strict();
 
 export async function PATCH(request: NextRequest) {
   try {
     const supabaseAdmin = getSupabaseAdmin();
     const user = await requireAuth(request);
-    const body = await request.json();
 
-    const updates: Record<string, boolean> = {};
-    for (const [key, value] of Object.entries(body ?? {})) {
-      if (!ALLOWED_PREFERENCE_KEYS.has(key)) {
-        return NextResponse.json({ error: `Unknown preference: ${key}` }, { status: 400 });
-      }
-      if (typeof value !== 'boolean') {
-        return NextResponse.json({ error: `Preference ${key} must be a boolean` }, { status: 400 });
-      }
-      updates[key] = value;
-    }
+    const parsed = await parseBody(request, PreferencesSchema);
+    if (!parsed.success) return parsed.response;
+    const updates = parsed.data;
+
     if (Object.keys(updates).length === 0) {
       return NextResponse.json({ error: 'No valid preference fields provided' }, { status: 400 });
     }

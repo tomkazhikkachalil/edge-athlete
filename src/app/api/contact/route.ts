@@ -1,6 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { z } from 'zod';
 import { emailService } from '@/lib/email-service';
 import { apiRateLimiter } from '@/lib/rate-limit';
+import { parseBody, emailString, boundedText } from '@/lib/validation';
+
+const ContactSchema = z.object({
+  name: boundedText(100),
+  email: emailString,
+  message: boundedText(5000),
+});
 
 /**
  * Contact form API endpoint
@@ -21,25 +29,10 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Parse request body
-    const { name, email, message } = await request.json();
-
-    // Basic validation
-    if (!name || !email || !message) {
-      return NextResponse.json(
-        { error: 'Name, email, and message are required.' },
-        { status: 400 }
-      );
-    }
-
-    // Basic email validation
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(email)) {
-      return NextResponse.json(
-        { error: 'Please provide a valid email address.' },
-        { status: 400 }
-      );
-    }
+    // Parse + validate request body (zod)
+    const parsed = await parseBody(request, ContactSchema);
+    if (!parsed.success) return parsed.response;
+    const { name, email, message } = parsed.data;
 
     // Check if email is configured
     if (!process.env.SMTP_USER || !process.env.SMTP_PASS) {
@@ -49,12 +42,8 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Send email
-    await emailService.sendContactEmail({
-      name: name.trim(),
-      email: email.trim(),
-      message: message.trim(),
-    });
+    // Send email (schema already trimmed + lowercased the email)
+    await emailService.sendContactEmail({ name, email, message });
 
     return NextResponse.json({
       message: 'Message sent successfully! We\'ll get back to you soon.',
