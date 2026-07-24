@@ -92,16 +92,19 @@ function MultiPlayerScorecardGrid({
     : allHoleNumbers;
 
   return (
-    <div className="w-full overflow-x-auto">
-      <div className="mb-4 flex items-center justify-between">
+    <div className="w-full">
+      {/* Header lives OUTSIDE the horizontal scroll container — inside it,
+          justify-between stretches to the table's scroll-width and the
+          controls end up off-screen on phones. flex-wrap for 360px. */}
+      <div className="mb-4 flex items-center justify-between flex-wrap gap-2">
         <h3 className="text-lg font-bold text-gray-900">Scorecard</h3>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-3 flex-wrap">
           {/* Front 9 / Back 9 Tabs (only for 18-hole rounds) */}
           {is18Holes && (
             <div className="flex border border-gray-300 rounded-lg overflow-hidden">
               <button
                 onClick={() => setActiveTab('front9')}
-                className={`px-4 py-1.5 text-sm font-semibold transition-colors ${
+                className={`px-4 py-2 min-h-[36px] text-sm font-semibold transition-colors ${
                   activeTab === 'front9'
                     ? 'bg-green-600 text-white'
                     : 'bg-white text-gray-700 hover:bg-gray-50'
@@ -111,7 +114,7 @@ function MultiPlayerScorecardGrid({
               </button>
               <button
                 onClick={() => setActiveTab('back9')}
-                className={`px-4 py-1.5 text-sm font-semibold transition-colors border-l border-gray-300 ${
+                className={`px-4 py-2 min-h-[36px] text-sm font-semibold transition-colors border-l border-gray-300 ${
                   activeTab === 'back9'
                     ? 'bg-green-600 text-white'
                     : 'bg-white text-gray-700 hover:bg-gray-50'
@@ -123,15 +126,15 @@ function MultiPlayerScorecardGrid({
           )}
           <button
             onClick={() => setShowStats(!showStats)}
-            className="text-sm text-blue-600 hover:text-blue-700 font-medium"
+            className="text-sm text-blue-600 hover:text-blue-700 font-medium py-2 px-2 -mx-2"
           >
             {showStats ? 'Hide' : 'Show'} Detailed Stats
           </button>
         </div>
       </div>
 
-      {/* Scorecard Table */}
-      <div className="border border-gray-300 rounded-lg overflow-hidden">
+      {/* Scorecard Table — only the table scrolls horizontally */}
+      <div className="border border-gray-300 rounded-lg overflow-hidden overflow-x-auto">
         <table className="min-w-full divide-y divide-gray-300">
           <thead className="bg-green-50">
             <tr>
@@ -286,7 +289,7 @@ function MultiPlayerScorecardGrid({
                                     type="checkbox"
                                     checked={holeScore?.fairway_hit || false}
                                     onChange={(e) => handleScoreChange(player.participant_id, holeNum, 'fairway_hit', e.target.checked)}
-                                    className="w-3 h-3 text-green-600 rounded"
+                                    className="w-4 h-4 text-green-600 rounded"
                                   />
                                   <span className="text-gray-600">F</span>
                                 </label>
@@ -295,7 +298,7 @@ function MultiPlayerScorecardGrid({
                                     type="checkbox"
                                     checked={holeScore?.green_in_regulation || false}
                                     onChange={(e) => handleScoreChange(player.participant_id, holeNum, 'green_in_regulation', e.target.checked)}
-                                    className="w-3 h-3 text-green-600 rounded"
+                                    className="w-4 h-4 text-green-600 rounded"
                                   />
                                   <span className="text-gray-600">G</span>
                                 </label>

@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import Image from 'next/image';
 import { useToast } from './Toast';
+import { useBodyScrollLock } from '@/hooks/useBodyScrollLock';
 
 interface Profile {
   id: string;
@@ -147,10 +148,13 @@ export default function TagPeopleModal({
     return profile.full_name || 'Unknown User';
   };
 
+  // Lock background scroll while open (iOS scroll-chaining behind overlays)
+  useBodyScrollLock(isOpen);
+
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[60] p-4">
       <div className="bg-white rounded-lg max-w-md w-full max-h-[80vh] overflow-hidden shadow-xl">
         {/* Header */}
         <div className="p-4 border-b border-gray-200 flex items-center justify-between">

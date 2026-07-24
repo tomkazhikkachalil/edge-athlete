@@ -392,7 +392,7 @@ export default function FollowersModal({ isOpen, onClose, profileId, initialTab 
                               <button
                                 onClick={(e) => handleUnfollow(profile.id, e)}
                                 disabled={isLoadingThis}
-                                className="px-3 py-1.5 text-xs font-medium text-gray-700 bg-gray-200 rounded-full hover:bg-gray-300 transition-colors disabled:opacity-50 whitespace-nowrap"
+                                className="px-3 py-2 min-h-[36px] text-xs font-medium text-gray-700 bg-gray-200 rounded-full hover:bg-gray-300 transition-colors disabled:opacity-50 whitespace-nowrap"
                               >
                                 {isLoadingThis ? (
                                   <i className="fas fa-spinner fa-spin"></i>
@@ -404,7 +404,7 @@ export default function FollowersModal({ isOpen, onClose, profileId, initialTab 
                               <button
                                 onClick={(e) => handleBecomeFan(profile.id, e)}
                                 disabled={isLoadingThis}
-                                className={`px-3 py-1.5 text-xs font-medium rounded-full transition-colors disabled:opacity-50 whitespace-nowrap ${
+                                className={`px-3 py-2 min-h-[36px] text-xs font-medium rounded-full transition-colors disabled:opacity-50 whitespace-nowrap ${
                                   requestedThem
                                     ? 'text-gray-700 bg-gray-200 hover:bg-gray-300'
                                     : 'text-white bg-blue-600 hover:bg-blue-700'
@@ -425,7 +425,7 @@ export default function FollowersModal({ isOpen, onClose, profileId, initialTab 
                               <button
                                 onClick={(e) => handleRemoveFan(profile.id, e)}
                                 disabled={isLoadingThis}
-                                className="px-3 py-1.5 text-xs font-medium text-red-600 bg-red-50 rounded-full hover:bg-red-100 transition-colors disabled:opacity-50 whitespace-nowrap"
+                                className="px-3 py-2 min-h-[36px] text-xs font-medium text-red-600 bg-red-50 rounded-full hover:bg-red-100 transition-colors disabled:opacity-50 whitespace-nowrap"
                               >
                                 Remove Fan
                               </button>
@@ -440,7 +440,7 @@ export default function FollowersModal({ isOpen, onClose, profileId, initialTab 
                               <button
                                 onClick={(e) => handleUnfollow(profile.id, e)}
                                 disabled={isLoadingThis}
-                                className="px-3 py-1.5 text-xs font-medium text-gray-700 bg-gray-200 rounded-full hover:bg-gray-300 transition-colors disabled:opacity-50 whitespace-nowrap"
+                                className="px-3 py-2 min-h-[36px] text-xs font-medium text-gray-700 bg-gray-200 rounded-full hover:bg-gray-300 transition-colors disabled:opacity-50 whitespace-nowrap"
                               >
                                 {isLoadingThis ? (
                                   <i className="fas fa-spinner fa-spin"></i>
@@ -452,7 +452,7 @@ export default function FollowersModal({ isOpen, onClose, profileId, initialTab 
                               <button
                                 onClick={(e) => handleBecomeFan(profile.id, e)}
                                 disabled={isLoadingThis}
-                                className={`px-3 py-1.5 text-xs font-medium rounded-full transition-colors disabled:opacity-50 whitespace-nowrap ${
+                                className={`px-3 py-2 min-h-[36px] text-xs font-medium rounded-full transition-colors disabled:opacity-50 whitespace-nowrap ${
                                   requestedThem
                                     ? 'text-gray-700 bg-gray-200 hover:bg-gray-300'
                                     : 'text-white bg-blue-600 hover:bg-blue-700'

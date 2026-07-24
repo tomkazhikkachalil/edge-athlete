@@ -14,6 +14,7 @@ import StatLineForm, { emptyStatLine, statLineHasContent } from '@/components/St
 import { getStatSchema, type StatLineData } from '@/lib/sports/stat-schemas';
 import type { HoleData, GolfCourse } from '@/types/golf';
 import type { CompleteGolfScorecard, ParticipantRole } from '@/types/group-posts';
+import { useBodyScrollLock } from '@/hooks/useBodyScrollLock';
 
 interface CreatePostModalProps {
   isOpen: boolean;
@@ -803,6 +804,9 @@ export default function CreatePostModal({
     };
   }, [mediaFiles]);
 
+  // Lock background scroll while open (iOS scroll-chaining behind overlays)
+  useBodyScrollLock(isOpen);
+
   if (!isOpen) return null;
 
   const currentTags = TAG_OPTIONS[postType as keyof typeof TAG_OPTIONS] || TAG_OPTIONS.general;
@@ -810,7 +814,7 @@ export default function CreatePostModal({
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-lg shadow-xl max-w-4xl w-full max-h-[90vh] flex flex-col">
+      <div className="bg-white rounded-lg shadow-xl max-w-4xl w-full max-h-modal flex flex-col">
         {/* Header */}
         <div className="flex items-center justify-between p-6 border-b border-gray-200">
           <h2 className="text-2xl font-bold text-gray-900">Create Post</h2>
@@ -1083,7 +1087,9 @@ export default function CreatePostModal({
                   <label className="block text-sm font-semibold text-gray-900 mb-2">
                     Game Format
                   </label>
-                  <div className="grid grid-cols-3 gap-3">
+                  {/* Stacks on phones — three ~100px columns wrap the two-word
+                      labels badly at 360px */}
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 sm:gap-3">
                     {([
                       { value: 'stroke', label: 'Stroke Play', icon: 'fa-golf-ball' },
                       { value: 'stableford', label: 'Stableford', icon: 'fa-star' },
@@ -1999,7 +2005,7 @@ function PostPreview({
 
   return (
     <div className="fixed inset-0 bg-black/75 flex items-center justify-center z-[60] p-4">
-      <div className="bg-white rounded-lg shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+      <div className="bg-white rounded-lg shadow-2xl max-w-2xl w-full max-h-modal overflow-y-auto">
         {/* Preview Header */}
         <div className="flex items-center justify-between p-4 border-b border-gray-200 bg-gray-50">
           <h3 className="text-lg font-semibold text-gray-800">Post Preview</h3>

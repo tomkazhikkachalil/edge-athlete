@@ -5,6 +5,7 @@ import { X, RefreshCw, Archive } from 'lucide-react';
 import Image from 'next/image';
 import AddEquipmentModal from './AddEquipmentModal';
 import { type EquipmentItem } from './EquipmentSection';
+import { useBodyScrollLock } from '@/hooks/useBodyScrollLock';
 
 interface ReplaceEquipmentModalProps {
   isOpen: boolean;
@@ -66,6 +67,9 @@ export default function ReplaceEquipmentModal({
     handleClose(); // Close modal
   };
 
+  // Lock background scroll while open (iOS scroll-chaining behind overlays)
+  useBodyScrollLock(isOpen);
+
   if (!isOpen) return null;
 
   return (
@@ -73,7 +77,7 @@ export default function ReplaceEquipmentModal({
       {/* Confirmation step */}
       {step === 'confirm' && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl max-w-lg w-full max-h-[90vh] overflow-y-auto shadow-2xl">
+          <div className="bg-white rounded-2xl max-w-lg w-full max-h-modal overflow-y-auto shadow-2xl">
             {/* Header */}
             <div className="sticky top-0 bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between rounded-t-2xl">
               <div className="flex items-center gap-3">

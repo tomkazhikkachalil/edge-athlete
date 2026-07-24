@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { formatDisplayName } from '@/lib/formatters';
+import { useBodyScrollLock } from '@/hooks/useBodyScrollLock';
 import type { GroupPost, GolfScorecardData, Profile } from '@/types/group-posts';
 
 interface ParticipantAttestationModalProps {
@@ -19,6 +20,9 @@ export default function ParticipantAttestationModal({
   onDecline,
   onClose
 }: ParticipantAttestationModalProps) {
+  // Mounted only while open — lock background scroll for the whole lifetime
+  useBodyScrollLock();
+
   const [processing, setProcessing] = useState(false);
   const [action, setAction] = useState<'confirm' | 'decline' | null>(null);
 
@@ -66,7 +70,7 @@ export default function ParticipantAttestationModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-      <div className="bg-white rounded-lg shadow-2xl max-w-lg w-full max-h-[90vh] overflow-y-auto">
+      <div className="bg-white rounded-lg shadow-2xl max-w-lg w-full max-h-modal overflow-y-auto">
         {/* Header */}
         <div className="bg-gradient-to-r from-green-600 to-green-700 text-white p-6">
           <div className="flex items-start justify-between">

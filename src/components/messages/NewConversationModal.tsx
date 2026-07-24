@@ -132,7 +132,7 @@ export default function NewConversationModal({ onClose }: Props) {
   return (
     <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={onClose}>
       <div
-        className="max-w-md w-full bg-white rounded-xl shadow-xl flex flex-col max-h-[90vh]"
+        className="max-w-md w-full bg-white rounded-xl shadow-xl flex flex-col max-h-modal"
         onClick={e => e.stopPropagation()}
       >
         {/* Header */}

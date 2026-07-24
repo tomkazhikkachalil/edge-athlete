@@ -277,7 +277,7 @@ function PostCard({
               router.push(`/athlete/${post.profile.id}`);
             }
           }}
-          className="flex items-center gap-4 hover:bg-gray-50 p-1 rounded-lg transition-colors"
+          className="flex items-center gap-4 hover:bg-gray-50 p-1 rounded-lg transition-colors flex-1 min-w-0 text-left"
         >
           {/* Profile Avatar */}
           {post.profile.avatar_url ? (
@@ -298,10 +298,12 @@ function PostCard({
 
           <div className="flex-1 min-w-0">
             <div className="flex flex-col">
-              <div className="flex items-center gap-2">
-                <h3 className="font-bold text-gray-900 text-base hover:text-blue-600 transition-colors">{displayName}</h3>
+              {/* min-w-0 + truncate: long name/handle must shrink, not push the
+                  owner edit/delete buttons off a 360px card */}
+              <div className="flex items-center gap-2 min-w-0">
+                <h3 className="font-bold text-gray-900 text-base hover:text-blue-600 transition-colors truncate">{displayName}</h3>
                 {getHandle(post.profile) && (
-                  <span className="text-sm text-gray-900 font-medium">{getHandle(post.profile)}</span>
+                  <span className="text-sm text-gray-900 font-medium truncate flex-shrink-[2]">{getHandle(post.profile)}</span>
                 )}
               </div>
               <div className="flex items-center gap-2 flex-wrap">
@@ -432,20 +434,24 @@ function PostCard({
               <span>{localCommentsCount}</span>
             </button>
 
+            {/* Icon-only actions: min-w so the tap target isn't just the
+                ~20px glyph (like/comment get width from their counts) */}
             <button
               onClick={handleShare}
-              className="flex items-center gap-2 text-base font-bold text-gray-800 hover:text-green-600 transition-colors min-h-[44px]"
+              className="flex items-center justify-center text-base font-bold text-gray-800 hover:text-green-600 transition-colors min-h-[44px] min-w-[44px]"
               title="Share post"
+              aria-label="Share post"
             >
               <i className="far fa-share-square text-lg"></i>
             </button>
 
             <button
               onClick={handleSave}
-              className={`flex items-center gap-2 text-base font-bold transition-colors ml-auto min-h-[44px] ${
+              className={`flex items-center justify-center text-base font-bold transition-colors ml-auto min-h-[44px] min-w-[44px] ${
                 isSaved ? 'text-yellow-600' : 'text-gray-800 hover:text-yellow-600'
               }`}
               title={isSaved ? 'Unsave post' : 'Save post'}
+              aria-label={isSaved ? 'Unsave post' : 'Save post'}
             >
               <i className={`${isSaved ? 'fas' : 'far'} fa-bookmark text-lg`}></i>
             </button>

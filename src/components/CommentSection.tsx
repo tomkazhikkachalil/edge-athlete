@@ -380,7 +380,7 @@ export default function CommentSection({
                 {isPostOwner && !isReply && (
                   <button
                     onClick={() => handlePinComment(comment.id, !!comment.is_pinned)}
-                    className={`text-xs transition-colors ${
+                    className={`text-xs transition-colors p-2.5 -m-1.5 ${
                       comment.is_pinned
                         ? 'text-amber-600 hover:text-amber-700'
                         : 'text-gray-400 hover:text-amber-600'
@@ -394,7 +394,7 @@ export default function CommentSection({
                 {user?.id === comment.profile_id && (
                   <button
                     onClick={() => handleDeleteComment(comment.id)}
-                    className="text-xs text-red-600 hover:text-red-700"
+                    className="text-xs text-red-600 hover:text-red-700 p-2.5 -m-1.5"
                     title="Delete comment"
                   >
                     <i className="fas fa-trash" />
@@ -427,7 +427,7 @@ export default function CommentSection({
               <button
                 onClick={() => handleLikeComment(comment.id)}
                 disabled={likingComments.has(comment.id)}
-                className={`flex items-center gap-1 transition-colors ${
+                className={`flex items-center gap-1 transition-colors py-2 px-2 -mx-1 ${
                   isLiked
                     ? 'text-red-600 hover:text-red-700'
                     : 'text-gray-500 hover:text-red-600'
@@ -450,7 +450,7 @@ export default function CommentSection({
                   setReplyGifUrl(null);
                   requestAnimationFrame(() => replyInputRef.current?.focus());
                 }}
-                className="text-gray-500 hover:text-blue-600 transition-colors font-medium"
+                className="text-gray-500 hover:text-blue-600 transition-colors font-medium py-2 px-2 -mx-1"
               >
                 Reply{replyCount > 0 ? ` (${replyCount})` : ''}
               </button>

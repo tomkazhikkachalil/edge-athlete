@@ -220,11 +220,11 @@ export default function PostDetailModal({
       />
 
       {/* Modal Content */}
-      <div className="relative w-full max-w-4xl max-h-[90vh] bg-white rounded-lg shadow-xl overflow-hidden mx-4">
+      <div className="relative w-full max-w-4xl max-h-modal bg-white rounded-lg shadow-xl overflow-hidden mx-4">
         {/* Close Button */}
         <button
           onClick={onClose}
-          className="absolute top-2 right-2 z-10 w-8 h-8 bg-black/50 hover:bg-black/70 text-white rounded-full flex items-center justify-center transition-colors"
+          className="absolute top-2 right-2 z-10 w-11 h-11 bg-black/50 hover:bg-black/70 text-white rounded-full flex items-center justify-center transition-colors"
           aria-label="Close"
         >
           <i className="fas fa-times text-sm"></i>
@@ -235,14 +235,14 @@ export default function PostDetailModal({
           <>
             <button
               onClick={() => onNavigate('prev')}
-              className="absolute left-4 top-1/2 -translate-y-1/2 z-10 w-10 h-10 bg-black/50 hover:bg-black/70 text-white rounded-full flex items-center justify-center transition-colors"
+              className="absolute left-4 top-1/2 -translate-y-1/2 z-10 w-11 h-11 bg-black/50 hover:bg-black/70 text-white rounded-full flex items-center justify-center transition-colors"
               aria-label="Previous post"
             >
               <i className="fas fa-chevron-left"></i>
             </button>
             <button
               onClick={() => onNavigate('next')}
-              className="absolute right-4 top-1/2 -translate-y-1/2 z-10 w-10 h-10 bg-black/50 hover:bg-black/70 text-white rounded-full flex items-center justify-center transition-colors"
+              className="absolute right-4 top-1/2 -translate-y-1/2 z-10 w-11 h-11 bg-black/50 hover:bg-black/70 text-white rounded-full flex items-center justify-center transition-colors"
               aria-label="Next post"
             >
               <i className="fas fa-chevron-right"></i>
@@ -251,7 +251,7 @@ export default function PostDetailModal({
         )}
 
         {/* Content */}
-        <div className="overflow-y-auto max-h-[90vh] p-6">
+        <div className="overflow-y-auto max-h-modal p-6">
           {loading && (
             <div className="flex items-center justify-center py-12">
               <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>

@@ -1,5 +1,7 @@
 'use client';
 
+import { useBodyScrollLock } from '@/hooks/useBodyScrollLock';
+
 interface ConfirmModalProps {
   isOpen: boolean;
   title: string;
@@ -21,11 +23,16 @@ export default function ConfirmModal({
   onConfirm,
   onCancel
 }: ConfirmModalProps) {
+  // Lock background scroll while open (iOS scroll-chaining behind overlays)
+  useBodyScrollLock(isOpen);
+
   if (!isOpen) return null;
 
+  // z-[60]: ConfirmModal can stack over z-50 modals (e.g. End Round over
+  // SharedRoundFullCard) — same layer would rely on DOM order alone.
   return (
-    <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-      <div className="bg-white rounded-lg shadow-xl max-w-md w-full">
+    <div className="fixed inset-0 bg-black/50 z-[60] flex items-center justify-center p-4">
+      <div className="bg-white rounded-lg shadow-xl max-w-md w-full max-h-[85vh] overflow-y-auto">
         {/* Header */}
         <div className="p-6 border-b border-gray-200">
           <h2 className="text-xl font-bold text-gray-900">{title}</h2>

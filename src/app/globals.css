@@ -434,8 +434,21 @@ select {
   input[type="tel"],
   input[type="number"],
   input[type="url"],
+  input[type="date"],
+  input[type="datetime-local"],
+  input[type="time"],
+  input[type="month"],
   textarea,
   select {
     font-size: 16px;
   }
+}
+
+/* Modal panel height with dvh + vh fallback: 90vh is measured against the
+ * LARGE viewport under iOS Safari's collapsing toolbar, so footers (e.g.
+ * ScoreEntryModal's Previous/Next/Done) can sit under browser chrome.
+ * dvh tracks the actual visible height; vh line covers older browsers. */
+.max-h-modal {
+  max-height: 90vh;
+  max-height: 90dvh;
 }

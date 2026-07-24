@@ -93,7 +93,7 @@ export default function ReportMessageModal({
         role="dialog"
         aria-modal="true"
         aria-label="Report message"
-        className="relative bg-white rounded-2xl shadow-xl w-full max-w-md max-h-[90vh] overflow-y-auto safe-bottom"
+        className="relative bg-white rounded-2xl shadow-xl w-full max-w-md max-h-modal overflow-y-auto safe-bottom"
       >
         <div className="px-5 pt-5 pb-3 border-b border-gray-100">
           <div className="flex items-center justify-between">

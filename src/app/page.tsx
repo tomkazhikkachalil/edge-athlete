@@ -426,25 +426,6 @@ export default function Home() {
                   </div>
                 </div>
                 <div>
-                  <label htmlFor="associated-clubs" className="block text-sm font-medium text-gray-700 mb-1">Associated Clubs</label>
-                  <div className="relative">
-                    <input
-                      type="text"
-                      id="associated-clubs"
-                      className="w-full px-4 py-3 text-sm text-gray-800 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500 pr-10"
-                      placeholder="Search for clubs"
-                    />
-                    <button type="button" className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-blue-500">
-                      <i className="fas fa-magnifying-glass text-sm"></i>
-                    </button>
-                  </div>
-                  <div className="mt-2 p-2 border border-gray-300 rounded-md min-h-[40px]">
-                    <div className="flex flex-wrap gap-2">
-                      <span className="text-xs text-gray-500 italic">No clubs selected</span>
-                    </div>
-                  </div>
-                </div>
-                <div>
                   <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-1">Password</label>
                   <input
                     type="password"
@@ -473,7 +454,7 @@ export default function Home() {
                 <button 
                   type="submit" 
                   disabled={isSubmitting}
-                  className="w-full bg-blue-600 text-white py-micro px-micro rounded-md hover:bg-blue-700 transition duration-300 flex items-center justify-center text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="w-full bg-blue-600 text-white py-3 px-4 rounded-md hover:bg-blue-700 transition duration-300 flex items-center justify-center text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   {isSubmitting ? (
                     <>

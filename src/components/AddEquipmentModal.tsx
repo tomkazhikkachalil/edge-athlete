@@ -7,6 +7,7 @@ import { useToast } from './Toast';
 import type { EquipmentCategory, EquipmentSpecs } from './EquipmentSection';
 import { getCatalogService, getPresetImages, type EquipmentBrand, type EquipmentModel } from '@/lib/equipment-catalog';
 import EquipmentImageUpload from './EquipmentImageUpload';
+import { useBodyScrollLock } from '@/hooks/useBodyScrollLock';
 
 interface AddEquipmentModalProps {
   isOpen: boolean;
@@ -174,6 +175,9 @@ export default function AddEquipmentModal({
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
+  // Lock background scroll while open (iOS scroll-chaining behind overlays)
+  useBodyScrollLock(isOpen);
+
   if (!isOpen) return null;
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -287,7 +291,7 @@ export default function AddEquipmentModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50">
-      <div className="relative w-full max-w-2xl bg-white rounded-xl shadow-2xl max-h-[90vh] overflow-hidden flex flex-col">
+      <div className="relative w-full max-w-2xl bg-white rounded-xl shadow-2xl max-h-modal overflow-hidden flex flex-col">
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200">
           <div>

@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { formatDisplayName, getInitials } from '@/lib/formatters';
 import { classifyScore, SCORE_CELL_RING, holePar } from '@/lib/golf/scoring';
 import { isRoundLive } from '@/lib/golf/round-status';
+import { useBodyScrollLock } from '@/hooks/useBodyScrollLock';
 import { asGameFormat, calcStablefordTotal, calcMatchStatus, GAME_FORMAT_LABELS } from '@/lib/golf/formats';
 import ConfirmModal from '../ConfirmModal';
 import LazyImage from '../LazyImage';
@@ -26,6 +27,9 @@ export default function SharedRoundFullCard({
   onStatusChange
 }: SharedRoundFullCardProps) {
   const { group_post, golf_data, participants } = scorecard;
+  // Mounted only while open — lock background scroll for the whole lifetime
+  useBodyScrollLock();
+
   const [activeTab, setActiveTab] = useState<'overview' | 'scorecard'>('overview');
   const [showEndConfirm, setShowEndConfirm] = useState(false);
   const [endingRound, setEndingRound] = useState(false);
@@ -305,7 +309,7 @@ export default function SharedRoundFullCard({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-      <div className="bg-white rounded-lg shadow-2xl max-w-6xl w-full max-h-[90vh] overflow-hidden flex flex-col">
+      <div className="bg-white rounded-lg shadow-2xl max-w-6xl w-full max-h-modal overflow-hidden flex flex-col">
         {/* Header */}
         <div className="bg-gradient-to-r from-green-600 to-green-700 text-white p-6">
           <div className="flex items-start justify-between">

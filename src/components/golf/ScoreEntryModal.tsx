@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { holePar } from '@/lib/golf/scoring';
+import { useBodyScrollLock } from '@/hooks/useBodyScrollLock';
 import type { GolfHoleScore } from '@/types/group-posts';
 import type { HoleData } from '@/types/golf';
 
@@ -43,6 +44,9 @@ export default function ScoreEntryModal({
   onClose
 }: ScoreEntryModalProps) {
   const isLive = !!onSaveHole;
+  // Mounted only while open — lock background scroll for the whole lifetime
+  useBodyScrollLock();
+
   const [currentHole, setCurrentHole] = useState(1);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -197,7 +201,7 @@ export default function ScoreEntryModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-      <div className="bg-white rounded-lg shadow-2xl max-w-md w-full max-h-[90vh] overflow-hidden flex flex-col">
+      <div className="bg-white rounded-lg shadow-2xl max-w-md w-full max-h-modal overflow-hidden flex flex-col">
         {/* Header */}
         <div className="bg-green-600 text-white p-4">
           <div className="flex items-center justify-between mb-2">

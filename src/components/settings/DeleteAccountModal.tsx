@@ -156,7 +156,7 @@ export default function DeleteAccountModal({ isOpen, onClose }: DeleteAccountMod
       />
 
       {/* Modal */}
-      <div className="relative w-full max-w-2xl bg-white rounded-lg shadow-xl max-h-[90vh] overflow-y-auto">
+      <div className="relative w-full max-w-2xl bg-white rounded-lg shadow-xl max-h-modal overflow-y-auto">
         {/* Header */}
         <div className="sticky top-0 bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between">
           <div className="flex items-center gap-3">

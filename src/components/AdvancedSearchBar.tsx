@@ -101,7 +101,7 @@ export default function AdvancedSearchBar() {
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           placeholder="Search athletes, posts, clubs..."
-          className="w-full px-4 py-2.5 pl-10 pr-32 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all"
+          className="w-full px-4 py-2.5 pl-10 pr-14 sm:pr-32 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all"
         />
         <i className="fas fa-search absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400"></i>
 
@@ -115,8 +115,10 @@ export default function AdvancedSearchBar() {
               : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
           }`}
         >
+          {/* Icon-only on phones: the full label + pr-32 left ~150px of
+              typing space at 360px */}
           <i className="fas fa-filter text-xs"></i>
-          <span>Filters</span>
+          <span className="hidden sm:inline">Filters</span>
           {hasActiveFilters && (
             <span className="ml-0.5 bg-white text-blue-600 rounded-full w-5 h-5 inline-flex items-center justify-center text-xs font-semibold">
               {[filters.sport, filters.school, filters.league, filters.dateFrom, filters.type !== 'all'].filter(Boolean).length}
@@ -125,7 +127,7 @@ export default function AdvancedSearchBar() {
         </button>
 
         {loading && (
-          <div className="absolute right-32 top-1/2 transform -translate-y-1/2">
+          <div className="absolute right-14 sm:right-32 top-1/2 transform -translate-y-1/2">
             <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600"></div>
           </div>
         )}

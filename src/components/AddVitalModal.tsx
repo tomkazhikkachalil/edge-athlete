@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback, useRef } from 'react';
+import { useBodyScrollLock } from '@/hooks/useBodyScrollLock';
 import {
   VITAL_CATEGORIES,
   VITAL_METRICS_MAP,
@@ -104,6 +105,9 @@ export default function AddVitalModal({ isOpen, onClose, onSaved }: AddVitalModa
     setMediaFiles(prev => [...prev, ...newFiles]);
     setError('');
   }, [mediaFiles.length]);
+
+  // Lock background scroll while open (iOS scroll-chaining behind overlays)
+  useBodyScrollLock(isOpen);
 
   if (!isOpen) return null;
 
@@ -281,7 +285,7 @@ export default function AddVitalModal({ isOpen, onClose, onSaved }: AddVitalModa
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-xl shadow-xl w-full max-w-md max-h-[90vh] overflow-y-auto">
+      <div className="bg-white rounded-xl shadow-xl w-full max-w-md max-h-modal overflow-y-auto">
         {/* Header */}
         <div className="flex items-center justify-between p-5 border-b border-gray-100">
           <div>
