@@ -106,7 +106,7 @@ function PostCard({
   // the feed loaded; subscribes to Realtime while the full card or score entry
   // is open so scores stream in live. refreshScorecard() updates it imperatively
   // right after you save.
-  const { scorecard: groupScorecard, refresh: refreshScorecard } = useSharedRound({
+  const { scorecard: groupScorecard, refresh: refreshScorecard, stale: scorecardStale } = useSharedRound({
     groupPostId: post.group_scorecard?.group_post.id ?? null,
     postId: post.id,
     initialScorecard: post.group_scorecard ?? null,
@@ -590,9 +590,16 @@ function PostCard({
         <SharedRoundFullCard
           scorecard={groupScorecard}
           currentUserId={currentUserId}
+          stale={scorecardStale}
           onStatusChange={refreshScorecard}
           onClose={() => setShowFullScorecard(false)}
-          onAddScores={(participantId) => {
+          onAddScores={async (participantId) => {
+            // Refetch BEFORE opening score entry so existingScores are
+            // current (the cached payload can miss holes saved elsewhere —
+            // another device, the keepalive flush, a missed Realtime event).
+            // On refresh failure we proceed with cached data: entering scores
+            // offline-ish still works, the upsert reconciles.
+            await refreshScorecard();
             setScoreEntryParticipantId(participantId);
             setShowFullScorecard(false);
             setShowScoreEntry(true);

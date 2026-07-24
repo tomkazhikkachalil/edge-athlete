@@ -13,6 +13,8 @@ import type { CompleteGolfScorecard } from '@/types/group-posts';
 interface SharedRoundFullCardProps {
   scorecard: CompleteGolfScorecard;
   currentUserId?: string;
+  /** True when the last live refresh failed — scores shown may be out of date. */
+  stale?: boolean;
   onClose: () => void;
   onAddScores?: (participantId: string) => void;
   /** Called after the creator ends the round so the parent refetches the scorecard. */
@@ -22,6 +24,7 @@ interface SharedRoundFullCardProps {
 export default function SharedRoundFullCard({
   scorecard,
   currentUserId,
+  stale = false,
   onClose,
   onAddScores,
   onStatusChange
@@ -332,6 +335,12 @@ export default function SharedRoundFullCard({
                   <span className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-purple-700 text-white text-xs font-bold rounded-full">
                     <i className={`fas ${gameFormat === 'stableford' ? 'fa-star' : 'fa-people-arrows'} text-[10px]`}></i>
                     {GAME_FORMAT_LABELS[gameFormat].toUpperCase()}
+                  </span>
+                )}
+                {stale && (
+                  <span className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-amber-500 text-white text-xs font-bold rounded-full">
+                    <i className="fas fa-triangle-exclamation text-[10px]"></i>
+                    Updates paused — scores may be out of date
                   </span>
                 )}
               </div>

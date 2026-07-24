@@ -34,22 +34,36 @@ export function useSharedRound({
   enabled: boolean;
 }) {
   const [scorecard, setScorecard] = useState<CompleteGolfScorecard | null>(initialScorecard);
+  // True after a refresh fails — the card may be showing out-of-date scores.
+  // Cleared by the next successful refresh. Callers surface it (small chip),
+  // because silently-stale live leaderboards erode trust in the whole feature.
+  const [stale, setStale] = useState(false);
 
   // Keep in sync when the parent re-provides a scorecard (e.g. feed refetch).
   useEffect(() => {
     if (initialScorecard) setScorecard(initialScorecard);
   }, [initialScorecard]);
 
-  const refresh = useCallback(async () => {
+  /** Refetch the scorecard. Resolves true on success, false on failure
+   *  (callers that NEED freshness — e.g. opening score entry — can decide
+   *  whether to proceed with cached data). Never throws. */
+  const refresh = useCallback(async (): Promise<boolean> => {
     try {
       const res = await fetch(`/api/posts?postId=${postId}`);
-      if (!res.ok) return;
+      if (!res.ok) {
+        setStale(true);
+        return false;
+      }
       const data = await res.json();
       if (data.post?.group_scorecard) {
         setScorecard(data.post.group_scorecard as CompleteGolfScorecard);
       }
+      setStale(false);
+      return true;
     } catch (e) {
       console.error('useSharedRound refresh failed:', e);
+      setStale(true);
+      return false;
     }
   }, [postId]);
 
@@ -88,5 +102,5 @@ export function useSharedRound({
     };
   }, [enabled, groupPostId, refresh]);
 
-  return { scorecard, refresh };
+  return { scorecard, refresh, stale };
 }
