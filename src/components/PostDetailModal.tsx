@@ -49,6 +49,9 @@ interface PostDetailModalProps {
   showNavigation?: boolean;
   onEdit?: (postId: string) => void;
   onDelete?: (postId: string) => void;
+  /** Open the viewer's own score entry as soon as the shared-round scorecard
+   *  is available (the feed's "continue scoring" banner). */
+  autoOpenScoreEntry?: boolean;
 }
 
 export default function PostDetailModal({
@@ -59,7 +62,8 @@ export default function PostDetailModal({
   currentUserId,
   showNavigation = false,
   onEdit,
-  onDelete
+  onDelete,
+  autoOpenScoreEntry = false
 }: PostDetailModalProps) {
   const [post, setPost] = useState<PostData | null>(null);
   const [loading, setLoading] = useState(false);
@@ -282,6 +286,7 @@ export default function PostDetailModal({
               onDelete={onDelete}
               onCommentCountChange={handleCommentCountChange}
               showActions={true}
+              autoOpenScoreEntry={autoOpenScoreEntry}
             />
           )}
         </div>

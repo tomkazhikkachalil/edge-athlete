@@ -13,6 +13,7 @@ import SharedRoundQuickView from './golf/SharedRoundQuickView';
 import SharedRoundFullCard from './golf/SharedRoundFullCard';
 import ScoreEntryModal from './golf/ScoreEntryModal';
 import { getSportName, getSportIcon, getSportColor } from '@/lib/config/sports-config';
+import { isActiveParticipant } from '@/lib/golf/round-status';
 import { formatDisplayName, getInitials } from '@/lib/formatters';
 import { getHandle } from '@/lib/profile-display';
 import type { CompleteGolfScorecard } from '@/types/group-posts';
@@ -75,6 +76,9 @@ interface PostCardProps {
   onEdit?: (postId: string) => void;
   onCommentCountChange?: (postId: string, newCount: number) => void;
   showActions?: boolean;
+  /** One-shot: open the viewer's own score entry once the shared-round
+   *  scorecard is available (resume-banner deep link). */
+  autoOpenScoreEntry?: boolean;
 }
 
 function PostCard({
@@ -85,7 +89,8 @@ function PostCard({
   onDelete,
   onEdit,
   onCommentCountChange,
-  showActions = true
+  showActions = true,
+  autoOpenScoreEntry = false
 }: PostCardProps) {
   const router = useRouter();
   const [currentMediaIndex, setCurrentMediaIndex] = useState(0);
@@ -114,6 +119,25 @@ function PostCard({
   });
   const [scoreEntryParticipantId, setScoreEntryParticipantId] = useState<string | null>(null);
   const [commentSectionOpen, setCommentSectionOpen] = useState(false);
+
+  // Resume-banner deep link: open the viewer's own score entry once, as soon
+  // as the scorecard is present. Ref-guarded so later scorecard refreshes
+  // don't reopen a modal the user closed.
+  const autoOpenedScoreEntry = useRef(false);
+  useEffect(() => {
+    if (!autoOpenScoreEntry || autoOpenedScoreEntry.current || !groupScorecard || !currentUserId) return;
+    const own = groupScorecard.participants.find(
+      p => p.participant.profile_id === currentUserId && isActiveParticipant(p.participant.status)
+    );
+    if (!own) return;
+    autoOpenedScoreEntry.current = true;
+    (async () => {
+      // Same refresh-first path as the manual Add Scores flow
+      await refreshScorecard();
+      setScoreEntryParticipantId(own.participant.id);
+      setShowScoreEntry(true);
+    })();
+  }, [autoOpenScoreEntry, groupScorecard, currentUserId, refreshScorecard]);
   const [showShareModal, setShowShareModal] = useState(false);
   const commentSectionRef = useRef<HTMLDivElement>(null);
 

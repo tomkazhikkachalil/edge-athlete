@@ -16,6 +16,7 @@ import { getInitials, formatDisplayName } from '@/lib/formatters';
 // loaded only when the user opens them. Cuts First Load JS on /feed.
 const CreatePostModal = dynamic(() => import('@/components/CreatePostModal'), { ssr: false });
 const EditPostModal = dynamic(() => import('@/components/EditPostModal'), { ssr: false });
+const PostDetailModal = dynamic(() => import('@/components/PostDetailModal'), { ssr: false });
 const EditProfileTabs = dynamic(() => import('@/components/EditProfileTabs'), { ssr: false });
 
 interface Post {
@@ -78,6 +79,18 @@ export default function FeedPage() {
   const [isEditProfileModalOpen, setIsEditProfileModalOpen] = useState(false);
   const [editingPost, setEditingPost] = useState<Post | null>(null);
   const [hasMore, setHasMore] = useState(true);
+
+  // "Continue scoring" banner: the user's in-progress round, if any.
+  // Dismissal is per-round, per-session (sessionStorage).
+  const [liveRound, setLiveRound] = useState<{
+    post_id: string;
+    group_post_id: string;
+    participant_id: string;
+    course_name: string | null;
+  } | null>(null);
+  const [liveBannerDismissed, setLiveBannerDismissed] = useState(false);
+  // When set, PostDetailModal opens this post with score entry auto-opening
+  const [resumePostId, setResumePostId] = useState<string | null>(null);
   const loadInFlightRef = useRef(false);
   const [page, setPage] = useState(0);
   const { toasts, dismissToast, showError, showSuccess } = useToast();
@@ -96,6 +109,37 @@ export default function FeedPage() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user]);
+
+  // Check for an in-progress round to resume (live-scoring banner)
+  useEffect(() => {
+    if (!user) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch('/api/golf/live-round');
+        if (!res.ok || cancelled) return;
+        const data = await res.json();
+        if (cancelled || !data.live_round) return;
+        // Respect a session dismissal for THIS round (private-mode-safe)
+        try {
+          if (sessionStorage.getItem(`ea:live-banner-dismissed:${data.live_round.group_post_id}`)) {
+            return;
+          }
+        } catch { /* storage unavailable — show the banner */ }
+        setLiveRound(data.live_round);
+      } catch { /* banner is a nicety — never break the feed over it */ }
+    })();
+    return () => { cancelled = true; };
+  }, [user]);
+
+  const dismissLiveBanner = () => {
+    setLiveBannerDismissed(true);
+    if (liveRound) {
+      try {
+        sessionStorage.setItem(`ea:live-banner-dismissed:${liveRound.group_post_id}`, '1');
+      } catch { /* best-effort */ }
+    }
+  };
 
   // Real-time subscription for new posts
   useEffect(() => {
@@ -426,6 +470,32 @@ export default function FeedPage() {
               </div>
             </div>
 
+            {/* Live round resume banner */}
+            {liveRound && !liveBannerDismissed && (
+              <div className="mb-4 sm:mb-6 bg-gradient-to-r from-green-600 to-green-700 text-white rounded-lg border-2 border-green-800 p-4 flex items-center gap-3">
+                <span className="w-2.5 h-2.5 bg-red-400 rounded-full animate-pulse flex-shrink-0" aria-hidden="true"></span>
+                <div className="flex-1 min-w-0">
+                  <div className="font-bold truncate">
+                    Live round{liveRound.course_name ? ` at ${liveRound.course_name}` : ''}
+                  </div>
+                  <div className="text-sm text-green-100">Pick up right where you left off</div>
+                </div>
+                <button
+                  onClick={() => setResumePostId(liveRound.post_id)}
+                  className="bg-white text-green-700 font-bold px-4 py-2 rounded-lg hover:bg-green-50 transition-colors flex-shrink-0 min-h-[44px]"
+                >
+                  Continue scoring
+                </button>
+                <button
+                  onClick={dismissLiveBanner}
+                  className="text-green-100 hover:text-white min-w-[44px] min-h-[44px] flex items-center justify-center flex-shrink-0"
+                  aria-label="Dismiss live round banner"
+                >
+                  <i className="fas fa-times"></i>
+                </button>
+              </div>
+            )}
+
             {/* Posts Feed */}
             <div className="space-y-4 sm:space-y-6 bg-white rounded-lg border-2 border-gray-300 p-3 sm:p-6">
               {feedLoading ? (
@@ -557,6 +627,18 @@ export default function FeedPage() {
           }}
           post={editingPost}
           onPostUpdated={handlePostUpdated}
+        />
+      )}
+
+      {/* Live-round resume: opens the round's post with score entry
+          auto-opening at the first unscored hole */}
+      {resumePostId && (
+        <PostDetailModal
+          postId={resumePostId}
+          isOpen={true}
+          onClose={() => setResumePostId(null)}
+          currentUserId={user?.id}
+          autoOpenScoreEntry={true}
         />
       )}
 
