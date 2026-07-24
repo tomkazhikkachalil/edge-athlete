@@ -613,6 +613,19 @@ function PostCard({
           groupPostId={groupScorecard.group_post.id}
           participantId={scoreEntryParticipantId}
           holesPlayed={groupScorecard.golf_data.holes_played}
+          playerName={(() => {
+            // Label whose card is open when it isn't the entrant's own
+            const p = groupScorecard.participants.find(
+              x => x.participant.id === scoreEntryParticipantId
+            );
+            if (!p || p.participant.profile_id === currentUserId) return undefined;
+            return formatDisplayName(
+              p.participant.profile?.first_name ?? null,
+              null,
+              p.participant.profile?.last_name ?? null,
+              p.participant.profile?.full_name ?? null
+            );
+          })()}
           existingScores={
             groupScorecard.participants
               .find(p => p.participant.id === scoreEntryParticipantId)

@@ -518,8 +518,25 @@ export default function SharedRoundFullCard({
                             </div>
                             <div className="text-sm text-gray-600">
                               {scores.holes_completed} of {golf_data.holes_played} holes
+                              {scores.scores_confirmed === false && !isCurrentUser && (
+                                <span className="ml-2 text-xs text-amber-700">
+                                  <i className="fas fa-pen-to-square mr-1"></i>entered by organizer
+                                </span>
+                              )}
                             </div>
                           </div>
+
+                          {/* Creator keeps the card for the group — classic
+                              one-person-scores golf. API attributes via
+                              entered_by + scores_confirmed=false. */}
+                          {isCreator && !isCurrentUser && onAddScores && (
+                            <button
+                              onClick={() => onAddScores(participant.id)}
+                              className="text-sm font-bold text-blue-600 hover:text-blue-700 px-3 py-2 rounded-lg border border-blue-200 hover:bg-blue-50 transition-colors flex-shrink-0"
+                            >
+                              Edit
+                            </button>
+                          )}
 
                           {/* Score — stableford leads with points, others with strokes */}
                           <div className="text-right">
@@ -590,6 +607,15 @@ export default function SharedRoundFullCard({
                               {isCurrentUser && onAddScores ? 'Tap to add your scores' : 'Awaiting scores'}
                             </div>
                           </div>
+
+                          {isCreator && !isCurrentUser && onAddScores && (
+                            <button
+                              onClick={() => onAddScores(participant.id)}
+                              className="text-sm font-bold text-blue-600 hover:text-blue-700 px-3 py-2 rounded-lg border border-blue-200 hover:bg-blue-50 transition-colors flex-shrink-0"
+                            >
+                              Add scores
+                            </button>
+                          )}
 
                           {isCurrentUser && onAddScores && (
                             <button

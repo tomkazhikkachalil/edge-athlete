@@ -21,6 +21,9 @@ interface ScoreEntryModalProps {
   holesPlayed: number;
   /** First hole number (10 for back-9 rounds). Defaults to 1. */
   startingHoleNumber?: number;
+  /** Whose scorecard this is — shown in the header when the creator enters
+   *  scores for another player, so it's unmistakable whose card is open. */
+  playerName?: string;
   existingScores?: GolfHoleScore[];
   onSave: (scores: Array<{
     hole_number: number;
@@ -47,6 +50,7 @@ export default function ScoreEntryModal({
   participantId,
   holesPlayed,
   startingHoleNumber = 1,
+  playerName,
   existingScores = [],
   onSave,
   onSaveHole,
@@ -314,8 +318,10 @@ export default function ScoreEntryModal({
         {/* Header */}
         <div className="bg-green-600 text-white p-4">
           <div className="flex items-center justify-between mb-2">
-            <div className="flex items-center gap-2">
-              <h2 className="text-xl font-black">Enter Scores</h2>
+            <div className="flex items-center gap-2 min-w-0">
+              <h2 className="text-xl font-black truncate">
+                {playerName ? `Scores — ${playerName}` : 'Enter Scores'}
+              </h2>
               {isLive && (
                 <span className="inline-flex items-center gap-1 bg-white/20 px-2 py-0.5 rounded-full text-xs font-bold">
                   <span className="w-1.5 h-1.5 rounded-full bg-red-400 animate-pulse"></span>
