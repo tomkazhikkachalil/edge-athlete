@@ -1,5 +1,19 @@
 # Development Log
 
+## July 23, 2026 — Maintenance checklist + sync
+
+- `npm run lint` — zero warnings/errors.
+- `npm run typecheck` — clean (tsc --noEmit, exit 0).
+- `npm run test` — 32 passed (golf scoring + handicap + validation).
+- `npm run build` — exit 0 from a fresh `.next`, all routes.
+- Working tree already in sync with origin (this session's work —
+  roadmap Sprints 1–6, live-scoring foundation + per-hole live entry —
+  pushed across prior commits). This entry is the maintenance-log commit.
+- PENDING migrations for Tom to run in Supabase (all no-op-safe until
+  run): 031 (golf_participant_scores → Realtime publication, for live
+  leaderboard push). Earlier optional items still open: Sentry/Upstash/
+  SMTP+CRON env in Vercel, ADMIN_EMAILS in Vercel.
+- Pushed `main` → GitHub → Vercel auto-deploy.
 ## July 23, 2026 — Per-hole live-entry UI (live scoring, first feature)
 
 Built on the useSharedRound foundation: scores now persist and stream
