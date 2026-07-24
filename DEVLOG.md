@@ -35,6 +35,29 @@ Sprint 5 item 4 — admin-lite:
 - NOTE: needs ADMIN_EMAILS set in Vercel (+ .env.local) to grant access;
   without it /dashboard shows the not-authorized state for everyone.
 
+Sprint 5 stretch — email notification digests:
+- Migration 030: notification_preferences.last_digest_at watermark.
+  PENDING: run in Supabase (cron queries it — until then digest cron
+  errors on that user query, but it's Bearer-gated so nothing external
+  hits it).
+- EmailService.sendNotificationDigest (HTML + text); ALSO hardened the
+  pre-existing contact email — it interpolated raw user name/email/
+  message into HTML (stored-XSS-in-email). New escapeHtml() helper
+  applied there + in the digest.
+- GET /api/cron/notification-digest: Bearer CRON_SECRET required (not
+  publicly callable — it sends mail); SMTP-not-configured → no-op
+  success; per-user try/catch so one failure never stops the batch;
+  advances last_digest_at even on 0-new so the window never re-scans;
+  batch cap 200/run.
+- vercel.json crons: daily 14:00 UTC.
+- NotificationSettings: "Daily email digest" opt-in toggle (separate
+  Email section; email_enabled already in the PATCH allowlist since
+  bug hunt #2; off by default).
+- .env.example: CRON_SECRET + NEXT_PUBLIC_APP_URL documented.
+- Needs to go live: run migration 030; set CRON_SECRET +
+  NEXT_PUBLIC_APP_URL + SMTP_* in Vercel. Without SMTP the whole thing
+  is a clean no-op.
+
 Admin-lite (item 4, closes Sprint 5):
 - requireAdmin REWIRED: it checked a profiles.role column that doesn't
   exist (always 403'd). Now an ADMIN_EMAILS env allowlist (comma-

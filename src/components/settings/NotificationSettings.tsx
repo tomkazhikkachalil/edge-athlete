@@ -18,6 +18,7 @@ interface Preferences {
   achievements_enabled: boolean;
   system_announcements_enabled: boolean;
   club_updates_enabled: boolean;
+  email_enabled: boolean;
 }
 
 type PrefKey = keyof Preferences;
@@ -151,6 +152,29 @@ export default function NotificationSettings() {
         Turn off any notification type you don&apos;t want. Changes apply to new notifications
         immediately.
       </p>
+
+      {/* Email delivery — a separate channel from the in-app toggles below */}
+      <div className="mb-8">
+        <h3 className="text-sm font-semibold text-gray-700 uppercase tracking-wide mb-3">
+          Email
+        </h3>
+        <div className="border border-gray-200 rounded-lg">
+          <div className="flex items-center justify-between gap-4 p-4">
+            <div className="min-w-0">
+              <p className="text-sm font-medium text-gray-900">Daily email digest</p>
+              <p className="text-xs text-gray-500">
+                Once a day, get an email summary of your new notifications. Off by default.
+              </p>
+            </div>
+            <Toggle
+              on={prefs.email_enabled}
+              disabled={savingKey === 'email_enabled'}
+              onChange={() => toggle('email_enabled')}
+              label="Daily email digest"
+            />
+          </div>
+        </div>
+      </div>
 
       <div className="space-y-8">
         {GROUPS.map(group => (
