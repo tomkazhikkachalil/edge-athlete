@@ -165,9 +165,12 @@ export default function NotificationBell() {
         )}
       </button>
 
-      {/* Dropdown Menu */}
+      {/* Dropdown Menu. Mobile: fixed full-width panel under the header (the
+          bell is NOT the header's rightmost element, so an absolute right-0
+          panel this wide would hang off the LEFT screen edge and horizontally
+          scroll the page). sm+: classic anchored dropdown. */}
       {showDropdown && (
-        <div className="absolute right-0 mt-2 w-[calc(100vw-1rem)] sm:w-96 max-w-[24rem] bg-white rounded-lg shadow-lg border border-gray-200 z-50 max-h-[80vh] sm:max-h-[600px] overflow-hidden flex flex-col">
+        <div className="fixed inset-x-2 top-[calc(4rem+env(safe-area-inset-top)+0.5rem)] mx-auto sm:absolute sm:inset-x-auto sm:right-0 sm:top-auto sm:mx-0 sm:mt-2 sm:w-96 max-w-[24rem] bg-white rounded-lg shadow-lg border border-gray-200 z-50 max-h-[80vh] sm:max-h-[600px] overflow-hidden flex flex-col">
           {/* Header */}
           <div className="px-4 py-3 border-b border-gray-200 flex items-center justify-between bg-gray-50">
             <h3 className="font-semibold text-gray-900">Notifications</h3>

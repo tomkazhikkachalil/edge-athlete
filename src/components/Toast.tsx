@@ -67,42 +67,42 @@ function Toast({ toast, onDismiss }: ToastProps) {
     }
   };
 
+  // Sized for mobile-first: the old max-w-5xl/p-10/text-3xl toast filled a
+  // phone screen edge-to-edge, and its translate-x-full entrance slid in from
+  // beyond the right edge of a CENTERED container (transient horizontal
+  // overflow). Now a compact card that fades/slides down from the top.
   return (
     <div
       className={`
-        max-w-5xl w-full bg-white border-2 rounded-lg shadow-lg pointer-events-auto
+        w-full max-w-md bg-white border-2 rounded-lg shadow-lg pointer-events-auto
         transform transition-all duration-300 ease-in-out ${getBgColor()}
-        ${isVisible && !isExiting ? 'translate-x-0 opacity-100' : 'translate-x-full opacity-0'}
+        ${isVisible && !isExiting ? 'translate-y-0 opacity-100' : '-translate-y-4 opacity-0'}
       `}
       role="alert"
       aria-live="polite"
     >
-      <div className="p-10">
+      <div className="p-4">
         <div className="flex items-start">
-          <div className="flex-shrink-0">
-            <div className="text-3xl">
-              {getIcon()}
-            </div>
+          <div className="flex-shrink-0 text-xl">
+            {getIcon()}
           </div>
-          <div className="ml-6 w-0 flex-1 pt-1">
-            <p className="text-lg font-semibold text-gray-900">
+          <div className="ml-3 w-0 flex-1 pt-0.5">
+            <p className="text-base font-semibold text-gray-900">
               {toast.title}
             </p>
             {toast.message && (
-              <p className="mt-2 text-base text-gray-600">
+              <p className="mt-1 text-sm text-gray-600">
                 {toast.message}
               </p>
             )}
           </div>
-          <div className="ml-6 flex-shrink-0 flex">
-            <button
-              className="bg-white rounded-md inline-flex text-gray-400 hover:text-gray-500 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
-              onClick={handleDismiss}
-              aria-label="Dismiss notification"
-            >
-              <i className="fas fa-times text-lg" aria-hidden="true" />
-            </button>
-          </div>
+          <button
+            className="ml-2 -m-1.5 p-1.5 flex-shrink-0 w-9 h-9 flex items-center justify-center rounded-md text-gray-400 hover:text-gray-600 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            onClick={handleDismiss}
+            aria-label="Dismiss notification"
+          >
+            <i className="fas fa-times text-lg" aria-hidden="true" />
+          </button>
         </div>
       </div>
     </div>
@@ -117,7 +117,7 @@ interface ToastContainerProps {
 export function ToastContainer({ toasts, onDismiss }: ToastContainerProps) {
   return (
     <div
-      className="fixed top-0 left-1/2 -translate-x-1/2 z-50 p-6 space-y-4 pointer-events-none"
+      className="fixed top-0 inset-x-0 z-[70] flex flex-col items-center gap-3 p-4 safe-top pointer-events-none"
       aria-live="polite"
       aria-label="Notifications"
     >
