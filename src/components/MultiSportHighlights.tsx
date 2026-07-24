@@ -13,11 +13,9 @@ interface HighlightTile {
 
 interface MultiSportHighlightsProps {
   profileId: string;
-  canEdit?: boolean;
-  onEdit?: (sportKey: string, entityId?: string) => void;
 }
 
-export default function MultiSportHighlights({ profileId, canEdit = true, onEdit }: MultiSportHighlightsProps) {
+export default function MultiSportHighlights({ profileId }: MultiSportHighlightsProps) {
   const [highlightData, setHighlightData] = useState<Record<SportKey, HighlightTile[]>>({} as Record<SportKey, HighlightTile[]>);
   const [displaySportKeys, setDisplaySportKeys] = useState<SportKey[]>([]);
   const [loading, setLoading] = useState(true);
@@ -83,17 +81,6 @@ export default function MultiSportHighlights({ profileId, canEdit = true, onEdit
     }
   }, [profileId]);
 
-  const handleEditSport = (sportKey: SportKey) => {
-    const adapter = getSportAdapter(sportKey);
-
-    if (adapter.isEnabled()) {
-      onEdit?.(sportKey);
-    } else {
-      // Show "coming soon" message using centralized copy
-      // Show coming soon message
-    }
-  };
-
   const renderSportCard = (sportKey: SportKey) => {
     const sportDef = getSportDefinition(sportKey);
     const adapter = getSportAdapter(sportKey);
@@ -121,17 +108,6 @@ export default function MultiSportHighlights({ profileId, canEdit = true, onEdit
                 <h3 className={`${cssClasses.TYPOGRAPHY.H3} text-gray-900 truncate`}>{sportDef.display_name}</h3>
               </div>
             </div>
-            
-            {canEdit && (
-              <button
-                onClick={() => handleEditSport(sportKey)}
-                className={`p-1 transition-colors flex-shrink-0 ${colors.buttonSecondary} ${!isEnabled && 'cursor-not-allowed'}`}
-                title={isEnabled ? `Edit ${sportDef.display_name.toLowerCase()}` : COPY.COMING_SOON.SPORT_GENERAL}
-                disabled={!isEnabled}
-              >
-                <i className={`fas fa-edit ${cssClasses.ICONS.EDIT}`}></i>
-              </button>
-            )}
           </div>
 
           {/* Status indicator for disabled sports */}

@@ -3,6 +3,7 @@ import { getEnabledSports } from '@/lib/sports/SportRegistry';
 import { requireAuth, getSupabaseAdmin } from '@/lib/auth-server';
 import { GROUP_SCORECARD_SELECT, transformGroupPostToScorecard } from '@/lib/golf/scorecard-transform';
 import { isActiveParticipant } from '@/lib/golf/round-status';
+import { canPin, MAX_PINNED_POSTS } from '@/lib/posts/pinning';
 
 // Interface for tagged profiles
 interface TaggedProfile {
@@ -407,6 +408,9 @@ export async function GET(request: NextRequest) {
     const postId = searchParams.get('postId');
     const userId = searchParams.get('userId');
     const sportKey = searchParams.get('sportKey');
+    // pinned=true → only the profile's Featured (pinned) posts, newest pin
+    // first. Same privacy filters as the normal list apply below.
+    const pinnedOnly = searchParams.get('pinned') === 'true';
     // Guard against NaN (e.g. ?limit=abc) which would produce an invalid
     // .range() and 500. Clamp to sane bounds.
     const limit = Math.min(Math.max(parseInt(searchParams.get('limit') || '20', 10) || 20, 1), 100);
@@ -589,6 +593,8 @@ export async function GET(request: NextRequest) {
         likes_count: post.likes_count ?? 0,
         comments_count: post.comments_count ?? 0,
         saves_count: post.saves_count ?? 0,
+        is_pinned: post.is_pinned ?? false,
+        pinned_at: post.pinned_at ?? null,
         profile: {
           id: post.profiles.id,
           first_name: post.profiles.first_name,
@@ -641,12 +647,16 @@ export async function GET(request: NextRequest) {
           profile_id
         )
       `)
-      .order('created_at', { ascending: false })
+      .order(pinnedOnly ? 'pinned_at' : 'created_at', { ascending: false })
       .range(offset, offset + limit - 1);
 
     // Filter by user if provided
     if (userId) {
       query = query.eq('profile_id', userId);
+    }
+
+    if (pinnedOnly) {
+      query = query.eq('is_pinned', true);
     }
 
     // Filter by sport if provided
@@ -810,6 +820,8 @@ export async function GET(request: NextRequest) {
           comments_count: post.comments_count ?? 0,
           saves_count: post.saves_count ?? 0,
           saved_posts: currentUserId && savedPostIds.has(post.id) ? [{ profile_id: currentUserId }] : [],
+          is_pinned: post.is_pinned ?? false,
+          pinned_at: post.pinned_at ?? null,
           profile: {
           id: post.profiles.id,
           first_name: post.profiles.first_name,
@@ -838,6 +850,87 @@ export async function GET(request: NextRequest) {
   } catch (error) {
     console.error('Posts fetch error:', error);
     return NextResponse.json({ error: 'Failed to fetch posts' }, { status: 500 });
+  }
+}
+
+/**
+ * PATCH /api/posts — pin or unpin one of your own posts to the "Featured"
+ * row on your profile. Body: { postId, action: 'pin' | 'unpin' }.
+ * Cap (MAX_PINNED_POSTS) enforced here, mirroring comment pinning — but with
+ * an explicit 400 instead of silent eviction: with 3 slots, auto-unpinning
+ * the wrong one is worse than asking.
+ */
+export async function PATCH(request: NextRequest) {
+  try {
+    const supabase = getSupabaseAdmin();
+    const user = await requireAuth(request);
+
+    const body = await request.json();
+    const { postId, action } = body;
+
+    if (!postId || typeof postId !== 'string') {
+      return NextResponse.json({ error: 'Post ID is required' }, { status: 400 });
+    }
+    if (action !== 'pin' && action !== 'unpin') {
+      return NextResponse.json({ error: "action must be 'pin' or 'unpin'" }, { status: 400 });
+    }
+
+    const { data: post, error: fetchError } = await supabase
+      .from('posts')
+      .select('id, profile_id, is_pinned')
+      .eq('id', postId)
+      .maybeSingle();
+
+    if (fetchError) {
+      console.error('[PATCH] Post fetch error:', fetchError);
+      return NextResponse.json({ error: 'Failed to update post' }, { status: 500 });
+    }
+    if (!post) {
+      return NextResponse.json({ error: 'Post not found' }, { status: 404 });
+    }
+    if (post.profile_id !== user.id) {
+      return NextResponse.json({ error: 'You can only pin your own posts' }, { status: 403 });
+    }
+
+    if (action === 'pin' && !post.is_pinned) {
+      const { count, error: countError } = await supabase
+        .from('posts')
+        .select('id', { count: 'exact', head: true })
+        .eq('profile_id', user.id)
+        .eq('is_pinned', true);
+      if (countError) {
+        console.error('[PATCH] Pin count error:', countError);
+        return NextResponse.json({ error: 'Failed to update post' }, { status: 500 });
+      }
+      if (!canPin(count ?? 0)) {
+        return NextResponse.json(
+          { error: `You can feature up to ${MAX_PINNED_POSTS} posts. Unpin one first.` },
+          { status: 400 }
+        );
+      }
+    }
+
+    const { error: updateError } = await supabase
+      .from('posts')
+      .update(
+        action === 'pin'
+          ? { is_pinned: true, pinned_at: new Date().toISOString() }
+          : { is_pinned: false, pinned_at: null }
+      )
+      .eq('id', postId);
+
+    if (updateError) {
+      console.error('[PATCH] Pin update error:', updateError);
+      return NextResponse.json({ error: 'Failed to update post' }, { status: 500 });
+    }
+
+    return NextResponse.json({ success: true, action, is_pinned: action === 'pin' });
+  } catch (error) {
+    console.error('Post pin error:', error);
+    if (error instanceof Response) {
+      return error;
+    }
+    return NextResponse.json({ error: 'Failed to update post' }, { status: 500 });
   }
 }
 

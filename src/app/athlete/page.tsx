@@ -9,13 +9,13 @@ import { ToastContainer, useToast } from '@/components/Toast';
 import MultiSportHighlights from '@/components/MultiSportHighlights';
 import LazyImage from '@/components/LazyImage';
 import ProfileMediaTabs from '@/components/ProfileMediaTabs';
+import FeaturedPosts from '@/components/FeaturedPosts';
 import AppHeader from '@/components/AppHeader';
 
 // Heavy / rarely-open modals — split into their own chunks. Cuts First Load
 // JS on /athlete (~257 kB → lighter, modals fetch on open).
 const EditProfileTabs = dynamic(() => import('@/components/EditProfileTabs'), { ssr: false });
 const CreatePostModal = dynamic(() => import('@/components/CreatePostModal'), { ssr: false });
-const SeasonHighlightsModal = dynamic(() => import('@/components/SeasonHighlightsModal'), { ssr: false });
 const PerformanceModal = dynamic(() => import('@/components/PerformanceModal'), { ssr: false });
 const FollowersModal = dynamic(() => import('@/components/FollowersModal'), { ssr: false });
 import type { AthleteBadge, SeasonHighlight, Performance, Profile } from '@/lib/supabase';
@@ -179,9 +179,6 @@ export default function AthleteProfilePage() {
   
   // Modal states
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
-  const [isSeasonHighlightsModalOpen, setIsSeasonHighlightsModalOpen] = useState(false);
-  const [editingSportKey, setEditingSportKey] = useState<string>('');
-  const [editingHighlight, setEditingHighlight] = useState<SeasonHighlight | undefined>();
   const [isPerformanceModalOpen, setIsPerformanceModalOpen] = useState(false);
   const [editingPerformance] = useState<Performance | undefined>();
   const [avatarUploading, setAvatarUploading] = useState(false);
@@ -354,51 +351,6 @@ export default function AthleteProfilePage() {
     };
   };
 
-
-  const handleEditSeasonHighlights = (sportKey: string) => {
-    setEditingSportKey(sportKey);
-    setEditingHighlight(undefined);
-    setIsSeasonHighlightsModalOpen(true);
-  };
-
-  const handleSaveSeasonHighlights = async (data: Partial<SeasonHighlight>) => {
-    try {
-      if (!user?.id) {
-        throw new Error('User not authenticated');
-      }
-
-      const response = await fetch('/api/season-highlights', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          highlightData: data,
-          userId: user.id
-        }),
-      });
-
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.error || 'Failed to save season highlights');
-      }
-
-      // Show success toast
-      showSuccess('Season highlights updated successfully!');
-
-      // Refresh the data instead of full page reload - do it in background
-      if (user?.id) {
-        // Don't await - let it happen in background for faster UI response
-        refreshProfile();
-        loadAthleteData(user.id, true); // Skip loading state for background refresh
-      }
-    } catch (err) {
-      // Season highlights save error
-      const message = err instanceof Error ? err.message : 'Failed to save season highlights';
-      showError('Failed to save season highlights', message);
-      throw new Error(message);
-    }
-  };
 
   // Performance editing temporarily disabled - keeping handlers for future use
   // const handleEditPerformance = (existingData?: Performance) => {
@@ -1069,12 +1021,8 @@ export default function AthleteProfilePage() {
 
         {/* Main content */}
         <div className="space-y-8">
-          {/* Season Highlights */}
-          <MultiSportHighlights
-            profileId={user?.id || ''}
-            canEdit={true}
-            onEdit={handleEditSeasonHighlights}
-          />
+          {/* Sport Highlights — live summary computed from posted activity */}
+          <MultiSportHighlights profileId={user?.id || ''} />
 
           {/* Media Tabs */}
           <div className="bg-white rounded-lg shadow-md p-6">
@@ -1088,6 +1036,12 @@ export default function AthleteProfilePage() {
                 Create Post
               </button>
             </div>
+            <FeaturedPosts
+              profileId={user?.id || ''}
+              isOwnProfile={true}
+              currentUserId={user?.id}
+              refreshKey={mediaRefreshKey}
+            />
             <ProfileMediaTabs
               key={mediaRefreshKey}
               profileId={user?.id || ''}
@@ -1118,15 +1072,6 @@ export default function AthleteProfilePage() {
       
       {/* Toast Container */}
       <ToastContainer toasts={toasts} onDismiss={dismissToast} />
-
-      {/* Season Highlights Modal */}
-      <SeasonHighlightsModal
-        isOpen={isSeasonHighlightsModalOpen}
-        onClose={() => setIsSeasonHighlightsModalOpen(false)}
-        sportKey={editingSportKey}
-        existingData={editingHighlight}
-        onSave={handleSaveSeasonHighlights}
-      />
 
       {/* Performance Modal */}
       <PerformanceModal

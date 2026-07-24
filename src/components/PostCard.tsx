@@ -60,6 +60,7 @@ interface Post {
   media: PostMedia[];
   likes?: { profile_id: string }[];
   saved_posts?: { profile_id: string }[];
+  is_pinned?: boolean;
   tags?: string[];
   hashtags?: string[];
   golf_round?: GolfRound;
@@ -104,6 +105,9 @@ function PostCard({
   const [localCommentsCount, setLocalCommentsCount] = useState(post.comments_count);
   const [, setLocalSavesCount] = useState(post.saves_count || 0);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [isPinned, setIsPinned] = useState(post.is_pinned || false);
+  const [pinBusy, setPinBusy] = useState(false);
+  const [pinError, setPinError] = useState<string | null>(null);
   const [showFullScorecard, setShowFullScorecard] = useState(false);
   const [showScoreEntry, setShowScoreEntry] = useState(false);
 
@@ -165,6 +169,11 @@ function PostCard({
   useEffect(() => {
     setLocalSavesCount(post.saves_count || 0);
   }, [post.saves_count]);
+
+  // Update pin state when post prop changes (e.g. list refetch)
+  useEffect(() => {
+    setIsPinned(post.is_pinned || false);
+  }, [post.is_pinned]);
 
   const displayName = formatDisplayName(
     post.profile.first_name,
@@ -236,6 +245,39 @@ function PostCard({
       console.error('Failed to toggle saved post:', e);
       // Revert on error
       setIsSaved(isSaved);
+    }
+  };
+
+  // Pin/unpin to the profile's Featured row. Optimistic like handleSave;
+  // the cap error (max pins) renders inline under the header — this codebase
+  // has no global toast surface reachable from an embedded card.
+  const handleTogglePin = async () => {
+    if (!currentUserId || pinBusy) return;
+    const next = !isPinned;
+    setIsPinned(next);
+    setPinBusy(true);
+    setPinError(null);
+
+    try {
+      const response = await fetch('/api/posts', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ postId: post.id, action: next ? 'pin' : 'unpin' })
+      });
+      const data = await response.json();
+      if (!response.ok) {
+        setIsPinned(!next);
+        setPinError(data.error || 'Failed to update pin');
+        setTimeout(() => setPinError(null), 5000);
+      }
+    } catch (e) {
+      console.error('Failed to toggle pin:', e);
+      setIsPinned(!next);
+      setPinError('Failed to update pin');
+      setTimeout(() => setPinError(null), 5000);
+    } finally {
+      setPinBusy(false);
     }
   };
 
@@ -356,9 +398,21 @@ function PostCard({
             </div>
           )}
 
-          {/* Edit and Delete buttons - only show for post owner */}
+          {/* Pin, Edit and Delete buttons - only show for post owner */}
           {isOwner && (
             <>
+              <button
+                onClick={handleTogglePin}
+                disabled={pinBusy}
+                className={`transition-colors p-2 min-w-[44px] min-h-[44px] rounded-full hover:bg-amber-50 flex items-center justify-center disabled:opacity-60 ${
+                  isPinned ? 'text-amber-500 hover:text-amber-600' : 'text-gray-800 hover:text-amber-500'
+                }`}
+                title={isPinned ? 'Unpin from profile' : 'Pin to profile'}
+                aria-label={isPinned ? 'Unpin from profile' : 'Pin to profile'}
+                aria-pressed={isPinned}
+              >
+                <i className="fas fa-thumbtack text-sm"></i>
+              </button>
               <button
                 onClick={() => onEdit?.(post.id)}
                 className="text-gray-800 hover:text-blue-600 transition-colors p-2 min-w-[44px] min-h-[44px] rounded-full hover:bg-blue-50 flex items-center justify-center"
@@ -377,6 +431,13 @@ function PostCard({
           )}
         </div>
       </div>
+
+      {/* Pin error (e.g. featured-posts cap reached) */}
+      {pinError && (
+        <div className="px-4 pb-2 text-sm text-red-600 font-medium" role="alert">
+          {pinError}
+        </div>
+      )}
 
       {/* Media */}
       {post.media && post.media.length > 0 && (

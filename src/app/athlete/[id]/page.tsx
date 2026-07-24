@@ -9,6 +9,8 @@ import AppHeader from '@/components/AppHeader';
 import FollowButton from '@/components/FollowButton';
 import PrivateProfileView from '@/components/PrivateProfileView';
 import ProfileMediaTabs from '@/components/ProfileMediaTabs';
+import FeaturedPosts from '@/components/FeaturedPosts';
+import MultiSportHighlights from '@/components/MultiSportHighlights';
 import PostDetailModal from '@/components/PostDetailModal';
 import FollowersModal from '@/components/FollowersModal';
 import type { Profile, AthleteBadge } from '@/lib/supabase';
@@ -430,12 +432,23 @@ export default function AthleteProfilePage() {
         </div>
         </div>
 
+      {/* Sport Highlights — same live summary the owner sees; every data
+          endpoint underneath privacy-gates by profileId server-side */}
+      <div className="mb-8">
+        <MultiSportHighlights profileId={athleteId} />
+      </div>
+
       {/* Media Section with Segmented Tabs */}
       <div className="bg-white rounded-lg shadow-md p-6">
         <div className="flex justify-between items-center mb-6">
           <h2 className="text-2xl font-bold text-black">Athletic Profile & Media</h2>
         </div>
 
+        <FeaturedPosts
+          profileId={athleteId}
+          isOwnProfile={isOwnProfile}
+          currentUserId={user?.id}
+        />
         <ProfileMediaTabs
           profileId={athleteId}
           currentUserId={user?.id}

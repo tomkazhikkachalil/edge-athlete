@@ -61,6 +61,8 @@ export interface Post {
   likes_count: number;
   comments_count: number;
   saves_count: number;
+  is_pinned?: boolean;
+  pinned_at?: string | null;
   round_id?: string | null;
   // Joined relations
   profile?: Profile;
