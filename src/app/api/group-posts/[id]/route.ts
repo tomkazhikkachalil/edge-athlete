@@ -1,28 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createServerClient } from '@supabase/ssr';
-
-// Helper function for cookie authentication (Next.js 15 pattern)
-function createSupabaseClient(request: NextRequest) {
-  return createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      cookies: {
-        get(name: string) {
-          const cookieHeader = request.headers.get('cookie');
-          if (!cookieHeader) return undefined;
-          const cookies = Object.fromEntries(
-            cookieHeader.split('; ').map(cookie => {
-              const [key, value] = cookie.split('=');
-              return [key, decodeURIComponent(value)];
-            })
-          );
-          return cookies[name];
-        },
-      },
-    }
-  );
-}
+import { getServerClient } from '@/lib/auth-server';
 
 /**
  * GET /api/group-posts/[id]
@@ -32,7 +9,7 @@ export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const supabase = createSupabaseClient(request);
+  const supabase = getServerClient(request);
 
   // Verify authentication
   const { data: { user }, error: authError } = await supabase.auth.getUser();
@@ -114,7 +91,7 @@ export async function PATCH(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const supabase = createSupabaseClient(request);
+  const supabase = getServerClient(request);
 
   // Verify authentication
   const { data: { user }, error: authError } = await supabase.auth.getUser();
@@ -203,7 +180,7 @@ export async function DELETE(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const supabase = createSupabaseClient(request);
+  const supabase = getServerClient(request);
 
   // Verify authentication
   const { data: { user }, error: authError } = await supabase.auth.getUser();

@@ -1,30 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getSupabaseAdmin, requireAuth } from '@/lib/auth-server';
+import { getSupabaseAdmin, requireAuth, getServerClient } from '@/lib/auth-server';
 import { canViewProfile } from '@/lib/privacy';
-import { createServerClient } from '@supabase/ssr';
-
-// Helper to get authenticated user from cookie
-function createSupabaseClient(request: NextRequest) {
-  return createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      cookies: {
-        get(name: string) {
-          const cookieHeader = request.headers.get('cookie');
-          if (!cookieHeader) return undefined;
-          const cookies = Object.fromEntries(
-            cookieHeader.split('; ').map(cookie => {
-              const [key, value] = cookie.split('=');
-              return [key, decodeURIComponent(value)];
-            })
-          );
-          return cookies[name];
-        },
-      },
-    }
-  );
-}
 
 /**
  * POST /api/tags
@@ -32,7 +8,7 @@ function createSupabaseClient(request: NextRequest) {
  */
 export async function POST(request: NextRequest) {
   try {
-    const supabaseClient = createSupabaseClient(request);
+    const supabaseClient = getServerClient(request);
     const { data: { user } } = await supabaseClient.auth.getUser();
 
     if (!user) {
@@ -232,7 +208,7 @@ export async function GET(request: NextRequest) {
  */
 export async function DELETE(request: NextRequest) {
   try {
-    const supabaseClient = createSupabaseClient(request);
+    const supabaseClient = getServerClient(request);
     const { data: { user } } = await supabaseClient.auth.getUser();
 
     if (!user) {

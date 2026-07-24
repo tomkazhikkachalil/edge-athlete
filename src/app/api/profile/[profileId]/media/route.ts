@@ -1,30 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createServerClient } from '@supabase/ssr';
-import { getSupabaseAdmin } from '@/lib/auth-server';
+import { getSupabaseAdmin, getServerClient } from '@/lib/auth-server';
 import { canViewProfile } from '@/lib/privacy';
-
-// Helper function for cookie authentication
-function createSupabaseClient(request: NextRequest) {
-  return createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      cookies: {
-        get(name: string) {
-          const cookieHeader = request.headers.get('cookie');
-          if (!cookieHeader) return undefined;
-          const cookies = Object.fromEntries(
-            cookieHeader.split('; ').map(cookie => {
-              const [key, value] = cookie.split('=');
-              return [key, decodeURIComponent(value)];
-            })
-          );
-          return cookies[name];
-        },
-      },
-    }
-  );
-}
 
 interface MediaItem {
   id: string;
@@ -94,7 +70,7 @@ export async function GET(
 ) {
   try {
     const supabaseAdmin = getSupabaseAdmin();
-    const supabase = createSupabaseClient(request);
+    const supabase = getServerClient(request);
     const { searchParams } = new URL(request.url);
 
     // Get authenticated user (optional - public profiles work without auth)
@@ -363,7 +339,7 @@ export async function POST(
 ) {
   try {
     const supabaseAdmin = getSupabaseAdmin();
-    const supabase = createSupabaseClient(request);
+    const supabase = getServerClient(request);
 
     // Get authenticated user (optional)
     const { data: { user } } = await supabase.auth.getUser();

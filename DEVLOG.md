@@ -51,6 +51,26 @@ Sprint 6 — PWA installability baseline:
 - Installability baseline only — NO service worker / offline scope yet
   (deliberate; that's a separate, larger investment).
 
+Sprint 6 — auth-pattern consolidation:
+- The hand-rolled `createServerClient(...)` + cookie-split boilerplate
+  was copy-pasted into ~19 route files (the "two ways to authenticate"
+  footgun the surveys flagged). Extracted ONE cookie-scoped client
+  helper: getServerClient(request) in auth-server.ts; requireAuth now
+  builds on it (DRY), plus a getServerAuth() convenience.
+- Migrated 18 routes: deleted each local createSupabase[Server]Client
+  fn + the @supabase/ssr import, swapped call sites to getServerClient.
+  BEHAVIOR-PRESERVING: each route keeps its exact auth-check flow
+  (return-based 401) and its RLS-vs-admin query-client choice unchanged
+  — this is one correct cookie parser, not a security-model change.
+  Verified account/delete (destructive) keeps supabaseAdmin cascade.
+- Deleted src/app/api/followers-simple/route.ts — dead (zero callers)
+  and the one route using a different cookies() pattern; removing it
+  beat migrating it.
+- Net: 506 deletions / 100 insertions across 19 files. Zero routes
+  now construct createServerClient inline. tsc/lint/test/build clean
+  (fresh .next); the one build warning is the documented-benign
+  realtime-js/middleware one, unrelated.
+
 ## July 23, 2026 — Sprint 5: trust & support (items 1–3)
 
 - Settings → Notifications tab LIVE (was a "Coming Soon" stub): toggle

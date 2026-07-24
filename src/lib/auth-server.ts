@@ -14,40 +14,56 @@ export function getSupabaseAdmin() {
   );
 }
 
+/**
+ * The single cookie-scoped Supabase server client for API routes.
+ * Queries made through it run under the authenticated user's RLS policies.
+ *
+ * This replaces the hand-rolled `createServerClient(...)` + cookie-split that
+ * was copy-pasted into ~19 route files — one correct cookie parser instead of
+ * nineteen. `requireAuth` and `getServerAuth` both build on it.
+ */
+export function getServerClient(request: NextRequest) {
+  return createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    {
+      cookies: {
+        get(name: string) {
+          const cookieHeader = request.headers.get('cookie');
+          if (!cookieHeader) return undefined;
+          const cookies = Object.fromEntries(
+            cookieHeader.split('; ').map(cookie => {
+              const [key, value] = cookie.split('=');
+              return [key, decodeURIComponent(value)];
+            })
+          );
+          return cookies[name];
+        },
+        set() {
+          // Not used in API routes - cookies are set client-side
+        },
+        remove() {
+          // Not used in API routes - cookies are removed client-side
+        },
+      },
+    }
+  );
+}
+
+/**
+ * Non-throwing auth for routes that return their own 401. Gives back both the
+ * user (nullable) and the cookie-scoped RLS client for subsequent queries.
+ */
+export async function getServerAuth(request: NextRequest) {
+  const supabase = getServerClient(request);
+  const { data: { user }, error } = await supabase.auth.getUser();
+  return { supabase, user, error };
+}
+
 export async function requireAuth(request: NextRequest) {
   try {
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-    const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
-
-    // Create a Supabase server client that properly handles cookies
-    const supabase = createServerClient(
-      supabaseUrl,
-      supabaseAnonKey,
-      {
-        cookies: {
-          get(name: string) {
-            const cookieHeader = request.headers.get('cookie');
-            if (!cookieHeader) return undefined;
-
-            const cookies = Object.fromEntries(
-              cookieHeader.split('; ').map(cookie => {
-                const [key, value] = cookie.split('=');
-                return [key, decodeURIComponent(value)];
-              })
-            );
-            return cookies[name];
-          },
-          set() {
-            // Not used in API routes - cookies are set client-side
-          },
-          remove() {
-            // Not used in API routes - cookies are removed client-side
-          },
-        },
-      }
-    );
-
-    // Get the authenticated user
+    // Get the authenticated user via the shared cookie-scoped client
+    const supabase = getServerClient(request);
     const { data: { user }, error } = await supabase.auth.getUser();
 
     if (error || !user) {

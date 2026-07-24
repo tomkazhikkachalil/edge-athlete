@@ -1,29 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getSupabaseAdmin } from '@/lib/auth-server';
-import { createServerClient } from '@supabase/ssr';
-
-// Helper to create Supabase client with auth
-function createSupabaseClient(request: NextRequest) {
-  return createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      cookies: {
-        get(name: string) {
-          const cookieHeader = request.headers.get('cookie');
-          if (!cookieHeader) return undefined;
-          const cookies = Object.fromEntries(
-            cookieHeader.split('; ').map(cookie => {
-              const [key, value] = cookie.split('=');
-              return [key, decodeURIComponent(value)];
-            })
-          );
-          return cookies[name];
-        },
-      },
-    }
-  );
-}
+import { getSupabaseAdmin, getServerClient } from '@/lib/auth-server';
 
 export async function POST(request: NextRequest) {
   try {
@@ -39,7 +15,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Get authenticated user
-    const supabase = createSupabaseClient(request);
+    const supabase = getServerClient(request);
     const { data: { user }, error: userError } = await supabase.auth.getUser();
 
     if (userError || !user) {

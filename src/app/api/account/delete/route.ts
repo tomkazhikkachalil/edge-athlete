@@ -1,33 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createServerClient } from '@supabase/ssr';
+import { getServerClient } from '@/lib/auth-server';
 import { supabaseAdmin } from '@/lib/supabase';
-
-// Helper function for cookie authentication (Next.js 15 pattern)
-function createSupabaseClient(request: NextRequest) {
-  return createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      cookies: {
-        get(name: string) {
-          const cookieHeader = request.headers.get('cookie');
-          if (!cookieHeader) return undefined;
-          const cookies = Object.fromEntries(
-            cookieHeader.split('; ').map(cookie => {
-              const [key, value] = cookie.split('=');
-              return [key, decodeURIComponent(value)];
-            })
-          );
-          return cookies[name];
-        },
-      },
-    }
-  );
-}
 
 export async function DELETE(request: NextRequest) {
   try {
-    const supabase = createSupabaseClient(request);
+    const supabase = getServerClient(request);
 
     // 1. Verify user is authenticated
     const { data: { user }, error: userError } = await supabase.auth.getUser();

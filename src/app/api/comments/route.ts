@@ -1,30 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createServerClient } from '@supabase/ssr';
-import { getSupabaseAdmin } from '@/lib/auth-server';
-
-// Helper to create Supabase client with SSR cookie support
-function createSupabaseServerClient(request: NextRequest) {
-  return createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      cookies: {
-        get(name: string) {
-          const cookieHeader = request.headers.get('cookie');
-          if (!cookieHeader) return undefined;
-
-          const cookies = Object.fromEntries(
-            cookieHeader.split('; ').map(cookie => {
-              const [key, value] = cookie.split('=');
-              return [key, decodeURIComponent(value)];
-            })
-          );
-          return cookies[name];
-        },
-      },
-    }
-  );
-}
+import { getSupabaseAdmin, getServerClient } from '@/lib/auth-server';
 
 // GET - Fetch comments for a post
 export async function GET(request: NextRequest) {
@@ -46,7 +21,7 @@ export async function GET(request: NextRequest) {
     const limit = Math.min(Math.max(parseInt(searchParams.get('limit') || '100', 10) || 100, 1), 200);
     const offset = Math.max(parseInt(searchParams.get('offset') || '0', 10) || 0, 0);
 
-    const supabase = createSupabaseServerClient(request);
+    const supabase = getServerClient(request);
 
     // Fetch comments with profile data and likes
     // Sort: pinned first, then by likes (most liked on top), then chronological
@@ -109,7 +84,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const supabase = createSupabaseServerClient(request);
+    const supabase = getServerClient(request);
 
     // Get current user
     const { data: { user }, error: userError } = await supabase.auth.getUser();
@@ -215,7 +190,7 @@ export async function DELETE(request: NextRequest) {
       );
     }
 
-    const supabase = createSupabaseServerClient(request);
+    const supabase = getServerClient(request);
 
     // Get current user to verify authentication
     const { data: { user }, error: userError } = await supabase.auth.getUser();
@@ -292,7 +267,7 @@ export async function PATCH(request: NextRequest) {
       );
     }
 
-    const supabase = createSupabaseServerClient(request);
+    const supabase = getServerClient(request);
 
     // Verify authentication
     const { data: { user }, error: userError } = await supabase.auth.getUser();

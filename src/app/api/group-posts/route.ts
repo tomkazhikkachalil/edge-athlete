@@ -1,30 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getSupabaseAdmin } from '@/lib/auth-server';
+import { getSupabaseAdmin, getServerClient } from '@/lib/auth-server';
 import { notifyGroupInvites } from '@/lib/golf/group-notifications';
-import { createServerClient } from '@supabase/ssr';
-
-// Helper function for cookie authentication (Next.js 15 pattern)
-function createSupabaseClient(request: NextRequest) {
-  return createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      cookies: {
-        get(name: string) {
-          const cookieHeader = request.headers.get('cookie');
-          if (!cookieHeader) return undefined;
-          const cookies = Object.fromEntries(
-            cookieHeader.split('; ').map(cookie => {
-              const [key, value] = cookie.split('=');
-              return [key, decodeURIComponent(value)];
-            })
-          );
-          return cookies[name];
-        },
-      },
-    }
-  );
-}
 
 /**
  * GET /api/group-posts
@@ -36,7 +12,7 @@ function createSupabaseClient(request: NextRequest) {
  *   - cursor: Pagination cursor (created_at timestamp)
  */
 export async function GET(request: NextRequest) {
-  const supabase = createSupabaseClient(request);
+  const supabase = getServerClient(request);
 
   // Verify authentication
   const { data: { user }, error: authError } = await supabase.auth.getUser();
@@ -123,7 +99,7 @@ export async function GET(request: NextRequest) {
  *   - participant_ids: Array of profile IDs to invite (optional)
  */
 export async function POST(request: NextRequest) {
-  const supabase = createSupabaseClient(request);
+  const supabase = getServerClient(request);
 
   // Verify authentication
   const { data: { user }, error: authError } = await supabase.auth.getUser();
