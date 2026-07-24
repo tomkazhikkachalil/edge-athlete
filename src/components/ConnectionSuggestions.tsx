@@ -192,7 +192,7 @@ export default function ConnectionSuggestions({
               />
               <button
                 onClick={() => handleDismiss(suggestion.suggested_id)}
-                className="text-xs text-gray-500 hover:text-gray-700 p-1 w-6 h-6 flex items-center justify-center"
+                className="text-xs text-gray-500 hover:text-gray-700 min-w-[44px] min-h-[44px] flex items-center justify-center"
                 aria-label="Dismiss suggestion"
               >
                 <i className="fas fa-times"></i>

@@ -21,7 +21,7 @@ interface PrivateProfileViewProps {
 export default function PrivateProfileView({ profile, onFollow }: PrivateProfileViewProps) {
   return (
     <div className="max-w-2xl mx-auto mt-12 px-6">
-      <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-12 text-center">
+      <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 sm:p-12 text-center">
         {/* Lock Icon */}
         <div className="w-20 h-20 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-6">
           <i className="fas fa-lock text-3xl text-gray-400"></i>

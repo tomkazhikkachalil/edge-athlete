@@ -366,10 +366,12 @@ export default function SharedRoundFullCard({
                 <button
                   onClick={() => setShowEndConfirm(true)}
                   disabled={endingRound}
-                  className="flex items-center gap-2 bg-white/15 hover:bg-white/25 disabled:opacity-60 text-white text-sm font-bold px-3 py-2 rounded-lg transition-colors min-h-[44px]"
+                  className="flex items-center gap-2 bg-white/15 hover:bg-white/25 disabled:opacity-60 text-white text-sm font-bold px-3 py-2 rounded-lg transition-colors min-h-[44px] min-w-[44px] justify-center"
+                  aria-label="End round"
                 >
                   <i className="fas fa-flag-checkered"></i>
-                  {endingRound ? 'Ending…' : 'End Round'}
+                  {/* Icon-only below sm — the label crowds the modal title at 360px */}
+                  <span className="hidden sm:inline">{endingRound ? 'Ending…' : 'End Round'}</span>
                 </button>
               )}
               <button

@@ -361,7 +361,7 @@ export default function ScoreEntryModal({
                   <button
                     key={holeNum}
                     onClick={() => handleJumpToHole(holeNum)}
-                    className={`relative py-2 px-1 rounded text-xs font-bold transition-colors ${
+                    className={`relative py-2 px-1 min-h-[40px] rounded text-xs font-bold transition-colors ${
                       isCurrent
                         ? 'bg-green-600 text-white ring-2 ring-green-800'
                         : hasScore

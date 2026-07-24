@@ -294,7 +294,7 @@ export default function AddVitalModal({ isOpen, onClose, onSaved }: AddVitalModa
           </div>
           <button
             onClick={onClose}
-            className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-gray-100 text-gray-500 transition-colors"
+            className="min-w-[44px] min-h-[44px] flex items-center justify-center rounded-full hover:bg-gray-100 text-gray-500 transition-colors"
           >
             <i className="fas fa-times text-sm"></i>
           </button>

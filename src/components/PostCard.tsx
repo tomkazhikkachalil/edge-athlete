@@ -156,8 +156,10 @@ function PostCard({
 
   const handleLike = () => {
     if (onLike) {
-      // Only optimistically update the heart icon, not the count
-      // The count will be updated from the server response via props
+      // Optimistic heart AND count — waiting on the server made the number
+      // visibly pop a beat after the heart filled. Server response via props
+      // remains the source of truth and corrects any drift.
+      setLocalLikesCount(prev => Math.max(0, prev + (isLiked ? -1 : 1)));
       setIsLiked(!isLiked);
 
       // Call parent handler which will update with actual count from server
@@ -547,7 +549,7 @@ function PostCard({
 
         {/* Vitals badge — shown on training posts created from a vitals entry */}
         {post.stats_data?.type === 'vitals_entry' && (
-          <div className="flex items-center gap-2 px-3 py-2 bg-violet-50 rounded-lg text-sm mb-2 mx-base">
+          <div className="flex items-center gap-2 px-3 py-2 bg-violet-50 rounded-lg text-sm mb-2">
             <i className="fas fa-dumbbell text-violet-500 text-xs"></i>
             <span className="font-semibold text-violet-700">
               {post.stats_data.metric_label as string}

@@ -487,14 +487,14 @@ export default function EditProfileModal({ isOpen, onClose, profile, badges, onS
                           value={badge.label}
                           onChange={(e) => updateBadge(index, { label: e.target.value })}
                           placeholder="Badge name"
-                          className="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
+                          className="w-full px-2 py-2 text-sm border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
                         />
                       </div>
                       <div className="sm:col-span-3">
                         <select
                           value={badge.color_token}
                           onChange={(e) => updateBadge(index, { color_token: e.target.value })}
-                          className="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
+                          className="w-full px-2 py-2 text-sm border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
                         >
                           <option value="primary">Blue</option>
                           <option value="green">Green</option>
@@ -510,7 +510,7 @@ export default function EditProfileModal({ isOpen, onClose, profile, badges, onS
                           value={badge.icon_url || ''}
                           onChange={(e) => updateBadge(index, { icon_url: e.target.value })}
                           placeholder="Icon URL"
-                          className="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
+                          className="w-full px-2 py-2 text-sm border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
                         />
                       </div>
                       <div className="sm:col-span-2 flex items-center space-x-1">

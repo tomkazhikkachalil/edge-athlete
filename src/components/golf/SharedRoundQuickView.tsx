@@ -135,7 +135,7 @@ export default function SharedRoundQuickView({
 
         {/* Leader Score Badge (if any) — match play uses the status banner instead */}
         {leader && leader.scores.total_score !== null && gameFormat !== 'match' && (
-          <div className="ml-3">
+          <div className="ml-3 flex-shrink-0">
             <div className="bg-white rounded-lg px-3 py-1.5 shadow-md border-2 border-green-300 text-center">
               <div className="text-xs text-green-700 font-semibold">Leader</div>
               {gameFormat === 'stableford' ? (

@@ -439,7 +439,7 @@ export default function FeedPage() {
                           <div className="h-3 bg-gray-200 rounded w-16"></div>
                         </div>
                       </div>
-                      <div className="aspect-square bg-gray-200 rounded-lg mb-4"></div>
+                      <div className="aspect-video bg-gray-200 rounded-lg mb-4"></div>
                       <div className="h-4 bg-gray-200 rounded w-3/4"></div>
                     </div>
                   ))}
