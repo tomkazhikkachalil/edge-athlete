@@ -1,5 +1,25 @@
 # Development Log
 
+## July 23, 2026 — FIX: Vercel production build failing (zod peer conflict)
+
+Root cause of "failed to get production": the Sprint 6 zod add pulled in
+zod v4 (^4.4.3), but openai@4.103.0 (AI features) declares a peer dep of
+zod ^3.23.8 (v3). Local `npm install` / `npm run build` tolerate the
+mismatch; Vercel builds with `npm ci`, which is STRICT and aborts on the
+ERESOLVE conflict → install never completes → build never runs.
+
+- Fix: downgraded zod to ^3.25.76 (v3) — the version openai expects, so
+  the conflict disappears at the root. The validation lib uses only
+  basic schema API (object/string/boolean/enum/uuid/email/transform/
+  pipe/partial/strict/safeParse), all identical in zod 3, so zero code
+  changes needed.
+- Reproduced Vercel's failing step locally with `npm ci --dry-run`
+  (errored before, clean after). package-lock.json regenerated and
+  committed IN THIS COMMIT (an out-of-sync lockfile is itself an npm ci
+  failure).
+- Verified: npm ci clean, tsc clean, 32 tests pass, fresh build exit 0.
+- Lesson: after any dependency add, run `npm ci --dry-run` — it catches
+  peer conflicts that `npm install` silently resolves but Vercel rejects.
 ## July 23, 2026 — Maintenance checklist + sync
 
 - `npm run lint` — zero warnings/errors.
