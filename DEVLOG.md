@@ -1,5 +1,28 @@
 # Development Log
 
+## July 23, 2026 — Per-hole live-entry UI (live scoring, first feature)
+
+Built on the useSharedRound foundation: scores now persist and stream
+hole-by-hole during a round instead of all-at-once at the end.
+
+- ScoreEntryModal gains a LIVE mode (triggered by a new onSaveHole prop):
+  each hole is persisted as you advance (Next / jump / Previous / Done /
+  close all flush the current hole first via persistHole). Dirty-tracking
+  so unchanged holes don't re-POST; per-hole saving/Saved indicators; a
+  pulsing "● LIVE" badge; green save-check dots on the jump grid; the
+  last-hole button becomes "Done" (holes already saved). Batch mode
+  (onSave only) is unchanged — the individual-round quick entry in
+  GolfScorecardForm keeps using it.
+- The scores API already upserts on (participant, hole) and its trigger
+  recalcs totals, so a single-hole POST → golf_participant_scores update
+  → Realtime event → co-players' useSharedRound refresh their leaderboard
+  LIVE. PostCard's onSaveHole POSTs the one hole; refresh-on-close keeps
+  the entrant's own card current.
+- Degrades gracefully: without migration 031 / Realtime enabled, per-hole
+  SAVE still works — co-players just see updates on next open instead of
+  live push.
+- tsc/lint/test(32)/build clean. Shared-round score entry is now a live,
+  hole-by-hole experience; the leaderboard updates for everyone playing.
 ## July 23, 2026 — Live-scoring foundation: useSharedRound + Realtime
 
 The seam the group-golf audit called for, and the groundwork for the

@@ -19,6 +19,16 @@ interface ScoreEntryModalProps {
     fairway_hit?: boolean;
     green_in_regulation?: boolean;
   }>) => Promise<void>;
+  // LIVE mode: when provided, each hole is persisted as you advance (rather
+  // than all-at-once via onSave), so co-players watching the round see your
+  // scores stream in hole-by-hole. Should POST the single hole and resolve.
+  onSaveHole?: (hole: {
+    hole_number: number;
+    strokes: number;
+    putts?: number;
+    fairway_hit?: boolean;
+    green_in_regulation?: boolean;
+  }) => Promise<void>;
   onClose: () => void;
 }
 
@@ -29,11 +39,21 @@ export default function ScoreEntryModal({
   startingHoleNumber = 1,
   existingScores = [],
   onSave,
+  onSaveHole,
   onClose
 }: ScoreEntryModalProps) {
+  const isLive = !!onSaveHole;
   const [currentHole, setCurrentHole] = useState(1);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Live-mode per-hole persistence state. Holes present in existingScores
+  // start "saved"; any local edit marks a hole dirty until it re-saves.
+  const [savedHoles, setSavedHoles] = useState<Set<number>>(
+    () => new Set(existingScores.map(s => s.hole_number))
+  );
+  const [dirtyHoles, setDirtyHoles] = useState<Set<number>>(new Set());
+  const [savingHole, setSavingHole] = useState<number | null>(null);
 
   // Initialize hole data
   const [holeData, setHoleData] = useState<HoleData[]>(() => {
@@ -59,6 +79,10 @@ export default function ScoreEntryModal({
     setHoleData(prev => prev.map((h, idx) =>
       idx === currentHole - 1 ? { ...h, [field]: value } : h
     ));
+    // In live mode, editing a hole marks it dirty (needs a re-save on advance)
+    if (isLive) {
+      setDirtyHoles(prev => new Set(prev).add(currentHole));
+    }
     setError(null);
   };
 
@@ -70,27 +94,69 @@ export default function ScoreEntryModal({
     updateCurrentHole('putts', putts);
   };
 
-  const handleNext = () => {
+  // Live mode: persist a single hole (if it has a score and is dirty).
+  // Returns true if OK to proceed (saved or nothing to save), false on error.
+  const persistHole = async (holeNum: number): Promise<boolean> => {
+    if (!isLive || !onSaveHole) return true;
+    const hole = holeData[holeNum - 1];
+    if (!hole || hole.strokes === null) return true; // nothing complete to save
+    if (!dirtyHoles.has(holeNum) && savedHoles.has(holeNum)) return true; // unchanged
+
+    setSavingHole(holeNum);
+    setError(null);
+    try {
+      await onSaveHole({
+        hole_number: hole.hole_number!,
+        strokes: hole.strokes!,
+        putts: hole.putts ?? undefined,
+        fairway_hit: hole.fairway_hit ?? undefined,
+        green_in_regulation: hole.green_in_regulation ?? undefined,
+      });
+      setSavedHoles(prev => new Set(prev).add(holeNum));
+      setDirtyHoles(prev => { const n = new Set(prev); n.delete(holeNum); return n; });
+      return true;
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to save this hole');
+      return false;
+    } finally {
+      setSavingHole(null);
+    }
+  };
+
+  const handleNext = async () => {
     if (!currentHoleData.strokes) {
       setError('Please enter a stroke count before continuing');
       return;
     }
+    if (isLive && !(await persistHole(currentHole))) return; // save before advancing
     if (currentHole < holesPlayed) {
       setCurrentHole(prev => prev + 1);
       setError(null);
     }
   };
 
-  const handlePrevious = () => {
+  const handlePrevious = async () => {
+    if (isLive) await persistHole(currentHole);
     if (currentHole > 1) {
       setCurrentHole(prev => prev - 1);
       setError(null);
     }
   };
 
-  const handleJumpToHole = (holeNum: number) => {
+  const handleJumpToHole = async (holeNum: number) => {
+    if (isLive) await persistHole(currentHole);
     setCurrentHole(holeNum);
     setError(null);
+  };
+
+  // Live mode: holes are already saved as you go, so "Done" just flushes the
+  // current hole and closes. Also used as the close handler so nothing dirty
+  // is lost when the user taps ✕.
+  const handleDone = async () => {
+    setSaving(true);
+    const ok = await persistHole(currentHole);
+    setSaving(false);
+    if (ok) onClose();
   };
 
   const handleSave = async () => {
@@ -135,17 +201,31 @@ export default function ScoreEntryModal({
         {/* Header */}
         <div className="bg-green-600 text-white p-4">
           <div className="flex items-center justify-between mb-2">
-            <h2 className="text-xl font-black">Enter Scores</h2>
+            <div className="flex items-center gap-2">
+              <h2 className="text-xl font-black">Enter Scores</h2>
+              {isLive && (
+                <span className="inline-flex items-center gap-1 bg-white/20 px-2 py-0.5 rounded-full text-xs font-bold">
+                  <span className="w-1.5 h-1.5 rounded-full bg-red-400 animate-pulse"></span>
+                  LIVE
+                </span>
+              )}
+            </div>
             <button
-              onClick={onClose}
+              onClick={isLive ? handleDone : onClose}
               className="text-white hover:text-gray-200 text-xl font-bold min-w-[44px] min-h-[44px] -m-2 flex items-center justify-center"
               aria-label="Close"
             >
               <i className="fas fa-times"></i>
             </button>
           </div>
-          <div className="text-sm font-semibold">
-            Hole {currentHole} of {holesPlayed}
+          <div className="text-sm font-semibold flex items-center gap-2">
+            <span>Hole {currentHole} of {holesPlayed}</span>
+            {isLive && savingHole === currentHole && (
+              <span className="text-xs font-normal opacity-90"><i className="fas fa-spinner fa-spin mr-1"></i>Saving…</span>
+            )}
+            {isLive && savingHole !== currentHole && savedHoles.has(currentHole) && !dirtyHoles.has(currentHole) && (
+              <span className="text-xs font-normal opacity-90"><i className="fas fa-check mr-1"></i>Saved</span>
+            )}
           </div>
         </div>
 
@@ -271,20 +351,27 @@ export default function ScoreEntryModal({
                 const hole = holeData[holeNum - 1];
                 const hasScore = hole.strokes !== null;
                 const isCurrent = holeNum === currentHole;
+                const isSaved = isLive && savedHoles.has(holeNum) && !dirtyHoles.has(holeNum);
 
                 return (
                   <button
                     key={holeNum}
                     onClick={() => handleJumpToHole(holeNum)}
-                    className={`py-2 px-1 rounded text-xs font-bold transition-colors ${
+                    className={`relative py-2 px-1 rounded text-xs font-bold transition-colors ${
                       isCurrent
                         ? 'bg-green-600 text-white ring-2 ring-green-800'
                         : hasScore
                         ? 'bg-blue-100 text-blue-900 hover:bg-blue-200'
                         : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
                     }`}
+                    title={isSaved ? 'Saved' : undefined}
                   >
                     {hole.hole_number}
+                    {isSaved && !isCurrent && (
+                      <span className="absolute -top-1 -right-1 w-3 h-3 bg-green-500 rounded-full flex items-center justify-center">
+                        <i className="fas fa-check text-white" style={{ fontSize: '7px' }}></i>
+                      </span>
+                    )}
                   </button>
                 );
               })}
@@ -307,10 +394,26 @@ export default function ScoreEntryModal({
             {currentHole < holesPlayed ? (
               <button
                 onClick={handleNext}
-                className="flex-1 bg-green-600 hover:bg-green-700 text-white font-bold py-3 px-4 rounded-lg transition-colors"
+                disabled={savingHole !== null}
+                className="flex-1 bg-green-600 hover:bg-green-700 disabled:bg-green-400 text-white font-bold py-3 px-4 rounded-lg transition-colors"
               >
-                Next
-                <i className="fas fa-chevron-right ml-2"></i>
+                {savingHole === currentHole ? (
+                  <><i className="fas fa-spinner fa-spin mr-2"></i>Saving…</>
+                ) : (
+                  <>Next<i className="fas fa-chevron-right ml-2"></i></>
+                )}
+              </button>
+            ) : isLive ? (
+              <button
+                onClick={handleDone}
+                disabled={saving || savingHole !== null}
+                className="flex-1 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 disabled:cursor-not-allowed text-white font-bold py-3 px-4 rounded-lg transition-colors"
+              >
+                {saving || savingHole !== null ? (
+                  <><i className="fas fa-spinner fa-spin mr-2"></i>Saving…</>
+                ) : (
+                  <><i className="fas fa-check mr-2"></i>Done</>
+                )}
               </button>
             ) : (
               <button

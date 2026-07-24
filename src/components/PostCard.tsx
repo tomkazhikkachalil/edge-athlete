@@ -627,7 +627,23 @@ function PostCard({
               throw err;
             }
           }}
-          onClose={() => {
+          onSaveHole={async (hole) => {
+            // LIVE per-hole save. Upserts this one hole; the DB trigger
+            // recalculates totals → fires the Realtime event → co-players'
+            // useSharedRound refreshes their leaderboard. The entrant's own
+            // card refreshes on close (below).
+            const response = await fetch(`/api/golf/scorecards/${scoreEntryParticipantId}/scores`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ scores: [hole] })
+            });
+            if (!response.ok) {
+              const data = await response.json();
+              throw new Error(data.error || 'Failed to save hole');
+            }
+          }}
+          onClose={async () => {
+            await refreshScorecard();
             setShowScoreEntry(false);
             setScoreEntryParticipantId(null);
             setShowFullScorecard(true);
