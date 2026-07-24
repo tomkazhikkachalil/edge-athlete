@@ -268,9 +268,11 @@ export default function ScoreEntryModal({
     const ok = await persistHole(currentHole);
     setSaving(false);
     if (ok) {
-      // Navigation blocks on failed saves, so only the current hole can be
-      // dirty — and it just saved. Nothing left for the draft to protect.
-      clearDraft(participantId);
+      // No clearDraft here: persistHole prunes each hole from the draft as
+      // it saves, so a fully-saved session already removed the key. Anything
+      // still in the draft is strokes-less partial input (typed putts/FIR on
+      // a hole persistHole skips as incomplete) — exactly what the draft
+      // exists to protect across a close.
       onClose();
     }
   };

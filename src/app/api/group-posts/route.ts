@@ -205,6 +205,18 @@ export async function POST(request: NextRequest) {
     // round behind.
     const abortCreation = async (step: string, err: unknown) => {
       console.error(`Group post creation failed at ${step}:`, err);
+      // posts.group_post_id is ON DELETE SET NULL (unlike participants /
+      // golf_data, which CASCADE) — if the feed-post insert committed but its
+      // response was lost, deleting group_posts alone would strand a
+      // caption-only post with no scorecard. Sweep it first; a no-op for
+      // failures before the feed-post step.
+      const { error: postCleanupError } = await supabase
+        .from('posts')
+        .delete()
+        .eq('group_post_id', groupPost.id);
+      if (postCleanupError) {
+        console.error('Feed-post cleanup after failed creation also failed:', postCleanupError);
+      }
       const { error: cleanupError } = await supabase
         .from('group_posts')
         .delete()
