@@ -15,6 +15,20 @@ const inter = Inter({
 export const metadata: Metadata = {
   title: "Edge Athlete",
   description: "Connect athletes, clubs, leagues, and fans",
+  // Next serves the manifest from app/manifest.ts at /manifest.webmanifest
+  manifest: "/manifest.webmanifest",
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "default",
+    title: "Edge Athlete",
+  },
+  icons: {
+    icon: [
+      { url: "/favicon-32.png", sizes: "32x32", type: "image/png" },
+      { url: "/icon-192.png", sizes: "192x192", type: "image/png" },
+    ],
+    apple: "/apple-touch-icon.png",
+  },
 };
 
 export const viewport: Viewport = {
@@ -22,7 +36,9 @@ export const viewport: Viewport = {
   initialScale: 1,
   maximumScale: 5,
   viewportFit: 'cover',
-  themeColor: '#ffffff',
+  // Match the manifest theme so the mobile browser chrome / status bar
+  // tints to the app's blue when installed.
+  themeColor: '#2563eb',
 };
 
 export default function RootLayout({

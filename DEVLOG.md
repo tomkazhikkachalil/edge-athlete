@@ -39,6 +39,18 @@ Sprint 6 — migration hygiene + dead-code sweep:
 - Verified unused-ness by grep before every deletion; tsc/lint/test/
   build all clean after.
 
+Sprint 6 — PWA installability baseline:
+- app/manifest.ts → /manifest.webmanifest (name, standalone display,
+  start_url /feed, blue theme, 192/512 + maskable-512 icons).
+- Real PNG icons generated with sharp (Next bundles it) from a
+  golf-flag SVG: icon-192/512, apple-touch-icon (180), maskable-512,
+  favicon-32. Validated dimensions/format.
+- layout.tsx metadata: manifest link, appleWebApp (installable on iOS),
+  icon set; themeColor #ffffff → #2563eb so installed browser chrome
+  tints to the app blue.
+- Installability baseline only — NO service worker / offline scope yet
+  (deliberate; that's a separate, larger investment).
+
 ## July 23, 2026 — Sprint 5: trust & support (items 1–3)
 
 - Settings → Notifications tab LIVE (was a "Coming Soon" stub): toggle
