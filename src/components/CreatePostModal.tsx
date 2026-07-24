@@ -622,7 +622,10 @@ export default function CreatePostModal({
       // Handle shared golf rounds differently
       if (postType === 'golf' && roundType === 'shared') {
 
-        // Step 1: Create group post
+        // Step 1: Create the round ATOMICALLY — group post, participants,
+        // scorecard, and feed post in one server request. If any piece fails
+        // the server rolls the whole thing back (no more rounds whose card
+        // renders nothing because a follow-up scorecard call died).
         const groupPostResponse = await fetch('/api/group-posts', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -635,6 +638,19 @@ export default function CreatePostModal({
             location: sharedRoundDetails.courseName,
             visibility: visibility,
             participant_ids: sharedRoundParticipants,
+            golf_data: {
+              course_name: sharedRoundDetails.courseName,
+              round_type: sharedRoundDetails.roundTypeIndoorOutdoor,
+              game_format: sharedRoundDetails.gameFormat,
+              holes_played: sharedRoundDetails.holesPlayed,
+              tee_color: sharedRoundDetails.teeColor || undefined,
+              weather_conditions: sharedRoundDetails.weather || undefined,
+              temperature: sharedRoundDetails.temperature ? parseInt(sharedRoundDetails.temperature) : undefined,
+              wind_speed: sharedRoundDetails.wind === 'calm' ? 0 :
+                          sharedRoundDetails.wind === 'light' ? 7 :
+                          sharedRoundDetails.wind === 'moderate' ? 15 :
+                          sharedRoundDetails.wind === 'strong' ? 25 : undefined,
+            },
           }),
         });
 
@@ -646,32 +662,11 @@ export default function CreatePostModal({
         const groupPostResult = await groupPostResponse.json();
         const groupPostId = groupPostResult.group_post.id;
 
-        // Steps 2+3 in PARALLEL: scorecard metadata and participant scores
-        // are independent once the group post exists (the old sequential
-        // waterfall added a full round-trip to every shared-round create).
+        // Step 2: initial scores, if any were entered in the modal (the
+        // scorecard itself was created atomically in step 1).
         const hasScores = playerScores.length > 0 && playerScores.some(p =>
           p.hole_scores.some(h => h.strokes !== undefined && h.strokes > 0)
         );
-
-        const scorecardPromise = fetch('/api/golf/scorecards', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          credentials: 'include',
-          body: JSON.stringify({
-            group_post_id: groupPostId,
-            course_name: sharedRoundDetails.courseName,
-            round_type: sharedRoundDetails.roundTypeIndoorOutdoor,
-            game_format: sharedRoundDetails.gameFormat,
-            holes_played: sharedRoundDetails.holesPlayed,
-            tee_color: sharedRoundDetails.teeColor || undefined,
-            weather_conditions: sharedRoundDetails.weather || undefined,
-            temperature: sharedRoundDetails.temperature ? parseInt(sharedRoundDetails.temperature) : undefined,
-            wind_speed: sharedRoundDetails.wind === 'calm' ? 0 :
-                        sharedRoundDetails.wind === 'light' ? 7 :
-                        sharedRoundDetails.wind === 'moderate' ? 15 :
-                        sharedRoundDetails.wind === 'strong' ? 25 : undefined,
-          }),
-        });
 
         const scoresPromise = hasScores
           ? fetch('/api/golf/participant-scores', {
@@ -705,14 +700,11 @@ export default function CreatePostModal({
             })
           : Promise.resolve(null);
 
-        const [golfDataResult, scoresResult] = await Promise.allSettled([scorecardPromise, scoresPromise]);
+        const [scoresResult] = await Promise.allSettled([scoresPromise]);
 
-        if (golfDataResult.status === 'rejected' || (golfDataResult.status === 'fulfilled' && !golfDataResult.value.ok)) {
-          // Non-fatal — group post was created; scorecard metadata missing
-          console.error('Failed to create golf scorecard data');
-        }
         if (hasScores && (scoresResult.status === 'rejected' || (scoresResult.status === 'fulfilled' && scoresResult.value && !scoresResult.value.ok))) {
-          // Surface it — silently losing entered scores erodes trust
+          // Surface it — silently losing entered scores erodes trust. The
+          // round itself is fine; scores are re-enterable from the post.
           console.error('Failed to save participant scores');
           showError('Round created, but some scores could not be saved. You can re-enter them from the post.');
         }

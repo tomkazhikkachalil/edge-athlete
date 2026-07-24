@@ -109,7 +109,7 @@ export async function POST(request: NextRequest) {
 
   try {
     const body = await request.json();
-    const { type, title, description, date, location, visibility, participant_ids } = body;
+    const { type, title, description, date, location, visibility, participant_ids, golf_data } = body;
 
     // Validate required fields
     if (!type || !title || !date) {
@@ -117,6 +117,45 @@ export async function POST(request: NextRequest) {
         { error: 'Missing required fields: type, title, date' },
         { status: 400 }
       );
+    }
+
+    // Optional golf scorecard payload — created here, in the SAME request as
+    // the group post, so a round can never exist without its scorecard (the
+    // old client-side follow-up call could fail and leave a card that renders
+    // nothing). Validate-if-present keeps the contract backward compatible
+    // across Vercel's rolling deploy (a stale client that doesn't send
+    // golf_data degrades to the old behavior instead of erroring).
+    if (golf_data !== undefined) {
+      if (type !== 'golf_round') {
+        return NextResponse.json(
+          { error: 'golf_data is only valid for golf_round group posts' },
+          { status: 400 }
+        );
+      }
+      if (!golf_data.course_name || !golf_data.round_type || !golf_data.holes_played) {
+        return NextResponse.json(
+          { error: 'golf_data requires course_name, round_type, holes_played' },
+          { status: 400 }
+        );
+      }
+      if (!['outdoor', 'indoor'].includes(golf_data.round_type)) {
+        return NextResponse.json(
+          { error: 'golf_data.round_type must be "outdoor" or "indoor"' },
+          { status: 400 }
+        );
+      }
+      if (golf_data.holes_played < 1 || golf_data.holes_played > 18) {
+        return NextResponse.json(
+          { error: 'golf_data.holes_played must be between 1 and 18' },
+          { status: 400 }
+        );
+      }
+      if (golf_data.game_format !== undefined && !['stroke', 'stableford', 'match'].includes(golf_data.game_format)) {
+        return NextResponse.json(
+          { error: 'golf_data.game_format must be "stroke", "stableford", or "match"' },
+          { status: 400 }
+        );
+      }
     }
 
     // Validate type
@@ -158,6 +197,28 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Failed to create group post' }, { status: 500 });
     }
 
+    // Every step below is REQUIRED for a functioning round (creator can't
+    // score without their participant row; the scorecard is what the card
+    // renders; the feed post is the round's only surface). On failure, roll
+    // back the group post — FK cascades remove participants + golf_data — and
+    // return a real error instead of leaving a half-created, unreachable
+    // round behind.
+    const abortCreation = async (step: string, err: unknown) => {
+      console.error(`Group post creation failed at ${step}:`, err);
+      const { error: cleanupError } = await supabase
+        .from('group_posts')
+        .delete()
+        .eq('id', groupPost.id);
+      if (cleanupError) {
+        // Worst case: orphan remains; migration 033's diagnostic query finds these.
+        console.error('Cleanup after failed creation also failed:', cleanupError);
+      }
+      return NextResponse.json(
+        { error: `Failed to create the round (${step}). Nothing was saved — please try again.` },
+        { status: 500 }
+      );
+    };
+
     // Add creator as participant with 'creator' role
     const { error: creatorError } = await supabase
       .from('group_post_participants')
@@ -170,8 +231,9 @@ export async function POST(request: NextRequest) {
       });
 
     if (creatorError) {
-      console.error('Error adding creator as participant:', creatorError);
-      // Non-fatal - group post still created
+      // Fatal: a round whose creator isn't a participant breaks score entry
+      // and the lifecycle machine.
+      return abortCreation('creator participant', creatorError);
     }
 
     // Add invited participants if provided. AUTO-CONFIRMED (July 24 product
@@ -192,8 +254,34 @@ export async function POST(request: NextRequest) {
         .insert(participantInserts);
 
       if (participantsError) {
-        console.error('Error adding participants:', participantsError);
-        // Non-fatal - group post and creator still created
+        // Fatal: "players carry through the round" is the product contract,
+        // and there is no post-creation UI to re-add missing players.
+        return abortCreation('participants', participantsError);
+      }
+    }
+
+    // Golf scorecard data — same-request so the round and its scorecard are
+    // atomic (see validation above).
+    if (type === 'golf_round' && golf_data !== undefined) {
+      const { error: golfDataError } = await supabase
+        .from('golf_scorecard_data')
+        .insert({
+          group_post_id: groupPost.id,
+          course_name: golf_data.course_name,
+          course_id: golf_data.course_id ?? null,
+          round_type: golf_data.round_type,
+          ...(golf_data.game_format !== undefined ? { game_format: golf_data.game_format } : {}),
+          holes_played: golf_data.holes_played,
+          tee_color: golf_data.tee_color ?? null,
+          slope_rating: golf_data.slope_rating ?? null,
+          course_rating: golf_data.course_rating ?? null,
+          weather_conditions: golf_data.weather_conditions ?? null,
+          temperature: golf_data.temperature ?? null,
+          wind_speed: golf_data.wind_speed ?? null,
+        });
+
+      if (golfDataError) {
+        return abortCreation('scorecard', golfDataError);
       }
     }
 
@@ -217,9 +305,19 @@ export async function POST(request: NextRequest) {
       .select('id')
       .single();
 
-    if (feedPostError) {
-      console.error('Error creating feed post for group post:', feedPostError);
-      // Non-fatal — the group post exists; participants are still notified.
+    if (feedPostError || !feedPost) {
+      // Fatal: without the feed post the round is reachable by NOBODY.
+      return abortCreation('feed post', feedPostError);
+    }
+
+    // Reverse link (round → its feed post): the resume banner and an RLS
+    // clause read it. Best-effort — posts.group_post_id is the primary link.
+    const { error: linkError } = await supabase
+      .from('group_posts')
+      .update({ post_id: feedPost.id })
+      .eq('id', groupPost.id);
+    if (linkError) {
+      console.error('Failed to backfill group_posts.post_id:', linkError);
     }
 
     // Notify invited participants (best-effort — the round exists regardless)
@@ -229,7 +327,7 @@ export async function POST(request: NextRequest) {
           supabase: getSupabaseAdmin(),
           groupPostId: groupPost.id,
           title,
-          actionUrl: feedPost ? `/athlete/${user.id}?post=${feedPost.id}` : null,
+          actionUrl: `/athlete/${user.id}?post=${feedPost.id}`,
         },
         user.id,
         participant_ids as string[]
