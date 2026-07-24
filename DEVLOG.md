@@ -1,5 +1,68 @@
 # Development Log
 
+## July 24, 2026 — Live-scoring reliability + group flow (7 phases)
+
+Tom's directive: think through everything that can go wrong during live
+scoring — scores must survive every exit path, and groups must be part
+of the live experience, not separate. Two Explore agents mapped the
+exit-point/persistence gaps and the full group lifecycle; every claim
+verified personally; Plan agent designed; product decisions from Tom:
+AUTO-CONFIRM invitees, resume banner + smarter modal (no /rounds page).
+
+Biggest discoveries (all fixed):
+- ATTESTATION DEAD-END: the confirm/decline UI was never mounted, so
+  invitees stayed 'pending' forever → the scores API rejected them and
+  FullCard hid them. Only the creator could ever score. (Root cause of
+  "groups feel separate".)
+- GROUP_SCORECARD_SELECT never selected participants.profile_id but
+  every isCurrentUser check compares it → Add/Edit Scores was
+  unreachable from feed-loaded cards, period.
+- Creation was 3 client calls with non-fatal failures → invisible
+  rounds (no feed post), scorecard-less cards that render nothing.
+- Prev/Jump swallowed failed saves AND cleared the error; typed holes
+  were React-only (no draft/beforeunload anywhere in the repo).
+
+Shipped (one commit per phase, 31e9882..cec6291):
+1. Resume at first unscored hole; ALL navigation blocks on failed saves.
+2. localStorage draft (48h TTL, per-participant, private-mode safe) +
+   keepalive flush on pagehide/visibilitychange. Merge rule: draft
+   applies only to holes the server doesn't have. Draft cleared only on
+   acknowledged save; flush never clears (refetch reconciles).
+3. Refetch scorecard before score entry opens; useSharedRound tracks
+   `stale`; amber "Updates paused" chip.
+4. Migration 033 (data-only: pending/maybe→confirmed + post_id
+   backfill) + auto-confirm on invite + scores gate rejects only
+   'declined' + isActiveParticipant() unifies all 9 roster filters +
+   the profile_id select fix.
+5. Atomic creation: golf_data created server-side inside
+   POST /api/group-posts; compensating DELETE + real 500 on any
+   partial failure; post_id set at creation. Backward compatible
+   (golf_data optional) across the rolling deploy.
+6. Creator enters/edits scores for any player (existing API,
+   entered_by/scores_confirmed attribution; "entered by organizer"
+   hint; modal header names the player).
+7. GET /api/golf/live-round (participant-scoped; generic group-posts
+   GET leaks all public rounds via RLS) + feed "Continue scoring"
+   banner → PostDetailModal with autoOpenScoreEntry (in-place; URL
+   deep-link rejected — /athlete/[id] self-redirect drops ?post=).
+
+MIGRATION 033: data-only, idempotent, run whenever — the relaxed gate
+handles unmigrated legacy rows either way. Run it to confirm legacy
+invitees + backfill post_id for pre-existing rounds.
+
+Tests 59 → 81 (score-entry, draft/merge, isActiveParticipant,
+pickLiveRound). tsc/lint/build clean per phase.
+
+DEFERRED: dedicated /rounds page; offline retry queue beyond
+keepalive+draft; real per-hole par in to_par (trigger + payload);
+dead-code cleanup (attest route, ParticipantAttestationModal, unused
+POST /api/golf/scorecards); messaging keyboard device check.
+
+NEEDS DEVICE/2-ACCOUNT TESTING (Tom): mid-round tab-kill → draft
+restore; airplane-mode Prev → blocked with error; invitee scores
+immediately; creator enters for B, B sees live + attribution; banner
+resumes at first unscored hole; completed round → no banner.
+
 ## July 24, 2026 — Mobile/UI polish pass (full-app audit, 3 tiers)
 
 Tom called a feature freeze until the app feels polished on mobile+web.
