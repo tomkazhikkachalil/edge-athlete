@@ -161,13 +161,24 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         return;
       }
 
-      const profileData = data || null;
-      setProfile(profileData);
-
-      // Update in-memory cache only
-      if (profileData) {
-        setProfileCache(prev => new Map(prev.set(userId, profileData)));
+      if (!data) {
+        // Authenticated session but no profile row. Almost always a STALE
+        // session for a deleted account: getSession() trusts browser storage,
+        // so a JWT can outlive its user. Ask the auth server — a deleted
+        // user's token fails getUser() — and drop the dead session, otherwise
+        // the landing page spins on "Welcome back" forever (user set,
+        // profile forever null, redirect never fires).
+        const { error: userError } = await supabase.auth.getUser();
+        if (userError) {
+          await supabase.auth.signOut().catch(() => {});
+          setUser(null);
+        }
+        setProfile(null);
+        return;
       }
+
+      setProfile(data);
+      setProfileCache(prev => new Map(prev.set(userId, data)));
     } catch {
       // Error in fetchProfile
       setProfile(null);

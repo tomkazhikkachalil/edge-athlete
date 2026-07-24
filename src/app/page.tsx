@@ -57,8 +57,11 @@ export default function Home() {
     );
   }
 
-  // If user is authenticated, show loading until redirect happens
-  if (user) {
+  // If user is authenticated, show loading until redirect happens. Requires
+  // the profile too: the redirect effect waits for BOTH, so user-without-
+  // profile (a session whose account no longer exists) must fall through to
+  // the login form instead of spinning forever.
+  if (user && profile) {
     return (
       <div className="min-h-screen bg-blue-50 flex items-center justify-center">
         <div className="text-center">
