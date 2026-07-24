@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseAdmin, requireAuth } from '@/lib/auth-server';
 import { canViewProfile } from '@/lib/privacy';
+import { isActiveParticipant } from '@/lib/golf/round-status';
+import { aggregateGolfHighlights, type CompletedRoundLike } from '@/lib/golf/stats-aggregate';
 
 export async function GET(request: NextRequest) {
   try {
@@ -57,77 +59,58 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Failed to fetch golf data' }, { status: 500 });
     }
 
-    // Calculate stats from rounds
+    // Solo completed rounds (posted via the scorecard form)
     const completedRounds = (rounds || []).filter(r =>
       r.gross_score && r.holes === 18
     );
 
-    // Get scores
-    const scores = completedRounds
-      .map(r => r.gross_score)
-      .filter((s): s is number => s !== null && s !== undefined);
+    const soloRoundLikes: CompletedRoundLike[] = completedRounds.map(r => ({
+      grossScore: r.gross_score as number,
+      date: r.date,
+      source: 'solo',
+      fir: r.fir_percentage,
+      gir: r.gir_percentage,
+      putts: r.total_putts,
+    }));
 
-    // Last 5 rounds average
-    const last5Scores = scores.slice(0, 5);
-    const last5Avg = last5Scores.length > 0
-      ? Math.round((last5Scores.reduce((a, b) => a + b, 0) / last5Scores.length) * 10) / 10
-      : null;
+    // Shared-round scores: multi-player rounds live in group_posts /
+    // golf_participant_scores and NEVER write golf_rounds — without this
+    // query the profile tiles silently ignore every shared round the athlete
+    // played. Only fully-scored 18-hole rounds count (same rule as solo).
+    // Per-hole FIR/GIR/putts for shared rounds is a follow-up.
+    const { data: sharedRows, error: sharedError } = await supabase
+      .from('group_post_participants')
+      .select(`
+        status,
+        group_post:group_post_id (
+          type,
+          date,
+          golf_data:golf_scorecard_data ( holes_played )
+        ),
+        scores:golf_participant_scores ( total_score, holes_completed )
+      `)
+      .eq('profile_id', profileId);
 
-    // Best 18-hole score
-    const best18 = scores.length > 0 ? Math.min(...scores) : null;
+    if (sharedError) {
+      // Solo stats still render — log and continue rather than failing the tiles
+      console.error('Error fetching shared-round scores:', sharedError);
+    }
 
-    // FIR percentage (average across rounds that have it)
-    const firValues = completedRounds
-      .map(r => r.fir_percentage)
-      .filter((f): f is number => f !== null && f !== undefined);
-    const avgFir = firValues.length > 0
-      ? Math.round(firValues.reduce((a, b) => a + b, 0) / firValues.length)
-      : null;
+    const sharedRoundLikes: CompletedRoundLike[] = (sharedRows || [])
+      .map((row): CompletedRoundLike | null => {
+        if (!isActiveParticipant(row.status)) return null;
+        const gp = Array.isArray(row.group_post) ? row.group_post[0] : row.group_post;
+        if (!gp || gp.type !== 'golf_round' || !gp.date) return null;
+        const golfData = Array.isArray(gp.golf_data) ? gp.golf_data[0] : gp.golf_data;
+        if (golfData?.holes_played !== 18) return null;
+        const scores = Array.isArray(row.scores) ? row.scores[0] : row.scores;
+        if (!scores?.total_score || scores.holes_completed !== 18) return null;
+        return { grossScore: scores.total_score, date: gp.date, source: 'shared' };
+      })
+      .filter((r): r is CompletedRoundLike => r !== null);
 
-    // GIR percentage (average across rounds that have it)
-    const girValues = completedRounds
-      .map(r => r.gir_percentage)
-      .filter((g): g is number => g !== null && g !== undefined);
-    const avgGir = girValues.length > 0
-      ? Math.round(girValues.reduce((a, b) => a + b, 0) / girValues.length)
-      : null;
-
-    // Average putts per round
-    const puttValues = completedRounds
-      .map(r => r.total_putts)
-      .filter((p): p is number => p !== null && p !== undefined);
-    const avgPutts = puttValues.length > 0
-      ? Math.round((puttValues.reduce((a, b) => a + b, 0) / puttValues.length) * 10) / 10
-      : null;
-
-    // Build highlights response
-    const highlights = [
-      {
-        label: 'Last 5 Avg',
-        value: last5Avg !== null ? last5Avg.toString() : null,
-        trend: null // Could calculate trend by comparing to previous 5
-      },
-      {
-        label: 'Best 18',
-        value: best18 !== null ? best18.toString() : null
-      },
-      {
-        label: 'FIR%',
-        value: avgFir !== null ? `${avgFir}%` : null
-      },
-      {
-        label: 'GIR%',
-        value: avgGir !== null ? `${avgGir}%` : null
-      },
-      {
-        label: 'Putts/Round',
-        value: avgPutts !== null ? avgPutts.toString() : null
-      },
-      {
-        label: 'Rounds',
-        value: completedRounds.length > 0 ? completedRounds.length.toString() : null
-      }
-    ];
+    const allRoundLikes = [...soloRoundLikes, ...sharedRoundLikes];
+    const highlights = aggregateGolfHighlights(allRoundLikes);
 
     // Build recent activity (for getRecentActivity)
     const recentRounds = (rounds || []).slice(0, 10).map(round => ({
@@ -145,9 +128,11 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({
       highlights,
+      // recentRounds stays solo-only: shared rounds have no par/course_location
+      // in this shape and the activity list renders them via their feed posts
       recentRounds,
-      totalRounds: (rounds || []).length,
-      completedRounds: completedRounds.length
+      totalRounds: (rounds || []).length + sharedRoundLikes.length,
+      completedRounds: allRoundLikes.length
     });
 
   } catch (error) {
