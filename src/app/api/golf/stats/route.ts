@@ -59,14 +59,16 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Failed to fetch golf data' }, { status: 500 });
     }
 
-    // Solo completed rounds (posted via the scorecard form)
+    // Solo completed rounds (posted via the scorecard form) — 9-hole rounds
+    // count too; the aggregator decides which tiles each length may feed
     const completedRounds = (rounds || []).filter(r =>
-      r.gross_score && r.holes === 18
+      r.gross_score && (r.holes === 18 || r.holes === 9)
     );
 
     const soloRoundLikes: CompletedRoundLike[] = completedRounds.map(r => ({
       grossScore: r.gross_score as number,
       date: r.date,
+      holes: r.holes,
       source: 'solo',
       fir: r.fir_percentage,
       gir: r.gir_percentage,
@@ -76,7 +78,7 @@ export async function GET(request: NextRequest) {
     // Shared-round scores: multi-player rounds live in group_posts /
     // golf_participant_scores and NEVER write golf_rounds — without this
     // query the profile tiles silently ignore every shared round the athlete
-    // played. Only fully-scored 18-hole rounds count (same rule as solo).
+    // played. Only fully-scored rounds count (all holes entered).
     // Per-hole FIR/GIR/putts for shared rounds is a follow-up.
     const { data: sharedRows, error: sharedError } = await supabase
       .from('group_post_participants')
@@ -102,10 +104,11 @@ export async function GET(request: NextRequest) {
         const gp = Array.isArray(row.group_post) ? row.group_post[0] : row.group_post;
         if (!gp || gp.type !== 'golf_round' || !gp.date) return null;
         const golfData = Array.isArray(gp.golf_data) ? gp.golf_data[0] : gp.golf_data;
-        if (golfData?.holes_played !== 18) return null;
+        const holes = golfData?.holes_played;
+        if (holes !== 18 && holes !== 9) return null;
         const scores = Array.isArray(row.scores) ? row.scores[0] : row.scores;
-        if (!scores?.total_score || scores.holes_completed !== 18) return null;
-        return { grossScore: scores.total_score, date: gp.date, source: 'shared' };
+        if (!scores?.total_score || scores.holes_completed !== holes) return null;
+        return { grossScore: scores.total_score, date: gp.date, holes, source: 'shared' };
       })
       .filter((r): r is CompletedRoundLike => r !== null);
 

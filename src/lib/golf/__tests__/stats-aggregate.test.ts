@@ -2,9 +2,9 @@ import { describe, it, expect } from 'vitest';
 import { aggregateGolfHighlights, type CompletedRoundLike } from '../stats-aggregate';
 
 const solo = (grossScore: number, date: string, extra: Partial<CompletedRoundLike> = {}): CompletedRoundLike =>
-  ({ grossScore, date, source: 'solo', ...extra });
-const shared = (grossScore: number, date: string): CompletedRoundLike =>
-  ({ grossScore, date, source: 'shared' });
+  ({ grossScore, date, holes: 18, source: 'solo', ...extra });
+const shared = (grossScore: number, date: string, holes = 18): CompletedRoundLike =>
+  ({ grossScore, date, holes, source: 'shared' });
 
 const tile = (tiles: ReturnType<typeof aggregateGolfHighlights>, label: string) =>
   tiles.find(t => t.label === label)?.value;
@@ -67,5 +67,27 @@ describe('aggregateGolfHighlights', () => {
       shared(82, '2026-07-01'), // no putts — must not drag the average
     ]);
     expect(tile(tiles, 'Putts/Round')).toBe('30');
+  });
+
+  it('9-hole rounds: count in Rounds and FIR/GIR, but never score or putts tiles', () => {
+    const tiles = aggregateGolfHighlights([
+      solo(80, '2026-07-03', { fir: 60, putts: 32 }),
+      // Newest round is 9-hole: a 42 must not enter Last 5 Avg / Best 18,
+      // and its 15 putts must not drag Putts/Round; its FIR% counts.
+      solo(42, '2026-07-04', { holes: 9, fir: 40, putts: 15 }),
+      shared(41, '2026-07-05', 9),
+    ]);
+    expect(tile(tiles, 'Rounds')).toBe('3');
+    expect(tile(tiles, 'Last 5 Avg')).toBe('80');
+    expect(tile(tiles, 'Best 18')).toBe('80');
+    expect(tile(tiles, 'Putts/Round')).toBe('32');
+    expect(tile(tiles, 'FIR%')).toBe('50%');
+  });
+
+  it('9-hole-only profile: Rounds populates, score tiles stay null', () => {
+    const tiles = aggregateGolfHighlights([solo(42, '2026-07-01', { holes: 9 })]);
+    expect(tile(tiles, 'Rounds')).toBe('1');
+    expect(tile(tiles, 'Last 5 Avg')).toBeNull();
+    expect(tile(tiles, 'Best 18')).toBeNull();
   });
 });
