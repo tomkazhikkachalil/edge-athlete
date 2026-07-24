@@ -1,5 +1,36 @@
 # Development Log
 
+## July 23, 2026 — Live-scoring foundation: useSharedRound + Realtime
+
+The seam the group-golf audit called for, and the groundwork for the
+live-scoring vision (real-time scores, then game formats on top).
+
+- NEW src/hooks/useSharedRound.ts: single source of truth for a shared
+  round's live state. Seeds from the scorecard the feed already loaded
+  (no extra mount fetch); subscribes to Supabase Realtime on
+  golf_participant_scores (client-side filtered to THIS round's
+  participant ids via a ref, so scores entered by ANY player stream in
+  live — leaderboard updates for everyone watching, not just the
+  entrant); exposes refresh() for imperative post-save updates.
+  Subscription gated by `enabled` so the feed doesn't open a channel per
+  card (on only while the full card / score entry is open).
+- Migration 031: adds golf_participant_scores to the supabase_realtime
+  publication (idempotent guard). Realtime respects RLS — the migration-
+  004 SELECT policy already scopes score visibility to the round's
+  participants/creator, so live events reach exactly the right people;
+  non-participant spectators fall back to seeded data + refresh. PENDING:
+  run in Supabase. Nothing breaks if unrun — the subscription just never
+  fires. Also needs Realtime enabled for the table in the Supabase
+  dashboard if not already (same as messages).
+- PostCard: replaced the ad-hoc scorecardOverride state with the hook —
+  ONE seam now owns shared-round state + live updates + the post-score
+  refresh (was a manual refetch). Behavior preserved for the solo case;
+  additive live updates for co-players.
+- tsc/lint/test(32)/build all clean.
+- NEXT for full live scoring (future): per-hole live entry UI during a
+  round, game-format strategies (match/stableford) on lib/golf/scoring,
+  an in-progress round status + "live" badge. The state/Realtime plumbing
+  is now in place for all of it.
 ## July 23, 2026 — Sprint 6 FINAL: zod input validation (pattern + first routes)
 
 Roadmap's last item. It's explicitly incremental — the risk is a schema

@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef, memo } from 'react';
 import { formatDistanceToNow } from 'date-fns';
 import { useRouter } from 'next/navigation';
+import { useSharedRound } from '@/hooks/useSharedRound';
 import LazyImage from './LazyImage';
 import ConfirmModal from './ConfirmModal';
 import CommentSection from './CommentSection';
@@ -88,9 +89,6 @@ function PostCard({
 }: PostCardProps) {
   const router = useRouter();
   const [currentMediaIndex, setCurrentMediaIndex] = useState(0);
-  // Local override after score entry — replaces the old full-page reload
-  const [scorecardOverride, setScorecardOverride] = useState<CompleteGolfScorecard | null>(null);
-  const groupScorecard = scorecardOverride ?? post.group_scorecard;
   const [isLiked, setIsLiked] = useState(
     post.likes?.some(like => like.profile_id === currentUserId) || false
   );
@@ -103,6 +101,17 @@ function PostCard({
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [showFullScorecard, setShowFullScorecard] = useState(false);
   const [showScoreEntry, setShowScoreEntry] = useState(false);
+
+  // Shared-round live state (the live-scoring seam). Seeds from the scorecard
+  // the feed loaded; subscribes to Realtime while the full card or score entry
+  // is open so scores stream in live. refreshScorecard() updates it imperatively
+  // right after you save.
+  const { scorecard: groupScorecard, refresh: refreshScorecard } = useSharedRound({
+    groupPostId: post.group_scorecard?.group_post.id ?? null,
+    postId: post.id,
+    initialScorecard: post.group_scorecard ?? null,
+    enabled: showFullScorecard || showScoreEntry,
+  });
   const [scoreEntryParticipantId, setScoreEntryParticipantId] = useState<string | null>(null);
   const [commentSectionOpen, setCommentSectionOpen] = useState(false);
   const [showShareModal, setShowShareModal] = useState(false);
@@ -607,16 +616,10 @@ function PostCard({
                 throw new Error(data.error || 'Failed to save scores');
               }
 
-              // Targeted refresh: refetch just this post and swap in the
-              // updated scorecard (a full page reload threw the whole feed
-              // away — and is a dead end for future live scoring).
-              const refreshed = await fetch(`/api/posts?postId=${post.id}`);
-              if (refreshed.ok) {
-                const refreshedData = await refreshed.json();
-                if (refreshedData.post?.group_scorecard) {
-                  setScorecardOverride(refreshedData.post.group_scorecard);
-                }
-              }
+              // Update the shared-round state through the single seam. Other
+              // players watching this round get the same update live via the
+              // hook's Realtime subscription.
+              await refreshScorecard();
               setShowScoreEntry(false);
               setScoreEntryParticipantId(null);
               setShowFullScorecard(true);
