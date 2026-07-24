@@ -66,15 +66,24 @@ export async function DELETE(request: NextRequest) {
       }
     }
 
-    // Get user's post media paths
-    const { data: postMedia } = await supabaseAdmin
-      .from('post_media')
-      .select('media_url')
+    // Get user's post media paths. post_media has NO profile_id column —
+    // it links to posts via post_id — so this must go through the user's
+    // posts. (The old profile_id filter matched nothing, which silently
+    // orphaned every media file in storage.)
+    const { data: userPosts } = await supabaseAdmin
+      .from('posts')
+      .select('id')
       .eq('profile_id', userId);
+    const userPostIds = (userPosts || []).map(p => p.id);
 
-    if (postMedia && postMedia.length > 0) {
-      const mediaPaths = postMedia
-        .map(m => m.media_url.split('/post-media/')[1])
+    if (userPostIds.length > 0) {
+      const { data: postMedia } = await supabaseAdmin
+        .from('post_media')
+        .select('media_url')
+        .in('post_id', userPostIds);
+
+      const mediaPaths = (postMedia || [])
+        .map(m => m.media_url?.split('/post-media/')[1])
         .filter(Boolean);
 
       if (mediaPaths.length > 0) {
@@ -105,8 +114,7 @@ export async function DELETE(request: NextRequest) {
       await supabaseAdmin.from('follows').delete().eq('following_id', userId);
 
       // Delete sport-specific data
-      // Golf
-      await supabaseAdmin.from('golf_holes').delete().eq('profile_id', userId);
+      // Golf (golf_holes has no profile_id — it cascades from golf_rounds)
       await supabaseAdmin.from('golf_rounds').delete().eq('profile_id', userId);
 
       // Generic sport data
@@ -118,13 +126,13 @@ export async function DELETE(request: NextRequest) {
       // Delete club associations
       await supabaseAdmin.from('athlete_clubs').delete().eq('athlete_id', userId);
 
-      // Delete group post participations
-      await supabaseAdmin.from('group_post_participants').delete().eq('participant_id', userId);
+      // Delete group-round involvement: participant rows key on profile_id
+      // (the old 'participant_id' filter hit a nonexistent column), and
+      // rounds this user created — their participants/scorecards cascade.
+      await supabaseAdmin.from('group_post_participants').delete().eq('profile_id', userId);
+      await supabaseAdmin.from('group_posts').delete().eq('creator_id', userId);
 
-      // Delete media metadata
-      await supabaseAdmin.from('post_media').delete().eq('profile_id', userId);
-
-      // Delete posts (cascade will handle related data)
+      // Delete posts (post_media, likes and comments cascade via post_id)
       await supabaseAdmin.from('posts').delete().eq('profile_id', userId);
 
       // Delete profile (this should trigger CASCADE to auth.users via FK)
