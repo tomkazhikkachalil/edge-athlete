@@ -1,5 +1,17 @@
 # Development Log
 
+## July 23, 2026 — Maintenance checklist + sync (post zod-fix)
+
+- `npm ci --dry-run` — clean, no peer conflicts (the Vercel-install-parity
+  check now standard after the zod v4/openai failure).
+- `npm run lint` — zero warnings/errors.
+- `npm run typecheck` — clean (exit 0).
+- `npm run test` — 32 passed (3 files: scoring, handicap, validation).
+- `npm run build` — exit 0 from a fresh `.next`.
+- Working tree already in sync with origin (zod fix 05795fc pushed). This
+  entry is the maintenance-log commit. Pushed main → GitHub → Vercel.
+- Open optional items (unchanged): Sentry/Upstash/SMTP+CRON env + ADMIN_
+  EMAILS in Vercel. Migration 031 already run (live scoring on).
 ## July 23, 2026 — FIX: Vercel production build failing (zod peer conflict)
 
 Root cause of "failed to get production": the Sprint 6 zod add pulled in
