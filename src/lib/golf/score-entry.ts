@@ -21,3 +21,144 @@ export function firstUnscoredHole(
   }
   return holesPlayed;
 }
+
+// ── Draft persistence ─────────────────────────────────────────────────────────
+// A typed-but-not-yet-saved hole lives only in React state; refresh/tab-kill
+// loses it. The draft mirrors dirty holes into localStorage so the modal can
+// restore them on reopen. Belt (draft) + suspenders (keepalive flush on
+// pagehide): iOS doesn't reliably fire pagehide on tab-kill, and localStorage
+// can be unavailable in private mode — each mechanism covers the other's gap.
+
+export interface DraftHole {
+  strokes: number | null;
+  putts: number | null;
+  fairway_hit: boolean | null;
+  green_in_regulation: boolean | null;
+}
+
+export interface ScoreDraft {
+  v: 1;
+  participantId: string;
+  savedAt: number;
+  /** Keyed by hole_number (stable across sessions, unlike modal positions). */
+  holes: Record<number, DraftHole>;
+}
+
+/** Drafts older than this are stale garbage, not a round in progress
+ *  (mirrors the round-status LIVE window). */
+export const DRAFT_TTL_MS = 48 * 60 * 60 * 1000;
+
+export function draftKey(participantId: string): string {
+  return `ea:golf-draft:v1:${participantId}`;
+}
+
+/**
+ * Parse + validate a raw draft string. Pure (testable without a DOM).
+ * Returns null for garbage, wrong participant, or expired drafts.
+ */
+export function parseDraft(
+  raw: string | null,
+  participantId: string,
+  now: number = Date.now()
+): ScoreDraft | null {
+  if (!raw) return null;
+  try {
+    const d = JSON.parse(raw) as ScoreDraft;
+    if (
+      !d || d.v !== 1 ||
+      d.participantId !== participantId ||
+      typeof d.savedAt !== 'number' ||
+      now - d.savedAt > DRAFT_TTL_MS ||
+      !d.holes || typeof d.holes !== 'object' || Array.isArray(d.holes)
+    ) {
+      return null;
+    }
+    return d;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Merge a draft into the modal's seeded holes. THE RULE: a draft hole applies
+ * only when that hole is ABSENT from existingScores — anything the server has
+ * was saved as typed, and resurrecting a stale local edit over fresher server
+ * data is the worse failure. (Tradeoff: an edit to an already-saved hole that
+ * dies with the tab is lost; the keepalive flush covers most of those.)
+ * Returns the merged array plus which hole NUMBERS were restored.
+ */
+export function mergeDraftIntoHoles<T extends { hole_number: number | null } & DraftHole>(
+  holes: T[],
+  draft: ScoreDraft | null,
+  existingScores: Array<{ hole_number: number }>
+): { holes: T[]; restored: number[] } {
+  if (!draft) return { holes, restored: [] };
+  const onServer = new Set(existingScores.map(s => s.hole_number));
+  const restored: number[] = [];
+  const merged = holes.map(h => {
+    if (h.hole_number === null) return h;
+    const d = draft.holes[h.hole_number];
+    if (!d || onServer.has(h.hole_number)) return h;
+    if (d.strokes === null && d.putts === null && d.fairway_hit === null && d.green_in_regulation === null) {
+      return h;
+    }
+    restored.push(h.hole_number);
+    return { ...h, strokes: d.strokes, putts: d.putts, fairway_hit: d.fairway_hit, green_in_regulation: d.green_in_regulation };
+  });
+  return { holes: merged, restored };
+}
+
+// ── Storage wrappers (private-mode safe, SSR safe) ────────────────────────────
+// Same defensive pattern as GifPicker's recents: localStorage access can throw
+// (private mode, quota, disabled) — every touch is try/catch, failure is a
+// silent no-op (the draft is best-effort by design).
+
+function storage(): Storage | null {
+  try {
+    if (typeof window !== 'undefined' && window.localStorage) return window.localStorage;
+  } catch { /* disabled */ }
+  return null;
+}
+
+export function readDraft(participantId: string, now: number = Date.now()): ScoreDraft | null {
+  const s = storage();
+  if (!s) return null;
+  try {
+    return parseDraft(s.getItem(draftKey(participantId)), participantId, now);
+  } catch {
+    return null;
+  }
+}
+
+export function writeDraft(
+  participantId: string,
+  holes: Record<number, DraftHole>,
+  now: number = Date.now()
+): void {
+  const s = storage();
+  if (!s) return;
+  try {
+    if (Object.keys(holes).length === 0) {
+      s.removeItem(draftKey(participantId));
+      return;
+    }
+    const draft: ScoreDraft = { v: 1, participantId, savedAt: now, holes };
+    s.setItem(draftKey(participantId), JSON.stringify(draft));
+  } catch { /* best-effort */ }
+}
+
+export function removeHoleFromDraft(participantId: string, holeNumber: number): void {
+  const existing = readDraft(participantId);
+  if (!existing || !(holeNumber in existing.holes)) return;
+  const holes = { ...existing.holes };
+  delete holes[holeNumber];
+  writeDraft(participantId, holes, existing.savedAt);
+}
+
+export function clearDraft(participantId: string): void {
+  const s = storage();
+  if (!s) return;
+  try {
+    s.removeItem(draftKey(participantId));
+  } catch { /* best-effort */ }
+}

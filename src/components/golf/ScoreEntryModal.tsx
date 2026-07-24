@@ -1,8 +1,16 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { holePar } from '@/lib/golf/scoring';
-import { firstUnscoredHole } from '@/lib/golf/score-entry';
+import {
+  firstUnscoredHole,
+  readDraft,
+  writeDraft,
+  removeHoleFromDraft,
+  clearDraft,
+  mergeDraftIntoHoles,
+  type DraftHole,
+} from '@/lib/golf/score-entry';
 import { useBodyScrollLock } from '@/hooks/useBodyScrollLock';
 import type { GolfHoleScore } from '@/types/group-posts';
 import type { HoleData } from '@/types/golf';
@@ -36,7 +44,7 @@ interface ScoreEntryModalProps {
 
 export default function ScoreEntryModal({
   groupPostId: _groupPostId, // eslint-disable-line @typescript-eslint/no-unused-vars
-  participantId: _participantId, // eslint-disable-line @typescript-eslint/no-unused-vars
+  participantId,
   holesPlayed,
   startingHoleNumber = 1,
   existingScores = [],
@@ -48,29 +56,16 @@ export default function ScoreEntryModal({
   // Mounted only while open — lock background scroll for the whole lifetime
   useBodyScrollLock();
 
-  // Resume where the round left off: a returning player who saved 6 holes
-  // lands on hole 7, not hole 1.
-  const [currentHole, setCurrentHole] = useState(
-    () => firstUnscoredHole(existingScores, holesPlayed, startingHoleNumber)
-  );
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  // Live-mode per-hole persistence state. Holes present in existingScores
-  // start "saved"; any local edit marks a hole dirty until it re-saves.
-  const [savedHoles, setSavedHoles] = useState<Set<number>>(
-    () => new Set(existingScores.map(s => s.hole_number))
-  );
-  const [dirtyHoles, setDirtyHoles] = useState<Set<number>>(new Set());
-  const [savingHole, setSavingHole] = useState<number | null>(null);
-
-  // Initialize hole data
-  const [holeData, setHoleData] = useState<HoleData[]>(() => {
-    const holes: HoleData[] = [];
+  // Seed holes from the server's scores, then restore any localStorage draft
+  // (typed-but-never-saved holes from a killed tab). The merge only applies
+  // draft holes the server does NOT have — see mergeDraftIntoHoles. Computed
+  // once via lazy state so holeData / dirty set / starting hole stay coherent.
+  const [initialSession] = useState(() => {
+    const base: HoleData[] = [];
     for (let i = 1; i <= holesPlayed; i++) {
       const holeNumber = startingHoleNumber + i - 1;
       const existing = existingScores.find(s => s.hole_number === holeNumber);
-      holes.push({
+      base.push({
         hole_number: holeNumber,
         strokes: existing?.strokes ?? null,
         putts: existing?.putts ?? null,
@@ -79,20 +74,117 @@ export default function ScoreEntryModal({
         par: holePar(i, null), // shared fallback (no course hole data in this modal yet)
       });
     }
-    return holes;
+    const { holes, restored } = mergeDraftIntoHoles(
+      base as Array<HoleData & DraftHole & { hole_number: number | null }>,
+      readDraft(participantId),
+      existingScores
+    );
+    // Restored draft holes are "dirty": they exist locally but not on the
+    // server, so the next advance persists them. Sets are keyed by POSITION
+    // (1..holesPlayed), matching currentHole; convert from hole numbers.
+    const toPos = (holeNumber: number) => holeNumber - startingHoleNumber + 1;
+    return {
+      holes: holes as HoleData[],
+      dirty: new Set(restored.map(toPos)),
+      // Resume at the first hole with no strokes AFTER the draft merge
+      start: firstUnscoredHole(
+        holes.filter(h => h.strokes !== null && h.hole_number !== null) as Array<{ hole_number: number }>,
+        holesPlayed,
+        startingHoleNumber
+      ),
+    };
   });
+
+  const [currentHole, setCurrentHole] = useState(initialSession.start);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  // Per-hole persistence state, keyed by POSITION. Holes present in
+  // existingScores start "saved"; any local edit marks a hole dirty until it
+  // re-saves.
+  const [savedHoles, setSavedHoles] = useState<Set<number>>(
+    () => new Set(existingScores.map(s => s.hole_number - startingHoleNumber + 1))
+  );
+  const [dirtyHoles, setDirtyHoles] = useState<Set<number>>(initialSession.dirty);
+  const [savingHole, setSavingHole] = useState<number | null>(null);
+
+  const [holeData, setHoleData] = useState<HoleData[]>(initialSession.holes);
 
   const currentHoleData = holeData[currentHole - 1];
 
+  // Best-effort flush of the current dirty hole when the page is being left
+  // (navigate away, tab switch, tab kill where the browser cooperates).
+  // keepalive lets the request outlive the page. Fire-and-forget: success is
+  // unconfirmed, so the draft is NOT cleared here — if the flush landed, the
+  // next open sees the hole in existingScores and the merge drops the draft
+  // copy; if it didn't, the draft restores it. Refs keep the listener stable
+  // across keystrokes. Live mode only (batch mode has no per-hole endpoint
+  // contract; its draft still protects typed input).
+  const flushRef = useRef({ holeData, dirtyHoles, currentHole });
+  useEffect(() => {
+    flushRef.current = { holeData, dirtyHoles, currentHole };
+  }, [holeData, dirtyHoles, currentHole]);
+
+  useEffect(() => {
+    if (!isLive) return;
+
+    const flush = () => {
+      const { holeData: holes, dirtyHoles: dirty, currentHole: pos } = flushRef.current;
+      const hole = holes[pos - 1];
+      if (!dirty.has(pos) || !hole || hole.strokes === null || hole.hole_number === null) return;
+      try {
+        fetch(`/api/golf/scorecards/${participantId}/scores`, {
+          method: 'POST',
+          keepalive: true,
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            scores: [{
+              hole_number: hole.hole_number,
+              strokes: hole.strokes,
+              putts: hole.putts ?? undefined,
+              fairway_hit: hole.fairway_hit ?? undefined,
+              green_in_regulation: hole.green_in_regulation ?? undefined,
+            }],
+          }),
+        }).catch(() => { /* page is going away — nothing to do */ });
+      } catch { /* best-effort */ }
+    };
+
+    const onVisibility = () => {
+      if (document.visibilityState === 'hidden') flush();
+    };
+    window.addEventListener('pagehide', flush);
+    document.addEventListener('visibilitychange', onVisibility);
+    return () => {
+      window.removeEventListener('pagehide', flush);
+      document.removeEventListener('visibilitychange', onVisibility);
+    };
+  }, [isLive, participantId]);
+
   const updateCurrentHole = (field: keyof HoleData, value: number | boolean | null) => {
-    setHoleData(prev => prev.map((h, idx) =>
+    const next = holeData.map((h, idx) =>
       idx === currentHole - 1 ? { ...h, [field]: value } : h
-    ));
-    // In live mode, editing a hole marks it dirty (needs a re-save on advance)
-    if (isLive) {
-      setDirtyHoles(prev => new Set(prev).add(currentHole));
-    }
+    );
+    const nextDirty = new Set(dirtyHoles).add(currentHole);
+    setHoleData(next);
+    // Editing a hole marks it dirty (live: needs a re-save on advance)
+    setDirtyHoles(nextDirty);
     setError(null);
+    // Mirror every dirty hole into the localStorage draft so a refresh or
+    // killed tab can't lose typed-but-unsaved input. Best-effort.
+    const draftHoles: Record<number, DraftHole> = {};
+    for (const pos of nextDirty) {
+      const h = next[pos - 1];
+      if (h?.hole_number != null) {
+        draftHoles[h.hole_number] = {
+          strokes: h.strokes ?? null,
+          putts: h.putts ?? null,
+          fairway_hit: h.fairway_hit ?? null,
+          green_in_regulation: h.green_in_regulation ?? null,
+        };
+      }
+    }
+    writeDraft(participantId, draftHoles);
   };
 
   const handleStrokeClick = (strokes: number) => {
@@ -123,6 +215,8 @@ export default function ScoreEntryModal({
       });
       setSavedHoles(prev => new Set(prev).add(holeNum));
       setDirtyHoles(prev => { const n = new Set(prev); n.delete(holeNum); return n; });
+      // Server has it now — the draft copy is obsolete
+      if (hole.hole_number != null) removeHoleFromDraft(participantId, hole.hole_number);
       return true;
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to save this hole');
@@ -169,7 +263,12 @@ export default function ScoreEntryModal({
     setSaving(true);
     const ok = await persistHole(currentHole);
     setSaving(false);
-    if (ok) onClose();
+    if (ok) {
+      // Navigation blocks on failed saves, so only the current hole can be
+      // dirty — and it just saved. Nothing left for the draft to protect.
+      clearDraft(participantId);
+      onClose();
+    }
   };
 
   const handleSave = async () => {
@@ -196,6 +295,7 @@ export default function ScoreEntryModal({
         }));
 
       await onSave(scores);
+      clearDraft(participantId);
       onClose();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to save scores');

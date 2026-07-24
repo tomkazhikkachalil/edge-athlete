@@ -1,5 +1,12 @@
 import { describe, it, expect } from 'vitest';
-import { firstUnscoredHole } from '../score-entry';
+import {
+  firstUnscoredHole,
+  parseDraft,
+  mergeDraftIntoHoles,
+  DRAFT_TTL_MS,
+  type ScoreDraft,
+  type DraftHole,
+} from '../score-entry';
 
 const scores = (...holes: number[]) => holes.map(hole_number => ({ hole_number }));
 
@@ -38,5 +45,85 @@ describe('firstUnscoredHole', () => {
 
   it('degrades safely on malformed holesPlayed', () => {
     expect(firstUnscoredHole([], 0)).toBe(1);
+  });
+});
+
+const NOW = 1_800_000_000_000;
+const draftHole = (strokes: number | null): DraftHole =>
+  ({ strokes, putts: null, fairway_hit: null, green_in_regulation: null });
+const validDraft = (over: Partial<ScoreDraft> = {}): string => JSON.stringify({
+  v: 1,
+  participantId: 'p1',
+  savedAt: NOW - 1000,
+  holes: { 7: draftHole(5) },
+  ...over,
+});
+
+describe('parseDraft', () => {
+  it('accepts a valid draft', () => {
+    const d = parseDraft(validDraft(), 'p1', NOW);
+    expect(d?.holes[7].strokes).toBe(5);
+  });
+
+  it('rejects null, garbage JSON, and wrong shapes', () => {
+    expect(parseDraft(null, 'p1', NOW)).toBeNull();
+    expect(parseDraft('not json{', 'p1', NOW)).toBeNull();
+    expect(parseDraft('"a string"', 'p1', NOW)).toBeNull();
+    expect(parseDraft(JSON.stringify({ v: 2 }), 'p1', NOW)).toBeNull();
+    expect(parseDraft(validDraft({ holes: [1, 2] as unknown as ScoreDraft['holes'] }), 'p1', NOW)).toBeNull();
+  });
+
+  it('rejects another participant\'s draft', () => {
+    expect(parseDraft(validDraft(), 'p2', NOW)).toBeNull();
+  });
+
+  it('rejects expired drafts (48h TTL)', () => {
+    expect(parseDraft(validDraft({ savedAt: NOW - DRAFT_TTL_MS - 1 }), 'p1', NOW)).toBeNull();
+    expect(parseDraft(validDraft({ savedAt: NOW - DRAFT_TTL_MS + 1000 }), 'p1', NOW)).not.toBeNull();
+  });
+});
+
+describe('mergeDraftIntoHoles', () => {
+  const hole = (hole_number: number | null, strokes: number | null = null) => ({
+    hole_number, strokes, putts: null, fairway_hit: null, green_in_regulation: null,
+  });
+  const draft = (holes: Record<number, DraftHole>): ScoreDraft =>
+    ({ v: 1, participantId: 'p1', savedAt: NOW, holes });
+
+  it('restores a draft hole the server does not have', () => {
+    const { holes, restored } = mergeDraftIntoHoles(
+      [hole(1, 4), hole(2)],
+      draft({ 2: draftHole(6) }),
+      [{ hole_number: 1 }]
+    );
+    expect(holes[1].strokes).toBe(6);
+    expect(restored).toEqual([2]);
+  });
+
+  it('NEVER overwrites a hole the server has (stale-edit protection)', () => {
+    const { holes, restored } = mergeDraftIntoHoles(
+      [hole(1, 4)],
+      draft({ 1: draftHole(9) }),
+      [{ hole_number: 1 }]
+    );
+    expect(holes[0].strokes).toBe(4);
+    expect(restored).toEqual([]);
+  });
+
+  it('skips all-null draft entries and null draft', () => {
+    const { restored } = mergeDraftIntoHoles(
+      [hole(3)],
+      draft({ 3: draftHole(null) }),
+      []
+    );
+    expect(restored).toEqual([]);
+    expect(mergeDraftIntoHoles([hole(1)], null, []).restored).toEqual([]);
+  });
+
+  it('restores putts-only input (partial hole worth protecting)', () => {
+    const d = draft({ 4: { strokes: null, putts: 2, fairway_hit: null, green_in_regulation: null } });
+    const { holes, restored } = mergeDraftIntoHoles([hole(4)], d, []);
+    expect(holes[0].putts).toBe(2);
+    expect(restored).toEqual([4]);
   });
 });
