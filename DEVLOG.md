@@ -20,6 +20,25 @@ hand-verified against production data during Sprint 3.
   and the real prod differentials (-0.3 / 12.2 / 9.5).
 - All 25 green in ~140ms; no external services, so CI stays fast/hermetic.
 
+Sprint 6 — migration hygiene + dead-code sweep:
+- Migration hygiene: consolidated to ONE migrations dir. Moved stray SQL
+  (database-migrations/, supabase/migrations/, 2 root fix-*.sql) into
+  database/archive/loose-legacy/ via git mv (history preserved); removed
+  the now-empty stray dirs. Added database/MIGRATIONS.md (canonical
+  001-030 index + workflow + the migration-022 pg_proc lesson) and a
+  loud database/archive/DO_NOT_RUN.md citing the tagging-broke-prod
+  incident. Retires the "archived script breaks prod" hazard the surveys
+  flagged twice.
+- Dead code: deleted CreatePostModalSteps.tsx (imported by NOTHING) and
+  EnhancedGolfForm.tsx (its only importer) — a dead parallel golf-entry
+  path; active flow is CreatePostModal + GolfScorecardForm. Deleted root
+  cruft clear-cache.html + run-sql-fix.html (zero references).
+- Starter DNA: package name ai-starter → edge-athlete; README rewritten
+  (was Codespaces boilerplate → real project quick-start). (APP_NAME
+  "AI Demo App" was already gone from the Sprint 1 .env.example rewrite.)
+- Verified unused-ness by grep before every deletion; tsc/lint/test/
+  build all clean after.
+
 ## July 23, 2026 — Sprint 5: trust & support (items 1–3)
 
 - Settings → Notifications tab LIVE (was a "Coming Soon" stub): toggle
