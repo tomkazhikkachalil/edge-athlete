@@ -1,5 +1,52 @@
 # Development Log
 
+## July 24, 2026 — Mobile/UI polish pass (full-app audit, 3 tiers)
+
+Tom called a feature freeze until the app feels polished on mobile+web.
+Workflow: 3 read-only audit agents (modals/overlays, feed+chrome,
+pages/flows) → every claim personally verified in code → fixes landed
+HIGH → MEDIUM → LOW, one clean-build commit per tier.
+
+- HIGH (0ddbdfb): NotificationBell dropdown hung ~74px off the LEFT
+  screen edge on phones (near-viewport-wide panel anchored right-0 to a
+  bell that has ~90px of header buttons to its right) and horizontally
+  scrolled every page — now a fixed centered panel under the header on
+  mobile. Toast rebuilt (was max-w-5xl/p-10/text-3xl in a width-less
+  centered container with a translate-x-full entrance → transient
+  horizontal overflow); now compact max-w-md, slide-down, z-[70].
+  Deleted dead NotificationsDropdown.tsx (zero imports, same bug).
+- MEDIUM (aa0e8ce): NEW useBodyScrollLock hook (refcounted for stacked
+  modals) on all 15 fullscreen modals; date/datetime-local/time/month
+  added to the iOS zoom rule; NEW .max-h-modal (dvh+vh fallback) on 19
+  modal panels; PostCard name/handle truncation + 44px share/save;
+  comment action hit areas; MultiPlayerScorecardGrid header moved out
+  of the scroll container (controls were off-screen at 360px); game
+  format picker stacks on phones; ConfirmModal/TagPeopleModal/
+  SportSelector z-[60] over parent modals; FollowersModal pills +
+  PostDetailModal controls to real tap sizes; search bar icon-only
+  Filters on phones (input had ~150px typing space); dead "Associated
+  Clubs" placeholder removed from prod signup; signup submit sized to
+  match login.
+- LOW (3525454): optimistic like count (number popped after the heart),
+  vitals-badge double inset, skeleton aspect-video, leader-badge shrink
+  guard, End Round icon-only at 360px, jump-grid/close/dismiss/checkbox
+  tap sizes, PrivateProfileView mobile padding, badge-editor input
+  height.
+
+DEFERRED (documented, not fixed blind):
+- Messaging composer under the mobile keyboard (PLAUSIBLE — h-[100dvh]
+  column, no visualViewport handling; dvh doesn't shrink for the
+  keyboard on iOS). Needs a real-device check before adding a
+  visualViewport handler; a speculative fix could make messaging worse.
+- AddEquipmentModal autocomplete dropdowns can clip inside the scrolling
+  form on short viewports (restructuring the scroll container is
+  riskier than the payoff for an equipment form).
+- hover: color states stick on touch app-wide (cosmetic, pervasive;
+  would need @media(hover:hover) variants everywhere).
+- Golf round page FIR/GIR toggles at 40px — accepted for table density.
+
+tsc/lint/test(59)/build clean per tier. Pushed → Vercel.
+
 ## July 23, 2026 — Game formats: Stableford + Match Play (live scoring phase 2b)
 
 ⚠️ **DEPLOY ORDER: run migration 032 in Supabase BEFORE pushing this commit.**
