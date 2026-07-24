@@ -37,9 +37,9 @@ Sprint 5 item 4 — admin-lite:
 
 Sprint 5 stretch — email notification digests:
 - Migration 030: notification_preferences.last_digest_at watermark.
-  PENDING: run in Supabase (cron queries it — until then digest cron
-  errors on that user query, but it's Bearer-gated so nothing external
-  hits it).
+  VERIFIED LIVE (after Tom ran it): column present + readable, null on
+  both existing rows (correct for a fresh add), zero opted-in users
+  (email_enabled false by default). Cron query path functional.
 - EmailService.sendNotificationDigest (HTML + text); ALSO hardened the
   pre-existing contact email — it interpolated raw user name/email/
   message into HTML (stored-XSS-in-email). New escapeHtml() helper
