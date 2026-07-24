@@ -1,5 +1,25 @@
 # Development Log
 
+## July 23, 2026 — Sprint 6 kickoff: first automated tests (golf math)
+
+The project had ZERO tests. Started the test suite with the highest-ROI,
+zero-external-dep slice: unit tests for the pure golf math libraries that
+the retention engine (trends + handicap) depends on — the exact functions
+hand-verified against production data during Sprint 3.
+
+- Added Vitest (dev dep). Scripts: `test` (vitest run), `test:watch`;
+  `verify` now = typecheck + lint + test + build.
+- CI: test step added between lint and build (runs on every push/PR).
+- 25 tests across scoring.ts + handicap.ts, including REGRESSION LOCKS
+  for the two bugs the migration/hand-verification caught:
+  * classifyScore against real par (the par-4-shadow bug — a 4 on a
+    par 5 must classify as birdie, not par).
+  * isHandicapEligible rejects mislabeled 9-holers (gross 52 as
+    "18 holes" → the round that would've produced a +16.8 "handicap").
+  Plus WHS small-sample table cases, the 20-round window, the 54.0 cap,
+  and the real prod differentials (-0.3 / 12.2 / 9.5).
+- All 25 green in ~140ms; no external services, so CI stays fast/hermetic.
+
 ## July 23, 2026 — Sprint 5: trust & support (items 1–3)
 
 - Settings → Notifications tab LIVE (was a "Coming Soon" stub): toggle
