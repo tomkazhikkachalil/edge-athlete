@@ -9,10 +9,16 @@
 - Working tree already in sync with origin (this session's work —
   roadmap Sprints 1–6, live-scoring foundation + per-hole live entry —
   pushed across prior commits). This entry is the maintenance-log commit.
-- PENDING migrations for Tom to run in Supabase (all no-op-safe until
-  run): 031 (golf_participant_scores → Realtime publication, for live
-  leaderboard push). Earlier optional items still open: Sentry/Upstash/
-  SMTP+CRON env in Vercel, ADMIN_EMAILS in Vercel.
+- Migration 031 (golf_participant_scores → Realtime publication) RUN by
+  Tom. Can't confirm from here the way other migrations were verified —
+  pg_publication_tables is a pg_catalog table PostgREST doesn't expose
+  (PGRST205). Self-check in the Supabase SQL editor: SELECT tablename
+  FROM pg_publication_tables WHERE pubname='supabase_realtime' AND
+  tablename='golf_participant_scores' → expect one row. Note: the
+  ALTER PUBLICATION migration IS the full enablement — no separate
+  dashboard Replication toggle needed. Live leaderboard push is now on.
+- Optional items still open: Sentry/Upstash/SMTP+CRON env in Vercel,
+  ADMIN_EMAILS in Vercel.
 - Pushed `main` → GitHub → Vercel auto-deploy.
 ## July 23, 2026 — Per-hole live-entry UI (live scoring, first feature)
 
