@@ -179,6 +179,14 @@ export default function CreatePostModal({
   // explicit tap on the toggle wins and stops the auto-flip
   const roundTimingTouchedRef = useRef(false);
 
+  // "Playing now" is ONE flow (live round, friends optional) — it always
+  // runs on the shared-round rails, solo just means zero invitees.
+  useEffect(() => {
+    if (postType === 'golf' && !sharedRoundDetails.alreadyPlayed && roundType !== 'shared') {
+      setRoundType('shared');
+    }
+  }, [postType, sharedRoundDetails.alreadyPlayed, roundType]);
+
   // Golf course search for shared rounds
   const [courseSearchOpen, setCourseSearchOpen] = useState(false);
   const [courseSearchQuery, setCourseSearchQuery] = useState('');
@@ -608,7 +616,9 @@ export default function CreatePostModal({
         return (
           sharedRoundDetails.courseName.trim().length > 0 &&
           sharedRoundDetails.date &&
-          sharedRoundParticipants.length > 0
+          // Live ("playing now") rounds can be solo; batch shared rounds
+          // need at least one other player
+          (sharedRoundParticipants.length > 0 || !sharedRoundDetails.alreadyPlayed)
         );
       }
     }
@@ -624,7 +634,7 @@ export default function CreatePostModal({
         const missing: string[] = [];
         if (!sharedRoundDetails.courseName.trim()) missing.push('course name');
         if (!sharedRoundDetails.date) missing.push('date');
-        if (sharedRoundParticipants.length === 0) missing.push('participants');
+        if (sharedRoundParticipants.length === 0 && sharedRoundDetails.alreadyPlayed) missing.push('participants');
         if (sharedRoundDetails.roundTypeIndoorOutdoor === 'outdoor') {
           if (!sharedRoundDetails.weather.trim()) missing.push('weather');
           if (!sharedRoundDetails.temperature.trim()) missing.push('temperature');
@@ -666,6 +676,18 @@ export default function CreatePostModal({
               round_type: sharedRoundDetails.roundTypeIndoorOutdoor,
               game_format: sharedRoundDetails.gameFormat,
               holes_played: sharedRoundDetails.holesPlayed,
+              // Real per-hole pars (course search or manual entry) — powers
+              // honest to-par + the score-entry modal's par display
+              hole_data:
+                courseHoleData.length > 0
+                  ? courseHoleData
+                  : manualParEntry.length > 0 || manualYardageEntry.length > 0
+                  ? Array.from({ length: sharedRoundDetails.holesPlayed }, (_, i) => ({
+                      hole: i + 1,
+                      par: manualParEntry[i] || 4,
+                      yardage: manualYardageEntry[i] || undefined,
+                    }))
+                  : undefined,
               tee_color: sharedRoundDetails.teeColor || undefined,
               weather_conditions: sharedRoundDetails.weather || undefined,
               temperature: sharedRoundDetails.temperature ? parseInt(sharedRoundDetails.temperature) : undefined,
@@ -732,7 +754,15 @@ export default function CreatePostModal({
           showError('Round created, but some scores could not be saved. You can re-enter them from the post.');
         }
 
-        showSuccess('Shared round created successfully! Participants will be notified. 🎉');
+        if (!sharedRoundDetails.alreadyPlayed) {
+          showSuccess(
+            sharedRoundParticipants.length > 0
+              ? 'Round is LIVE! Scores stream to your group as you play. 🔴'
+              : 'Round is LIVE! Enter scores hole by hole from the card in your feed. 🔴'
+          );
+        } else {
+          showSuccess('Round posted! Participants will be notified. 🎉');
+        }
 
         // Call callback to refresh posts
         if (onPostCreated) {
@@ -896,8 +926,52 @@ export default function CreatePostModal({
             </div>
           )}
 
-          {/* Golf Round Type Selection */}
+          {/* Golf: timing first — "Playing now" IS the live path (solo or
+              with friends); "Already played" keeps individual/shared batch */}
           {postType === 'golf' && (
+            <div className="mb-6">
+              <label className="block text-sm font-semibold text-gray-700 mb-3">When is this round?</label>
+              <div className="grid grid-cols-2 gap-3">
+                <button
+                  onClick={() => {
+                    roundTimingTouchedRef.current = true;
+                    setSharedRoundDetails(prev => ({ ...prev, alreadyPlayed: false }));
+                  }}
+                  className={`px-4 py-3 rounded-lg font-semibold transition-all ${
+                    !sharedRoundDetails.alreadyPlayed
+                      ? 'bg-red-600 text-white'
+                      : 'bg-white text-gray-700 border-2 border-gray-300 hover:border-red-300'
+                  }`}
+                >
+                  <span className={`inline-block w-2 h-2 rounded-full mr-2 ${!sharedRoundDetails.alreadyPlayed ? 'bg-white animate-pulse' : 'bg-red-500'}`}></span>
+                  Playing now
+                </button>
+                <button
+                  onClick={() => {
+                    roundTimingTouchedRef.current = true;
+                    setSharedRoundDetails(prev => ({ ...prev, alreadyPlayed: true }));
+                  }}
+                  className={`px-4 py-3 rounded-lg font-semibold transition-all ${
+                    sharedRoundDetails.alreadyPlayed
+                      ? 'bg-gray-700 text-white'
+                      : 'bg-white text-gray-700 border-2 border-gray-300 hover:border-gray-400'
+                  }`}
+                >
+                  <i className="fas fa-flag-checkered mr-2"></i>
+                  Already played
+                </button>
+              </div>
+              <p className="mt-1.5 text-xs text-gray-500">
+                {sharedRoundDetails.alreadyPlayed
+                  ? 'Log a finished round — full scorecard, solo or with friends.'
+                  : 'Round goes LIVE — score hole by hole as you play, solo or with friends.'}
+              </p>
+            </div>
+          )}
+
+          {/* Golf Round Type Selection (batch entry only — a live round is one
+              flow where friends are optional) */}
+          {postType === 'golf' && sharedRoundDetails.alreadyPlayed && (
             <div className="mb-6">
               <label className="block text-sm font-semibold text-gray-700 mb-3">Round Type</label>
               <div className="grid grid-cols-2 gap-4">
@@ -1075,48 +1149,6 @@ export default function CreatePostModal({
                     }}
                     className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500"
                   />
-                </div>
-
-                {/* Playing now vs already played — decides LIVE vs FINAL */}
-                <div className="mb-4">
-                  <label className="block text-sm font-semibold text-gray-900 mb-2">
-                    When is this round? *
-                  </label>
-                  <div className="grid grid-cols-2 gap-3">
-                    <button
-                      onClick={() => {
-                        roundTimingTouchedRef.current = true;
-                        setSharedRoundDetails(prev => ({ ...prev, alreadyPlayed: false }));
-                      }}
-                      className={`px-4 py-3 rounded-lg font-semibold transition-all ${
-                        !sharedRoundDetails.alreadyPlayed
-                          ? 'bg-red-600 text-white'
-                          : 'bg-white text-gray-700 border-2 border-gray-300 hover:border-red-300'
-                      }`}
-                    >
-                      <span className={`inline-block w-2 h-2 rounded-full mr-2 ${!sharedRoundDetails.alreadyPlayed ? 'bg-white animate-pulse' : 'bg-red-500'}`}></span>
-                      Playing now
-                    </button>
-                    <button
-                      onClick={() => {
-                        roundTimingTouchedRef.current = true;
-                        setSharedRoundDetails(prev => ({ ...prev, alreadyPlayed: true }));
-                      }}
-                      className={`px-4 py-3 rounded-lg font-semibold transition-all ${
-                        sharedRoundDetails.alreadyPlayed
-                          ? 'bg-gray-700 text-white'
-                          : 'bg-white text-gray-700 border-2 border-gray-300 hover:border-gray-400'
-                      }`}
-                    >
-                      <i className="fas fa-flag-checkered mr-2"></i>
-                      Already played
-                    </button>
-                  </div>
-                  <p className="mt-1.5 text-xs text-gray-500">
-                    {sharedRoundDetails.alreadyPlayed
-                      ? 'Posts as a finished round — no live scoring.'
-                      : 'Round goes LIVE — scores stream to your group as you play.'}
-                  </p>
                 </div>
 
                 {/* Indoor/Outdoor Selection */}
@@ -1358,7 +1390,9 @@ export default function CreatePostModal({
                 <div>
                   <div className="flex items-center justify-between mb-3">
                     <label className="text-sm font-semibold text-gray-900">
-                      Participants * ({sharedRoundParticipants.length})
+                      {sharedRoundDetails.alreadyPlayed
+                        ? `Participants * (${sharedRoundParticipants.length})`
+                        : `Playing with anyone? Optional (${sharedRoundParticipants.length})`}
                     </label>
                     <div className="flex items-center gap-2">
                       <button

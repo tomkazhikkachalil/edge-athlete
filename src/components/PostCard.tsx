@@ -714,6 +714,7 @@ function PostCard({
           groupPostId={groupScorecard.group_post.id}
           participantId={scoreEntryParticipantId}
           holesPlayed={groupScorecard.golf_data.holes_played}
+          holeData={groupScorecard.golf_data.hole_data ?? null}
           playerName={(() => {
             // Label whose card is open when it isn't the entrant's own
             const p = groupScorecard.participants.find(

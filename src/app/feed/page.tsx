@@ -14,6 +14,7 @@ import { getInitials, formatDisplayName } from '@/lib/formatters';
 import { resolveSportKey, isComposerSport } from '@/lib/sports/resolve-sport-key';
 import { getSportDefinition, type SportKey } from '@/lib/sports/SportRegistry';
 import { getEmptyStateMessage, getActivityEncouragement, COPY } from '@/lib/copy';
+import LiveNowStrip from '@/components/LiveNowStrip';
 
 // Heavy modals (~2100 / ~1090 / ~330 lines) — split into their own chunks,
 // loaded only when the user opens them. Cuts First Load JS on /feed.
@@ -533,6 +534,10 @@ export default function FeedPage() {
                 </button>
               </div>
             )}
+
+            {/* Live Now — live rounds from people you follow (sports-app
+                ticker; opens the round via the existing deep-link modal) */}
+            <LiveNowStrip currentUserId={user.id} onOpenPost={setDeepLinkPostId} />
 
             {/* Posts Feed */}
             <div className="space-y-4 sm:space-y-6 bg-white rounded-lg border-2 border-gray-300 p-3 sm:p-6">

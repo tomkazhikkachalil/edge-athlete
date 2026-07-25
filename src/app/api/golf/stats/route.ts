@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseAdmin, requireAuth } from '@/lib/auth-server';
 import { canViewProfile } from '@/lib/privacy';
-import { isActiveParticipant } from '@/lib/golf/round-status';
+
 import { aggregateGolfHighlights, type CompletedRoundLike } from '@/lib/golf/stats-aggregate';
 
 export async function GET(request: NextRequest) {
@@ -75,44 +75,12 @@ export async function GET(request: NextRequest) {
       putts: r.total_putts,
     }));
 
-    // Shared-round scores: multi-player rounds live in group_posts /
-    // golf_participant_scores and NEVER write golf_rounds — without this
-    // query the profile tiles silently ignore every shared round the athlete
-    // played. Only fully-scored rounds count (all holes entered).
-    // Per-hole FIR/GIR/putts for shared rounds is a follow-up.
-    const { data: sharedRows, error: sharedError } = await supabase
-      .from('group_post_participants')
-      .select(`
-        status,
-        group_post:group_post_id (
-          type,
-          date,
-          golf_data:golf_scorecard_data ( holes_played )
-        ),
-        scores:golf_participant_scores ( total_score, holes_completed )
-      `)
-      .eq('profile_id', profileId);
-
-    if (sharedError) {
-      // Solo stats still render — log and continue rather than failing the tiles
-      console.error('Error fetching shared-round scores:', sharedError);
-    }
-
-    const sharedRoundLikes: CompletedRoundLike[] = (sharedRows || [])
-      .map((row): CompletedRoundLike | null => {
-        if (!isActiveParticipant(row.status)) return null;
-        const gp = Array.isArray(row.group_post) ? row.group_post[0] : row.group_post;
-        if (!gp || gp.type !== 'golf_round' || !gp.date) return null;
-        const golfData = Array.isArray(gp.golf_data) ? gp.golf_data[0] : gp.golf_data;
-        const holes = golfData?.holes_played;
-        if (holes !== 18 && holes !== 9) return null;
-        const scores = Array.isArray(row.scores) ? row.scores[0] : row.scores;
-        if (!scores?.total_score || scores.holes_completed !== holes) return null;
-        return { grossScore: scores.total_score, date: gp.date, holes, source: 'shared' };
-      })
-      .filter((r): r is CompletedRoundLike => r !== null);
-
-    const allRoundLikes = [...soloRoundLikes, ...sharedRoundLikes];
+    // Group/live rounds no longer need a separate query here: completed
+    // group rounds MIRROR into golf_rounds per participant (round-mirror.ts,
+    // migration 039), so the solo query above already includes them — with
+    // real pars and full FIR/GIR/putt stats. Merging participant scores on
+    // top would double-count.
+    const allRoundLikes = soloRoundLikes;
     const highlights = aggregateGolfHighlights(allRoundLikes);
 
     // Build recent activity (for getRecentActivity)
@@ -134,7 +102,7 @@ export async function GET(request: NextRequest) {
       // recentRounds stays solo-only: shared rounds have no par/course_location
       // in this shape and the activity list renders them via their feed posts
       recentRounds,
-      totalRounds: (rounds || []).length + sharedRoundLikes.length,
+      totalRounds: (rounds || []).length,
       completedRounds: allRoundLikes.length
     });
 

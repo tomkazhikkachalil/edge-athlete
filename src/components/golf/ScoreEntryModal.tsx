@@ -21,6 +21,8 @@ interface ScoreEntryModalProps {
   holesPlayed: number;
   /** First hole number (10 for back-9 rounds). Defaults to 1. */
   startingHoleNumber?: number;
+  /** Per-hole course data (real pars/yardage). Absent → par-4 fallback. */
+  holeData?: { hole: number; par: number; yardage?: number }[] | null;
   /** Whose scorecard this is — shown in the header when the creator enters
    *  scores for another player, so it's unmistakable whose card is open. */
   playerName?: string;
@@ -50,6 +52,7 @@ export default function ScoreEntryModal({
   participantId,
   holesPlayed,
   startingHoleNumber = 1,
+  holeData: courseHoleData = null,
   playerName,
   existingScores = [],
   onSave,
@@ -75,7 +78,10 @@ export default function ScoreEntryModal({
         putts: existing?.putts ?? null,
         fairway_hit: existing?.fairway_hit ?? null,
         green_in_regulation: existing?.green_in_regulation ?? null,
-        par: holePar(i, null), // shared fallback (no course hole data in this modal yet)
+        // Real course par when the round carries hole_data; par-4 fallback
+        // otherwise. Keyed by HOLE NUMBER (not position — back-9 rounds
+        // start at 10).
+        par: holePar(holeNumber, courseHoleData),
       });
     }
     const { holes, restored } = mergeDraftIntoHoles(
@@ -366,7 +372,13 @@ export default function ScoreEntryModal({
               Hole {currentHoleData.hole_number}
             </div>
             <div className="text-sm text-gray-600">
-              Par {4} {/* Estimated par */}
+              Par {currentHoleData.par}
+              {(() => {
+                const yardage = courseHoleData?.find(
+                  h => h.hole === currentHoleData.hole_number
+                )?.yardage;
+                return yardage ? <span className="ml-2 text-gray-400">{yardage} yds</span> : null;
+              })()}
             </div>
           </div>
 

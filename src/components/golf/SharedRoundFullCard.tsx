@@ -108,10 +108,11 @@ export default function SharedRoundFullCard({
   const front9 = allHoleNumbers.filter(h => h <= 9);
   const back9 = allHoleNumbers.filter(h => h > 9);
 
-  // Per-hole par via the shared domain helper. The feed payload has no
-  // course hole data yet, so this resolves to the documented fallback (4) —
-  // one shared assumption instead of a magic number per component.
-  const estimatedPar = holePar(1, null);
+  // Per-hole par via the shared domain helper — real course pars when the
+  // round carries hole_data (migration 039), the documented par-4 fallback
+  // for legacy rounds.
+  const roundHoleData = golf_data.hole_data ?? null;
+  const parFor = (holeNum: number) => holePar(holeNum, roundHoleData);
 
   // Find current user's participant record
   const currentUserParticipant = participants.find(
@@ -121,7 +122,7 @@ export default function SharedRoundFullCard({
   const renderScorecardTable = (holeNumbers: number[], title: string) => {
     if (holeNumbers.length === 0) return null;
 
-    const totalHoles = holeNumbers.length;
+
 
     return (
       <div className="mb-4">
@@ -150,11 +151,11 @@ export default function SharedRoundFullCard({
                   <td className="py-2 px-3 font-bold text-gray-900 sticky left-0 bg-yellow-50 z-10">PAR</td>
                   {holeNumbers.map(holeNum => (
                     <td key={holeNum} className="text-center py-2 px-2 font-bold text-gray-900">
-                      {estimatedPar}
+                      {parFor(holeNum)}
                     </td>
                   ))}
                   <td className="text-center py-2 px-3 font-black text-gray-900 bg-yellow-100">
-                    {totalHoles * estimatedPar}
+                    {holeNumbers.reduce((sum, h) => sum + parFor(h), 0)}
                   </td>
                 </tr>
 
@@ -219,7 +220,7 @@ export default function SharedRoundFullCard({
                             );
                           }
 
-                          const scoreClass = classifyScore(hole.strokes, estimatedPar);
+                          const scoreClass = classifyScore(hole.strokes, parFor(holeNum));
                           const cellStyle = scoreClass ? SCORE_CELL_RING[scoreClass] : SCORE_CELL_RING.par;
                           const textColor = cellStyle.text;
                           const border = cellStyle.ring;
@@ -455,8 +456,8 @@ export default function SharedRoundFullCard({
               <div className="bg-white rounded-lg border-2 border-green-300 overflow-hidden">
                 <div className="bg-green-100 px-4 py-3 border-b-2 border-green-300">
                   <h3 className="text-lg font-black text-green-900">
-                    <i className="fas fa-trophy mr-2"></i>
-                    Leaderboard
+                    <i className={`fas ${participants.filter(p => isActiveParticipant(p.participant.status)).length > 1 ? 'fa-trophy' : 'fa-golf-ball'} mr-2`}></i>
+                    {participants.filter(p => isActiveParticipant(p.participant.status)).length > 1 ? 'Leaderboard' : 'Your Round'}
                     {gameFormat === 'stableford' && (
                       <span className="ml-2 text-sm font-bold text-green-700">(points — highest wins)</span>
                     )}

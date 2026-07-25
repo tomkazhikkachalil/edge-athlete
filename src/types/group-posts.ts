@@ -123,6 +123,9 @@ export interface GolfScorecardData {
   tee_color: string | null;
   slope_rating: number | null;
   course_rating: number | null;
+  /** Per-hole course data (real pars) — [{hole, par, yardage?}]; null on
+   *  rounds created before migration 039 */
+  hole_data?: { hole: number; par: number; yardage?: number }[] | null;
   weather_conditions: string | null;
   temperature: number | null;
   wind_speed: number | null;

@@ -27,7 +27,8 @@ export const GROUP_SCORECARD_SELECT = `
     holes_played,
     tee_color,
     slope_rating,
-    course_rating
+    course_rating,
+    hole_data
   ),
   participants:group_post_participants (
     id,

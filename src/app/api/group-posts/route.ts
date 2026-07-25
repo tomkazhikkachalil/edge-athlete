@@ -157,7 +157,28 @@ export async function POST(request: NextRequest) {
           { status: 400 }
         );
       }
+      // Per-hole course data (real pars). Optional; sanitized to the known
+      // shape — bad entries are dropped rather than failing the round.
+      if (golf_data.hole_data !== undefined && !Array.isArray(golf_data.hole_data)) {
+        return NextResponse.json(
+          { error: 'golf_data.hole_data must be an array' },
+          { status: 400 }
+        );
+      }
     }
+
+    const sanitizedHoleData = Array.isArray(golf_data?.hole_data)
+      ? (golf_data.hole_data as Array<{ hole?: unknown; par?: unknown; yardage?: unknown }>)
+          .filter(h =>
+            typeof h?.hole === 'number' && h.hole >= 1 && h.hole <= 18 &&
+            typeof h?.par === 'number' && h.par >= 3 && h.par <= 6
+          )
+          .map(h => ({
+            hole: h.hole as number,
+            par: h.par as number,
+            ...(typeof h.yardage === 'number' && h.yardage > 0 ? { yardage: h.yardage } : {}),
+          }))
+      : null;
 
     // Validate type
     const validTypes = [
@@ -301,6 +322,7 @@ export async function POST(request: NextRequest) {
           course_name: golf_data.course_name,
           course_id: golf_data.course_id ?? null,
           round_type: golf_data.round_type,
+          hole_data: sanitizedHoleData && sanitizedHoleData.length > 0 ? sanitizedHoleData : null,
           ...(golf_data.game_format !== undefined ? { game_format: golf_data.game_format } : {}),
           holes_played: golf_data.holes_played,
           tee_color: golf_data.tee_color ?? null,

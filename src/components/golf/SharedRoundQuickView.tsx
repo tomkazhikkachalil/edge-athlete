@@ -285,7 +285,8 @@ export default function SharedRoundQuickView({
         })}
       </div>
 
-      {/* Summary Stats */}
+      {/* Summary Stats — pointless for a solo round (always "1 of 1") */}
+      {statusCounts.confirmed > 1 && (
       <div className="flex items-center justify-between bg-white/40 rounded px-3 py-2 mb-3 text-xs">
         <div className="flex items-center gap-4">
           <div>
@@ -306,6 +307,7 @@ export default function SharedRoundQuickView({
           )}
         </div>
       </div>
+      )}
 
       {/* Actions */}
       <div className="flex items-center justify-between gap-2">

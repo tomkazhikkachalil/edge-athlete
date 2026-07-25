@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getServerClient } from '@/lib/auth-server';
+import { getServerClient, getSupabaseAdmin } from '@/lib/auth-server';
+import { mirrorCompletedRound } from '@/lib/golf/round-mirror';
 
 /**
  * GET /api/group-posts/[id]
@@ -170,6 +171,12 @@ export async function PATCH(
     if (updateError) {
       console.error('Error updating group post:', updateError);
       return NextResponse.json({ error: 'Failed to update group post' }, { status: 500 });
+    }
+
+    // End Round: a round marked completed mirrors every player's scores into
+    // golf_rounds (stats/trends/handicap). Best-effort, self-gated.
+    if (status === 'completed') {
+      await mirrorCompletedRound(getSupabaseAdmin(), id);
     }
 
     return NextResponse.json({
