@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { createSupabaseBrowserClient } from '@/lib/supabase';
 import PostCard from './PostCard';
+import { useBodyScrollLock } from '@/hooks/useBodyScrollLock';
 
 // PostDetailModal uses a flexible post type to accommodate the PostCard interface
 // which includes additional fields like stats_data and media
@@ -130,6 +131,12 @@ export default function PostDetailModal({
     }
   }, [isOpen, postId, fetchPost]);
 
+  // Body scroll lock while open — refcounted hook, NOT raw body.style:
+  // several always-mounted instances coexist per page (media grid, Featured
+  // row, deep link), and a closed instance's raw-style cleanup used to unlock
+  // scroll while another instance was open.
+  useBodyScrollLock(isOpen);
+
   // Handle ESC key to close
   useEffect(() => {
     const handleEsc = (e: KeyboardEvent) => {
@@ -140,13 +147,10 @@ export default function PostDetailModal({
 
     if (isOpen) {
       window.addEventListener('keydown', handleEsc);
-      // Prevent body scroll when modal is open
-      document.body.style.overflow = 'hidden';
     }
 
     return () => {
       window.removeEventListener('keydown', handleEsc);
-      document.body.style.overflow = 'unset';
     };
   }, [isOpen, onClose]);
 

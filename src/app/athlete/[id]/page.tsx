@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useState, useRef, useCallback } from 'react';
 import { useAuth } from '@/lib/auth';
 import { useRouter, useParams, useSearchParams } from 'next/navigation';
 import { ToastContainer, useToast } from '@/components/Toast';
@@ -8,7 +8,8 @@ import LazyImage from '@/components/LazyImage';
 import AppHeader from '@/components/AppHeader';
 import FollowButton from '@/components/FollowButton';
 import PrivateProfileView from '@/components/PrivateProfileView';
-import ProfileMediaTabs from '@/components/ProfileMediaTabs';
+import ProfileMediaTabs, { type SportSpotlight } from '@/components/ProfileMediaTabs';
+import type { SportKey } from '@/lib/sports';
 import FeaturedPosts from '@/components/FeaturedPosts';
 import MultiSportHighlights from '@/components/MultiSportHighlights';
 import PostDetailModal from '@/components/PostDetailModal';
@@ -38,7 +39,28 @@ export default function AthleteProfilePage() {
     const postParam = searchParams.get('post');
     if (postParam) setDeepLinkPostId(postParam);
   }, [searchParams]);
-  
+
+  // Sport Highlights card click → filter media + open the sport's latest
+  // post (reuses the deep-link modal below; privacy is server-side in
+  // /api/posts, so a visitor never gets a modal for a post they can't see).
+  const [sportSpotlight, setSportSpotlight] = useState<SportSpotlight | null>(null);
+  const spotlightSeqRef = useRef(0);
+  const handleSportClick = useCallback(async (sportKey: SportKey) => {
+    setSportSpotlight({ sportKey, ts: Date.now() });
+    document.getElementById('media-section')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    const seq = ++spotlightSeqRef.current;
+    try {
+      const res = await fetch(
+        `/api/posts?userId=${athleteId}&sportKey=${sportKey}&limit=1`,
+        { credentials: 'include' }
+      );
+      if (!res.ok || seq !== spotlightSeqRef.current) return;
+      const data = await res.json();
+      const id = data.posts?.[0]?.id;
+      if (id && seq === spotlightSeqRef.current) setDeepLinkPostId(id);
+    } catch { /* scroll + filter already happened */ }
+  }, [athleteId]);
+
   // Profile data
   const [profile, setProfile] = useState<Profile | null>(null);
   const [badges, setBadges] = useState<AthleteBadge[]>([]);
@@ -68,12 +90,14 @@ export default function AthleteProfilePage() {
     }
   }, [user, authLoading, router]);
 
-  // Redirect to own profile if viewing own ID
+  // Redirect to own profile if viewing own ID — carry the query string so
+  // self-shared ?post= links still open the post on /athlete
   useEffect(() => {
     if (!authLoading && user && athleteId === user.id) {
-      router.push('/athlete');
+      const qs = searchParams.toString();
+      router.push(qs ? `/athlete?${qs}` : '/athlete');
     }
-  }, [user, authLoading, athleteId, router]);
+  }, [user, authLoading, athleteId, router, searchParams]);
 
   // Load athlete profile data
   useEffect(() => {
@@ -435,11 +459,11 @@ export default function AthleteProfilePage() {
       {/* Sport Highlights — same live summary the owner sees; every data
           endpoint underneath privacy-gates by profileId server-side */}
       <div className="mb-8">
-        <MultiSportHighlights profileId={athleteId} />
+        <MultiSportHighlights profileId={athleteId} onSportClick={handleSportClick} />
       </div>
 
-      {/* Media Section with Segmented Tabs */}
-      <div className="bg-white rounded-lg shadow-md p-6">
+      {/* Media Section with Segmented Tabs (scroll-mt clears sticky header) */}
+      <div id="media-section" className="bg-white rounded-lg shadow-md p-6 scroll-mt-20">
         <div className="flex justify-between items-center mb-6">
           <h2 className="text-2xl font-bold text-black">Athletic Profile & Media</h2>
         </div>
@@ -454,6 +478,7 @@ export default function AthleteProfilePage() {
           currentUserId={user?.id}
           isOwnProfile={isOwnProfile}
           onCountsChange={(counts) => setPostsCount(counts.all)}
+          sportSpotlight={sportSpotlight}
         />
       </div>
       </div>
@@ -461,7 +486,9 @@ export default function AthleteProfilePage() {
       {/* Toast Container */}
       <ToastContainer toasts={toasts} onDismiss={dismissToast} />
 
-      {/* Shared-post deep link (?post=) */}
+      {/* Shared-post deep link (?post=) AND sport-card latest-post opens —
+          one modal serves both; the replaceState below is a no-op for card
+          clicks (no ?post= in the URL then) */}
       <PostDetailModal
         postId={deepLinkPostId}
         isOpen={!!deepLinkPostId}

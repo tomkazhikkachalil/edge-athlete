@@ -1,9 +1,9 @@
 'use client';
 
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useState, useRef, Suspense } from 'react';
 import dynamic from 'next/dynamic';
 import { useAuth } from '@/lib/auth';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import PostCard from '@/components/PostCard';
 import AppHeader from '@/components/AppHeader';
 import ConnectionSuggestions from '@/components/ConnectionSuggestions';
@@ -57,6 +57,20 @@ interface RealtimePostPayload {
   };
 }
 
+// ?post= reader for search-result deep links. Unlike ?create=1 this must be
+// REACTIVE: AdvancedSearchBar (inside AppHeader) pushes /feed?post=<id> while
+// the user is already ON /feed, which never remounts the page — a mount-only
+// window.location read would miss it. useSearchParams needs a Suspense
+// boundary on this statically prerendered page, hence the tiny null child.
+function PostParamReader({ onPost }: { onPost: (id: string) => void }) {
+  const searchParams = useSearchParams();
+  useEffect(() => {
+    const p = searchParams.get('post');
+    if (p) onPost(p);
+  }, [searchParams, onPost]);
+  return null;
+}
+
 export default function FeedPage() {
   const { user, profile, loading } = useAuth();
   const router = useRouter();
@@ -91,6 +105,9 @@ export default function FeedPage() {
   const [liveBannerDismissed, setLiveBannerDismissed] = useState(false);
   // When set, PostDetailModal opens this post with score entry auto-opening
   const [resumePostId, setResumePostId] = useState<string | null>(null);
+  // Search-result deep link (/feed?post=) — separate from resumePostId
+  // because that one hard-codes autoOpenScoreEntry
+  const [deepLinkPostId, setDeepLinkPostId] = useState<string | null>(null);
   const loadInFlightRef = useRef(false);
   const [page, setPage] = useState(0);
   const { toasts, dismissToast, showError, showSuccess } = useToast();
@@ -627,6 +644,22 @@ export default function FeedPage() {
           }}
           post={editingPost}
           onPostUpdated={handlePostUpdated}
+        />
+      )}
+
+      {/* Search-result deep link (/feed?post=) */}
+      <Suspense fallback={null}>
+        <PostParamReader onPost={setDeepLinkPostId} />
+      </Suspense>
+      {deepLinkPostId && (
+        <PostDetailModal
+          postId={deepLinkPostId}
+          isOpen={true}
+          onClose={() => {
+            setDeepLinkPostId(null);
+            window.history.replaceState(null, '', '/feed');
+          }}
+          currentUserId={user?.id}
         />
       )}
 

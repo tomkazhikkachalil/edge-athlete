@@ -91,14 +91,23 @@ interface TabCounts {
 
 type MediaCountsResponse = TabCounts;
 
+/** Sport-card spotlight: parent creates a FRESH object per click (ts =
+ *  Date.now()), so re-clicking the same sport after the user cleared the
+ *  filter still re-applies it (identity-based effect trigger). */
+export interface SportSpotlight {
+  sportKey: string;
+  ts: number;
+}
+
 interface ProfileMediaTabsProps {
   profileId: string;
   currentUserId?: string;
   isOwnProfile?: boolean;
   onCountsChange?: (counts: TabCounts) => void;
+  sportSpotlight?: SportSpotlight | null;
 }
 
-export default function ProfileMediaTabs({ profileId, currentUserId, isOwnProfile = false, onCountsChange }: ProfileMediaTabsProps) {
+export default function ProfileMediaTabs({ profileId, currentUserId, isOwnProfile = false, onCountsChange, sportSpotlight }: ProfileMediaTabsProps) {
   const [activeTab, setActiveTab] = useState<TabType>('all');
   const [sort, setSort] = useState<SortType>('newest');
   const [mediaFilter, setMediaFilter] = useState<MediaFilterType>('all');
@@ -224,6 +233,14 @@ export default function ProfileMediaTabs({ profileId, currentUserId, isOwnProfil
   useEffect(() => {
     fetchCounts();
   }, [fetchCounts]);
+
+  // Sport-card spotlight from the parent (Sport Highlights click): jump to
+  // the All tab filtered to that sport. Identity-based — see SportSpotlight.
+  useEffect(() => {
+    if (!sportSpotlight) return;
+    setActiveTab('all');
+    setSelectedSports([sportSpotlight.sportKey]);
+  }, [sportSpotlight]);
 
   // Load media when tab/filter/sort/profileId or sport/year filters change.
   // Only the media-backed tabs (all/stats/tagged) call the media endpoint;

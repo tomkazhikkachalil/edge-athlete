@@ -13,9 +13,12 @@ interface HighlightTile {
 
 interface MultiSportHighlightsProps {
   profileId: string;
+  /** When provided, enabled sport cards become buttons that invoke this
+   *  (used to jump to that sport's media + open its latest post). */
+  onSportClick?: (sportKey: SportKey) => void;
 }
 
-export default function MultiSportHighlights({ profileId }: MultiSportHighlightsProps) {
+export default function MultiSportHighlights({ profileId, onSportClick }: MultiSportHighlightsProps) {
   const [highlightData, setHighlightData] = useState<Record<SportKey, HighlightTile[]>>({} as Record<SportKey, HighlightTile[]>);
   const [displaySportKeys, setDisplaySportKeys] = useState<SportKey[]>([]);
   const [loading, setLoading] = useState(true);
@@ -91,11 +94,27 @@ export default function MultiSportHighlights({ profileId }: MultiSportHighlights
     const colors = isEnabled
       ? getSportColorClasses(sportKey)
       : getNeutralColorClasses();
-    
+
+    // A real <button> when clickable (keyboard + touch for free); coming-soon
+    // sports and prop-less usage stay a plain div exactly as before.
+    const clickable = isEnabled && !!onSportClick;
+    const Card = clickable ? ('button' as const) : ('div' as const);
+
     return (
-      <div
+      <Card
         key={sportKey}
-        className={`${cssClasses.LAYOUT.CARD} relative overflow-hidden rounded-lg border-2 transition-all hover:shadow-md ${colors.cardBorder} ${colors.cardBackground}`}
+        {...(clickable
+          ? {
+              type: 'button' as const,
+              onClick: () => onSportClick!(sportKey),
+              'aria-label': `View ${sportDef.display_name} posts`,
+            }
+          : {})}
+        className={`${cssClasses.LAYOUT.CARD} relative overflow-hidden rounded-lg border-2 transition-all hover:shadow-md ${colors.cardBorder} ${colors.cardBackground} ${
+          clickable
+            ? 'w-full text-left cursor-pointer hover:shadow-lg hover:-translate-y-0.5 focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2'
+            : ''
+        }`}
       >
         {/* Header */}
         <div className={cssClasses.LAYOUT.CARD_HEADER}>
@@ -146,11 +165,11 @@ export default function MultiSportHighlights({ profileId }: MultiSportHighlights
           </div>
         </div>
 
-        {/* Background Pattern */}
-        <div className="absolute top-0 right-0 w-16 h-16 opacity-5">
+        {/* Background Pattern — decorative; must not eat clicks/cursor */}
+        <div className="absolute top-0 right-0 w-16 h-16 opacity-5 pointer-events-none" aria-hidden="true">
           <i className={`${sportDef.icon_id} text-4xl ${colors.iconPrimary} absolute top-2 right-2`}></i>
         </div>
-      </div>
+      </Card>
     );
   };
 
