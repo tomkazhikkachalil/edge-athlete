@@ -82,6 +82,7 @@ export default function SharedRoundQuickView({
     : null;
 
   const isOwner = currentUserId === group_post.creator_id;
+  const mediaCount = scorecard.media?.length ?? 0;
 
   return (
     <div className="bg-gradient-to-br from-green-50 to-green-100 rounded-lg p-4 mt-3 border border-green-200">
@@ -137,6 +138,12 @@ export default function SharedRoundQuickView({
               <>
                 <span>•</span>
                 <span>{golf_data.tee_color.charAt(0).toUpperCase() + golf_data.tee_color.slice(1)} Tees</span>
+              </>
+            )}
+            {mediaCount > 0 && (
+              <>
+                <span>•</span>
+                <span><i className="fas fa-camera mr-1"></i>{mediaCount}</span>
               </>
             )}
           </div>

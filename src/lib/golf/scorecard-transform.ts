@@ -30,6 +30,14 @@ export const GROUP_SCORECARD_SELECT = `
     course_rating,
     hole_data
   ),
+  round_media:group_post_media (
+    id,
+    media_url,
+    media_type,
+    hole_number,
+    uploaded_by,
+    caption
+  ),
   participants:group_post_participants (
     id,
     profile_id,
@@ -71,7 +79,7 @@ export const GROUP_SCORECARD_SELECT = `
 export function transformGroupPostToScorecard(groupData: any): any | null {
   if (!groupData) return null;
 
-  const { golf_data, participants, ...groupPostFields } = groupData;
+  const { golf_data, participants, round_media, ...groupPostFields } = groupData;
   const golfData = Array.isArray(golf_data) ? golf_data[0] : golf_data;
   if (!golfData) return null;
 
@@ -101,5 +109,6 @@ export function transformGroupPostToScorecard(groupData: any): any | null {
     group_post: { ...groupPostFields, last_score_activity_at: lastActivityAt },
     golf_data: golfData,
     participants: transformedParticipants,
+    media: round_media || [],
   };
 }

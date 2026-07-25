@@ -857,6 +857,11 @@ export default function CreatePostModal({
   const currentTags = TAG_OPTIONS[postType as keyof typeof TAG_OPTIONS] || TAG_OPTIONS.general;
   const currentHashtags = HASHTAG_SUGGESTIONS[postType as keyof typeof HASHTAG_SUGGESTIONS] || HASHTAG_SUGGESTIONS.general;
 
+  // "Playing now" is round SETUP, not a post: course, partners, conditions,
+  // then Go Live. Caption/media/tags belong to the story told when the round
+  // completes — hidden during setup (see the section wrappers below).
+  const isLiveSetup = postType === 'golf' && !sharedRoundDetails.alreadyPlayed;
+
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
       <div className="bg-white rounded-lg shadow-xl max-w-4xl w-full max-h-modal flex flex-col">
@@ -1547,7 +1552,7 @@ export default function CreatePostModal({
           )}
 
           {/* Caption */}
-          <div className="mb-6">
+          <div className={isLiveSetup ? 'hidden' : 'mb-6'}>
             <div className="flex items-center justify-between mb-2">
               <label className="text-sm font-semibold text-gray-700">
                 Caption
@@ -1569,7 +1574,7 @@ export default function CreatePostModal({
           </div>
 
           {/* Tags */}
-          <div className="mb-6">
+          <div className={isLiveSetup ? 'hidden' : 'mb-6'}>
             <label className="block text-sm font-semibold text-gray-700 mb-3">Tags</label>
             <div className="flex flex-wrap gap-2">
               {currentTags.map(tag => (
@@ -1592,7 +1597,7 @@ export default function CreatePostModal({
           </div>
 
           {/* Hashtags */}
-          <div className="mb-6">
+          <div className={isLiveSetup ? 'hidden' : 'mb-6'}>
             <div className="flex items-center justify-between mb-3">
               <label className="text-sm font-semibold text-gray-700">
                 Hashtags ({hashtags.length}/{MAX_HASHTAGS})
@@ -1671,7 +1676,7 @@ export default function CreatePostModal({
           </div>
 
           {/* Tag People */}
-          <div className="mb-6">
+          <div className={isLiveSetup ? 'hidden' : 'mb-6'}>
             <div className="flex items-center justify-between mb-3">
               <label className="text-sm font-semibold text-gray-700">Tag People</label>
               <button
@@ -1713,7 +1718,7 @@ export default function CreatePostModal({
           </div>
 
           {/* Media Upload */}
-          <div className="mb-6">
+          <div className={isLiveSetup ? 'hidden' : 'mb-6'}>
             <label className="block text-sm font-semibold text-gray-700 mb-3">
               Media ({mediaFiles.length}/{MAX_MEDIA_FILES})
             </label>
@@ -1898,12 +1903,19 @@ export default function CreatePostModal({
                 handleSubmit();
               }}
               disabled={!isValidForSubmission() || isSubmitting}
-              className="px-6 py-2 text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              className={`px-6 py-2 text-white rounded-lg disabled:opacity-50 disabled:cursor-not-allowed transition-colors ${
+                isLiveSetup ? 'bg-red-600 hover:bg-red-700' : 'bg-blue-600 hover:bg-blue-700'
+              }`}
             >
               {isSubmitting ? (
                 <>
                   <i className="fas fa-spinner fa-spin mr-2"></i>
-                  Creating...
+                  {isLiveSetup ? 'Starting…' : 'Creating...'}
+                </>
+              ) : isLiveSetup ? (
+                <>
+                  <span className="inline-block w-2 h-2 bg-white rounded-full mr-2 animate-pulse align-middle"></span>
+                  Go Live
                 </>
               ) : (
                 <>

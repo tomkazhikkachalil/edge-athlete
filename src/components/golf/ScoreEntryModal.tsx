@@ -15,6 +15,14 @@ import { useBodyScrollLock } from '@/hooks/useBodyScrollLock';
 import type { GolfHoleScore } from '@/types/group-posts';
 import type { HoleData } from '@/types/golf';
 
+export interface ScoreEntryPlayer {
+  participantId: string;
+  name: string;
+  avatarUrl: string | null;
+  holesCompleted: number;
+  isSelf: boolean;
+}
+
 interface ScoreEntryModalProps {
   groupPostId: string;
   participantId: string;
@@ -23,6 +31,14 @@ interface ScoreEntryModalProps {
   startingHoleNumber?: number;
   /** Per-hole course data (real pars/yardage). Absent → par-4 fallback. */
   holeData?: { hole: number; par: number; yardage?: number }[] | null;
+  /** Course name for the hole context line ("Hole 3 · Eagle Creek · Par 4"). */
+  courseName?: string | null;
+  /** All players in the round (creator view) — renders the switcher chips.
+   *  The current hole is persisted before any switch. */
+  players?: ScoreEntryPlayer[];
+  onSwitchPlayer?: (participantId: string) => void;
+  /** Session user id — required for hole photo/video uploads. */
+  uploaderId?: string;
   /** Whose scorecard this is — shown in the header when the creator enters
    *  scores for another player, so it's unmistakable whose card is open. */
   playerName?: string;
@@ -48,11 +64,15 @@ interface ScoreEntryModalProps {
 }
 
 export default function ScoreEntryModal({
-  groupPostId: _groupPostId, // eslint-disable-line @typescript-eslint/no-unused-vars
+  groupPostId,
   participantId,
   holesPlayed,
   startingHoleNumber = 1,
   holeData: courseHoleData = null,
+  courseName = null,
+  players,
+  onSwitchPlayer,
+  uploaderId,
   playerName,
   existingScores = [],
   onSave,
@@ -283,6 +303,61 @@ export default function ScoreEntryModal({
     }
   };
 
+  // Player switching (creator view): NEVER lose typed input — the current
+  // hole persists before the switch; the parent remounts the modal keyed by
+  // participant so the next player's card seeds fresh.
+  const handleSwitchPlayer = async (nextParticipantId: string) => {
+    if (!onSwitchPlayer || nextParticipantId === participantId) return;
+    if (isLive && !(await persistHole(currentHole))) return;
+    onSwitchPlayer(nextParticipantId);
+  };
+
+  // Hole photos/videos (live rounds only): upload → attach to this hole.
+  const mediaInputRef = useRef<HTMLInputElement>(null);
+  const [uploadingMedia, setUploadingMedia] = useState(false);
+  const [mediaCountByHole, setMediaCountByHole] = useState<Record<number, number>>({});
+  const canAttachMedia = isLive && !!groupPostId && !!uploaderId;
+
+  const handleMediaSelect = async (file: File | undefined) => {
+    if (!file || !canAttachMedia) return;
+    const holeNumber = currentHoleData?.hole_number;
+    if (!holeNumber) return;
+    setUploadingMedia(true);
+    setError(null);
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('userId', uploaderId!);
+      const uploadRes = await fetch('/api/upload/post-media', { method: 'POST', body: formData });
+      const uploadData = await uploadRes.json();
+      if (!uploadRes.ok) throw new Error(uploadData.error || 'Upload failed');
+
+      const attachRes = await fetch(`/api/group-posts/${groupPostId}/media`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+          media_url: uploadData.url,
+          media_type: uploadData.type,
+          hole_number: holeNumber,
+        }),
+      });
+      if (!attachRes.ok) {
+        const attachData = await attachRes.json().catch(() => ({}));
+        throw new Error(attachData.error || 'Could not attach media to the hole');
+      }
+      setMediaCountByHole(prev => ({ ...prev, [holeNumber]: (prev[holeNumber] ?? 0) + 1 }));
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Failed to add media');
+    } finally {
+      setUploadingMedia(false);
+      if (mediaInputRef.current) mediaInputRef.current.value = '';
+    }
+  };
+
+  const activePlayer = players?.find(p => p.participantId === participantId) ?? null;
+  const enteringForOther = activePlayer ? !activePlayer.isSelf : !!playerName;
+
   const handleSave = async () => {
     // Validate: at least some scores entered
     const hasScores = holeData.some(h => h.strokes !== null);
@@ -323,12 +398,25 @@ export default function ScoreEntryModal({
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
       <div className="bg-white rounded-lg shadow-2xl max-w-md w-full max-h-modal overflow-hidden flex flex-col">
-        {/* Header */}
-        <div className="bg-green-600 text-white p-4">
+        {/* Header — color signals WHOSE card is open: green for your own,
+            amber when entering for someone else (unmissable identity) */}
+        <div className={`${enteringForOther ? 'bg-amber-600' : 'bg-green-600'} text-white p-4`}>
           <div className="flex items-center justify-between mb-2">
             <div className="flex items-center gap-2 min-w-0">
+              {activePlayer && (
+                activePlayer.avatarUrl ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={activePlayer.avatarUrl} alt="" className="w-7 h-7 rounded-full object-cover border-2 border-white/60 flex-shrink-0" />
+                ) : (
+                  <span className="w-7 h-7 rounded-full bg-white/25 flex items-center justify-center text-xs font-bold flex-shrink-0">
+                    {activePlayer.name.charAt(0)}
+                  </span>
+                )
+              )}
               <h2 className="text-xl font-black truncate">
-                {playerName ? `Scores — ${playerName}` : 'Enter Scores'}
+                {activePlayer
+                  ? activePlayer.isSelf ? 'Your Scores' : `Entering for ${activePlayer.name}`
+                  : playerName ? `Entering for ${playerName}` : 'Enter Scores'}
               </h2>
               {isLive && (
                 <span className="inline-flex items-center gap-1 bg-white/20 px-2 py-0.5 rounded-full text-xs font-bold">
@@ -356,6 +444,39 @@ export default function ScoreEntryModal({
           </div>
         </div>
 
+        {/* Player switcher (creator view) — tap a chip to enter that
+            player's scores; the current hole saves first */}
+        {players && players.length > 1 && onSwitchPlayer && (
+          <div className="bg-gray-50 border-b border-gray-200 px-3 py-2 flex gap-2 overflow-x-auto">
+            {players.map(p => {
+              const active = p.participantId === participantId;
+              return (
+                <button
+                  key={p.participantId}
+                  onClick={() => handleSwitchPlayer(p.participantId)}
+                  disabled={savingHole !== null}
+                  className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-full text-xs font-bold whitespace-nowrap transition-all border-2 disabled:opacity-60 ${
+                    active
+                      ? 'bg-green-600 text-white border-green-700 shadow'
+                      : 'bg-white text-gray-700 border-gray-300 hover:border-green-400'
+                  }`}
+                >
+                  {p.avatarUrl ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={p.avatarUrl} alt="" className="w-5 h-5 rounded-full object-cover" />
+                  ) : (
+                    <span className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] ${active ? 'bg-white/25' : 'bg-gray-200'}`}>
+                      {p.name.charAt(0)}
+                    </span>
+                  )}
+                  {p.isSelf ? 'You' : p.name.split(' ')[0]}
+                  <span className={active ? 'opacity-80' : 'text-gray-400'}>· {p.holesCompleted}</span>
+                </button>
+              );
+            })}
+          </div>
+        )}
+
         {/* Progress Bar */}
         <div className="bg-gray-200 h-2">
           <div
@@ -372,12 +493,13 @@ export default function ScoreEntryModal({
               Hole {currentHoleData.hole_number}
             </div>
             <div className="text-sm text-gray-600">
+              {courseName && <span className="font-semibold">{courseName} · </span>}
               Par {currentHoleData.par}
               {(() => {
                 const yardage = courseHoleData?.find(
                   h => h.hole === currentHoleData.hole_number
                 )?.yardage;
-                return yardage ? <span className="ml-2 text-gray-400">{yardage} yds</span> : null;
+                return yardage ? <span className="text-gray-500"> · {yardage} yds</span> : null;
               })()}
             </div>
           </div>
@@ -450,6 +572,39 @@ export default function ScoreEntryModal({
               </button>
             </div>
           </div>
+
+          {/* Hole photo/video (live rounds) */}
+          {canAttachMedia && (
+            <div className="mb-4">
+              <input
+                ref={mediaInputRef}
+                type="file"
+                accept="image/*,video/*"
+                className="hidden"
+                onChange={e => handleMediaSelect(e.target.files?.[0])}
+              />
+              <button
+                onClick={() => mediaInputRef.current?.click()}
+                disabled={uploadingMedia}
+                className="w-full py-2.5 px-3 rounded-lg text-sm font-semibold bg-gray-100 text-gray-700 hover:bg-gray-200 transition-colors disabled:opacity-60"
+              >
+                {uploadingMedia ? (
+                  <><i className="fas fa-spinner fa-spin mr-2"></i>Uploading…</>
+                ) : (
+                  <>
+                    <i className="fas fa-camera mr-2"></i>
+                    Add photo or video to hole {currentHoleData.hole_number}
+                    {(mediaCountByHole[currentHoleData.hole_number ?? -1] ?? 0) > 0 && (
+                      <span className="ml-2 text-green-700 font-bold">
+                        <i className="fas fa-check mr-1"></i>
+                        {mediaCountByHole[currentHoleData.hole_number ?? -1]}
+                      </span>
+                    )}
+                  </>
+                )}
+              </button>
+            </div>
+          )}
 
           {/* Error Message */}
           {error && (

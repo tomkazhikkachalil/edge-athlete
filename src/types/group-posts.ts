@@ -282,6 +282,15 @@ export interface CompleteGroupPost extends GroupPost {
 // COMPLETE GOLF SCORECARD (for display)
 // ============================================
 
+export interface RoundMediaItem {
+  id: string;
+  media_url: string;
+  media_type: 'image' | 'video';
+  hole_number: number | null;
+  uploaded_by: string;
+  caption: string | null;
+}
+
 export interface CompleteGolfScorecard {
   group_post: GroupPost;
   golf_data: GolfScorecardData;
@@ -289,6 +298,8 @@ export interface CompleteGolfScorecard {
     participant: GroupPostParticipant & { profile: Profile };
     scores: GolfParticipantScores & { hole_scores: GolfHoleScore[] };
   }>;
+  /** Hole-tagged photos/videos taken during the round (migration 042). */
+  media?: RoundMediaItem[];
 }
 
 // ============================================

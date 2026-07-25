@@ -755,6 +755,50 @@ export default function SharedRoundFullCard({
               </div>
             </div>
           )}
+          {/* Round media — hole-tagged photos/videos from the players */}
+          {(scorecard.media?.length ?? 0) > 0 && (
+            <div className="mt-4">
+              <h3 className="text-lg font-black text-green-900 mb-3">
+                <i className="fas fa-camera mr-2"></i>
+                Round Media
+              </h3>
+              {(() => {
+                const byHole = new Map<number | null, typeof scorecard.media>();
+                for (const m of scorecard.media || []) {
+                  const key = m.hole_number;
+                  if (!byHole.has(key)) byHole.set(key, []);
+                  byHole.get(key)!.push(m);
+                }
+                const holeKeys = [...byHole.keys()].sort((a, b) => (a ?? 99) - (b ?? 99));
+                return holeKeys.map(holeKey => (
+                  <div key={holeKey ?? 'round'} className="mb-3">
+                    <div className="text-xs font-bold text-gray-700 mb-1.5">
+                      {holeKey ? `Hole ${holeKey}` : 'Round'}
+                    </div>
+                    <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
+                      {(byHole.get(holeKey) || []).map(m => (
+                        <div key={m.id} className="relative aspect-square rounded-lg overflow-hidden bg-gray-100">
+                          {m.media_type === 'video' ? (
+                            <>
+                              <video src={m.media_url} className="w-full h-full object-cover" preload="metadata" controls />
+                            </>
+                          ) : (
+                            <LazyImage
+                              src={m.media_url}
+                              alt={m.caption || `Hole ${holeKey ?? ''} media`}
+                              className="w-full h-full object-cover"
+                              width={200}
+                              height={200}
+                            />
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ));
+              })()}
+            </div>
+          )}
         </div>
 
         {/* Footer */}

@@ -1119,6 +1119,7 @@ export default function GolfScorecardForm({ onDataChange }: GolfScorecardFormPro
           holeData={holesData
             .filter(h => typeof h.hole === 'number')
             .map(h => ({ hole: h.hole as number, par: h.par, yardage: h.yardage }))}
+          courseName={courseName || null}
           existingScores={holesData
             .filter(h => h.score !== undefined && h.score !== null)
             .map(h => ({

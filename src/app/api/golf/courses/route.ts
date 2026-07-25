@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { GolfCourseService } from '@/lib/golf-course-service';
 import { getSupabaseAdmin, requireAuth } from '@/lib/auth-server';
-import type { GolfCourse } from '@/lib/golf-courses-db';
+import { getCourseByName as getStaticCourseByName, type GolfCourse } from '@/lib/golf-courses-db';
 
 export async function GET(request: NextRequest) {
   try {
@@ -92,10 +92,29 @@ export async function GET(request: NextRequest) {
       console.error('Course history layer failed (non-fatal):', historyError);
     }
 
+    // Enrich history entries with real per-hole data from the static DB.
+    // History rows carry holes: [] — and because history DEDUPES the static
+    // results below, a course you'd played could never show its real pars
+    // again (every hole rendered as Par 4). Name-matched static data fills
+    // holes/par/yardage; history keeps its own rating/slope overrides.
+    const enrichedHistory = historyCourses.map(c => {
+      if (c.holes && c.holes.length > 0) return c;
+      const staticCourse = getStaticCourseByName(c.name);
+      if (!staticCourse || !staticCourse.holes?.length) return c;
+      return {
+        ...c,
+        holes: staticCourse.holes,
+        totalPar: staticCourse.totalPar,
+        totalYardage: staticCourse.totalYardage,
+        courseRating: { ...staticCourse.courseRating, ...c.courseRating },
+        slopeRating: { ...staticCourse.slopeRating, ...c.slopeRating },
+      };
+    });
+
     // Merge: history first (dedupe static/API results against it by name)
-    const historyNames = new Set(historyCourses.map(c => c.name.toLowerCase()));
+    const historyNames = new Set(enrichedHistory.map(c => c.name.toLowerCase()));
     const mergedCourses = [
-      ...historyCourses,
+      ...enrichedHistory,
       ...result.courses.filter(c => !historyNames.has(c.name.toLowerCase())),
     ].slice(0, limit);
 

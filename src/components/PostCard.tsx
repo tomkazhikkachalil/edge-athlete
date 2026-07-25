@@ -708,13 +708,41 @@ function PostCard({
         />
       )}
 
-      {/* Score Entry Modal */}
+      {/* Score Entry Modal — keyed by participant so switching players
+          remounts with that player's card (and their resume position) */}
       {showScoreEntry && groupScorecard && scoreEntryParticipantId && (
         <ScoreEntryModal
+          key={scoreEntryParticipantId}
           groupPostId={groupScorecard.group_post.id}
           participantId={scoreEntryParticipantId}
           holesPlayed={groupScorecard.golf_data.holes_played}
           holeData={groupScorecard.golf_data.hole_data ?? null}
+          courseName={groupScorecard.golf_data.course_name}
+          uploaderId={currentUserId}
+          players={
+            // Creator can switch between players; others score only themselves
+            groupScorecard.group_post.creator_id === currentUserId
+              ? groupScorecard.participants
+                  .filter(p => isActiveParticipant(p.participant.status))
+                  .map(p => ({
+                    participantId: p.participant.id,
+                    name: formatDisplayName(
+                      p.participant.profile?.first_name ?? null,
+                      null,
+                      p.participant.profile?.last_name ?? null,
+                      p.participant.profile?.full_name ?? null
+                    ),
+                    avatarUrl: p.participant.profile?.avatar_url ?? null,
+                    holesCompleted: p.scores.holes_completed ?? 0,
+                    isSelf: p.participant.profile_id === currentUserId,
+                  }))
+              : undefined
+          }
+          onSwitchPlayer={
+            groupScorecard.group_post.creator_id === currentUserId
+              ? (id) => setScoreEntryParticipantId(id)
+              : undefined
+          }
           playerName={(() => {
             // Label whose card is open when it isn't the entrant's own
             const p = groupScorecard.participants.find(
