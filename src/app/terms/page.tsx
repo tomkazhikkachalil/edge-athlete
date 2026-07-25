@@ -33,7 +33,7 @@ export default function TermsPage() {
                 You are responsible for your account and for keeping your password secure. Provide
                 accurate information, don&apos;t impersonate others, and don&apos;t create accounts
                 for anyone but yourself. You can delete your account at any time from Settings —
-                deletion removes your profile, posts, rounds, messages, and related data.
+                deletion removes your profile, posts, activities, messages, and related data.
               </p>
             </section>
 
@@ -61,7 +61,7 @@ export default function TermsPage() {
             <section>
               <h2 className="text-lg font-semibold text-gray-900 mb-2">5. Performance data</h2>
               <p>
-                Stats, scores, and computed values (including handicap estimates) are provided for
+                Stats, scores, and computed values (including performance estimates) are provided for
                 personal tracking and social sharing. They are not official records, and Edge
                 Athlete makes no guarantee of their accuracy.
               </p>

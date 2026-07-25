@@ -12,6 +12,7 @@ import ProfileMediaTabs, { type SportSpotlight } from '@/components/ProfileMedia
 import FeaturedPosts from '@/components/FeaturedPosts';
 import PostDetailModal from '@/components/PostDetailModal';
 import type { SportKey } from '@/lib/sports';
+import { resolveSportKey, isComposerSport } from '@/lib/sports/resolve-sport-key';
 import AppHeader from '@/components/AppHeader';
 
 // Heavy / rarely-open modals — split into their own chunks. Cuts First Load
@@ -1136,6 +1137,11 @@ export default function AthleteProfilePage() {
         isOpen={isCreatePostModalOpen}
         onClose={() => setIsCreatePostModalOpen(false)}
         userId={user?.id || ''}
+        defaultSportKey={(() => {
+          // Composer opens preset to the athlete's declared sport
+          const key = resolveSportKey(profile?.sport);
+          return isComposerSport(key) ? key : 'general';
+        })()}
         onPostCreated={() => {
           // Refresh athlete data
           if (user?.id) {

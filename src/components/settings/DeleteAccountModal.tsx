@@ -249,7 +249,7 @@ export default function DeleteAccountModal({ isOpen, onClose }: DeleteAccountMod
                     { icon: 'fa-chart-line', text: 'All performance stats, rounds, and achievements' },
                     { icon: 'fa-bell', text: 'Your notifications and activity history' },
                     { icon: 'fa-bookmark', text: 'Your saved posts and bookmarks' },
-                    { icon: 'fa-golf-ball', text: 'All sport-specific data (golf rounds, etc.)' },
+                    { icon: 'fa-chart-line', text: 'All sport-specific data (rounds, games, etc.)' },
                   ].map((item, index) => (
                     <div key={index} className="flex items-center gap-3 text-gray-700">
                       <i className={`fas ${item.icon} text-red-600 w-5 text-center`}></i>

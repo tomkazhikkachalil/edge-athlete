@@ -30,13 +30,27 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Get sport key from query params
+    // Get sport key from query params. WITHOUT one, list every sport the
+    // user has a settings row for (additive — used by Edit Profile's sport
+    // multi-select to show intake-declared sports).
     const sportKey = request.nextUrl.searchParams.get('sport');
     if (!sportKey) {
-      return NextResponse.json(
-        { error: 'sport parameter is required' },
-        { status: 400 }
-      );
+      const { data: rows, error: listError } = await supabase
+        .from('sport_settings')
+        .select('sport_key, settings')
+        .eq('profile_id', user.id);
+
+      if (listError) {
+        console.error('Error listing sport settings:', listError);
+        return NextResponse.json(
+          { error: 'Failed to fetch sport settings' },
+          { status: 500 }
+        );
+      }
+
+      return NextResponse.json({
+        sports: (rows || []).map(r => ({ sportKey: r.sport_key, settings: r.settings || {} })),
+      });
     }
 
     // Fetch sport settings (RLS automatically enforces user can only see their own)

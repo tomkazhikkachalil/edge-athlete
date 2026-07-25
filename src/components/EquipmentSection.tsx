@@ -253,7 +253,7 @@ export default function EquipmentSection({ profileId, isOwnProfile = false }: Eq
           </h3>
           <p className="text-gray-600 mb-6 max-w-md mx-auto">
             {isOwnProfile
-              ? `Add your golf equipment to showcase your setup and track gear changes over time.`
+              ? `Add your equipment to showcase your setup and track gear changes over time.`
               : 'This athlete hasn\'t added their equipment yet.'}
           </p>
           {isOwnProfile && (

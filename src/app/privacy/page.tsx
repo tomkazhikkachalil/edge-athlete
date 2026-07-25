@@ -27,7 +27,7 @@ export default function PrivacyPage() {
               </p>
               <p className="mb-2">
                 <span className="font-medium">Content you create</span>: posts, photos and videos,
-                golf rounds and scores, comments, likes, messages, and who you follow.
+                activities and stats, comments, likes, messages, and who you follow.
               </p>
               <p>
                 <span className="font-medium">Technical basics</span>: standard logs needed to run
@@ -65,13 +65,13 @@ export default function PrivacyPage() {
             <section>
               <h2 className="text-lg font-semibold text-gray-900 mb-2">Your controls</h2>
               <ul className="list-disc pl-5 space-y-1">
-                <li>Edit or remove any profile field, post, round, or comment at any time</li>
+                <li>Edit or remove any profile field, post, activity, or comment at any time</li>
                 <li>Switch your profile between public and private</li>
                 <li>Turn notification types off in Settings → Notifications</li>
                 <li>Block users from contacting you</li>
                 <li>
                   Delete your account (Settings → Account) — this permanently removes your profile,
-                  posts, media, rounds, messages, and notifications
+                  posts, media, activities, messages, and notifications
                 </li>
               </ul>
             </section>

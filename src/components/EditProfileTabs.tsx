@@ -6,6 +6,8 @@ import { useToast } from './Toast';
 import LazyImage from './LazyImage';
 import type { Profile, AthleteBadge, SeasonHighlight, Performance } from '@/lib/supabase';
 import { getSportDefinition, getEnabledSports, getAllSports, type SportKey } from '@/lib/sports';
+import { resolveSportKey } from '@/lib/sports/resolve-sport-key';
+import SportMultiSelect from './SportMultiSelect';
 import { COPY, getComingSoonMessage } from '@/lib/copy';
 import {
   formatHeight,
@@ -98,6 +100,11 @@ export default function EditProfileTabs({
     visibility: 'public' as 'public' | 'private',
   });
 
+  // Sport selection (order matters: first = primary). initialSports is the
+  // loaded baseline for diffing adds/removes on save.
+  const [selectedSports, setSelectedSports] = useState<SportKey[]>([]);
+  const [initialSports, setInitialSports] = useState<SportKey[]>([]);
+
   const [vitalsForm, setVitalsForm] = useState({
     height_cm: '',
     weight_kg: '',
@@ -163,6 +170,34 @@ export default function EditProfileTabs({
 
     loadGolfSettings();
   }, [user?.id]);
+
+  // Load the athlete's sports: declared primary (profiles.sport) leads, then
+  // every sport with a sport_settings row (intake-declared).
+  useEffect(() => {
+    if (!user?.id) return;
+    const loadSports = async () => {
+      try {
+        const primary = resolveSportKey(profile?.sport);
+        const response = await fetch('/api/sport-settings');
+        const settingsKeys: SportKey[] = [];
+        if (response.ok) {
+          const data = await response.json();
+          for (const row of data.sports || []) {
+            const key = resolveSportKey(row.sportKey);
+            if (key) settingsKeys.push(key);
+          }
+        }
+        const ordered: SportKey[] = [];
+        if (primary) ordered.push(primary);
+        for (const key of settingsKeys) if (!ordered.includes(key)) ordered.push(key);
+        setSelectedSports(ordered);
+        setInitialSports(ordered);
+      } catch (e) {
+        console.error('Error loading sports:', e);
+      }
+    };
+    loadSports();
+  }, [user?.id, profile?.sport]);
 
   // No conversion - save exactly what user enters
 
@@ -245,6 +280,27 @@ export default function EditProfileTabs({
             }
           }
 
+          // Sport selection: primary → profiles.sport (display name; '' clears);
+          // added sports get an empty sport_settings row, removed sports lose
+          // theirs. Diffed against the loaded baseline.
+          {
+            const added = selectedSports.filter(k => !initialSports.includes(k));
+            const removed = initialSports.filter(k => !selectedSports.includes(k));
+            await Promise.all([
+              ...added.map(key =>
+                fetch('/api/sport-settings', {
+                  method: 'PUT',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ sport: key, settings: {} }),
+                })
+              ),
+              ...removed.map(key =>
+                fetch(`/api/sport-settings?sport=${key}`, { method: 'DELETE' })
+              ),
+            ]);
+            setInitialSports(selectedSports);
+          }
+
           // Empty strings are sent intentionally — the server converts '' to
           // null, which is the only way a user can CLEAR a field. (Sending
           // `undefined` drops the key from JSON and the value can never be
@@ -256,6 +312,7 @@ export default function EditProfileTabs({
             full_name: basicForm.full_name.trim() || undefined, // fallback display name (not editable)
             bio: basicForm.bio.trim(),
             visibility: basicForm.visibility,
+            sport: selectedSports[0] ? getSportDefinition(selectedSports[0]).display_name : '',
           };
           hasChanges = true;
           break;
@@ -661,6 +718,17 @@ export default function EditProfileTabs({
 
         <p className="mt-2 text-xs text-gray-500 text-center">
           You can change this setting anytime
+        </p>
+      </div>
+
+      {/* Sports — primary drives profile/feed/composer defaults */}
+      <div>
+        <label className="block text-sm font-medium text-gray-700 mb-2">
+          Your sports
+        </label>
+        <SportMultiSelect selected={selectedSports} onChange={setSelectedSports} />
+        <p className="mt-2 text-xs text-gray-500">
+          Removing a sport clears its settings.
         </p>
       </div>
     </div>

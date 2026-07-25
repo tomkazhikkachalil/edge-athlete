@@ -98,7 +98,7 @@ export default function NotificationsPage() {
   const getNotificationIcon = (type: string) => {
     switch (type) {
       case 'group_invite':
-        return 'fa-golf-ball';
+        return 'fa-users';
       case 'group_update':
         return 'fa-trophy';
       case 'follow_request':

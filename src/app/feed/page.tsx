@@ -11,6 +11,9 @@ import { useToast } from '@/components/Toast';
 import { getSupabaseBrowserClient } from '@/lib/supabase';
 import LazyImage from '@/components/LazyImage';
 import { getInitials, formatDisplayName } from '@/lib/formatters';
+import { resolveSportKey, isComposerSport } from '@/lib/sports/resolve-sport-key';
+import { getSportDefinition, type SportKey } from '@/lib/sports/SportRegistry';
+import { getEmptyStateMessage, getActivityEncouragement, COPY } from '@/lib/copy';
 
 // Heavy modals (~2100 / ~1090 / ~330 lines) — split into their own chunks,
 // loaded only when the user opens them. Cuts First Load JS on /feed.
@@ -78,13 +81,18 @@ export default function FeedPage() {
   const [feedLoading, setFeedLoading] = useState(true);
   const [isCreatePostModalOpen, setIsCreatePostModalOpen] = useState(false);
 
-  // Deep link: /feed?create=1 opens the composer (used by onboarding's
-  // "Log your first round"). window.location instead of useSearchParams —
-  // this page is statically prerendered and must not need a Suspense wrap.
+  // Deep link: /feed?create=1[&sport=<key>] opens the composer, preset to
+  // the sport when given (onboarding's final CTA). window.location instead
+  // of useSearchParams — this page is statically prerendered and must not
+  // need a Suspense wrap. The sport must be captured BEFORE replaceState
+  // scrubs the URL.
+  const [deepLinkSport, setDeepLinkSport] = useState<SportKey | null>(null);
   useEffect(() => {
     if (typeof window === 'undefined') return;
     const params = new URLSearchParams(window.location.search);
     if (params.get('create') === '1') {
+      const sportKey = resolveSportKey(params.get('sport'));
+      if (isComposerSport(sportKey)) setDeepLinkSport(sportKey);
       setIsCreatePostModalOpen(true);
       window.history.replaceState(null, '', '/feed');
     }
@@ -127,12 +135,25 @@ export default function FeedPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user]);
 
-  // Check for an in-progress round to resume (live-scoring banner)
+  // The athlete's own sport drives composer defaults + empty-state copy
+  const profileSportKey = resolveSportKey(profile?.sport);
+  const profileDefaultSport = isComposerSport(profileSportKey) ? profileSportKey : null;
+
+  // Check for an in-progress round to resume (live-scoring banner).
+  // Golf-only feature: only poll for athletes who actually play golf
+  // (declared or posted — a live round IS a golf post, so legacy null-sport
+  // golfers keep the banner via the posted-sports union). A basketball
+  // athlete makes zero golf requests and never sees golf UI.
   useEffect(() => {
     if (!user) return;
     let cancelled = false;
     (async () => {
       try {
+        const activeRes = await fetch(`/api/profile/${user.id}/active-sports`);
+        if (!activeRes.ok || cancelled) return;
+        const { sportKeys } = await activeRes.json();
+        if (cancelled || !Array.isArray(sportKeys) || !sportKeys.includes('golf')) return;
+
         const res = await fetch('/api/golf/live-round');
         if (!res.ok || cancelled) return;
         const data = await res.json();
@@ -533,21 +554,38 @@ export default function FeedPage() {
                 </div>
               ) : posts.length === 0 ? (
                 <div className="bg-white rounded-lg shadow-md border-2 border-gray-300 p-8 text-center">
-                  <div className="text-green-500 mb-4">
-                    <i className="fas fa-golf-ball text-4xl"></i>
+                  {/* Empty state follows the athlete's declared sport; fully
+                      neutral when none is set */}
+                  <div className={`mb-4 ${profileDefaultSport ? 'text-green-500' : 'text-blue-500'}`}>
+                    <i className={`${profileDefaultSport ? getSportDefinition(profileDefaultSport).icon_id : 'fas fa-users'} text-4xl`}></i>
                   </div>
-                  <h3 className="text-lg font-medium text-gray-900 mb-2">Your feed starts with a round</h3>
+                  <h3 className="text-lg font-medium text-gray-900 mb-2">
+                    {profileDefaultSport
+                      ? getEmptyStateMessage(profileDefaultSport)
+                      : 'Your feed starts with your first post'}
+                  </h3>
                   <p className="text-gray-600 mb-6">
-                    Log your most recent round — your scores, stats, and trends build from there.
-                    Following other golfers fills this feed up too.
+                    {profileDefaultSport
+                      ? getActivityEncouragement(profileDefaultSport)
+                      : 'Share what you’re working on.'}{' '}
+                    Following other athletes fills this feed up too.
                   </p>
                   <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
                     <button
                       onClick={() => setIsCreatePostModalOpen(true)}
                       className="w-full sm:w-auto bg-green-600 text-white px-6 py-3 rounded-lg hover:bg-green-700 transition-colors font-medium"
                     >
-                      <i className="fas fa-golf-ball mr-2"></i>
-                      Log your first round
+                      {profileDefaultSport ? (
+                        <>
+                          <i className={`${getSportDefinition(profileDefaultSport).icon_id} mr-2`}></i>
+                          {COPY.SPORT_ACTIONS.PRIMARY_ACTION(profileDefaultSport)}
+                        </>
+                      ) : (
+                        <>
+                          <i className="fas fa-plus mr-2"></i>
+                          Create your first post
+                        </>
+                      )}
                     </button>
                     <button
                       onClick={() => setIsCreatePostModalOpen(true)}
@@ -632,6 +670,7 @@ export default function FeedPage() {
         onClose={() => setIsCreatePostModalOpen(false)}
         userId={user?.id || ''}
         onPostCreated={handlePostCreated}
+        defaultSportKey={deepLinkSport ?? profileDefaultSport ?? 'general'}
       />
 
       {/* Edit Post Modal */}

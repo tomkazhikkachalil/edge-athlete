@@ -58,9 +58,10 @@ export default function AddEquipmentModal({
   const { showSuccess, showError } = useToast();
   const [loading, setLoading] = useState(false);
 
-  // Sport selection (use default if provided)
+  // Sport selection — respect the caller's default when it's one this modal
+  // supports (the old code had a no-op ternary that ALWAYS chose golf)
   const [sportKey, setSportKey] = useState<SportKey>(
-    defaultSport === 'golf' ? 'golf' : 'golf'
+    defaultSport === 'general' || defaultSport === 'golf' ? defaultSport : 'golf'
   );
 
   // Form state

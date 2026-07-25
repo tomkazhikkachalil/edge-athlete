@@ -1,17 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { SPORT_REGISTRY, getSportDefinition, type SportKey } from '@/lib/sports/SportRegistry';
+import { getSportDefinition } from '@/lib/sports/SportRegistry';
 import { getStatSchema, isStatLineData } from '@/lib/sports/stat-schemas';
-
-/** profiles.sport stores a display label or key — resolve to a SportKey. */
-function resolveSportKey(sport: string | null): SportKey | null {
-  if (!sport) return null;
-  const lower = sport.toLowerCase();
-  if (lower in SPORT_REGISTRY) return lower as SportKey;
-  const match = Object.values(SPORT_REGISTRY).find(
-    def => def.display_name.toLowerCase() === lower
-  );
-  return match ? match.sport_key : null;
-}
+import { resolveSportKey } from '@/lib/sports/resolve-sport-key';
 import { getSupabaseAdmin } from '@/lib/auth-server';
 
 export async function GET(request: NextRequest) {

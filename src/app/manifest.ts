@@ -7,7 +7,7 @@ export default function manifest(): MetadataRoute.Manifest {
   return {
     name: 'Edge Athlete',
     short_name: 'Edge Athlete',
-    description: 'Log rounds, track your stats and trends, and connect with other golfers.',
+    description: 'Track your stats and trends, share your game, and connect with other athletes.',
     start_url: '/feed',
     display: 'standalone',
     background_color: '#eff6ff',

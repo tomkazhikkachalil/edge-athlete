@@ -5,12 +5,16 @@ import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth';
 import LazyImage from '@/components/LazyImage';
 import ConnectionSuggestions from '@/components/ConnectionSuggestions';
+import SportMultiSelect from '@/components/SportMultiSelect';
+import { getSportDefinition, type SportKey } from '@/lib/sports/SportRegistry';
 import { getInitials, formatDisplayName } from '@/lib/formatters';
 
-// First-run onboarding: three SKIPPABLE steps (photo → find golfers → first
-// round). Completing OR skipping stamps profiles.onboarded_at so the wizard
-// never reappears. Deliberately not a gauntlet — every screen has a skip.
-type Step = 1 | 2 | 3;
+// First-run onboarding: four SKIPPABLE steps (sports → photo → follow →
+// first post). Completing OR skipping stamps profiles.onboarded_at so the
+// wizard never reappears. Deliberately not a gauntlet — every screen has a
+// skip. Sport-neutral by design: golf gets golf copy only AFTER the athlete
+// picks golf; a skipped sport step keeps everything generic.
+type Step = 1 | 2 | 3 | 4;
 
 const ALLOWED_TYPES = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
 
@@ -19,10 +23,15 @@ export default function OnboardingPage() {
   const { user, profile, loading, refreshProfile } = useAuth();
 
   const [step, setStep] = useState<Step>(1);
+  const [selectedSports, setSelectedSports] = useState<SportKey[]>([]);
+  const [savingSports, setSavingSports] = useState(false);
   const [avatarUploading, setAvatarUploading] = useState(false);
   const [avatarError, setAvatarError] = useState<string | null>(null);
   const [finishing, setFinishing] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const primarySport = selectedSports[0] ?? null;
+  const primaryDef = primarySport ? getSportDefinition(primarySport) : null;
 
   useEffect(() => {
     if (!loading && !user) router.push('/');
@@ -60,6 +69,44 @@ export default function OnboardingPage() {
     router.push(destination);
   };
 
+  // Persist the sport choice the moment the athlete continues past step 1 —
+  // it must survive bailing out of later steps. Primary sport → profiles.sport
+  // (registry display name: ~12 UI sites and the explore filter render/match
+  // the raw string), every selection → an empty sport_settings row (how
+  // active-sports learns declared sports). Best-effort like markOnboarded.
+  const saveSports = async () => {
+    if (selectedSports.length === 0) {
+      setStep(2);
+      return;
+    }
+    setSavingSports(true);
+    try {
+      await fetch('/api/profile', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          profileData: { sport: getSportDefinition(selectedSports[0]).display_name },
+        }),
+      });
+      await Promise.all(
+        selectedSports.map(key =>
+          fetch('/api/sport-settings', {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ sport: key, settings: {} }),
+          })
+        )
+      );
+      await refreshProfile();
+    } catch (e) {
+      // Non-fatal — the athlete can set sports later in Edit Profile
+      console.error('Failed to save sport selection:', e);
+    } finally {
+      setSavingSports(false);
+      setStep(2);
+    }
+  };
+
   const handleAvatarSelect = async (file: File | undefined) => {
     if (!file) return;
     setAvatarError(null);
@@ -84,7 +131,7 @@ export default function OnboardingPage() {
         return;
       }
       await refreshProfile();
-      setStep(2);
+      setStep(3);
     } catch (e) {
       console.error('Avatar upload failed:', e);
       setAvatarError('Upload failed. You can add a photo later from your profile.');
@@ -111,8 +158,8 @@ export default function OnboardingPage() {
       <div className="flex-grow flex items-center justify-center p-4">
         <div className="w-full max-w-lg bg-white rounded-lg shadow-lg p-6 sm:p-8">
           {/* Progress dots */}
-          <div className="flex items-center justify-center gap-2 mb-6" aria-label={`Step ${step} of 3`}>
-            {[1, 2, 3].map(s => (
+          <div className="flex items-center justify-center gap-2 mb-6" aria-label={`Step ${step} of 4`}>
+            {[1, 2, 3, 4].map(s => (
               <span
                 key={s}
                 className={`h-2 rounded-full transition-all ${
@@ -123,12 +170,47 @@ export default function OnboardingPage() {
           </div>
 
           {step === 1 && (
+            <div>
+              <h2 className="text-2xl font-bold text-gray-900 mb-2 text-center">
+                Welcome{displayName ? `, ${displayName.split(' ')[0]}` : ''}!
+              </h2>
+              <p className="text-sm text-gray-600 mb-6 text-center">
+                What do you play? This shapes your profile and feed.
+              </p>
+
+              <div className="mb-6">
+                <SportMultiSelect selected={selectedSports} onChange={setSelectedSports} />
+              </div>
+
+              <button
+                onClick={saveSports}
+                disabled={savingSports || selectedSports.length === 0}
+                className="w-full bg-blue-600 text-white py-3 px-4 rounded-md hover:bg-blue-700 transition font-medium disabled:opacity-50 mb-3"
+              >
+                {savingSports ? (
+                  <><i className="fas fa-spinner fa-spin mr-2"></i>Saving…</>
+                ) : (
+                  'Continue'
+                )}
+              </button>
+              <div className="text-center">
+                <button
+                  onClick={() => setStep(2)}
+                  className="text-sm text-gray-500 hover:text-gray-700 min-h-[44px]"
+                >
+                  Skip for now
+                </button>
+              </div>
+            </div>
+          )}
+
+          {step === 2 && (
             <div className="text-center">
               <h2 className="text-2xl font-bold text-gray-900 mb-2">
-                Welcome{displayName ? `, ${displayName.split(' ')[0]}` : ''}! ⛳
+                Add a profile photo
               </h2>
               <p className="text-sm text-gray-600 mb-6">
-                Add a profile photo so other golfers recognize you.
+                So other athletes recognize you.
               </p>
 
               <div className="flex justify-center mb-6">
@@ -176,25 +258,33 @@ export default function OnboardingPage() {
               <div className="flex items-center justify-center gap-4">
                 {profile?.avatar_url && (
                   <button
-                    onClick={() => setStep(2)}
+                    onClick={() => setStep(3)}
                     className="text-sm font-medium text-blue-600 hover:text-blue-700 min-h-[44px]"
                   >
                     Looks good — continue
                   </button>
                 )}
                 <button
-                  onClick={() => setStep(2)}
+                  onClick={() => setStep(3)}
                   className="text-sm text-gray-500 hover:text-gray-700 min-h-[44px]"
                 >
                   Skip for now
                 </button>
               </div>
+              <div className="mt-2 text-center">
+                <button
+                  onClick={() => setStep(1)}
+                  className="text-sm text-gray-500 hover:text-gray-700 min-h-[44px]"
+                >
+                  ← Back
+                </button>
+              </div>
             </div>
           )}
 
-          {step === 2 && (
+          {step === 3 && (
             <div>
-              <h2 className="text-2xl font-bold text-gray-900 mb-2 text-center">Find golfers to follow</h2>
+              <h2 className="text-2xl font-bold text-gray-900 mb-2 text-center">Find athletes to follow</h2>
               <p className="text-sm text-gray-600 mb-4 text-center">
                 Your feed comes alive when you follow a few people.
               </p>
@@ -205,13 +295,13 @@ export default function OnboardingPage() {
 
               <div className="flex items-center justify-between">
                 <button
-                  onClick={() => setStep(1)}
+                  onClick={() => setStep(2)}
                   className="text-sm text-gray-500 hover:text-gray-700 min-h-[44px]"
                 >
                   ← Back
                 </button>
                 <button
-                  onClick={() => setStep(3)}
+                  onClick={() => setStep(4)}
                   className="bg-blue-600 text-white py-2.5 px-6 rounded-md hover:bg-blue-700 transition font-medium min-h-[44px]"
                 >
                   Continue
@@ -220,24 +310,30 @@ export default function OnboardingPage() {
             </div>
           )}
 
-          {step === 3 && (
+          {step === 4 && (
             <div className="text-center">
-              <div className="text-5xl mb-4">🏌️</div>
+              <div className="text-5xl mb-4 text-blue-600">
+                <i className={primaryDef?.icon_id ?? 'fas fa-trophy'} aria-hidden="true"></i>
+              </div>
               <h2 className="text-2xl font-bold text-gray-900 mb-2">You&apos;re all set!</h2>
               <p className="text-sm text-gray-600 mb-6">
-                The best way to start: log your most recent round. Your scores, stats, and
-                trends build from there.
+                {primaryDef
+                  ? `The best way to start: log your most recent ${primaryDef.display_name.toLowerCase()} activity. Your stats and trends build from there.`
+                  : 'The best way to start: share your first post. Your profile builds from there.'}
               </p>
 
               <button
-                onClick={() => finish('/feed?create=1')}
+                onClick={() => finish(primarySport ? `/feed?create=1&sport=${primarySport}` : '/feed?create=1')}
                 disabled={finishing}
                 className="w-full bg-green-600 text-white py-3 px-4 rounded-md hover:bg-green-700 transition font-semibold disabled:opacity-50 mb-3"
               >
                 {finishing ? (
                   <><i className="fas fa-spinner fa-spin mr-2"></i>One sec…</>
                 ) : (
-                  <><i className="fas fa-golf-ball mr-2"></i>Log your first round</>
+                  <>
+                    <i className={`${primaryDef?.icon_id ?? 'fas fa-plus'} mr-2`}></i>
+                    {primaryDef?.primary_action ?? 'Create your first post'}
+                  </>
                 )}
               </button>
               <button
@@ -249,7 +345,7 @@ export default function OnboardingPage() {
               </button>
 
               <button
-                onClick={() => setStep(2)}
+                onClick={() => setStep(3)}
                 className="mt-4 text-sm text-gray-500 hover:text-gray-700 min-h-[44px]"
               >
                 ← Back

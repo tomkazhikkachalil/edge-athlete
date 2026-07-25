@@ -126,6 +126,18 @@ export default function CreatePostModal({
   // Post type and content
   const [postType, setPostType] = useState<SportKey | 'general'>(defaultSportKey);
   const [showSportSelector, setShowSportSelector] = useState(false);
+
+  // The modal stays mounted with isOpen toggling, so the useState initializer
+  // above only ever sees the FIRST defaultSportKey. Re-apply it on each open
+  // transition (ref-guarded so a prop change mid-composition can't clobber
+  // what the user picked).
+  const wasOpenRef = useRef(false);
+  useEffect(() => {
+    if (isOpen && !wasOpenRef.current) {
+      setPostType(defaultSportKey);
+    }
+    wasOpenRef.current = isOpen;
+  }, [isOpen, defaultSportKey]);
   // Stat-line sports (ice hockey, volleyball, …) — schema-driven stat entry
   const [statLineData, setStatLineData] = useState<StatLineData | null>(null);
   const isStatLineSport = postType !== 'general' && getStatSchema(postType) !== null;
@@ -291,9 +303,11 @@ export default function CreatePostModal({
     );
   }, []);
 
-  // Reset form
+  // Reset form (back to the caller's default sport, not hardcoded 'general' —
+  // resetting to 'general' silently dropped every caller's defaultSportKey
+  // after the first post)
   const reset = () => {
-    setPostType('general' as SportKey | 'general');
+    setPostType(defaultSportKey);
     setCaption('');
     setSelectedTags([]);
     setHashtags([]);
