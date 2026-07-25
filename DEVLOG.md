@@ -1,5 +1,71 @@
 # Development Log
 
+## July 25, 2026 — Maintenance checklist + sync
+
+- `npm ci --dry-run` — clean. `npm run lint` — zero warnings/errors.
+- `npx tsc --noEmit` — clean. `npx vitest run` — 97 passed (9 files).
+- `npm run build` — exit 0, 81 pages, isolated-worktree build (dev server
+  was running). This entry is the maintenance-log commit → GitHub → Vercel.
+
+## July 25, 2026 — Launch-readiness sprint: THREE launch-blocking DB bugs + the silent-failure root cause
+
+The two-phone live-scoring E2E test earned its keep on Phase 1 alone.
+Tom's first real shared-round creation "succeeded" in the UI and left
+ZERO rows. Unwinding that found four systemic bugs:
+
+**Migrations 035–037 (all run + verified live, commit 7508285):**
+- 035: group_posts ↔ group_post_participants RLS policies referenced each
+  other (participants' even referenced ITSELF) → "infinite recursion
+  detected in policy" (42P17) on the very first insert. The API's atomic
+  rollback then erased every attempt without a trace. Shared rounds were
+  NEVER creatable against live RLS — dev reads go through the admin
+  client (bypasses RLS) and empty tables never evaluate policies, so
+  weeks of live-scoring work sat on a feature no real user could start.
+  Fixed with SECURITY DEFINER membership helpers
+  (is_group_post_creator/participant/organizer).
+- 036: archive/old-migrations/fix-utility-functions-schema.sql had
+  REWRITTEN handle_updated_at() (the generic updated_at trigger from 001)
+  to set NEW.handle_updated_at — a profiles-only column. Every UPDATE on
+  group_posts/clubs failed 42703 (all round status transitions dead), and
+  every profile edit was inflating the 7-day handle-change rate limit.
+- 037: same file broke update_group_post_timestamp() (touch-parent body on
+  tables without group_post_id) and calculate_golf_participant_totals()
+  (nonexistent columns) — every hole-score insert would have failed.
+  Restored to 004 canon, schema-qualified + search_path hardened.
+- Verified with a 10-step authenticated diagnostic (create → invite →
+  scorecard → feed post → backlink → scores row → hole inserts → trigger
+  totals → update): all pass. LESSON: archived "fix" SQL files redefined
+  LIVE functions; when a trigger/policy errors weirdly, diff pg_proc
+  prosrc against canon.
+
+**Toast fix (ab60d9d):** the reason the UI lied: useToast() was
+per-component state, so a toast only rendered if that same component also
+rendered a ToastContainer. Pages did; every embedded component
+(CreatePostModal's 10+ showError calls, FollowButton, EditPostModal,
+GolfScorecardForm…) fired into the void. Store is now module-global
+(useSyncExternalStore) + one <GlobalToasts /> in the root layout;
+six per-page containers removed; API unchanged — every existing error/
+success message became visible at once.
+
+**Sentry verified live end-to-end:** DSN inlined in prod bundle + test
+event accepted (HTTP 200) + new-issue email received. Two Vercel gotchas
+hit on the way: "Redeploy" reuses build cache (NEXT_PUBLIC_* changes need
+the cache checkbox UNCHECKED) and an empty-value env var inlines as "".
+
+**Test account** for 2-phone testing: tom.kazhikkachalil+test@gmail.com
+(admin-created; profiles are route-created not trigger-created, and
+profiles enforces check_display_name_not_empty). OPEN MYSTERY: Tom's
+in-app signup attempt for this account never reached the DB despite
+appearing to complete — watch signup closely in the first-run walkthrough.
+
+**Sprint plan agreed (4 sprints):** 1 Launch Readiness (in flight:
+Sentry ✓, DB fixes ✓, toast fix ✓; remaining: phone phases 1–8, first-run
+walkthrough + signup mystery, deferred mobile items, season chip) →
+2 First-100 Funnel (OAuth, OG/meta on public profiles, SMTP/CRON/Upstash,
+foursome invites) → 3 Golf Depth (shared-round per-hole stats, trends/
+handicap incl. shared, real par, rounds page) → 4 Foundation Hardening
+(live-DB audit vs canon, registry merge, dead code, Playwright E2E).
+
 ## July 24, 2026 (night) — Launch-readiness sprint 1/4: Sentry error monitoring
 
 First stop of the launch-readiness sprint: real-user errors become visible
