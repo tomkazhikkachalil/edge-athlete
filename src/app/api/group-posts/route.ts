@@ -252,8 +252,17 @@ export async function POST(request: NextRequest) {
     // decision): anyone invited can score immediately — the attestation step
     // is retired (its UI never shipped and it dead-ended invitees at
     // 'pending', which the scores API rejected).
-    if (participant_ids && Array.isArray(participant_ids) && participant_ids.length > 0) {
-      const participantInserts = participant_ids.map((profile_id: string) => ({
+    //
+    // Dedupe and DROP THE CREATOR: the modal's "Add yourself" button puts
+    // the creator into participant_ids, but the creator row was already
+    // inserted above — re-inserting hits UNIQUE(group_post_id, profile_id)
+    // and aborted EVERY round created via that button (found in the July 25
+    // two-phone test).
+    const inviteeIds = Array.isArray(participant_ids)
+      ? [...new Set(participant_ids as string[])].filter(id => id !== user.id)
+      : [];
+    if (inviteeIds.length > 0) {
+      const participantInserts = inviteeIds.map((profile_id: string) => ({
         group_post_id: groupPost.id,
         profile_id,
         role: 'participant',
@@ -333,7 +342,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Notify invited participants (best-effort — the round exists regardless)
-    if (participant_ids && Array.isArray(participant_ids) && participant_ids.length > 0) {
+    if (inviteeIds.length > 0) {
       await notifyGroupInvites(
         {
           supabase: getSupabaseAdmin(),
@@ -342,7 +351,7 @@ export async function POST(request: NextRequest) {
           actionUrl: `/athlete/${user.id}?post=${feedPost.id}`,
         },
         user.id,
-        participant_ids as string[]
+        inviteeIds
       );
     }
 
