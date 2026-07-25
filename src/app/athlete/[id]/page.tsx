@@ -3,7 +3,6 @@
 import { useEffect, useState, useRef, useCallback } from 'react';
 import { useAuth } from '@/lib/auth';
 import { useRouter, useParams, useSearchParams } from 'next/navigation';
-import { ToastContainer, useToast } from '@/components/Toast';
 import LazyImage from '@/components/LazyImage';
 import AppHeader from '@/components/AppHeader';
 import FollowButton from '@/components/FollowButton';
@@ -78,7 +77,6 @@ export default function AthleteProfilePage() {
   const [isFollowersModalOpen, setIsFollowersModalOpen] = useState(false);
   const [followersModalTab, setFollowersModalTab] = useState<'followers' | 'following'>('followers');
 
-  const { toasts, dismissToast } = useToast();
 
   // Note: seasonHighlights and performances are fetched but not currently displayed
   // These can be added to the UI in future updates
@@ -484,7 +482,6 @@ export default function AthleteProfilePage() {
       </div>
 
       {/* Toast Container */}
-      <ToastContainer toasts={toasts} onDismiss={dismissToast} />
 
       {/* Shared-post deep link (?post=) AND sport-card latest-post opens —
           one modal serves both; the replaceState below is a no-op for card

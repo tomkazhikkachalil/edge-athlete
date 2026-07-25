@@ -5,7 +5,7 @@ import { useParams, useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth';
 import AppHeader from '@/components/AppHeader';
 import ConfirmModal from '@/components/ConfirmModal';
-import { ToastContainer, useToast } from '@/components/Toast';
+import { useToast } from '@/components/Toast';
 
 interface GolfHole {
   hole_number: number;
@@ -56,7 +56,7 @@ export default function GolfRoundDetailPage() {
   const params = useParams();
   const router = useRouter();
   const { user, loading: authLoading } = useAuth();
-  const { toasts, dismissToast, showSuccess, showError } = useToast();
+  const { showSuccess, showError } = useToast();
 
   const [round, setRound] = useState<GolfRound | null>(null);
   const [isOwner, setIsOwner] = useState(false);
@@ -245,7 +245,6 @@ export default function GolfRoundDetailPage() {
   return (
     <div className="min-h-screen bg-gray-50">
       <AppHeader showSearch={false} />
-      <ToastContainer toasts={toasts} onDismiss={dismissToast} />
 
       {/* Navigation + actions */}
       <div className="bg-white border-b border-gray-200">

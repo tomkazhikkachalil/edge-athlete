@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useSyncExternalStore } from 'react';
 
 export interface ToastMessage {
   id: string;
@@ -132,37 +132,66 @@ export function ToastContainer({ toasts, onDismiss }: ToastContainerProps) {
   );
 }
 
-// Hook for managing toasts.
-// All callbacks are useCallback-stable: consumers put them in useEffect
-// dependency arrays (e.g. the feed's realtime effect), and fresh identities
-// every render caused channel teardown/resubscribe churn on each toast.
-export function useToast() {
-  const [toasts, setToasts] = useState<ToastMessage[]>([]);
+// ── Global toast store ────────────────────────────────────────────────────────
+// ONE module-level store shared by every useToast() caller. The old hook kept
+// per-component state, so a toast only rendered if that same component ALSO
+// rendered a ToastContainer — pages did, but every embedded component
+// (CreatePostModal, FollowButton, EditPostModal, …) fired toasts into the
+// void. Root cause of "the app said nothing when creation failed."
+// <GlobalToasts /> in the root layout renders everything now.
 
-  const addToast = useCallback((toast: Omit<ToastMessage, 'id'>) => {
-    const id = Date.now().toString();
-    setToasts(prev => [...prev, { ...toast, id }]);
-  }, []);
+let globalToasts: ToastMessage[] = [];
+let toastSeq = 0;
+const listeners = new Set<() => void>();
+
+function emit() {
+  for (const listener of listeners) listener();
+}
+
+function subscribe(listener: () => void): () => void {
+  listeners.add(listener);
+  return () => listeners.delete(listener);
+}
+
+function getSnapshot(): ToastMessage[] {
+  return globalToasts;
+}
+
+function addGlobalToast(toast: Omit<ToastMessage, 'id'>): void {
+  const id = `t${++toastSeq}-${Date.now()}`;
+  globalToasts = [...globalToasts, { ...toast, id }];
+  emit();
+}
+
+function dismissGlobalToast(id: string): void {
+  globalToasts = globalToasts.filter(toast => toast.id !== id);
+  emit();
+}
+
+// Hook for showing toasts. Same API as always — callbacks are stable
+// (module-level functions), consumers keep them in effect dep arrays.
+export function useToast() {
+  const toasts = useSyncExternalStore(subscribe, getSnapshot, getSnapshot);
 
   const dismissToast = useCallback((id: string) => {
-    setToasts(prev => prev.filter(toast => toast.id !== id));
+    dismissGlobalToast(id);
   }, []);
 
   const showSuccess = useCallback((title: string, message?: string) => {
-    addToast({ type: 'success', title, message });
-  }, [addToast]);
+    addGlobalToast({ type: 'success', title, message });
+  }, []);
 
   const showError = useCallback((title: string, message?: string) => {
-    addToast({ type: 'error', title, message, duration: 6000 });
-  }, [addToast]);
+    addGlobalToast({ type: 'error', title, message, duration: 6000 });
+  }, []);
 
   const showInfo = useCallback((title: string, message?: string) => {
-    addToast({ type: 'info', title, message });
-  }, [addToast]);
+    addGlobalToast({ type: 'info', title, message });
+  }, []);
 
   const showWarning = useCallback((title: string, message?: string) => {
-    addToast({ type: 'warning', title, message });
-  }, [addToast]);
+    addGlobalToast({ type: 'warning', title, message });
+  }, []);
 
   return {
     toasts,
@@ -172,4 +201,14 @@ export function useToast() {
     showInfo,
     showWarning,
   };
+}
+
+/**
+ * The ONE app-wide toast surface, mounted in the root layout. Renders the
+ * global store, so a toast fired from ANY component displays. Pages must not
+ * render their own <ToastContainer> anymore (it would duplicate every toast).
+ */
+export function GlobalToasts() {
+  const { toasts, dismissToast } = useToast();
+  return <ToastContainer toasts={toasts} onDismiss={dismissToast} />;
 }

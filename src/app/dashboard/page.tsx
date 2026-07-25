@@ -4,7 +4,7 @@ import { useEffect, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth';
 import AppHeader from '@/components/AppHeader';
-import { ToastContainer, useToast } from '@/components/Toast';
+import { useToast } from '@/components/Toast';
 import { formatDisplayName } from '@/lib/formatters';
 
 // Admin console (replaces the orphaned legacy dashboard page — its buttons
@@ -43,7 +43,7 @@ const name = (p: { first_name: string | null; last_name: string | null; full_nam
 export default function AdminDashboardPage() {
   const router = useRouter();
   const { user, loading: authLoading } = useAuth();
-  const { toasts, dismissToast, showSuccess, showError } = useToast();
+  const { showSuccess, showError } = useToast();
 
   const [authorized, setAuthorized] = useState<boolean | null>(null);
   const [reports, setReports] = useState<ReportRow[]>([]);
@@ -157,7 +157,6 @@ export default function AdminDashboardPage() {
   return (
     <div className="min-h-screen bg-gray-50">
       <AppHeader showSearch={false} />
-      <ToastContainer toasts={toasts} onDismiss={dismissToast} />
 
       <div className="max-w-4xl mx-auto px-4 py-6 space-y-8">
         <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">

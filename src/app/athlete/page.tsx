@@ -5,7 +5,7 @@ import dynamic from 'next/dynamic';
 import { useAuth } from '@/lib/auth';
 import { useRouter } from 'next/navigation';
 import { AthleteService } from '@/lib/athleteService';
-import { ToastContainer, useToast } from '@/components/Toast';
+import { useToast } from '@/components/Toast';
 import MultiSportHighlights from '@/components/MultiSportHighlights';
 import LazyImage from '@/components/LazyImage';
 import ProfileMediaTabs, { type SportSpotlight } from '@/components/ProfileMediaTabs';
@@ -186,7 +186,7 @@ export default function AthleteProfilePage() {
   const [avatarUploading, setAvatarUploading] = useState(false);
   const [submitStates, setSubmitStates] = useState<Record<string, boolean>>({});
   const [errors, setErrors] = useState<Record<string, string>>({});
-  const { toasts, dismissToast, showSuccess, showError } = useToast();
+  const { showSuccess, showError } = useToast();
   
   // Create Post Modal state
   const [isCreatePostModalOpen, setIsCreatePostModalOpen] = useState(false);
@@ -1109,7 +1109,6 @@ export default function AthleteProfilePage() {
       />
       
       {/* Toast Container */}
-      <ToastContainer toasts={toasts} onDismiss={dismissToast} />
 
       {/* One modal serves both the ?post= deep link and sport-card clicks */}
       <PostDetailModal

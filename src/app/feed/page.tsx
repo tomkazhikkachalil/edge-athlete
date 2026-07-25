@@ -7,7 +7,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import PostCard from '@/components/PostCard';
 import AppHeader from '@/components/AppHeader';
 import ConnectionSuggestions from '@/components/ConnectionSuggestions';
-import { ToastContainer, useToast } from '@/components/Toast';
+import { useToast } from '@/components/Toast';
 import { getSupabaseBrowserClient } from '@/lib/supabase';
 import LazyImage from '@/components/LazyImage';
 import { getInitials, formatDisplayName } from '@/lib/formatters';
@@ -110,7 +110,7 @@ export default function FeedPage() {
   const [deepLinkPostId, setDeepLinkPostId] = useState<string | null>(null);
   const loadInFlightRef = useRef(false);
   const [page, setPage] = useState(0);
-  const { toasts, dismissToast, showError, showSuccess } = useToast();
+  const { showError, showSuccess } = useToast();
 
   // Redirect to login if not authenticated
   useEffect(() => {
@@ -690,7 +690,6 @@ export default function FeedPage() {
       />
 
       {/* Toast Container */}
-      <ToastContainer toasts={toasts} onDismiss={dismissToast} />
     </div>
   );
 }

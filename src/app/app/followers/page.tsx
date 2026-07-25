@@ -5,7 +5,7 @@ import { useAuth } from '@/lib/auth';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { formatDisplayName, getInitials } from '@/lib/formatters';
 import LazyImage from '@/components/LazyImage';
-import { ToastContainer, useToast } from '@/components/Toast';
+import { useToast } from '@/components/Toast';
 import AppHeader from '@/components/AppHeader';
 
 interface FollowerProfile {
@@ -44,7 +44,7 @@ function FollowersContent() {
   const [following, setFollowing] = useState<Follower[]>([]);
   const [requests, setRequests] = useState<FollowRequest[]>([]);
   const [loading, setLoading] = useState(true);
-  const { toasts, dismissToast, showSuccess, showError } = useToast();
+  const { showSuccess, showError } = useToast();
 
   useEffect(() => {
     if (!authLoading && !user) {
@@ -264,7 +264,6 @@ function FollowersContent() {
       {/* Unified Header */}
       <AppHeader showSearch={false} />
 
-      <ToastContainer toasts={toasts} onDismiss={dismissToast} />
 
       {/* Page Header with Tabs */}
       <div className="bg-white border-b border-gray-200">
