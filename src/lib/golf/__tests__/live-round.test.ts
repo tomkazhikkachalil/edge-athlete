@@ -66,6 +66,18 @@ describe('pickLiveRound', () => {
     expect(pickLiveRound([{ ...base, holes_completed: 18 }], NOW)?.group_post.id).toBe('a');
   });
 
+  it('skips a round that has gone quiet past the 6h auto-end window', () => {
+    const base = row('a', 'active', '2026-07-24');
+    const quiet = {
+      ...base,
+      group_post: {
+        ...base.group_post,
+        last_score_activity_at: new Date(NOW - 7 * 60 * 60 * 1000).toISOString(),
+      },
+    };
+    expect(pickLiveRound([quiet], NOW)).toBeNull();
+  });
+
   it('falls through to an unfinished round when the newest card is done', () => {
     const doneBase = row('newer', 'active', '2026-07-24');
     const done = {

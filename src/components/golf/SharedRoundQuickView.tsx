@@ -1,23 +1,31 @@
 'use client';
 
+import { useState } from 'react';
 import { formatDisplayName, getInitials } from '@/lib/formatters';
-import { isRoundLive, isActiveParticipant } from '@/lib/golf/round-status';
+import { isRoundLive, isActiveParticipant, effectiveRoundStatus } from '@/lib/golf/round-status';
 import { asGameFormat, calcStablefordTotal, calcMatchStatus, GAME_FORMAT_LABELS } from '@/lib/golf/formats';
+import { useEndRound } from '@/hooks/useEndRound';
 import LazyImage from '../LazyImage';
+import ConfirmModal from '../ConfirmModal';
 import type { CompleteGolfScorecard } from '@/types/group-posts';
 
 interface SharedRoundQuickViewProps {
   scorecard: CompleteGolfScorecard;
   onExpand: () => void;
   currentUserId?: string;
+  /** Called after the creator ends the round from this card. */
+  onStatusChange?: () => void;
 }
 
 export default function SharedRoundQuickView({
   scorecard,
   onExpand,
-  currentUserId
+  currentUserId,
+  onStatusChange
 }: SharedRoundQuickViewProps) {
   const { group_post, golf_data, participants } = scorecard;
+  const [showEndConfirm, setShowEndConfirm] = useState(false);
+  const { endRound, ending } = useEndRound(group_post.id, onStatusChange);
 
   // Filter confirmed participants with scores
   const confirmedWithScores = participants.filter(
@@ -92,7 +100,7 @@ export default function SharedRoundQuickView({
                 LIVE
               </span>
             )}
-            {group_post.status === 'completed' && (
+            {effectiveRoundStatus(group_post) === 'completed' && (
               <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-gray-700 text-white text-xs font-bold rounded-full">
                 <i className="fas fa-flag-checkered text-[10px]"></i>
                 FINAL
@@ -309,6 +317,22 @@ export default function SharedRoundQuickView({
           View Full Scorecard
         </button>
 
+        {/* End Round — visible right on the card so a creator never has to
+            discover the modal to finish a partial round. Keyed on RAW status
+            (the persistence escape hatch even when display already says FINAL
+            via the 6h auto-end rule). */}
+        {isOwner && group_post.status === 'active' && (
+          <button
+            onClick={() => setShowEndConfirm(true)}
+            disabled={ending}
+            className="flex items-center justify-center gap-2 bg-gray-700 hover:bg-gray-800 disabled:opacity-60 text-white font-bold py-2 px-4 rounded-lg transition-colors text-sm min-h-[44px]"
+            aria-label="End round"
+          >
+            <i className={`fas ${ending ? 'fa-spinner fa-spin' : 'fa-flag-checkered'}`}></i>
+            End Round
+          </button>
+        )}
+
         {isOwner && (
           <button
             onClick={onExpand}
@@ -320,6 +344,18 @@ export default function SharedRoundQuickView({
           </button>
         )}
       </div>
+
+      <ConfirmModal
+        isOpen={showEndConfirm}
+        title="End this round?"
+        message="The round will be marked as final. Scores can still be edited afterwards."
+        confirmText="End Round"
+        onConfirm={() => {
+          setShowEndConfirm(false);
+          endRound();
+        }}
+        onCancel={() => setShowEndConfirm(false)}
+      />
     </div>
   );
 }

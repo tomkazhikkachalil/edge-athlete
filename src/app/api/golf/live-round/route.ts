@@ -37,7 +37,10 @@ export async function GET(request: NextRequest) {
           status,
           date,
           post_id,
-          golf_data:golf_scorecard_data ( course_name, holes_played )
+          golf_data:golf_scorecard_data ( course_name, holes_played ),
+          all_participants:group_post_participants (
+            scores:golf_participant_scores ( updated_at )
+          )
         )
       `)
       .eq('profile_id', user.id)
@@ -58,6 +61,15 @@ export async function GET(request: NextRequest) {
         if (!gp || gp.type !== 'golf_round') return null;
         const golfData = Array.isArray(gp.golf_data) ? gp.golf_data[0] : gp.golf_data;
         const scores = Array.isArray(r.scores) ? r.scores[0] : r.scores;
+        // Round-wide newest score write — the 6h auto-end rule hides the
+        // banner for quiet rounds
+        let lastActivity: string | null = null;
+        for (const ap of (gp.all_participants || []) as Array<{ scores: { updated_at?: string | null }[] | { updated_at?: string | null } | null }>) {
+          const s = Array.isArray(ap.scores) ? ap.scores[0] : ap.scores;
+          if (s?.updated_at && (!lastActivity || s.updated_at > lastActivity)) {
+            lastActivity = s.updated_at;
+          }
+        }
         return {
           participant_id: r.id,
           holes_completed: scores?.holes_completed ?? null,
@@ -68,6 +80,7 @@ export async function GET(request: NextRequest) {
             post_id: gp.post_id,
             course_name: golfData?.course_name ?? null,
             holes_played: golfData?.holes_played ?? null,
+            last_score_activity_at: lastActivity,
           },
         };
       })

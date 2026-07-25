@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseAdmin, getServerClient } from '@/lib/auth-server';
 import { notifyGroupInvites } from '@/lib/golf/group-notifications';
+import { initialRoundStatus } from '@/lib/golf/round-status';
 
 /**
  * GET /api/group-posts
@@ -109,7 +110,7 @@ export async function POST(request: NextRequest) {
 
   try {
     const body = await request.json();
-    const { type, title, description, date, location, visibility, participant_ids, golf_data } = body;
+    const { type, title, description, date, location, visibility, participant_ids, golf_data, already_played } = body;
 
     // Validate required fields
     if (!type || !title || !date) {
@@ -176,7 +177,16 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Create group post
+    // Reject non-boolean already_played (client sends true, undefined, or bust)
+    if (already_played !== undefined && typeof already_played !== 'boolean') {
+      return NextResponse.json(
+        { error: 'already_played must be a boolean' },
+        { status: 400 }
+      );
+    }
+
+    // Create group post. "Already played" rounds post as completed (FINAL,
+    // never LIVE); live rounds start pending and advance from score activity.
     const { data: groupPost, error: createError } = await supabase
       .from('group_posts')
       .insert({
@@ -187,7 +197,7 @@ export async function POST(request: NextRequest) {
         date,
         location,
         visibility: visibility || 'public',
-        status: 'pending', // Start as pending/draft
+        status: initialRoundStatus(already_played),
       })
       .select()
       .single();

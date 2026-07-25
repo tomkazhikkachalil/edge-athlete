@@ -6,22 +6,31 @@ import type { CompleteGolfScorecard } from '@/types/group-posts';
 
 // ── useSharedRound ────────────────────────────────────────────────────────────
 // The single source of truth for a shared golf round's live state, and the seam
-// the live-scoring system builds on. It:
+// the live-scoring system builds on (feed cards, scorecard modal, score entry —
+// and, later, tournament/leaderboard pages). It:
 //   • seeds from the scorecard the feed already loaded (no extra fetch on mount),
-//   • subscribes to Supabase Realtime on golf_participant_scores so scores
-//     entered by ANY player stream in live (leaderboard updates for everyone
-//     watching, not just the person entering),
+//   • refreshes once when enabled (the seeded data may be minutes old),
+//   • subscribes to Supabase Realtime on golf_participant_scores (scores from
+//     ANY player) and on this round's group_posts row (status flips: LIVE →
+//     FINAL streams to viewers, e.g. End Round),
+//   • retries failed subscriptions with backoff and reports connectionState,
+//   • falls back to a 30s poll whenever enabled but not live (real-world
+//     conditions: flaky networks, blocked websockets — mirrors messages' poll),
+//   • ticks a re-render each minute so time-based badge rules (6h auto-end,
+//     48h live window) expire without any server event,
 //   • exposes refresh() for imperative updates (e.g. right after you save).
 //
-// Realtime respects RLS: the golf_participant_scores SELECT policy scopes score
-// visibility to the round's participants/creator, so live updates reach the
-// people actually playing. Non-participant spectators fall back to the seeded
-// data + manual refresh — no breakage either way. Requires the table to be in
-// the `supabase_realtime` publication (migration 031); if it isn't, the
-// subscription simply never fires and refresh() still works.
-//
-// The subscription is gated by `enabled` so the feed doesn't open a channel per
-// shared-round card — callers enable it when the full scorecard is open.
+// Realtime respects RLS (subscriber's SELECT policies). Requires both tables
+// in the `supabase_realtime` publication (migration 038); if absent, the
+// channel never fires and the poll fallback carries the feature.
+
+export type LiveConnectionState = 'idle' | 'connecting' | 'live' | 'degraded';
+
+const POLL_FALLBACK_MS = 30_000;
+const CLOCK_TICK_MS = 60_000;
+const RETRY_BASE_MS = 2_000;
+const RETRY_MAX_MS = 30_000;
+
 export function useSharedRound({
   groupPostId,
   postId,
@@ -38,6 +47,11 @@ export function useSharedRound({
   // Cleared by the next successful refresh. Callers surface it (small chip),
   // because silently-stale live leaderboards erode trust in the whole feature.
   const [stale, setStale] = useState(false);
+  const [connectionState, setConnectionState] = useState<LiveConnectionState>('idle');
+  // Bumped by the retry timer to force a resubscribe attempt
+  const [retryNonce, setRetryNonce] = useState(0);
+  // Re-render pulse so time-based display rules expire while a card sits open
+  const [, setNowTick] = useState(0);
 
   // Keep in sync when the parent re-provides a scorecard (e.g. feed refetch).
   useEffect(() => {
@@ -67,6 +81,11 @@ export function useSharedRound({
     }
   }, [postId]);
 
+  // The seeded scorecard can be minutes old — sync once when going live.
+  useEffect(() => {
+    if (enabled) refresh();
+  }, [enabled, refresh]);
+
   // Participant RECORD ids (group_post_participants.id) for client-side event
   // filtering. Kept in a ref so the subscription effect doesn't re-run — and
   // resubscribe — every time scores change.
@@ -79,8 +98,16 @@ export function useSharedRound({
     participantIdsRef.current = participantIds;
   }, [participantIds]);
 
+  const attemptRef = useRef(0);
+
   useEffect(() => {
-    if (!enabled || !groupPostId) return;
+    if (!enabled || !groupPostId) {
+      setConnectionState('idle');
+      return;
+    }
+
+    setConnectionState('connecting');
+    let retryTimer: ReturnType<typeof setTimeout> | null = null;
 
     const channel = supabase
       .channel(`shared-round:${groupPostId}`)
@@ -95,12 +122,53 @@ export function useSharedRound({
           }
         }
       )
-      .subscribe();
+      .on(
+        'postgres_changes',
+        // Status flips (pending→active→completed, End Round) stream to every
+        // viewer — the badge and leaderboard state follow without a reload.
+        { event: 'UPDATE', schema: 'public', table: 'group_posts', filter: `id=eq.${groupPostId}` },
+        () => {
+          refresh();
+        }
+      )
+      .subscribe((status: string) => {
+        if (status === 'SUBSCRIBED') {
+          attemptRef.current = 0;
+          setConnectionState('live');
+        } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
+          // Silent-failure was the old behavior — now we degrade visibly
+          // (poll fallback takes over) and retry with backoff.
+          setConnectionState('degraded');
+          if (!retryTimer) {
+            const delay = Math.min(RETRY_BASE_MS * 2 ** attemptRef.current, RETRY_MAX_MS);
+            attemptRef.current += 1;
+            retryTimer = setTimeout(() => setRetryNonce(n => n + 1), delay);
+          }
+        }
+      });
 
     return () => {
+      if (retryTimer) clearTimeout(retryTimer);
       supabase.removeChannel(channel);
+      setConnectionState('idle');
     };
-  }, [enabled, groupPostId, refresh]);
+  }, [enabled, groupPostId, refresh, retryNonce]);
 
-  return { scorecard, refresh, stale };
+  // Poll fallback: while enabled but the channel isn't healthy, keep the
+  // leaderboard moving anyway.
+  useEffect(() => {
+    if (!enabled || connectionState === 'live') return;
+    const interval = setInterval(refresh, POLL_FALLBACK_MS);
+    return () => clearInterval(interval);
+  }, [enabled, connectionState, refresh]);
+
+  // Minute tick: re-render so isRoundLive/effectiveRoundStatus re-evaluate
+  // with fresh Date.now() — LIVE badges expire on time even with no events.
+  useEffect(() => {
+    if (!enabled) return;
+    const interval = setInterval(() => setNowTick(t => t + 1), CLOCK_TICK_MS);
+    return () => clearInterval(interval);
+  }, [enabled]);
+
+  return { scorecard, refresh, stale, connectionState };
 }

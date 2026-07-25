@@ -13,7 +13,7 @@ import SharedRoundQuickView from './golf/SharedRoundQuickView';
 import SharedRoundFullCard from './golf/SharedRoundFullCard';
 import ScoreEntryModal from './golf/ScoreEntryModal';
 import { getSportName, getSportIcon, getSportColor } from '@/lib/config/sports-config';
-import { isActiveParticipant } from '@/lib/golf/round-status';
+import { isActiveParticipant, isRoundLive } from '@/lib/golf/round-status';
 import { formatDisplayName, getInitials } from '@/lib/formatters';
 import { getHandle } from '@/lib/profile-display';
 import type { CompleteGolfScorecard } from '@/types/group-posts';
@@ -113,13 +113,28 @@ function PostCard({
 
   // Shared-round live state (the live-scoring seam). Seeds from the scorecard
   // the feed loaded; subscribes to Realtime while the full card or score entry
-  // is open so scores stream in live. refreshScorecard() updates it imperatively
-  // right after you save.
+  // is open — or while the round is actually LIVE, so the feed card itself
+  // streams scores like a sports-app ticker (bounded: only live rounds hold a
+  // channel). refreshScorecard() updates it imperatively right after you save.
+  const [liveEnabled, setLiveEnabled] = useState(() =>
+    post.group_scorecard ? isRoundLive(post.group_scorecard.group_post) : false
+  );
   const { scorecard: groupScorecard, refresh: refreshScorecard, stale: scorecardStale } = useSharedRound({
     groupPostId: post.group_scorecard?.group_post.id ?? null,
     postId: post.id,
     initialScorecard: post.group_scorecard ?? null,
-    enabled: showFullScorecard || showScoreEntry,
+    enabled: showFullScorecard || showScoreEntry || liveEnabled,
+  });
+  // Recompute liveness from the hook's own (streamed) state every render —
+  // a streamed FINAL flip or the hook's minute tick expires the badge AND
+  // closes the channel. Deliberately NO dep array: the tick re-renders
+  // without changing groupScorecard's identity, and time-based expiry must
+  // still be re-evaluated. The functional setState bails on equality, so
+  // this cannot loop.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    const next = groupScorecard ? isRoundLive(groupScorecard.group_post) : false;
+    setLiveEnabled(prev => (prev === next ? prev : next));
   });
   const [scoreEntryParticipantId, setScoreEntryParticipantId] = useState<string | null>(null);
   const [commentSectionOpen, setCommentSectionOpen] = useState(false);
@@ -629,6 +644,7 @@ function PostCard({
             scorecard={groupScorecard}
             onExpand={() => setShowFullScorecard(true)}
             currentUserId={currentUserId}
+            onStatusChange={refreshScorecard}
           />
         )}
 

@@ -1,5 +1,12 @@
 import { describe, it, expect } from 'vitest';
-import { resolveRoundStatus, isRoundLive, isActiveParticipant } from '../round-status';
+import {
+  resolveRoundStatus,
+  isRoundLive,
+  isActiveParticipant,
+  effectiveRoundStatus,
+  initialRoundStatus,
+  AUTO_END_AFTER_MS,
+} from '../round-status';
 
 const p = (confirmed: boolean, holesCompleted: number) => ({ confirmed, holesCompleted });
 
@@ -70,6 +77,83 @@ describe('resolveRoundStatus', () => {
   });
 });
 
+describe('resolveRoundStatus — 6h quiet auto-end', () => {
+  const NOW = Date.parse('2026-07-25T18:00:00Z');
+  const quiet = NOW - AUTO_END_AFTER_MS - 60_000; // 6h1m ago
+  const recent = NOW - AUTO_END_AFTER_MS + 60_000; // 5h59m ago
+
+  it('completes an active round quiet past the window (partial holes)', () => {
+    expect(
+      resolveRoundStatus({
+        status: 'active', holesPlayed: 18,
+        participants: [p(true, 9), p(true, 9)],
+        lastActivityAt: quiet, now: NOW,
+      })
+    ).toBe('completed');
+  });
+
+  it('leaves an active round alone while activity is recent', () => {
+    expect(
+      resolveRoundStatus({
+        status: 'active', holesPlayed: 18,
+        participants: [p(true, 9), p(true, 9)],
+        lastActivityAt: recent, now: NOW,
+      })
+    ).toBeNull();
+  });
+
+  it('quiet rule never fires on pending rounds', () => {
+    expect(
+      resolveRoundStatus({
+        status: 'pending', holesPlayed: 18,
+        participants: [p(true, 0)],
+        lastActivityAt: quiet, now: NOW,
+      })
+    ).toBeNull();
+  });
+
+  it('completed stays terminal even with stale activity data', () => {
+    expect(
+      resolveRoundStatus({
+        status: 'completed', holesPlayed: 18,
+        participants: [p(true, 18)],
+        lastActivityAt: quiet, now: NOW,
+      })
+    ).toBeNull();
+  });
+});
+
+describe('effectiveRoundStatus', () => {
+  const NOW = Date.parse('2026-07-25T18:00:00Z');
+  const quietIso = new Date(NOW - AUTO_END_AFTER_MS - 60_000).toISOString();
+  const recentIso = new Date(NOW - AUTO_END_AFTER_MS + 60_000).toISOString();
+
+  it('renders a quiet active round as completed', () => {
+    expect(effectiveRoundStatus({ status: 'active', last_score_activity_at: quietIso }, NOW)).toBe('completed');
+  });
+
+  it('keeps a recently-active round active', () => {
+    expect(effectiveRoundStatus({ status: 'active', last_score_activity_at: recentIso }, NOW)).toBe('active');
+  });
+
+  it('passes through raw status when activity data is missing or garbage', () => {
+    expect(effectiveRoundStatus({ status: 'active' }, NOW)).toBe('active');
+    expect(effectiveRoundStatus({ status: 'active', last_score_activity_at: 'not-a-date' }, NOW)).toBe('active');
+    expect(effectiveRoundStatus({ status: 'completed', last_score_activity_at: quietIso }, NOW)).toBe('completed');
+    expect(effectiveRoundStatus({ status: 'pending', last_score_activity_at: quietIso }, NOW)).toBe('pending');
+  });
+});
+
+describe('initialRoundStatus', () => {
+  it("maps only an explicit boolean true to 'completed'", () => {
+    expect(initialRoundStatus(true)).toBe('completed');
+    expect(initialRoundStatus(false)).toBe('pending');
+    expect(initialRoundStatus(undefined)).toBe('pending');
+    expect(initialRoundStatus('true')).toBe('pending');
+    expect(initialRoundStatus(1)).toBe('pending');
+  });
+});
+
 describe('isActiveParticipant', () => {
   it('counts everyone except an explicit decline (auto-confirm model)', () => {
     expect(isActiveParticipant('confirmed')).toBe(true);
@@ -99,6 +183,11 @@ describe('isRoundLive', () => {
   it('is NOT live for pending or completed rounds regardless of date', () => {
     expect(isRoundLive({ status: 'pending', date: '2026-07-23' }, NOW)).toBe(false);
     expect(isRoundLive({ status: 'completed', date: '2026-07-23' }, NOW)).toBe(false);
+  });
+
+  it('is NOT live once the round has gone quiet past the auto-end window', () => {
+    const quietIso = new Date(NOW - AUTO_END_AFTER_MS - 60_000).toISOString();
+    expect(isRoundLive({ status: 'active', date: '2026-07-23', last_score_activity_at: quietIso }, NOW)).toBe(false);
   });
 
   it('handles missing/garbage data without throwing', () => {

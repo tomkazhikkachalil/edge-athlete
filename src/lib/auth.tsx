@@ -94,9 +94,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     // Listen for auth changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event: AuthChangeEvent, session: Session | null) => {
-        
+
         if (!isMounted) return;
-        
+
+        // Keep Realtime authenticated: a channel that joins before the
+        // session resolves binds as anon and silently receives NOTHING from
+        // RLS-gated tables (live scores, messages). Explicitly pushing the
+        // token here closes that race for every channel in the app.
+        supabase.realtime.setAuth(session?.access_token ?? null);
+
         setUser(session?.user || null);
         
         if (session?.user && event !== 'SIGNED_OUT') {

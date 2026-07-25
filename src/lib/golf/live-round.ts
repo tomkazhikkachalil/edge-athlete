@@ -18,6 +18,9 @@ export interface LiveRoundRow {
     course_name?: string | null;
     /** Round length from golf_scorecard_data — needed to tell "done" from "mid-round" */
     holes_played?: number | null;
+    /** Round-wide newest score write — the 6h auto-end rule hides the banner
+     *  for quiet rounds (isRoundLive reads it) */
+    last_score_activity_at?: string | null;
   };
 }
 

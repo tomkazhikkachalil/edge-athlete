@@ -171,7 +171,13 @@ export default function CreatePostModal({
     weather: '',
     temperature: '',
     wind: '',
+    // "Already played" rounds post as FINAL immediately (no LIVE badge, no
+    // resume banner) — for logging rounds after the fact
+    alreadyPlayed: false,
   });
+  // Smart default: picking a past date implies "already played" — but an
+  // explicit tap on the toggle wins and stops the auto-flip
+  const roundTimingTouchedRef = useRef(false);
 
   // Golf course search for shared rounds
   const [courseSearchOpen, setCourseSearchOpen] = useState(false);
@@ -336,7 +342,9 @@ export default function CreatePostModal({
       weather: '',
       temperature: '',
       wind: '',
+      alreadyPlayed: false,
     });
+    roundTimingTouchedRef.current = false;
     // Reset course search
     setCourseSearchOpen(false);
     setCourseSearchQuery('');
@@ -652,6 +660,7 @@ export default function CreatePostModal({
             location: sharedRoundDetails.courseName,
             visibility: visibility,
             participant_ids: sharedRoundParticipants,
+            already_played: sharedRoundDetails.alreadyPlayed || undefined,
             golf_data: {
               course_name: sharedRoundDetails.courseName,
               round_type: sharedRoundDetails.roundTypeIndoorOutdoor,
@@ -1052,9 +1061,62 @@ export default function CreatePostModal({
                   <input
                     type="date"
                     value={sharedRoundDetails.date}
-                    onChange={(e) => setSharedRoundDetails(prev => ({ ...prev, date: e.target.value }))}
+                    onChange={(e) => {
+                      const date = e.target.value;
+                      setSharedRoundDetails(prev => ({
+                        ...prev,
+                        date,
+                        // Past date → assume already played, unless the user
+                        // explicitly chose a timing
+                        ...(roundTimingTouchedRef.current
+                          ? {}
+                          : { alreadyPlayed: date < new Date().toISOString().split('T')[0] }),
+                      }));
+                    }}
                     className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500"
                   />
+                </div>
+
+                {/* Playing now vs already played — decides LIVE vs FINAL */}
+                <div className="mb-4">
+                  <label className="block text-sm font-semibold text-gray-900 mb-2">
+                    When is this round? *
+                  </label>
+                  <div className="grid grid-cols-2 gap-3">
+                    <button
+                      onClick={() => {
+                        roundTimingTouchedRef.current = true;
+                        setSharedRoundDetails(prev => ({ ...prev, alreadyPlayed: false }));
+                      }}
+                      className={`px-4 py-3 rounded-lg font-semibold transition-all ${
+                        !sharedRoundDetails.alreadyPlayed
+                          ? 'bg-red-600 text-white'
+                          : 'bg-white text-gray-700 border-2 border-gray-300 hover:border-red-300'
+                      }`}
+                    >
+                      <span className={`inline-block w-2 h-2 rounded-full mr-2 ${!sharedRoundDetails.alreadyPlayed ? 'bg-white animate-pulse' : 'bg-red-500'}`}></span>
+                      Playing now
+                    </button>
+                    <button
+                      onClick={() => {
+                        roundTimingTouchedRef.current = true;
+                        setSharedRoundDetails(prev => ({ ...prev, alreadyPlayed: true }));
+                      }}
+                      className={`px-4 py-3 rounded-lg font-semibold transition-all ${
+                        sharedRoundDetails.alreadyPlayed
+                          ? 'bg-gray-700 text-white'
+                          : 'bg-white text-gray-700 border-2 border-gray-300 hover:border-gray-400'
+                      }`}
+                    >
+                      <i className="fas fa-flag-checkered mr-2"></i>
+                      Already played
+                    </button>
+                  </div>
+                  <p className="mt-1.5 text-xs text-gray-500">
+                    {sharedRoundDetails.alreadyPlayed
+                      ? 'Posts as a finished round — no live scoring.'
+                      : 'Round goes LIVE — scores stream to your group as you play.'}
+                  </p>
                 </div>
 
                 {/* Indoor/Outdoor Selection */}

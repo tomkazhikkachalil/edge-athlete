@@ -49,6 +49,7 @@ export const GROUP_SCORECARD_SELECT = `
       to_par,
       holes_completed,
       scores_confirmed,
+      updated_at,
       hole_scores:golf_hole_scores (
         hole_number,
         strokes,
@@ -73,10 +74,17 @@ export function transformGroupPostToScorecard(groupData: any): any | null {
   const golfData = Array.isArray(golf_data) ? golf_data[0] : golf_data;
   if (!golfData) return null;
 
+  // Newest score write across all participants — feeds the lazy auto-end
+  // rule (effectiveRoundStatus) so a quiet 'active' round renders FINAL.
+  let lastActivityAt: string | null = null;
+
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const transformedParticipants = (participants || []).map((p: any) => {
     const { scores, profile, ...participantFields } = p;
     const scoreRec = Array.isArray(scores) ? scores[0] : scores;
+    if (scoreRec?.updated_at && (!lastActivityAt || scoreRec.updated_at > lastActivityAt)) {
+      lastActivityAt = scoreRec.updated_at;
+    }
     const holeScores = (scoreRec?.hole_scores || [])
       .slice()
       .sort((a: { hole_number: number }, b: { hole_number: number }) => a.hole_number - b.hole_number);
@@ -84,12 +92,12 @@ export function transformGroupPostToScorecard(groupData: any): any | null {
       participant: { ...participantFields, profile },
       scores: scoreRec
         ? { ...scoreRec, hole_scores: holeScores }
-        : { id: null, total_score: null, to_par: null, holes_completed: 0, scores_confirmed: false, hole_scores: [] },
+        : { id: null, total_score: null, to_par: null, holes_completed: 0, scores_confirmed: false, updated_at: null, hole_scores: [] },
     };
   });
 
   return {
-    group_post: groupPostFields,
+    group_post: { ...groupPostFields, last_score_activity_at: lastActivityAt },
     golf_data: golfData,
     participants: transformedParticipants,
   };

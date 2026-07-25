@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { formatDisplayName, getInitials } from '@/lib/formatters';
 import { classifyScore, SCORE_CELL_RING, holePar } from '@/lib/golf/scoring';
-import { isRoundLive, isActiveParticipant } from '@/lib/golf/round-status';
+import { isRoundLive, isActiveParticipant, effectiveRoundStatus } from '@/lib/golf/round-status';
 import { useBodyScrollLock } from '@/hooks/useBodyScrollLock';
 import { asGameFormat, calcStablefordTotal, calcMatchStatus, GAME_FORMAT_LABELS } from '@/lib/golf/formats';
 import ConfirmModal from '../ConfirmModal';
@@ -325,7 +325,7 @@ export default function SharedRoundFullCard({
                     LIVE
                   </span>
                 )}
-                {group_post.status === 'completed' && (
+                {effectiveRoundStatus(group_post) === 'completed' && (
                   <span className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-green-900 text-white text-xs font-bold rounded-full">
                     <i className="fas fa-flag-checkered text-[10px]"></i>
                     FINAL
