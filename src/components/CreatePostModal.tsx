@@ -1855,7 +1855,19 @@ export default function CreatePostModal({
               <span className="text-red-600">
                 <i className="fas fa-exclamation-circle mr-1"></i>
                 {postType === 'golf' && roundType === 'shared'
-                  ? 'Please add course name, date, and at least one participant'
+                  ? (() => {
+                      // Name the ACTUAL missing fields — a dead grey button
+                      // with a stale generic hint reads as "broken"
+                      const missing: string[] = [];
+                      if (!sharedRoundDetails.courseName.trim()) missing.push('course name');
+                      if (!sharedRoundDetails.date) missing.push('date');
+                      if (sharedRoundDetails.alreadyPlayed && sharedRoundParticipants.length === 0) {
+                        missing.push('at least one participant');
+                      }
+                      return missing.length > 0
+                        ? `Missing: ${missing.join(', ')}`
+                        : 'Please complete the round details';
+                    })()
                   : postType === 'golf'
                   ? 'Please complete the scorecard'
                   : 'Add caption or media to post'
