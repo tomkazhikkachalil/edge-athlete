@@ -1,5 +1,67 @@
 # Development Log
 
+## July 24, 2026 (night) — Maintenance checklist + sync (end of session)
+
+- `npm ci --dry-run` — clean, no peer conflicts.
+- `npm run lint` — zero warnings/errors.
+- `npx tsc --noEmit` — clean.
+- `npx vitest run` — 97 passed (9 files).
+- `npm run build` — exit 0, 81 pages, **run in an isolated git worktree**
+  because the dev server was up on :3000 (see the .next-corruption lesson
+  below — never build into a live dev server's .next again).
+- This entry is the maintenance-log commit. Pushed main → GitHub → Vercel.
+- Open manual items (Vercel env): Sentry/Upstash/SMTP+CRON, ADMIN_EMAILS.
+  GIPHY_API_KEY was ADDED today — GIFs live in prod.
+
+## July 24, 2026 (day → night) — Session log: review fixes, Athlete-page features, cleanup
+
+Compressed log of a long session; details in the commit messages.
+
+**Post-deploy review of the live-scoring commits** (subagent review → every
+claim personally verified): 8 real bugs fixed across 3 commits
+(1af22fa / 91496f9 / 695bec3). Highlights: solo quick-entry localStorage
+draft collision (participantId="" merged one round's typed holes into
+another); "final leaderboard" notification could fire early and never again;
+shared-round invitees of private creators got 404 + permanently stale
+leaderboards; finished players kept seeing the Continue-scoring banner;
+first-save race between keepalive flush and foreground save 500'd and
+blocked navigation.
+
+**Athlete-page feature (planned + approved):** pinned "Featured" posts
+(migration 034: posts.is_pinned/pinned_at; PATCH /api/posts, cap 3;
+FeaturedPosts row above the media grid; thumbtack in PostCard) + Sport
+Highlights now render for visitors on /athlete/[id] + the write-only manual
+season-highlights editor retired (modal/route/pencil deleted; table kept).
+Golf tiles now count shared rounds (stats-aggregate extraction) and 9-hole
+rounds (Rounds/FIR%/GIR% include them; Last 5 Avg / Best 18 / Putts per
+Round stay 18-hole-only). 5f070e2, a3bb2ad, ef532b8.
+
+**Clickable Sport Highlights + deep-link fixes (2360c1a):** sport cards are
+real buttons → scroll to media section pre-filtered (sportSpotlight
+identity contract) + open that sport's latest post; /feed?post= finally
+read (reactive Suspense-wrapped useSearchParams — search pushes while
+already on /feed); /athlete/[id]→/athlete self-redirect now carries ?post=;
+PostDetailModal moved to the refcounted useBodyScrollLock.
+
+**Account/data cleanup:** all test accounts deleted, one fresh real account
+remains; fake round removed; 20 orphaned avatar files purged from storage.
+The account-deletion route had three silent no-ops against nonexistent
+columns — worst was post_media queried by profile_id, orphaning every
+deleted account's media files forever (f78514f). Deleting accounts also
+exposed a real-world auth bug: a browser holding a JWT for a deleted user
+hung the landing page on "Welcome back!" forever — the app now verifies a
+profile-less session against the auth server and drops dead sessions
+(9b996e8).
+
+**Ops/lessons:**
+- GIF picker "gone" in prod = GIPHY_API_KEY never set in Vercel (code was
+  fine; key added, working).
+- Localhost error storm ("Cannot read properties of undefined (reading
+  'split')" everywhere) = corrupted .next: `npm run build` ran while the
+  dev server was up, clobbering its cache. Fix: rm -rf .next + restart.
+  **Rule: never build while the dev server is running — check
+  `lsof -i :3000` first, or build in a worktree.**
+
 ## July 24, 2026 — Live-scoring reliability + group flow (7 phases)
 
 Tom's directive: think through everything that can go wrong during live
