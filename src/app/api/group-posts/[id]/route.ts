@@ -117,6 +117,18 @@ export async function PATCH(
       );
     }
 
+    // Prior status — needed to bump the feed post's timestamp exactly once
+    // on the transition to completed (End Round)
+    let priorStatus: string | null = null;
+    if (status === 'completed') {
+      const { data: prior } = await supabase
+        .from('group_posts')
+        .select('status')
+        .eq('id', id)
+        .maybeSingle();
+      priorStatus = prior?.status ?? null;
+    }
+
     // Build update object
     const updates: Record<string, unknown> = {};
     if (title !== undefined) updates.title = title;
@@ -176,7 +188,20 @@ export async function PATCH(
     // End Round: a round marked completed mirrors every player's scores into
     // golf_rounds (stats/trends/handicap). Best-effort, self-gated.
     if (status === 'completed') {
-      await mirrorCompletedRound(getSupabaseAdmin(), id);
+      const admin = getSupabaseAdmin();
+      await mirrorCompletedRound(admin, id);
+
+      // One-time transition: the round's hidden-while-live feed post arrives
+      // in the feed now, timestamped at completion
+      if (priorStatus !== 'completed') {
+        const { error: bumpError } = await admin
+          .from('posts')
+          .update({ created_at: new Date().toISOString() })
+          .eq('group_post_id', id);
+        if (bumpError) {
+          console.error('End Round: post timestamp bump failed:', bumpError);
+        }
+      }
     }
 
     return NextResponse.json({

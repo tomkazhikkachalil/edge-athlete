@@ -49,6 +49,7 @@ export default function AppHeader({ showSearch = true, onCreatePost, onEditProfi
   const navLinks = [
     { path: '/feed', label: 'Feed', icon: 'fa-home' },
     { path: '/explore', label: 'Explore', icon: 'fa-compass' },
+    { path: '/live', label: 'Live', icon: 'fa-circle', accent: 'live' as const },
     { path: '/athlete', label: 'Profile', icon: 'fa-user' },
     { path: '/messages', label: 'Messages', icon: 'fa-comment-alt' },
     { path: '/app/followers', label: 'Connections', icon: 'fa-user-friends', hideOnMobile: true },
@@ -80,10 +81,15 @@ export default function AppHeader({ showSearch = true, onCreatePost, onEditProfi
                     }}
                     className={`text-sm font-medium transition-colors pb-0.5 ${
                       isActivePath(link.path)
-                        ? 'text-blue-600 border-b-2 border-blue-600'
+                        ? link.accent === 'live'
+                          ? 'text-red-600 border-b-2 border-red-600'
+                          : 'text-blue-600 border-b-2 border-blue-600'
                         : 'text-gray-700 hover:text-gray-900'
                     }`}
                   >
+                    {link.accent === 'live' && (
+                      <span className="inline-block w-1.5 h-1.5 bg-red-600 rounded-full mr-1.5 animate-pulse align-middle"></span>
+                    )}
                     {link.label}
                   </button>
                 ))}
@@ -302,11 +308,13 @@ export default function AppHeader({ showSearch = true, onCreatePost, onEditProfi
                 }}
                 className={`flex items-center gap-3 w-full px-4 py-3 text-left rounded-lg transition-colors ${
                   isActivePath(link.path)
-                    ? 'bg-blue-50 text-blue-600'
+                    ? link.accent === 'live'
+                      ? 'bg-red-50 text-red-600'
+                      : 'bg-blue-50 text-blue-600'
                     : 'text-gray-700 hover:bg-gray-50 hover:text-blue-600'
                 }`}
               >
-                <i className={`fas ${link.icon} w-5 text-center`}></i>
+                <i className={`fas ${link.icon} w-5 text-center ${link.accent === 'live' ? 'text-red-600 animate-pulse text-[10px]' : ''}`}></i>
                 <span className="font-medium">{link.label}</span>
               </button>
             ))}

@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getEnabledSports } from '@/lib/sports/SportRegistry';
 import { requireAuth, getSupabaseAdmin } from '@/lib/auth-server';
 import { GROUP_SCORECARD_SELECT, transformGroupPostToScorecard } from '@/lib/golf/scorecard-transform';
-import { isActiveParticipant } from '@/lib/golf/round-status';
+import { isActiveParticipant, isRoundLive } from '@/lib/golf/round-status';
 import { canPin, MAX_PINNED_POSTS } from '@/lib/posts/pinning';
 
 // Interface for tagged profiles
@@ -789,14 +789,25 @@ export async function GET(request: NextRequest) {
       tagProfilesById.set(profile.id, profile as TaggedProfile);
     }
 
-    const postsWithRounds = finalVisiblePosts.map(post => ({
-      ...post,
-      golf_round: post.round_id ? roundsById.get(post.round_id) ?? null : null,
-      group_scorecard: post.group_post_id ? scorecardsByGroupId.get(post.group_post_id) ?? null : null,
-      tagged_profiles: (post.tags || [])
-        .map((id: string) => tagProfilesById.get(id))
-        .filter((p: TaggedProfile | undefined): p is TaggedProfile => !!p),
-    }));
+    const postsWithRounds = finalVisiblePosts
+      .map(post => ({
+        ...post,
+        golf_round: post.round_id ? roundsById.get(post.round_id) ?? null : null,
+        group_scorecard: post.group_post_id ? scorecardsByGroupId.get(post.group_post_id) ?? null : null,
+        tagged_profiles: (post.tags || [])
+          .map((id: string) => tagProfilesById.get(id))
+          .filter((p: TaggedProfile | undefined): p is TaggedProfile => !!p),
+      }))
+      // Product rule: a round in progress is NOT a feed post yet — it lives
+      // in the Live Now strip / banner / LIVE page while playing, and lands
+      // in the feed (with a fresh timestamp) when it completes. Applies to
+      // the FEED listing only: profile grids, pinned rows, and single-post
+      // fetches keep every deep link working.
+      .filter(post => {
+        if (userId || pinnedOnly) return true;
+        if (!post.group_scorecard) return true;
+        return !isRoundLive(post.group_scorecard.group_post);
+      });
 
     // Transform the data to match the expected format
     const transformedPosts = postsWithRounds

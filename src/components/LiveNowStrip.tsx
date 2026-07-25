@@ -31,6 +31,10 @@ interface LiveNowStripProps {
   variant?: 'strip' | 'grid';
   /** Custom open handler; when absent the component hosts its own modal. */
   onOpenPost?: (postId: string) => void;
+  /** Render a friendly empty state instead of nothing (the /live page). */
+  showEmptyState?: boolean;
+  /** Hide the internal "Live Now" heading (the /live page has its own). */
+  hideHeading?: boolean;
 }
 
 const REFRESH_MS = 60_000;
@@ -39,7 +43,7 @@ const REFRESH_MS = 60_000;
  * "Live Now" — live rounds from people you follow (and you). Renders nothing
  * when nobody's live. Same surface will later carry tournament leaderboards.
  */
-export default function LiveNowStrip({ currentUserId, variant = 'strip', onOpenPost }: LiveNowStripProps) {
+export default function LiveNowStrip({ currentUserId, variant = 'strip', onOpenPost, showEmptyState = false, hideHeading = false }: LiveNowStripProps) {
   const [rounds, setRounds] = useState<LiveRound[]>([]);
   const [openPostId, setOpenPostId] = useState<string | null>(null);
 
@@ -58,7 +62,20 @@ export default function LiveNowStrip({ currentUserId, variant = 'strip', onOpenP
     return () => clearInterval(interval);
   }, [load]);
 
-  if (rounds.length === 0) return null;
+  if (rounds.length === 0) {
+    if (!showEmptyState) return null;
+    return (
+      <div className="bg-white rounded-lg border-2 border-gray-200 p-8 text-center">
+        <div className="text-gray-400 mb-3">
+          <i className="fas fa-satellite-dish text-3xl"></i>
+        </div>
+        <h3 className="text-lg font-semibold text-gray-900 mb-1">No live events right now</h3>
+        <p className="text-sm text-gray-600">
+          When someone you follow goes live — a round, a game, a match — it shows up here.
+        </p>
+      </div>
+    );
+  }
 
   const open = (postId: string | null) => {
     if (!postId) return;
@@ -120,10 +137,12 @@ export default function LiveNowStrip({ currentUserId, variant = 'strip', onOpenP
 
   return (
     <div className="mb-4">
-      <div className="flex items-center gap-2 mb-2">
-        <span className="w-2 h-2 bg-red-600 rounded-full animate-pulse"></span>
-        <h3 className="text-sm font-bold text-gray-900">Live Now</h3>
-      </div>
+      {!hideHeading && (
+        <div className="flex items-center gap-2 mb-2">
+          <span className="w-2 h-2 bg-red-600 rounded-full animate-pulse"></span>
+          <h3 className="text-sm font-bold text-gray-900">Live Now</h3>
+        </div>
+      )}
       <div className={variant === 'strip' ? 'flex gap-3 overflow-x-auto pb-1' : 'grid gap-3 sm:grid-cols-2'}>
         {rounds.map(card)}
       </div>
