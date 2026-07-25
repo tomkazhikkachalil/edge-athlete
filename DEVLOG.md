@@ -1,5 +1,78 @@
 # Development Log
 
+## July 25, 2026 (end of day) — Maintenance checklist + sync
+
+- `npm ci --dry-run` clean · lint clean · `tsc --noEmit` clean ·
+  `vitest` 129 passed (14 files) · build exit 0, 83 pages (isolated
+  worktree — dev server running).
+- This entry is the maintenance-log commit → GitHub → Vercel.
+- Migrations all confirmed run through 042 (039-042 verified live).
+
+## July 25, 2026 (afternoon → night) — Session log part 2: neutrality, the realtime resurrection, Live Round v2
+
+**Sport-neutral intake (3059913):** onboarding sport multi-select (first
+step, max 3, first = primary → profiles.sport as display name; picks seed
+sport_settings rows); feed/composer/live-poll follow the athlete's sport;
+shared resolveSportKey; Edit Profile "Your sports"; explore's sport filter
+finally functional; golf leaks swept (manifest/privacy/terms/icons).
+'training' is a post category with no adapter — intake must never offer it.
+
+**Live-scoring lifecycle + streaming (83a8b7a):** 6h quiet auto-end (lazy
+effectiveRoundStatus display + persistence on next write/End Round);
+"Playing now / Already played" at creation; End Round on the feed card;
+useSharedRound became the reusable seam (status callback + retry,
+connectionState, group_posts UPDATE binding, 30s poll fallback, minute
+tick); feed cards subscribe while live; realtime.setAuth on auth change.
+
+**THE REALTIME RESURRECTION (migrations 038, 041 + two restarts):**
+postgres_changes had NEVER delivered a single event in this project's
+history. Three stacked causes: (1) tables never in the supabase_realtime
+publication (031 unrun; messages/posts/notifications only in archived
+scripts — messaging's 30s poll was its entire delivery mechanism);
+(2) the Realtime replication slot sat disconnected (active = f) — project
+restart reconnects it; (3) RULE: tables added to the publication
+mid-session don't stream until the Realtime service reconnects — restart
+after every publication change, then re-verify. Debug ladder that cracked
+it: broadcast test (service alive?) → service-role subscriber
+(publication vs RLS?) → pg_replication_slots.active. Post-041+restart:
+message INSERT/UPDATE, notification INSERT, golf scores + status flips
+ALL verified arriving in ~1s via the two-client harness. Messaging went
+from 30s-poll latency to instant.
+
+**Security hardening (040 + dashboard):** linter remediation verified
+against code paths — forgeable notifications INSERT policy dropped,
+search_path pinned ×7, bucket listing removed, ~24 definer functions
+revoked from API roles; 9 warnings permanently accepted (RLS helper
+functions policies evaluate — documented in the migration). Leaked
+password protection ON; Postgres upgraded.
+
+**Solo live + pars + one stats pipeline (c7e94c9, migration 039):**
+"Playing now" is ONE flow, friends optional — solo live rounds ride the
+shared rails; hole_data (real per-hole par/yardage — collected all along,
+DISCARDED server-side) stored at creation; totals trigger v3 computes
+honest to-par; mirror-on-completion writes real golf_rounds + golf_holes
+per participant → trends/handicap/rounds pages/tiles unified into one
+pipeline (stats route's shared merge removed as double-count). Live Now
+strip (feed) + Explore grid via follow-scoped /api/golf/live-now.
+
+**Live rounds are not feed posts (3c1e9e7):** Tom's model — the feed
+hides rounds while isRoundLive (they live in banner/strip/LIVE tab); the
+post's created_at is bumped on the one-time completed transition so the
+final scorecard arrives fresh. LIVE nav tab (red pulse) → /live page.
+
+**Live Round v2 (f8c91da, migration 042):** par-bug ROOT CAUSE — course
+search's history layer (holes:[]) deduped away the static-DB entries
+carrying real hole data; history now enriched by name. Score entry shows
+"Course · Par 4 · 360 yds"; Go Live setup flow (no caption/media/tags,
+red Go Live button); player-switcher chips with persist-before-switch +
+green/amber identity headers; hole-tagged photos/videos
+(group_post_media.hole_number, POST /api/group-posts/[id]/media,
+Round Media section grouped by hole).
+
+**Also:** composer footer hint names actual missing fields (stale hint +
+disabled button read as "Post does nothing" — real cause was a stale dev
+server; rule: restart dev after heavy multi-file change sessions).
+
 ## July 25, 2026 — Maintenance checklist + sync
 
 - `npm ci --dry-run` — clean. `npm run lint` — zero warnings/errors.
