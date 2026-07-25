@@ -1,5 +1,28 @@
 # Development Log
 
+## July 24, 2026 (night) — Launch-readiness sprint 1/4: Sentry error monitoring
+
+First stop of the launch-readiness sprint: real-user errors become visible
+(and emailed) instead of vanishing into browser consoles.
+
+- `@sentry/nextjs` 10.68.0 (npm ci --dry-run clean — no peer conflicts).
+- Coverage: client (src/instrumentation-client.ts), Node server + Edge
+  (sentry.server/edge.config.ts via src/instrumentation.ts register()),
+  uncaught route-handler errors (onRequestError), and both error
+  boundaries now Sentry.captureException explicitly (boundaries swallow
+  errors before global handlers see them).
+- **Inert without env**: every init is enabled only when
+  NEXT_PUBLIC_SENTRY_DSN is set — local dev and prod behave exactly as
+  before until Tom adds the DSN. Source-map upload only with
+  SENTRY_AUTH_TOKEN (skipped silently otherwise). sendDefaultPii false
+  (athlete data), tracesSampleRate 0.1, no session replay.
+- Build verified in an isolated worktree (dev server was running): only
+  the pre-existing documented realtime-js/Edge warning remains — parity.
+- Manual steps (Tom): create Sentry account/project (Next.js) →
+  NEXT_PUBLIC_SENTRY_DSN into Vercel env + .env.local → redeploy. Default
+  alert rule emails new issues to the account email
+  (tom.kazhikkachalil@gmail.com). Optional: auth token for source maps.
+
 ## July 24, 2026 (night) — Maintenance checklist + sync (end of session)
 
 - `npm ci --dry-run` — clean, no peer conflicts.

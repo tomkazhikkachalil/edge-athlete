@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect } from 'react';
+import * as Sentry from '@sentry/nextjs';
 
 export default function Error({
   error,
@@ -11,6 +12,9 @@ export default function Error({
 }) {
   useEffect(() => {
     console.error('Route error:', error);
+    // Error boundaries swallow the error before Sentry's global handler
+    // sees it — report explicitly (no-op without a DSN).
+    Sentry.captureException(error);
   }, [error]);
 
   return (
