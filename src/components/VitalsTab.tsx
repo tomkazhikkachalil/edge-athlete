@@ -393,7 +393,7 @@ export default function VitalsTab({ profileId, currentUserId, isOwnProfile = fal
     <div className="space-y-8">
       {/* ── Filters (shared FilterBar treatment) ─────────────────────── */}
       {hasAnyData && (
-        <div className="space-y-3">
+        <div className="space-y-6">
           <FilterBar
             resultCount={visibleVitals.length}
             resultNoun="entry"
