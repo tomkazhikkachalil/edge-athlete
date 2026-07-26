@@ -64,11 +64,19 @@ export const config = {
   matcher: [
     /*
      * Match all request paths except:
+     * - api (API routes self-authenticate from the raw cookie header —
+     *   requireAuth / the cookie-reading pattern — so the middleware's
+     *   supabase.auth.getUser() network round trip added ~100-300ms to
+     *   EVERY API call for no security benefit. Trade-off: a tab resumed
+     *   after its access token expired may 401 on its first API call
+     *   where middleware used to refresh inline; the browser client
+     *   refreshes within moments and page navigations still pass
+     *   through here, keeping SSR sessions fresh.)
      * - _next/static (static files)
      * - _next/image (image optimization files)
      * - favicon.ico (favicon file)
      * - public files (public folder)
      */
-    '/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
+    '/((?!api|_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
   ],
 }
