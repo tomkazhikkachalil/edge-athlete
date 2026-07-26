@@ -2,12 +2,13 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { formatDistanceToNow } from 'date-fns';
-import { Camera, BarChart3, Tag, Dumbbell, Activity, Trophy, Filter } from 'lucide-react';
+import { Camera, BarChart3, Tag, Dumbbell, Activity, Trophy } from 'lucide-react';
 import OptimizedImage from './OptimizedImage';
 import PostDetailModal from './PostDetailModal';
 import EditPostModal from './EditPostModal';
 import EquipmentSection from './EquipmentSection';
 import SportYearFilter from './SportYearFilter';
+import FilterBar from './filters/FilterBar';
 import { useToast } from './Toast';
 import { formatGolfStatsSummary, formatGenericStatsSummary } from '@/lib/stats-summary';
 import VitalsTab from './VitalsTab';
@@ -468,91 +469,51 @@ export default function ProfileMediaTabs({ profileId, currentUserId, isOwnProfil
       {/* Media/Stats/Tagged tabs */}
       {(activeTab === 'all' || activeTab === 'stats' || activeTab === 'tagged') && (
         <>
-          {/* Filter row — Sport + Year sit inline with Sort and Media Type */}
-          {(activeTab === 'all' || activeTab === 'stats' || activeTab === 'tagged') && (
-            <div className="flex items-center justify-between gap-4 flex-wrap">
-              <div className="flex items-center gap-3 flex-wrap">
-                {/* Sort dropdown */}
-                <select
-                  value={sort}
-                  onChange={(e) => setSort(e.target.value as SortType)}
-                  className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                >
-                  <option value="newest">Newest First</option>
-                  <option value="most_engaged">Most Engaged</option>
-                </select>
+          {/* Filter rows — Sport + Year sit inline with Sort and Media Type,
+              wrapped in the shared FilterBar (controls + count pill + the
+              active-filter status strip with Clear all). */}
+          <FilterBar
+            resultCount={items.length}
+            activeCount={selectedSports.length + selectedYears.length}
+            onClearAll={() => {
+              setSelectedSports([]);
+              setSelectedYears([]);
+            }}
+          >
+            {/* Sort dropdown */}
+            <select
+              value={sort}
+              onChange={(e) => setSort(e.target.value as SortType)}
+              className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              <option value="newest">Newest First</option>
+              <option value="most_engaged">Most Engaged</option>
+            </select>
 
-                {/* Media type filter */}
-                <select
-                  value={mediaFilter}
-                  onChange={(e) => setMediaFilter(e.target.value as MediaFilterType)}
-                  className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                >
-                  <option value="all">All Types</option>
-                  <option value="photos">Photos Only</option>
-                  <option value="videos">Videos Only</option>
-                  <option value="posts">Posts Only</option>
-                </select>
+            {/* Media type filter */}
+            <select
+              value={mediaFilter}
+              onChange={(e) => setMediaFilter(e.target.value as MediaFilterType)}
+              className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              <option value="all">All Types</option>
+              <option value="photos">Photos Only</option>
+              <option value="videos">Videos Only</option>
+              <option value="posts">Posts Only</option>
+            </select>
 
-                {/* Sport + Year multi-select dropdowns — open to the full
-                    platform catalog, not just sports/years this athlete has
-                    posted in. */}
-                <SportYearFilter
-                  availableSports={ALL_SPORT_KEYS}
-                  availableYears={ALL_YEARS}
-                  selectedSports={selectedSports}
-                  selectedYears={selectedYears}
-                  onSportsChange={setSelectedSports}
-                  onYearsChange={setSelectedYears}
-                />
-              </div>
-
-              <div className="inline-flex items-center px-3 py-1 rounded-full bg-blue-50 text-blue-700 text-sm font-semibold whitespace-nowrap">
-                {items.length} {items.length === 1 ? 'item' : 'items'}
-              </div>
-            </div>
-          )}
-
-          {/* Filter status + clear-all — always visible on post-based tabs so
-              the reset affordance is discoverable. Two states: muted when no
-              filters active, brand-colored when filters are applied. */}
-          {(activeTab === 'all' || activeTab === 'stats' || activeTab === 'tagged') && (() => {
-            const activeCount = selectedSports.length + selectedYears.length;
-            const hasActive = activeCount > 0;
-
-            return (
-              <div className="flex items-center justify-between gap-3 px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg">
-                <div className="flex items-center gap-2 text-sm">
-                  <Filter
-                    className={`w-4 h-4 ${hasActive ? 'text-blue-600' : 'text-gray-400'}`}
-                    aria-hidden="true"
-                  />
-                  <span className={hasActive ? 'font-medium text-gray-800' : 'text-gray-500'}>
-                    {hasActive
-                      ? `${activeCount} active filter${activeCount === 1 ? '' : 's'}`
-                      : 'No filters applied'}
-                  </span>
-                </div>
-                <button
-                  type="button"
-                  disabled={!hasActive}
-                  onClick={() => {
-                    setSelectedSports([]);
-                    setSelectedYears([]);
-                  }}
-                  className={`inline-flex items-center gap-1 text-sm font-semibold transition-colors ${
-                    hasActive
-                      ? 'text-blue-600 hover:text-blue-700 cursor-pointer'
-                      : 'text-gray-400 cursor-not-allowed'
-                  }`}
-                  aria-label="Clear all sport and year filters"
-                >
-                  <span aria-hidden="true">×</span>
-                  Clear all filters
-                </button>
-              </div>
-            );
-          })()}
+            {/* Sport + Year multi-select dropdowns — open to the full
+                platform catalog, not just sports/years this athlete has
+                posted in. */}
+            <SportYearFilter
+              availableSports={ALL_SPORT_KEYS}
+              availableYears={ALL_YEARS}
+              selectedSports={selectedSports}
+              selectedYears={selectedYears}
+              onSportsChange={setSelectedSports}
+              onYearsChange={setSelectedYears}
+            />
+          </FilterBar>
 
           {/* Loading state */}
           {loading && (
