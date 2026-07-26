@@ -246,16 +246,15 @@ export default function EquipmentSection({ profileId, isOwnProfile = false }: Eq
         </select>
 
         {/* Year filter — "in bag during year" */}
-        {yearOptions.length > 0 && (
-          <MultiSelectDropdown<number>
-            allLabel="All Years"
-            itemNounPlural="years"
-            searchPlaceholder="Search years..."
-            options={yearOptions.map(year => ({ value: year, label: String(year) }))}
-            selected={selectedYears}
-            onChange={setSelectedYears}
-          />
-        )}
+        <MultiSelectDropdown<number>
+          allLabel="All Years"
+          itemNounPlural="years"
+          searchPlaceholder="Search years..."
+          options={yearOptions.map(year => ({ value: year, label: String(year) }))}
+          selected={selectedYears}
+          onChange={setSelectedYears}
+          disabled={yearOptions.length === 0}
+        />
       </FilterBar>
 
       {/* Loading state */}

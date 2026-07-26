@@ -116,8 +116,8 @@ export default function AchievementsTab({ profileId, isOwnProfile = false }: Ach
 
   return (
     <div className="w-full space-y-6">
-      {/* Filters — only meaningful once there's data to narrow */}
-      {!loading && hasAny && (
+      {/* Filters — always visible (disabled dropdowns until there's data) */}
+      {!loading && !loadError && (
         <FilterBar
           resultCount={visible.length}
           resultNoun="achievement"
@@ -138,26 +138,24 @@ export default function AchievementsTab({ profileId, isOwnProfile = false }: Ach
             ) : undefined
           }
         >
-          {sportOptions.length > 0 && (
-            <MultiSelectDropdown<string>
-              allLabel="All Sports"
-              itemNounPlural="sports"
-              searchPlaceholder="Search sports..."
-              options={sportOptions}
-              selected={selectedSports}
-              onChange={setSelectedSports}
-            />
-          )}
-          {yearOptions.length > 0 && (
-            <MultiSelectDropdown<number>
-              allLabel="All Years"
-              itemNounPlural="years"
-              searchPlaceholder="Search years..."
-              options={yearOptions.map(year => ({ value: year, label: String(year) }))}
-              selected={selectedYears}
-              onChange={setSelectedYears}
-            />
-          )}
+          <MultiSelectDropdown<string>
+            allLabel="All Sports"
+            itemNounPlural="sports"
+            searchPlaceholder="Search sports..."
+            options={sportOptions}
+            selected={selectedSports}
+            onChange={setSelectedSports}
+            disabled={sportOptions.length === 0}
+          />
+          <MultiSelectDropdown<number>
+            allLabel="All Years"
+            itemNounPlural="years"
+            searchPlaceholder="Search years..."
+            options={yearOptions.map(year => ({ value: year, label: String(year) }))}
+            selected={selectedYears}
+            onChange={setSelectedYears}
+            disabled={yearOptions.length === 0}
+          />
         </FilterBar>
       )}
 

@@ -370,7 +370,6 @@ export default function VitalsTab({ profileId, currentUserId, isOwnProfile = fal
   }
 
   const totalMetrics = Object.keys(vitalsByMetric).length;
-  const hasAnyData = vitals.length > 0 || trainingPosts.length > 0;
   const activeFilterCount = selectedCategories.length + selectedYears.length;
 
   if (loading) {
@@ -391,10 +390,10 @@ export default function VitalsTab({ profileId, currentUserId, isOwnProfile = fal
 
   return (
     <div className="space-y-8">
-      {/* ── Filters (shared FilterBar treatment) ─────────────────────── */}
-      {hasAnyData && (
-        <div className="space-y-6">
-          <FilterBar
+      {/* ── Filters (shared FilterBar treatment; always visible — dropdowns
+             disable until there's data to narrow) ──────────────────────── */}
+      <div className="space-y-6">
+        <FilterBar
             resultCount={visibleVitals.length}
             resultNoun="entry"
             resultNounPlural="entries"
@@ -404,29 +403,26 @@ export default function VitalsTab({ profileId, currentUserId, isOwnProfile = fal
               setSelectedYears([]);
             }}
           >
-            {categoryOptions.length > 0 && (
-              <MultiSelectDropdown<string>
-                allLabel="All Categories"
-                itemNounPlural="categories"
-                searchPlaceholder="Search categories..."
-                options={categoryOptions}
-                selected={selectedCategories}
-                onChange={setSelectedCategories}
-              />
-            )}
-            {yearOptions.length > 0 && (
-              <MultiSelectDropdown<number>
-                allLabel="All Years"
-                itemNounPlural="years"
-                searchPlaceholder="Search years..."
-                options={yearOptions.map(year => ({ value: year, label: String(year) }))}
-                selected={selectedYears}
-                onChange={setSelectedYears}
-              />
-            )}
+            <MultiSelectDropdown<string>
+              allLabel="All Categories"
+              itemNounPlural="categories"
+              searchPlaceholder="Search categories..."
+              options={categoryOptions}
+              selected={selectedCategories}
+              onChange={setSelectedCategories}
+              disabled={categoryOptions.length === 0}
+            />
+            <MultiSelectDropdown<number>
+              allLabel="All Years"
+              itemNounPlural="years"
+              searchPlaceholder="Search years..."
+              options={yearOptions.map(year => ({ value: year, label: String(year) }))}
+              selected={selectedYears}
+              onChange={setSelectedYears}
+              disabled={yearOptions.length === 0}
+            />
           </FilterBar>
-        </div>
-      )}
+      </div>
 
       {/* ── Section A: Metrics ───────────────────────────────────────── */}
       <div>

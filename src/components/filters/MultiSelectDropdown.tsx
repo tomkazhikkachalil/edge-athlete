@@ -10,6 +10,8 @@ export interface MultiSelectDropdownProps<T extends string | number> {
   options: { value: T; label: string }[];
   selected: T[];
   onChange: (next: T[]) => void;
+  /** Grayed, non-interactive button (used when there are no options yet). */
+  disabled?: boolean;
 }
 
 /**
@@ -24,6 +26,7 @@ export default function MultiSelectDropdown<T extends string | number>({
   options,
   selected,
   onChange,
+  disabled = false,
 }: MultiSelectDropdownProps<T>) {
   const [isOpen, setIsOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
@@ -98,13 +101,16 @@ export default function MultiSelectDropdown<T extends string | number>({
     <div className="relative" ref={containerRef}>
       <button
         type="button"
-        onClick={() => setIsOpen(o => !o)}
+        onClick={() => !disabled && setIsOpen(o => !o)}
+        disabled={disabled}
         aria-haspopup="listbox"
         aria-expanded={isOpen}
         className={`px-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 inline-flex items-center gap-2 transition-colors ${
-          hasActive
-            ? 'border-blue-500 text-blue-700 bg-blue-50'
-            : 'border-gray-300 text-gray-700 bg-white hover:bg-gray-50'
+          disabled
+            ? 'border-gray-200 text-gray-400 bg-gray-50 cursor-not-allowed'
+            : hasActive
+              ? 'border-blue-500 text-blue-700 bg-blue-50'
+              : 'border-gray-300 text-gray-700 bg-white hover:bg-gray-50'
         }`}
       >
         <span>{buttonLabel}</span>
