@@ -1,10 +1,14 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { Plus, Edit2, Trash2, CheckCircle2, Archive, RefreshCw, Dumbbell } from 'lucide-react';
 import OptimizedImage from './OptimizedImage';
 import AddEquipmentModal from './AddEquipmentModal';
 import ReplaceEquipmentModal from './ReplaceEquipmentModal';
+import EditEquipmentDatesModal from './EditEquipmentDatesModal';
+import FilterBar from './filters/FilterBar';
+import MultiSelectDropdown from './filters/MultiSelectDropdown';
+import { deriveInBagYearOptions, isInBagDuringYear, formatMonthYear, yearOf } from '@/lib/profile-filters';
 import { useToast } from './Toast';
 
 // Equipment types for different sports
@@ -43,6 +47,8 @@ export interface EquipmentItem {
   status: 'active' | 'retired';
   added_at: string;
   retired_at?: string;
+  acquired_on?: string | null;
+  retired_on?: string | null;
   notes?: string;
   created_at: string;
   updated_at: string;
@@ -73,9 +79,11 @@ export default function EquipmentSection({ profileId, isOwnProfile = false }: Eq
   const { showSuccess, showError } = useToast();
   const [equipment, setEquipment] = useState<EquipmentItem[]>([]);
   const [filter, setFilter] = useState<'all' | 'active' | 'retired'>('active');
+  const [selectedYears, setSelectedYears] = useState<number[]>([]);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isReplaceModalOpen, setIsReplaceModalOpen] = useState(false);
   const [equipmentToReplace, setEquipmentToReplace] = useState<EquipmentItem | null>(null);
+  const [equipmentToEdit, setEquipmentToEdit] = useState<EquipmentItem | null>(null);
   const [loading, setLoading] = useState(true);
 
   const fetchEquipment = useCallback(async () => {
@@ -123,9 +131,11 @@ export default function EquipmentSection({ profileId, isOwnProfile = false }: Eq
         throw new Error('Failed to update equipment');
       }
 
-      // Update local state
+      // Update local state from the server row (status flip also sets/clears
+      // retired_on/retired_at, which the dates line renders)
+      const data = await response.json().catch(() => null);
       setEquipment(prev =>
-        prev.map(e => (e.id === id ? { ...e, status: newStatus } : e))
+        prev.map(e => (e.id === id ? { ...e, ...(data?.equipment ?? { status: newStatus }) } : e))
       );
 
       showSuccess(
@@ -165,10 +175,30 @@ export default function EquipmentSection({ profileId, isOwnProfile = false }: Eq
     setIsReplaceModalOpen(true);
   };
 
-  // Filter equipment based on status
+  // Year options: every year each item spent in the bag (user dates, with
+  // the server audit timestamps as fallback for legacy rows)
+  const yearOptions = useMemo(
+    () =>
+      deriveInBagYearOptions(
+        equipment.map(item => ({
+          acquiredOn: item.acquired_on ?? item.added_at,
+          retiredOn: item.retired_on ?? item.retired_at ?? null,
+        }))
+      ),
+    [equipment]
+  );
+
+  // Filter equipment: status AND "in bag during any selected year"
   const filteredEquipment = equipment.filter(item => {
-    if (filter === 'all') return true;
-    return item.status === filter;
+    if (filter !== 'all' && item.status !== filter) return false;
+    if (selectedYears.length === 0) return true;
+    return selectedYears.some(year =>
+      isInBagDuringYear(
+        item.acquired_on ?? item.added_at,
+        item.retired_on ?? item.retired_at ?? null,
+        year
+      )
+    );
   });
 
   // Group equipment by category
@@ -183,55 +213,50 @@ export default function EquipmentSection({ profileId, isOwnProfile = false }: Eq
 
   return (
     <div className="w-full space-y-6">
-      {/* Header with filters and add button */}
-      <div className="flex items-center justify-between gap-4 flex-wrap">
-        {/* Status filter pills */}
-        <div className="flex items-center gap-2">
-          <button
-            onClick={() => setFilter('active')}
-            className={`px-4 py-2 rounded-lg font-semibold text-sm transition-all ${
-              filter === 'active'
-                ? 'bg-green-600 text-white shadow-sm'
-                : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-            }`}
-          >
-            <CheckCircle2 className="w-4 h-4 inline-block mr-2" />
-            Active ({equipment.filter(e => e.status === 'active').length})
-          </button>
-          <button
-            onClick={() => setFilter('retired')}
-            className={`px-4 py-2 rounded-lg font-semibold text-sm transition-all ${
-              filter === 'retired'
-                ? 'bg-gray-600 text-white shadow-sm'
-                : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-            }`}
-          >
-            <Archive className="w-4 h-4 inline-block mr-2" />
-            Retired ({equipment.filter(e => e.status === 'retired').length})
-          </button>
-          <button
-            onClick={() => setFilter('all')}
-            className={`px-4 py-2 rounded-lg font-semibold text-sm transition-all ${
-              filter === 'all'
-                ? 'bg-blue-600 text-white shadow-sm'
-                : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-            }`}
-          >
-            All ({equipment.length})
-          </button>
-        </div>
+      {/* Filters + add button — shared FilterBar treatment */}
+      <FilterBar
+        resultCount={loading ? undefined : filteredEquipment.length}
+        activeCount={selectedYears.length + (filter !== 'active' ? 1 : 0)}
+        onClearAll={() => {
+          setFilter('active');
+          setSelectedYears([]);
+        }}
+        actions={
+          isOwnProfile ? (
+            <button
+              onClick={() => setIsAddModalOpen(true)}
+              className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg font-semibold text-sm hover:bg-blue-700 transition-colors shadow-sm"
+            >
+              <Plus className="w-4 h-4" />
+              Add Equipment
+            </button>
+          ) : undefined
+        }
+      >
+        {/* Status filter */}
+        <select
+          value={filter}
+          onChange={(e) => setFilter(e.target.value as 'all' | 'active' | 'retired')}
+          className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+          aria-label="Filter by status"
+        >
+          <option value="active">In bag ({equipment.filter(e => e.status === 'active').length})</option>
+          <option value="retired">Retired ({equipment.filter(e => e.status === 'retired').length})</option>
+          <option value="all">All ({equipment.length})</option>
+        </select>
 
-        {/* Add equipment button (only for own profile) */}
-        {isOwnProfile && (
-          <button
-            onClick={() => setIsAddModalOpen(true)}
-            className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg font-semibold text-sm hover:bg-blue-700 transition-colors shadow-sm"
-          >
-            <Plus className="w-4 h-4" />
-            Add Equipment
-          </button>
+        {/* Year filter — "in bag during year" */}
+        {yearOptions.length > 0 && (
+          <MultiSelectDropdown<number>
+            allLabel="All Years"
+            itemNounPlural="years"
+            searchPlaceholder="Search years..."
+            options={yearOptions.map(year => ({ value: year, label: String(year) }))}
+            selected={selectedYears}
+            onChange={setSelectedYears}
+          />
         )}
-      </div>
+      </FilterBar>
 
       {/* Loading state */}
       {loading && (
@@ -247,9 +272,15 @@ export default function EquipmentSection({ profileId, isOwnProfile = false }: Eq
             <Dumbbell className="w-10 h-10 text-gray-400" />
           </div>
           <h3 className="text-xl font-bold text-gray-900 mb-2">
-            {filter === 'active' && 'No active equipment'}
-            {filter === 'retired' && 'No retired equipment'}
-            {filter === 'all' && 'No equipment added'}
+            {selectedYears.length > 0 ? (
+              'No equipment matches your filters'
+            ) : (
+              <>
+                {filter === 'active' && 'No active equipment'}
+                {filter === 'retired' && 'No retired equipment'}
+                {filter === 'all' && 'No equipment added'}
+              </>
+            )}
           </h3>
           <p className="text-gray-600 mb-6 max-w-md mx-auto">
             {isOwnProfile
@@ -308,7 +339,7 @@ export default function EquipmentSection({ profileId, isOwnProfile = false }: Eq
                         key={item.id}
                         item={item}
                         isOwnProfile={isOwnProfile}
-                        onEdit={() => {}} // Edit functionality coming soon
+                        onEdit={() => setEquipmentToEdit(item)}
                         onDelete={handleDelete}
                         onToggleStatus={handleToggleStatus}
                         onReplace={() => handleReplace(item)}
@@ -342,6 +373,14 @@ export default function EquipmentSection({ profileId, isOwnProfile = false }: Eq
           oldEquipment={equipmentToReplace}
         />
       )}
+
+      {/* Edit Dates Modal */}
+      <EditEquipmentDatesModal
+        isOpen={equipmentToEdit !== null}
+        onClose={() => setEquipmentToEdit(null)}
+        onSaved={fetchEquipment}
+        item={equipmentToEdit}
+      />
     </div>
   );
 }
@@ -350,15 +389,33 @@ export default function EquipmentSection({ profileId, isOwnProfile = false }: Eq
 interface EquipmentCardProps {
   item: EquipmentItem;
   isOwnProfile: boolean;
-  onEdit: (id: string) => void;
+  onEdit: () => void;
   onDelete: (id: string) => void;
   onToggleStatus: (id: string) => void;
   onReplace: () => void;
 }
 
+// "In bag since Mar 2024" (active) / "2019 – 2023" or "Mar 2023 – Jun 2023"
+// (retired; month detail only within a single year). User dates first,
+// server audit timestamps as fallback for legacy rows.
+function formatOwnershipSpan(item: EquipmentItem): string | null {
+  const acquired = item.acquired_on ?? item.added_at;
+  if (!acquired) return null;
+  if (item.status === 'active') {
+    return `In bag since ${formatMonthYear(acquired)}`;
+  }
+  const retired = item.retired_on ?? item.retired_at;
+  if (!retired) return `In bag since ${formatMonthYear(acquired)}`;
+  const sameYear = yearOf(acquired) === yearOf(retired);
+  return sameYear
+    ? `${formatMonthYear(acquired)} – ${formatMonthYear(retired)}`
+    : `${formatMonthYear(acquired, { yearOnly: true })} – ${formatMonthYear(retired, { yearOnly: true })}`;
+}
+
 function EquipmentCard({ item, isOwnProfile, onEdit, onDelete, onToggleStatus, onReplace }: EquipmentCardProps) {
   const config = CATEGORY_CONFIG[item.category];
   const isActive = item.status === 'active';
+  const ownershipSpan = formatOwnershipSpan(item);
 
   return (
     <div
@@ -413,6 +470,9 @@ function EquipmentCard({ item, isOwnProfile, onEdit, onDelete, onToggleStatus, o
         <div>
           <h4 className="text-sm font-semibold text-gray-900 leading-tight">{item.brand}</h4>
           <p className="text-lg font-bold text-gray-900 leading-tight mt-0.5">{item.model}</p>
+          {ownershipSpan && (
+            <p className="text-xs text-gray-500 mt-1">{ownershipSpan}</p>
+          )}
         </div>
 
         {/* Specs */}
@@ -441,11 +501,11 @@ function EquipmentCard({ item, isOwnProfile, onEdit, onDelete, onToggleStatus, o
             {/* Primary actions row */}
             <div className="flex items-center gap-2">
               <button
-                onClick={() => onEdit(item.id)}
+                onClick={onEdit}
                 className="flex-1 flex items-center justify-center gap-1 px-3 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg text-xs font-semibold transition-colors"
               >
                 <Edit2 className="w-3 h-3" />
-                Edit
+                Edit Dates
               </button>
               <button
                 onClick={() => onToggleStatus(item.id)}

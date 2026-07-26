@@ -1,4 +1,5 @@
 import { getAllSports } from '@/lib/config/sports-config';
+import { isValidDateString, isNotFutureDate } from '@/lib/date-validation';
 
 export interface Achievement {
   id: string;
@@ -21,25 +22,6 @@ export interface AchievementFields {
   achieved_on?: string;
   organization?: string | null;
   placement?: string | null;
-}
-
-const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
-
-function isRealDate(dateStr: string): boolean {
-  const [y, m, d] = dateStr.split('-').map(Number);
-  const date = new Date(Date.UTC(y, m - 1, d));
-  return (
-    date.getUTCFullYear() === y &&
-    date.getUTCMonth() === m - 1 &&
-    date.getUTCDate() === d
-  );
-}
-
-function isNotFuture(dateStr: string): boolean {
-  // Compare against tomorrow UTC so a user just past midnight in a timezone
-  // ahead of the server isn't rejected for "future-dating" today's award.
-  const tomorrow = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
-  return dateStr <= tomorrow;
 }
 
 function optionalText(value: unknown, maxLen: number, field: string):
@@ -80,14 +62,10 @@ export function validateAchievementInput(
 
   if (body.achievedOn !== undefined || !partial) {
     const achievedOn = body.achievedOn;
-    if (
-      typeof achievedOn !== 'string' ||
-      !DATE_RE.test(achievedOn) ||
-      !isRealDate(achievedOn)
-    ) {
+    if (!isValidDateString(achievedOn)) {
       return { ok: false, error: 'A valid date (YYYY-MM-DD) is required' };
     }
-    if (!isNotFuture(achievedOn)) {
+    if (!isNotFutureDate(achievedOn)) {
       return { ok: false, error: 'Date cannot be in the future' };
     }
     fields.achieved_on = achievedOn;

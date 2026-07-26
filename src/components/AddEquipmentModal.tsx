@@ -75,6 +75,11 @@ export default function AddEquipmentModal({
   const [status, setStatus] = useState<'active' | 'retired'>('active');
   const [notes, setNotes] = useState('');
 
+  // User-editable dates ('in bag since' + optional retirement date)
+  const todayStr = () => new Date().toISOString().split('T')[0];
+  const [acquiredOn, setAcquiredOn] = useState(todayStr());
+  const [retiredOn, setRetiredOn] = useState('');
+
   // Autocomplete state
   const [brandSuggestions, setBrandSuggestions] = useState<EquipmentBrand[]>([]);
   const [modelSuggestions, setModelSuggestions] = useState<EquipmentModel[]>([]);
@@ -226,6 +231,7 @@ export default function AddEquipmentModal({
         credentials: 'include',
         body: JSON.stringify({
           profileId,
+          sportKey,
           category: sportKey === 'golf' ? category : equipmentType,
           brand: brand.trim(),
           model: model.trim(),
@@ -233,6 +239,8 @@ export default function AddEquipmentModal({
           specs: Object.keys(specs).length > 0 ? specs : undefined,
           status,
           notes: notes.trim() || undefined,
+          acquiredOn: acquiredOn || undefined,
+          retiredOn: status === 'retired' && retiredOn ? retiredOn : undefined,
         }),
       });
 
@@ -261,6 +269,8 @@ export default function AddEquipmentModal({
     setImageUrl('');
     setStatus('active');
     setNotes('');
+    setAcquiredOn(todayStr());
+    setRetiredOn('');
     setLoft('');
     setShaft('');
     setFlex('');
@@ -566,6 +576,43 @@ export default function AddEquipmentModal({
                   <span className="text-sm font-medium text-gray-900">Retired (no longer using)</span>
                 </label>
               </div>
+            </div>
+
+            {/* Dates — power the "in bag during year" filter */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label htmlFor="equipment-acquired-on" className="block text-sm font-semibold text-gray-900 mb-2">
+                  In bag since
+                </label>
+                <input
+                  id="equipment-acquired-on"
+                  type="date"
+                  value={acquiredOn}
+                  onChange={(e) => setAcquiredOn(e.target.value)}
+                  max={todayStr()}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-base bg-white"
+                />
+                <p className="text-xs text-gray-500 mt-1">
+                  Backdate gear you owned before joining Edge Athlete.
+                </p>
+              </div>
+              {status === 'retired' && (
+                <div>
+                  <label htmlFor="equipment-retired-on" className="block text-sm font-semibold text-gray-900 mb-2">
+                    Retired on
+                  </label>
+                  <input
+                    id="equipment-retired-on"
+                    type="date"
+                    value={retiredOn}
+                    onChange={(e) => setRetiredOn(e.target.value)}
+                    min={acquiredOn || undefined}
+                    max={todayStr()}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-base bg-white"
+                  />
+                  <p className="text-xs text-gray-500 mt-1">Defaults to today if left blank.</p>
+                </div>
+              )}
             </div>
 
             {/* Golf-Specific Specs Section */}
