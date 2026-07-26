@@ -22,6 +22,7 @@ interface StatLinesResponse {
     result: string;
     keyStat: string;
   }>;
+  years?: number[];
 }
 
 export class StatLinePostAdapter extends BaseSportAdapter {
@@ -29,11 +30,12 @@ export class StatLinePostAdapter extends BaseSportAdapter {
     super(sportKey);
   }
 
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  async getHighlights(profileId: string, _season?: string): Promise<HighlightTile[]> {
+  async getHighlights(profileId: string, season?: string): Promise<HighlightTile[]> {
     try {
+      // season = calendar year filter
+      const yearParam = season ? `&year=${encodeURIComponent(season)}` : '';
       const response = await fetch(
-        `/api/sports/stat-lines?profileId=${encodeURIComponent(profileId)}&sport=${this.sportKey}`,
+        `/api/sports/stat-lines?profileId=${encodeURIComponent(profileId)}&sport=${this.sportKey}${yearParam}`,
         { credentials: 'include' }
       );
       if (!response.ok) return super.getHighlights(profileId);
@@ -42,6 +44,20 @@ export class StatLinePostAdapter extends BaseSportAdapter {
       return data.highlights.map(h => ({ label: h.label, value: h.value }));
     } catch {
       return super.getHighlights(profileId);
+    }
+  }
+
+  async getHighlightYears(profileId: string): Promise<number[]> {
+    try {
+      const response = await fetch(
+        `/api/sports/stat-lines?profileId=${encodeURIComponent(profileId)}&sport=${this.sportKey}`,
+        { credentials: 'include' }
+      );
+      if (!response.ok) return [];
+      const data: StatLinesResponse = await response.json();
+      return data.years ?? [];
+    } catch {
+      return [];
     }
   }
 

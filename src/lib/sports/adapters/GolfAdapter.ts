@@ -30,6 +30,7 @@ interface GolfStatsResponse {
   }>;
   totalRounds: number;
   completedRounds: number;
+  years?: number[];
 }
 
 export class GolfAdapter extends BaseSportAdapter {
@@ -37,11 +38,11 @@ export class GolfAdapter extends BaseSportAdapter {
     super('golf');
   }
 
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  async getHighlights(profileId: string, _season?: string): Promise<HighlightTile[]> {
+  async getHighlights(profileId: string, season?: string): Promise<HighlightTile[]> {
     try {
-      // Fetch real golf stats from API
-      const response = await fetch(`/api/golf/stats?profileId=${profileId}`, { credentials: 'include' });
+      // Fetch real golf stats from API (season = calendar year filter)
+      const yearParam = season ? `&year=${encodeURIComponent(season)}` : '';
+      const response = await fetch(`/api/golf/stats?profileId=${profileId}${yearParam}`, { credentials: 'include' });
 
       if (!response.ok) {
         // Fall back to empty tiles on error
@@ -60,6 +61,17 @@ export class GolfAdapter extends BaseSportAdapter {
     } catch {
       // Return empty tiles on error
       return this.getEmptyHighlights();
+    }
+  }
+
+  async getHighlightYears(profileId: string): Promise<number[]> {
+    try {
+      const response = await fetch(`/api/golf/stats?profileId=${profileId}`, { credentials: 'include' });
+      if (!response.ok) return [];
+      const data: GolfStatsResponse = await response.json();
+      return data.years ?? [];
+    } catch {
+      return [];
     }
   }
 

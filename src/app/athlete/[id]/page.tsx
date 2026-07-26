@@ -44,8 +44,8 @@ export default function AthleteProfilePage() {
   // /api/posts, so a visitor never gets a modal for a post they can't see).
   const [sportSpotlight, setSportSpotlight] = useState<SportSpotlight | null>(null);
   const spotlightSeqRef = useRef(0);
-  const handleSportClick = useCallback(async (sportKey: SportKey) => {
-    setSportSpotlight({ sportKey, ts: Date.now() });
+  const handleSportClick = useCallback(async (sportKey: SportKey, year: number | null) => {
+    setSportSpotlight({ sportKey, year, ts: Date.now() });
     document.getElementById('media-section')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
     const seq = ++spotlightSeqRef.current;
     try {

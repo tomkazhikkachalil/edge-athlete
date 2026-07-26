@@ -26,6 +26,7 @@ export async function GET(request: NextRequest) {
           recentRounds: [],
           totalRounds: 0,
           completedRounds: 0,
+          years: [],
         });
       }
     }
@@ -59,9 +60,32 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Failed to fetch golf data' }, { status: 500 });
     }
 
+    // Years present across all rounds (unfiltered) — powers the profile-page
+    // year selector. String-sliced from the DATE column (timezone-safe).
+    const years = Array.from(
+      new Set(
+        (rounds || [])
+          .map(r => parseInt(String(r.date ?? '').slice(0, 4), 10))
+          .filter(Number.isFinite)
+      )
+    ).sort((a, b) => b - a);
+
+    // Optional ?year= filter — highlights/recent/totals scope to that year
+    const yearParam = searchParams.get('year');
+    let scopedRounds = rounds || [];
+    if (yearParam) {
+      const year = parseInt(yearParam, 10);
+      if (!Number.isFinite(year) || year < 1900 || year > 2200) {
+        return NextResponse.json({ error: 'Invalid year' }, { status: 400 });
+      }
+      scopedRounds = scopedRounds.filter(
+        r => parseInt(String(r.date ?? '').slice(0, 4), 10) === year
+      );
+    }
+
     // Solo completed rounds (posted via the scorecard form) — 9-hole rounds
     // count too; the aggregator decides which tiles each length may feed
-    const completedRounds = (rounds || []).filter(r =>
+    const completedRounds = scopedRounds.filter(r =>
       r.gross_score && (r.holes === 18 || r.holes === 9)
     );
 
@@ -84,7 +108,7 @@ export async function GET(request: NextRequest) {
     const highlights = aggregateGolfHighlights(allRoundLikes);
 
     // Build recent activity (for getRecentActivity)
-    const recentRounds = (rounds || []).slice(0, 10).map(round => ({
+    const recentRounds = scopedRounds.slice(0, 10).map(round => ({
       id: round.id,
       date: round.date,
       course: round.course,
@@ -102,8 +126,9 @@ export async function GET(request: NextRequest) {
       // recentRounds stays solo-only: shared rounds have no par/course_location
       // in this shape and the activity list renders them via their feed posts
       recentRounds,
-      totalRounds: (rounds || []).length,
-      completedRounds: allRoundLikes.length
+      totalRounds: scopedRounds.length,
+      completedRounds: allRoundLikes.length,
+      years,
     });
 
   } catch (error) {

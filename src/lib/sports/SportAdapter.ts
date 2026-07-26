@@ -60,7 +60,15 @@ export interface SportAdapter {
    * @returns Array of standardized tile data
    */
   getHighlights(profileId: string, season?: string): Promise<HighlightTile[]>;
-  
+
+  /**
+   * Years this athlete has data for in this sport (newest first) — powers
+   * the profile-page year selector. Empty array = no dated data.
+   * @param profileId - User profile ID
+   */
+  getHighlightYears(profileId: string): Promise<number[]>;
+
+
   /**
    * Get recent activity rows for the activity table
    * @param profileId - User profile ID  
@@ -116,7 +124,14 @@ export abstract class BaseSportAdapter implements SportAdapter {
       ...(labels.tile6 ? [{ label: labels.tile6, value: null }] : [])
     ];
   }
-  
+
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  async getHighlightYears(_profileId: string): Promise<number[]> {
+    // Default: no dated data
+    return [];
+  }
+
+
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   async getRecentActivity(_profileId: string, _limit = 10, _cursor?: string): Promise<ActivityResult> {
     // Default: return empty activity list

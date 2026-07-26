@@ -1,10 +1,11 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { getSportDefinition, getSportAdapter, getPrimarySports, type SportKey } from '@/lib/sports';
-import { getSeasonDisplayName, PLACEHOLDERS } from '@/lib/config';
+import { PLACEHOLDERS } from '@/lib/config';
 import { COPY } from '@/lib/copy';
 import { getSportColorClasses, getNeutralColorClasses, cssClasses } from '@/lib/design-tokens';
+import YearSelect from './filters/YearSelect';
 
 interface HighlightTile {
   label: string;
@@ -14,16 +15,52 @@ interface HighlightTile {
 interface MultiSportHighlightsProps {
   profileId: string;
   /** When provided, enabled sport cards become buttons that invoke this
-   *  (used to jump to that sport's media + open its latest post). */
-  onSportClick?: (sportKey: SportKey) => void;
+   *  (used to jump to that sport's media + open its latest post). The
+   *  currently selected highlight year rides along (null = all time). */
+  onSportClick?: (sportKey: SportKey, year: number | null) => void;
 }
 
 export default function MultiSportHighlights({ profileId, onSportClick }: MultiSportHighlightsProps) {
   const [highlightData, setHighlightData] = useState<Record<SportKey, HighlightTile[]>>({} as Record<SportKey, HighlightTile[]>);
   const [displaySportKeys, setDisplaySportKeys] = useState<SportKey[]>([]);
   const [loading, setLoading] = useState(true);
+  const [selectedYear, setSelectedYear] = useState<number | null>(null);
+  const [availableYears, setAvailableYears] = useState<number[]>([]);
+  const [refetching, setRefetching] = useState(false);
+  // Guard against out-of-order responses when the year toggles quickly
+  const requestSeqRef = useRef(0);
+  const lastFetchedYearRef = useRef<number | null>(null);
 
-  // Load highlight data for all sports
+  const loadTiles = useCallback(
+    async (sportKeys: SportKey[], year: number | null): Promise<Record<SportKey, HighlightTile[]>> => {
+      const data: Record<SportKey, HighlightTile[]> = {} as Record<SportKey, HighlightTile[]>;
+      await Promise.all(
+        sportKeys.map(async sportKey => {
+          const adapter = getSportAdapter(sportKey);
+          const sportDef = getSportDefinition(sportKey);
+          if (adapter.isEnabled()) {
+            data[sportKey] = await adapter.getHighlights(
+              profileId,
+              year !== null ? String(year) : undefined
+            );
+          } else {
+            data[sportKey] = [
+              { label: sportDef.metric_labels.tile1, value: null },
+              { label: sportDef.metric_labels.tile2, value: null },
+              { label: sportDef.metric_labels.tile3, value: null },
+              { label: sportDef.metric_labels.tile4, value: null },
+              ...(sportDef.metric_labels.tile5 ? [{ label: sportDef.metric_labels.tile5, value: null }] : []),
+              ...(sportDef.metric_labels.tile6 ? [{ label: sportDef.metric_labels.tile6, value: null }] : [])
+            ];
+          }
+        })
+      );
+      return data;
+    },
+    [profileId]
+  );
+
+  // Initial load: active sports, all-time tiles, and available years
   useEffect(() => {
     const loadHighlights = async () => {
       try {
@@ -50,28 +87,23 @@ export default function MultiSportHighlights({ profileId, onSportClick }: MultiS
 
         setDisplaySportKeys(sportKeys);
 
-        const data: Record<SportKey, HighlightTile[]> = {} as Record<SportKey, HighlightTile[]>;
-        // Load highlights only for the sports we're going to show.
-        await Promise.all(
-          sportKeys.map(async sportKey => {
-            const adapter = getSportAdapter(sportKey);
-            const sportDef = getSportDefinition(sportKey);
-            if (adapter.isEnabled()) {
-              data[sportKey] = await adapter.getHighlights(profileId);
-            } else {
-              data[sportKey] = [
-                { label: sportDef.metric_labels.tile1, value: null },
-                { label: sportDef.metric_labels.tile2, value: null },
-                { label: sportDef.metric_labels.tile3, value: null },
-                { label: sportDef.metric_labels.tile4, value: null },
-                ...(sportDef.metric_labels.tile5 ? [{ label: sportDef.metric_labels.tile5, value: null }] : []),
-                ...(sportDef.metric_labels.tile6 ? [{ label: sportDef.metric_labels.tile6, value: null }] : [])
-              ];
-            }
-          })
-        );
+        // Tiles (all-time) + years with data, unioned across sports
+        const [data, yearsArrays] = await Promise.all([
+          loadTiles(sportKeys, null),
+          Promise.all(
+            sportKeys.map(sportKey => {
+              const adapter = getSportAdapter(sportKey);
+              return adapter.isEnabled()
+                ? adapter.getHighlightYears(profileId)
+                : Promise.resolve([]);
+            })
+          ),
+        ]);
 
         setHighlightData(data);
+        setAvailableYears(
+          Array.from(new Set(yearsArrays.flat())).sort((a, b) => b - a)
+        );
       } catch (e) {
         console.error('Failed to load sport highlights:', e);
       } finally {
@@ -82,7 +114,26 @@ export default function MultiSportHighlights({ profileId, onSportClick }: MultiS
     if (profileId) {
       loadHighlights();
     }
-  }, [profileId]);
+  }, [profileId, loadTiles]);
+
+  // Refetch tiles when the year selection changes (skips the initial
+  // all-time load — lastFetchedYearRef starts at null)
+  useEffect(() => {
+    if (displaySportKeys.length === 0) return;
+    if (selectedYear === lastFetchedYearRef.current) return;
+    lastFetchedYearRef.current = selectedYear;
+
+    const seq = ++requestSeqRef.current;
+    setRefetching(true);
+    loadTiles(displaySportKeys, selectedYear)
+      .then(data => {
+        if (seq === requestSeqRef.current) setHighlightData(data);
+      })
+      .catch(e => console.error('Failed to load sport highlights:', e))
+      .finally(() => {
+        if (seq === requestSeqRef.current) setRefetching(false);
+      });
+  }, [selectedYear, displaySportKeys, loadTiles]);
 
   const renderSportCard = (sportKey: SportKey) => {
     const sportDef = getSportDefinition(sportKey);
@@ -106,7 +157,7 @@ export default function MultiSportHighlights({ profileId, onSportClick }: MultiS
         {...(clickable
           ? {
               type: 'button' as const,
-              onClick: () => onSportClick!(sportKey),
+              onClick: () => onSportClick!(sportKey, selectedYear),
               'aria-label': `View ${sportDef.display_name} posts`,
             }
           : {})}
@@ -196,15 +247,18 @@ export default function MultiSportHighlights({ profileId, onSportClick }: MultiS
 
   return (
     <div className="bg-white rounded-lg shadow-sm p-6 sm:p-8">
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-6">
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between mb-6">
         <h2 className="text-h2 text-gray-900">Sport Highlights</h2>
-        <div className="inline-flex items-center px-3 py-1 bg-gray-50 rounded-md border border-gray-200 hover:bg-gray-100 transition-colors cursor-default">
-          <span className="text-label text-gray-900 font-bold">{getSeasonDisplayName()}</span>
-          <i className="fas fa-chevron-down icon-footer text-gray-800 ml-2" aria-hidden="true"></i>
-        </div>
+        {/* Working year selector (replaces the old hardcoded season chip);
+            renders nothing until the athlete has dated stats */}
+        <YearSelect
+          years={availableYears}
+          value={selectedYear}
+          onChange={setSelectedYear}
+        />
       </div>
 
-      <div className="grid md:grid-cols-3 gap-base">
+      <div className={`grid md:grid-cols-3 gap-base transition-opacity ${refetching ? 'opacity-60 pointer-events-none' : ''}`}>
         {primarySportKeys.map(sportKey => renderSportCard(sportKey))}
       </div>
 
@@ -212,7 +266,9 @@ export default function MultiSportHighlights({ profileId, onSportClick }: MultiS
       {!hasAnyData && (
         <div className="text-center mt-base mb-section">
           <p className="text-gray-900 text-sm font-medium">
-            {PLACEHOLDERS.NO_HIGHLIGHTS}
+            {selectedYear !== null
+              ? `No stats recorded in ${selectedYear}.`
+              : PLACEHOLDERS.NO_HIGHLIGHTS}
           </p>
         </div>
       )}

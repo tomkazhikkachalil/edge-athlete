@@ -59,11 +59,29 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Failed to fetch stat lines' }, { status: 500 });
     }
 
-    const lines: Array<{ postId: string; createdAt: string; line: StatLineData }> = [];
+    let lines: Array<{ postId: string; createdAt: string; line: StatLineData }> = [];
     for (const p of posts || []) {
       if (isStatLineData(p.stats_data)) {
         lines.push({ postId: p.id, createdAt: p.created_at, line: p.stats_data });
       }
+    }
+
+    // Years present in the (unfiltered) data — powers the profile-page year
+    // selector. Entry date preferred; post date as fallback (string-sliced,
+    // never new Date().getFullYear(), to stay timezone-safe).
+    const lineYear = (l: { createdAt: string; line: StatLineData }): number =>
+      parseInt((l.line.date || l.createdAt).slice(0, 4), 10);
+    const years = Array.from(new Set(lines.map(lineYear).filter(Number.isFinite)))
+      .sort((a, b) => b - a);
+
+    // Optional ?year= filter — totals/highlights/activity scope to that year
+    const yearParam = searchParams.get('year');
+    if (yearParam) {
+      const year = parseInt(yearParam, 10);
+      if (!Number.isFinite(year) || year < 1900 || year > 2200) {
+        return NextResponse.json({ error: 'Invalid year' }, { status: 400 });
+      }
+      lines = lines.filter(l => lineYear(l) === year);
     }
 
     const statLines = lines.map(l => l.line);
@@ -105,6 +123,7 @@ export async function GET(request: NextRequest) {
       totals,
       highlights,
       recentActivity,
+      years,
     });
   } catch (e) {
     console.error('[stat-lines] unexpected error:', e);

@@ -98,6 +98,8 @@ type MediaCountsResponse = TabCounts;
  *  filter still re-applies it (identity-based effect trigger). */
 export interface SportSpotlight {
   sportKey: string;
+  /** Highlight-year selection riding along from Sport Highlights (null = all time). */
+  year?: number | null;
   ts: number;
 }
 
@@ -237,11 +239,15 @@ export default function ProfileMediaTabs({ profileId, currentUserId, isOwnProfil
   }, [fetchCounts]);
 
   // Sport-card spotlight from the parent (Sport Highlights click): jump to
-  // the All tab filtered to that sport. Identity-based — see SportSpotlight.
+  // the All tab filtered to that sport (and its selected highlight year,
+  // when one is active). Identity-based — see SportSpotlight.
   useEffect(() => {
     if (!sportSpotlight) return;
     setActiveTab('all');
     setSelectedSports([sportSpotlight.sportKey]);
+    if (sportSpotlight.year != null) {
+      setSelectedYears([sportSpotlight.year]);
+    }
   }, [sportSpotlight]);
 
   // Load media when tab/filter/sort/profileId or sport/year filters change.
