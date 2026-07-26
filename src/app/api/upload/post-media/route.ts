@@ -9,19 +9,13 @@ export async function POST(request: NextRequest) {
 
     const formData = await request.formData();
     const file = formData.get('file') as File;
-    const userId = formData.get('userId') as string;
+    // Owner comes from the authenticated session — never from the client.
+    // (A redundant userId form field used to be required here; AddVitalModal
+    // sent '' and got "User ID is required". DELETE below always did this.)
+    const userId = user.id;
 
     if (!file) {
       return NextResponse.json({ error: 'No file provided' }, { status: 400 });
-    }
-
-    if (!userId) {
-      return NextResponse.json({ error: 'User ID is required' }, { status: 400 });
-    }
-
-    // Validate user ID matches authenticated user
-    if (userId !== user.id) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 403 });
     }
 
     // File validation

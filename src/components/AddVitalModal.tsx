@@ -154,8 +154,7 @@ export default function AddVitalModal({ isOpen, onClose, onSaved }: AddVitalModa
 
   const uploadFile = async (file: File): Promise<string> => {
     const formData = new FormData();
-    formData.append('file', file);
-    formData.append('userId', ''); // auth handled server-side via cookie
+    formData.append('file', file); // owner derived server-side from the session
     const res = await fetch('/api/upload/post-media', { method: 'POST', body: formData });
     if (!res.ok) {
       const data = await res.json();
