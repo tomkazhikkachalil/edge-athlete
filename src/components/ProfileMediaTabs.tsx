@@ -7,6 +7,7 @@ import OptimizedImage from './OptimizedImage';
 import PostDetailModal from './PostDetailModal';
 import EditPostModal from './EditPostModal';
 import EquipmentSection from './EquipmentSection';
+import AchievementsTab from './AchievementsTab';
 import SportYearFilter from './SportYearFilter';
 import FilterBar from './filters/FilterBar';
 import { useToast } from './Toast';
@@ -449,21 +450,9 @@ export default function ProfileMediaTabs({ profileId, currentUserId, isOwnProfil
         />
       )}
 
-      {/* Achievements tab (coming soon) */}
+      {/* Achievements tab */}
       {activeTab === 'achievements' && (
-        <div className="text-center py-16 px-4">
-          <div className="w-20 h-20 mx-auto mb-6 rounded-full bg-gray-100 flex items-center justify-center">
-            <Trophy className="w-10 h-10 text-gray-400" />
-          </div>
-          <h3 className="text-xl font-bold text-gray-900 mb-2">Achievements</h3>
-          <p className="text-gray-600 mb-6 max-w-md mx-auto">
-            This feature is coming soon! Showcase your accomplishments and milestones.
-          </p>
-          <div className="inline-flex items-center gap-2 px-4 py-2 bg-blue-50 text-blue-700 rounded-lg font-semibold text-sm">
-            <Trophy className="w-4 h-4" />
-            Feature in Development
-          </div>
-        </div>
+        <AchievementsTab profileId={profileId} isOwnProfile={isOwnProfile} />
       )}
 
       {/* Media/Stats/Tagged tabs */}

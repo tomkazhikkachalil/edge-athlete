@@ -363,7 +363,7 @@ export async function POST(
       // migration 020 dropped), return zero badge counts with 200 instead of a
       // 500. Tab badges show nothing; media itself still loads via the GET RPCs.
       console.error('media counts RPC failed (returning zero counts):', countError.message);
-      return NextResponse.json({ all: 0, stats: 0, tagged: 0, degraded: true });
+      return NextResponse.json({ all: 0, stats: 0, tagged: 0, achievements: 0, degraded: true });
     }
 
     const result = counts && counts.length > 0 ? counts[0] : {
@@ -372,11 +372,12 @@ export async function POST(
       tagged_media_count: 0
     };
 
-    // Equipment & vitals counts for their tab badges. The media RPC doesn't
-    // cover these tables, so they were always 0. Gate on profile visibility
-    // for non-owners (private profiles shouldn't expose these counts).
+    // Equipment, vitals & achievements counts for their tab badges. The media
+    // RPC doesn't cover these tables, so they were always 0. Gate on profile
+    // visibility for non-owners (private profiles shouldn't expose these counts).
     let equipment = 0;
     let vitals = 0;
+    let achievements = 0;
     let canSee = viewerId === profileId;
     if (!canSee) {
       const { data: prof } = await supabaseAdmin
@@ -392,12 +393,14 @@ export async function POST(
       }
     }
     if (canSee) {
-      const [{ count: eqCount }, { count: vitCount }] = await Promise.all([
+      const [{ count: eqCount }, { count: vitCount }, { count: achCount }] = await Promise.all([
         supabaseAdmin.from('athlete_equipment').select('id', { count: 'exact', head: true }).eq('profile_id', profileId),
         supabaseAdmin.from('athlete_vitals').select('id', { count: 'exact', head: true }).eq('profile_id', profileId),
+        supabaseAdmin.from('athlete_achievements').select('id', { count: 'exact', head: true }).eq('profile_id', profileId),
       ]);
       equipment = eqCount ?? 0;
       vitals = vitCount ?? 0;
+      achievements = achCount ?? 0;
     }
 
     return NextResponse.json({
@@ -405,7 +408,8 @@ export async function POST(
       stats: parseInt(result.stats_media_count || '0', 10),
       tagged: parseInt(result.tagged_media_count || '0', 10),
       equipment,
-      vitals
+      vitals,
+      achievements
     });
 
   } catch (error) {
