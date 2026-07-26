@@ -25,10 +25,10 @@ export async function GET(request: NextRequest) {
       currentUserId = null;
     }
 
-    // Check profile visibility
+    // Check profile visibility (+ current-state vitals for the summary strip)
     const { data: profile } = await supabase
       .from('profiles')
-      .select('id, visibility, birthday')
+      .select('id, visibility, birthday, dob, height_cm, weight_kg, weight_display, weight_unit')
       .eq('id', profileId)
       .single();
 
@@ -121,7 +121,17 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({
       vitals: vitals || [],
       trainingPosts: trainingPostsRaw || [],
-      athleteBirthday: profile.birthday || null,
+      // dob is what Edit Profile saves; birthday is a legacy column kept as
+      // fallback (previously this read birthday alone — usually null, which
+      // hid every age-at-date annotation).
+      athleteBirthday: profile.dob || profile.birthday || null,
+      currentVitals: {
+        heightCm: profile.height_cm ?? null,
+        weightKg: profile.weight_kg ?? null,
+        weightDisplay: profile.weight_display ?? null,
+        weightUnit: profile.weight_unit ?? null,
+        dob: profile.dob ?? null,
+      },
     });
   } catch (error) {
     console.error('GET /api/vitals error:', error);

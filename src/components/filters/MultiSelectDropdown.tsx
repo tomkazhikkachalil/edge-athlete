@@ -103,8 +103,10 @@ export default function MultiSelectDropdown<T extends string | number>({
         type="button"
         onClick={() => !disabled && setIsOpen(o => !o)}
         disabled={disabled}
+        title={disabled ? 'Nothing to filter yet — add some data first' : undefined}
         aria-haspopup="listbox"
         aria-expanded={isOpen}
+        aria-disabled={disabled || undefined}
         className={`px-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 inline-flex items-center gap-2 transition-colors ${
           disabled
             ? 'border-gray-200 text-gray-400 bg-gray-50 cursor-not-allowed'

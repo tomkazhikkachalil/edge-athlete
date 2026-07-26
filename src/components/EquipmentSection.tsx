@@ -251,7 +251,7 @@ export default function EquipmentSection({ profileId, isOwnProfile = false }: Eq
           className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
           aria-label="Filter by status"
         >
-          <option value="active">In bag ({equipment.filter(e => e.status === 'active').length})</option>
+          <option value="active">Active ({equipment.filter(e => e.status === 'active').length})</option>
           <option value="retired">Retired ({equipment.filter(e => e.status === 'retired').length})</option>
           <option value="all">All ({equipment.length})</option>
         </select>
@@ -417,17 +417,17 @@ interface EquipmentCardProps {
   onReplace: () => void;
 }
 
-// "In bag since Mar 2024" (active) / "2019 – 2023" or "Mar 2023 – Jun 2023"
+// "Active since Mar 2024" (active) / "2019 – 2023" or "Mar 2023 – Jun 2023"
 // (retired; month detail only within a single year). User dates first,
 // server audit timestamps as fallback for legacy rows.
 function formatOwnershipSpan(item: EquipmentItem): string | null {
   const acquired = item.acquired_on ?? item.added_at;
   if (!acquired) return null;
   if (item.status === 'active') {
-    return `In bag since ${formatMonthYear(acquired)}`;
+    return `Active since ${formatMonthYear(acquired)}`;
   }
   const retired = item.retired_on ?? item.retired_at;
-  if (!retired) return `In bag since ${formatMonthYear(acquired)}`;
+  if (!retired) return `Active since ${formatMonthYear(acquired)}`;
   const sameYear = yearOf(acquired) === yearOf(retired);
   return sameYear
     ? `${formatMonthYear(acquired)} – ${formatMonthYear(retired)}`

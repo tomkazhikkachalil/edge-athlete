@@ -546,7 +546,7 @@ export default function AddEquipmentModal({
                     onChange={(e) => setStatus(e.target.value as 'active' | 'retired')}
                     className="w-4 h-4 text-blue-600"
                   />
-                  <span className="text-sm font-medium text-gray-900">Active (in my bag)</span>
+                  <span className="text-sm font-medium text-gray-900">Active (currently using)</span>
                 </label>
                 <label className="flex items-center gap-2 cursor-pointer">
                   <input
@@ -565,7 +565,7 @@ export default function AddEquipmentModal({
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <label htmlFor="equipment-acquired-on" className="block text-sm font-semibold text-gray-900 mb-2">
-                  In bag since
+                  Active since
                 </label>
                 <input
                   id="equipment-acquired-on"

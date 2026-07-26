@@ -46,7 +46,7 @@ export async function PATCH(
     if (body.acquiredOn !== undefined) {
       if (!isValidDateString(body.acquiredOn) || !isNotFutureDate(body.acquiredOn)) {
         return NextResponse.json(
-          { error: 'In-bag-since date must be a valid past date (YYYY-MM-DD)' },
+          { error: 'Active-since date must be a valid past date (YYYY-MM-DD)' },
           { status: 400 }
         );
       }
@@ -67,7 +67,7 @@ export async function PATCH(
         (acquired && body.retiredOn < acquired)
       ) {
         return NextResponse.json(
-          { error: 'Retired date must be a valid date on or after the in-bag-since date' },
+          { error: 'Retired date must be a valid date on or after the active-since date' },
           { status: 400 }
         );
       }
@@ -83,7 +83,7 @@ export async function PATCH(
         : equipment.retired_on;
     if (finalAcquired && finalRetired && finalRetired < finalAcquired) {
       return NextResponse.json(
-        { error: 'In-bag-since date must be on or before the retired date' },
+        { error: 'Active-since date must be on or before the retired date' },
         { status: 400 }
       );
     }

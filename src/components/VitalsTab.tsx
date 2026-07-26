@@ -17,6 +17,7 @@ import PostDetailModal from './PostDetailModal';
 import FilterBar from './filters/FilterBar';
 import MultiSelectDropdown from './filters/MultiSelectDropdown';
 import { deriveYearOptions, matchesYearFilter } from '@/lib/profile-filters';
+import { formatHeight, formatWeightWithUnit, formatAge, formatDate } from '@/lib/formatters';
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
@@ -70,6 +71,14 @@ interface VitalsTabProps {
   profileId: string;
   currentUserId?: string;
   isOwnProfile?: boolean;
+}
+
+interface CurrentVitals {
+  heightCm: number | null;
+  weightKg: number | null;
+  weightDisplay: number | null;
+  weightUnit: 'lbs' | 'kg' | 'stone' | null;
+  dob: string | null;
 }
 
 // ── Helpers ────────────────────────────────────────────────────────────────
@@ -302,6 +311,7 @@ export default function VitalsTab({ profileId, currentUserId, isOwnProfile = fal
   const [vitals, setVitals] = useState<VitalEntry[]>([]);
   const [trainingPosts, setTrainingPosts] = useState<TrainingPost[]>([]);
   const [athleteBirthday, setAthleteBirthday] = useState<string | null>(null);
+  const [currentVitals, setCurrentVitals] = useState<CurrentVitals | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [showAddVital, setShowAddVital] = useState(false);
@@ -323,6 +333,7 @@ export default function VitalsTab({ profileId, currentUserId, isOwnProfile = fal
       setVitals(data.vitals || []);
       setTrainingPosts(data.trainingPosts || []);
       setAthleteBirthday(data.athleteBirthday || null);
+      setCurrentVitals(data.currentVitals || null);
     } catch (e) {
       console.error('Failed to load vitals data:', e);
       setError('Failed to load vitals data');
@@ -390,6 +401,52 @@ export default function VitalsTab({ profileId, currentUserId, isOwnProfile = fal
 
   return (
     <div className="space-y-8">
+      {/* ── Current Vitals — the athlete's present-day snapshot from their
+             profile (edited via the profile header / Edit Profile). DOB is
+             owner-only; visitors see Age. ──────────────────────────────── */}
+      {currentVitals && (
+        <div>
+          <div className="flex items-baseline justify-between mb-3">
+            <h3 className="text-base font-bold text-gray-900">Current Vitals</h3>
+            {isOwnProfile && (
+              <span className="text-xs text-gray-400">Edit in your profile header</span>
+            )}
+          </div>
+          <div className={`grid grid-cols-2 gap-4 ${isOwnProfile ? 'md:grid-cols-4' : 'md:grid-cols-3'}`}>
+            <div className="text-center bg-white rounded-lg border border-gray-200 p-4">
+              <div className="text-2xl font-bold text-gray-900 mb-1">
+                {formatHeight(currentVitals.heightCm)}
+              </div>
+              <div className="text-sm font-semibold text-gray-900 uppercase tracking-wide">Height</div>
+            </div>
+            <div className="text-center bg-white rounded-lg border border-gray-200 p-4">
+              <div className="text-2xl font-bold text-gray-900 mb-1">
+                {currentVitals.weightDisplay && currentVitals.weightUnit
+                  ? `${currentVitals.weightDisplay} ${currentVitals.weightUnit}`
+                  : formatWeightWithUnit(currentVitals.weightKg, currentVitals.weightUnit)}
+              </div>
+              <div className="text-sm font-semibold text-gray-900 uppercase tracking-wide">Weight</div>
+            </div>
+            <div className="text-center bg-white rounded-lg border border-gray-200 p-4">
+              <div className="text-2xl font-bold text-gray-900 mb-1">
+                {formatAge(currentVitals.dob)}
+              </div>
+              <div className="text-sm font-semibold text-gray-900 uppercase tracking-wide">Age</div>
+            </div>
+            {isOwnProfile && (
+              <div className="text-center bg-white rounded-lg border border-gray-200 p-4">
+                <div className="text-2xl font-bold text-gray-900 mb-1">
+                  {/* T00:00:00 suffix → parsed as LOCAL midnight; a bare DATE
+                      string parses as UTC and shows the previous day in the US */}
+                  {currentVitals.dob ? formatDate(`${currentVitals.dob.slice(0, 10)}T00:00:00`) : '—'}
+                </div>
+                <div className="text-sm font-semibold text-gray-900 uppercase tracking-wide">Date of Birth</div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
       {/* ── Filters (shared FilterBar treatment; always visible — dropdowns
              disable until there's data to narrow) ──────────────────────── */}
       <div className="space-y-6">

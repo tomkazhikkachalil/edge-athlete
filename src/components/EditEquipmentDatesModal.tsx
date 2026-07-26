@@ -49,11 +49,11 @@ export default function EditEquipmentDatesModal({
     e.preventDefault();
     if (saving) return;
     if (!acquiredOn) {
-      setError('In-bag-since date is required.');
+      setError('Active-since date is required.');
       return;
     }
     if (isRetired && retiredOn && retiredOn < acquiredOn) {
-      setError('Retired date must be on or after the in-bag-since date.');
+      setError('Retired date must be on or after the active-since date.');
       return;
     }
 
@@ -114,7 +114,7 @@ export default function EditEquipmentDatesModal({
         <form onSubmit={handleSubmit} className="p-6 space-y-4">
           <div>
             <label htmlFor="edit-acquired-on" className="block text-sm font-semibold text-gray-900 mb-1">
-              In bag since <span className="text-red-500">*</span>
+              Active since <span className="text-red-500">*</span>
             </label>
             <input
               id="edit-acquired-on"

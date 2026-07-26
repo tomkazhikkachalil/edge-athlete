@@ -88,7 +88,7 @@ export async function POST(request: NextRequest) {
     if (acquiredOn !== undefined && acquiredOn !== null && acquiredOn !== '') {
       if (!isValidDateString(acquiredOn) || !isNotFutureDate(acquiredOn)) {
         return NextResponse.json(
-          { error: 'In-bag-since date must be a valid past date (YYYY-MM-DD)' },
+          { error: 'Active-since date must be a valid past date (YYYY-MM-DD)' },
           { status: 400 }
         );
       }
@@ -104,7 +104,7 @@ export async function POST(request: NextRequest) {
       }
       if (!isValidDateString(retiredOn) || !isNotFutureDate(retiredOn) || retiredOn < acquired) {
         return NextResponse.json(
-          { error: 'Retired date must be a valid date on or after the in-bag-since date' },
+          { error: 'Retired date must be a valid date on or after the active-since date' },
           { status: 400 }
         );
       }
