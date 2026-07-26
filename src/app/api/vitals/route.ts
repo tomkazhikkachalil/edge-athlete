@@ -189,7 +189,9 @@ export async function POST(request: NextRequest) {
         unit,
         notes: notes || null,
         recorded_at: recorded_at || new Date().toISOString().split('T')[0],
-        source: 'manual',
+        // 'edge_vitals' = PRs recorded from a workout session (VitalsTab
+        // renders non-manual sources as a provenance label)
+        source: ['manual', 'edge_vitals'].includes(body.source) ? body.source : 'manual',
         linked_post_id: linked_post_id || null,
       })
       .select()
