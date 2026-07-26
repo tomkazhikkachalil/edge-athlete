@@ -2,7 +2,7 @@
  * Server row shapes → editor EntryExercise[] conversion.
  */
 
-import type { EntryExercise, EntrySet } from './entries';
+import type { EntryExercise, EntrySet, SetMedia } from './entries';
 
 export interface ServerSetRow {
   set_number: number;
@@ -13,6 +13,7 @@ export interface ServerSetRow {
   distance: number | null;
   distance_unit: 'mi' | 'km' | 'm' | 'yd' | null;
   completed_at: string | null;
+  media?: SetMedia[] | null;
 }
 
 export interface ServerExerciseRow {
@@ -59,6 +60,7 @@ export function serverToEntries(session: ServerWorkoutSession): EntryExercise[] 
           distance: set.distance,
           distanceUnit: set.distance_unit,
           completedAt: set.completed_at,
+          media: Array.isArray(set.media) ? set.media : [],
         })
       ),
   }));

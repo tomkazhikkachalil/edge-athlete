@@ -11,6 +11,7 @@ const set = (over: Partial<EntryExercise['sets'][number]> = {}): EntryExercise['
   distance: null,
   distanceUnit: null,
   completedAt: null,
+  media: [],
   ...over,
 });
 

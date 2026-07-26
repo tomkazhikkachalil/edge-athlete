@@ -85,4 +85,41 @@ describe('validateEntriesPayload', () => {
       expect(exercises[0].exerciseKey).toBe('bench_press');
     }
   });
+
+  describe('set media', () => {
+    const withMedia = (media: unknown) => [
+      { ...validExercise(), sets: [{ ...validSet(), media }] },
+    ];
+
+    it('absent media normalizes to [] (pre-046 snapshots stay valid)', () => {
+      const result = validateEntriesPayload([validExercise()]);
+      expect(result.ok && result.exercises[0].sets[0].media).toEqual([]);
+    });
+
+    it('accepts valid https media up to the cap', () => {
+      const media = [
+        { url: 'https://x.supabase.co/storage/v1/clip.mp4', type: 'video' },
+        { url: 'https://x.supabase.co/storage/v1/pic.jpg', type: 'image' },
+      ];
+      const result = validateEntriesPayload(withMedia(media));
+      expect(result.ok && result.exercises[0].sets[0].media).toHaveLength(2);
+    });
+
+    it('rejects more than 4 items per set', () => {
+      const media = Array.from({ length: 5 }, (_, i) => ({
+        url: `https://x/clip${i}.mp4`,
+        type: 'video',
+      }));
+      expect(validateEntriesPayload(withMedia(media)).ok).toBe(false);
+    });
+
+    it('rejects bad URLs and bad types', () => {
+      expect(validateEntriesPayload(withMedia([{ url: 'javascript:alert(1)', type: 'image' }])).ok).toBe(false);
+      expect(validateEntriesPayload(withMedia([{ url: 'http://insecure/x.jpg', type: 'image' }])).ok).toBe(false);
+      expect(validateEntriesPayload(withMedia([{ url: 'https://x/y.gif', type: 'gif' }])).ok).toBe(false);
+      expect(validateEntriesPayload(withMedia([{ url: '', type: 'image' }])).ok).toBe(false);
+      expect(validateEntriesPayload(withMedia(['nope'])).ok).toBe(false);
+      expect(validateEntriesPayload(withMedia('nope')).ok).toBe(false);
+    });
+  });
 });

@@ -3,9 +3,12 @@
  * finish screen, workout cards, and the denormalized posts.stats_data chip.
  */
 
-import type { EntryExercise } from './entries';
+import type { EntryExercise, EntrySet, SetMedia } from './entries';
 
 const KG_TO_LBS = 2.20462;
+
+/** Max media items attachable to a shared workout post. */
+export const MAX_POST_MEDIA = 10;
 
 export interface WorkoutSummary {
   exerciseCount: number;
@@ -102,4 +105,32 @@ export function formatDuration(totalSeconds: number): string {
 /** "12,450 lbs" */
 export function formatVolume(lbs: number): string {
   return `${Math.round(lbs).toLocaleString('en-US')} lbs`;
+}
+
+/** "5 reps × 185 lbs", "3:00", "3 mi × 24:00" — one set's data as a line. */
+export function formatSetLine(set: EntrySet): string {
+  const parts: string[] = [];
+  if (set.reps !== null && set.reps > 0) parts.push(`${set.reps} reps`);
+  if (set.weight !== null && set.weight > 0) parts.push(`${set.weight} ${set.weightUnit ?? 'lbs'}`);
+  if (set.durationSeconds !== null && set.durationSeconds > 0) parts.push(formatElapsed(set.durationSeconds));
+  if (set.distance !== null && set.distance > 0) parts.push(`${set.distance} ${set.distanceUnit ?? 'mi'}`);
+  return parts.join(' × ') || '—';
+}
+
+export interface CollectedMedia extends SetMedia {
+  exerciseName: string;
+  setNumber: number;
+}
+
+/** All set media across the workout, ordered by exercise then set number. */
+export function collectWorkoutMedia(exercises: EntryExercise[]): CollectedMedia[] {
+  const collected: CollectedMedia[] = [];
+  for (const exercise of exercises) {
+    for (const set of exercise.sets) {
+      for (const media of set.media ?? []) {
+        collected.push({ ...media, exerciseName: exercise.name, setNumber: set.setNumber });
+      }
+    }
+  }
+  return collected;
 }

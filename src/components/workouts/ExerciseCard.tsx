@@ -22,6 +22,7 @@ export function emptySet(setNumber: number): EntrySet {
     distance: null,
     distanceUnit: null,
     completedAt: null,
+    media: [],
   };
 }
 

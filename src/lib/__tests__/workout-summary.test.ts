@@ -1,5 +1,12 @@
 import { describe, it, expect } from 'vitest';
-import { computeSummary, formatElapsed, formatDuration, formatVolume } from '../workouts/summary';
+import {
+  computeSummary,
+  formatElapsed,
+  formatDuration,
+  formatVolume,
+  formatSetLine,
+  collectWorkoutMedia,
+} from '../workouts/summary';
 import type { EntryExercise } from '../workouts/entries';
 
 const set = (over: Partial<EntryExercise['sets'][number]> = {}): EntryExercise['sets'][number] => ({
@@ -11,6 +18,7 @@ const set = (over: Partial<EntryExercise['sets'][number]> = {}): EntryExercise['
   distance: null,
   distanceUnit: null,
   completedAt: null,
+  media: [],
   ...over,
 });
 
@@ -82,5 +90,32 @@ describe('formatDuration', () => {
 describe('formatVolume', () => {
   it('formats with thousands separators', () => {
     expect(formatVolume(12450)).toBe('12,450 lbs');
+  });
+});
+
+describe('formatSetLine', () => {
+  it('joins present fields, dash for empty', () => {
+    expect(formatSetLine(set({ reps: 5, weight: 185, weightUnit: 'lbs' }))).toBe('5 reps × 185 lbs');
+    expect(formatSetLine(set({ durationSeconds: 180 }))).toBe('3:00');
+    expect(formatSetLine(set({ distance: 3, distanceUnit: 'mi', durationSeconds: 1440 }))).toBe('24:00 × 3 mi');
+    expect(formatSetLine(set())).toBe('—');
+  });
+});
+
+describe('collectWorkoutMedia', () => {
+  it('collects in exercise-then-set order with context', () => {
+    const media = collectWorkoutMedia([
+      exercise('Bench Press', [
+        set({ setNumber: 1, media: [{ url: 'https://x/a.mp4', type: 'video' }] }),
+        set({ setNumber: 2, media: [{ url: 'https://x/b.jpg', type: 'image' }, { url: 'https://x/c.jpg', type: 'image' }] }),
+      ]),
+      exercise('Squat', [set({ setNumber: 1, media: [{ url: 'https://x/d.mp4', type: 'video' }] })]),
+    ]);
+    expect(media.map(m => m.url)).toEqual(['https://x/a.mp4', 'https://x/b.jpg', 'https://x/c.jpg', 'https://x/d.mp4']);
+    expect(media[0]).toMatchObject({ exerciseName: 'Bench Press', setNumber: 1, type: 'video' });
+  });
+
+  it('returns empty for media-less workouts', () => {
+    expect(collectWorkoutMedia([exercise('Bench Press', [set({ reps: 5 })])])).toEqual([]);
   });
 });

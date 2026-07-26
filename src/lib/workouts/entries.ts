@@ -5,6 +5,11 @@
  * the first line of defense.
  */
 
+export interface SetMedia {
+  url: string;
+  type: 'image' | 'video';
+}
+
 export interface EntrySet {
   setNumber: number;
   reps: number | null;
@@ -14,6 +19,8 @@ export interface EntrySet {
   distance: number | null;
   distanceUnit: 'mi' | 'km' | 'm' | 'yd' | null;
   completedAt: string | null; // ISO timestamp
+  /** Photos/videos attached to this set (form checks, lift clips). */
+  media: SetMedia[];
 }
 
 export interface EntryExercise {
@@ -26,6 +33,38 @@ export interface EntryExercise {
 
 export const MAX_EXERCISES = 40;
 export const MAX_SETS_PER_EXERCISE = 50;
+export const MAX_MEDIA_PER_SET = 4;
+
+const MEDIA_TYPES = ['image', 'video'] as const;
+
+function validateSetMedia(raw: unknown): { ok: true; media: SetMedia[] } | { ok: false; error: string } {
+  // Absent = no media (back-compat with pre-046 snapshots and drafts)
+  if (raw === undefined || raw === null) return { ok: true, media: [] };
+  if (!Array.isArray(raw)) return { ok: false, error: 'media must be an array' };
+  if (raw.length > MAX_MEDIA_PER_SET) {
+    return { ok: false, error: `too many media items (max ${MAX_MEDIA_PER_SET})` };
+  }
+  const media: SetMedia[] = [];
+  for (const item of raw) {
+    if (typeof item !== 'object' || item === null) {
+      return { ok: false, error: 'malformed media item' };
+    }
+    const m = item as Record<string, unknown>;
+    if (
+      typeof m.url !== 'string' ||
+      m.url.length === 0 ||
+      m.url.length > 2048 ||
+      !(m.url.startsWith('https://') || m.url.startsWith('/'))
+    ) {
+      return { ok: false, error: 'invalid media URL' };
+    }
+    if (!MEDIA_TYPES.includes(m.type as typeof MEDIA_TYPES[number])) {
+      return { ok: false, error: 'invalid media type' };
+    }
+    media.push({ url: m.url, type: m.type as SetMedia['type'] });
+  }
+  return { ok: true, media };
+}
 
 const CATEGORIES = ['strength', 'cardio', 'mobility', 'other'] as const;
 const WEIGHT_UNITS = ['lbs', 'kg'] as const;
@@ -68,6 +107,10 @@ function validateSet(raw: unknown, index: number): { ok: true; set: EntrySet } |
   if (!nullOr(s.completedAt, v => typeof v === 'string' && !Number.isNaN(Date.parse(v)))) {
     return { ok: false, error: `Set ${index + 1}: invalid completion time` };
   }
+  const mediaResult = validateSetMedia(s.media);
+  if (!mediaResult.ok) {
+    return { ok: false, error: `Set ${index + 1}: ${mediaResult.error}` };
+  }
   return {
     ok: true,
     set: {
@@ -79,6 +122,7 @@ function validateSet(raw: unknown, index: number): { ok: true; set: EntrySet } |
       distance: (s.distance as number | null) ?? null,
       distanceUnit: (s.distanceUnit as EntrySet['distanceUnit']) ?? null,
       completedAt: (s.completedAt as string | null) ?? null,
+      media: mediaResult.media,
     },
   };
 }

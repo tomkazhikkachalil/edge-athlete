@@ -311,6 +311,7 @@ export async function POST(request: NextRequest) {
             distance: set.distance,
             distance_unit: set.distanceUnit,
             completed_at: set.completedAt,
+            media: set.media,
           }))
         );
 
