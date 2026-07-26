@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useRouter } from 'next/navigation';
 import {
   VITAL_CATEGORIES,
   VITAL_METRICS_MAP,
@@ -16,8 +17,12 @@ import PostCard from './PostCard';
 import PostDetailModal from './PostDetailModal';
 import FilterBar from './filters/FilterBar';
 import MultiSelectDropdown from './filters/MultiSelectDropdown';
+import WorkoutCard from './workouts/WorkoutCard';
+import { useToast } from './Toast';
 import { deriveYearOptions, matchesYearFilter } from '@/lib/profile-filters';
 import { formatHeight, formatWeightWithUnit, formatAge, formatDate } from '@/lib/formatters';
+import { effectiveSessionStatus } from '@/lib/workouts/status';
+import type { ServerWorkoutSession } from '@/lib/workouts/serialize';
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
@@ -308,8 +313,11 @@ function MetricCard({ metricKey, entries, athleteBirthday, onOpenPost }: MetricC
 // ── VitalsTab (main) ────────────────────────────────────────────────────────
 
 export default function VitalsTab({ profileId, currentUserId, isOwnProfile = false }: VitalsTabProps) {
+  const router = useRouter();
+  const { showError } = useToast();
   const [vitals, setVitals] = useState<VitalEntry[]>([]);
   const [trainingPosts, setTrainingPosts] = useState<TrainingPost[]>([]);
+  const [workouts, setWorkouts] = useState<ServerWorkoutSession[]>([]);
   const [athleteBirthday, setAthleteBirthday] = useState<string | null>(null);
   const [currentVitals, setCurrentVitals] = useState<CurrentVitals | null>(null);
   const [loading, setLoading] = useState(true);
@@ -319,21 +327,30 @@ export default function VitalsTab({ profileId, currentUserId, isOwnProfile = fal
   const [linkedPostId, setLinkedPostId] = useState<string | null>(null);
   const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
   const [selectedYears, setSelectedYears] = useState<number[]>([]);
+  const [startingWorkout, setStartingWorkout] = useState(false);
+  const [bannerDismissed, setBannerDismissed] = useState(false);
 
   const fetchData = useCallback(async () => {
     try {
       setError('');
-      const res = await fetch(`/api/vitals?profileId=${profileId}`);
-      if (!res.ok) {
-        const data = await res.json();
+      const [vitalsRes, workoutsRes] = await Promise.all([
+        fetch(`/api/vitals?profileId=${profileId}`),
+        fetch(`/api/workouts?profileId=${profileId}&limit=50`, { credentials: 'include' }),
+      ]);
+      if (!vitalsRes.ok) {
+        const data = await vitalsRes.json();
         setError(data.error || 'Failed to load vitals');
         return;
       }
-      const data = await res.json();
+      const data = await vitalsRes.json();
       setVitals(data.vitals || []);
       setTrainingPosts(data.trainingPosts || []);
       setAthleteBirthday(data.athleteBirthday || null);
       setCurrentVitals(data.currentVitals || null);
+      if (workoutsRes.ok) {
+        const workoutData = await workoutsRes.json();
+        setWorkouts(workoutData.sessions || []);
+      }
     } catch (e) {
       console.error('Failed to load vitals data:', e);
       setError('Failed to load vitals data');
@@ -345,6 +362,51 @@ export default function VitalsTab({ profileId, currentUserId, isOwnProfile = fal
   useEffect(() => {
     fetchData();
   }, [fetchData]);
+
+  // Live session in progress (owner only sees actives from the API)
+  const activeWorkout = useMemo(
+    () =>
+      workouts.find(
+        s =>
+          s.status === 'active' &&
+          effectiveSessionStatus({ status: s.status, lastActivityAt: s.last_activity_at }) === 'active'
+      ) ?? null,
+    [workouts]
+  );
+
+  useEffect(() => {
+    if (!activeWorkout) return;
+    try {
+      setBannerDismissed(
+        sessionStorage.getItem(`ea:workout-banner-dismissed:${activeWorkout.id}`) === '1'
+      );
+    } catch {
+      setBannerDismissed(false);
+    }
+  }, [activeWorkout]);
+
+  const handleStartWorkout = async () => {
+    if (startingWorkout) return;
+    setStartingWorkout(true);
+    try {
+      const response = await fetch('/api/workouts', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ mode: 'live' }),
+      });
+      const data = await response.json().catch(() => null);
+      if (response.status === 409 && data?.activeSessionId) {
+        router.push(`/app/workout/${data.activeSessionId}`);
+        return;
+      }
+      if (!response.ok) throw new Error(data?.error || 'Failed to start workout');
+      router.push(`/app/workout/${data.session.id}`);
+    } catch (err) {
+      showError('Error', err instanceof Error ? err.message : 'Failed to start workout');
+      setStartingWorkout(false);
+    }
+  };
 
   // Filter options derived from the data actually present
   const categoryOptions = useMemo(() => {
@@ -371,6 +433,11 @@ export default function VitalsTab({ profileId, currentUserId, isOwnProfile = fal
   // Year filter also narrows the training feed (category doesn't apply there)
   const visibleTrainingPosts = trainingPosts.filter(p =>
     matchesYearFilter(p.created_at, selectedYears)
+  );
+
+  // Completed workouts, year-filtered (active sessions live in the banner)
+  const visibleWorkouts = workouts.filter(
+    s => s.status === 'completed' && matchesYearFilter(s.started_at, selectedYears)
   );
 
   // Group vitals by metric key
@@ -401,6 +468,74 @@ export default function VitalsTab({ profileId, currentUserId, isOwnProfile = fal
 
   return (
     <div className="space-y-8">
+      {/* ── Edge Vitals header + workout actions ─────────────────────── */}
+      <div>
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+          <div>
+            <h2 className="text-h2 text-gray-900">Edge Vitals</h2>
+            <p className="text-sm text-gray-500 mt-0.5">
+              Live workouts, performance metrics, and training history.
+            </p>
+          </div>
+          {isOwnProfile && (
+            <div className="flex items-center gap-2 flex-wrap">
+              <button
+                onClick={handleStartWorkout}
+                disabled={startingWorkout}
+                className="flex items-center gap-2 px-4 py-2.5 bg-violet-600 text-white rounded-lg font-bold text-sm hover:bg-violet-700 transition-colors shadow-sm disabled:opacity-60"
+              >
+                {startingWorkout ? (
+                  <span className="animate-spin rounded-full h-3.5 w-3.5 border-b-2 border-white" aria-hidden="true" />
+                ) : (
+                  <span className="w-2 h-2 bg-white rounded-full animate-pulse" aria-hidden="true" />
+                )}
+                Start Workout
+              </button>
+              <button
+                onClick={() => router.push('/app/workout/new')}
+                className="flex items-center gap-1.5 px-4 py-2.5 border border-gray-300 text-gray-700 rounded-lg font-semibold text-sm hover:bg-gray-50 transition-colors"
+              >
+                <i className="fas fa-history text-xs" aria-hidden="true"></i>
+                Log Past Workout
+              </button>
+            </div>
+          )}
+        </div>
+
+        {/* Resume banner — a live session is in progress */}
+        {isOwnProfile && activeWorkout && !bannerDismissed && (
+          <div className="mt-4 flex items-center justify-between gap-3 px-4 py-3 bg-amber-50 border border-amber-200 rounded-xl">
+            <div className="flex items-center gap-2 min-w-0">
+              <span className="w-2 h-2 bg-red-500 rounded-full animate-pulse shrink-0" aria-hidden="true" />
+              <p className="text-sm text-amber-900 truncate">
+                <span className="font-bold">Workout in progress</span>
+                {activeWorkout.title ? ` — ${activeWorkout.title}` : ''}
+              </p>
+            </div>
+            <div className="flex items-center gap-2 shrink-0">
+              <button
+                onClick={() => router.push(`/app/workout/${activeWorkout.id}`)}
+                className="px-3 py-1.5 bg-amber-600 text-white rounded-lg text-xs font-bold hover:bg-amber-700 transition-colors"
+              >
+                Resume
+              </button>
+              <button
+                onClick={() => {
+                  try {
+                    sessionStorage.setItem(`ea:workout-banner-dismissed:${activeWorkout.id}`, '1');
+                  } catch { /* ignore */ }
+                  setBannerDismissed(true);
+                }}
+                className="px-2 py-1.5 text-amber-700 text-xs font-semibold hover:text-amber-900 transition-colors"
+                aria-label="Dismiss banner"
+              >
+                ✕
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+
       {/* ── Current Vitals — the athlete's present-day snapshot from their
              profile (edited via the profile header / Edit Profile). DOB is
              owner-only; visitors see Age. ──────────────────────────────── */}
@@ -552,6 +687,58 @@ export default function VitalsTab({ profileId, currentUserId, isOwnProfile = fal
                 </div>
               );
             })}
+          </div>
+        )}
+      </div>
+
+      {/* ── Workouts — Edge Vitals session history ───────────────────── */}
+      <div>
+        <div className="flex items-center justify-between mb-5">
+          <div>
+            <h3 className="text-base font-bold text-gray-900">Workouts</h3>
+            {visibleWorkouts.length > 0 && (
+              <p className="text-xs text-gray-500 mt-0.5">
+                {visibleWorkouts.length} session{visibleWorkouts.length !== 1 ? 's' : ''}
+              </p>
+            )}
+          </div>
+        </div>
+
+        {visibleWorkouts.length === 0 && workouts.some(s => s.status === 'completed') ? (
+          <div className="text-center py-12 border border-dashed border-gray-200 rounded-xl">
+            <p className="text-sm text-gray-600">No workouts match your filters.</p>
+          </div>
+        ) : visibleWorkouts.length === 0 ? (
+          <div className="text-center py-12 border border-dashed border-gray-200 rounded-xl">
+            <div className="w-14 h-14 mx-auto mb-4 rounded-full bg-violet-50 flex items-center justify-center">
+              <i className="fas fa-stopwatch text-violet-400 text-xl"></i>
+            </div>
+            <h4 className="text-sm font-semibold text-gray-700 mb-1">No workouts recorded yet</h4>
+            <p className="text-xs text-gray-500 max-w-xs mx-auto mb-4">
+              {isOwnProfile
+                ? 'Hit Start Workout to record live — exercises, sets, reps, and weight as you go.'
+                : "This athlete hasn't recorded workouts yet."}
+            </p>
+            {isOwnProfile && (
+              <button
+                onClick={handleStartWorkout}
+                disabled={startingWorkout}
+                className="inline-flex items-center gap-2 px-4 py-2 bg-violet-600 text-white rounded-lg text-sm font-semibold hover:bg-violet-700 transition-colors disabled:opacity-60"
+              >
+                <span className="w-1.5 h-1.5 bg-white rounded-full animate-pulse" aria-hidden="true" />
+                Start Your First Workout
+              </button>
+            )}
+          </div>
+        ) : (
+          <div className="space-y-2">
+            {visibleWorkouts.map(session => (
+              <WorkoutCard
+                key={session.id}
+                session={session}
+                onOpenPost={postId => setLinkedPostId(postId)}
+              />
+            ))}
           </div>
         )}
       </div>
