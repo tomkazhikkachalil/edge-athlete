@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { requireAuth, getSupabaseAdmin } from '@/lib/auth-server';
 import { canViewProfile } from '@/lib/privacy';
 import { isValidDateString, isNotFutureDate } from '@/lib/date-validation';
-import { getAllSports } from '@/lib/config/sports-config';
+import { getEquipmentSportOptions } from '@/lib/equipment-config';
 
 // GET - Fetch equipment for a profile
 export async function GET(request: NextRequest) {
@@ -111,10 +111,16 @@ export async function POST(request: NextRequest) {
       retired = retiredOn;
     }
 
-    const validSportKey =
-      typeof sportKey === 'string' && (getAllSports().includes(sportKey) || sportKey === 'general')
-        ? sportKey
-        : 'golf';
+    // Sport must be one the picker offers ('general' + enabled registry
+    // sports). Absent → golf (legacy clients); present-but-unknown → 400.
+    let validSportKey = 'golf';
+    if (sportKey !== undefined && sportKey !== null && sportKey !== '') {
+      const allowed = getEquipmentSportOptions().some(o => o.value === sportKey);
+      if (!allowed) {
+        return NextResponse.json({ error: 'Unknown sport' }, { status: 400 });
+      }
+      validSportKey = sportKey;
+    }
 
     // Insert equipment
     const { data: equipment, error } = await supabase

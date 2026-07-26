@@ -5,6 +5,7 @@ import { X, RefreshCw, Archive } from 'lucide-react';
 import Image from 'next/image';
 import AddEquipmentModal from './AddEquipmentModal';
 import { type EquipmentItem } from './EquipmentSection';
+import { getCategoryConfig } from '@/lib/equipment-config';
 import { useBodyScrollLock } from '@/hooks/useBodyScrollLock';
 
 interface ReplaceEquipmentModalProps {
@@ -119,7 +120,7 @@ export default function ReplaceEquipmentModal({
                       />
                     ) : (
                       <div className="w-20 h-20 bg-gray-200 rounded-lg flex items-center justify-center text-3xl">
-                        🏌️
+                        {getCategoryConfig(oldEquipment.sport_key || 'general', oldEquipment.category).icon}
                       </div>
                     )}
 

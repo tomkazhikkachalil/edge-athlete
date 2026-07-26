@@ -6,6 +6,7 @@ import Image from 'next/image';
 import { useToast } from './Toast';
 import type { EquipmentCategory, EquipmentSpecs } from './EquipmentSection';
 import { getCatalogService, getPresetImages, type EquipmentBrand, type EquipmentModel } from '@/lib/equipment-catalog';
+import { getEquipmentCategories, getEquipmentSportOptions } from '@/lib/equipment-config';
 import EquipmentImageUpload from './EquipmentImageUpload';
 import { useBodyScrollLock } from '@/hooks/useBodyScrollLock';
 
@@ -22,29 +23,12 @@ interface AddEquipmentModalProps {
   };
 }
 
-// Sport options
-type SportKey = 'general' | 'golf';
+// Sport picker: General + every enabled registry sport (single source of
+// truth in equipment-config; per-sport category lists come from there too)
+const SPORT_OPTIONS = getEquipmentSportOptions();
 
-const SPORT_OPTIONS = [
-  { value: 'general' as SportKey, label: 'General / Other' },
-  { value: 'golf' as SportKey, label: 'Golf' },
-];
-
-// Golf-specific categories
-const GOLF_CATEGORIES: { value: EquipmentCategory; label: string }[] = [
-  { value: 'driver', label: 'Driver' },
-  { value: 'fairway_wood', label: 'Fairway Wood' },
-  { value: 'hybrid', label: 'Hybrid' },
-  { value: 'iron_set', label: 'Iron Set' },
-  { value: 'wedge', label: 'Wedge' },
-  { value: 'putter', label: 'Putter' },
-  { value: 'ball', label: 'Golf Ball' },
-  { value: 'shoes', label: 'Golf Shoes' },
-  { value: 'glove', label: 'Golf Glove' },
-  { value: 'bag', label: 'Golf Bag' },
-  { value: 'rangefinder', label: 'Rangefinder' },
-  { value: 'other', label: 'Other' },
-];
+const isKnownSport = (key: string | undefined): key is string =>
+  !!key && SPORT_OPTIONS.some(o => o.value === key);
 
 export default function AddEquipmentModal({
   isOpen,
@@ -58,17 +42,16 @@ export default function AddEquipmentModal({
   const { showSuccess, showError } = useToast();
   const [loading, setLoading] = useState(false);
 
-  // Sport selection — respect the caller's default when it's one this modal
-  // supports (the old code had a no-op ternary that ALWAYS chose golf)
-  const [sportKey, setSportKey] = useState<SportKey>(
-    defaultSport === 'general' || defaultSport === 'golf' ? defaultSport : 'golf'
-  );
+  // Sport selection — respect the caller's default for ANY known sport
+  // (Replace on an ice-hockey item must not silently become golf)
+  const initialSport = isKnownSport(defaultSport) ? defaultSport : 'golf';
+  const [sportKey, setSportKey] = useState<string>(initialSport);
 
   // Form state
   const [equipmentType, setEquipmentType] = useState(''); // For general equipment
-  const [category, setCategory] = useState<EquipmentCategory>(
-    defaultCategory || 'driver'
-  ); // For golf
+  const [category, setCategory] = useState<string>(
+    defaultCategory || getEquipmentCategories(initialSport)[0]?.value || 'other'
+  ); // For sports with a curated category list
   const [brand, setBrand] = useState('');
   const [model, setModel] = useState('');
   const [imageUrl, setImageUrl] = useState('');
@@ -189,8 +172,9 @@ export default function AddEquipmentModal({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    // Validation
-    if (sportKey === 'general' && !equipmentType.trim()) {
+    // Validation — sports without a curated category list use free text
+    const sportCategories = getEquipmentCategories(sportKey);
+    if (sportCategories.length === 0 && !equipmentType.trim()) {
       showError('Error', 'Equipment type is required');
       return;
     }
@@ -232,7 +216,7 @@ export default function AddEquipmentModal({
         body: JSON.stringify({
           profileId,
           sportKey,
-          category: sportKey === 'golf' ? category : equipmentType,
+          category: sportCategories.length > 0 ? category : equipmentType,
           brand: brand.trim(),
           model: model.trim(),
           imageUrl: imageUrl.trim() || undefined,
@@ -261,9 +245,9 @@ export default function AddEquipmentModal({
   };
 
   const resetForm = () => {
-    setSportKey('golf');
+    setSportKey(initialSport);
     setEquipmentType('');
-    setCategory('driver');
+    setCategory(getEquipmentCategories(initialSport)[0]?.value || 'other');
     setBrand('');
     setModel('');
     setImageUrl('');
@@ -334,9 +318,10 @@ export default function AddEquipmentModal({
               <select
                 value={sportKey}
                 onChange={(e) => {
-                  setSportKey(e.target.value as SportKey);
+                  const nextSport = e.target.value;
+                  setSportKey(nextSport);
                   // Reset category and specs when changing sports
-                  setCategory('driver');
+                  setCategory(getEquipmentCategories(nextSport)[0]?.value || 'other');
                   setEquipmentType('');
                   setLoft('');
                   setShaft('');
@@ -356,29 +341,27 @@ export default function AddEquipmentModal({
               </select>
             </div>
 
-            {/* Conditional: Golf Category Selector */}
-            {sportKey === 'golf' && (
+            {/* Category: curated select for sports with a catalog,
+                free text otherwise (General / unknown sports) */}
+            {getEquipmentCategories(sportKey).length > 0 ? (
               <div>
                 <label className="block text-sm font-semibold text-gray-900 mb-2">
                   Equipment Type *
                 </label>
                 <select
                   value={category}
-                  onChange={(e) => setCategory(e.target.value as EquipmentCategory)}
+                  onChange={(e) => setCategory(e.target.value)}
                   className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
                   required
                 >
-                  {GOLF_CATEGORIES.map((cat) => (
+                  {getEquipmentCategories(sportKey).map((cat) => (
                     <option key={cat.value} value={cat.value}>
                       {cat.label}
                     </option>
                   ))}
                 </select>
               </div>
-            )}
-
-            {/* Conditional: General Equipment Type */}
-            {sportKey === 'general' && (
+            ) : (
               <div>
                 <label className="block text-sm font-semibold text-gray-900 mb-2">
                   Equipment Type *
@@ -387,7 +370,7 @@ export default function AddEquipmentModal({
                   type="text"
                   value={equipmentType}
                   onChange={(e) => setEquipmentType(e.target.value)}
-                  placeholder="e.g., Running Shoes, Yoga Mat, Basketball"
+                  placeholder="e.g., Running Shoes, Yoga Mat, Foam Roller"
                   className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                   required
                 />
