@@ -1,6 +1,83 @@
 # Development Log
 
-## July 25, 2026 (end of day) — Maintenance checklist + sync
+## July 26, 2026 (end of day) — Maintenance checklist + sync
+
+- lint clean · `tsc --noEmit` clean · `vitest` 196 passed (21 files) ·
+  `npm ci --dry-run` clean · full `npm run build` exit 0 (dev server
+  stopped), all routes compile, zero warnings beyond the documented
+  benign realtime one.
+- Migrations 043–046 all confirmed run + verified live via PostgREST
+  (achievements CRUD round-trip; equipment date columns; workout
+  session/exercise/set nested round-trip incl. media array + cascade).
+
+## July 26, 2026 — Session log: unified filters, sport-based equipment, Edge Vitals
+
+**Unified profile filters (17e6c77..262c223, migrations 043+044):** the
+Media-tab filter treatment became a shared kit (MultiSelectDropdown lifted,
+FilterBar extracted, YearSelect) and went across the board. ACHIEVEMENTS
+BUILT for real (athlete_achievements + CRUD API + tab UI + modal — replaced
+the coming-soon placeholder). Equipment gained user-editable acquired_on/
+retired_on ("in bag during year" filtering; audit timestamps untouched).
+Vitals got category+year filters (PB/trend scope to the filtered range).
+The hardcoded "2024–25 Season" chip became a REAL year selector (stat-lines
++ golf/stats accept ?year=, return years[]; the long-dormant adapter
+`season` param finally implemented; sport-card clicks carry the year into
+the media filter). getSeasonHighlights' fabricated sample rows deleted.
+
+**SCHEMA DRIFT (044 fix, ee28422):** live athlete_equipment was created
+from an OLDER script than the repo DDL — legacy retired_date, NO
+added_at/retired_at, so the deployed equipment POST had been silently
+broken in prod forever (0 rows). LESSON: for unnumbered/legacy tables,
+probe live columns via PostgREST before writing migrations against them.
+
+**Sport-based equipment + always-visible filters (5701147, c6a7a8c):**
+per-sport category catalogs in lib/equipment-config (golf/hockey/
+volleyball/basketball/soccer/baseball; safe fallback fixed a latent crash
+on free-text categories); Add Equipment offers every enabled sport (the
+private golf|general union silently coerced everything to golf); sport
+filter + sport→category grouping on the tab; API 400s unknown sports.
+Filter bars now render on EVERY tab — disabled dropdowns with a tooltip
+until data exists (they previously hid, reading as "missing").
+vitest.config.ts added (@/ alias → aliased modules testable).
+
+**Polish (ed83c79):** "In bag" → Active/Retired everywhere; Current
+Vitals strip atop the Vitals tab (Height/Weight/Age; DOB owner-only,
+TZ-safe). BUG: /api/vitals read profiles.birthday (legacy, null) — now
+dob||birthday, so age-at-date annotations render for the first time.
+
+**EDGE VITALS (ae4dd16..546b880, migration 045):** Strava×AppleWatch live
+workout tracking. workout_sessions/exercises/sets (rows, vitals RLS, lazy
+6h auto-end — no cron); exercise catalog (~40, per-exercise input modes,
+5 PR-mapped lifts); full-screen editor at /app/workout/[id] with a
+timestamp-derived 1s timer, rest indicator, duplicate-last-set, catalog
+sheet + custom; durability = draft-on-every-mutation + debounced
+single-flight snapshot PUT with a savedAt stale-write guard + keepalive
+flush (golf score-entry pattern, snapshot-vs-snapshot resolution);
+finish → summary → suggest-and-confirm PR checklist (writes athlete_vitals
+source='edge_vitals', linked to the post) → Strava-style share prompt.
+Vitals tab branded Edge Vitals: Start Workout / Log Past Workout / resume
+banner / Workouts history section. Also fixed: /api/upload/post-media now
+derives owner from the session (AddVitalModal's empty userId → "User ID
+is required" on vitals-with-media posts).
+
+**Edge Vitals v2 (cb02f65..4c378fa, migration 046):** per-set MEDIA —
+camera button on every set row, up to 4 clips/set stored as JSONB inside
+the set snapshot (rides the replace-all sync + draft for free); shared
+workout posts upgraded from a chip to a compact card (denormalized tiles,
+zero fetches while scrolling) with lazy-fetched expandable set-by-set
+details incl. clips; ShareStep clip picker → selected set media becomes
+the post's normal carousel. Built for profiles holding hundreds of
+workouts.
+
+**Perf + localhost (d149913):** middleware matcher excludes /api (routes
+self-authenticate; removed a Supabase getUser() round trip from every API
+call, dev+prod). Localhost "very slow / needs refresh" root cause: TWO
+`next dev` processes — the old one held :3000 while Tom's restart
+silently took :3001, both corrupting a shared .next. When localhost
+misbehaves: `pgrep -fl "next dev"` FIRST.
+
+Tests 129 → 196 across the day.
+
 
 - `npm ci --dry-run` clean · lint clean · `tsc --noEmit` clean ·
   `vitest` 129 passed (14 files) · build exit 0, 83 pages (isolated
