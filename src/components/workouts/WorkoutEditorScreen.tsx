@@ -16,7 +16,7 @@ import {
   resolveEntries,
   writeDraft,
 } from '@/lib/workouts/draft';
-import { computeSummary, formatElapsed } from '@/lib/workouts/summary';
+import { computeSummary, collectWorkoutMedia, formatElapsed, MAX_POST_MEDIA } from '@/lib/workouts/summary';
 import { detectPRs, type PRCandidate } from '@/lib/workouts/pr-detection';
 import { serverToEntries, type ServerWorkoutSession } from '@/lib/workouts/serialize';
 
@@ -73,6 +73,7 @@ export default function WorkoutEditorScreen({ mode, session, currentUserId }: Wo
   const [caption, setCaption] = useState('');
   const [sharing, setSharing] = useState(false);
   const [shareError, setShareError] = useState('');
+  const [selectedMedia, setSelectedMedia] = useState<Set<number>>(new Set());
 
   // ── Live timer (derived from started_at, never counted) ─────────────────
   const [, setNowTick] = useState(0);
@@ -319,6 +320,15 @@ export default function WorkoutEditorScreen({ mode, session, currentUserId }: Wo
   };
 
   const summary = useMemo(() => computeSummary(exercises), [exercises]);
+  const mediaOptions = useMemo(() => collectWorkoutMedia(exercises), [exercises]);
+
+  // Default the share selection to the first MAX_POST_MEDIA clips
+  const mediaDefaultedRef = useRef(false);
+  useEffect(() => {
+    if (phase !== 'share' || mediaDefaultedRef.current) return;
+    mediaDefaultedRef.current = true;
+    setSelectedMedia(new Set(mediaOptions.slice(0, MAX_POST_MEDIA).map((_, i) => i)));
+  }, [phase, mediaOptions]);
 
   const handleShare = async () => {
     if (!finishedSessionId || sharing) return;
@@ -333,7 +343,10 @@ export default function WorkoutEditorScreen({ mode, session, currentUserId }: Wo
           postType: 'training',
           caption,
           visibility: 'public',
-          media: [],
+          media: mediaOptions
+            .filter((_, index) => selectedMedia.has(index))
+            .slice(0, MAX_POST_MEDIA)
+            .map((media, order) => ({ url: media.url, type: media.type, sortOrder: order })),
           taggedProfiles: [],
           stats_data: {
             type: 'workout_session',
@@ -414,6 +427,16 @@ export default function WorkoutEditorScreen({ mode, session, currentUserId }: Wo
       <ShareStep
         caption={caption}
         onCaptionChange={setCaption}
+        mediaOptions={mediaOptions}
+        selectedMedia={selectedMedia}
+        onToggleMedia={index =>
+          setSelectedMedia(prev => {
+            const next = new Set(prev);
+            if (next.has(index)) next.delete(index);
+            else next.add(index);
+            return next;
+          })
+        }
         sharing={sharing}
         error={shareError}
         onShare={handleShare}

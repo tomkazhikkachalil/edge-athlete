@@ -15,7 +15,7 @@ import ScoreEntryModal from './golf/ScoreEntryModal';
 import { getSportName, getSportIcon, getSportColor } from '@/lib/config/sports-config';
 import { isActiveParticipant, isRoundLive } from '@/lib/golf/round-status';
 import { formatDisplayName, getInitials } from '@/lib/formatters';
-import { formatDuration, formatVolume } from '@/lib/workouts/summary';
+import WorkoutPostCard from './workouts/WorkoutPostCard';
 import { getHandle } from '@/lib/profile-display';
 import type { CompleteGolfScorecard } from '@/types/group-posts';
 import type { GolfRound } from '@/types/golf';
@@ -662,27 +662,10 @@ function PostCard({
           </div>
         )}
 
-        {/* Workout badge — shared Edge Vitals sessions (all data denormalized) */}
+        {/* Workout card — shared Edge Vitals sessions (compact summary from
+            denormalized stats_data; Details lazy-fetches the breakdown) */}
         {post.stats_data?.type === 'workout_session' && (
-          <div className="flex items-center gap-x-3 gap-y-1 flex-wrap px-3 py-2 bg-violet-50 rounded-lg text-sm mb-2">
-            <span className="flex items-center gap-2">
-              <i className="fas fa-stopwatch text-violet-500 text-xs"></i>
-              <span className="font-semibold text-violet-700">
-                {(post.stats_data.title as string) || 'Workout'}
-              </span>
-            </span>
-            <span className="text-violet-600">
-              {formatDuration((post.stats_data.duration_seconds as number) || 0)}
-            </span>
-            <span className="text-violet-600">
-              {post.stats_data.exercise_count as number} exercises · {post.stats_data.total_sets as number} sets
-            </span>
-            {((post.stats_data.total_volume_lbs as number) || 0) > 0 && (
-              <span className="text-violet-600 font-medium">
-                {formatVolume(post.stats_data.total_volume_lbs as number)}
-              </span>
-            )}
-          </div>
+          <WorkoutPostCard statsData={post.stats_data} />
         )}
 
       </div>

@@ -1,7 +1,14 @@
 'use client';
 
-import { Award, Dumbbell, Globe, Lock, Timer, TrendingUp } from 'lucide-react';
-import { formatDuration, formatVolume, type WorkoutSummary } from '@/lib/workouts/summary';
+import Image from 'next/image';
+import { Award, Check, Dumbbell, Globe, Lock, Play, Timer, TrendingUp } from 'lucide-react';
+import {
+  formatDuration,
+  formatVolume,
+  MAX_POST_MEDIA,
+  type CollectedMedia,
+  type WorkoutSummary,
+} from '@/lib/workouts/summary';
 import type { PRCandidate } from '@/lib/workouts/pr-detection';
 
 interface FinishSummaryProps {
@@ -112,6 +119,10 @@ export function FinishSummary({
 interface ShareStepProps {
   caption: string;
   onCaptionChange: (next: string) => void;
+  /** All set media in the workout; selected indices become the post's carousel. */
+  mediaOptions: CollectedMedia[];
+  selectedMedia: Set<number>;
+  onToggleMedia: (index: number) => void;
   sharing: boolean;
   error: string;
   onShare: () => void;
@@ -121,6 +132,9 @@ interface ShareStepProps {
 export function ShareStep({
   caption,
   onCaptionChange,
+  mediaOptions,
+  selectedMedia,
+  onToggleMedia,
   sharing,
   error,
   onShare,
@@ -134,6 +148,57 @@ export function ShareStep({
           Post it to your feed — or keep it in your private training history.
         </p>
       </div>
+
+      {/* Set media picker — selected clips become the post's photo/video carousel */}
+      {mediaOptions.length > 0 && (
+        <div>
+          <div className="flex items-baseline justify-between mb-2">
+            <p className="text-sm font-semibold text-gray-900">Include your clips</p>
+            <p className="text-xs text-gray-500">
+              {selectedMedia.size}/{Math.min(mediaOptions.length, MAX_POST_MEDIA)} selected
+            </p>
+          </div>
+          <div className="grid grid-cols-4 gap-2">
+            {mediaOptions.map((media, index) => {
+              const isSelected = selectedMedia.has(index);
+              const atCap = !isSelected && selectedMedia.size >= MAX_POST_MEDIA;
+              return (
+                <button
+                  key={index}
+                  type="button"
+                  onClick={() => !atCap && onToggleMedia(index)}
+                  disabled={atCap}
+                  className={`relative aspect-square rounded-lg overflow-hidden bg-gray-100 transition-all ${
+                    isSelected ? 'ring-2 ring-violet-500' : 'opacity-60 hover:opacity-90'
+                  } ${atCap ? 'cursor-not-allowed' : ''}`}
+                  aria-label={`${isSelected ? 'Exclude' : 'Include'} ${media.exerciseName} set ${media.setNumber} media`}
+                >
+                  {media.type === 'video' ? (
+                    <>
+                      <video src={media.url} muted playsInline preload="metadata" className="w-full h-full object-cover" />
+                      <span className="absolute inset-0 flex items-center justify-center bg-black/20 pointer-events-none">
+                        <Play className="w-4 h-4 text-white" fill="currentColor" aria-hidden="true" />
+                      </span>
+                    </>
+                  ) : (
+                    <Image src={media.url} alt="" width={96} height={96} className="w-full h-full object-cover" />
+                  )}
+                  {isSelected && (
+                    <span className="absolute top-1 right-1 w-5 h-5 bg-violet-600 rounded-full flex items-center justify-center">
+                      <Check className="w-3 h-3 text-white" aria-hidden="true" />
+                    </span>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+          {mediaOptions.length > MAX_POST_MEDIA && (
+            <p className="text-xs text-gray-400 mt-1.5">
+              Posts carry up to {MAX_POST_MEDIA} clips — the first {MAX_POST_MEDIA} were selected.
+            </p>
+          )}
+        </div>
+      )}
 
       <textarea
         value={caption}
