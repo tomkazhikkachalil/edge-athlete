@@ -2,23 +2,14 @@
 
 import { useMemo, useState } from 'react';
 import { ChevronDown, ChevronUp, Dumbbell } from 'lucide-react';
-import { computeSummary, formatDuration, formatVolume, formatElapsed } from '@/lib/workouts/summary';
+import { computeSummary, formatDuration, formatVolume, formatSetLine } from '@/lib/workouts/summary';
 import { serverToEntries, type ServerWorkoutSession } from '@/lib/workouts/serialize';
-import type { EntrySet } from '@/lib/workouts/entries';
+import SetMediaStrip from './SetMediaStrip';
 
 interface WorkoutCardProps {
   session: ServerWorkoutSession;
   /** Opens the linked feed post (shared workouts). */
   onOpenPost?: (postId: string) => void;
-}
-
-function describeSet(set: EntrySet): string {
-  const parts: string[] = [];
-  if (set.reps !== null && set.reps > 0) parts.push(`${set.reps} reps`);
-  if (set.weight !== null && set.weight > 0) parts.push(`${set.weight} ${set.weightUnit ?? 'lbs'}`);
-  if (set.durationSeconds !== null && set.durationSeconds > 0) parts.push(formatElapsed(set.durationSeconds));
-  if (set.distance !== null && set.distance > 0) parts.push(`${set.distance} ${set.distanceUnit ?? 'mi'}`);
-  return parts.join(' × ') || '—';
 }
 
 /** Expandable workout history card for the Edge Vitals tab. */
@@ -99,11 +90,14 @@ export default function WorkoutCard({ session, onOpenPost }: WorkoutCardProps) {
               {exercise.notes && (
                 <p className="text-xs text-gray-500 italic">{exercise.notes}</p>
               )}
-              <div className="mt-1 space-y-0.5">
+              <div className="mt-1 space-y-1">
                 {exercise.sets.map((set, setIndex) => (
-                  <p key={setIndex} className="text-xs text-gray-600">
-                    <span className="text-gray-400">Set {set.setNumber}</span> · {describeSet(set)}
-                  </p>
+                  <div key={setIndex}>
+                    <p className="text-xs text-gray-600">
+                      <span className="text-gray-400">Set {set.setNumber}</span> · {formatSetLine(set)}
+                    </p>
+                    {set.media.length > 0 && <SetMediaStrip media={set.media} />}
+                  </div>
                 ))}
               </div>
             </div>

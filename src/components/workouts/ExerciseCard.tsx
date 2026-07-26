@@ -1,9 +1,12 @@
 'use client';
 
-import { Check, Copy, Plus, StickyNote, Trash2, X } from 'lucide-react';
+import { useRef, useState } from 'react';
+import Image from 'next/image';
+import { Camera, Check, Copy, Play, Plus, StickyNote, Trash2, X } from 'lucide-react';
 import { EXERCISE_MAP, type ExerciseInputMode } from '@/lib/workout-config';
-import type { EntryExercise, EntrySet } from '@/lib/workouts/entries';
-import { MAX_SETS_PER_EXERCISE } from '@/lib/workouts/entries';
+import type { EntryExercise, EntrySet, SetMedia } from '@/lib/workouts/entries';
+import { MAX_SETS_PER_EXERCISE, MAX_MEDIA_PER_SET } from '@/lib/workouts/entries';
+import { useToast } from '../Toast';
 
 const CATEGORY_ICON: Record<EntryExercise['category'], string> = {
   strength: '🏋️',
@@ -48,8 +51,54 @@ interface SetRowProps {
 }
 
 function SetRow({ set, inputMode, onChange, onDelete }: SetRowProps) {
-  const patch = (partial: Partial<EntrySet>) => onChange({ ...set, ...partial });
+  const { showError } = useToast();
+  const [uploading, setUploading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  // Latest set for async callbacks (media upload completes after re-renders;
+  // patching from a stale closure would revert concurrent edits)
+  const setRef = useRef(set);
+  setRef.current = set;
+  const patch = (partial: Partial<EntrySet>) => onChange({ ...setRef.current, ...partial });
   const done = set.completedAt !== null;
+
+  // Per-set media: upload immediately (form-check clips between sets), URLs
+  // ride inside the set snapshot through draft + sync. Note: files uploaded
+  // for a later-discarded workout are orphaned in storage — accepted v1,
+  // same as abandoned post-media uploads; future cleanup sweep.
+  const handleFiles = async (files: FileList | null) => {
+    if (!files || files.length === 0) return;
+    const room = MAX_MEDIA_PER_SET - set.media.length;
+    if (room <= 0) {
+      showError('Limit reached', `Max ${MAX_MEDIA_PER_SET} clips per set`);
+      return;
+    }
+    setUploading(true);
+    const added: SetMedia[] = [];
+    try {
+      for (const file of Array.from(files).slice(0, room)) {
+        const formData = new FormData();
+        formData.append('file', file);
+        const response = await fetch('/api/upload/post-media', { method: 'POST', body: formData });
+        if (!response.ok) {
+          const data = await response.json().catch(() => null);
+          throw new Error(data?.error || 'Upload failed');
+        }
+        const data = await response.json();
+        added.push({ url: data.url, type: data.type === 'video' ? 'video' : 'image' });
+      }
+    } catch (err) {
+      showError('Upload failed', err instanceof Error ? err.message : 'Could not upload media');
+    } finally {
+      // One onChange with everything that succeeded (partial success kept)
+      if (added.length > 0) patch({ media: [...setRef.current.media, ...added] });
+      setUploading(false);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  };
+
+  const removeMedia = (index: number) => {
+    patch({ media: setRef.current.media.filter((_, i) => i !== index) });
+  };
 
   const durationMin = set.durationSeconds !== null ? Math.floor(set.durationSeconds / 60) : null;
   const durationSec = set.durationSeconds !== null ? set.durationSeconds % 60 : null;
@@ -82,7 +131,8 @@ function SetRow({ set, inputMode, onChange, onDelete }: SetRowProps) {
   );
 
   return (
-    <div className={`flex items-center gap-2 py-1.5 ${done ? 'opacity-80' : ''}`}>
+    <div className={`py-1.5 ${done ? 'opacity-80' : ''}`}>
+    <div className="flex items-center gap-2">
       <span className="w-6 text-sm font-semibold text-gray-400 text-center shrink-0">
         {set.setNumber}
       </span>
@@ -131,6 +181,33 @@ function SetRow({ set, inputMode, onChange, onDelete }: SetRowProps) {
         )}
       </div>
 
+      {/* Attach photo/video to this set */}
+      <button
+        type="button"
+        onClick={() => fileInputRef.current?.click()}
+        disabled={uploading || set.media.length >= MAX_MEDIA_PER_SET}
+        className={`w-11 h-11 shrink-0 rounded-full flex items-center justify-center transition-colors ${
+          set.media.length > 0
+            ? 'bg-violet-100 text-violet-600'
+            : 'bg-gray-100 text-gray-400 hover:bg-gray-200'
+        } disabled:opacity-50`}
+        aria-label="Attach photo or video to this set"
+      >
+        {uploading ? (
+          <span className="animate-spin rounded-full h-4 w-4 border-b-2 border-violet-500" aria-hidden="true" />
+        ) : (
+          <Camera className="w-4 h-4" />
+        )}
+      </button>
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="image/*,video/*"
+        multiple
+        className="hidden"
+        onChange={e => handleFiles(e.target.files)}
+      />
+
       {/* Complete toggle — stamps completedAt (drives the rest indicator) */}
       <button
         type="button"
@@ -151,6 +228,35 @@ function SetRow({ set, inputMode, onChange, onDelete }: SetRowProps) {
       >
         <X className="w-4 h-4" />
       </button>
+    </div>
+
+    {/* Media thumbnails for this set */}
+    {set.media.length > 0 && (
+      <div className="flex items-center gap-2 mt-1.5 ml-8 flex-wrap">
+        {set.media.map((media, index) => (
+          <div key={index} className="relative w-12 h-12 rounded-lg overflow-hidden bg-gray-100 group">
+            {media.type === 'video' ? (
+              <>
+                <video src={media.url} muted playsInline preload="metadata" className="w-full h-full object-cover" />
+                <span className="absolute inset-0 flex items-center justify-center bg-black/20 pointer-events-none">
+                  <Play className="w-4 h-4 text-white" fill="currentColor" aria-hidden="true" />
+                </span>
+              </>
+            ) : (
+              <Image src={media.url} alt="Set media" width={48} height={48} className="w-full h-full object-cover" />
+            )}
+            <button
+              type="button"
+              onClick={() => removeMedia(index)}
+              className="absolute top-0 right-0 w-5 h-5 bg-black/60 text-white rounded-bl-lg flex items-center justify-center hover:bg-red-600 transition-colors"
+              aria-label="Remove media"
+            >
+              <X className="w-3 h-3" />
+            </button>
+          </div>
+        ))}
+      </div>
+    )}
     </div>
   );
 }
@@ -180,8 +286,10 @@ export default function ExerciseCard({ exercise, onChange, onDelete }: ExerciseC
   const addSet = () => {
     if (exercise.sets.length >= MAX_SETS_PER_EXERCISE) return;
     const previous = exercise.sets[exercise.sets.length - 1];
+    // Clone copies reps/weight (the common case) but never media — a new
+    // set's clip is its own
     const clone: EntrySet = previous
-      ? { ...previous, setNumber: exercise.sets.length + 1, completedAt: null }
+      ? { ...previous, setNumber: exercise.sets.length + 1, completedAt: null, media: [] }
       : emptySet(1);
     onChange({ ...exercise, sets: [...exercise.sets, clone] });
   };
