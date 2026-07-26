@@ -155,54 +155,11 @@ export class AthleteService {
       .limit(limit);
 
     if (error) {
-      // Season highlights error
+      console.error('Failed to fetch season highlights:', error.message);
     }
 
-    // If no real data exists, return sample data for demonstration
-    if (!data || data.length === 0) {
-      return [
-        {
-          id: 'sample-hockey',
-          profile_id: profileId,
-          sport_key: 'ice_hockey',
-          season: '2024–25',
-          metric_a: '12',
-          metric_b: '8',
-          metric_c: '24',
-          rating: 87,
-          league_tags: ['NCAA D1', 'Big Ten'],
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString()
-        },
-        {
-          id: 'sample-volleyball',
-          profile_id: profileId,
-          sport_key: 'volleyball',
-          season: '2024–25',
-          metric_a: '145',
-          metric_b: '32',
-          metric_c: '28',
-          rating: 92,
-          league_tags: ['USAV', 'NCAA D2'],
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString()
-        },
-        {
-          id: 'sample-track',
-          profile_id: profileId,
-          sport_key: 'track_field',
-          season: '2024–25',
-          metric_a: '10.45s',
-          metric_b: '21.12s',
-          metric_c: '3',
-          rating: 89,
-          league_tags: ['USATF'],
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString()
-        }
-      ];
-    }
-
+    // No fabricated sample rows — an empty result is an empty result
+    // (calculateAthleticScore falls back to base + profile completeness).
     return data || [];
   }
 
