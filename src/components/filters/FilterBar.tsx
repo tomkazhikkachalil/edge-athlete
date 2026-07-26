@@ -8,6 +8,8 @@ interface FilterBarProps {
   /** Shown as the "N items" pill; omit to hide the pill. */
   resultCount?: number;
   resultNoun?: string;
+  /** Irregular plural (e.g. "entries"); defaults to resultNoun + "s". */
+  resultNounPlural?: string;
   /** Right-aligned slot next to the count pill (e.g. an Add button). */
   actions?: React.ReactNode;
   /** Number of active filter selections — drives the status strip. */
@@ -25,6 +27,7 @@ export default function FilterBar({
   children,
   resultCount,
   resultNoun = 'item',
+  resultNounPlural,
   actions,
   activeCount,
   onClearAll,
@@ -39,7 +42,7 @@ export default function FilterBar({
         <div className="flex items-center gap-3">
           {resultCount !== undefined && (
             <div className="inline-flex items-center px-3 py-1 rounded-full bg-blue-50 text-blue-700 text-sm font-semibold whitespace-nowrap">
-              {resultCount} {resultCount === 1 ? resultNoun : `${resultNoun}s`}
+              {resultCount} {resultCount === 1 ? resultNoun : resultNounPlural ?? `${resultNoun}s`}
             </div>
           )}
           {actions}

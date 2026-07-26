@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   VITAL_CATEGORIES,
   VITAL_METRICS_MAP,
@@ -14,6 +14,9 @@ import AddVitalModal from './AddVitalModal';
 import CreatePostModal from './CreatePostModal';
 import PostCard from './PostCard';
 import PostDetailModal from './PostDetailModal';
+import FilterBar from './filters/FilterBar';
+import MultiSelectDropdown from './filters/MultiSelectDropdown';
+import { deriveYearOptions, matchesYearFilter } from '@/lib/profile-filters';
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
@@ -304,6 +307,8 @@ export default function VitalsTab({ profileId, currentUserId, isOwnProfile = fal
   const [showAddVital, setShowAddVital] = useState(false);
   const [showCreatePost, setShowCreatePost] = useState(false);
   const [linkedPostId, setLinkedPostId] = useState<string | null>(null);
+  const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
+  const [selectedYears, setSelectedYears] = useState<number[]>([]);
 
   const fetchData = useCallback(async () => {
     try {
@@ -330,14 +335,43 @@ export default function VitalsTab({ profileId, currentUserId, isOwnProfile = fal
     fetchData();
   }, [fetchData]);
 
+  // Filter options derived from the data actually present
+  const categoryOptions = useMemo(() => {
+    const present = new Set(vitals.map(v => v.metric_category));
+    return VITAL_CATEGORIES.filter(c => present.has(c.key)).map(c => ({
+      value: c.key,
+      label: c.label,
+    }));
+  }, [vitals]);
+
+  const yearOptions = useMemo(
+    () => deriveYearOptions(vitals.map(v => v.recorded_at)),
+    [vitals]
+  );
+
+  // Apply filters BEFORE grouping — MetricCards (PB, first, trend, history)
+  // are scoped to the filtered range, not all-time.
+  const visibleVitals = vitals.filter(
+    v =>
+      matchesYearFilter(v.recorded_at, selectedYears) &&
+      (selectedCategories.length === 0 || selectedCategories.includes(v.metric_category))
+  );
+
+  // Year filter also narrows the training feed (category doesn't apply there)
+  const visibleTrainingPosts = trainingPosts.filter(p =>
+    matchesYearFilter(p.created_at, selectedYears)
+  );
+
   // Group vitals by metric key
   const vitalsByMetric: Record<string, VitalEntry[]> = {};
-  for (const entry of vitals) {
+  for (const entry of visibleVitals) {
     if (!vitalsByMetric[entry.metric_key]) vitalsByMetric[entry.metric_key] = [];
     vitalsByMetric[entry.metric_key].push(entry);
   }
 
   const totalMetrics = Object.keys(vitalsByMetric).length;
+  const hasAnyData = vitals.length > 0 || trainingPosts.length > 0;
+  const activeFilterCount = selectedCategories.length + selectedYears.length;
 
   if (loading) {
     return (
@@ -357,6 +391,43 @@ export default function VitalsTab({ profileId, currentUserId, isOwnProfile = fal
 
   return (
     <div className="space-y-8">
+      {/* ── Filters (shared FilterBar treatment) ─────────────────────── */}
+      {hasAnyData && (
+        <div className="space-y-3">
+          <FilterBar
+            resultCount={visibleVitals.length}
+            resultNoun="entry"
+            resultNounPlural="entries"
+            activeCount={activeFilterCount}
+            onClearAll={() => {
+              setSelectedCategories([]);
+              setSelectedYears([]);
+            }}
+          >
+            {categoryOptions.length > 0 && (
+              <MultiSelectDropdown<string>
+                allLabel="All Categories"
+                itemNounPlural="categories"
+                searchPlaceholder="Search categories..."
+                options={categoryOptions}
+                selected={selectedCategories}
+                onChange={setSelectedCategories}
+              />
+            )}
+            {yearOptions.length > 0 && (
+              <MultiSelectDropdown<number>
+                allLabel="All Years"
+                itemNounPlural="years"
+                searchPlaceholder="Search years..."
+                options={yearOptions.map(year => ({ value: year, label: String(year) }))}
+                selected={selectedYears}
+                onChange={setSelectedYears}
+              />
+            )}
+          </FilterBar>
+        </div>
+      )}
+
       {/* ── Section A: Metrics ───────────────────────────────────────── */}
       <div>
         <div className="flex items-center justify-between mb-5">
@@ -377,7 +448,11 @@ export default function VitalsTab({ profileId, currentUserId, isOwnProfile = fal
           )}
         </div>
 
-        {totalMetrics === 0 ? (
+        {totalMetrics === 0 && vitals.length > 0 ? (
+          <div className="text-center py-12 border border-dashed border-gray-200 rounded-xl">
+            <p className="text-sm text-gray-600">No metrics match your filters.</p>
+          </div>
+        ) : totalMetrics === 0 ? (
           <div className="text-center py-12 border border-dashed border-gray-200 rounded-xl">
             <div className="w-14 h-14 mx-auto mb-4 rounded-full bg-gray-100 flex items-center justify-center">
               <i className="fas fa-ruler-vertical text-gray-400 text-xl"></i>
@@ -433,8 +508,8 @@ export default function VitalsTab({ profileId, currentUserId, isOwnProfile = fal
         <div className="flex items-center justify-between mb-5">
           <div>
             <h3 className="text-base font-bold text-gray-900">Training Activity</h3>
-            {trainingPosts.length > 0 && (
-              <p className="text-xs text-gray-500 mt-0.5">{trainingPosts.length} session{trainingPosts.length !== 1 ? 's' : ''} logged</p>
+            {visibleTrainingPosts.length > 0 && (
+              <p className="text-xs text-gray-500 mt-0.5">{visibleTrainingPosts.length} session{visibleTrainingPosts.length !== 1 ? 's' : ''} logged</p>
             )}
           </div>
           {isOwnProfile && (
@@ -448,7 +523,11 @@ export default function VitalsTab({ profileId, currentUserId, isOwnProfile = fal
           )}
         </div>
 
-        {trainingPosts.length === 0 ? (
+        {visibleTrainingPosts.length === 0 && trainingPosts.length > 0 ? (
+          <div className="text-center py-12 border border-dashed border-gray-200 rounded-xl">
+            <p className="text-sm text-gray-600">No sessions match your filters.</p>
+          </div>
+        ) : trainingPosts.length === 0 ? (
           <div className="text-center py-12 border border-dashed border-gray-200 rounded-xl">
             <div className="w-14 h-14 mx-auto mb-4 rounded-full bg-gray-100 flex items-center justify-center">
               <i className="fas fa-dumbbell text-gray-400 text-xl"></i>
@@ -469,7 +548,7 @@ export default function VitalsTab({ profileId, currentUserId, isOwnProfile = fal
           </div>
         ) : (
           <div className="space-y-4">
-            {trainingPosts.map(post => (
+            {visibleTrainingPosts.map(post => (
               <PostCard
                 key={post.id}
                 post={post as Parameters<typeof PostCard>[0]['post']}
