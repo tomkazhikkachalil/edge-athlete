@@ -43,6 +43,19 @@ describe('mapProfileUpsertError', () => {
     expect(r.error).not.toMatch(/handle/i);
   });
 
+  it('maps 23505 on the live handle unique INDEX name to handle-taken (OAuth bootstrap path)', () => {
+    // The real DB object is a unique index (idx_profiles_handle_unique_lower),
+    // not a "profiles_handle_key" constraint — the /handle/i fallback must
+    // keep catching it.
+    const r = mapProfileUpsertError({
+      code: '23505',
+      message:
+        'duplicate key value violates unique constraint "idx_profiles_handle_unique_lower"',
+    });
+    expect(r.status).toBe(409);
+    expect(r.error).toMatch(/handle is already taken/i);
+  });
+
   it('maps 23502 to a 400 missing-fields message', () => {
     const r = mapProfileUpsertError({ code: '23502', message: 'null value in column "display_name"' });
     expect(r.status).toBe(400);
