@@ -125,6 +125,12 @@ export async function POST(request: NextRequest) {
         dob_locked: true,
         jurisdiction,
         minor_threshold_age: getMinorThreshold(jurisdiction),
+        // jsonb_populate_record leaves absent fields NULL, and INSERT with
+        // explicit NULLs bypasses column defaults — created_at/updated_at
+        // are NOT NULL, so they must be supplied here.
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+        handle_change_count: 0,
       },
       p_guardian: user.id,
     });
