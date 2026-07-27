@@ -1079,7 +1079,9 @@ export async function DELETE(request: NextRequest) {
             supabase
               .from('workout_sets')
               .select('id', { count: 'exact', head: true })
-              .contains('media', [{ url }]),
+              // JSON string, NOT an array: supabase-js turns an array arg into
+              // a Postgres array literal ({...}), which 22P02s on a jsonb column
+              .contains('media', JSON.stringify([{ url }])),
           ]);
           // Can't verify → keep the file rather than break another reference
           if (postRef.error || setRef.error) return true;
