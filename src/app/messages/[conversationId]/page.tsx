@@ -5,12 +5,14 @@ import { useRouter, useParams } from 'next/navigation';
 import { useAuth } from '@/lib/auth';
 import AppHeader from '@/components/AppHeader';
 import ChatWindow from '@/components/messages/ChatWindow';
+import { useVisualViewportHeight } from '@/hooks/useVisualViewportHeight';
 
 export default function ConversationPage() {
   const router = useRouter();
   const params = useParams();
   const { user, loading: authLoading } = useAuth();
   const conversationId = params.conversationId as string;
+  useVisualViewportHeight();
 
   useEffect(() => {
     if (!authLoading && !user) {
@@ -28,7 +30,7 @@ export default function ConversationPage() {
   if (authLoading || !user) return null;
 
   return (
-    <div className="flex flex-col h-dvh bg-white">
+    <div className="flex flex-col h-dvh bg-white" style={{ height: 'var(--vvh, 100dvh)' }}>
       <AppHeader showSearch={false} />
       <div className="flex-1 min-h-0">
         <ChatWindow

@@ -8,6 +8,7 @@ import AppHeader from '@/components/AppHeader';
 import ConversationList from '@/components/messages/ConversationList';
 import ChatWindow from '@/components/messages/ChatWindow';
 import NewConversationModal from '@/components/messages/NewConversationModal';
+import { useVisualViewportHeight } from '@/hooks/useVisualViewportHeight';
 
 function MessagesContent() {
   const router = useRouter();
@@ -15,6 +16,7 @@ function MessagesContent() {
   const { user, loading: authLoading } = useAuth();
   const { conversations, loading } = useMessages();
   const [showNewModal, setShowNewModal] = useState(false);
+  useVisualViewportHeight();
 
   const activeId = searchParams.get('c');
 
@@ -90,7 +92,7 @@ function MessagesContent() {
 
 export default function MessagesPage() {
   return (
-    <div className="flex flex-col h-dvh bg-white">
+    <div className="flex flex-col h-dvh bg-white" style={{ height: 'var(--vvh, 100dvh)' }}>
       <AppHeader showSearch={false} />
       <div className="flex-1 min-h-0">
         <Suspense fallback={
