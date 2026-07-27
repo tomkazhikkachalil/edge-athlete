@@ -10,6 +10,7 @@ import MultiSportHighlights from '@/components/MultiSportHighlights';
 import LazyImage from '@/components/LazyImage';
 import ProfileMediaTabs, { type SportSpotlight } from '@/components/ProfileMediaTabs';
 import FeaturedPosts from '@/components/FeaturedPosts';
+import AvatarUploader from '@/components/AvatarUploader';
 import PostDetailModal from '@/components/PostDetailModal';
 import type { SportKey } from '@/lib/sports';
 import { resolveSportKey, isComposerSport } from '@/lib/sports/resolve-sport-key';
@@ -184,7 +185,6 @@ export default function AthleteProfilePage() {
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isPerformanceModalOpen, setIsPerformanceModalOpen] = useState(false);
   const [editingPerformance] = useState<Performance | undefined>();
-  const [avatarUploading, setAvatarUploading] = useState(false);
   const [submitStates, setSubmitStates] = useState<Record<string, boolean>>({});
   const [errors, setErrors] = useState<Record<string, string>>({});
   const { showSuccess, showError } = useToast();
@@ -478,66 +478,14 @@ export default function AthleteProfilePage() {
   //   }
   // };
 
-  const handleAvatarUpload = withSubmitProtection('avatar-upload', async () => {
-    const fileInput = document.getElementById('avatar-upload') as HTMLInputElement;
-    const file = fileInput?.files?.[0];
-    
-    if (!file) return;
-
-    // File validation
-    const maxSize = 5 * 1024 * 1024; // 5MB
-    const allowedTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
-    
-    // Surface validation failures via toast — errors['avatar-upload'] is
-    // never rendered anywhere, so a thrown error here failed silently.
-    if (file.size > maxSize) {
-      showError('Upload failed', 'File size must be less than 5MB');
-      if (fileInput) fileInput.value = '';
-      return;
-    }
-
-    if (!allowedTypes.includes(file.type)) {
-      showError('Upload failed', 'Please select a valid image file (JPG, PNG, GIF, or WebP)');
-      if (fileInput) fileInput.value = '';
-      return;
-    }
-
-    if (!user?.id) {
-      throw new Error('User not authenticated');
-    }
-
-    setAvatarUploading(true);
-    
-    try {
-      const formData = new FormData();
-      formData.append('avatar', file);
-      formData.append('userId', user.id);
-
-      const response = await fetch('/api/upload/avatar', {
-        method: 'POST',
-        body: formData,
-      });
-
-      const result = await response.json();
-
-      if (!response.ok) {
-        showError('Upload failed', result.error || 'Failed to upload avatar');
-        return;
-      }
-
-      // Refresh the data to show the new avatar
-      await Promise.all([
-        refreshProfile(),
-        user?.id ? loadAthleteData(user.id) : Promise.resolve()
-      ]);
-    } finally {
-      setAvatarUploading(false);
-      // Clear the file input
-      if (fileInput) {
-        fileInput.value = '';
-      }
-    }
-  });
+  // Avatar picking/cropping/uploading lives in the shared AvatarUploader
+  // (circle crop via the media editor); this just refreshes on success.
+  const handleAvatarUploaded = async () => {
+    await Promise.all([
+      refreshProfile(),
+      user?.id ? loadAthleteData(user.id) : Promise.resolve(),
+    ]);
+  };
 
   // Inline editing functions
   const startEditing = (field: string, currentValue: string) => {
@@ -813,35 +761,30 @@ export default function AthleteProfilePage() {
                 
                 {/* Avatar Upload Button */}
                 <div className="absolute -bottom-2 -right-2">
-                  <label
-                    htmlFor="avatar-upload"
-                    className={`w-14 h-14 bg-blue-600 rounded-full flex items-center justify-center cursor-pointer shadow-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-colors ${
-                      avatarUploading ? 'opacity-50 cursor-not-allowed' : ''
-                    }`}
-                    aria-label={avatarUploading ? 'Uploading avatar...' : 'Upload new avatar'}
-                    tabIndex={0}
-                  >
-                    {avatarUploading ? (
-                      <div 
-                        className="w-6 h-6 border-3 border-white border-t-transparent rounded-full animate-spin"
-                        aria-hidden="true"
-                      ></div>
-                    ) : (
-                      <i className="fas fa-camera text-white" aria-hidden="true"></i>
+                  <AvatarUploader
+                    mode="immediate"
+                    onUploaded={handleAvatarUploaded}
+                    render={({ open, uploading }) => (
+                      <button
+                        type="button"
+                        onClick={open}
+                        disabled={uploading}
+                        className={`w-14 h-14 bg-blue-600 rounded-full flex items-center justify-center cursor-pointer shadow-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-colors ${
+                          uploading ? 'opacity-50 cursor-not-allowed' : ''
+                        }`}
+                        aria-label={uploading ? 'Uploading avatar...' : 'Upload new avatar'}
+                      >
+                        {uploading ? (
+                          <div
+                            className="w-6 h-6 border-3 border-white border-t-transparent rounded-full animate-spin"
+                            aria-hidden="true"
+                          ></div>
+                        ) : (
+                          <i className="fas fa-camera text-white" aria-hidden="true"></i>
+                        )}
+                      </button>
                     )}
-                  </label>
-                  <input
-                    id="avatar-upload"
-                    type="file"
-                    accept="image/*"
-                    className="sr-only"
-                    onChange={() => handleAvatarUpload()}
-                    disabled={avatarUploading}
-                    aria-describedby="avatar-help"
                   />
-                  <div id="avatar-help" className="sr-only">
-                    Upload a new profile picture. Supported formats: JPG, PNG, GIF. Maximum size: 5MB.
-                  </div>
                 </div>
               </div>
               

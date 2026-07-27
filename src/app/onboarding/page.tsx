@@ -1,9 +1,10 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth';
 import LazyImage from '@/components/LazyImage';
+import AvatarUploader from '@/components/AvatarUploader';
 import ConnectionSuggestions from '@/components/ConnectionSuggestions';
 import SportMultiSelect from '@/components/SportMultiSelect';
 import { getSportDefinition, type SportKey } from '@/lib/sports/SportRegistry';
@@ -16,7 +17,6 @@ import { getInitials, formatDisplayName } from '@/lib/formatters';
 // picks golf; a skipped sport step keeps everything generic.
 type Step = 1 | 2 | 3 | 4;
 
-const ALLOWED_TYPES = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
 
 export default function OnboardingPage() {
   const router = useRouter();
@@ -25,10 +25,8 @@ export default function OnboardingPage() {
   const [step, setStep] = useState<Step>(1);
   const [selectedSports, setSelectedSports] = useState<SportKey[]>([]);
   const [savingSports, setSavingSports] = useState(false);
-  const [avatarUploading, setAvatarUploading] = useState(false);
   const [avatarError, setAvatarError] = useState<string | null>(null);
   const [finishing, setFinishing] = useState(false);
-  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const primarySport = selectedSports[0] ?? null;
   const primaryDef = primarySport ? getSportDefinition(primarySport) : null;
@@ -104,40 +102,6 @@ export default function OnboardingPage() {
     } finally {
       setSavingSports(false);
       setStep(2);
-    }
-  };
-
-  const handleAvatarSelect = async (file: File | undefined) => {
-    if (!file) return;
-    setAvatarError(null);
-
-    if (!ALLOWED_TYPES.includes(file.type)) {
-      setAvatarError('Please choose a JPG, PNG, GIF, or WebP image.');
-      return;
-    }
-    if (file.size > 5 * 1024 * 1024) {
-      setAvatarError('Image must be under 5MB.');
-      return;
-    }
-
-    setAvatarUploading(true);
-    try {
-      const formData = new FormData();
-      formData.append('avatar', file);
-      const response = await fetch('/api/upload/avatar', { method: 'POST', body: formData });
-      const result = await response.json();
-      if (!response.ok) {
-        setAvatarError(result.error || 'Upload failed. You can add a photo later from your profile.');
-        return;
-      }
-      await refreshProfile();
-      setStep(3);
-    } catch (e) {
-      console.error('Avatar upload failed:', e);
-      setAvatarError('Upload failed. You can add a photo later from your profile.');
-    } finally {
-      setAvatarUploading(false);
-      if (fileInputRef.current) fileInputRef.current.value = '';
     }
   };
 
@@ -235,26 +199,33 @@ export default function OnboardingPage() {
                 </div>
               )}
 
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept="image/jpeg,image/png,image/gif,image/webp"
-                className="hidden"
-                onChange={e => handleAvatarSelect(e.target.files?.[0])}
-              />
-              <button
-                onClick={() => fileInputRef.current?.click()}
-                disabled={avatarUploading}
-                className="w-full bg-blue-600 text-white py-3 px-4 rounded-md hover:bg-blue-700 transition font-medium disabled:opacity-50 mb-3"
-              >
-                {avatarUploading ? (
-                  <><i className="fas fa-spinner fa-spin mr-2"></i>Uploading…</>
-                ) : profile?.avatar_url ? (
-                  'Change photo'
-                ) : (
-                  'Choose a photo'
+              <AvatarUploader
+                mode="immediate"
+                onError={message => setAvatarError(message)}
+                onUploaded={async () => {
+                  setAvatarError(null);
+                  await refreshProfile();
+                  setStep(3);
+                }}
+                render={({ open, uploading }) => (
+                  <button
+                    onClick={() => {
+                      setAvatarError(null);
+                      open();
+                    }}
+                    disabled={uploading}
+                    className="w-full bg-blue-600 text-white py-3 px-4 rounded-md hover:bg-blue-700 transition font-medium disabled:opacity-50 mb-3"
+                  >
+                    {uploading ? (
+                      <><i className="fas fa-spinner fa-spin mr-2"></i>Uploading…</>
+                    ) : profile?.avatar_url ? (
+                      'Change photo'
+                    ) : (
+                      'Choose a photo'
+                    )}
+                  </button>
                 )}
-              </button>
+              />
               <div className="flex items-center justify-center gap-4">
                 {profile?.avatar_url && (
                   <button

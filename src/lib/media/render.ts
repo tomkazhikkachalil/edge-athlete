@@ -59,7 +59,7 @@ function toBlob(canvas: HTMLCanvasElement, mime: string, quality: number): Promi
 /** `IMG_1234.HEIC` + image/webp → `IMG_1234-edited.webp` */
 export function renderedFileName(originalName: string, mime: string): string {
   const base = originalName.replace(/\.[^.]+$/, '') || 'media';
-  const ext = mime === 'image/webp' ? 'webp' : 'jpg';
+  const ext = mime === 'image/webp' ? 'webp' : mime === 'image/png' ? 'png' : 'jpg';
   return `${base}-edited.${ext}`;
 }
 

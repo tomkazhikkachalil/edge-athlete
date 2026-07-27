@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { useAuth } from '@/lib/auth';
 import { useToast } from './Toast';
 import LazyImage from './LazyImage';
+import AvatarUploader from './AvatarUploader';
 import type { Profile, AthleteBadge, SeasonHighlight, Performance } from '@/lib/supabase';
 import { getSportDefinition, getEnabledSports, getAllSports, type SportKey } from '@/lib/sports';
 import { resolveSportKey } from '@/lib/sports/resolve-sport-key';
@@ -484,7 +485,6 @@ export default function EditProfileTabs({
 
     const formData = new FormData();
     formData.append('avatar', file);
-    formData.append('userId', user!.id);
 
     const response = await fetch('/api/upload/avatar', {
       method: 'POST',
@@ -523,27 +523,19 @@ export default function EditProfileTabs({
           />
         </div>
         <div className="flex-1">
-          <label
-            htmlFor="avatar-upload"
-            className="cursor-pointer inline-flex items-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
-          >
-            <i className="fas fa-upload mr-2" aria-hidden="true"></i>
-            Change Avatar
-          </label>
-          <input
-            key={`avatar-upload-${isOpen}`}
-            id="avatar-upload"
-            type="file"
-            accept="image/*"
-            className="sr-only"
-            onChange={(e) => {
-              const file = e.target.files?.[0];
-              if (file) {
-                setBasicForm(prev => ({ ...prev, avatar_file: file }));
-              }
-              // Reset the input value to allow re-selecting the same file
-              e.target.value = '';
-            }}
+          <AvatarUploader
+            mode="deferred"
+            onFileReady={file => setBasicForm(prev => ({ ...prev, avatar_file: file }))}
+            render={({ open }) => (
+              <button
+                type="button"
+                onClick={open}
+                className="cursor-pointer inline-flex items-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+              >
+                <i className="fas fa-upload mr-2" aria-hidden="true"></i>
+                {basicForm.avatar_file ? 'Avatar ready — saves with profile' : 'Change Avatar'}
+              </button>
+            )}
           />
           <p className="mt-1 text-xs text-gray-500">
             JPG, PNG, GIF or WebP. Max 5MB.

@@ -45,9 +45,10 @@ export async function exportAsset(
   if (recipe.kind !== 'image') return passThrough(asset, recipe);
 
   const blob = await renderImage(asset.file, recipe, output);
-  const file = new File([blob], renderedFileName(asset.file.name, output.mime), {
-    type: output.mime,
-  });
+  // Trust the blob's real type: Safari's toBlob silently falls back to PNG
+  // for encoders it lacks — the File's name/type must match actual bytes.
+  const mime = blob.type || output.mime;
+  const file = new File([blob], renderedFileName(asset.file.name, mime), { type: mime });
   return {
     id: asset.id,
     blob,
