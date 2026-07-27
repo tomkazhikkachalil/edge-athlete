@@ -106,8 +106,14 @@ export default function MediaEditorModal({ assets, config, onDone, onCancel }: M
         </button>
       </div>
 
-      {/* Stage + tools */}
-      {editable && imageRecipe ? (
+      {/* Stage + tools. activeUrl is '' for one render while the effect mints
+          object URLs (StrictMode-safe lifecycle) — mounting react-easy-crop
+          with an empty image makes its position math NaN and loops
+          componentDidUpdate into "Maximum update depth exceeded". Never
+          render media elements until the URL exists. */}
+      {!activeUrl ? (
+        <div className="flex-1 min-h-0" aria-hidden="true" />
+      ) : editable && imageRecipe ? (
         <>
           {tool === 'crop' ? (
             <CropStage

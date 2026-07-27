@@ -7,7 +7,7 @@
  * button placement.
  */
 
-import { useRef, useState, type ReactNode } from 'react';
+import { useMemo, useRef, useState, type ReactNode } from 'react';
 import { useToast } from '@/components/Toast';
 import { MediaEditor } from '@/components/media-editor';
 import { validateFiles } from '@/lib/media/validation';
@@ -33,6 +33,9 @@ export default function CoverPhotoUploader({ onUploaded, render }: CoverPhotoUpl
   const { showError } = useToast();
   const [pending, setPending] = useState<MediaAsset | null>(null);
   const [uploading, setUploading] = useState(false);
+  // Stable identity — an inline [pending] literal would recreate the editor's
+  // preview URLs (revoking the old ones) on every parent render
+  const editorAssets = useMemo(() => (pending ? [pending] : null), [pending]);
 
   const handlePick = (file: File | undefined) => {
     if (!file) return;
@@ -86,9 +89,9 @@ export default function CoverPhotoUploader({ onUploaded, render }: CoverPhotoUpl
         }}
       />
       {render({ open: () => inputRef.current?.click(), uploading })}
-      {pending && (
+      {editorAssets && (
         <MediaEditor
-          assets={[pending]}
+          assets={editorAssets}
           config={COVER_EDITOR_CONFIG}
           onDone={handleDone}
           onCancel={() => setPending(null)}

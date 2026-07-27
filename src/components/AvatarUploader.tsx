@@ -10,7 +10,7 @@
  * Render-prop trigger so each surface keeps its own button UI.
  */
 
-import { useRef, useState, type ReactNode } from 'react';
+import { useMemo, useRef, useState, type ReactNode } from 'react';
 import { useToast } from '@/components/Toast';
 import { MediaEditor } from '@/components/media-editor';
 import { validateFiles } from '@/lib/media/validation';
@@ -49,6 +49,9 @@ export default function AvatarUploader({
   const { showError } = useToast();
   const [pending, setPending] = useState<MediaAsset | null>(null);
   const [uploading, setUploading] = useState(false);
+  // Stable identity — an inline [pending] literal would recreate the editor's
+  // preview URLs (revoking the old ones) on every parent render
+  const editorAssets = useMemo(() => (pending ? [pending] : null), [pending]);
 
   const reportError = (message: string) =>
     onError ? onError(message) : showError('Avatar upload', message);
@@ -110,9 +113,9 @@ export default function AvatarUploader({
         }}
       />
       {render({ open: () => inputRef.current?.click(), uploading })}
-      {pending && (
+      {editorAssets && (
         <MediaEditor
-          assets={[pending]}
+          assets={editorAssets}
           config={AVATAR_EDITOR_CONFIG}
           onDone={handleDone}
           onCancel={() => setPending(null)}

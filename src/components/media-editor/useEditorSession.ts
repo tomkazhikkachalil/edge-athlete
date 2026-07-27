@@ -6,7 +6,7 @@
  * unmount. Recipes are in-memory only — see src/lib/media/recipes.ts.
  */
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { defaultImageRecipe, defaultVideoRecipe } from '@/lib/media/recipes';
 import type { EditRecipe, ImageRecipe, MediaAsset } from '@/lib/media/types';
 
@@ -21,16 +21,21 @@ export function useEditorSession(assets: MediaAsset[], defaultAspect: ImageRecip
     return initial;
   });
 
-  const previewUrls = useMemo(
-    () => new Map(assets.map(asset => [asset.id, URL.createObjectURL(asset.file)])),
-    [assets]
-  );
+  // Preview URLs are EFFECT-owned, never render-owned: each mount mints its
+  // own map and the cleanup revokes exactly that map. A render-time useMemo
+  // here breaks under React StrictMode (dev): its simulated mount→unmount→
+  // remount runs the cleanup (revoking the URLs) while the memo keeps the
+  // same map — every view mounted after that points at dead blob: URLs
+  // (the "image disappears when switching tabs on localhost" bug).
+  const [previewUrls, setPreviewUrls] = useState<Map<string, string>>(() => new Map());
 
   useEffect(() => {
+    const map = new Map(assets.map(asset => [asset.id, URL.createObjectURL(asset.file)]));
+    setPreviewUrls(map);
     return () => {
-      for (const url of previewUrls.values()) URL.revokeObjectURL(url);
+      for (const url of map.values()) URL.revokeObjectURL(url);
     };
-  }, [previewUrls]);
+  }, [assets]);
 
   const patchRecipe = (id: string, patch: Partial<EditRecipe>) => {
     setRecipes(prev => ({ ...prev, [id]: { ...prev[id], ...patch } as EditRecipe }));
