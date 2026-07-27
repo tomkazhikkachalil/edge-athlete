@@ -1,7 +1,12 @@
 'use client';
 
 import { useState } from 'react';
-import { signInWithProvider, appleOAuthEnabled, type OAuthProvider } from '@/lib/oauth';
+import {
+  signInWithProvider,
+  googleOAuthEnabled,
+  appleOAuthEnabled,
+  type OAuthProvider,
+} from '@/lib/oauth';
 
 // Inline brand marks: the official multicolor Google G (FA's fab fa-google is
 // monochrome) and the Apple glyph in white per Apple's HIG black button.
@@ -36,6 +41,9 @@ interface OAuthButtonsProps {
 export default function OAuthButtons({ onError, divider = 'above' }: OAuthButtonsProps) {
   const [redirecting, setRedirecting] = useState<OAuthProvider | null>(null);
 
+  // No providers configured → render nothing (no divider, no buttons).
+  if (!googleOAuthEnabled && !appleOAuthEnabled) return null;
+
   const start = async (provider: OAuthProvider) => {
     setRedirecting(provider);
     const { error } = await signInWithProvider(provider);
@@ -61,22 +69,24 @@ export default function OAuthButtons({ onError, divider = 'above' }: OAuthButton
     <div className={divider === 'above' ? 'mt-6' : 'mt-4 mb-2'}>
       {divider === 'above' && dividerRow}
       <div className="space-y-3">
-        <button
-          type="button"
-          onClick={() => start('google')}
-          disabled={redirecting !== null}
-          className="w-full flex items-center justify-center gap-3 bg-white border border-gray-300 text-gray-700 py-3 px-4 rounded-md hover:bg-gray-50 transition duration-300 font-medium disabled:opacity-50 disabled:cursor-not-allowed"
-        >
-          {redirecting === 'google' ? (
-            <>
-              <i className="fas fa-spinner fa-spin"></i> Redirecting…
-            </>
-          ) : (
-            <>
-              <GoogleMark /> Continue with Google
-            </>
-          )}
-        </button>
+        {googleOAuthEnabled && (
+          <button
+            type="button"
+            onClick={() => start('google')}
+            disabled={redirecting !== null}
+            className="w-full flex items-center justify-center gap-3 bg-white border border-gray-300 text-gray-700 py-3 px-4 rounded-md hover:bg-gray-50 transition duration-300 font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {redirecting === 'google' ? (
+              <>
+                <i className="fas fa-spinner fa-spin"></i> Redirecting…
+              </>
+            ) : (
+              <>
+                <GoogleMark /> Continue with Google
+              </>
+            )}
+          </button>
+        )}
         {appleOAuthEnabled && (
           <button
             type="button"

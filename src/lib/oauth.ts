@@ -8,8 +8,11 @@ import { supabase } from './supabase';
 
 export type OAuthProvider = 'google' | 'apple';
 
-// Apple stays hidden until the Apple Developer config exists in Supabase.
-// Build-time flag: set NEXT_PUBLIC_OAUTH_APPLE=1 in Vercel + redeploy.
+// Providers stay hidden until their Supabase config exists — a visible
+// button that errors is worse than no button. Build-time flags: set
+// NEXT_PUBLIC_OAUTH_GOOGLE=1 / NEXT_PUBLIC_OAUTH_APPLE=1 in Vercel +
+// redeploy once the provider is enabled in the Supabase dashboard.
+export const googleOAuthEnabled = process.env.NEXT_PUBLIC_OAUTH_GOOGLE === '1';
 export const appleOAuthEnabled = process.env.NEXT_PUBLIC_OAUTH_APPLE === '1';
 
 export async function signInWithProvider(
