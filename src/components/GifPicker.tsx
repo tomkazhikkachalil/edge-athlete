@@ -19,6 +19,14 @@ interface Props {
 
 const RECENT_GIFS_KEY = 'ea:msg:recentGifs';
 const RECENT_GIFS_MAX = 12;
+// Shown in the Recent strip: one row of 3 on mobile, two rows of 3 on sm+.
+const RECENT_GIFS_SHOWN = 6;
+
+// Entries saved before the animated-preview fix hold Giphy's frozen
+// fixed_height_still URL (…/200_s.gif) — rewrite to the animated variant.
+function animatePreviewUrl(url: string): string {
+  return url.replace(/200_s\.gif/, '200.gif');
+}
 
 function readRecentGifs(): GifItem[] {
   if (typeof window === 'undefined') return [];
@@ -34,6 +42,7 @@ function readRecentGifs(): GifItem[] {
         && typeof g.url === 'string'
         && typeof g.preview_url === 'string'
       )
+      .map(g => ({ ...g, preview_url: animatePreviewUrl(g.preview_url) }))
       .slice(0, RECENT_GIFS_MAX);
   } catch {
     return [];
@@ -154,12 +163,13 @@ export default function GifPicker({ onGifSelect, onClose, variant = 'popover' }:
 
       {/* Grid */}
       <div className="flex-1 overflow-y-auto p-2">
-        {/* Recent GIFs strip — only visible when there's no active search query */}
+        {/* Recent GIFs strip — only visible when there's no active search query.
+            3 on mobile, 6 on sm+, with a clear divider before Popular. */}
         {!query.trim() && recents.length > 0 && (
-          <div className="mb-2 pb-2 border-b border-gray-100">
+          <div className="mb-3 pb-3 border-b border-gray-200">
             <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide mb-1.5 px-1">Recent</p>
-            <div className={`grid ${cols} gap-1.5`}>
-              {recents.map(gif => (
+            <div className="grid grid-cols-3 gap-1.5">
+              {recents.slice(0, RECENT_GIFS_SHOWN).map((gif, i) => (
                 <button
                   key={`recent-${gif.id}`}
                   type="button"
@@ -168,7 +178,9 @@ export default function GifPicker({ onGifSelect, onClose, variant = 'popover' }:
                     onGifSelect(gif.url);
                     onClose();
                   }}
-                  className="rounded-lg overflow-hidden hover:ring-2 hover:ring-violet-500 transition-all focus:outline-none focus:ring-2 focus:ring-violet-500"
+                  className={`rounded-lg overflow-hidden hover:ring-2 hover:ring-violet-500 transition-all focus:outline-none focus:ring-2 focus:ring-violet-500 ${
+                    i >= 3 ? 'hidden sm:block' : ''
+                  }`}
                 >
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img
@@ -182,6 +194,10 @@ export default function GifPicker({ onGifSelect, onClose, variant = 'popover' }:
               ))}
             </div>
           </div>
+        )}
+
+        {!query.trim() && recents.length > 0 && !loading && !error && gifs.length > 0 && (
+          <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide mb-1.5 px-1">Popular</p>
         )}
 
         {loading ? (
