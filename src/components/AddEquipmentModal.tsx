@@ -141,9 +141,10 @@ export default function AddEquipmentModal({
     return () => clearTimeout(timer);
   }, [model, brand, category, sportKey]);
 
-  // Close dropdowns on click outside
+  // Close dropdowns on click/tap outside (touchstart too — waiting for the
+  // synthesized mouse event is laggy and scroll-consumed taps never fire it)
   useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
+    const handleClickOutside = (event: MouseEvent | TouchEvent) => {
       if (
         brandDropdownRef.current &&
         !brandDropdownRef.current.contains(event.target as Node) &&
@@ -161,8 +162,21 @@ export default function AddEquipmentModal({
     };
 
     document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
+    document.addEventListener('touchstart', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+      document.removeEventListener('touchstart', handleClickOutside);
+    };
   }, []);
+
+  // On short viewports the panel can open clipped below the form's scroll
+  // area — nudge it into view (no-op when already visible).
+  useEffect(() => {
+    if (!showBrandDropdown && !showModelDropdown) return;
+    const el = showBrandDropdown ? brandDropdownRef.current : modelDropdownRef.current;
+    // rAF: the panel must be laid out before measuring
+    requestAnimationFrame(() => el?.scrollIntoView({ block: 'nearest', behavior: 'smooth' }));
+  }, [showBrandDropdown, showModelDropdown]);
 
   // Lock background scroll while open (iOS scroll-chaining behind overlays)
   useBodyScrollLock(isOpen);
@@ -412,7 +426,7 @@ export default function AddEquipmentModal({
                 {sportKey === 'golf' && showBrandDropdown && (
                   <div
                     ref={brandDropdownRef}
-                    className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-lg shadow-lg max-h-60 overflow-y-auto"
+                    className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-lg shadow-lg max-h-[min(15rem,40vh)] overflow-y-auto"
                   >
                     {brandLoading ? (
                       <div className="px-4 py-3 text-sm text-gray-500 flex items-center gap-2">
@@ -483,7 +497,7 @@ export default function AddEquipmentModal({
                 {sportKey === 'golf' && showModelDropdown && (modelSuggestions.length > 0 || modelLoading) && (
                   <div
                     ref={modelDropdownRef}
-                    className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-lg shadow-lg max-h-60 overflow-y-auto"
+                    className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-lg shadow-lg max-h-[min(15rem,40vh)] overflow-y-auto"
                   >
                     {modelLoading ? (
                       <div className="px-4 py-3 text-sm text-gray-500 flex items-center gap-2">

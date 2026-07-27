@@ -632,15 +632,17 @@ HIGH → MEDIUM → LOW, one clean-build commit per tier.
   height.
 
 DEFERRED (documented, not fixed blind):
-- Messaging composer under the mobile keyboard (PLAUSIBLE — h-[100dvh]
-  column, no visualViewport handling; dvh doesn't shrink for the
-  keyboard on iOS). Needs a real-device check before adding a
-  visualViewport handler; a speculative fix could make messaging worse.
-- AddEquipmentModal autocomplete dropdowns can clip inside the scrolling
-  form on short viewports (restructuring the scroll container is
-  riskier than the payoff for an equipment form).
-- hover: color states stick on touch app-wide (cosmetic, pervasive;
-  would need @media(hover:hover) variants everywhere).
+- ~~Messaging composer under the mobile keyboard~~ ADDRESSED July 27:
+  the h-[100dvh] "fix" never applied (h-screen won the CSS cascade —
+  verified in built stylesheet); replaced with h-dvh, added
+  interactiveWidget resizes-content (Android) and a visualViewport
+  --vvh handler (iOS). Pending device verification.
+- ~~AddEquipmentModal autocomplete dropdowns clip~~ ADDRESSED July 27:
+  panels capped to min(15rem,40vh) + scrollIntoView on open + touch
+  outside-close. No scroll-container restructuring.
+- ~~hover: color states stick on touch app-wide~~ NOT A BUG: Tailwind 4
+  gates every hover: variant behind @media (hover:hover) by default —
+  verified 99/99 hover rules wrapped in the built CSS. Nothing to fix.
 - Golf round page FIR/GIR toggles at 40px — accepted for table density.
 
 tsc/lint/test(59)/build clean per tier. Pushed → Vercel.
