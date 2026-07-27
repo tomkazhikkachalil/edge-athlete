@@ -16,6 +16,20 @@ const inter = Inter({
 export const metadata: Metadata = {
   title: "Edge Athlete",
   description: "Connect athletes, clubs, leagues, and fans",
+  // Absolute base for og/twitter image URLs. Swap NEXT_PUBLIC_APP_URL in
+  // Vercel when the custom domain (edgeathlete.ca) goes live.
+  metadataBase: new URL(process.env.NEXT_PUBLIC_APP_URL || 'https://edge-athlete.vercel.app'),
+  openGraph: {
+    title: 'Edge Athlete',
+    description: 'Connect athletes, clubs, leagues, and fans',
+    siteName: 'Edge Athlete',
+    type: 'website',
+    images: [{ url: '/og-image.png', width: 1200, height: 630, alt: 'Edge Athlete' }],
+  },
+  twitter: {
+    card: 'summary_large_image',
+    images: ['/og-image.png'],
+  },
   // Next serves the manifest from app/manifest.ts at /manifest.webmanifest
   manifest: "/manifest.webmanifest",
   appleWebApp: {
