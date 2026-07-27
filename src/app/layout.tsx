@@ -51,6 +51,9 @@ export const viewport: Viewport = {
   initialScale: 1,
   maximumScale: 5,
   viewportFit: 'cover',
+  // Resize the layout viewport when the software keyboard opens (Android/
+  // Chromium; iOS Safari ignores this — handled via visualViewport instead).
+  interactiveWidget: 'resizes-content',
   // Match the manifest theme so the mobile browser chrome / status bar
   // tints to the app's brand purple when installed.
   themeColor: '#7c3aed',

@@ -90,7 +90,7 @@ function MessagesContent() {
 
 export default function MessagesPage() {
   return (
-    <div className="flex flex-col h-screen h-[100dvh] bg-white">
+    <div className="flex flex-col h-dvh bg-white">
       <AppHeader showSearch={false} />
       <div className="flex-1 min-h-0">
         <Suspense fallback={

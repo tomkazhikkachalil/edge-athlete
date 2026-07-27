@@ -247,7 +247,7 @@ export default function MessageInput({ conversationId, currentUserId, onSend, di
     : null;
 
   return (
-    <div className="border-t border-gray-200 bg-white">
+    <div className="border-t border-gray-200 bg-white shrink-0 safe-bottom">
       {/* Reply preview bar */}
       {replyingTo && (
         <div className="flex items-center gap-2 px-4 py-2 bg-gray-50 border-b border-gray-200">
