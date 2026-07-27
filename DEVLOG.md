@@ -1,5 +1,41 @@
 # Development Log
 
+## July 27, 2026 (late night) — Guardian profiles: Phase 3b consent + review + guardian posting SHIPPED (dark)
+
+**Commits 7915ab3..a60c7cb, E2E 12/12, tests 348, all dark behind the
+flag. The full guardian loop now works end to end: create athlete →
+sign + upload consent → admin review → switch into the child → post.**
+
+- **Consent capture (COPPA signed-form method):** lib/consent.ts —
+  consent state is derived from the LATEST append-only consent_records
+  row (granted → pending_review, review_approved → approved, etc.);
+  policy text v1 lives with the code (CONSENT_POLICY_VERSION).
+  Guardian-ONLY upload route (owners/supervised/viewers refused):
+  photo/PDF ≤10MB → private consent-evidence bucket → audit row with
+  method, policy version, jurisdiction/threshold snapshot, guardian
+  email snapshot, ip, user agent. /app/guardian/consent/[profileId]
+  shows the statement + upload + pending/approved/rejected states;
+  wired from the add-athlete success screen.
+- **Admin review queue:** GET /api/admin/consent-reviews (requireAdmin)
+  — latest-per-profile pending submissions with 600s signed evidence
+  URLs; POST approve|reject inserts a NEW append-only row carrying the
+  granted row's snapshot forward + reviewed_by. /dashboard/consent page
+  renders it. E2E proved the audit property: UPDATE on consent rows
+  fails EVEN for the service role (trigger, not RLS).
+- **Guardian-posts-as-athlete:** posts POST accepts targetProfileId —
+  guardian row re-verified server-side per call, and publishing to a
+  supervised profile requires APPROVED consent (403 with a clear
+  message before). Post lands owned by the child, status published
+  (guardians hold approve_content). CreatePostModal automatically sends
+  the acting-as profile from useAuth().activeProfile. Stranger forging
+  targetProfileId → 403.
+- E2E residue note: consent audit rows persist with SET NULL ids after
+  test cleanup — by design (that's the compliance property).
+
+REMAINING: Phase 4 (username/PIN supervised login, guardian credential
+issuance/reset, PII handle validation), transfer flow + combined daily
+cron, delete parity + support tooling.
+
 ## July 27, 2026 (night) — Guardian profiles: Phase 2 complete (with corrective addendum) + Phase 3a guardian console SHIPPED (dark)
 
 **All still dark behind FEATURE_GUARDIAN_PROFILES (env-driven now:
