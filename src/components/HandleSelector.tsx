@@ -39,6 +39,7 @@ export default function HandleSelector({
       setValidationMessage('');
       setIsValid(false);
       setShowSuggestions(false);
+      onHandleSelected('');
       return;
     }
 
@@ -50,6 +51,7 @@ export default function HandleSelector({
         setValidationMessage(formatResult.error || 'Invalid handle format');
         setIsValid(false);
         setShowSuggestions(false);
+        onHandleSelected('');
         return;
       }
 
@@ -66,6 +68,7 @@ export default function HandleSelector({
         } else {
           setValidationMessage(availabilityResult.reason || 'Handle is not available');
           setIsValid(false);
+          onHandleSelected('');
           if (availabilityResult.suggestions && availabilityResult.suggestions.length > 0) {
             setSuggestions(availabilityResult.suggestions);
             setShowSuggestions(true);
@@ -75,6 +78,7 @@ export default function HandleSelector({
         console.error('Failed to check handle availability:', e);
         setValidationMessage('Error checking availability');
         setIsValid(false);
+        onHandleSelected('');
       } finally {
         setIsChecking(false);
       }
@@ -99,6 +103,9 @@ export default function HandleSelector({
     value = value.toLowerCase();
 
     setHandle(value);
+    // Invalidate the previously confirmed handle immediately — otherwise a
+    // submit inside the 500ms debounce window sends the stale one.
+    onHandleSelected('');
   };
 
   const handleSuggestionClick = (suggestion: string) => {

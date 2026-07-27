@@ -1,6 +1,7 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
+import * as Sentry from '@sentry/nextjs';
 import { useAuth } from '@/lib/auth';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
@@ -35,6 +36,17 @@ export default function Home() {
 
   const { signIn, user, profile, loading, initialAuthCheckComplete } = useAuth();
   const router = useRouter();
+  const errorRef = useRef<HTMLDivElement>(null);
+
+  // The error banner sits at the top of a tall form — on phones a failed
+  // submit was invisible (looked like the button did nothing). Bring it
+  // on-screen and announce it.
+  useEffect(() => {
+    if (error && errorRef.current) {
+      errorRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      errorRef.current.focus({ preventScroll: true });
+    }
+  }, [error]);
 
   // Redirect once logged in: brand-new users (no onboarded_at) get the
   // first-run onboarding; everyone else goes to their profile. Wait for the
@@ -132,9 +144,18 @@ export default function Home() {
       return;
     }
 
+    // The handle only lands in formData once HandleSelector confirms
+    // availability — an unconfirmed handle used to abort here with no
+    // visible feedback.
+    if (!formData.handle) {
+      setError('Please wait for your handle to be confirmed as available, or pick another handle.');
+      setIsSubmitting(false);
+      return;
+    }
+
     // Validate required fields
-    if (!formData.email || !formData.password || !formData.firstName || !formData.lastName || !formData.handle) {
-      setError('Please fill in all required fields including your handle');
+    if (!formData.email || !formData.password || !formData.firstName || !formData.lastName) {
+      setError('Please fill in all required fields');
       setIsSubmitting(false);
       return;
     }
@@ -194,6 +215,7 @@ export default function Home() {
       }
     } catch (err: unknown) {
       console.error('Registration error:', err);
+      Sentry.captureException(err);
       setError('An unexpected error occurred. Please try again.');
     } finally {
       setIsSubmitting(false);
@@ -268,7 +290,12 @@ export default function Home() {
             <div className="w-full p-6 sm:p-8">
               <h2 className="text-xl sm:text-2xl font-bold text-violet-800 space-micro">Create Athlete Account</h2>
               {error && (
-                <div className="bg-red-50 border border-red-200 text-red-600 px-4 py-3 rounded-md text-sm">
+                <div
+                  ref={errorRef}
+                  role="alert"
+                  tabIndex={-1}
+                  className="bg-red-50 border border-red-200 text-red-600 px-4 py-3 rounded-md text-sm"
+                >
                   {error}
                 </div>
               )}
@@ -453,8 +480,13 @@ export default function Home() {
                     minLength={6}
                   />
                 </div>
-                <button 
-                  type="submit" 
+                {error && (
+                  <p className="text-sm text-red-600 text-center" aria-hidden="true">
+                    {error}
+                  </p>
+                )}
+                <button
+                  type="submit"
                   disabled={isSubmitting}
                   className="w-full bg-violet-600 text-white py-3 px-4 rounded-md hover:bg-violet-700 transition duration-300 flex items-center justify-center text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed"
                 >
