@@ -1,5 +1,50 @@
 # Development Log
 
+## July 26, 2026 (later still) — MEDIA EDITOR Phase 2: video trim / split / cover frames
+
+**VIDEO EDITING SHIPPED (b5a0ff1, PUSHED + auto-deploying; no
+migration).** Videos in the shared editor get Trim + Cover tools:
+scrubbable thumbnail-strip timeline, pointer-captured drag handles
+(setPointerCapture + touch-action:none — first Pointer Events code in
+the repo, drags never scroll), trim-clamped looping preview,
+split-at-playhead into two filmstrip assets (each with its own
+trim/cover), and a cover-frame picker. Architecture as planned:
+
+- **Trim = exact re-encode to mp4 via mediabunny** (WebCodecs;
+  Conversion.init({trim}) with isValid/discardedTracks gate). The
+  508KB mediabunny chunk is LAZY — `await import()` only when a trim
+  actually runs; first-load JS unchanged (185kB). Exactness over
+  keyframe-snapped copying is deliberate: users get the cut they set.
+- **Cover frame = plain canvas seek+drawImage** (lib/media/poster.ts)
+  — deliberately NOT WebCodecs, so cover selection works on every
+  browser. No-WebCodecs browsers see a notice, trim disabled, original
+  uploads. Trim failures (odd codecs) also fall back to the original —
+  nothing ever breaks a post.
+- **post_media.thumbnail_url populated FOR THE FIRST TIME EVER** — the
+  composer uploads the cover frame (poster failure never fails the
+  post) and sends thumbnailUrl; the server had persisted it since day
+  one (posts/route.ts) with no client ever sending it. PostCard videos
+  now show a poster instead of a black frame.
+- Pure trim/split/thumbnail math in lib/media/video-math.ts, tested
+  (242→255). Split respects maxAssets; useEditorSession grew addAsset.
+
+**E2E in headless Chrome (7/7): the harness GENERATED the test video
+in-page** (canvas.captureStream + MediaRecorder → webm → setFiles) —
+no fixture needed. Flow: attach → thumbnails render → drag trim end
+(label updates) → scrub cover → export → publish → thumbnail_url
+NON-NULL in the DB. The test immediately caught a real edge case:
+MediaRecorder-produced files (screen recordings) report
+duration=Infinity until force-seeked to the end once —
+ensureSeekableDuration() now handles it in the stage, timeline, and
+poster capture. (Same class of file also declines to trim via
+mediabunny → clean fallback; phone MP4s carry real metadata.) React
+footnote: e.currentTarget is nulled after an event handler returns —
+capture it before any await.
+
+Build clean (cold-build benign warning only), lint clean, vitest 255,
+npm ci clean. QA post/files/user + dev server cleaned up. The media
+editing feature request is now COMPLETE end to end (images + video).
+
 ## July 26, 2026 (late night) — MEDIA EDITOR Phase 1 shipped + cover photo + post-release fixes
 
 **IN-APP MEDIA EDITING (5 commits 969c670..13501dc, migration 047,
