@@ -1,5 +1,47 @@
 # Development Log
 
+## July 27, 2026 (later) — OAuth sprint: Google sign-in LIVE
+
+**GOOGLE OAUTH SHIPPED + VERIFIED IN PROD (6 commits 85e46d3..e469134,
+deployed; Tom-tested with his real account).** Sign in with Google on
+login + signup; Apple built but parked behind NEXT_PUBLIC_OAUTH_APPLE=1
+(needs the $99/yr dev account; its Supabase client-secret JWT expires
+≤6 months — set a rotation reminder when configured).
+
+Architecture (provider-agnostic PKCE):
+- `lib/oauth.ts` signInWithProvider → provider → Supabase →
+  `/auth/callback` Route Handler: code exchange with the ssr
+  getAll/setAll cookie adapter (auth-server's getServerClient has NO-OP
+  cookie setters — it can never do the exchange), then routes by
+  profile state: onboarded → /athlete, not onboarded → /onboarding,
+  **no profile → /auth/complete-profile**.
+- First-timers get a one-time complete-profile screen: names prefilled
+  from user_metadata (`lib/oauth-profile.ts`, pure + tested; Apple only
+  sends the name on FIRST auth so the email-local-part fallback is
+  load-bearing), email read-only, HandleSelector required.
+- `POST /api/auth/complete-profile`: admin-client insert (profiles has
+  no RLS INSERT policy), handle set AT CREATION (update_user_handle()
+  refuses NULL→value — there is no later path), display_name always set
+  (check constraint), email-collision 409, server-side availability
+  re-check, idempotent.
+- Landing page: session-without-profile now routes to complete-profile
+  (previously re-rendered the LOGIN FORM for an authenticated user —
+  dead-end); callback ?error= surfaces in the login error box.
+- Both provider buttons flag-gated (NEXT_PUBLIC_OAUTH_GOOGLE/APPLE) —
+  a visible button that errors is worse than no button.
+
+Verified: tests 266→281; 13/13 automated E2E locally (real
+accounts.google.com redirect; simulated first-timer via admin-created
+user with Google-shaped metadata + minted ssr cookie: routing, prefill,
+handle, DB row incl. avatar_url, idempotency, callback error paths);
+prod browser-check (button live, redirects to Google); Tom's real
+sign-in exercised the email-collision path — Supabase AUTO-LINKED the
+Google identity to his verified-email password account and routed
+straight to /athlete (expected behavior, now confirmed empirically).
+
+Google Cloud setup note: OAuth consent screen + credentials are FREE
+(no billing account) — initially deferred on a cost misunderstanding.
+
 ## July 27, 2026 (end of session) — Maintenance checklist + sync
 
 - lint clean · `tsc --noEmit` clean · `vitest` 266 passed (29 files) ·
