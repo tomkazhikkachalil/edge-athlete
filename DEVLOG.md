@@ -1,5 +1,18 @@
 # Development Log
 
+## July 26, 2026 (end of session) — Maintenance checklist + sync
+
+- lint clean · `tsc --noEmit` clean · `vitest` 255 passed (28 files) ·
+  `npm ci --dry-run` clean · full clean `npm run build` exit 0 (dev
+  server stopped, `.next` wiped first), all routes compile, only the
+  documented benign realtime/Edge warning.
+- Migration state: through 047 all confirmed run + verified live.
+  No pending migrations.
+- Deployed through b5a0ff1 (media editor Phases 1+2 + cover photo +
+  post-release fixes), Vercel green, prod site 200. This entry is the
+  maintenance-log commit → GitHub → Vercel.
+- Awaiting Tom's device pass on video trim/cover (phone).
+
 ## July 26, 2026 (later still) — MEDIA EDITOR Phase 2: video trim / split / cover frames
 
 **VIDEO EDITING SHIPPED (b5a0ff1, PUSHED + auto-deploying; no
