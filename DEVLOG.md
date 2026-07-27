@@ -1,5 +1,80 @@
 # Development Log
 
+## July 27, 2026 (night) — Guardian profiles: Phase 2 complete (with corrective addendum) + Phase 3a guardian console SHIPPED (dark)
+
+**All still dark behind FEATURE_GUARDIAN_PROFILES (env-driven now:
+NEXT_PUBLIC_FEATURE_GUARDIAN_PROFILES=1 in Tom's .env.local, unset in
+Vercel). Migrations 051–054 all RUN + behaviorally verified. Commits
+10c59d7..27b1063. Tests 348.**
+
+**Phase 2 UI + corrective addendum.** DOB-gated signup step machine
+shipped, then Tom's hands-on test caught THREE defects + spec drift,
+all fixed same day (df4e3d9): (1) question order was DOB→role — a
+parent entering their child's DOB tripped the minor gate before the
+system knew an adult was present; now ROLE FIRST, then branch-worded
+DOB ("Your…" vs "Your athlete's…"), still threshold-neutral. (2) The
+missing actor guard: /api/signup's actorRole routing table makes
+pending_guardian UNREACHABLE for guardians. (3) Registered guardian
+email = MATCH not collision (invite email + landing CTA switch to "log
+in"). Two-step parent flow restored per spec: Step A = name/email/
+password only (null handle/dob) → "add your athlete" handoff.
+Resend/typo = re-submit same child email (prior pending + invites
+expire, exactly one live). DOB self-service locked out on supervised/
+locked profiles (profile PUT strips it). E2E v2 15/15. LESSON: the
+build drifted from an explicit spec (two-step parent flow collapsed
+into one form) — "restore the two-step structure" was the fix, not a
+redesign.
+
+**Decisions locked (Tom's five questions, stated as decisions):** child
+accounts are FUNCTIONALLY email-less (synthetic <id>@minors.invalid;
+literal nullable is impossible — Supabase auth requires an email — and
+unnecessary); child sign-in = handle-as-username + password/PIN via a
+supervised-only server route (Phase 4), forgot-password routes to the
+guardian; the parent↔child relationship lives EXCLUSIVELY on
+profile_access (both directions indexed; child row holds no parent
+pointer); switching is in-session with an always-visible acting-as
+banner; NO shared email, ever.
+
+**Phase 3a — guardian console core (E2E 14/14):**
+- Migrations 053 (create_managed_profile + grant_guardian_access RPCs,
+  update_user_handle NULL→value first-set for owner/guardian,
+  guardian_invite/athlete_added notification types) + 054 (first-set
+  permission fix: 053 checked auth.uid(), which is NULL for the
+  service-role client the handles route uses — trusted-bypass is now
+  the jwt role claim; anon still blocked).
+- POST/GET /api/guardian/athletes: shadow auth identity (synthetic
+  email + unknown password, unloginable), create_managed_profile RPC,
+  forced minor-safety defaults (private / messaging nobody / supervised
+  / dob_locked / jurisdiction snapshot), shadow-user rollback on
+  failure. GOTCHA: jsonb_populate_record leaves absent fields NULL and
+  INSERT with explicit NULLs BYPASSES column defaults — created_at/
+  updated_at must be passed in p_profile (E2E caught the 23502).
+- Add-your-athlete page: name/DOB/handle, NO email field, repeatable
+  (twins verified — deliberately no name+DOB dedupe anywhere).
+- In-session switcher: useAuth gains managedProfiles/activeProfile/
+  setActiveProfile (RLS-read via 052 policies, localStorage-persisted);
+  AppHeader "Your athletes" section; amber "Acting as {name} — switch
+  back to me" banner mounted in the root layout, on every screen.
+- Invite claim: POST /api/invites/[token]/claim atomically consumes the
+  single-use token → pending consent_pending → Step B prefilled (name/
+  DOB via sessionStorage) → creation finalizes approved +
+  promoted_profile_id. The parked child_email is DISCARDED by decision.
+
+**Also this block:** migration 052 (RLS defense-in-depth: additive
+guardian/supervised/viewer read + guardian write policies — additive so
+live policy bodies are never clobbered; posts_select_policy rewritten
+with the status='published' arm, columns explicitly qualified re the
+new posts.status vs follows.status ambiguity; can_view_profile gains
+the profile_access branch; deliberately NO supervised RLS write path —
+it would bypass the approval queue via PostgREST). Verified by an RLS
+probe suite: 4 disposable role-users hitting PostgREST with their own
+JWTs, 14/14.
+
+REMAINING: Phase 3b (consent capture + admin review queue +
+approval-queue UI + targetProfileId on content writes), Phase 4
+(username/PIN supervised login + guardian credential reset), transfer
+flow + combined daily cron, delete parity + support tooling.
+
 ## July 27, 2026 (evening) — Guardian profiles: proposal approved, Phases 0–1 + Phase-2 server core SHIPPED (dark)
 
 **PARENT-MANAGED ATHLETE PROFILES — the largest architectural change to
