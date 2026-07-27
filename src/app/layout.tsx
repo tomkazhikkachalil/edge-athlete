@@ -38,8 +38,8 @@ export const viewport: Viewport = {
   maximumScale: 5,
   viewportFit: 'cover',
   // Match the manifest theme so the mobile browser chrome / status bar
-  // tints to the app's blue when installed.
-  themeColor: '#2563eb',
+  // tints to the app's brand purple when installed.
+  themeColor: '#7c3aed',
 };
 
 export default function RootLayout({

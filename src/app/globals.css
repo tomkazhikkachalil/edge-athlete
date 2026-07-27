@@ -86,9 +86,9 @@
   /* Semantic color tokens — usable as Tailwind utilities
    * (text-brand, bg-surface, ring-brand, etc.)
    * Values mirror Tailwind palette for visual consistency with existing code. */
-  --color-brand: #2563eb;        /* blue-600 — primary brand / CTA */
-  --color-brand-hover: #1d4ed8;  /* blue-700 — CTA hover */
-  --color-brand-soft: #eff6ff;   /* blue-50 — soft brand surfaces */
+  --color-brand: #7c3aed;        /* violet-600 — primary brand / CTA */
+  --color-brand-hover: #6d28d9;  /* violet-700 — CTA hover */
+  --color-brand-soft: #f5f3ff;   /* violet-50 — soft brand surfaces */
   --color-surface: #ffffff;       /* card / sheet background */
   --color-surface-muted: #f9fafb; /* hover, subtle background */
   --color-border: #e5e7eb;       /* gray-200 — default border */
@@ -124,7 +124,7 @@ body {
 
 /* Selection color — subtle brand polish */
 ::selection {
-  background-color: rgba(37, 99, 235, 0.18); /* brand @ 18% */
+  background-color: rgba(124, 58, 237, 0.18); /* brand @ 18% */
   color: inherit;
 }
 
@@ -150,8 +150,8 @@ body {
 }
 
 @keyframes ea-edit-pulse {
-  0%   { box-shadow: 0 0 0 0 rgba(59, 130, 246, 0.35); }
-  100% { box-shadow: 0 0 0 6px rgba(59, 130, 246, 0); }
+  0%   { box-shadow: 0 0 0 0 rgba(139, 92, 246, 0.35); }
+  100% { box-shadow: 0 0 0 6px rgba(139, 92, 246, 0); }
 }
 
 .ea-edit-pulse {

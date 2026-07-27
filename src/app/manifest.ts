@@ -10,8 +10,8 @@ export default function manifest(): MetadataRoute.Manifest {
     description: 'Track your stats and trends, share your game, and connect with other athletes.',
     start_url: '/feed',
     display: 'standalone',
-    background_color: '#eff6ff',
-    theme_color: '#2563eb',
+    background_color: '#f5f3ff',
+    theme_color: '#7c3aed',
     orientation: 'portrait',
     icons: [
       { src: '/icon-192.png', sizes: '192x192', type: 'image/png' },

@@ -118,12 +118,12 @@ This email was sent from your website's contact form.
 
     const htmlContent = `
       <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-        <h2 style="color:#1d4ed8;">Hi ${escapeHtml(displayName || 'there')},</h2>
+        <h2 style="color:#6d28d9;">Hi ${escapeHtml(displayName || 'there')},</h2>
         <p style="color:#333;font-size:15px;">You have ${count} new notification${count === 1 ? '' : 's'} on Edge Athlete:</p>
         <table style="width:100%;border-collapse:collapse;margin:16px 0;">${rows}</table>
         ${more}
         <a href="${appUrl}/app/notifications"
-           style="display:inline-block;background:#2563eb;color:#fff;text-decoration:none;padding:10px 20px;border-radius:6px;font-size:14px;margin-top:8px;">
+           style="display:inline-block;background:#7c3aed;color:#fff;text-decoration:none;padding:10px 20px;border-radius:6px;font-size:14px;margin-top:8px;">
           View on Edge Athlete
         </a>
         <p style="color:#aaa;font-size:12px;margin-top:24px;border-top:1px solid #eee;padding-top:16px;">

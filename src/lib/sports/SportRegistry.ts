@@ -108,7 +108,7 @@ export const SPORT_REGISTRY: Record<SportKey, SportDefinition> = {
   ice_hockey: {
     sport_key: 'ice_hockey',
     display_name: 'Ice Hockey',
-    brand_color_token: 'blue',
+    brand_color_token: 'violet',
     icon_id: 'fas fa-hockey-puck',
     enabled: true,
     metric_labels: {
