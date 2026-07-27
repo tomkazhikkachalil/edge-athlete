@@ -35,8 +35,35 @@ export async function POST(request: NextRequest) {
       stats_data: incomingStatsData = null, // Optional structured metadata (e.g. vitals_entry)
     } = body;
 
-    // Use authenticated user's ID
-    const userId = user.id;
+    // Content owner: the session user, or — guardian-profiles — a managed
+    // athlete via targetProfileId. Server-authoritative: the guardian row is
+    // re-checked here, and publishing to a supervised profile requires
+    // APPROVED parental consent.
+    let userId = user.id;
+    const targetProfileId =
+      typeof body.targetProfileId === 'string' ? body.targetProfileId : null;
+    if (targetProfileId && targetProfileId !== user.id) {
+      if (!FEATURE_FLAGS.FEATURE_GUARDIAN_PROFILES) {
+        return NextResponse.json({ error: 'Not available' }, { status: 404 });
+      }
+      const { getProfileRole } = await import('@/lib/auth-server');
+      const role = await getProfileRole(user.id, targetProfileId);
+      if (role !== 'guardian') {
+        return NextResponse.json(
+          { error: 'You do not have permission to post to this profile' },
+          { status: 403 }
+        );
+      }
+      const { getConsentState } = await import('@/lib/consent');
+      const consent = await getConsentState(supabase, targetProfileId);
+      if (consent !== 'approved') {
+        return NextResponse.json(
+          { error: 'Parental consent must be approved before anything can be posted to this profile.' },
+          { status: 403 }
+        );
+      }
+      userId = targetProfileId;
+    }
 
     // Validate post type: 'general' plus any registry-enabled sport.
     // Enabling a sport in SportRegistry automatically allows its posts here.

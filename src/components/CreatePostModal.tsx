@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useCallback, useRef, useEffect } from 'react';
+import { useAuth } from '@/lib/auth';
 import { calcPlayerTotals } from '@/lib/golf/scoring';
 import { useToast } from '@/components/Toast';
 import LazyImage from '@/components/LazyImage';
@@ -130,6 +131,7 @@ export default function CreatePostModal({
   defaultSportKey = 'general'
 }: CreatePostModalProps) {
   const { showSuccess, showError } = useToast();
+  const { activeProfile } = useAuth();
   const captionRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -840,7 +842,10 @@ export default function CreatePostModal({
           isStatLineSport && statLineData && statLineHasContent(statLineData)
             ? statLineData
             : undefined,
-        taggedProfiles: taggedProfiles // Add tagged people
+        taggedProfiles: taggedProfiles, // Add tagged people
+        // Guardian-profiles: post to the acting-as athlete's profile.
+        // Server re-authorizes (guardian row + approved consent).
+        ...(activeProfile ? { targetProfileId: activeProfile.id } : {}),
       };
 
 
