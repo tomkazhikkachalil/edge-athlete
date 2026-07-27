@@ -4,6 +4,7 @@ import { requireAuth, getSupabaseAdmin } from '@/lib/auth-server';
 import { GROUP_SCORECARD_SELECT, transformGroupPostToScorecard } from '@/lib/golf/scorecard-transform';
 import { isActiveParticipant, isRoundLive } from '@/lib/golf/round-status';
 import { canPin, MAX_PINNED_POSTS } from '@/lib/posts/pinning';
+import { FEATURE_FLAGS } from '@/lib/features';
 
 // Interface for tagged profiles
 interface TaggedProfile {
@@ -482,6 +483,15 @@ export async function GET(request: NextRequest) {
       // read private posts. 404, not 403, so a hidden post's existence isn't
       // confirmed.
       const isOwnPost = currentUserId === post.profile_id;
+      // Pending/rejected posts are visible only to their author (guardian
+      // access arrives with the approval-queue UI). Flag-gated: posts.status
+      // doesn't exist until migration 051 runs.
+      if (
+        FEATURE_FLAGS.FEATURE_GUARDIAN_PROFILES &&
+        post.status && post.status !== 'published' && !isOwnPost
+      ) {
+        return NextResponse.json({ error: 'Post not found' }, { status: 404 });
+      }
       const publiclyVisible = post.visibility === 'public' && post.profiles?.visibility === 'public';
       if (!isOwnPost && !publiclyVisible) {
         let allowed = false;
@@ -653,6 +663,12 @@ export async function GET(request: NextRequest) {
     // Filter by user if provided
     if (userId) {
       query = query.eq('profile_id', userId);
+    }
+
+    // Approval queue: unpublished posts never reach list surfaces.
+    // Flag-gated — posts.status doesn't exist until migration 051 runs.
+    if (FEATURE_FLAGS.FEATURE_GUARDIAN_PROFILES) {
+      query = query.eq('status', 'published');
     }
 
     if (pinnedOnly) {

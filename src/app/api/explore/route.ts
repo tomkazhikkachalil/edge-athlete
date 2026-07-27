@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '@/lib/auth-server';
 import { getSportDefinition, SPORT_REGISTRY, type SportKey } from '@/lib/sports/SportRegistry';
+import { FEATURE_FLAGS } from '@/lib/features';
 
 /**
  * GET /api/explore?sport=<sport_key>&limit=24
@@ -55,6 +56,11 @@ export async function GET(request: NextRequest) {
 
     if (sportKey) {
       postQuery = postQuery.eq('sport_key', sportKey);
+    }
+
+    // Flag-gated: posts.status doesn't exist until migration 051 runs.
+    if (FEATURE_FLAGS.FEATURE_GUARDIAN_PROFILES) {
+      postQuery = postQuery.eq('status', 'published');
     }
 
     const [athletesResult, postsResult] = await Promise.all([athleteQuery, postQuery]);

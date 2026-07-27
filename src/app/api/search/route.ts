@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseAdmin, requireAuth } from '@/lib/auth-server';
+import { FEATURE_FLAGS } from '@/lib/features';
 
 // Feature flag for full-text search (set to false to use old ILIKE method)
 const USE_FULLTEXT_SEARCH = true;
@@ -193,6 +194,11 @@ export async function GET(request: NextRequest) {
                 `)
                 .in('id', postIds);
 
+              // Flag-gated: posts.status doesn't exist until migration 051.
+              if (FEATURE_FLAGS.FEATURE_GUARDIAN_PROFILES) {
+                postQuery = postQuery.eq('status', 'published');
+              }
+
               // Apply filters
               if (sport) {
                 postQuery = postQuery.eq('sport_key', sport);
@@ -244,6 +250,11 @@ export async function GET(request: NextRequest) {
           `)
           .eq('visibility', 'public')
           .ilike('caption', searchPattern);
+
+        // Flag-gated: posts.status doesn't exist until migration 051.
+        if (FEATURE_FLAGS.FEATURE_GUARDIAN_PROFILES) {
+          postQuery = postQuery.eq('status', 'published');
+        }
 
         if (sport) {
           postQuery = postQuery.eq('sport_key', sport);
