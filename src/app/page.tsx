@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { useAuth } from '@/lib/auth';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
+import BrandBar from '@/components/BrandBar';
 import { supabase } from '@/lib/supabase';
 import WaitlistPopup from '@/components/WaitlistPopup';
 import HandleSelector from '@/components/HandleSelector';
@@ -260,9 +261,7 @@ export default function Home() {
   if (showAthleteRegistration) {
     return (
       <div className="min-h-screen flex flex-col bg-violet-50">
-        <div className="w-full bg-violet-600 py-micro px-micro">
-          <h1 className="text-2xl sm:text-3xl font-bold text-white text-center">Edge Athlete</h1>
-        </div>
+        <BrandBar />
         
         <div className="flex-grow flex items-center justify-center p-4">
           <div className="w-full max-w-3xl bg-white rounded-lg shadow-lg overflow-hidden">
@@ -490,9 +489,7 @@ export default function Home() {
 
   return (
     <div className="min-h-screen flex flex-col bg-violet-50">
-      <div className="w-full bg-violet-600 py-3 px-4 sm:py-4">
-        <h1 className="text-2xl sm:text-3xl lg:text-4xl font-bold text-white text-center">Edge Athlete</h1>
-      </div>
+      <BrandBar />
       
       <div className="flex-grow flex items-center justify-center p-4">
         <div className="w-full max-w-4xl flex flex-col lg:flex-row bg-white rounded-lg shadow-lg overflow-hidden">

@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import Image from 'next/image';
 import Link from 'next/link';
 import { useRouter, usePathname } from 'next/navigation';
 import { useAuth } from '@/lib/auth';
@@ -65,9 +66,17 @@ export default function AppHeader({ showSearch = true, onCreatePost, onEditProfi
             <div className="flex items-center gap-6 flex-1">
               <button
                 onClick={() => router.push('/feed')}
-                className="text-xl font-bold text-gray-900 hover:text-violet-600 transition-colors whitespace-nowrap"
+                className="flex items-center hover:opacity-80 transition-opacity whitespace-nowrap"
+                aria-label="Edge Athlete — go to feed"
               >
-                Edge Athlete
+                <Image
+                  src="/logo.png"
+                  alt="Edge Athlete"
+                  width={140}
+                  height={35}
+                  priority
+                  className="h-7 w-auto"
+                />
               </button>
 
               {/* Desktop Navigation */}
@@ -260,7 +269,10 @@ export default function AppHeader({ showSearch = true, onCreatePost, onEditProfi
           {/* Header */}
           <div className="p-4 border-b border-gray-200">
             <div className="flex items-center justify-between">
-              <h2 className="text-lg font-bold text-gray-900">Menu</h2>
+              <h2 className="text-lg font-bold text-gray-900">
+                <span className="sr-only">Menu</span>
+                <Image src="/logo.png" alt="" width={120} height={30} className="h-6 w-auto" />
+              </h2>
               <button
                 onClick={() => setIsMobileMenuOpen(false)}
                 className="text-gray-500 hover:text-gray-700 p-2 -m-2 rounded-lg"

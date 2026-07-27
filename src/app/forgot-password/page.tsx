@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
+import BrandBar from '@/components/BrandBar';
 import { supabase } from '@/lib/supabase';
 
 export default function ForgotPasswordPage() {
@@ -37,9 +38,7 @@ export default function ForgotPasswordPage() {
 
   return (
     <div className="min-h-screen flex flex-col bg-violet-50">
-      <div className="w-full bg-violet-600 py-3 px-4 sm:py-4">
-        <h1 className="text-2xl sm:text-3xl lg:text-4xl font-bold text-white text-center">Edge Athlete</h1>
-      </div>
+      <BrandBar />
 
       <div className="flex-grow flex items-center justify-center p-4">
         <div className="w-full max-w-md bg-white rounded-lg shadow-lg p-6 sm:p-8">

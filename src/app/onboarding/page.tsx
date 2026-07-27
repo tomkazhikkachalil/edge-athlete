@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth';
+import BrandBar from '@/components/BrandBar';
 import LazyImage from '@/components/LazyImage';
 import AvatarUploader from '@/components/AvatarUploader';
 import ConnectionSuggestions from '@/components/ConnectionSuggestions';
@@ -115,9 +116,7 @@ export default function OnboardingPage() {
 
   return (
     <div className="min-h-screen bg-violet-50 flex flex-col">
-      <div className="w-full bg-violet-600 py-3 px-4">
-        <h1 className="text-2xl font-bold text-white text-center">Edge Athlete</h1>
-      </div>
+      <BrandBar />
 
       <div className="flex-grow flex items-center justify-center p-4">
         <div className="w-full max-w-lg bg-white rounded-lg shadow-lg p-6 sm:p-8">
