@@ -74,7 +74,7 @@ export default function CropStage({ imageUrl, recipe, config, cssFilter, onPatch
         />
       </div>
 
-      <div className="flex items-center gap-2 px-4 py-3 overflow-x-auto scrollbar-hide">
+      <div className="flex items-center gap-2 px-4 py-3 overflow-x-auto scrollbar-hide w-full max-w-xl mx-auto">
         {!config.enforcedRatio &&
           config.aspectRatios.map(id => (
             <button
@@ -106,7 +106,7 @@ export default function CropStage({ imageUrl, recipe, config, cssFilter, onPatch
         </button>
       </div>
 
-      <div className="flex items-center gap-3 px-4 pb-3">
+      <div className="flex items-center gap-3 px-4 pb-3 w-full max-w-xl mx-auto">
         <span className="text-chip text-white/60 w-16">Straighten</span>
         <input
           type="range"

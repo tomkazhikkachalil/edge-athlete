@@ -17,7 +17,7 @@ interface AdjustPanelProps {
 /** Three sliders → live CSS-filter preview (zero canvas per frame). */
 export default function AdjustPanel({ adjustments, onChange }: AdjustPanelProps) {
   return (
-    <div className="px-4 py-3 space-y-2">
+    <div className="px-4 py-3 space-y-2 w-full max-w-xl mx-auto">
       {SLIDERS.map(({ key, label }) => (
         <div key={key} className="flex items-center gap-3">
           <span className="text-chip text-white/60 w-20">{label}</span>
@@ -36,13 +36,15 @@ export default function AdjustPanel({ adjustments, onChange }: AdjustPanelProps)
           </span>
         </div>
       ))}
-      <button
-        type="button"
-        onClick={() => onChange({ ...NEUTRAL_ADJUSTMENTS })}
-        className="text-chip text-white/60 hover:text-white underline min-h-[36px]"
-      >
-        Reset
-      </button>
+      <div className="flex justify-end">
+        <button
+          type="button"
+          onClick={() => onChange({ ...NEUTRAL_ADJUSTMENTS })}
+          className="px-3 min-h-[36px] rounded-full text-chip text-white/70 bg-white/10 hover:bg-white/20 hover:text-white"
+        >
+          Reset
+        </button>
+      </div>
     </div>
   );
 }

@@ -131,7 +131,7 @@ export default function TrimTimeline({
   };
 
   return (
-    <div className="px-4 py-2 select-none">
+    <div className="px-4 py-2 select-none w-full max-w-xl mx-auto">
       <div
         ref={trackRef}
         onPointerDown={scrub}

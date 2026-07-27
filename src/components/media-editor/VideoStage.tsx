@@ -89,31 +89,35 @@ export default function VideoStage({
   return (
     <div className="flex flex-col flex-1 min-h-0">
       <div className="relative flex-1 min-h-0 flex items-center justify-center overflow-hidden">
-        <video
-          ref={videoRef}
-          src={videoUrl}
-          playsInline
-          muted
-          preload="metadata"
-          onLoadedMetadata={e => {
-            // MediaRecorder files report Infinity until force-seeked once.
-            // currentTarget is nulled after the handler returns — capture it.
-            const video = e.currentTarget;
-            void import('@/lib/media/poster').then(async ({ ensureSeekableDuration }) =>
-              setDuration(await ensureSeekableDuration(video))
-            );
-          }}
-          onClick={togglePlay}
-          className="max-w-full max-h-full"
-        />
-        <button
-          type="button"
-          onClick={togglePlay}
-          aria-label={playing ? 'Pause' : 'Play'}
-          className="absolute bottom-2 left-4 w-11 h-11 rounded-full bg-black/60 text-white flex items-center justify-center hover:bg-black/80"
-        >
-          {playing ? <Pause className="w-5 h-5" /> : <Play className="w-5 h-5 ml-0.5" />}
-        </button>
+        {/* Wrapper is exactly the video's box, so the play button anchors to
+            the video's corner — never floating in the letterbox dead space */}
+        <div className="relative inline-flex max-w-full max-h-full">
+          <video
+            ref={videoRef}
+            src={videoUrl}
+            playsInline
+            muted
+            preload="metadata"
+            onLoadedMetadata={e => {
+              // MediaRecorder files report Infinity until force-seeked once.
+              // currentTarget is nulled after the handler returns — capture it.
+              const video = e.currentTarget;
+              void import('@/lib/media/poster').then(async ({ ensureSeekableDuration }) =>
+                setDuration(await ensureSeekableDuration(video))
+              );
+            }}
+            onClick={togglePlay}
+            className="max-w-full max-h-full"
+          />
+          <button
+            type="button"
+            onClick={togglePlay}
+            aria-label={playing ? 'Pause' : 'Play'}
+            className="absolute bottom-2 left-2 w-11 h-11 rounded-full bg-black/60 text-white flex items-center justify-center hover:bg-black/80"
+          >
+            {playing ? <Pause className="w-5 h-5" /> : <Play className="w-5 h-5 ml-0.5" />}
+          </button>
+        </div>
       </div>
 
       {tool === 'trim' ? (
@@ -133,7 +137,7 @@ export default function VideoStage({
             onTrimChange={canTrim ? trim => onPatch({ trim }) : undefined}
             onScrub={seekTo}
           />
-          <div className="flex items-center gap-3 px-4 pb-2 text-chip text-white/70">
+          <div className="flex items-center gap-3 px-4 pb-2 text-chip text-white/70 w-full max-w-xl mx-auto">
             <span className="tabular-nums">
               {formatClipTime(range.start)} – {formatClipTime(range.end)}
               {duration > 0 && ` (${formatClipTime(range.end - range.start)})`}
@@ -171,7 +175,7 @@ export default function VideoStage({
               onPatch({ posterTime: time });
             }}
           />
-          <p className="px-4 pb-2 text-chip text-white/70">
+          <p className="px-4 pb-2 text-chip text-white/70 w-full max-w-xl mx-auto">
             Drag on the timeline to pick the cover frame ({formatClipTime(recipe.posterTime)}).
           </p>
         </>

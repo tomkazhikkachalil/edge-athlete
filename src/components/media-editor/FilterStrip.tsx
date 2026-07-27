@@ -20,7 +20,7 @@ export default function FilterStrip({ imageUrl, activeFilterId, onSelect }: Filt
   ];
 
   return (
-    <div className="flex gap-3 px-4 py-3 overflow-x-auto scrollbar-hide">
+    <div className="flex gap-3 px-4 py-3 overflow-x-auto scrollbar-hide sm:justify-center">
       {options.map(option => (
         <button
           key={option.label}
