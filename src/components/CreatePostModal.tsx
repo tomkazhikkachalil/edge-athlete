@@ -15,6 +15,9 @@ import { getStatSchema, type StatLineData } from '@/lib/sports/stat-schemas';
 import type { HoleData, GolfCourse } from '@/types/golf';
 import type { CompleteGolfScorecard, ParticipantRole } from '@/types/group-posts';
 import { useBodyScrollLock } from '@/hooks/useBodyScrollLock';
+import { MediaEditor } from '@/components/media-editor';
+import { validateFiles } from '@/lib/media/validation';
+import type { EditRecipe, EditedMedia, EditorConfig, MediaAsset } from '@/lib/media/types';
 
 interface CreatePostModalProps {
   isOpen: boolean;
@@ -31,6 +34,10 @@ interface MediaFile {
   size: number;
   file?: File;
   preview?: string;
+  /** Original picked file — re-opening the editor starts from this. */
+  sourceFile?: File;
+  /** The edit that produced `file`; rehydrates the editor on re-edit. */
+  recipe?: EditRecipe;
 }
 
 interface GolfRoundData {
@@ -149,7 +156,6 @@ export default function CreatePostModal({
 
   // Media management
   const [mediaFiles, setMediaFiles] = useState<MediaFile[]>([]);
-  const [uploading, setUploading] = useState(false);
   const [draggedOver, setDraggedOver] = useState(false);
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
 
@@ -207,6 +213,11 @@ export default function CreatePostModal({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showPreview, setShowPreview] = useState(false);
 
+  // Shared media editor session (null = closed). editingExistingId set when
+  // re-editing an already-attached asset (result replaces it in place).
+  const [editorAssets, setEditorAssets] = useState<MediaAsset[] | null>(null);
+  const [editingExistingId, setEditingExistingId] = useState<string | null>(null);
+
   // Tagging people
   const [taggedProfiles, setTaggedProfiles] = useState<string[]>([]);
   const [taggedProfilesData, setTaggedProfilesData] = useState<{id: string; name: string}[]>([]);
@@ -216,6 +227,13 @@ export default function CreatePostModal({
   const MAX_CAPTION_LENGTH = 500;
   const MAX_HASHTAGS = 10;
   const MAX_MEDIA_FILES = 10;
+
+  const COMPOSER_EDITOR_CONFIG: EditorConfig = {
+    aspectRatios: ['free', '1:1', '4:5', '16:9'],
+    allowVideo: true, // videos pass through untouched until the video phase
+    maxAssets: MAX_MEDIA_FILES,
+    output: { maxDimension: 2048, mime: 'image/jpeg', quality: 0.9 },
+  };
 
   // Search for golf courses (for shared rounds)
   const searchCourses = useCallback(async (query: string) => {
@@ -373,48 +391,66 @@ export default function CreatePostModal({
     onClose();
   };
 
-  // Handle file upload
-  const handleFileUpload = useCallback(async (files: FileList) => {
+  // Picked files go through the shared media editor before joining the post.
+  // Validation now mirrors the server allowlist AT PICK (HEIC no longer fails
+  // after a full upload — it re-encodes in the editor), and the size cap
+  // matches the server's 50MB (edited images re-encode far smaller anyway).
+  const handleFileUpload = useCallback((files: FileList) => {
     if (files.length === 0) return;
-    if (mediaFiles.length + files.length > MAX_MEDIA_FILES) {
-      showError('Too many files', `Maximum ${MAX_MEDIA_FILES} files allowed`);
-      return;
+    const { accepted, rejected } = validateFiles(Array.from(files), {
+      maxBytes: 50 * 1024 * 1024,
+      allowVideo: true,
+      maxCount: MAX_MEDIA_FILES,
+      existingCount: mediaFiles.length,
+    });
+    for (const r of rejected) {
+      showError('File not added', r.message);
     }
-
-    setUploading(true);
-    const newFiles: MediaFile[] = [];
-
-    for (const file of Array.from(files)) {
-      // Validate file
-      if (file.size > 5 * 1024 * 1024) {
-        showError('File too large', `${file.name} exceeds 5MB limit`);
-        continue;
-      }
-
-      const isImage = file.type.startsWith('image/');
-      const isVideo = file.type.startsWith('video/');
-
-      if (!isImage && !isVideo) {
-        showError('Invalid file type', `${file.name} is not an image or video`);
-        continue;
-      }
-
-      // Create preview
-      const preview = URL.createObjectURL(file);
-
-      newFiles.push({
+    if (accepted.length === 0) return;
+    setEditingExistingId(null);
+    setEditorAssets(
+      accepted.map(file => ({
         id: `${Date.now()}-${Math.random()}`,
-        url: preview,
-        type: isVideo ? 'video' : 'image',
-        size: file.size,
-        file: file,
-        preview: preview
-      });
-    }
-
-    setMediaFiles(prev => [...prev, ...newFiles]);
-    setUploading(false);
+        file,
+        kind: file.type.startsWith('video/') ? 'video' as const : 'image' as const,
+      }))
+    );
   }, [mediaFiles.length, showError]);
+
+  // Editor finished: append new assets, or swap the re-edited one in place
+  const handleEditorDone = (results: EditedMedia[]) => {
+    const toMediaFile = (r: EditedMedia): MediaFile => ({
+      id: r.id,
+      url: r.previewUrl,
+      type: r.kind,
+      size: r.file.size,
+      file: r.file,
+      preview: r.previewUrl,
+      sourceFile: r.sourceFile,
+      recipe: r.recipe,
+    });
+    if (editingExistingId) {
+      const replaced = results[0];
+      setMediaFiles(prev =>
+        prev.map(f => {
+          if (f.id !== editingExistingId || !replaced) return f;
+          if (f.preview) URL.revokeObjectURL(f.preview); // old blob preview
+          return { ...toMediaFile(replaced), id: f.id };
+        })
+      );
+    } else {
+      setMediaFiles(prev => [...prev, ...results.map(toMediaFile)]);
+    }
+    setEditorAssets(null);
+    setEditingExistingId(null);
+  };
+
+  const openEditorFor = (mediaFile: MediaFile) => {
+    const source = mediaFile.sourceFile ?? mediaFile.file;
+    if (!source) return; // existing remote media (edit flows) has no File
+    setEditingExistingId(mediaFile.id);
+    setEditorAssets([{ id: mediaFile.id, file: source, kind: mediaFile.type, recipe: mediaFile.recipe }]);
+  };
 
   // Media drag and drop handlers
   const handleDragStart = (index: number) => {
@@ -1763,7 +1799,7 @@ export default function CreatePostModal({
                 </button>
               </p>
               <p className="text-xs text-gray-500">
-                Images and videos up to 5MB each
+                Images and videos up to 50MB each — crop, adjust, and filter before posting
               </p>
             </div>
 
@@ -1806,17 +1842,22 @@ export default function CreatePostModal({
                     >
                       <i className="fas fa-times text-xs"></i>
                     </button>
+
+                    {/* Edit (re-opens the editor rehydrated with this asset's recipe) */}
+                    {file.type === 'image' && (file.sourceFile || file.file) && (
+                      <button
+                        onClick={() => openEditorFor(file)}
+                        aria-label="Edit media"
+                        className="absolute bottom-2 right-2 bg-black/60 text-white rounded-full w-6 h-6 flex items-center justify-center hover:bg-black/80 transition-colors"
+                      >
+                        <i className="fas fa-pen text-xs"></i>
+                      </button>
+                    )}
                   </div>
                 ))}
               </div>
             )}
 
-            {uploading && (
-              <div className="mt-3 text-center text-blue-600">
-                <i className="fas fa-spinner fa-spin mr-2"></i>
-                Processing media...
-              </div>
-            )}
           </div>
 
           {/* Visibility */}
@@ -1982,6 +2023,19 @@ export default function CreatePostModal({
             setStatLineData(null); // stat entries are per-sport
           }}
           onClose={() => setShowSportSelector(false)}
+        />
+      )}
+
+      {/* Shared media editor (z-[65], above this modal and its sub-modals) */}
+      {editorAssets && (
+        <MediaEditor
+          assets={editorAssets}
+          config={COMPOSER_EDITOR_CONFIG}
+          onDone={handleEditorDone}
+          onCancel={() => {
+            setEditorAssets(null);
+            setEditingExistingId(null);
+          }}
         />
       )}
     </div>
