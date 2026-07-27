@@ -1,5 +1,20 @@
 # Development Log
 
+## July 27, 2026 (end of session) — Maintenance checklist + sync
+
+- lint clean · `tsc --noEmit` clean · `vitest` 266 passed (29 files) ·
+  `npm ci --dry-run` clean · full clean `npm run build` exit 0 (dev
+  server stopped, `.next` wiped first).
+- Migration state: through 047 all confirmed run + verified live.
+  No pending migrations.
+- Deployed through abda738 (rebrand + launch-hardening sprint + GIF
+  picker fixes), Vercel green, prod site 200. Vercel env now complete:
+  NEXT_PUBLIC_APP_URL, CRON_SECRET, GIPHY_API_KEY. This entry is the
+  maintenance-log commit → GitHub → Vercel.
+- Awaiting Tom's phone pass: iOS messages keyboard, equipment
+  dropdown, fresh-eyes signup walkthrough, two-phone golf test
+  (phases 3-8), Edge Vitals live loop, video trim/cover.
+
 ## July 27, 2026 — Purple rebrand + launch-hardening sprint
 
 **PURPLE REBRAND SHIPPED (4 commits 51c1fd7..019a5ad, DEPLOYED).** New
