@@ -61,9 +61,25 @@ the 5 referenced files remain, all intact, zero orphans. Future
 hygiene: run the endpoint's dry-run occasionally; a vercel.json cron
 + CRON_SECRET check is the follow-up if it should be automatic.
 
+**ADMIN_EMAILS + sweep endpoint VERIFIED LIVE.** Turned out the var
+was ALREADY set in Vercel (Tom, ~July 23, Production+Preview, marked
+Sensitive) — the "still unset" note was stale. Sensitive vars can't
+be read back: `vercel env pull` writes a literal `[sensitive]`
+placeholder, which briefly masqueraded as a wrong value — verify
+Sensitive vars FUNCTIONALLY, never by comparison. Functional check on
+prod: unauthenticated POST /api/admin/storage-sweep → 401; a session
+minted for Tom's account via admin generate_link magic-link → 200
+dry-run reporting exactly the post-purge state (5 files, 5
+referenced, 0 orphans). Vercel CLI side-quests from this: `vercel
+link --yes` auto-created a stray empty project named after the DIR
+(edge-athlete-main) — deleted; always `--project edge-athlete`. It
+also appended a redundant `.env*` to .gitignore (reverted) and a
+VERCEL_OIDC_TOKEN line to .env.local (harmless, kept). CLI auth is
+cached on this machine (`vercel whoami` works); project now linked.
+
 Remaining debt (reduced): no per-workout total media cap (only
 4/set); orphans no longer accumulate silently but still require a
-manual sweep trigger.
+manual sweep trigger (vercel.json cron + CRON_SECRET when wanted).
 
 lint clean · `tsc --noEmit` clean · vitest 197 passed (was 196; new
 host-allowlist spec). Test users + files cleaned up from prod after
