@@ -1,5 +1,70 @@
 # Development Log
 
+## July 26, 2026 (late night) — MEDIA EDITOR Phase 1 shipped + cover photo + post-release fixes
+
+**IN-APP MEDIA EDITING (5 commits 969c670..13501dc, migration 047,
+DEPLOYED + prod-smoke-tested).** One reusable client-side editor
+(crop/rotate/straighten via react-easy-crop, brightness/contrast/
+saturation + 5 preset filters) wired into ALL TEN image surfaces:
+composer (multi-asset filmstrip, Edit-pencil re-edit from
+sourceFile+recipe), vitals, workout set media, messages, golf hole
+media, equipment, 3 avatar flows collapsed into one AvatarUploader
+(real circle crop at last), and the brand-new COVER PHOTO
+(profiles.cover_url via 047, /api/upload/cover — avatar route's
+pattern minus its bucket-guessing debt, 3:1 banners on both profile
+headers, sweeper counts cover/avatar refs). Architecture: editor NEVER
+uploads (surfaces keep deferred/immediate timing); live preview = CSS
+only; export = one-shot canvas (EXIF baked at decode, 4096px iOS cap,
+ctx.filter feature-detect with a unit-tested pixel fallback); GIF/no-op
+pass-through originals; HEIC accepted for re-encode (iPhone HEIC
+finally uploadable — previously failed only AFTER a full upload);
+validation mirrors the server allowlist at pick time everywhere (two
+surfaces had NONE). uploadPostMedia() replaced 5 copy-pasted FormData
+blocks. New deps (approved): react-easy-crop; mediabunny deferred to
+the video phase (WebCodecs — chosen for mobile: hardware encode, no
+31MB wasm, no COOP/COEP headers which would break Supabase/Giphy).
+Editor lazy via next/dynamic — first-load JS unchanged (185kB). Tests
+197→242. Prod smoke: cover route round-trip + replace-cleanup + 401/
+400 gates verified live with a disposable user.
+
+**Tom's device pass: editor "worked amazingly" on mobile.** Two issues
+→ both fixed, VERIFIED BY DRIVING THE REAL APP headlessly
+(playwright-core + system Chrome channel — no browser download; minted
+sb-auth-token cookie works on localhost too), then deployed
+(da2e8a2 + 1d1e5f5):
+
+- **Desktop localhost: image vanished on editor tab switch.** Object
+  URLs were render-owned (useMemo) but revoked in effect cleanup —
+  React StrictMode's dev mount→unmount→remount revoked them while the
+  memo kept the dead map. First view kept its decoded bitmap; every
+  later-mounted view got revoked blob: URLs. Prod has no StrictMode →
+  mobile unaffected. Fix: EFFECT-owned URLs (each mount mints, its own
+  cleanup revokes). LESSON: object URLs must be effect-owned, never
+  render-owned. The fix's one-render empty gap then exposed a
+  second bug the headless test caught instantly: react-easy-crop
+  mounted with image='' → NaN position math → componentDidUpdate loops
+  → "Maximum update depth exceeded" crashing the route — stage now
+  renders nothing until the URL exists. Also stabilized [pending]
+  array literals in Avatar/CoverPhotoUploader (identity churn revoked
+  URLs on parent re-renders). 9/9 headless checks: image intact across
+  Crop/Adjust/Filters/back + slider moves, clean cancel, no blob
+  errors. (Screenshot artifact worth remembering: transition-colors
+  makes the active-tab pill look one-behind in screenshots — timing,
+  not a bug.)
+- **Mobile: workout set-row weight input "off to the bottom."**
+  Reproduced at 360px: page+card padding leaves ~300px; fixed-width
+  reps/wt inputs + 3 action buttons can't fit → flex-wrap dropped
+  weight under the row beside center-aligned buttons. Fix: reps/wt are
+  flex-1 within min/max ranges, unit/delete/set# slimmed, card p-3 on
+  mobile, row top-aligned so unavoidable wraps (duration/distance
+  modes) stack cleanly. Geometry-asserted at 360/390/640px: one line,
+  no overflow.
+
+Build clean ×3 (one cold-build benign realtime warning), lint clean,
+vitest 242, npm ci clean. QA users/files cleaned up. Phase 2 (video
+trim/split/poster via mediabunny; populates the forever-null
+post_media.thumbnail_url) is scoped and ready.
+
 ## July 26, 2026 (night) — Set-media lifecycle: post-delete kept clips alive, URL allowlist, prod E2E, orphan sweeper + purge
 
 **Integration review of migration 046 (per-set media)** confirmed the
