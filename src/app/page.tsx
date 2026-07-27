@@ -49,13 +49,30 @@ export default function Home() {
   }, [error]);
 
   // Redirect once logged in: brand-new users (no onboarded_at) get the
-  // first-run onboarding; everyone else goes to their profile. Wait for the
-  // profile row so we don't guess.
+  // first-run onboarding; everyone else goes to their profile. A session
+  // WITHOUT a profile row is a first-time OAuth user who hasn't finished
+  // account setup (deleted-account stale sessions never reach here — auth.tsx
+  // signs those out before initialAuthCheckComplete flips).
   useEffect(() => {
-    if (!loading && user && profile) {
+    if (loading || !initialAuthCheckComplete) return;
+    if (user && profile) {
       router.push(profile.onboarded_at ? '/athlete' : '/onboarding');
+    } else if (user && !profile) {
+      router.push('/auth/complete-profile');
     }
-  }, [user, profile, loading, router]);
+  }, [user, profile, loading, initialAuthCheckComplete, router]);
+
+  // Surface OAuth callback errors (?error=...) in the login error box.
+  // window.location instead of useSearchParams — avoids the Suspense
+  // boundary requirement.
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const oauthError = params.get('error');
+    if (oauthError) {
+      setError(oauthError);
+      window.history.replaceState(null, '', '/');
+    }
+  }, []);
 
   // Show loading state while auth is being determined - prevent flash of login page
   if (loading || !initialAuthCheckComplete) {
@@ -70,11 +87,11 @@ export default function Home() {
     );
   }
 
-  // If user is authenticated, show loading until redirect happens. Requires
-  // the profile too: the redirect effect waits for BOTH, so user-without-
-  // profile (a session whose account no longer exists) must fall through to
-  // the login form instead of spinning forever.
-  if (user && profile) {
+  // If user is authenticated, show loading until redirect happens. Covers
+  // user-without-profile too (redirects to /auth/complete-profile) —
+  // deleted-account stale sessions are signed out by auth.tsx before
+  // initialAuthCheckComplete, so they arrive here with user === null.
+  if (user) {
     return (
       <div className="min-h-screen bg-violet-50 flex items-center justify-center">
         <div className="text-center">
