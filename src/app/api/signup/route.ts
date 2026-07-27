@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
+import * as Sentry from '@sentry/nextjs';
 import { supabase, supabaseAdmin } from '@/lib/supabase';
+import { mapProfileUpsertError, isObfuscatedDuplicateSignUp } from '@/lib/signup-errors';
 
 export async function POST(request: NextRequest) {
   try {
@@ -43,20 +45,12 @@ export async function POST(request: NextRequest) {
         );
       }
 
-      // Also check auth.users directly using admin client
-      const { data: authUsers, error: authCheckError } = await supabaseAdmin.auth.admin.listUsers();
-      
-      if (!authCheckError && authUsers.users) {
-        const existingAuthUser = authUsers.users.find(user => user.email?.toLowerCase() === email.toLowerCase());
-        if (existingAuthUser) {
-          return NextResponse.json(
-            { 
-              error: 'This email is already registered. Please log in instead.' 
-            },
-            { status: 409 }
-          );
-        }
-      }
+      // NOTE: a listUsers() scan used to sit here as a second duplicate check,
+      // but listUsers() only returns the first page (50 users), so it silently
+      // stopped catching anything at scale. Auth-side duplicates are caught
+      // deterministically below instead: signUp returns an explicit error when
+      // confirmations are off, and a sanitized user with empty identities when
+      // confirmations are on (isObfuscatedDuplicateSignUp).
     } else {
       console.warn('Admin client not available - skipping duplicate email check. Relying on Supabase Auth validation.');
     }
@@ -88,17 +82,34 @@ export async function POST(request: NextRequest) {
         );
       }
 
+      Sentry.captureMessage('signup: auth signUp failed', {
+        level: 'warning',
+        extra: { code: error.code, status: error.status, message: error.message },
+      });
       return NextResponse.json(
         { error: error.message },
         { status: 400 }
       );
     }
 
+    // With email confirmations enabled, Supabase answers a signUp for an
+    // already-registered email with a sanitized fake user (empty identities)
+    // instead of an error. Detect it so the user isn't shown false success.
+    if (isObfuscatedDuplicateSignUp(data.user)) {
+      return NextResponse.json(
+        {
+          error:
+            'This email is already registered. Please log in — or use "Resend confirmation" if you never confirmed your email.',
+        },
+        { status: 409 }
+      );
+    }
+
     // If no user was created, it might be a duplicate
     if (!data.user) {
       return NextResponse.json(
-        { 
-          error: 'There is already an account registered under this email address. Please use a different email or try logging in.' 
+        {
+          error: 'There is already an account registered under this email address. Please use a different email or try logging in.'
         },
         { status: 409 }
       );
@@ -158,32 +169,38 @@ export async function POST(request: NextRequest) {
           details: profileError.details,
           hint: profileError.hint
         });
-
-        // Check if it's a handle uniqueness error
-        if (profileError.message?.includes('handle') ||
-            profileError.message?.includes('duplicate') ||
-            profileError.message?.includes('unique') ||
-            profileError.code === '23505') {
-          return NextResponse.json(
-            { error: 'This handle is already taken. Please choose a different one.' },
-            { status: 409 }
-          );
-        }
-
-        // Check for null value errors
-        if (profileError.code === '23502') {
-          return NextResponse.json(
-            { error: 'Required profile information is missing. Please ensure all required fields are filled.' },
-            { status: 400 }
-          );
-        }
-
-        // Return specific database error instead of generic message
-        return NextResponse.json(
-          { error: `Database error: ${profileError.message}` },
-          { status: 500 }
+        Sentry.captureException(
+          new Error(`signup: profile upsert failed: ${profileError.message}`),
+          {
+            extra: {
+              code: profileError.code,
+              details: profileError.details,
+              hint: profileError.hint,
+              userId: data.user.id,
+            },
+          }
         );
-      } else {
+
+        // Roll back the just-created auth user — otherwise the email is
+        // permanently blocked: retries hit "already registered" while login
+        // force-signs-out on the missing profile row.
+        if (supabaseAdmin) {
+          const { error: rollbackError } = await supabaseAdmin.auth.admin.deleteUser(data.user.id);
+          if (rollbackError) {
+            console.error('[SIGNUP] rollback failed — orphaned auth user', data.user.id, rollbackError);
+            Sentry.captureException(
+              new Error(`signup: auth-user rollback failed: ${rollbackError.message}`),
+              { extra: { userId: data.user.id } }
+            );
+          }
+        } else {
+          Sentry.captureMessage('signup: cannot roll back auth user (no admin client)', {
+            level: 'warning',
+          });
+        }
+
+        const mapped = mapProfileUpsertError(profileError);
+        return NextResponse.json({ error: mapped.error }, { status: mapped.status });
       }
     } else {
       console.warn('[SIGNUP] No user data returned from auth signup');
@@ -196,7 +213,8 @@ export async function POST(request: NextRequest) {
 
   } catch (error: unknown) {
     console.error('Signup API error:', error);
-    
+    Sentry.captureException(error, { tags: { area: 'signup' } });
+
     if (error instanceof Error && (error.message?.includes('already registered') || 
         error.message?.includes('already exists') ||
         error.message?.includes('duplicate'))) {
