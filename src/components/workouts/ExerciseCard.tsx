@@ -151,29 +151,36 @@ function SetRow({ set, inputMode, onChange, onDelete }: SetRowProps) {
       value={value ?? ''}
       onChange={e => onValue(numOrNull(e.target.value, max))}
       placeholder={placeholder}
-      className={`${width} px-2 py-2 border border-gray-300 rounded-lg text-base text-center focus:outline-none focus:ring-2 focus:ring-violet-500`}
+      className={`${width} px-1 py-2 min-h-[44px] border border-gray-300 rounded-lg text-base text-center focus:outline-none focus:ring-2 focus:ring-violet-500`}
       aria-label={placeholder}
     />
   );
 
   return (
     <div className={`py-1.5 ${done ? 'opacity-80' : ''}`}>
-    <div className="flex items-center gap-2">
-      <span className="w-6 text-sm font-semibold text-gray-400 text-center shrink-0">
+    {/* items-start + h-11 anchors: if inputs ever wrap (duration/distance
+        modes on narrow phones), extra lines stack cleanly under the first
+        line instead of floating vertically centered beside the action
+        buttons ("weight input off to the bottom" bug). reps/weight are
+        FLEXIBLE (min/max range, not fixed) so the common reps_weight mode
+        always fits one line even at 360px, where page+card padding leaves
+        only ~300px for the whole row. */}
+    <div className="flex items-start gap-1.5">
+      <span className="w-5 h-11 flex items-center justify-center text-sm font-semibold text-gray-400 shrink-0">
         {set.setNumber}
       </span>
 
-      <div className="flex items-center gap-2 flex-wrap flex-1 min-w-0">
+      <div className="flex items-center gap-1.5 flex-wrap flex-1 min-w-0">
         {(inputMode === 'reps_weight' || inputMode === 'reps_only') &&
-          numberInput(set.reps, v => patch({ reps: v }), 'reps', 1000)}
+          numberInput(set.reps, v => patch({ reps: v }), 'reps', 1000, 'flex-1 min-w-[2.75rem] max-w-[4.5rem]')}
 
         {inputMode === 'reps_weight' && (
           <>
-            {numberInput(set.weight, v => patch({ weight: v, weightUnit: set.weightUnit ?? 'lbs' }), 'wt', 5000, 'w-20')}
+            {numberInput(set.weight, v => patch({ weight: v, weightUnit: set.weightUnit ?? 'lbs' }), 'wt', 5000, 'flex-1 min-w-[3rem] max-w-[5rem]')}
             <button
               type="button"
               onClick={() => patch({ weightUnit: set.weightUnit === 'kg' ? 'lbs' : 'kg' })}
-              className="px-2 py-2 min-w-[44px] text-xs font-semibold text-gray-600 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors"
+              className="px-1 min-h-[44px] min-w-[36px] text-xs font-semibold text-gray-600 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors"
               aria-label="Toggle weight unit"
             >
               {set.weightUnit ?? 'lbs'}
@@ -195,7 +202,7 @@ function SetRow({ set, inputMode, onChange, onDelete }: SetRowProps) {
             <select
               value={set.distanceUnit ?? 'mi'}
               onChange={e => patch({ distanceUnit: e.target.value as EntrySet['distanceUnit'] })}
-              className="px-1 py-2 border border-gray-300 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-violet-500"
+              className="px-1 py-2 min-h-[44px] border border-gray-300 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-violet-500"
               aria-label="Distance unit"
             >
               <option value="mi">mi</option>
@@ -249,7 +256,7 @@ function SetRow({ set, inputMode, onChange, onDelete }: SetRowProps) {
       <button
         type="button"
         onClick={onDelete}
-        className="w-8 h-11 shrink-0 flex items-center justify-center text-gray-300 hover:text-red-500 transition-colors"
+        className="w-6 h-11 shrink-0 flex items-center justify-center text-gray-300 hover:text-red-500 transition-colors"
         aria-label="Delete set"
       >
         <X className="w-4 h-4" />
@@ -329,7 +336,7 @@ export default function ExerciseCard({ exercise, onChange, onDelete }: ExerciseC
   };
 
   return (
-    <div className="bg-white rounded-xl border border-gray-200 p-4">
+    <div className="bg-white rounded-xl border border-gray-200 p-3 sm:p-4">
       <div className="flex items-center gap-2 mb-2">
         <span className="text-xl" aria-hidden="true">{CATEGORY_ICON[exercise.category]}</span>
         <h3 className="text-base font-bold text-gray-900 flex-1 min-w-0 truncate">{exercise.name}</h3>
