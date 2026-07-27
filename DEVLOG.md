@@ -1,6 +1,6 @@
 # Development Log
 
-## July 26, 2026 (night) — Set-media lifecycle: post-delete kept clips alive, URL allowlist, prod E2E
+## July 26, 2026 (night) — Set-media lifecycle: post-delete kept clips alive, URL allowlist, prod E2E, orphan sweeper + purge
 
 **Integration review of migration 046 (per-set media)** confirmed the
 feature wired end-to-end (validation → both write paths → both read
@@ -42,9 +42,28 @@ the storage list API, because the public CDN URL kept serving deleted
 files (uploads set cacheControl 3600; a deleted file's public URL can
 200 for up to an hour). Never use the public URL as an existence check.
 
-Known debt (unchanged, documented): orphaned storage files on
-set-media removal / workout discard / replace-all sync drops; no
-per-workout total media cap (only 4/set).
+**ORPHAN SWEEPER BUILT (2f76116) + PROD PURGED — the storage-orphan
+debt is retired.** `POST /api/admin/storage-sweep` (requireAdmin;
+needs ADMIN_EMAILS in Vercel — still unset) walks the whole uploads
+bucket and compares against every DB column that can reference it:
+post_media media_url+thumbnail_url, group_post_media, messages
+.media_url, workout_sets.media jsonb. Dry-run BY DEFAULT — deletion
+requires an explicit `{"dryRun": false}`. 48h grace period, because
+uploads land BEFORE the row referencing them is written (editor →
+debounced snapshot PUT; composer → post create) — a young
+unreferenced file may be in flight, and missing created_at is treated
+as not-sweepable. Pure logic in lib/storage-sweep.ts (8 tests; 197→
+203). Dry-run was replicated read-only against prod first: 42 files,
+5 referenced, 37 orphans dating to Sept 2025 (deleted test accounts +
+post deletions predating delete-time cleanup). Tom approved; purged
+via service role with a saved manifest — post-purge verify: exactly
+the 5 referenced files remain, all intact, zero orphans. Future
+hygiene: run the endpoint's dry-run occasionally; a vercel.json cron
++ CRON_SECRET check is the follow-up if it should be automatic.
+
+Remaining debt (reduced): no per-workout total media cap (only
+4/set); orphans no longer accumulate silently but still require a
+manual sweep trigger.
 
 lint clean · `tsc --noEmit` clean · vitest 197 passed (was 196; new
 host-allowlist spec). Test users + files cleaned up from prod after
