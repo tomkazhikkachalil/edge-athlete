@@ -108,6 +108,9 @@ export default function RegistrationSteps({ onBackToLogin }: { onBackToLogin: ()
         setError(result.error || 'An error occurred during registration');
         return;
       }
+      // Hand the athlete's DOB (collected at step 2) to the post-login
+      // "Add your athlete" screen.
+      try { window.sessionStorage.setItem('ea:athlete-dob', dob); } catch {}
       setStep('parent-done');
     } catch (err) {
       console.error('Parent registration error:', err);
