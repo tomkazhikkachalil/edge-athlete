@@ -116,10 +116,18 @@ describe('validateEntriesPayload', () => {
     it('rejects bad URLs and bad types', () => {
       expect(validateEntriesPayload(withMedia([{ url: 'javascript:alert(1)', type: 'image' }])).ok).toBe(false);
       expect(validateEntriesPayload(withMedia([{ url: 'http://insecure/x.jpg', type: 'image' }])).ok).toBe(false);
-      expect(validateEntriesPayload(withMedia([{ url: 'https://x/y.gif', type: 'gif' }])).ok).toBe(false);
+      expect(validateEntriesPayload(withMedia([{ url: 'https://x.supabase.co/y.gif', type: 'gif' }])).ok).toBe(false);
       expect(validateEntriesPayload(withMedia([{ url: '', type: 'image' }])).ok).toBe(false);
       expect(validateEntriesPayload(withMedia(['nope'])).ok).toBe(false);
       expect(validateEntriesPayload(withMedia('nope')).ok).toBe(false);
+    });
+
+    it('only accepts first-party storage hosts (set media renders ungated in <video>/<a>)', () => {
+      expect(validateEntriesPayload(withMedia([{ url: 'https://evil.example.com/track.gif', type: 'image' }])).ok).toBe(false);
+      expect(validateEntriesPayload(withMedia([{ url: 'https://notsupabase.co/x.jpg', type: 'image' }])).ok).toBe(false);
+      expect(validateEntriesPayload(withMedia([{ url: '//evil.example.com/x.jpg', type: 'image' }])).ok).toBe(false);
+      expect(validateEntriesPayload(withMedia([{ url: '/uploads/local.jpg', type: 'image' }])).ok).toBe(true);
+      expect(validateEntriesPayload(withMedia([{ url: 'https://abc.supabase.in/storage/v1/object/public/uploads/x.mp4', type: 'video' }])).ok).toBe(true);
     });
   });
 });

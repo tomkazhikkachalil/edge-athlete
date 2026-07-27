@@ -37,6 +37,30 @@ export const MAX_MEDIA_PER_SET = 4;
 
 const MEDIA_TYPES = ['image', 'video'] as const;
 
+/**
+ * Only first-party storage URLs (or same-origin paths) may be persisted:
+ * set media renders in raw <video>/<a> tags with no host gate, so an
+ * arbitrary https URL here would make every viewer's browser fetch it.
+ */
+function isAllowedMediaUrl(url: string): boolean {
+  if (url.length === 0 || url.length > 2048) return false;
+  // Same-origin path; '//host' would be protocol-relative, not same-origin.
+  if (url.startsWith('/')) return !url.startsWith('//');
+  let parsed: URL;
+  try {
+    parsed = new URL(url);
+  } catch {
+    return false;
+  }
+  if (parsed.protocol !== 'https:') return false;
+  if (parsed.hostname.endsWith('.supabase.co') || parsed.hostname.endsWith('.supabase.in')) return true;
+  try {
+    return parsed.hostname === new URL(process.env.NEXT_PUBLIC_SUPABASE_URL ?? '').hostname;
+  } catch {
+    return false;
+  }
+}
+
 function validateSetMedia(raw: unknown): { ok: true; media: SetMedia[] } | { ok: false; error: string } {
   // Absent = no media (back-compat with pre-046 snapshots and drafts)
   if (raw === undefined || raw === null) return { ok: true, media: [] };
@@ -50,12 +74,7 @@ function validateSetMedia(raw: unknown): { ok: true; media: SetMedia[] } | { ok:
       return { ok: false, error: 'malformed media item' };
     }
     const m = item as Record<string, unknown>;
-    if (
-      typeof m.url !== 'string' ||
-      m.url.length === 0 ||
-      m.url.length > 2048 ||
-      !(m.url.startsWith('https://') || m.url.startsWith('/'))
-    ) {
+    if (typeof m.url !== 'string' || !isAllowedMediaUrl(m.url)) {
       return { ok: false, error: 'invalid media URL' };
     }
     if (!MEDIA_TYPES.includes(m.type as typeof MEDIA_TYPES[number])) {
