@@ -9,6 +9,7 @@ import BrandBar from '@/components/BrandBar';
 import { supabase } from '@/lib/supabase';
 import WaitlistPopup from '@/components/WaitlistPopup';
 import HandleSelector from '@/components/HandleSelector';
+import OAuthButtons from '@/components/OAuthButtons';
 
 export default function Home() {
   const [showAthleteRegistration, setShowAthleteRegistration] = useState(false);
@@ -306,6 +307,7 @@ export default function Home() {
           <div className="w-full max-w-3xl bg-white rounded-lg shadow-lg overflow-hidden">
             <div className="w-full p-6 sm:p-8">
               <h2 className="text-xl sm:text-2xl font-bold text-violet-800 space-micro">Create Athlete Account</h2>
+              <OAuthButtons onError={setError} divider="below" />
               {error && (
                 <div
                   ref={errorRef}
@@ -605,8 +607,9 @@ export default function Home() {
                 )}
               </button>
             </form>
+            <OAuthButtons onError={setError} />
           </div>
-          
+
           {/* Sign Up Section */}
           <div className="w-full lg:w-1/2 bg-violet-600 p-6 sm:p-8 lg:p-12 text-white flex flex-col justify-between">
             <div className="flex flex-col items-center justify-center flex-grow">
