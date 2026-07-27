@@ -83,6 +83,11 @@ export async function POST(request: NextRequest) {
           Sentry.captureException(new Error(`complete-profile: parking failed: ${pendingError?.message}`));
           return NextResponse.json({ error: 'Could not save the request. Please try again.' }, { status: 500 });
         }
+        const { data: existingGuardian } = await getSupabaseAdmin()
+          .from('profiles')
+          .select('id')
+          .eq('email', guardianEmail.toLowerCase())
+          .maybeSingle();
         const invite = await createGuardianInvite({
           admin: getSupabaseAdmin(),
           inviteType: 'guardian_for_pending',
@@ -93,7 +98,7 @@ export async function POST(request: NextRequest) {
           const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://edge-athlete.vercel.app';
           try {
             await emailService.sendGuardianInvite(
-              guardianEmail, first_name, `${appUrl}/invite/${invite.rawToken}`, appUrl
+              guardianEmail, first_name, `${appUrl}/invite/${invite.rawToken}`, appUrl, !!existingGuardian
             );
           } catch (mailError) {
             console.error('[OAUTH-PROFILE] guardian invite email failed:', mailError);

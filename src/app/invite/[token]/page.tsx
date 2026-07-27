@@ -18,6 +18,7 @@ export default function InvitePage() {
   const [state, setState] = useState<'loading' | 'valid' | 'invalid'>('loading');
   const [athleteFirstName, setAthleteFirstName] = useState<string | null>(null);
   const [invitedEmail, setInvitedEmail] = useState('');
+  const [hasAccount, setHasAccount] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -32,6 +33,7 @@ export default function InvitePage() {
         const data = await res.json();
         setAthleteFirstName(data.athleteFirstName ?? null);
         setInvitedEmail(data.invitedEmail ?? '');
+        setHasAccount(!!data.guardianHasAccount);
         setState('valid');
       } catch {
         if (!cancelled) setState('invalid');
@@ -100,7 +102,11 @@ export default function InvitePage() {
                 onClick={() => router.push(user ? '/athlete' : '/')}
                 className="w-full bg-violet-600 text-white py-3 px-4 rounded-md hover:bg-violet-700 transition duration-300 text-sm font-medium"
               >
-                {user ? 'Continue' : 'Create your account or log in'}
+                {user
+                  ? 'Continue'
+                  : hasAccount
+                    ? 'Log in to continue'
+                    : 'Create your account'}
               </button>
               <p className="text-xs text-gray-500 mt-3 text-center">
                 Keep this email — you&apos;ll finish your athlete&apos;s setup from

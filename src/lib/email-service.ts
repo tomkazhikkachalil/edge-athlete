@@ -114,8 +114,12 @@ This email was sent from your website's contact form.
     to: string,
     athleteFirstName: string,
     inviteUrl: string,
-    appUrl: string
+    appUrl: string,
+    guardianHasAccount = false
   ): Promise<void> {
+    const cta = guardianHasAccount
+      ? 'Log in and review their request'
+      : 'Review and set up their profile';
     const name = athleteFirstName ? escapeHtml(athleteFirstName) : 'A young athlete';
     const htmlContent = `
       <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
@@ -129,7 +133,7 @@ This email was sent from your website's contact form.
         </p>
         <a href="${inviteUrl}"
            style="display:inline-block;background:#7c3aed;color:#fff;text-decoration:none;padding:10px 20px;border-radius:6px;font-size:14px;margin-top:8px;">
-          Review and set up their profile
+          ${cta}
         </a>
         <p style="color:#888;font-size:12px;margin-top:16px;">
           This link is single-use and expires in 7 days. If you weren't

@@ -164,10 +164,25 @@ export async function PUT(request: NextRequest) {
     
     // Clean up profileData - convert empty strings to null for optional fields
     const cleanedProfileData = { ...profileData };
-    
+
     // Convert empty strings to null for date fields
     if (cleanedProfileData.dob === '') {
       cleanedProfileData.dob = null;
+    }
+
+    // DOB corrections are never self-service on locked/supervised profiles —
+    // a one-click DOB edit would otherwise be an exit from supervision.
+    // Corrections route through guardian/support (guardian-profiles feature).
+    if (supabaseAdmin && (cleanedProfileData.dob !== undefined || cleanedProfileData.birthday !== undefined)) {
+      const { data: dobGate } = await supabaseAdmin
+        .from('profiles')
+        .select('dob_locked, supervision_state')
+        .eq('id', userId)
+        .maybeSingle();
+      if (dobGate?.dob_locked || dobGate?.supervision_state === 'supervised') {
+        delete cleanedProfileData.dob;
+        delete cleanedProfileData.birthday;
+      }
     }
     
     // Convert empty strings to null for numeric fields and log weight values

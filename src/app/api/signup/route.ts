@@ -26,10 +26,17 @@ export async function POST(request: NextRequest) {
     }
 
     // ── DOB gate (guardian-profiles) ────────────────────────────────────────
-    // Under-threshold athletes cannot self-signup: NO auth user is created
-    // (COPPA data-minimization) — the partial profile parks in
-    // pending_profiles and the guardian gets a single-use invite link.
-    if (FEATURE_FLAGS.FEATURE_GUARDIAN_PROFILES) {
+    // ROUTING TABLE (the actor guard is load-bearing — pending_guardian must
+    // be unreachable when a guardian is at the keyboard):
+    //   actor == 'guardian'                    → guardian_signup (Step A;
+    //                                            any DOB in the flow is the
+    //                                            ATHLETE's, never gates this)
+    //   actor == 'athlete' && age >= threshold → athlete_self_signup
+    //   actor == 'athlete' && age <  threshold → pending_guardian (park +
+    //                                            invite; NO auth user —
+    //                                            COPPA data minimization)
+    const actorRole = body.actorRole === 'guardian' ? 'guardian' : 'athlete';
+    if (FEATURE_FLAGS.FEATURE_GUARDIAN_PROFILES && actorRole === 'athlete') {
       const dob: string | undefined = profileData?.birthday;
       if (!dob || !isValidDateString(dob) || !isNotFutureDate(dob)) {
         return NextResponse.json(
@@ -60,6 +67,24 @@ export async function POST(request: NextRequest) {
         if (!supabaseAdmin) {
           return NextResponse.json({ error: 'Server configuration error' }, { status: 500 });
         }
+        // Re-submitting for the same child IS the resend/typo-correction
+        // mechanism (no auth exists to manage a parked request): expire any
+        // prior awaiting rows + their unconsumed invites so exactly one
+        // invite is live per child email.
+        const { data: priorRows } = await supabaseAdmin
+          .from('pending_profiles')
+          .select('id')
+          .eq('child_email', email.toLowerCase())
+          .eq('state', 'awaiting_guardian');
+        if (priorRows && priorRows.length > 0) {
+          const priorIds = priorRows.map(r => r.id);
+          await supabaseAdmin.from('pending_profiles')
+            .update({ state: 'expired' }).in('id', priorIds);
+          await supabaseAdmin.from('guardian_invites')
+            .update({ expires_at: new Date().toISOString() })
+            .in('pending_profile_id', priorIds).is('consumed_at', null);
+        }
+
         // profileData carries no credentials (password is a separate body
         // field, deliberately not parked — the athlete gets a supervised
         // login later via activation, never this password).
@@ -78,6 +103,15 @@ export async function POST(request: NextRequest) {
           Sentry.captureException(new Error(`signup: pending_profiles insert failed: ${pendingError?.message}`));
           return NextResponse.json({ error: 'Could not save the request. Please try again.' }, { status: 500 });
         }
+        // A guardian who already has an account is a MATCH, not a collision:
+        // the invite resolves to them; only the email copy/CTA differ.
+        const { data: existingGuardian } = await supabaseAdmin
+          .from('profiles')
+          .select('id')
+          .eq('email', guardianEmail.trim().toLowerCase())
+          .maybeSingle();
+        const guardianHasAccount = !!existingGuardian;
+
         const invite = await createGuardianInvite({
           admin: supabaseAdmin,
           inviteType: 'guardian_for_pending',
@@ -91,7 +125,8 @@ export async function POST(request: NextRequest) {
               guardianEmail,
               profileData?.first_name || '',
               `${appUrl}/invite/${invite.rawToken}`,
-              appUrl
+              appUrl,
+              guardianHasAccount
             );
           } catch (mailError) {
             // Parked either way; guardian can be re-invited from support.

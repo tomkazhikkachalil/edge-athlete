@@ -39,10 +39,19 @@ export async function GET(
       (pending.payload as Record<string, unknown>)?.first_name as string | null;
   }
 
+  // Registered guardian = match, not collision: tell the page so the CTA
+  // reads "log in" instead of "create an account".
+  const { data: existingGuardian } = await admin
+    .from('profiles')
+    .select('id')
+    .eq('email', invite.invited_email)
+    .maybeSingle();
+
   return NextResponse.json({
     valid: true,
     inviteType: invite.invite_type,
     invitedEmail: invite.invited_email,
     athleteFirstName,
+    guardianHasAccount: !!existingGuardian,
   });
 }

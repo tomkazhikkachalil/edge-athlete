@@ -6,21 +6,26 @@ import HandleSelector from '@/components/HandleSelector';
 import OAuthButtons from '@/components/OAuthButtons';
 import { isValidDateString, isNotFutureDate } from '@/lib/date-validation';
 
-// DOB-first registration step machine (guardian-profiles feature).
+// Registration step machine (guardian-profiles feature).
 //
-// Step order is a compliance requirement, not a style choice:
-//   1. 'dob'      — date of birth alone, NEUTRAL wording. Never state or
-//                   hint at any age threshold before collecting it.
-//   2. 'role'     — "Who's setting this up?" (athlete / parent-guardian)
-//   3. 'details'  — the account form (no birthday field — already collected)
-//   4. 'guardian' — only reached when the server answers 422 needsGuardian
-//                   (under-threshold): collect a guardian email. No dead end.
-//   5. 'parked'   — confirmation that the guardian was emailed.
+// Step order is a compliance/UX requirement, not a style choice:
+//   1. 'role'    — "Who's setting this up?" FIRST — a DOB is meaningless
+//                  until you know whose birthday you're asking about (a
+//                  parent would enter their child's DOB and trip the minor
+//                  gate before the system learns an adult is present).
+//   2. 'dob'     — branch-worded ("Your date of birth" vs "Your athlete's
+//                  date of birth"), NEUTRAL: never state or hint at any age
+//                  threshold before collecting it.
+//   3a. athlete → 'details' form → server may answer 422 needsGuardian
+//                  (under-threshold) → 'guardian' email step → 'parked'.
+//   3b. parent  → 'parent' Step A: minimal own-account form (name, email,
+//                  password ONLY — no athlete fields) → 'parent-done'
+//                  ("Add your athlete" happens from their account: Step B).
 //
-// The server (/api/signup) is authoritative for the age decision — this UI
-// never computes the threshold locally, so it can't leak it either.
+// Routing is server-enforced (/api/signup actorRole guard); this UI never
+// computes ages locally, so it can't leak the threshold either.
 
-type Step = 'dob' | 'role' | 'details' | 'guardian' | 'parked';
+type Step = 'role' | 'dob' | 'details' | 'parent' | 'parent-done' | 'guardian' | 'parked';
 type Role = 'athlete' | 'parent';
 
 const inputClass =
@@ -30,7 +35,7 @@ const primaryBtn =
   'w-full bg-violet-600 text-white py-3 px-4 rounded-md hover:bg-violet-700 transition duration-300 flex items-center justify-center text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed';
 
 export default function RegistrationSteps({ onBackToLogin }: { onBackToLogin: () => void }) {
-  const [step, setStep] = useState<Step>('dob');
+  const [step, setStep] = useState<Step>('role');
   const [role, setRole] = useState<Role>('athlete');
   const [dob, setDob] = useState('');
   const [guardianEmail, setGuardianEmail] = useState('');
@@ -66,7 +71,51 @@ export default function RegistrationSteps({ onBackToLogin }: { onBackToLogin: ()
       setError('Please double-check the year.');
       return;
     }
-    setStep('role');
+    // Parent branch: the DOB collected is the ATHLETE's (held for the
+    // add-your-athlete step) — it never gates the parent's own signup.
+    setStep(role === 'parent' ? 'parent' : 'details');
+  };
+
+  const submitParentAccount = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError('');
+    if (form.password !== form.confirmPassword) {
+      setError('Passwords do not match');
+      return;
+    }
+    if (!form.email || !form.password || !form.firstName || !form.lastName) {
+      setError('Please fill in all required fields');
+      return;
+    }
+    setSubmitting(true);
+    try {
+      const response = await fetch('/api/signup', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: form.email,
+          password: form.password,
+          actorRole: 'guardian',
+          profileData: {
+            first_name: form.firstName,
+            last_name: form.lastName,
+            user_type: 'athlete',
+          },
+        }),
+      });
+      const result = await response.json();
+      if (!response.ok) {
+        setError(result.error || 'An error occurred during registration');
+        return;
+      }
+      setStep('parent-done');
+    } catch (err) {
+      console.error('Parent registration error:', err);
+      Sentry.captureException(err);
+      setError('An unexpected error occurred. Please try again.');
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   const submitAccount = async (withGuardianEmail?: string) => {
@@ -150,10 +199,47 @@ export default function RegistrationSteps({ onBackToLogin }: { onBackToLogin: ()
     <div className="flex-grow flex items-center justify-center p-4">
       <div className="w-full max-w-3xl bg-white rounded-lg shadow-lg overflow-hidden">
         <div className="w-full p-6 sm:p-8">
+          {step === 'role' && (
+            <>
+              <h2 className="text-xl sm:text-2xl font-bold text-violet-800 mb-1">Who&apos;s setting this up?</h2>
+              <p className="text-sm text-gray-600 mb-4">This helps us set up the right kind of account.</p>
+              {errorBox}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 max-w-lg">
+                <button
+                  type="button"
+                  onClick={() => { setRole('athlete'); setStep('dob'); }}
+                  className="border-2 border-violet-200 hover:border-violet-600 rounded-lg p-6 text-left transition"
+                >
+                  <i className="fas fa-person-running text-violet-600 text-2xl mb-2"></i>
+                  <p className="font-bold text-gray-900">I&apos;m the athlete</p>
+                  <p className="text-sm text-gray-600 mt-1">This account is for me.</p>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => { setRole('parent'); setStep('dob'); }}
+                  className="border-2 border-violet-200 hover:border-violet-600 rounded-lg p-6 text-left transition"
+                >
+                  <i className="fas fa-user-shield text-violet-600 text-2xl mb-2"></i>
+                  <p className="font-bold text-gray-900">I&apos;m a parent or guardian</p>
+                  <p className="text-sm text-gray-600 mt-1">I&apos;m setting this up for my athlete.</p>
+                </button>
+              </div>
+              <button type="button" onClick={onBackToLogin} className="mt-4 text-xs text-violet-600 hover:underline">
+                Back to login
+              </button>
+            </>
+          )}
+
           {step === 'dob' && (
             <>
-              <h2 className="text-xl sm:text-2xl font-bold text-violet-800 mb-1">Let&apos;s get started</h2>
-              <p className="text-sm text-gray-600 mb-4">First, we need a couple of details.</p>
+              <h2 className="text-xl sm:text-2xl font-bold text-violet-800 mb-1">
+                {role === 'parent' ? "Your athlete's date of birth" : 'Your date of birth'}
+              </h2>
+              <p className="text-sm text-gray-600 mb-4">
+                {role === 'parent'
+                  ? 'This helps us set up their profile correctly.'
+                  : 'This helps us set up your account correctly.'}
+              </p>
               {errorBox}
               <form onSubmit={submitDob} className="flex flex-col gap-4 max-w-sm">
                 <div>
@@ -168,54 +254,83 @@ export default function RegistrationSteps({ onBackToLogin }: { onBackToLogin: ()
                   />
                 </div>
                 <button type="submit" className={primaryBtn}>Continue</button>
-                <button type="button" onClick={onBackToLogin} className="text-xs text-violet-600 hover:underline">
-                  Back to login
+                <button type="button" onClick={() => setStep('role')} className="text-xs text-violet-600 hover:underline">
+                  Back
                 </button>
               </form>
             </>
           )}
 
-          {step === 'role' && (
+          {step === 'parent' && (
             <>
-              <h2 className="text-xl sm:text-2xl font-bold text-violet-800 mb-1">Who&apos;s setting this up?</h2>
-              <p className="text-sm text-gray-600 mb-4">This helps us set up the right kind of account.</p>
+              <h2 className="text-xl sm:text-2xl font-bold text-violet-800 mb-1">Create your account</h2>
+              <p className="text-sm text-gray-600 mb-4">
+                Quick and simple — just you for now. You&apos;ll add your athlete right after.
+              </p>
               {errorBox}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 max-w-lg">
-                <button
-                  type="button"
-                  onClick={() => { setRole('athlete'); setStep('details'); }}
-                  className="border-2 border-violet-200 hover:border-violet-600 rounded-lg p-6 text-left transition"
-                >
-                  <i className="fas fa-person-running text-violet-600 text-2xl mb-2"></i>
-                  <p className="font-bold text-gray-900">I&apos;m the athlete</p>
-                  <p className="text-sm text-gray-600 mt-1">This account is for me.</p>
+              <form onSubmit={submitParentAccount} className="flex flex-col gap-4 max-w-md">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label htmlFor="pa-first" className={labelClass}>First Name</label>
+                    <input type="text" id="pa-first" value={form.firstName} onChange={set('firstName')} className={inputClass} required />
+                  </div>
+                  <div>
+                    <label htmlFor="pa-last" className={labelClass}>Last Name</label>
+                    <input type="text" id="pa-last" value={form.lastName} onChange={set('lastName')} className={inputClass} required />
+                  </div>
+                </div>
+                <div>
+                  <label htmlFor="pa-email" className={labelClass}>Email</label>
+                  <input type="email" id="pa-email" value={form.email} onChange={set('email')} className={inputClass} required />
+                </div>
+                <div>
+                  <label htmlFor="pa-password" className={labelClass}>Password</label>
+                  <input type="password" id="pa-password" value={form.password} onChange={set('password')} className={inputClass} required minLength={6} />
+                </div>
+                <div>
+                  <label htmlFor="pa-confirm" className={labelClass}>Confirm Password</label>
+                  <input type="password" id="pa-confirm" value={form.confirmPassword} onChange={set('confirmPassword')} className={inputClass} required minLength={6} />
+                </div>
+                <button type="submit" disabled={submitting} className={primaryBtn}>
+                  {submitting ? (
+                    <><i className="fas fa-spinner fa-spin mr-2"></i> Creating Account...</>
+                  ) : (
+                    'Create Account'
+                  )}
                 </button>
-                <button
-                  type="button"
-                  onClick={() => { setRole('parent'); setStep('details'); }}
-                  className="border-2 border-violet-200 hover:border-violet-600 rounded-lg p-6 text-left transition"
-                >
-                  <i className="fas fa-user-shield text-violet-600 text-2xl mb-2"></i>
-                  <p className="font-bold text-gray-900">I&apos;m a parent or guardian</p>
-                  <p className="text-sm text-gray-600 mt-1">I&apos;m setting this up for my athlete.</p>
-                </button>
-              </div>
-              <button type="button" onClick={() => setStep('dob')} className="mt-4 text-xs text-violet-600 hover:underline">
-                Back
-              </button>
+                <div className="flex items-center justify-between">
+                  <button type="button" onClick={() => setStep('dob')} className="text-xs text-violet-600 hover:underline">
+                    Back
+                  </button>
+                  <p className="text-xs text-gray-600">
+                    Already have an account?
+                    <span className="text-violet-600 hover:underline cursor-pointer ml-1" onClick={onBackToLogin}>
+                      Log in
+                    </span>
+                  </p>
+                </div>
+              </form>
             </>
+          )}
+
+          {step === 'parent-done' && (
+            <div className="text-center py-8">
+              <i className="fas fa-circle-check text-violet-600 text-4xl mb-4"></i>
+              <h2 className="text-xl sm:text-2xl font-bold text-violet-800 mb-2">You&apos;re all set</h2>
+              <p className="text-sm text-gray-600 max-w-md mx-auto mb-6">
+                Next step: add your athlete. Sign in and we&apos;ll walk you
+                through setting up their profile — you stay in control of
+                their privacy and what gets posted.
+              </p>
+              <button type="button" onClick={onBackToLogin} className={`${primaryBtn} max-w-xs mx-auto`}>
+                Sign in to continue
+              </button>
+            </div>
           )}
 
           {step === 'details' && (
             <>
-              <h2 className="text-xl sm:text-2xl font-bold text-violet-800 space-micro">
-                {role === 'parent' ? 'Create Your Account' : 'Create Athlete Account'}
-              </h2>
-              {role === 'parent' && (
-                <p className="text-sm text-gray-600 mb-2">
-                  Your own account comes first — you&apos;ll add your athlete right after.
-                </p>
-              )}
+              <h2 className="text-xl sm:text-2xl font-bold text-violet-800 space-micro">Create Athlete Account</h2>
               <OAuthButtons onError={setError} divider="below" />
               {errorBox}
               {success && (
@@ -301,7 +416,7 @@ export default function RegistrationSteps({ onBackToLogin }: { onBackToLogin: ()
                 </button>
               </form>
               <div className="mt-4 flex items-center justify-between">
-                <button type="button" onClick={() => setStep('role')} className="text-xs text-violet-600 hover:underline">
+                <button type="button" onClick={() => setStep('dob')} className="text-xs text-violet-600 hover:underline">
                   Back
                 </button>
                 <p className="text-xs text-gray-600">
