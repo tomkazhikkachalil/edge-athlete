@@ -52,7 +52,9 @@ export async function GET(request: NextRequest) {
     const gifs = (data.data as GiphyGif[]).map((g) => ({
       id: g.id,
       url: g.images.original.url,
-      preview_url: g.images.fixed_height_still.url,
+      // Animated grid preview (200px). fixed_height_still exists but a frozen
+      // grid reads as broken next to every other GIF picker.
+      preview_url: g.images.fixed_height.url,
       width: parseInt(g.images.fixed_height.width, 10) || 200,
       height: parseInt(g.images.fixed_height.height, 10) || 150,
     }));
