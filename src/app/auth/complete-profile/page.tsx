@@ -6,6 +6,7 @@ import { useAuth } from '@/lib/auth';
 import BrandBar from '@/components/BrandBar';
 import HandleSelector from '@/components/HandleSelector';
 import { deriveNamesFromMetadata } from '@/lib/oauth-profile';
+import { FEATURE_FLAGS } from '@/lib/features';
 
 // One-time stop for first-time OAuth users: their auth session exists but no
 // profiles row does (profiles are route-created, and the handle must be set
@@ -17,6 +18,10 @@ export default function CompleteProfilePage() {
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
   const [handle, setHandle] = useState('');
+  const [dob, setDob] = useState('');
+  const [guardianEmail, setGuardianEmail] = useState('');
+  const [needsGuardian, setNeedsGuardian] = useState(false);
+  const [parkedMessage, setParkedMessage] = useState('');
   const [prefilled, setPrefilled] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
@@ -78,6 +83,11 @@ export default function CompleteProfilePage() {
       return;
     }
 
+    if (FEATURE_FLAGS.FEATURE_GUARDIAN_PROFILES && !dob) {
+      setError('Please enter your date of birth.');
+      return;
+    }
+
     setSubmitting(true);
     try {
       const response = await fetch('/api/auth/complete-profile', {
@@ -87,12 +97,26 @@ export default function CompleteProfilePage() {
           first_name: firstName.trim(),
           last_name: lastName.trim(),
           handle,
+          ...(FEATURE_FLAGS.FEATURE_GUARDIAN_PROFILES ? { dob } : {}),
+          ...(guardianEmail ? { guardianEmail: guardianEmail.trim() } : {}),
         }),
       });
       const result = await response.json();
+      if (response.status === 422 && result.needsGuardian) {
+        // Under threshold (server decides): collect a guardian email.
+        setNeedsGuardian(true);
+        if (guardianEmail) setError(result.error);
+        setSubmitting(false);
+        return;
+      }
       if (!response.ok) {
         setError(result.error || 'Something went wrong. Please try again.');
         setEmailCollision(response.status === 409 && /email/i.test(result.error || ''));
+        setSubmitting(false);
+        return;
+      }
+      if (result.parked) {
+        setParkedMessage(result.message || "We've emailed your parent or guardian a link to finish setting up your profile.");
         setSubmitting(false);
         return;
       }
@@ -104,6 +128,30 @@ export default function CompleteProfilePage() {
       setSubmitting(false);
     }
   };
+
+  if (parkedMessage) {
+    return (
+      <div className="min-h-screen flex flex-col bg-violet-50">
+        <BrandBar />
+        <div className="flex-grow flex items-center justify-center p-4">
+          <div className="w-full max-w-lg bg-white rounded-lg shadow-lg p-6 sm:p-8 text-center">
+            <i className="fas fa-envelope-circle-check text-violet-600 text-4xl mb-4"></i>
+            <h2 className="text-xl sm:text-2xl font-bold text-violet-800 mb-2">
+              Check with your parent or guardian
+            </h2>
+            <p className="text-sm text-gray-600 mb-6">{parkedMessage}</p>
+            <button
+              type="button"
+              onClick={() => signOut()}
+              className="text-sm text-violet-600 hover:underline"
+            >
+              Done — sign out
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen flex flex-col bg-violet-50">
@@ -175,6 +223,43 @@ export default function CompleteProfilePage() {
                 className="w-full px-4 py-3 text-sm text-gray-500 bg-gray-100 border border-gray-300 rounded-md cursor-not-allowed"
               />
             </div>
+
+            {FEATURE_FLAGS.FEATURE_GUARDIAN_PROFILES && (
+              <div>
+                <label htmlFor="cp-dob" className="block text-sm font-medium text-gray-700 mb-1">
+                  Date of birth
+                </label>
+                <input
+                  type="date"
+                  id="cp-dob"
+                  value={dob}
+                  onChange={e => setDob(e.target.value)}
+                  className="w-full px-4 py-3 text-sm text-gray-800 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-violet-500"
+                  required
+                />
+              </div>
+            )}
+
+            {needsGuardian && (
+              <div>
+                <label htmlFor="cp-guardian" className="block text-sm font-medium text-gray-700 mb-1">
+                  Parent or guardian&apos;s email
+                </label>
+                <p className="text-xs text-gray-600 mb-1">
+                  A parent or guardian needs to finish setting up this account —
+                  we&apos;ll email them a link.
+                </p>
+                <input
+                  type="email"
+                  id="cp-guardian"
+                  value={guardianEmail}
+                  onChange={e => setGuardianEmail(e.target.value)}
+                  className="w-full px-4 py-3 text-sm text-gray-800 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-violet-500"
+                  placeholder="parent@example.com"
+                  required
+                />
+              </div>
+            )}
 
             <HandleSelector
               firstName={firstName}

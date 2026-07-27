@@ -292,6 +292,25 @@ export async function POST(request: NextRequest) {
         const mapped = mapProfileUpsertError(profileError);
         return NextResponse.json({ error: mapped.error }, { status: mapped.status });
       }
+
+      // Every profile must carry an access row (guardian-profiles invariant;
+      // migration 048 backfilled existing rows, new signups add theirs here).
+      // Best-effort until 055's insert-side trigger makes it structural.
+      if (supabaseAdmin) {
+        const { error: accessError } = await supabaseAdmin
+          .from('profile_access')
+          .upsert(
+            { user_id: data.user.id, profile_id: data.user.id, role: 'owner', granted_by: data.user.id },
+            { onConflict: 'user_id,profile_id' }
+          );
+        if (accessError) {
+          console.error('[SIGNUP] owner access row failed:', accessError);
+          Sentry.captureException(
+            new Error(`signup: owner profile_access insert failed: ${accessError.message}`),
+            { extra: { userId: data.user.id } }
+          );
+        }
+      }
     } else {
       console.warn('[SIGNUP] No user data returned from auth signup');
     }

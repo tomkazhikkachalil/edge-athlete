@@ -190,6 +190,22 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: mapped.error }, { status: mapped.status });
     }
 
+    // Guardian-profiles invariant: every profile carries an access row
+    // (048 backfilled existing profiles; new ones add theirs here).
+    const { error: accessError } = await admin
+      .from('profile_access')
+      .upsert(
+        { user_id: user.id, profile_id: user.id, role: 'owner', granted_by: user.id },
+        { onConflict: 'user_id,profile_id' }
+      );
+    if (accessError) {
+      console.error('[OAUTH-PROFILE] owner access row failed:', accessError);
+      Sentry.captureException(
+        new Error(`complete-profile: owner profile_access insert failed: ${accessError.message}`),
+        { extra: { userId: user.id } }
+      );
+    }
+
     return NextResponse.json({ ok: true }, { status: 201 });
   } catch (error) {
     if (error instanceof Response) return error;

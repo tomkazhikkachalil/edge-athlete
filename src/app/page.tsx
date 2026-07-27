@@ -10,6 +10,8 @@ import { supabase } from '@/lib/supabase';
 import WaitlistPopup from '@/components/WaitlistPopup';
 import HandleSelector from '@/components/HandleSelector';
 import OAuthButtons from '@/components/OAuthButtons';
+import RegistrationSteps from '@/components/signup/RegistrationSteps';
+import { FEATURE_FLAGS } from '@/lib/features';
 
 export default function Home() {
   const [showAthleteRegistration, setShowAthleteRegistration] = useState(false);
@@ -299,10 +301,20 @@ export default function Home() {
   };
 
   if (showAthleteRegistration) {
+    // Guardian-profiles flow: DOB-first step machine (compliance-ordered).
+    // The legacy single-form registration below remains the flag-off path.
+    if (FEATURE_FLAGS.FEATURE_GUARDIAN_PROFILES) {
+      return (
+        <div className="min-h-screen flex flex-col bg-violet-50">
+          <BrandBar />
+          <RegistrationSteps onBackToLogin={handleBackToLogin} />
+        </div>
+      );
+    }
     return (
       <div className="min-h-screen flex flex-col bg-violet-50">
         <BrandBar />
-        
+
         <div className="flex-grow flex items-center justify-center p-4">
           <div className="w-full max-w-3xl bg-white rounded-lg shadow-lg overflow-hidden">
             <div className="w-full p-6 sm:p-8">

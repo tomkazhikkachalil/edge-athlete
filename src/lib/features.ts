@@ -15,9 +15,12 @@ export const FEATURE_FLAGS = {
   FEATURE_SPORTS: ['golf', 'ice_hockey', 'volleyball', 'basketball', 'soccer', 'baseball'] as SportKey[],
   
   // Parent-managed athlete profiles (guardian/supervised/owner/viewer roles,
-  // DOB-gated signup, transfer of control). OFF until Phase 2 ships; the
-  // Phase-1 data + enforcement layer is inert without it.
-  FEATURE_GUARDIAN_PROFILES: false,
+  // DOB-gated signup, transfer of control). Build-time env flag (same
+  // pattern as the OAuth provider flags): set
+  // NEXT_PUBLIC_FEATURE_GUARDIAN_PROFILES=1 locally to develop/test;
+  // leave unset in Vercel until launch. Migrations 048-051 must be run
+  // before this is ever enabled in an environment.
+  FEATURE_GUARDIAN_PROFILES: process.env.NEXT_PUBLIC_FEATURE_GUARDIAN_PROFILES === '1',
 
   // Future feature flags can be added here
   // FEATURE_PUBLIC_PROFILES: false,
