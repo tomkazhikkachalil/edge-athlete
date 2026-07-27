@@ -106,6 +106,7 @@ export interface Profile {
   twitter_handle?: string;
   instagram_handle?: string;
   avatar_url?: string;
+  cover_url?: string;
   // Privacy settings
   visibility?: 'public' | 'private';
   // Note: Sport-specific settings (golf, hockey, etc.) are now stored in the sport_settings table

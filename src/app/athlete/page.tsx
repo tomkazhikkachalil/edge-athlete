@@ -11,6 +11,7 @@ import LazyImage from '@/components/LazyImage';
 import ProfileMediaTabs, { type SportSpotlight } from '@/components/ProfileMediaTabs';
 import FeaturedPosts from '@/components/FeaturedPosts';
 import AvatarUploader from '@/components/AvatarUploader';
+import CoverPhotoUploader from '@/components/CoverPhotoUploader';
 import PostDetailModal from '@/components/PostDetailModal';
 import type { SportKey } from '@/lib/sports';
 import { resolveSportKey, isComposerSport } from '@/lib/sports/resolve-sport-key';
@@ -724,6 +725,40 @@ export default function AthleteProfilePage() {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 py-4 sm:py-8">
         {/* Profile Header Section */}
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden mb-6 sm:mb-8">
+          {/* Cover photo (3:1, cropped in the media editor; gradient until set) */}
+          <div className="relative w-full aspect-[3/1] max-h-64">
+            {profile?.cover_url ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={profile.cover_url}
+                alt="Profile cover"
+                className="w-full h-full object-cover"
+              />
+            ) : (
+              <div
+                className="w-full h-full bg-gradient-to-r from-blue-600 via-blue-500 to-indigo-500"
+                aria-hidden="true"
+              />
+            )}
+            <CoverPhotoUploader
+              onUploaded={() => refreshProfile()}
+              render={({ open, uploading }) => (
+                <button
+                  type="button"
+                  onClick={open}
+                  disabled={uploading}
+                  aria-label={uploading ? 'Uploading cover photo…' : 'Change cover photo'}
+                  className="absolute bottom-2 right-2 w-11 h-11 bg-black/50 hover:bg-black/70 text-white rounded-full flex items-center justify-center shadow-lg transition-colors disabled:opacity-50"
+                >
+                  {uploading ? (
+                    <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" aria-hidden="true" />
+                  ) : (
+                    <i className="fas fa-camera" aria-hidden="true"></i>
+                  )}
+                </button>
+              )}
+            />
+          </div>
           <div className="p-4 sm:p-6 lg:p-8">
             <div className="flex flex-col sm:flex-row items-start gap-4 sm:gap-6 lg:gap-8">
               {/* Profile Picture with Rating */}

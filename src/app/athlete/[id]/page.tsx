@@ -309,7 +309,22 @@ export default function AthleteProfilePage() {
         </div>
 
         {/* Profile Info Section */}
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 sm:p-6 mb-6">
+        <div className="bg-white rounded-lg shadow-sm border border-gray-200 mb-6 overflow-hidden">
+          {/* Cover photo (3:1; gradient until the athlete sets one) */}
+          {profile.cover_url ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={profile.cover_url}
+              alt=""
+              className="w-full aspect-[3/1] max-h-64 object-cover"
+            />
+          ) : (
+            <div
+              className="w-full aspect-[3/1] max-h-64 bg-gradient-to-r from-blue-600 via-blue-500 to-indigo-500"
+              aria-hidden="true"
+            />
+          )}
+          <div className="p-4 sm:p-6">
           <div className="flex flex-col sm:flex-row items-center sm:items-start gap-4 sm:gap-6 lg:gap-8">
           {/* Profile Image with Score Badge */}
           <div className="relative flex-shrink-0">
@@ -450,6 +465,7 @@ export default function AthleteProfilePage() {
               </div>
             </div>
 
+          </div>
           </div>
         </div>
         </div>

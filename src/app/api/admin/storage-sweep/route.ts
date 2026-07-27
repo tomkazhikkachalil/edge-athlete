@@ -43,6 +43,15 @@ async function collectReferencedPaths(supabase: Admin): Promise<Set<string>> {
   await addUrlColumn('post_media', ['media_url', 'thumbnail_url']);
   await addUrlColumn('group_post_media', ['media_url']);
   await addUrlColumn('messages', ['media_url']);
+  // Covers live in uploads (covers/{uid}/…); avatar_url normally points at
+  // the avatars bucket (extractor returns null then) but the avatar route
+  // has a bucket-fallback chain that can land in uploads — cheap insurance.
+  try {
+    await addUrlColumn('profiles', ['cover_url', 'avatar_url']);
+  } catch {
+    // cover_url doesn't exist until migration 047 runs — don't fail the sweep
+    await addUrlColumn('profiles', ['avatar_url']);
+  }
 
   for (let from = 0; ; from += PAGE) {
     const { data, error } = await supabase
