@@ -1,5 +1,55 @@
 # Development Log
 
+## July 26, 2026 (night) — Set-media lifecycle: post-delete kept clips alive, URL allowlist, prod E2E
+
+**Integration review of migration 046 (per-set media)** confirmed the
+feature wired end-to-end (validation → both write paths → both read
+paths → editor/history/post-card/share-picker, with tests) but surfaced
+two real issues, both fixed in d1acd25:
+
+- **Deleting a shared workout post destroyed the workout's clips.** The
+  share flow reuses the same storage URLs for the post carousel and
+  `workout_sets.media`; `DELETE /api/posts` hard-deleted the files, so
+  the workout history + expanded post card silently lost their media.
+  The delete now checks whether any `workout_sets.media` entry or
+  another post's `post_media` row still references each URL and keeps
+  the file if so (or if the check errors — fail-safe toward keeping).
+- **Set media accepted any https URL.** Clips render in raw `<video>`/
+  `<a>` with no host gate (unlike next/image), so a crafted API call
+  could persist third-party URLs every viewer's browser would fetch.
+  `validateSetMedia` now allowlists the project Supabase host +
+  `*.supabase.co`/`*.supabase.in` + same-origin paths, and rejects
+  protocol-relative `//host` URLs the old prefix check let through.
+
+**Production E2E test (scripted, disposable admin-created user):**
+minted a real `sb-…-auth-token` cookie via password grant and drove the
+live APIs — upload → manual workout with set media → share post →
+delete. The fix held (file survived, workout still served its media),
+but the control check caught that NORMAL post-media cleanup had
+silently died: supabase-js `.contains()` with an **array** arg builds a
+Postgres array literal, which 22P02s on a jsonb column, and the
+fail-safe then kept every file. Fixed in 57a9ec7 by passing the
+containment value as `JSON.stringify([{url}])` — verified both forms
+directly against production PostgREST (array → 22P02, string → 200).
+LESSON: supabase-js `.contains()` on jsonb needs a JSON *string*; an
+array arg means native-array containment. And: a fail-safe that fails
+100% of the time looks identical to "working" — always run the
+negative control.
+
+**Post-deploy rerun: 9/9.** Shared file survives post deletion, workout
+still serves its media, control file genuinely removed — verified via
+the storage list API, because the public CDN URL kept serving deleted
+files (uploads set cacheControl 3600; a deleted file's public URL can
+200 for up to an hour). Never use the public URL as an existence check.
+
+Known debt (unchanged, documented): orphaned storage files on
+set-media removal / workout discard / replace-all sync drops; no
+per-workout total media cap (only 4/set).
+
+lint clean · `tsc --noEmit` clean · vitest 197 passed (was 196; new
+host-allowlist spec). Test users + files cleaned up from prod after
+each run.
+
 ## July 26, 2026 (end of day) — Maintenance checklist + sync
 
 - lint clean · `tsc --noEmit` clean · `vitest` 196 passed (21 files) ·
