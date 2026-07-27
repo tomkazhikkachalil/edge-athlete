@@ -25,12 +25,21 @@ export default function AddAthletePage() {
   const [createdName, setCreatedName] = useState('');
   const errorRef = useRef<HTMLDivElement>(null);
 
-  // The guardian signup branch holds the athlete's DOB from its step 2.
+  const [pendingProfileId, setPendingProfileId] = useState('');
+
+  // Prefill from the guardian signup branch (held athlete DOB) and/or a
+  // claimed athlete-initiated invite (name + DOB + pending row id).
   useEffect(() => {
-    const held = typeof window !== 'undefined'
-      ? window.sessionStorage.getItem('ea:athlete-dob')
-      : null;
+    if (typeof window === 'undefined') return;
+    const held = window.sessionStorage.getItem('ea:athlete-dob');
     if (held) setDob(held);
+    try {
+      const name = JSON.parse(window.sessionStorage.getItem('ea:athlete-name') || 'null');
+      if (name?.first) setFirstName(name.first);
+      if (name?.last) setLastName(name.last);
+    } catch {}
+    const pid = window.sessionStorage.getItem('ea:pending-profile-id');
+    if (pid) setPendingProfileId(pid);
   }, []);
 
   useEffect(() => {
@@ -66,7 +75,13 @@ export default function AddAthletePage() {
       const response = await fetch('/api/guardian/athletes', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ first_name: firstName.trim(), last_name: lastName.trim(), dob, handle }),
+        body: JSON.stringify({
+          first_name: firstName.trim(),
+          last_name: lastName.trim(),
+          dob,
+          handle,
+          ...(pendingProfileId ? { pendingProfileId } : {}),
+        }),
       });
       const result = await response.json();
       if (!response.ok) {
@@ -74,6 +89,9 @@ export default function AddAthletePage() {
         return;
       }
       window.sessionStorage.removeItem('ea:athlete-dob');
+      window.sessionStorage.removeItem('ea:athlete-name');
+      window.sessionStorage.removeItem('ea:pending-profile-id');
+      setPendingProfileId('');
       setCreatedName(firstName.trim());
       setFirstName(''); setLastName(''); setDob(''); setHandle('');
     } catch (err) {

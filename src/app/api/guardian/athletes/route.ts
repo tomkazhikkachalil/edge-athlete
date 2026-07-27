@@ -141,6 +141,17 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: friendly }, { status: 409 });
     }
 
+    // Athlete-initiated path: finalize the claimed pending request.
+    const pendingProfileId =
+      typeof body.pendingProfileId === 'string' ? body.pendingProfileId : null;
+    if (pendingProfileId) {
+      await admin
+        .from('pending_profiles')
+        .update({ state: 'approved', promoted_profile_id: profileId })
+        .eq('id', pendingProfileId)
+        .eq('state', 'consent_pending');
+    }
+
     return NextResponse.json({ ok: true, profileId }, { status: 201 });
   } catch (error) {
     if (error instanceof Response) return error;

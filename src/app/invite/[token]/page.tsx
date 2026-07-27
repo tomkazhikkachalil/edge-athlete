@@ -16,6 +16,8 @@ export default function InvitePage() {
   const token = params.token as string;
 
   const [state, setState] = useState<'loading' | 'valid' | 'invalid'>('loading');
+  const [claiming, setClaiming] = useState(false);
+  const [claimError, setClaimError] = useState('');
   const [athleteFirstName, setAthleteFirstName] = useState<string | null>(null);
   const [invitedEmail, setInvitedEmail] = useState('');
   const [hasAccount, setHasAccount] = useState(false);
@@ -97,16 +99,54 @@ export default function InvitePage() {
               <p className="text-xs text-gray-500 mb-4">
                 This invite was sent to {invitedEmail}.
               </p>
+              {claimError && (
+                <p className="text-sm text-red-600 mb-3" role="alert">{claimError}</p>
+              )}
               <button
                 type="button"
-                onClick={() => router.push(user ? '/athlete' : '/')}
-                className="w-full bg-violet-600 text-white py-3 px-4 rounded-md hover:bg-violet-700 transition duration-300 text-sm font-medium"
+                disabled={claiming}
+                onClick={async () => {
+                  if (!user) {
+                    // Not signed in: to login/signup; the invite link in their
+                    // email brings them back here afterward.
+                    router.push('/');
+                    return;
+                  }
+                  // Signed-in guardian: claim (consumes the single-use token)
+                  // and hand the athlete's basics to Add-your-athlete.
+                  setClaiming(true);
+                  setClaimError('');
+                  try {
+                    const res = await fetch(`/api/invites/${encodeURIComponent(token)}/claim`, { method: 'POST' });
+                    const data = await res.json();
+                    if (!res.ok) {
+                      setClaimError(data.error || 'Could not claim this invite.');
+                      return;
+                    }
+                    try {
+                      window.sessionStorage.setItem('ea:athlete-dob', data.athlete?.dob ?? '');
+                      window.sessionStorage.setItem('ea:athlete-name', JSON.stringify({
+                        first: data.athlete?.first_name ?? '',
+                        last: data.athlete?.last_name ?? '',
+                      }));
+                      window.sessionStorage.setItem('ea:pending-profile-id', data.pendingProfileId ?? '');
+                    } catch {}
+                    router.push('/app/guardian/add-athlete');
+                  } catch {
+                    setClaimError('Could not claim this invite. Please try again.');
+                  } finally {
+                    setClaiming(false);
+                  }
+                }}
+                className="w-full bg-violet-600 text-white py-3 px-4 rounded-md hover:bg-violet-700 transition duration-300 text-sm font-medium disabled:opacity-50"
               >
-                {user
-                  ? 'Continue'
-                  : hasAccount
-                    ? 'Log in to continue'
-                    : 'Create your account'}
+                {claiming
+                  ? 'One moment…'
+                  : user
+                    ? 'Review and set up their profile'
+                    : hasAccount
+                      ? 'Log in to continue'
+                      : 'Create your account'}
               </button>
               <p className="text-xs text-gray-500 mt-3 text-center">
                 Keep this email — you&apos;ll finish your athlete&apos;s setup from
