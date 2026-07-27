@@ -23,6 +23,7 @@ export default function AddAthletePage() {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
   const [createdName, setCreatedName] = useState('');
+  const [createdId, setCreatedId] = useState('');
   const errorRef = useRef<HTMLDivElement>(null);
 
   const [pendingProfileId, setPendingProfileId] = useState('');
@@ -93,6 +94,7 @@ export default function AddAthletePage() {
       window.sessionStorage.removeItem('ea:pending-profile-id');
       setPendingProfileId('');
       setCreatedName(firstName.trim());
+      setCreatedId(result.profileId ?? '');
       setFirstName(''); setLastName(''); setDob(''); setHandle('');
     } catch (err) {
       console.error('Add athlete error:', err);
@@ -119,10 +121,19 @@ export default function AddAthletePage() {
                 menu at the top right.
               </p>
               <div className="flex flex-col gap-2 max-w-xs mx-auto">
+                {createdId && (
+                  <button
+                    type="button"
+                    onClick={() => router.push(`/app/guardian/consent/${createdId}`)}
+                    className="w-full bg-violet-600 text-white py-3 px-4 rounded-md hover:bg-violet-700 transition text-sm font-medium"
+                  >
+                    Complete consent now
+                  </button>
+                )}
                 <button
                   type="button"
-                  onClick={() => setCreatedName('')}
-                  className="w-full bg-violet-600 text-white py-3 px-4 rounded-md hover:bg-violet-700 transition text-sm font-medium"
+                  onClick={() => { setCreatedName(''); setCreatedId(''); }}
+                  className="w-full border border-violet-600 text-violet-700 py-3 px-4 rounded-md hover:bg-violet-50 transition text-sm font-medium"
                 >
                   Add another athlete
                 </button>
