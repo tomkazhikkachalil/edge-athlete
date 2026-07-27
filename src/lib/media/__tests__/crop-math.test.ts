@@ -1,0 +1,74 @@
+import { describe, it, expect } from 'vitest';
+import { clampCrop, parseAspectRatio, rotatedSize, totalRotation } from '../crop-math';
+
+describe('parseAspectRatio', () => {
+  it('parses ratio ids to numbers', () => {
+    expect(parseAspectRatio('1:1')).toBe(1);
+    expect(parseAspectRatio('4:5')).toBeCloseTo(0.8);
+    expect(parseAspectRatio('16:9')).toBeCloseTo(16 / 9);
+    expect(parseAspectRatio('3:1')).toBe(3);
+    expect(parseAspectRatio('free')).toBeNull();
+  });
+});
+
+describe('rotatedSize', () => {
+  it('is identity at 0 and 180, swaps at 90 and 270', () => {
+    expect(rotatedSize(400, 300, 0)).toEqual({ width: 400, height: 300 });
+    expect(rotatedSize(400, 300, 180).width).toBeCloseTo(400);
+    expect(rotatedSize(400, 300, 90).width).toBeCloseTo(300);
+    expect(rotatedSize(400, 300, 90).height).toBeCloseTo(400);
+    expect(rotatedSize(400, 300, 270).width).toBeCloseTo(300);
+  });
+
+  it('matches the hand-computed bounding box at 30°', () => {
+    // w' = 400·cos30 + 300·sin30 = 346.41 + 150 = 496.41
+    // h' = 400·sin30 + 300·cos30 = 200 + 259.81 = 459.81
+    const { width, height } = rotatedSize(400, 300, 30);
+    expect(width).toBeCloseTo(496.41, 1);
+    expect(height).toBeCloseTo(459.81, 1);
+  });
+
+  it('handles negative angles (straighten slider) symmetrically', () => {
+    const pos = rotatedSize(400, 300, 15);
+    const neg = rotatedSize(400, 300, -15);
+    expect(neg.width).toBeCloseTo(pos.width);
+    expect(neg.height).toBeCloseTo(pos.height);
+  });
+});
+
+describe('clampCrop', () => {
+  const bounds = { width: 1000, height: 800 };
+
+  it('keeps an in-bounds crop unchanged', () => {
+    const crop = { x: 100, y: 50, width: 400, height: 400 };
+    expect(clampCrop(crop, bounds)).toEqual(crop);
+  });
+
+  it('pulls an overflowing crop back inside', () => {
+    expect(clampCrop({ x: 700, y: 500, width: 400, height: 400 }, bounds)).toEqual({
+      x: 600,
+      y: 400,
+      width: 400,
+      height: 400,
+    });
+    expect(clampCrop({ x: -50, y: -20, width: 400, height: 400 }, bounds)).toEqual({
+      x: 0,
+      y: 0,
+      width: 400,
+      height: 400,
+    });
+  });
+
+  it('shrinks a crop larger than the bounds', () => {
+    const clamped = clampCrop({ x: 0, y: 0, width: 2000, height: 900 }, bounds);
+    expect(clamped.width).toBe(1000);
+    expect(clamped.height).toBe(800);
+  });
+});
+
+describe('totalRotation', () => {
+  it('sums quarter turns and straighten', () => {
+    expect(totalRotation(90, -12)).toBe(78);
+    expect(totalRotation(0, 0)).toBe(0);
+  });
+});

@@ -1,0 +1,86 @@
+/**
+ * Media editor — public contract.
+ *
+ * The editor is a pure transform step: it takes original Files, returns
+ * rendered Blobs plus the EditRecipe that produced them. It NEVER uploads —
+ * each surface keeps its own upload timing (deferred-to-submit vs
+ * immediate-on-select) and feeds `EditedMedia.file` wherever it previously
+ * fed the picked File.
+ */
+
+export type MediaKind = 'image' | 'video';
+
+export type AspectRatioId = 'free' | '1:1' | '4:5' | '16:9' | '3:1';
+
+/** All values 1 = neutral. Range 0–2, mirroring CSS filter semantics. */
+export interface Adjustments {
+  brightness: number;
+  contrast: number;
+  saturation: number;
+}
+
+/**
+ * Crop rectangle in source pixels, in the ROTATED bounding-box coordinate
+ * space (react-easy-crop's croppedAreaPixels convention — rotation is applied
+ * first, then the crop is read against the rotated image's bounding box).
+ */
+export interface CropRect {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
+export interface ImageRecipe {
+  kind: 'image';
+  crop: CropRect | null; // null = uncropped
+  rotate: 0 | 90 | 180 | 270; // quarter-turn button
+  straighten: number; // degrees, -45..45 (slider), added to rotate
+  adjustments: Adjustments;
+  filterId: string | null; // preset applied on top of adjustments
+  aspect: AspectRatioId;
+}
+
+export interface VideoRecipe {
+  kind: 'video';
+  trim: { start: number; end: number } | null; // seconds; null = full length
+  posterTime: number; // seconds, default 0
+}
+
+export type EditRecipe = ImageRecipe | VideoRecipe;
+
+/** Input to the editor. `recipe` rehydrates prior edits when re-opening. */
+export interface MediaAsset {
+  id: string; // stable per composer session
+  file: File; // ORIGINAL source file
+  kind: MediaKind;
+  recipe?: EditRecipe;
+}
+
+/** Output of the editor, one per asset (video split appends a '-b' id). */
+export interface EditedMedia {
+  id: string;
+  blob: Blob;
+  file: File; // blob wrapped with derived name + correct extension
+  previewUrl: string; // objectURL of blob — the CALLER owns revocation
+  kind: MediaKind;
+  posterBlob?: Blob; // video only
+  sourceFile: File; // original, for re-editing
+  recipe: EditRecipe;
+  edited: boolean; // false = pass-through (GIF, no-op, unsupported video)
+}
+
+export interface OutputConfig {
+  maxDimension: number; // longest-edge cap, e.g. 2048 posts / 512 avatar
+  mime: 'image/jpeg' | 'image/webp';
+  quality: number; // 0–1
+}
+
+export interface EditorConfig {
+  aspectRatios: AspectRatioId[]; // offered ratios; first = default
+  enforcedRatio?: Exclude<AspectRatioId, 'free'>; // locks the ratio UI (avatar 1:1)
+  circularPreview?: boolean; // round crop mask (avatar)
+  allowVideo: boolean;
+  maxAssets: number; // 1 = single-asset mode, no filmstrip
+  output: OutputConfig;
+}
