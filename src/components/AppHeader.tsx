@@ -11,6 +11,7 @@ import { AvatarImage } from '@/components/OptimizedImage';
 import NotificationBell from '@/components/NotificationBell';
 import MessagesBell from '@/components/messages/MessagesBell';
 import AdvancedSearchBar from '@/components/AdvancedSearchBar';
+import { FEATURE_FLAGS } from '@/lib/features';
 
 interface AppHeaderProps {
   showSearch?: boolean;
@@ -21,7 +22,7 @@ interface AppHeaderProps {
 export default function AppHeader({ showSearch = true, onCreatePost, onEditProfile }: AppHeaderProps) {
   const router = useRouter();
   const pathname = usePathname();
-  const { profile, signOut } = useAuth();
+  const { profile, signOut, managedProfiles, activeProfile, setActiveProfile } = useAuth();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isProfileDropdownOpen, setIsProfileDropdownOpen] = useState(false);
 
@@ -163,6 +164,45 @@ export default function AppHeader({ showSearch = true, onCreatePost, onEditProfi
                           {getHandle(profile || {})}
                         </p>
                       </div>
+
+                      {/* Guardian-profiles: in-session switching to managed
+                          athletes. Authorization is the profile_access row,
+                          re-checked server-side on every write. */}
+                      {FEATURE_FLAGS.FEATURE_GUARDIAN_PROFILES && (
+                        <div className="py-1 border-b border-gray-100">
+                          <p className="px-4 pt-1 pb-0.5 text-[10px] font-semibold text-gray-400 uppercase tracking-wide">
+                            Your athletes
+                          </p>
+                          {managedProfiles.map(mp => (
+                            <button
+                              key={mp.id}
+                              onClick={() => {
+                                setActiveProfile(activeProfile?.id === mp.id ? null : mp);
+                                setIsProfileDropdownOpen(false);
+                              }}
+                              className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-3"
+                            >
+                              <i className={`fas ${activeProfile?.id === mp.id ? 'fa-circle-check text-violet-600' : 'fa-child-reaching'} w-4`}></i>
+                              <span>
+                                {formatDisplayName(mp.first_name, null, mp.last_name, mp.full_name)}
+                                {activeProfile?.id === mp.id && (
+                                  <span className="ml-1 text-xs text-violet-600">(active)</span>
+                                )}
+                              </span>
+                            </button>
+                          ))}
+                          <button
+                            onClick={() => {
+                              router.push('/app/guardian/add-athlete');
+                              setIsProfileDropdownOpen(false);
+                            }}
+                            className="w-full text-left px-4 py-2 text-sm text-violet-700 hover:bg-violet-50 flex items-center gap-3"
+                          >
+                            <i className="fas fa-plus w-4"></i>
+                            <span>Add an athlete</span>
+                          </button>
+                        </div>
+                      )}
 
                       <div className="py-1">
                         <button

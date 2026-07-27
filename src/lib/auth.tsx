@@ -1,15 +1,26 @@
 'use client';
 
-import { createContext, useContext, useEffect, useState } from 'react';
+import { createContext, useContext, useEffect, useState, useCallback } from 'react';
 import { User, AuthChangeEvent, Session } from '@supabase/supabase-js';
 import { supabase } from './supabase';
 import type { Profile } from './supabase';
+import { FEATURE_FLAGS } from './features';
+
+const ACTIVE_PROFILE_KEY = 'ea:active-profile';
 
 interface AuthContextType {
   user: User | null;
   profile: Profile | null;
   loading: boolean;
   initialAuthCheckComplete: boolean;
+  // Guardian-profiles: athletes this user manages (role='guardian') and the
+  // acting-as context. activeProfile === null means acting as self. The
+  // relationship comes exclusively from profile_access; server routes
+  // re-authorize every targetProfileId write via requireProfileRole.
+  managedProfiles: Profile[];
+  activeProfile: Profile | null;
+  setActiveProfile: (p: Profile | null) => void;
+  refreshManagedProfiles: () => Promise<void>;
   signUp: (email: string, password: string, profileData: Partial<Profile>) => Promise<{ error: unknown }>;
   signIn: (email: string, password: string) => Promise<{ error: unknown }>;
   signOut: () => Promise<void>;
@@ -24,6 +35,61 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [loading, setLoading] = useState(true);
   const [initialAuthCheckComplete, setInitialAuthCheckComplete] = useState(false);
+  const [managedProfiles, setManagedProfiles] = useState<Profile[]>([]);
+  const [activeProfile, setActiveProfileState] = useState<Profile | null>(null);
+
+  const setActiveProfile = useCallback((p: Profile | null) => {
+    setActiveProfileState(p);
+    try {
+      if (p) window.localStorage.setItem(ACTIVE_PROFILE_KEY, p.id);
+      else window.localStorage.removeItem(ACTIVE_PROFILE_KEY);
+    } catch {}
+  }, []);
+
+  const refreshManagedProfiles = useCallback(async () => {
+    if (!FEATURE_FLAGS.FEATURE_GUARDIAN_PROFILES) return;
+    const { data: { session } } = await supabase.auth.getSession();
+    const uid = session?.user?.id;
+    if (!uid) {
+      setManagedProfiles([]);
+      setActiveProfileState(null);
+      return;
+    }
+    // Browser client under RLS: profile_access SELECT allows own rows; the
+    // joined profiles read is granted by the 052 additive guardian policy.
+    const { data, error } = await supabase
+      .from('profile_access')
+      .select('profiles!profile_access_profile_id_fkey(*)')
+      .eq('user_id', uid)
+      .eq('role', 'guardian');
+    if (error) {
+      console.error('managed profiles fetch failed:', error);
+      return;
+    }
+    const athletes: Profile[] = (data ?? [])
+      .map((r: unknown) => (r as { profiles: Profile }).profiles)
+      .filter(Boolean);
+    setManagedProfiles(athletes);
+    // Restore a persisted acting-as selection (only if still managed).
+    try {
+      const savedId = window.localStorage.getItem(ACTIVE_PROFILE_KEY);
+      if (savedId) {
+        const match = athletes.find((a: Profile) => a.id === savedId) ?? null;
+        setActiveProfileState(match);
+        if (!match) window.localStorage.removeItem(ACTIVE_PROFILE_KEY);
+      }
+    } catch {}
+  }, []);
+
+  // Load managed profiles whenever the signed-in user changes.
+  useEffect(() => {
+    if (user) {
+      refreshManagedProfiles();
+    } else {
+      setManagedProfiles([]);
+      setActiveProfileState(null);
+    }
+  }, [user, refreshManagedProfiles]);
   const [profileCache, setProfileCache] = useState<Map<string, Profile>>(new Map()); // eslint-disable-line @typescript-eslint/no-unused-vars
 
   useEffect(() => {
@@ -340,6 +406,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     profile,
     loading,
     initialAuthCheckComplete,
+    managedProfiles,
+    activeProfile,
+    setActiveProfile,
+    refreshManagedProfiles,
     signUp,
     signIn,
     signOut,

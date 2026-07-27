@@ -4,6 +4,7 @@ import { AuthProvider } from "@/lib/auth";
 import { NotificationsProvider } from "@/lib/notifications";
 import { MessagesProvider } from "@/lib/messages";
 import { GlobalToasts } from "@/components/Toast";
+import ActingAsBanner from "@/components/ActingAsBanner";
 import "./globals.css";
 import "@fortawesome/fontawesome-free/css/all.min.css";
 
@@ -70,6 +71,7 @@ export default function RootLayout({
         <AuthProvider>
           <NotificationsProvider>
             <MessagesProvider>
+              <ActingAsBanner />
               {children}
               {/* One app-wide toast surface — every component's useToast()
                   renders here (per-page containers are gone) */}
