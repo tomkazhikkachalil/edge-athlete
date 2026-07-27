@@ -6,6 +6,7 @@
  */
 
 import { supabaseAdmin } from './supabase';
+import { FEATURE_FLAGS } from './features';
 
 export type ProfileVisibility = 'public' | 'private';
 export type ContentVisibility = 'public' | 'private' | 'friends' | 'inherit';
@@ -21,7 +22,7 @@ export interface PrivacySettings {
 export interface PrivacyCheckResult {
   canView: boolean;
   limitedAccess: boolean;
-  reason?: 'own_profile' | 'public' | 'following' | 'not_following' | 'not_found';
+  reason?: 'own_profile' | 'public' | 'following' | 'not_following' | 'not_found' | 'profile_access';
 }
 
 /**
@@ -52,6 +53,25 @@ export async function canViewProfile(
 
   if (!supabaseAdmin) {
     throw new Error('Supabase admin client not configured');
+  }
+
+  // Guardian/supervised/viewer access rows grant view regardless of
+  // visibility (guardian-profiles feature; inert while the flag is off —
+  // profile_access doesn't exist until migration 048 runs).
+  if (FEATURE_FLAGS.FEATURE_GUARDIAN_PROFILES) {
+    const { data: accessRow } = await supabaseAdmin
+      .from('profile_access')
+      .select('role')
+      .eq('user_id', currentUserId)
+      .eq('profile_id', profileId)
+      .maybeSingle();
+    if (accessRow) {
+      return {
+        canView: true,
+        limitedAccess: false,
+        reason: 'profile_access'
+      };
+    }
   }
 
   // Check profile visibility

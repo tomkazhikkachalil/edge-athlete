@@ -14,6 +14,11 @@ export const FEATURE_FLAGS = {
   // statLineSports list in AdapterRegistry.ts (see CLAUDE.md "Add a New Sport").
   FEATURE_SPORTS: ['golf', 'ice_hockey', 'volleyball', 'basketball', 'soccer', 'baseball'] as SportKey[],
   
+  // Parent-managed athlete profiles (guardian/supervised/owner/viewer roles,
+  // DOB-gated signup, transfer of control). OFF until Phase 2 ships; the
+  // Phase-1 data + enforcement layer is inert without it.
+  FEATURE_GUARDIAN_PROFILES: false,
+
   // Future feature flags can be added here
   // FEATURE_PUBLIC_PROFILES: false,
   // FEATURE_MESSAGING: false,
