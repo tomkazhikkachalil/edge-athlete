@@ -1,5 +1,11 @@
 import nodemailer from 'nodemailer';
 
+// Email clients need absolute image URLs — no relative paths.
+const APP_URL = process.env.NEXT_PUBLIC_APP_URL || 'https://edge-athlete.vercel.app';
+
+const logoHeader = (base: string) =>
+  `<img src="${base}/logo.png" width="140" alt="Edge Athlete" style="display:block;margin:0 0 16px;" />`;
+
 interface ContactEmailData {
   name: string;
   email: string;
@@ -43,7 +49,8 @@ export class EmailService {
     
     const htmlContent = `
       <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-        <h2 style="color: #333;">New Contact Form Submission</h2>
+        ${logoHeader(APP_URL)}
+        <h2 style="color: #6d28d9;">New Contact Form Submission</h2>
         
         <div style="background: #f9f9f9; padding: 20px; border-radius: 8px; margin: 20px 0;">
           <p><strong>Name:</strong> ${escapeHtml(name)}</p>
@@ -118,6 +125,7 @@ This email was sent from your website's contact form.
 
     const htmlContent = `
       <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+        ${logoHeader(appUrl)}
         <h2 style="color:#6d28d9;">Hi ${escapeHtml(displayName || 'there')},</h2>
         <p style="color:#333;font-size:15px;">You have ${count} new notification${count === 1 ? '' : 's'} on Edge Athlete:</p>
         <table style="width:100%;border-collapse:collapse;margin:16px 0;">${rows}</table>
