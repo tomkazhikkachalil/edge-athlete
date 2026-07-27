@@ -14,6 +14,17 @@ import {
 import { useBodyScrollLock } from '@/hooks/useBodyScrollLock';
 import type { GolfHoleScore } from '@/types/group-posts';
 import type { HoleData } from '@/types/golf';
+import { MediaEditor } from '@/components/media-editor';
+import { validateFiles } from '@/lib/media/validation';
+import { uploadPostMedia } from '@/lib/media/upload';
+import type { EditedMedia, EditorConfig, MediaAsset } from '@/lib/media/types';
+
+const HOLE_MEDIA_EDITOR_CONFIG: EditorConfig = {
+  aspectRatios: ['free', '1:1', '4:5', '16:9'],
+  allowVideo: true, // videos pass through untouched until the video phase
+  maxAssets: 1,
+  output: { maxDimension: 1600, mime: 'image/jpeg', quality: 0.85 },
+};
 
 export interface ScoreEntryPlayer {
   participantId: string;
@@ -318,19 +329,41 @@ export default function ScoreEntryModal({
   const [mediaCountByHole, setMediaCountByHole] = useState<Record<number, number>>({});
   const canAttachMedia = isLive && !!groupPostId && !!uploaderId;
 
-  const handleMediaSelect = async (file: File | undefined) => {
+  // Picked file goes through the shared media editor (crop/adjust) before
+  // uploading; pick-time validation mirrors the server allowlist (was
+  // missing entirely on this surface).
+  const [holeEditorAssets, setHoleEditorAssets] = useState<MediaAsset[] | null>(null);
+
+  const handleMediaSelect = (file: File | undefined) => {
     if (!file || !canAttachMedia) return;
+    const { accepted, rejected } = validateFiles([file], {
+      maxBytes: 50 * 1024 * 1024,
+      allowVideo: true,
+      maxCount: 1,
+    });
+    if (rejected.length > 0) {
+      setError(rejected[0].message);
+      if (mediaInputRef.current) mediaInputRef.current.value = '';
+      return;
+    }
+    setError(null);
+    setHoleEditorAssets([{
+      id: `${Date.now()}`,
+      file: accepted[0],
+      kind: accepted[0].type.startsWith('video/') ? 'video' as const : 'image' as const,
+    }]);
+  };
+
+  const handleHoleMediaDone = async (results: EditedMedia[]) => {
+    setHoleEditorAssets(null);
+    const result = results[0];
     const holeNumber = currentHoleData?.hole_number;
-    if (!holeNumber) return;
+    if (!result || !holeNumber) return;
     setUploadingMedia(true);
     setError(null);
     try {
-      const formData = new FormData();
-      formData.append('file', file);
-      formData.append('userId', uploaderId!);
-      const uploadRes = await fetch('/api/upload/post-media', { method: 'POST', body: formData });
-      const uploadData = await uploadRes.json();
-      if (!uploadRes.ok) throw new Error(uploadData.error || 'Upload failed');
+      const uploadData = await uploadPostMedia(result.file);
+      URL.revokeObjectURL(result.previewUrl);
 
       const attachRes = await fetch(`/api/group-posts/${groupPostId}/media`, {
         method: 'POST',
@@ -726,6 +759,19 @@ export default function ScoreEntryModal({
           </div>
         </div>
       </div>
+
+      {/* Shared media editor for hole photos/clips (z-[65]) */}
+      {holeEditorAssets && (
+        <MediaEditor
+          assets={holeEditorAssets}
+          config={HOLE_MEDIA_EDITOR_CONFIG}
+          onDone={handleHoleMediaDone}
+          onCancel={() => {
+            setHoleEditorAssets(null);
+            if (mediaInputRef.current) mediaInputRef.current.value = '';
+          }}
+        />
+      )}
     </div>
   );
 }

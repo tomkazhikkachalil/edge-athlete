@@ -4,6 +4,16 @@ import { useState, useRef } from 'react';
 import { Upload, X, Loader2, Image as ImageIcon } from 'lucide-react';
 import Image from 'next/image';
 import { createBrowserClient } from '@supabase/ssr';
+import { MediaEditor } from '@/components/media-editor';
+import { validateFiles } from '@/lib/media/validation';
+import type { EditedMedia, EditorConfig, MediaAsset } from '@/lib/media/types';
+
+const EQUIPMENT_EDITOR_CONFIG: EditorConfig = {
+  aspectRatios: ['1:1', 'free'],
+  allowVideo: false,
+  maxAssets: 1,
+  output: { maxDimension: 1200, mime: 'image/jpeg', quality: 0.85 },
+};
 
 interface EquipmentImageUploadProps {
   value: string;
@@ -28,21 +38,33 @@ export default function EquipmentImageUpload({
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
   );
 
-  const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  // Picked file goes through the shared media editor (square crop for
+  // consistent equipment tiles) before uploading.
+  const [editorAssets, setEditorAssets] = useState<MediaAsset[] | null>(null);
+
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-
-    // Validate file type
-    if (!file.type.startsWith('image/')) {
-      setUploadError('Please select an image file');
+    const { accepted, rejected } = validateFiles([file], {
+      maxBytes: 5 * 1024 * 1024,
+      allowVideo: false,
+      maxCount: 1,
+    });
+    if (rejected.length > 0) {
+      setUploadError(rejected[0].message);
+      if (fileInputRef.current) fileInputRef.current.value = '';
       return;
     }
+    setUploadError(null);
+    setEditorAssets([{ id: `${Date.now()}`, file: accepted[0], kind: 'image' }]);
+  };
 
-    // Validate file size (5MB max)
-    if (file.size > 5 * 1024 * 1024) {
-      setUploadError('Image must be less than 5MB');
-      return;
-    }
+  const handleEditorDone = async (results: EditedMedia[]) => {
+    setEditorAssets(null);
+    const result = results[0];
+    if (!result) return;
+    const file = result.file;
+    URL.revokeObjectURL(result.previewUrl);
 
     setUploading(true);
     setUploadError(null);
@@ -71,9 +93,9 @@ export default function EquipmentImageUpload({
         .getPublicUrl(filePath);
 
       onChange(publicUrl);
-    } catch (error) {
-      console.error('Upload error:', error);
-      setUploadError(error instanceof Error ? error.message : 'Failed to upload image');
+    } catch (err) {
+      console.error('Upload error:', err);
+      setUploadError(err instanceof Error ? err.message : 'Failed to upload image');
     } finally {
       setUploading(false);
       // Reset file input
@@ -228,6 +250,19 @@ export default function EquipmentImageUpload({
           ? 'Uploading your image...'
           : 'Upload your own photo or select from presets. Max 5MB.'}
       </p>
+
+      {/* Shared media editor (z-[65]) */}
+      {editorAssets && (
+        <MediaEditor
+          assets={editorAssets}
+          config={EQUIPMENT_EDITOR_CONFIG}
+          onDone={handleEditorDone}
+          onCancel={() => {
+            setEditorAssets(null);
+            if (fileInputRef.current) fileInputRef.current.value = '';
+          }}
+        />
+      )}
     </div>
   );
 }

@@ -2,6 +2,10 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useBodyScrollLock } from '@/hooks/useBodyScrollLock';
+import { MediaEditor } from '@/components/media-editor';
+import { validateFiles } from '@/lib/media/validation';
+import { uploadPostMedia } from '@/lib/media/upload';
+import type { EditedMedia, EditorConfig, MediaAsset } from '@/lib/media/types';
 import {
   VITAL_CATEGORIES,
   VITAL_METRICS_MAP,
@@ -11,6 +15,13 @@ import {
 
 const MAX_MEDIA_FILES = 4;
 const MAX_FILE_SIZE_BYTES = 5 * 1024 * 1024; // 5MB — same as CreatePostModal
+
+const VITAL_EDITOR_CONFIG: EditorConfig = {
+  aspectRatios: ['free', '1:1', '4:5'],
+  allowVideo: true, // videos pass through untouched until the video phase
+  maxAssets: MAX_MEDIA_FILES,
+  output: { maxDimension: 2048, mime: 'image/jpeg', quality: 0.9 },
+};
 
 interface MediaFile {
   id: string;
@@ -73,38 +84,46 @@ export default function AddVitalModal({ isOpen, onClose, onSaved }: AddVitalModa
     };
   }, [mediaFiles]);
 
+  // Picked files go through the shared media editor before attaching;
+  // validation mirrors the server allowlist at pick time.
+  const [editorAssets, setEditorAssets] = useState<MediaAsset[] | null>(null);
+
   const handleFileSelect = useCallback((files: FileList | null) => {
     if (!files || files.length === 0) return;
-    if (mediaFiles.length + files.length > MAX_MEDIA_FILES) {
-      setError(`Maximum ${MAX_MEDIA_FILES} files allowed.`);
-      return;
+    const { accepted, rejected } = validateFiles(Array.from(files), {
+      maxBytes: MAX_FILE_SIZE_BYTES,
+      allowVideo: true,
+      maxCount: MAX_MEDIA_FILES,
+      existingCount: mediaFiles.length,
+    });
+    if (rejected.length > 0) {
+      setError(rejected[0].message);
+    } else {
+      setError('');
     }
-
-    const newFiles: MediaFile[] = [];
-    for (const file of Array.from(files)) {
-      if (file.size > MAX_FILE_SIZE_BYTES) {
-        setError(`${file.name} exceeds the 5MB limit.`);
-        continue;
-      }
-      const isImage = file.type.startsWith('image/');
-      const isVideo = file.type.startsWith('video/');
-      if (!isImage && !isVideo) {
-        setError(`${file.name} is not a supported image or video.`);
-        continue;
-      }
-      const preview = URL.createObjectURL(file);
-      newFiles.push({
+    if (accepted.length === 0) return;
+    setEditorAssets(
+      accepted.map(file => ({
         id: `${Date.now()}-${Math.random()}`,
         file,
-        preview,
-        url: preview,
-        type: isVideo ? 'video' : 'image',
-      });
-    }
-
-    setMediaFiles(prev => [...prev, ...newFiles]);
-    setError('');
+        kind: file.type.startsWith('video/') ? 'video' as const : 'image' as const,
+      }))
+    );
   }, [mediaFiles.length]);
+
+  const handleEditorDone = (results: EditedMedia[]) => {
+    setMediaFiles(prev => [
+      ...prev,
+      ...results.map(r => ({
+        id: r.id,
+        file: r.file,
+        preview: r.previewUrl,
+        url: r.previewUrl,
+        type: r.kind,
+      })),
+    ]);
+    setEditorAssets(null);
+  };
 
   // Lock background scroll while open (iOS scroll-chaining behind overlays)
   useBodyScrollLock(isOpen);
@@ -152,17 +171,7 @@ export default function AddVitalModal({ isOpen, onClose, onSaved }: AddVitalModa
     }
   };
 
-  const uploadFile = async (file: File): Promise<string> => {
-    const formData = new FormData();
-    formData.append('file', file); // owner derived server-side from the session
-    const res = await fetch('/api/upload/post-media', { method: 'POST', body: formData });
-    if (!res.ok) {
-      const data = await res.json();
-      throw new Error(data.error || 'Upload failed');
-    }
-    const data = await res.json();
-    return data.url as string;
-  };
+  const uploadFile = async (file: File): Promise<string> => (await uploadPostMedia(file)).url;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -552,6 +561,16 @@ export default function AddVitalModal({ isOpen, onClose, onSaved }: AddVitalModa
           </div>
         </form>
       </div>
+
+      {/* Shared media editor (z-[65], above this modal) */}
+      {editorAssets && (
+        <MediaEditor
+          assets={editorAssets}
+          config={VITAL_EDITOR_CONFIG}
+          onDone={handleEditorDone}
+          onCancel={() => setEditorAssets(null)}
+        />
+      )}
     </div>
   );
 }

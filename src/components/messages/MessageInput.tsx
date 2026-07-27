@@ -6,6 +6,10 @@ import EmojiPickerButton from '@/components/EmojiPickerButton';
 import GifPickerModal from '@/components/GifPickerModal';
 import { formatDisplayName } from '@/lib/formatters';
 import type { Message } from '@/types/messages';
+import { MediaEditor } from '@/components/media-editor';
+import { validateFiles } from '@/lib/media/validation';
+import { uploadPostMedia } from '@/lib/media/upload';
+import type { EditedMedia, EditorConfig, MediaAsset } from '@/lib/media/types';
 
 interface Props {
   conversationId: string;
@@ -15,6 +19,13 @@ interface Props {
   replyingTo?: Message | null;
   onCancelReply?: () => void;
 }
+
+const MESSAGE_EDITOR_CONFIG: EditorConfig = {
+  aspectRatios: ['free', '1:1', '16:9'],
+  allowVideo: true, // videos pass through untouched until the video phase
+  maxAssets: 1,
+  output: { maxDimension: 1600, mime: 'image/jpeg', quality: 0.85 },
+};
 
 const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50MB
 
@@ -97,29 +108,40 @@ export default function MessageInput({ conversationId, currentUserId, onSend, di
     setError('');
   };
 
+  // Picked file goes through the shared media editor before attaching;
+  // validation mirrors the server allowlist at pick time.
+  const [editorAssets, setEditorAssets] = useState<MediaAsset[] | null>(null);
+
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-
-    if (file.size > MAX_FILE_SIZE) {
-      setError('File must be under 50MB.');
+    const { accepted, rejected } = validateFiles([file], {
+      maxBytes: MAX_FILE_SIZE,
+      allowVideo: true,
+      maxCount: 1,
+    });
+    if (rejected.length > 0) {
+      setError(rejected[0].message);
       return;
     }
+    setError('');
+    setEditorAssets([{
+      id: `${Date.now()}`,
+      file: accepted[0],
+      kind: accepted[0].type.startsWith('video/') ? 'video' as const : 'image' as const,
+    }]);
+  };
 
-    const isImage = file.type.startsWith('image/');
-    const isVideo = file.type.startsWith('video/');
-    if (!isImage && !isVideo) {
-      setError('Only images and videos are supported.');
-      return;
-    }
-
+  const handleEditorDone = (results: EditedMedia[]) => {
+    setEditorAssets(null);
+    const result = results[0];
+    if (!result) return;
     // Clear any GIF
     setGifUrl(null);
     if (attachedPreview) URL.revokeObjectURL(attachedPreview);
-    const preview = URL.createObjectURL(file);
-    setAttachedFile(file);
-    setAttachedPreview(preview);
-    setAttachedType(isVideo ? 'video' : 'image');
+    setAttachedFile(result.file);
+    setAttachedPreview(result.previewUrl);
+    setAttachedType(result.kind);
     setError('');
   };
 
@@ -155,22 +177,10 @@ export default function MessageInput({ conversationId, currentUserId, onSend, di
         mediaUrl = gifUrl;
         mediaType = 'image';
       } else if (attachedFile) {
-        // Regular file: upload first
-        const formData = new FormData();
-        formData.append('file', attachedFile);
-        formData.append('userId', currentUserId);
-
-        const uploadRes = await fetch('/api/upload/post-media', {
-          method: 'POST',
-          body: formData,
-        });
-        if (!uploadRes.ok) {
-          const data = await uploadRes.json();
-          throw new Error(data.error || 'Upload failed');
-        }
-        const uploadData = await uploadRes.json();
-        mediaUrl = uploadData.url;
-        mediaType = uploadData.type;
+        // Regular file: upload first (owner derived server-side from session)
+        const uploaded = await uploadPostMedia(attachedFile);
+        mediaUrl = uploaded.url;
+        mediaType = uploaded.type;
       }
 
       const msgType = (attachedFile || gifUrl) ? attachedType! : 'text';
@@ -372,6 +382,19 @@ export default function MessageInput({ conversationId, currentUserId, onSend, di
         </button>
       </div>
       </div>
+
+      {/* Shared media editor (z-[65]) */}
+      {editorAssets && (
+        <MediaEditor
+          assets={editorAssets}
+          config={MESSAGE_EDITOR_CONFIG}
+          onDone={handleEditorDone}
+          onCancel={() => {
+            setEditorAssets(null);
+            if (fileInputRef.current) fileInputRef.current.value = '';
+          }}
+        />
+      )}
     </div>
   );
 }

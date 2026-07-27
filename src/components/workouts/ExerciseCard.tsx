@@ -7,6 +7,18 @@ import { EXERCISE_MAP, type ExerciseInputMode } from '@/lib/workout-config';
 import type { EntryExercise, EntrySet, SetMedia } from '@/lib/workouts/entries';
 import { MAX_SETS_PER_EXERCISE, MAX_MEDIA_PER_SET } from '@/lib/workouts/entries';
 import { useToast } from '../Toast';
+import { MediaEditor } from '@/components/media-editor';
+import { validateFiles } from '@/lib/media/validation';
+import { uploadPostMedia } from '@/lib/media/upload';
+import type { EditedMedia, EditorConfig, MediaAsset } from '@/lib/media/types';
+
+const SET_MEDIA_EDITOR_CONFIG: EditorConfig = {
+  aspectRatios: ['free', '1:1', '4:5'],
+  allowVideo: true, // videos pass through untouched until the video phase
+  maxAssets: MAX_MEDIA_PER_SET,
+  output: { maxDimension: 1600, mime: 'image/jpeg', quality: 0.85 },
+};
+const SET_MEDIA_MAX_BYTES = 50 * 1024 * 1024; // server cap on /api/upload/post-media
 
 const CATEGORY_ICON: Record<EntryExercise['category'], string> = {
   strength: '🏋️',
@@ -61,30 +73,45 @@ function SetRow({ set, inputMode, onChange, onDelete }: SetRowProps) {
   const patch = (partial: Partial<EntrySet>) => onChange({ ...setRef.current, ...partial });
   const done = set.completedAt !== null;
 
-  // Per-set media: upload immediately (form-check clips between sets), URLs
-  // ride inside the set snapshot through draft + sync. Note: files uploaded
-  // for a later-discarded workout are orphaned in storage — accepted v1,
-  // same as abandoned post-media uploads; future cleanup sweep.
-  const handleFiles = async (files: FileList | null) => {
+  // Per-set media: pick → shared editor → upload immediately (form-check
+  // clips between sets), URLs ride inside the set snapshot through draft +
+  // sync. Pick-time validation mirrors the server allowlist (was missing
+  // entirely — HEIC/oversize used to fail only after the upload). Orphaned
+  // files from discarded workouts are handled by the admin storage sweep.
+  const [editorAssets, setEditorAssets] = useState<MediaAsset[] | null>(null);
+
+  const handleFiles = (files: FileList | null) => {
     if (!files || files.length === 0) return;
-    const room = MAX_MEDIA_PER_SET - set.media.length;
-    if (room <= 0) {
-      showError('Limit reached', `Max ${MAX_MEDIA_PER_SET} clips per set`);
-      return;
+    const { accepted, rejected } = validateFiles(Array.from(files), {
+      maxBytes: SET_MEDIA_MAX_BYTES,
+      allowVideo: true,
+      maxCount: MAX_MEDIA_PER_SET,
+      existingCount: setRef.current.media.length,
+    });
+    if (rejected.length > 0) {
+      showError('File not added', rejected[0].message);
     }
+    if (accepted.length > 0) {
+      setEditorAssets(
+        accepted.map(file => ({
+          id: `${Date.now()}-${Math.random()}`,
+          file,
+          kind: file.type.startsWith('video/') ? 'video' as const : 'image' as const,
+        }))
+      );
+    }
+    if (fileInputRef.current) fileInputRef.current.value = '';
+  };
+
+  const handleEditorDone = async (results: EditedMedia[]) => {
+    setEditorAssets(null);
     setUploading(true);
     const added: SetMedia[] = [];
     try {
-      for (const file of Array.from(files).slice(0, room)) {
-        const formData = new FormData();
-        formData.append('file', file);
-        const response = await fetch('/api/upload/post-media', { method: 'POST', body: formData });
-        if (!response.ok) {
-          const data = await response.json().catch(() => null);
-          throw new Error(data?.error || 'Upload failed');
-        }
-        const data = await response.json();
-        added.push({ url: data.url, type: data.type === 'video' ? 'video' : 'image' });
+      for (const result of results) {
+        const uploaded = await uploadPostMedia(result.file);
+        added.push({ url: uploaded.url, type: uploaded.type });
+        URL.revokeObjectURL(result.previewUrl);
       }
     } catch (err) {
       showError('Upload failed', err instanceof Error ? err.message : 'Could not upload media');
@@ -92,7 +119,6 @@ function SetRow({ set, inputMode, onChange, onDelete }: SetRowProps) {
       // One onChange with everything that succeeded (partial success kept)
       if (added.length > 0) patch({ media: [...setRef.current.media, ...added] });
       setUploading(false);
-      if (fileInputRef.current) fileInputRef.current.value = '';
     }
   };
 
@@ -256,6 +282,14 @@ function SetRow({ set, inputMode, onChange, onDelete }: SetRowProps) {
           </div>
         ))}
       </div>
+    )}
+    {editorAssets && (
+      <MediaEditor
+        assets={editorAssets}
+        config={SET_MEDIA_EDITOR_CONFIG}
+        onDone={handleEditorDone}
+        onCancel={() => setEditorAssets(null)}
+      />
     )}
     </div>
   );
