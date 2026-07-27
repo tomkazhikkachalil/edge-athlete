@@ -4,6 +4,15 @@ import { requireAuth, getSupabaseAdmin } from '@/lib/auth-server';
 import { mapProfileUpsertError } from '@/lib/signup-errors';
 import { validateHandleFormat } from '@/lib/handle-validation';
 import { deriveAvatarUrl, type OAuthMetadataLike } from '@/lib/oauth-profile';
+import { FEATURE_FLAGS } from '@/lib/features';
+import { isValidDateString, isNotFutureDate } from '@/lib/date-validation';
+import {
+  isUnderThreshold,
+  jurisdictionFromHeaders,
+  getMinorThreshold,
+} from '@/lib/config/minors-config';
+import { createGuardianInvite } from '@/lib/guardian-invites';
+import { emailService } from '@/lib/email-service';
 
 // ── POST /api/auth/complete-profile ───────────────────────────────────────────
 // Creates the profiles row for a first-time OAuth user. The handle MUST be
@@ -22,6 +31,80 @@ export async function POST(request: NextRequest) {
     // display_name has a not-empty check constraint — require a first name.
     if (!first_name) {
       return NextResponse.json({ error: 'Please enter your first name.' }, { status: 400 });
+    }
+
+    // ── DOB gate (guardian-profiles) — the OAuth choke point ────────────────
+    // OAuth first-timers arrive with a session but no profile; this is the
+    // only place their age can be checked. Under-threshold: NO profile row is
+    // created — park in pending_profiles (with auth_user_id, since the OAuth
+    // identity already exists) and invite the guardian. The client signs the
+    // user out after a parked response.
+    if (FEATURE_FLAGS.FEATURE_GUARDIAN_PROFILES) {
+      const dob = typeof body.dob === 'string' ? body.dob : '';
+      if (!dob || !isValidDateString(dob) || !isNotFutureDate(dob)) {
+        return NextResponse.json(
+          { error: 'Please enter a valid date of birth.' },
+          { status: 400 }
+        );
+      }
+      const jurisdiction = jurisdictionFromHeaders(
+        request.headers.get('x-vercel-ip-country'),
+        request.headers.get('x-vercel-ip-country-region')
+      );
+      const today = new Date().toISOString().slice(0, 10);
+      if (isUnderThreshold(dob, jurisdiction, today)) {
+        const guardianEmail =
+          typeof body.guardianEmail === 'string' ? body.guardianEmail.trim() : '';
+        if (!guardianEmail || !guardianEmail.includes('@')) {
+          return NextResponse.json(
+            { needsGuardian: true, error: 'A parent or guardian needs to set up this account. Please provide their email address.' },
+            { status: 422 }
+          );
+        }
+        if (user.email && guardianEmail.toLowerCase() === user.email.toLowerCase()) {
+          return NextResponse.json(
+            { needsGuardian: true, error: "The guardian's email must be different from the athlete's email." },
+            { status: 422 }
+          );
+        }
+        const { data: pending, error: pendingError } = await getSupabaseAdmin()
+          .from('pending_profiles')
+          .insert({
+            payload: { first_name, last_name, handle },
+            child_email: user.email?.toLowerCase() ?? null,
+            dob,
+            jurisdiction,
+            threshold_age: getMinorThreshold(jurisdiction),
+            auth_user_id: user.id,
+          })
+          .select('id')
+          .single();
+        if (pendingError || !pending) {
+          Sentry.captureException(new Error(`complete-profile: parking failed: ${pendingError?.message}`));
+          return NextResponse.json({ error: 'Could not save the request. Please try again.' }, { status: 500 });
+        }
+        const invite = await createGuardianInvite({
+          admin: getSupabaseAdmin(),
+          inviteType: 'guardian_for_pending',
+          invitedEmail: guardianEmail,
+          pendingProfileId: pending.id,
+        });
+        if (invite && process.env.SMTP_USER && process.env.SMTP_PASS) {
+          const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://edge-athlete.vercel.app';
+          try {
+            await emailService.sendGuardianInvite(
+              guardianEmail, first_name, `${appUrl}/invite/${invite.rawToken}`, appUrl
+            );
+          } catch (mailError) {
+            console.error('[OAUTH-PROFILE] guardian invite email failed:', mailError);
+            Sentry.captureException(mailError, { tags: { area: 'guardian-invite' } });
+          }
+        }
+        return NextResponse.json({
+          parked: true,
+          message: "Almost there! We've emailed your parent or guardian a link to finish setting up your profile.",
+        });
+      }
     }
     const formatResult = validateHandleFormat(handle);
     if (!formatResult.isValid) {

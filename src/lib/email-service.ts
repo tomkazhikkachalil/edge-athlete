@@ -105,6 +105,51 @@ This email was sent from your website's contact form.
   }
 
   /**
+   * Guardian invite — sent to a parent/guardian when a minor athlete tried
+   * to sign up (or an existing guardian invites a co-guardian). The link
+   * carries the raw single-use token; appUrl is a parameter (cron/preview
+   * safe, matches sendNotificationDigest).
+   */
+  async sendGuardianInvite(
+    to: string,
+    athleteFirstName: string,
+    inviteUrl: string,
+    appUrl: string
+  ): Promise<void> {
+    const name = athleteFirstName ? escapeHtml(athleteFirstName) : 'A young athlete';
+    const htmlContent = `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+        ${logoHeader(appUrl)}
+        <h2 style="color:#6d28d9;">${name} wants to join Edge Athlete</h2>
+        <p style="color:#333;font-size:15px;line-height:1.6;">
+          Edge Athlete requires a parent or guardian to set up and manage
+          accounts for young athletes. If you're their parent or guardian,
+          you can review the request and create their profile — you'll stay
+          in control of their privacy, content, and who can contact them.
+        </p>
+        <a href="${inviteUrl}"
+           style="display:inline-block;background:#7c3aed;color:#fff;text-decoration:none;padding:10px 20px;border-radius:6px;font-size:14px;margin-top:8px;">
+          Review and set up their profile
+        </a>
+        <p style="color:#888;font-size:12px;margin-top:16px;">
+          This link is single-use and expires in 7 days. If you weren't
+          expecting this email, you can ignore it — no account was created.
+        </p>
+        <div style="margin-top:20px;padding-top:20px;border-top:1px solid #eee;color:#888;font-size:12px;">
+          <p>— Edge Athlete</p>
+        </div>
+      </div>
+    `;
+    await this.transporter.sendMail({
+      from: process.env.EMAIL_FROM || 'noreply@yourdomain.com',
+      to,
+      subject: `Action needed: ${athleteFirstName || 'a young athlete'} wants to join Edge Athlete`,
+      html: htmlContent,
+      text: `${athleteFirstName || 'A young athlete'} wants to join Edge Athlete.\n\nEdge Athlete requires a parent or guardian to set up accounts for young athletes. Review the request here (single-use link, expires in 7 days):\n\n${inviteUrl}\n\nIf you weren't expecting this email, you can ignore it — no account was created.\n\n— Edge Athlete`,
+    });
+  }
+
+  /**
    * Notification digest — a summary of a user's recent unread activity.
    * Sent to the user's own email (opt-in via notification_preferences).
    */

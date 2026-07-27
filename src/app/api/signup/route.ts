@@ -2,6 +2,15 @@ import { NextRequest, NextResponse } from 'next/server';
 import * as Sentry from '@sentry/nextjs';
 import { supabase, supabaseAdmin } from '@/lib/supabase';
 import { mapProfileUpsertError, isObfuscatedDuplicateSignUp } from '@/lib/signup-errors';
+import { FEATURE_FLAGS } from '@/lib/features';
+import { isValidDateString, isNotFutureDate } from '@/lib/date-validation';
+import {
+  isUnderThreshold,
+  jurisdictionFromHeaders,
+  getMinorThreshold,
+} from '@/lib/config/minors-config';
+import { createGuardianInvite } from '@/lib/guardian-invites';
+import { emailService } from '@/lib/email-service';
 
 export async function POST(request: NextRequest) {
   try {
@@ -14,6 +23,87 @@ export async function POST(request: NextRequest) {
         { error: 'Email and password are required' },
         { status: 400 }
       );
+    }
+
+    // ── DOB gate (guardian-profiles) ────────────────────────────────────────
+    // Under-threshold athletes cannot self-signup: NO auth user is created
+    // (COPPA data-minimization) — the partial profile parks in
+    // pending_profiles and the guardian gets a single-use invite link.
+    if (FEATURE_FLAGS.FEATURE_GUARDIAN_PROFILES) {
+      const dob: string | undefined = profileData?.birthday;
+      if (!dob || !isValidDateString(dob) || !isNotFutureDate(dob)) {
+        return NextResponse.json(
+          { error: 'Please enter a valid date of birth.' },
+          { status: 400 }
+        );
+      }
+      const jurisdiction = jurisdictionFromHeaders(
+        request.headers.get('x-vercel-ip-country'),
+        request.headers.get('x-vercel-ip-country-region')
+      );
+      const today = new Date().toISOString().slice(0, 10);
+      if (isUnderThreshold(dob, jurisdiction, today)) {
+        const guardianEmail: string | undefined = body.guardianEmail;
+        if (!guardianEmail || typeof guardianEmail !== 'string' || !guardianEmail.includes('@')) {
+          // 422 tells the client to collect a guardian email — not a dead end.
+          return NextResponse.json(
+            { needsGuardian: true, error: 'A parent or guardian needs to set up this account. Please provide their email address.' },
+            { status: 422 }
+          );
+        }
+        if (guardianEmail.trim().toLowerCase() === email.toLowerCase()) {
+          return NextResponse.json(
+            { needsGuardian: true, error: "The guardian's email must be different from the athlete's email." },
+            { status: 422 }
+          );
+        }
+        if (!supabaseAdmin) {
+          return NextResponse.json({ error: 'Server configuration error' }, { status: 500 });
+        }
+        // profileData carries no credentials (password is a separate body
+        // field, deliberately not parked — the athlete gets a supervised
+        // login later via activation, never this password).
+        const { data: pending, error: pendingError } = await supabaseAdmin
+          .from('pending_profiles')
+          .insert({
+            payload: profileData ?? {},
+            child_email: email.toLowerCase(),
+            dob,
+            jurisdiction,
+            threshold_age: getMinorThreshold(jurisdiction),
+          })
+          .select('id')
+          .single();
+        if (pendingError || !pending) {
+          Sentry.captureException(new Error(`signup: pending_profiles insert failed: ${pendingError?.message}`));
+          return NextResponse.json({ error: 'Could not save the request. Please try again.' }, { status: 500 });
+        }
+        const invite = await createGuardianInvite({
+          admin: supabaseAdmin,
+          inviteType: 'guardian_for_pending',
+          invitedEmail: guardianEmail,
+          pendingProfileId: pending.id,
+        });
+        if (invite && process.env.SMTP_USER && process.env.SMTP_PASS) {
+          const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://edge-athlete.vercel.app';
+          try {
+            await emailService.sendGuardianInvite(
+              guardianEmail,
+              profileData?.first_name || '',
+              `${appUrl}/invite/${invite.rawToken}`,
+              appUrl
+            );
+          } catch (mailError) {
+            // Parked either way; guardian can be re-invited from support.
+            console.error('[SIGNUP] guardian invite email failed:', mailError);
+            Sentry.captureException(mailError, { tags: { area: 'guardian-invite' } });
+          }
+        }
+        return NextResponse.json({
+          parked: true,
+          message: "Almost there! We've emailed your parent or guardian a link to finish setting up your profile.",
+        });
+      }
     }
 
     

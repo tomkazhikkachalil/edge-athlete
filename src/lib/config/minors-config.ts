@@ -71,6 +71,21 @@ export function makeSyntheticEmail(profileId: string): string {
   return `${profileId}@minors.invalid`;
 }
 
+/**
+ * Jurisdiction from Vercel's IP hints (x-vercel-ip-country /
+ * x-vercel-ip-country-region). Used only as the DEFAULT at the consent step —
+ * the guardian confirms explicitly before anything is snapshotted.
+ */
+export function jurisdictionFromHeaders(
+  country: string | null | undefined,
+  region: string | null | undefined
+): string {
+  if (!country) return 'DEFAULT';
+  const c = country.toUpperCase();
+  if (c === 'CA' && region?.toUpperCase() === 'QC') return 'CA-QC';
+  return c;
+}
+
 // Flow constants
 export const GUARDIAN_INVITE_EXPIRY_DAYS = 7;
 export const PENDING_PROFILE_EXPIRY_DAYS = 30;
