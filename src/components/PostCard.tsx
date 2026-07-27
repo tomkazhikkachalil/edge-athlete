@@ -24,6 +24,7 @@ interface PostMedia {
   id: string;
   media_url: string;
   media_type: 'image' | 'video';
+  thumbnail_url?: string | null;
   display_order: number;
 }
 
@@ -474,6 +475,7 @@ function PostCard({
             ) : (
               <video
                 src={post.media[currentMediaIndex].media_url}
+                poster={post.media[currentMediaIndex].thumbnail_url ?? undefined}
                 className="w-full h-auto mx-auto"
                 style={{ maxHeight: '500px' }}
                 controls

@@ -17,6 +17,7 @@ import type { CompleteGolfScorecard, ParticipantRole } from '@/types/group-posts
 import { useBodyScrollLock } from '@/hooks/useBodyScrollLock';
 import { MediaEditor } from '@/components/media-editor';
 import { validateFiles } from '@/lib/media/validation';
+import { uploadPostMedia } from '@/lib/media/upload';
 import type { EditRecipe, EditedMedia, EditorConfig, MediaAsset } from '@/lib/media/types';
 
 interface CreatePostModalProps {
@@ -38,6 +39,8 @@ interface MediaFile {
   sourceFile?: File;
   /** The edit that produced `file`; rehydrates the editor on re-edit. */
   recipe?: EditRecipe;
+  /** Video cover frame from the editor — uploaded as post_media.thumbnail_url. */
+  posterBlob?: Blob;
 }
 
 interface GolfRoundData {
@@ -428,6 +431,7 @@ export default function CreatePostModal({
       preview: r.previewUrl,
       sourceFile: r.sourceFile,
       recipe: r.recipe,
+      posterBlob: r.posterBlob,
     });
     if (editingExistingId) {
       const replaced = results[0];
@@ -607,22 +611,22 @@ export default function CreatePostModal({
     return caption;
   };
 
-  // Upload media to server
-  const uploadMediaToServer = async (file: File): Promise<{ url: string }> => {
-    const formData = new FormData();
-    formData.append('file', file);
-    formData.append('userId', userId);
-
-    const response = await fetch('/api/upload/post-media', {
-      method: 'POST',
-      body: formData
-    });
-
-    if (!response.ok) {
-      throw new Error('Upload failed');
+  // Upload one media file (+ its video poster frame, when the editor made one)
+  const uploadMediaWithPoster = async (
+    mediaFile: MediaFile
+  ): Promise<{ url: string; thumbnailUrl?: string }> => {
+    if (!mediaFile.file) return { url: mediaFile.url };
+    const { url } = await uploadPostMedia(mediaFile.file);
+    if (!mediaFile.posterBlob) return { url };
+    try {
+      const poster = new File([mediaFile.posterBlob], 'poster.jpg', { type: 'image/jpeg' });
+      const uploaded = await uploadPostMedia(poster);
+      return { url, thumbnailUrl: uploaded.url };
+    } catch (err) {
+      // A poster is a nice-to-have — never fail the post over it
+      console.warn('Poster upload failed:', err);
+      return { url };
     }
-
-    return response.json();
   };
 
   // Validation
@@ -812,11 +816,8 @@ export default function CreatePostModal({
       // Upload media files (for individual posts)
       const uploadedMedia = await Promise.all(
         mediaFiles.map(async (file) => {
-          if (file.file) {
-            const { url } = await uploadMediaToServer(file.file);
-            return { ...file, url };
-          }
-          return file;
+          const { url, thumbnailUrl } = await uploadMediaWithPoster(file);
+          return { ...file, url, thumbnailUrl };
         })
       );
 
@@ -830,7 +831,9 @@ export default function CreatePostModal({
         media: uploadedMedia.map((file, index) => ({
           url: file.url,
           type: file.type,
-          sortOrder: index
+          sortOrder: index,
+          // server persists as post_media.thumbnail_url (posts/route.ts)
+          thumbnailUrl: file.thumbnailUrl
         })),
         golfData: postType === 'golf' ? golfRoundData : undefined,
         stats_data:
