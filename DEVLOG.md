@@ -1,5 +1,84 @@
 # Development Log
 
+## July 27, 2026 — Purple rebrand + launch-hardening sprint
+
+**PURPLE REBRAND SHIPPED (4 commits 51c1fd7..019a5ad, DEPLOYED).** New
+EA-monogram logo (Tom-supplied lockup, de-whited/split/tiled into all
+assets via a throwaway Pillow venv) + app-wide blue → violet:
+
+- Assets: `public/logo.png` (lockup), `logo-mark.png`, all 5 PWA/
+  favicon PNGs, `src/app/favicon.ico` (replaced the stale
+  create-next-app one), and a 1200×630 `og-image.png`.
+- Brand color = Tailwind violet (violet-600 `#7c3aed` primary). Tokens
+  in globals.css, themeColor, manifest, global-error, email hexes.
+- Mechanical sweep `blue-N` → `violet-N` across `src/app` +
+  `src/components` (~975 occurrences, 100 files) + 5 stray indigo.
+  INTENTIONALLY still blue (do NOT "fix"): golf under-par badges
+  (`lib/golf/scoring.ts` — scoring convention), sport/league/equipment
+  color-coding maps in `src/lib`, and the blue Training/Practice tag
+  chips (runtime-concatenated classes backed by those lib literals,
+  which Tailwind needs to keep emitting the utilities).
+- New `BrandBar.tsx` (white bar + logo, replaces the 8 copy-pasted
+  blue `<h1>` bars on logged-out pages, sr-only h1 kept); AppHeader
+  renders the lockup on all 18 logged-in pages + drawer.
+- Gotcha for next time: macOS BSD `grep -Z` did NOT NUL-separate for
+  xargs -0 (partial sweep, silently) — use a `while read` loop.
+
+**LAUNCH-HARDENING SPRINT SHIPPED (10 commits 28c4bf2..abda738,
+DEPLOYED, prod-verified).** Items 2/3/4 from the sprint review; device
+tests deferred to Tom's phone session.
+
+- **Signup hardening — the "vanished signup" mystery is almost
+  certainly explained:** the error banner rendered ~2000px above the
+  submit button (a failed mobile signup looked like nothing happened),
+  and an unconfirmed handle aborted submit with no signal. Now: banner
+  scrolls into view + role=alert + error duplicated at the button;
+  specific unconfirmed-handle message; HandleSelector clears the
+  parent's handle on every invalid transition (stale-handle debounce
+  race). Server: dropped the listUsers() duplicate scan (first-page-
+  only = useless past 50 users), detect Supabase's sanitized
+  duplicate-email signUp response (`identities: []`), ROLL BACK the
+  orphaned auth user when the profile upsert fails (previously that
+  email was permanently blocked), constraint-name error mapping
+  (`lib/signup-errors.ts`, pure + tested), Sentry capture on every
+  failure branch (path was previously untraceable). Tests 255→266.
+- **SEO/email:** og/twitter metadata with metadataBase
+  (`NEXT_PUBLIC_APP_URL`, fallback edge-athlete.vercel.app; real
+  domain edgeathlete.ca is months out) — prod og:image verified
+  absolute; logo headers in contact + digest emails.
+- **Storage-sweep cron:** orchestration extracted to
+  `lib/storage-sweep-server.ts`; new GET `/api/cron/storage-sweep`
+  (CRON_SECRET bearer, fail-closed) on Mondays 06:00 UTC in DRY-RUN
+  (`?dryRun=1` in vercel.json — review a run, then drop the param to
+  go live). Hobby's 2-cron cap now fully used.
+- **ENV DISCOVERY: CRON_SECRET was never set in Vercel** — the daily
+  notification-digest cron had been silently 401ing since it shipped.
+  Set July 27 (matches .env.local); sweep cron verified live against
+  prod with the secret (dry-run: 7 files, 0 orphans). Also fixed:
+  Giphy key was in Vercel as `NEXT_PUBLIC_GIPHY_API_KEY` but the route
+  reads `GIPHY_API_KEY` — renamed; GIF picker works in prod for the
+  first time. `NEXT_PUBLIC_APP_URL` set (needed a cache-off redeploy
+  to bake in).
+- **Mobile:** messages pages' `h-screen h-[100dvh]` cascade bug —
+  h-screen was emitted later in built CSS and WON, so July 18's dvh
+  fix never applied → single `h-dvh` + `interactiveWidget:
+  resizes-content` (Android) + `--vvh` visualViewport hook (iOS, own
+  commit 7edeb8c for easy revert) + `safe-bottom` composer.
+  AddEquipmentModal dropdowns: `min(15rem,40vh)` cap + scrollIntoView
+  on open + touchstart outside-close.
+- **GIF picker follow-ups from Tom's testing:** grid previews were
+  Giphy's `fixed_height_still` (frozen) → animated `fixed_height`;
+  recents saved pre-fix carried frozen `_s.gif` URLs in localStorage
+  forever → rewritten on read; Recent strip capped 3 (mobile) / 6
+  (desktop) with a clear gray divider + "Popular" label.
+
+**Verification:** tsc/lint clean, vitest 266 (29 files), full clean
+build, prod checks (og tags, cron 401/200+summary, og-image 200,
+signup duplicate-email 409). AWAITING TOM'S PHONE PASS: iOS messages
+keyboard, equipment dropdown, fresh-eyes signup walkthrough (failures
+now visible + Sentry-traced), plus the standing two-phone golf test
+and Edge Vitals live loop. Next sprint candidate: OAuth.
+
 ## July 27, 2026 (early) — Editor UX polish + maintenance sync
 
 **SCREENSHOT-DRIVEN EDITOR POLISH (6fc0af3, DEPLOYED, prod 200).**
