@@ -251,9 +251,9 @@ export default function MessageInput({ conversationId, currentUserId, onSend, di
       {/* Reply preview bar */}
       {replyingTo && (
         <div className="flex items-center gap-2 px-4 py-2 bg-gray-50 border-b border-gray-200">
-          <div className="w-1 h-8 bg-blue-500 rounded-full shrink-0" />
+          <div className="w-1 h-8 bg-violet-500 rounded-full shrink-0" />
           <div className="flex-1 min-w-0">
-            <p className="text-xs font-semibold text-blue-600 truncate">
+            <p className="text-xs font-semibold text-violet-600 truncate">
               Replying to {replyingSenderName}
             </p>
             <p className="text-xs text-gray-500 truncate">{replyPreviewText}</p>
@@ -320,7 +320,7 @@ export default function MessageInput({ conversationId, currentUserId, onSend, di
           type="button"
           onClick={() => setShowGifPicker(prev => !prev)}
           disabled={disabled || sending}
-          className="shrink-0 p-2.5 text-gray-400 hover:text-blue-500 transition-colors disabled:opacity-40 text-xs font-bold"
+          className="shrink-0 p-2.5 text-gray-400 hover:text-violet-500 transition-colors disabled:opacity-40 text-xs font-bold"
           aria-label="Send GIF"
           title="Send a GIF"
         >
@@ -362,7 +362,7 @@ export default function MessageInput({ conversationId, currentUserId, onSend, di
           placeholder={replyingTo ? 'Reply…' : 'Message…'}
           rows={1}
           disabled={disabled || sending}
-          className="flex-1 resize-none border border-gray-300 rounded-2xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-40 overflow-hidden"
+          className="flex-1 resize-none border border-gray-300 rounded-2xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500 disabled:opacity-40 overflow-hidden"
           style={{ minHeight: 40, maxHeight: 120 }}
         />
 
@@ -371,7 +371,7 @@ export default function MessageInput({ conversationId, currentUserId, onSend, di
           type="button"
           onClick={handleSend}
           disabled={!canSend}
-          className="shrink-0 w-11 h-11 bg-blue-600 text-white rounded-full flex items-center justify-center hover:bg-blue-700 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+          className="shrink-0 w-11 h-11 bg-violet-600 text-white rounded-full flex items-center justify-center hover:bg-violet-700 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
           aria-label="Send message"
         >
           {sending ? (

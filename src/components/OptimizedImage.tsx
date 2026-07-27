@@ -83,7 +83,7 @@ export function AvatarImage({
   if (!src || error) {
     return (
       <div
-        className={`bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center ${className}`}
+        className={`bg-gradient-to-br from-violet-500 to-purple-600 rounded-full flex items-center justify-center ${className}`}
         style={{ width: `${size}px`, height: `${size}px` }}
       >
         <span className="text-white font-semibold" style={{ fontSize: `${size / 2.5}px` }}>

@@ -87,7 +87,7 @@ export default function ReactionDetails({
             onClick={() => setActiveEmoji(t.emoji)}
             className={`shrink-0 inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs transition-colors ${
               t.emoji === activeEmoji
-                ? 'bg-blue-50 text-blue-700 font-semibold'
+                ? 'bg-violet-50 text-violet-700 font-semibold'
                 : 'text-gray-600 hover:bg-gray-50'
             }`}
             aria-pressed={t.emoji === activeEmoji}
@@ -119,7 +119,7 @@ export default function ReactionDetails({
                     height={28}
                   />
                 ) : (
-                  <div className="w-7 h-7 rounded-full bg-blue-500 flex items-center justify-center text-white text-[10px] font-bold shrink-0">
+                  <div className="w-7 h-7 rounded-full bg-violet-500 flex items-center justify-center text-white text-[10px] font-bold shrink-0">
                     {getInitials(name)}
                   </div>
                 )}

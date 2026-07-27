@@ -16,7 +16,7 @@ export default function GolfRoundCard({ round }: { round: GolfRound }) {
             <span className="font-bold text-green-900 text-base">{round.course}</span>
             {/* Round Type Badge - Indoor or Outdoor */}
             {round.round_type === 'indoor' ? (
-              <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-blue-600 text-white text-xs font-bold rounded-full">
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-violet-600 text-white text-xs font-bold rounded-full">
                 <i className="fas fa-warehouse text-[10px]"></i>
                 INDOOR
               </span>
@@ -48,7 +48,7 @@ export default function GolfRoundCard({ round }: { round: GolfRound }) {
               <div className="bg-white rounded-lg px-4 py-2 shadow-md border-2 border-green-300">
                 <div className="text-3xl font-black text-green-900 leading-none">{round.gross_score}</div>
                 {toPar !== null && (
-                  <div className={`text-sm font-bold ${toPar < 0 ? 'text-blue-600' : 'text-red-600'}`}>
+                  <div className={`text-sm font-bold ${toPar < 0 ? 'text-violet-600' : 'text-red-600'}`}>
                     {toPar >= 0 ? '+' : ''}{toPar}
                   </div>
                 )}
@@ -195,11 +195,11 @@ export default function GolfRoundCard({ round }: { round: GolfRound }) {
                             let border = '';
 
                             if (diff === -2) { // Eagle
-                              border = 'ring-2 ring-blue-500 ring-inset';
-                              textColor = 'text-blue-600 font-black';
+                              border = 'ring-2 ring-violet-500 ring-inset';
+                              textColor = 'text-violet-600 font-black';
                             } else if (diff === -1) { // Birdie
-                              border = 'ring-1 ring-blue-400 ring-inset';
-                              textColor = 'text-blue-600 font-bold';
+                              border = 'ring-1 ring-violet-400 ring-inset';
+                              textColor = 'text-violet-600 font-bold';
                             } else if (diff === 1) { // Bogey
                               border = 'border border-red-400';
                               textColor = 'text-red-600 font-semibold';
@@ -218,8 +218,8 @@ export default function GolfRoundCard({ round }: { round: GolfRound }) {
                               </td>
                             );
                           })}
-                        <td className="text-center py-2 px-2 bg-blue-50">
-                          <span className="font-black text-blue-900 text-base">
+                        <td className="text-center py-2 px-2 bg-violet-50">
+                          <span className="font-black text-violet-900 text-base">
                             {round.golf_holes
                               .filter((h) => h.hole_number <= 9)
                               .reduce((sum: number, h) => sum + (h.strokes || 0), 0)}
@@ -308,11 +308,11 @@ export default function GolfRoundCard({ round }: { round: GolfRound }) {
                             let border = '';
 
                             if (diff === -2) {
-                              border = 'ring-2 ring-blue-500 ring-inset';
-                              textColor = 'text-blue-600 font-black';
+                              border = 'ring-2 ring-violet-500 ring-inset';
+                              textColor = 'text-violet-600 font-black';
                             } else if (diff === -1) {
-                              border = 'ring-1 ring-blue-400 ring-inset';
-                              textColor = 'text-blue-600 font-bold';
+                              border = 'ring-1 ring-violet-400 ring-inset';
+                              textColor = 'text-violet-600 font-bold';
                             } else if (diff === 1) {
                               border = 'border border-red-400';
                               textColor = 'text-red-600 font-semibold';
@@ -331,8 +331,8 @@ export default function GolfRoundCard({ round }: { round: GolfRound }) {
                               </td>
                             );
                           })}
-                        <td className="text-center py-2 px-2 bg-blue-50">
-                          <span className="font-black text-blue-900 text-base">
+                        <td className="text-center py-2 px-2 bg-violet-50">
+                          <span className="font-black text-violet-900 text-base">
                             {round.golf_holes
                               .filter((h) => h.hole_number > 9)
                               .reduce((sum: number, h) => sum + (h.strokes || 0), 0)}
@@ -359,9 +359,9 @@ export default function GolfRoundCard({ round }: { round: GolfRound }) {
                   </table>
 
                   {/* Total Score Row */}
-                  <div className="bg-blue-100 border-t-2 border-blue-300 px-2 py-1.5 flex justify-between items-center">
-                    <span className="text-xs font-bold text-blue-900">TOTAL SCORE</span>
-                    <span className="text-lg font-black text-blue-900">
+                  <div className="bg-violet-100 border-t-2 border-violet-300 px-2 py-1.5 flex justify-between items-center">
+                    <span className="text-xs font-bold text-violet-900">TOTAL SCORE</span>
+                    <span className="text-lg font-black text-violet-900">
                       {round.gross_score}
                     </span>
                   </div>
@@ -372,11 +372,11 @@ export default function GolfRoundCard({ round }: { round: GolfRound }) {
             {/* Legend */}
             <div className="mt-2 flex items-center gap-3 text-[9px] text-gray-600">
               <div className="flex items-center gap-1">
-                <div className="w-4 h-4 rounded ring-2 ring-blue-500 ring-inset"></div>
+                <div className="w-4 h-4 rounded ring-2 ring-violet-500 ring-inset"></div>
                 <span>Eagle</span>
               </div>
               <div className="flex items-center gap-1">
-                <div className="w-4 h-4 rounded ring-1 ring-blue-400 ring-inset"></div>
+                <div className="w-4 h-4 rounded ring-1 ring-violet-400 ring-inset"></div>
                 <span>Birdie</span>
               </div>
               <div className="flex items-center gap-1">

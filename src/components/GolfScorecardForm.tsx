@@ -9,7 +9,7 @@ import type { HoleData } from '@/types/golf';
 // Tee box options
 const TEE_OPTIONS = [
   { value: 'black', label: 'Black/Tips', color: 'bg-black' },
-  { value: 'blue', label: 'Blue', color: 'bg-blue-600' },
+  { value: 'blue', label: 'Blue', color: 'bg-violet-600' },
   { value: 'white', label: 'White', color: 'bg-white border-gray-400' },
   { value: 'gold', label: 'Gold/Senior', color: 'bg-yellow-500' },
   { value: 'red', label: 'Red/Forward', color: 'bg-red-600' }
@@ -285,7 +285,7 @@ export default function GolfScorecardForm({ onDataChange }: GolfScorecardFormPro
     const diff = hole.score - hole.par;
     if (diff <= -2) return { text: hole.score, color: 'text-yellow-500 font-bold' }; // Eagle
     if (diff === -1) return { text: hole.score, color: 'text-green-600 font-bold' }; // Birdie
-    if (diff === 0) return { text: hole.score, color: 'text-blue-600' }; // Par
+    if (diff === 0) return { text: hole.score, color: 'text-violet-600' }; // Par
     if (diff === 1) return { text: hole.score, color: 'text-gray-700' }; // Bogey
     return { text: hole.score, color: 'text-red-600' }; // Double+
   };
@@ -421,7 +421,7 @@ export default function GolfScorecardForm({ onDataChange }: GolfScorecardFormPro
                             {course.features.slice(0, 2).map(feature => (
                               <span
                                 key={feature}
-                                className="px-1.5 py-0.5 bg-blue-100 text-blue-700 text-xs rounded"
+                                className="px-1.5 py-0.5 bg-violet-100 text-violet-700 text-xs rounded"
                               >
                                 {feature}
                               </span>
@@ -502,7 +502,7 @@ export default function GolfScorecardForm({ onDataChange }: GolfScorecardFormPro
                     onClick={() => handleStartingHoleChange('front')}
                     className={`px-3 py-2 min-h-[44px] rounded-md text-xs font-medium transition-colors ${
                       startingHole === 'front'
-                        ? 'bg-blue-600 text-white'
+                        ? 'bg-violet-600 text-white'
                         : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                     }`}
                   >
@@ -513,7 +513,7 @@ export default function GolfScorecardForm({ onDataChange }: GolfScorecardFormPro
                     onClick={() => handleStartingHoleChange('back')}
                     className={`px-3 py-2 min-h-[44px] rounded-md text-xs font-medium transition-colors ${
                       startingHole === 'back'
-                        ? 'bg-blue-600 text-white'
+                        ? 'bg-violet-600 text-white'
                         : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                     }`}
                   >
@@ -549,7 +549,7 @@ export default function GolfScorecardForm({ onDataChange }: GolfScorecardFormPro
                   onChange={(e) => setRoundType(e.target.value as 'indoor')}
                   className="mr-2"
                 />
-                <i className="fas fa-warehouse mr-1 text-blue-600"></i>
+                <i className="fas fa-warehouse mr-1 text-violet-600"></i>
                 Indoor (Simulator/Range)
               </label>
             </div>
@@ -607,7 +607,7 @@ export default function GolfScorecardForm({ onDataChange }: GolfScorecardFormPro
       {roundType === 'outdoor' && (
         <div className="bg-white rounded-lg border border-gray-200 p-4">
           <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
-            <i className="fas fa-cloud-sun mr-2 text-blue-500"></i>
+            <i className="fas fa-cloud-sun mr-2 text-violet-500"></i>
             Playing Conditions
           </h3>
 
@@ -760,8 +760,8 @@ export default function GolfScorecardForm({ onDataChange }: GolfScorecardFormPro
               </tr>
 
               {/* Par Row */}
-              <tr className="bg-blue-100">
-                <td className="px-2 py-2 text-xs font-bold border border-gray-300 text-center bg-blue-200 text-gray-900">PAR</td>
+              <tr className="bg-violet-100">
+                <td className="px-2 py-2 text-xs font-bold border border-gray-300 text-center bg-violet-200 text-gray-900">PAR</td>
                 {holesData
                   .filter(hole => {
                     if (holeCount !== 18) return true; // Show all holes for non-18 hole rounds
@@ -770,12 +770,12 @@ export default function GolfScorecardForm({ onDataChange }: GolfScorecardFormPro
                   })
                   .map(hole => (
                     <td key={hole.hole} className={`px-2 py-2 text-sm font-bold border border-gray-300 text-center text-gray-900 ${
-                      hole.par === 3 ? 'bg-red-100' : hole.par === 5 ? 'bg-yellow-100' : 'bg-blue-100'
+                      hole.par === 3 ? 'bg-red-100' : hole.par === 5 ? 'bg-yellow-100' : 'bg-violet-100'
                     }`}>
                       {hole.par}
                     </td>
                   ))}
-                <td className="px-2 py-2 text-sm font-bold border border-gray-300 text-center bg-blue-200 text-gray-900">
+                <td className="px-2 py-2 text-sm font-bold border border-gray-300 text-center bg-violet-200 text-gray-900">
                   {holesData
                     .filter(h => {
                       if (holeCount !== 18) return true; // Show all holes for non-18 hole rounds
@@ -856,7 +856,7 @@ export default function GolfScorecardForm({ onDataChange }: GolfScorecardFormPro
                             hole.score
                               ? score.color === 'text-yellow-500 font-bold' ? 'bg-yellow-100 border-yellow-500 text-yellow-900'
                               : score.color === 'text-green-600 font-bold' ? 'bg-green-100 border-green-500 text-green-900'
-                              : score.color === 'text-blue-600' ? 'bg-blue-100 border-blue-500 text-blue-900'
+                              : score.color === 'text-violet-600' ? 'bg-violet-100 border-violet-500 text-violet-900'
                               : score.color === 'text-red-600' ? 'bg-red-100 border-red-500 text-red-900'
                               : 'bg-gray-100 border-gray-500 text-gray-900'
                               : 'bg-white border-gray-400 text-gray-900'
@@ -959,8 +959,8 @@ export default function GolfScorecardForm({ onDataChange }: GolfScorecardFormPro
               </tr>
 
               {/* GIR Row */}
-              <tr className="bg-blue-50">
-                <td className="px-2 py-2 text-xs font-bold border border-gray-300 text-center bg-blue-100 text-gray-900">GIR</td>
+              <tr className="bg-violet-50">
+                <td className="px-2 py-2 text-xs font-bold border border-gray-300 text-center bg-violet-100 text-gray-900">GIR</td>
                 {holesData
                   .filter(hole => {
                     if (holeCount !== 18) return true; // Show all holes for non-18 hole rounds
@@ -977,13 +977,13 @@ export default function GolfScorecardForm({ onDataChange }: GolfScorecardFormPro
                             type="checkbox"
                             checked={hole.gir || false}
                             onChange={(e) => updateHole(actualIndex, 'gir', e.target.checked)}
-                            className="w-5 h-5 text-blue-600 border-2 border-gray-400 rounded focus:ring-blue-500"
+                            className="w-5 h-5 text-violet-600 border-2 border-gray-400 rounded focus:ring-violet-500"
                           />
                         </div>
                       </td>
                     );
                   })}
-                <td className="px-2 py-2 text-xs border border-gray-300 text-center bg-blue-100 text-gray-900 font-bold">
+                <td className="px-2 py-2 text-xs border border-gray-300 text-center bg-violet-100 text-gray-900 font-bold">
                   {stats ? `${stats.greensInRegulation}/${holesData.filter(h => holeCount !== 18 ? true : activeTab === 'front' ? (h.hole ?? 0) <= 9 : (h.hole ?? 0) > 9).length}` : '−'}
                 </td>
               </tr>
@@ -1009,7 +1009,7 @@ export default function GolfScorecardForm({ onDataChange }: GolfScorecardFormPro
                 <div className="text-3xl font-bold text-gray-900">{stats.totalScore}</div>
                 <div className="text-sm font-medium text-gray-800">Total Score</div>
               </div>
-              <div className="bg-blue-50 p-3 rounded-lg border">
+              <div className="bg-violet-50 p-3 rounded-lg border">
                 <div className="text-3xl font-bold text-gray-900">{stats.differential}</div>
                 <div className="text-sm font-medium text-gray-800">To Par</div>
               </div>
@@ -1021,7 +1021,7 @@ export default function GolfScorecardForm({ onDataChange }: GolfScorecardFormPro
                 <div className="text-3xl font-bold text-gray-900">{stats.fairwayPercentage}%</div>
                 <div className="text-sm font-medium text-gray-800">Fairways</div>
               </div>
-              <div className="bg-blue-50 p-3 rounded-lg border">
+              <div className="bg-violet-50 p-3 rounded-lg border">
                 <div className="text-3xl font-bold text-gray-900">{stats.girPercentage}%</div>
                 <div className="text-sm font-medium text-gray-800">GIR</div>
               </div>
@@ -1031,7 +1031,7 @@ export default function GolfScorecardForm({ onDataChange }: GolfScorecardFormPro
                   <span className="text-gray-800">•</span>
                   <span className="text-green-700 font-bold">{stats.birdies}</span>
                   <span className="text-gray-800">•</span>
-                  <span className="text-blue-700 font-bold">{stats.pars}</span>
+                  <span className="text-violet-700 font-bold">{stats.pars}</span>
                   <span className="text-gray-800">•</span>
                   <span className="text-gray-800 font-bold">{stats.bogeys}</span>
                   <span className="text-gray-800">•</span>
@@ -1045,8 +1045,8 @@ export default function GolfScorecardForm({ onDataChange }: GolfScorecardFormPro
       </div>
 
       {/* Scorecard Legend & Tips */}
-      <div className="bg-gradient-to-r from-blue-50 to-green-50 border border-blue-200 rounded-lg p-4">
-        <h4 className="text-sm font-semibold text-blue-900 mb-3 flex items-center">
+      <div className="bg-gradient-to-r from-violet-50 to-green-50 border border-violet-200 rounded-lg p-4">
+        <h4 className="text-sm font-semibold text-violet-900 mb-3 flex items-center">
           <i className="fas fa-info-circle mr-2"></i>
           Scorecard Guide
         </h4>
@@ -1054,51 +1054,51 @@ export default function GolfScorecardForm({ onDataChange }: GolfScorecardFormPro
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {/* Score Colors */}
           <div>
-            <h5 className="text-xs font-semibold text-blue-800 mb-2">Score Colors:</h5>
+            <h5 className="text-xs font-semibold text-violet-800 mb-2">Score Colors:</h5>
             <div className="space-y-1">
               <div className="flex items-center gap-2">
                 <div className="w-6 h-6 bg-yellow-100 border-2 border-yellow-400 rounded flex items-center justify-center text-xs font-bold text-yellow-800">2</div>
-                <span className="text-xs text-blue-800">Eagle (-2 or better)</span>
+                <span className="text-xs text-violet-800">Eagle (-2 or better)</span>
               </div>
               <div className="flex items-center gap-2">
                 <div className="w-6 h-6 bg-green-100 border-2 border-green-400 rounded flex items-center justify-center text-xs font-bold text-green-800">3</div>
-                <span className="text-xs text-blue-800">Birdie (-1)</span>
+                <span className="text-xs text-violet-800">Birdie (-1)</span>
               </div>
               <div className="flex items-center gap-2">
-                <div className="w-6 h-6 bg-blue-100 border-2 border-blue-400 rounded flex items-center justify-center text-xs font-bold text-blue-800">4</div>
-                <span className="text-xs text-blue-800">Par (even)</span>
+                <div className="w-6 h-6 bg-violet-100 border-2 border-violet-400 rounded flex items-center justify-center text-xs font-bold text-violet-800">4</div>
+                <span className="text-xs text-violet-800">Par (even)</span>
               </div>
               <div className="flex items-center gap-2">
                 <div className="w-6 h-6 bg-gray-100 border-2 border-gray-400 rounded flex items-center justify-center text-xs">5</div>
-                <span className="text-xs text-blue-800">Bogey (+1)</span>
+                <span className="text-xs text-violet-800">Bogey (+1)</span>
               </div>
               <div className="flex items-center gap-2">
                 <div className="w-6 h-6 bg-red-100 border-2 border-red-400 rounded flex items-center justify-center text-xs text-red-800">6</div>
-                <span className="text-xs text-blue-800">Double+ (+2 or worse)</span>
+                <span className="text-xs text-violet-800">Double+ (+2 or worse)</span>
               </div>
             </div>
           </div>
 
           {/* Par Color Coding */}
           <div>
-            <h5 className="text-xs font-semibold text-blue-800 mb-2">Par Colors:</h5>
+            <h5 className="text-xs font-semibold text-violet-800 mb-2">Par Colors:</h5>
             <div className="space-y-1">
               <div className="flex items-center gap-2">
                 <div className="w-6 h-4 bg-red-100 border border-gray-300 rounded"></div>
-                <span className="text-xs text-blue-800">Par 3 holes</span>
+                <span className="text-xs text-violet-800">Par 3 holes</span>
               </div>
               <div className="flex items-center gap-2">
-                <div className="w-6 h-4 bg-blue-100 border border-gray-300 rounded"></div>
-                <span className="text-xs text-blue-800">Par 4 holes</span>
+                <div className="w-6 h-4 bg-violet-100 border border-gray-300 rounded"></div>
+                <span className="text-xs text-violet-800">Par 4 holes</span>
               </div>
               <div className="flex items-center gap-2">
                 <div className="w-6 h-4 bg-yellow-100 border border-gray-300 rounded"></div>
-                <span className="text-xs text-blue-800">Par 5 holes</span>
+                <span className="text-xs text-violet-800">Par 5 holes</span>
               </div>
             </div>
 
-            <h5 className="text-xs font-semibold text-blue-800 mb-2 mt-3">Quick Tips:</h5>
-            <ul className="text-xs text-blue-800 space-y-1">
+            <h5 className="text-xs font-semibold text-violet-800 mb-2 mt-3">Quick Tips:</h5>
+            <ul className="text-xs text-violet-800 space-y-1">
               <li>• GIR auto-calculated from score + putts</li>
               <li>• Use Tab to move between fields quickly</li>
               <li>• F/W: ✓=Hit, ←=Left, →=Right, •=Par 3</li>

@@ -386,7 +386,7 @@ function PostCard({
               {/* min-w-0 + truncate: long name/handle must shrink, not push the
                   owner edit/delete buttons off a 360px card */}
               <div className="flex items-center gap-2 min-w-0">
-                <h3 className="font-bold text-gray-900 text-base hover:text-blue-600 transition-colors truncate">{displayName}</h3>
+                <h3 className="font-bold text-gray-900 text-base hover:text-violet-600 transition-colors truncate">{displayName}</h3>
                 {getHandle(post.profile) && (
                   <span className="text-sm text-gray-900 font-medium truncate flex-shrink-[2]">{getHandle(post.profile)}</span>
                 )}
@@ -432,7 +432,7 @@ function PostCard({
               </button>
               <button
                 onClick={() => onEdit?.(post.id)}
-                className="text-gray-800 hover:text-blue-600 transition-colors p-2 min-w-[44px] min-h-[44px] rounded-full hover:bg-blue-50 flex items-center justify-center"
+                className="text-gray-800 hover:text-violet-600 transition-colors p-2 min-w-[44px] min-h-[44px] rounded-full hover:bg-violet-50 flex items-center justify-center"
                 title="Edit post"
               >
                 <i className="fas fa-edit text-sm"></i>
@@ -533,7 +533,7 @@ function PostCard({
 
             <button
               onClick={handleComment}
-              className="flex items-center gap-2 text-base font-bold text-gray-800 hover:text-blue-600 transition-colors min-h-[44px]"
+              className="flex items-center gap-2 text-base font-bold text-gray-800 hover:text-violet-600 transition-colors min-h-[44px]"
             >
               <i className="far fa-comment text-lg"></i>
               <span>{localCommentsCount}</span>
@@ -577,7 +577,7 @@ function PostCard({
             {post.hashtags.map((hashtag, index) => (
               <span
                 key={index}
-                className="text-blue-600 hover:text-blue-700 cursor-pointer text-base font-bold"
+                className="text-violet-600 hover:text-violet-700 cursor-pointer text-base font-bold"
               >
                 {hashtag}
               </span>
@@ -610,7 +610,7 @@ function PostCard({
                       router.push(`/athlete/${taggedProfile.id}`);
                     }
                   }}
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-700 text-sm rounded-full font-semibold border border-blue-200 transition-colors"
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-violet-50 hover:bg-violet-100 text-violet-700 text-sm rounded-full font-semibold border border-violet-200 transition-colors"
                 >
                   {taggedProfile.avatar_url ? (
                     <LazyImage
@@ -621,8 +621,8 @@ function PostCard({
                       height={16}
                     />
                   ) : (
-                    <div className="w-4 h-4 rounded-full bg-blue-200 flex items-center justify-center">
-                      <span className="text-[8px] font-medium text-blue-700">
+                    <div className="w-4 h-4 rounded-full bg-violet-200 flex items-center justify-center">
+                      <span className="text-[8px] font-medium text-violet-700">
                         {getInitials(taggedDisplayName)}
                       </span>
                     </div>

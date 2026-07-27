@@ -128,7 +128,7 @@ export default function ReportMessageModal({
                   key={r.value}
                   className={`flex items-start gap-3 p-3 rounded-lg border cursor-pointer transition-colors ${
                     reason === r.value
-                      ? 'border-blue-500 bg-blue-50'
+                      ? 'border-violet-500 bg-violet-50'
                       : 'border-gray-200 hover:bg-gray-50'
                   }`}
                 >
@@ -138,7 +138,7 @@ export default function ReportMessageModal({
                     value={r.value}
                     checked={reason === r.value}
                     onChange={() => setReason(r.value)}
-                    className="mt-0.5 accent-blue-600"
+                    className="mt-0.5 accent-violet-600"
                   />
                   <span className="flex-1">
                     <span className="block text-sm font-medium text-gray-900">{r.label}</span>
@@ -156,7 +156,7 @@ export default function ReportMessageModal({
                   onChange={e => setDetails(e.target.value.slice(0, MAX_DETAILS_LEN))}
                   rows={3}
                   placeholder="Anything else we should know?"
-                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm resize-y focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm resize-y focus:outline-none focus:ring-2 focus:ring-violet-500"
                 />
                 <p className="text-[10px] text-gray-400 text-right mt-1">
                   {details.length}/{MAX_DETAILS_LEN}

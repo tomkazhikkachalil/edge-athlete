@@ -65,7 +65,7 @@ export default function SecuritySettings() {
   };
 
   const inputClass =
-    'w-full px-3 py-2 min-h-[44px] border border-gray-300 rounded-md text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-500';
+    'w-full px-3 py-2 min-h-[44px] border border-gray-300 rounded-md text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-violet-500';
 
   return (
     <div>
@@ -123,7 +123,7 @@ export default function SecuritySettings() {
         <button
           type="submit"
           disabled={submitting}
-          className="bg-blue-600 text-white py-2.5 px-6 rounded-md hover:bg-blue-700 transition font-medium min-h-[44px] disabled:opacity-50"
+          className="bg-violet-600 text-white py-2.5 px-6 rounded-md hover:bg-violet-700 transition font-medium min-h-[44px] disabled:opacity-50"
         >
           {submitting ? (
             <><i className="fas fa-spinner fa-spin mr-2"></i>Updating…</>

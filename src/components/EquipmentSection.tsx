@@ -236,7 +236,7 @@ export default function EquipmentSection({ profileId, isOwnProfile = false }: Eq
           isOwnProfile ? (
             <button
               onClick={() => setIsAddModalOpen(true)}
-              className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg font-semibold text-sm hover:bg-blue-700 transition-colors shadow-sm"
+              className="flex items-center gap-2 px-4 py-2 bg-violet-600 text-white rounded-lg font-semibold text-sm hover:bg-violet-700 transition-colors shadow-sm"
             >
               <Plus className="w-4 h-4" />
               Add Equipment
@@ -248,7 +248,7 @@ export default function EquipmentSection({ profileId, isOwnProfile = false }: Eq
         <select
           value={filter}
           onChange={(e) => setFilter(e.target.value as 'all' | 'active' | 'retired')}
-          className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+          className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-violet-500 bg-white"
           aria-label="Filter by status"
         >
           <option value="active">Active ({equipment.filter(e => e.status === 'active').length})</option>
@@ -282,7 +282,7 @@ export default function EquipmentSection({ profileId, isOwnProfile = false }: Eq
       {/* Loading state */}
       {loading && (
         <div className="flex justify-center items-center py-16">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-violet-600"></div>
         </div>
       )}
 
@@ -311,7 +311,7 @@ export default function EquipmentSection({ profileId, isOwnProfile = false }: Eq
           {isOwnProfile && (
             <button
               onClick={() => setIsAddModalOpen(true)}
-              className="inline-flex items-center gap-2 px-6 py-3 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700 transition-colors shadow-sm"
+              className="inline-flex items-center gap-2 px-6 py-3 bg-violet-600 text-white rounded-lg font-semibold hover:bg-violet-700 transition-colors shadow-sm"
             >
               <Plus className="w-5 h-5" />
               Add Your First Item
@@ -443,7 +443,7 @@ function EquipmentCard({ item, isOwnProfile, showSportChip = false, onEdit, onDe
     <div
       className={`relative rounded-xl overflow-hidden transition-all duration-200 ${
         isActive
-          ? 'bg-white border-2 border-gray-200 hover:border-blue-400 hover:shadow-lg'
+          ? 'bg-white border-2 border-gray-200 hover:border-violet-400 hover:shadow-lg'
           : 'bg-gray-50 border-2 border-gray-200 opacity-75 hover:opacity-100'
       }`}
     >
@@ -487,7 +487,7 @@ function EquipmentCard({ item, isOwnProfile, showSportChip = false, onEdit, onDe
             {config.label}
           </span>
           {showSportChip && (
-            <span className="px-2 py-1 rounded-md text-xs font-semibold bg-blue-50 text-blue-700">
+            <span className="px-2 py-1 rounded-md text-xs font-semibold bg-violet-50 text-violet-700">
               {sportLabel(item.sport_key || 'general')}
             </span>
           )}
@@ -566,7 +566,7 @@ function EquipmentCard({ item, isOwnProfile, showSportChip = false, onEdit, onDe
             {isActive && (
               <button
                 onClick={onReplace}
-                className="w-full flex items-center justify-center gap-1 px-3 py-2 bg-blue-50 hover:bg-blue-100 text-blue-700 rounded-lg text-xs font-semibold transition-colors border border-blue-200"
+                className="w-full flex items-center justify-center gap-1 px-3 py-2 bg-violet-50 hover:bg-violet-100 text-violet-700 rounded-lg text-xs font-semibold transition-colors border border-violet-200"
               >
                 <RefreshCw className="w-3 h-3" />
                 Replace / Upgrade

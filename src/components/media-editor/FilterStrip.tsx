@@ -34,7 +34,7 @@ export default function FilterStrip({ imageUrl, activeFilterId, onSelect }: Filt
             alt={`${option.label} filter preview`}
             style={option.filter ? { filter: option.filter } : undefined}
             className={`w-16 h-16 rounded-lg object-cover ${
-              activeFilterId === option.id ? 'ring-2 ring-blue-500' : 'ring-1 ring-white/20'
+              activeFilterId === option.id ? 'ring-2 ring-violet-500' : 'ring-1 ring-white/20'
             }`}
           />
           <span

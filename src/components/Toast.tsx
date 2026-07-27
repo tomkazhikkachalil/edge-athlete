@@ -49,7 +49,7 @@ function Toast({ toast, onDismiss }: ToastProps) {
         return <i className="fas fa-exclamation-triangle text-yellow-500" aria-hidden="true" />;
       case 'info':
       default:
-        return <i className="fas fa-info-circle text-blue-500" aria-hidden="true" />;
+        return <i className="fas fa-info-circle text-violet-500" aria-hidden="true" />;
     }
   };
 
@@ -63,7 +63,7 @@ function Toast({ toast, onDismiss }: ToastProps) {
         return 'bg-yellow-50 border-yellow-200';
       case 'info':
       default:
-        return 'bg-blue-50 border-blue-200';
+        return 'bg-violet-50 border-violet-200';
     }
   };
 
@@ -97,7 +97,7 @@ function Toast({ toast, onDismiss }: ToastProps) {
             )}
           </div>
           <button
-            className="ml-2 -m-1.5 p-1.5 flex-shrink-0 w-9 h-9 flex items-center justify-center rounded-md text-gray-400 hover:text-gray-600 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            className="ml-2 -m-1.5 p-1.5 flex-shrink-0 w-9 h-9 flex items-center justify-center rounded-md text-gray-400 hover:text-gray-600 focus:outline-none focus:ring-2 focus:ring-violet-500"
             onClick={handleDismiss}
             aria-label="Dismiss notification"
           >

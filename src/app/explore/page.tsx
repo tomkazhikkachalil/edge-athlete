@@ -123,7 +123,7 @@ export default function ExplorePage() {
             onClick={() => setSelectedSport(null)}
             className={`shrink-0 px-4 py-2 rounded-full text-sm font-semibold border transition-colors ${
               selectedSport === null
-                ? 'bg-blue-600 text-white border-blue-600'
+                ? 'bg-violet-600 text-white border-violet-600'
                 : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-100'
             }`}
           >
@@ -141,7 +141,7 @@ export default function ExplorePage() {
               }
               className={`shrink-0 inline-flex items-center gap-2 px-4 py-2 rounded-full text-sm font-semibold border transition-colors ${
                 selectedSport === sport.sport_key
-                  ? 'bg-blue-600 text-white border-blue-600'
+                  ? 'bg-violet-600 text-white border-violet-600'
                   : enabledKeys.has(sport.sport_key)
                     ? 'bg-white text-gray-700 border-gray-300 hover:bg-gray-100'
                     : 'bg-white text-gray-400 border-gray-200 hover:bg-gray-50'
@@ -162,7 +162,7 @@ export default function ExplorePage() {
 
         {loading ? (
           <div className="flex items-center justify-center py-24">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-violet-600"></div>
           </div>
         ) : (
           <div className="grid lg:grid-cols-3 gap-6">
@@ -183,7 +183,7 @@ export default function ExplorePage() {
                     <Link
                       key={a.id}
                       href={`/athlete/${a.id}`}
-                      className="bg-white rounded-lg border border-gray-200 p-4 flex items-center gap-3 hover:shadow-md hover:border-blue-300 transition-all"
+                      className="bg-white rounded-lg border border-gray-200 p-4 flex items-center gap-3 hover:shadow-md hover:border-violet-300 transition-all"
                     >
                       {a.avatar_url ? (
                         <LazyImage
@@ -194,7 +194,7 @@ export default function ExplorePage() {
                           className="w-12 h-12 rounded-full object-cover shrink-0"
                         />
                       ) : (
-                        <div className="w-12 h-12 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center font-bold shrink-0">
+                        <div className="w-12 h-12 rounded-full bg-violet-100 text-violet-700 flex items-center justify-center font-bold shrink-0">
                           {(a.first_name?.[0] ?? a.full_name?.[0] ?? '?').toUpperCase()}
                         </div>
                       )}
@@ -231,7 +231,7 @@ export default function ExplorePage() {
                       <Link
                         key={p.id}
                         href={prof ? `/athlete/${prof.id}` : '/feed'}
-                        className="block bg-white rounded-lg border border-gray-200 p-3 hover:shadow-md hover:border-blue-300 transition-all"
+                        className="block bg-white rounded-lg border border-gray-200 p-3 hover:shadow-md hover:border-violet-300 transition-all"
                       >
                         <div className="flex items-center gap-2 mb-1">
                           <span className="font-bold text-black text-sm truncate">
@@ -248,7 +248,7 @@ export default function ExplorePage() {
                         )}
                         <div className="flex items-center gap-3 text-xs text-gray-500">
                           {p.sport_key && p.sport_key !== 'general' && (
-                            <span className="px-2 py-0.5 bg-blue-50 text-blue-700 rounded-full font-semibold">
+                            <span className="px-2 py-0.5 bg-violet-50 text-violet-700 rounded-full font-semibold">
                               {p.sport_key.replace('_', ' ')}
                             </span>
                           )}

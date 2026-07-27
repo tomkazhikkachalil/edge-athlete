@@ -144,7 +144,7 @@ export default function GifPicker({ onGifSelect, onClose, variant = 'popover' }:
             value={query}
             onChange={e => setQuery(e.target.value)}
             placeholder="Search GIFs…"
-            className={`w-full pl-8 pr-3 bg-gray-100 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+            className={`w-full pl-8 pr-3 bg-gray-100 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-violet-500 ${
               isModal ? 'py-2.5 text-base' : 'py-1.5'
             }`}
             autoFocus
@@ -168,7 +168,7 @@ export default function GifPicker({ onGifSelect, onClose, variant = 'popover' }:
                     onGifSelect(gif.url);
                     onClose();
                   }}
-                  className="rounded-lg overflow-hidden hover:ring-2 hover:ring-blue-500 transition-all focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="rounded-lg overflow-hidden hover:ring-2 hover:ring-violet-500 transition-all focus:outline-none focus:ring-2 focus:ring-violet-500"
                 >
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img
@@ -205,7 +205,7 @@ export default function GifPicker({ onGifSelect, onClose, variant = 'popover' }:
                   onGifSelect(gif.url);
                   onClose();
                 }}
-                className="rounded-lg overflow-hidden hover:ring-2 hover:ring-blue-500 transition-all focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="rounded-lg overflow-hidden hover:ring-2 hover:ring-violet-500 transition-all focus:outline-none focus:ring-2 focus:ring-violet-500"
               >
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img

@@ -110,7 +110,7 @@ export default function WaitlistPopup({ isOpen, onClose, userType }: WaitlistPop
                   id="email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent"
                   placeholder="Enter your email"
                   required
                 />
@@ -124,7 +124,7 @@ export default function WaitlistPopup({ isOpen, onClose, userType }: WaitlistPop
                   id="userType"
                   value={selectedType}
                   onChange={(e) => setSelectedType(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent"
                   required
                 >
                   <option value="Club">Club</option>
@@ -151,7 +151,7 @@ export default function WaitlistPopup({ isOpen, onClose, userType }: WaitlistPop
                 <button
                   type="submit"
                   disabled={isSubmitting}
-                  className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition duration-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
+                  className="flex-1 px-4 py-2 bg-violet-600 text-white rounded-md hover:bg-violet-700 transition duration-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
                 >
                   {isSubmitting ? (
                     <>
@@ -181,7 +181,7 @@ export default function WaitlistPopup({ isOpen, onClose, userType }: WaitlistPop
             </p>
             <button
               onClick={handleClose}
-              className="px-6 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition duration-200"
+              className="px-6 py-2 bg-violet-600 text-white rounded-md hover:bg-violet-700 transition duration-200"
             >
               Got it!
             </button>

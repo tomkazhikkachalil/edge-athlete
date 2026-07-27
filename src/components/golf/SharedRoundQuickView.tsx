@@ -118,7 +118,7 @@ export default function SharedRoundQuickView({
 
             {/* Round Type Badge */}
             {golf_data.round_type === 'indoor' ? (
-              <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-blue-600 text-white text-xs font-bold rounded-full">
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-violet-600 text-white text-xs font-bold rounded-full">
                 <i className="fas fa-warehouse text-[10px]"></i>
                 INDOOR
               </span>
@@ -165,7 +165,7 @@ export default function SharedRoundQuickView({
                 <>
                   <div className="text-2xl font-black text-green-900 leading-none">{leader.scores.total_score}</div>
                   {leader.scores.to_par !== null && (
-                    <div className={`text-xs font-bold ${leader.scores.to_par < 0 ? 'text-blue-600' : leader.scores.to_par > 0 ? 'text-red-600' : 'text-gray-600'}`}>
+                    <div className={`text-xs font-bold ${leader.scores.to_par < 0 ? 'text-violet-600' : leader.scores.to_par > 0 ? 'text-red-600' : 'text-gray-600'}`}>
                       {leader.scores.to_par >= 0 ? '+' : ''}{leader.scores.to_par}
                     </div>
                   )}
@@ -219,7 +219,7 @@ export default function SharedRoundQuickView({
             );
           } else {
             statusBadge = (
-              <span className="flex items-center gap-1 text-xs font-semibold text-blue-600">
+              <span className="flex items-center gap-1 text-xs font-semibold text-violet-600">
                 <i className="fas fa-clock"></i>
                 Awaiting scores
               </span>
@@ -345,7 +345,7 @@ export default function SharedRoundQuickView({
         {isOwner && (
           <button
             onClick={onExpand}
-            className="flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg transition-colors text-sm min-h-[44px]"
+            className="flex items-center justify-center gap-2 bg-violet-600 hover:bg-violet-700 text-white font-bold py-2 px-4 rounded-lg transition-colors text-sm min-h-[44px]"
             aria-label="Manage participants"
           >
             <i className="fas fa-cog"></i>

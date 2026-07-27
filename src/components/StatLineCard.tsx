@@ -23,11 +23,11 @@ export default function StatLineCard({ line }: { line: StatLineData }) {
   const result = formatResult(line);
 
   return (
-    <div className="bg-gradient-to-br from-blue-50 to-slate-100 rounded-lg p-3 mt-2 border border-blue-200">
+    <div className="bg-gradient-to-br from-violet-50 to-slate-100 rounded-lg p-3 mt-2 border border-violet-200">
       {/* Header: sport + opponent + result */}
       <div className="flex items-center justify-between gap-2 mb-2">
         <div className="flex items-center gap-2 min-w-0">
-          <i className={`${sportDef.icon_id} text-blue-700`} aria-hidden="true"></i>
+          <i className={`${sportDef.icon_id} text-violet-700`} aria-hidden="true"></i>
           <div className="min-w-0">
             <div className="font-bold text-slate-900 text-sm truncate">
               {line.opponent ? `vs ${line.opponent}` : `${sportDef.display_name} ${schema.activityNoun}`}
@@ -61,7 +61,7 @@ export default function StatLineCard({ line }: { line: StatLineData }) {
           {enteredFields.map(f => (
             <div
               key={f.key}
-              className="bg-white/90 border border-blue-200 rounded-lg px-2.5 py-1.5 text-center shadow-sm"
+              className="bg-white/90 border border-violet-200 rounded-lg px-2.5 py-1.5 text-center shadow-sm"
               title={f.label}
             >
               <div className="text-base font-black text-slate-900 leading-none">

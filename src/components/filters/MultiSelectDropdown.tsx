@@ -107,11 +107,11 @@ export default function MultiSelectDropdown<T extends string | number>({
         aria-haspopup="listbox"
         aria-expanded={isOpen}
         aria-disabled={disabled || undefined}
-        className={`px-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 inline-flex items-center gap-2 transition-colors ${
+        className={`px-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-violet-500 inline-flex items-center gap-2 transition-colors ${
           disabled
             ? 'border-gray-200 text-gray-400 bg-gray-50 cursor-not-allowed'
             : hasActive
-              ? 'border-blue-500 text-blue-700 bg-blue-50'
+              ? 'border-violet-500 text-violet-700 bg-violet-50'
               : 'border-gray-300 text-gray-700 bg-white hover:bg-gray-50'
         }`}
       >
@@ -168,7 +168,7 @@ export default function MultiSelectDropdown<T extends string | number>({
                       aria-hidden="true"
                       className={`w-4 h-4 flex items-center justify-center rounded border ${
                         isSelected
-                          ? 'bg-blue-600 border-blue-600 text-white'
+                          ? 'bg-violet-600 border-violet-600 text-white'
                           : 'bg-white border-gray-300'
                       }`}
                     >

@@ -118,7 +118,7 @@ export default function CropStage({ imageUrl, recipe, config, cssFilter, onPatch
             interactedRef.current = true;
             onPatch({ straighten: Number(e.target.value) });
           }}
-          className="flex-1 accent-blue-500 min-h-[44px]"
+          className="flex-1 accent-violet-500 min-h-[44px]"
           aria-label="Straighten angle"
         />
         <span className="text-chip text-white/60 w-10 text-right tabular-nums">

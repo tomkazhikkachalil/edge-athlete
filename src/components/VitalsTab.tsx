@@ -276,7 +276,7 @@ function MetricCard({ metricKey, entries, athleteBirthday, onOpenPost }: MetricC
                             <span className="text-xs text-gray-400">{getAgeAtDate(athleteBirthday, entry.recorded_at)}</span>
                           )}
                           {entry.source !== 'manual' && (
-                            <span className="text-xs text-blue-500">{entry.source}</span>
+                            <span className="text-xs text-violet-500">{entry.source}</span>
                           )}
                         </div>
                         {entry.notes && (

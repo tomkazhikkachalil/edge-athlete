@@ -149,11 +149,11 @@ export default function EquipmentImageUpload({
           type="button"
           onClick={() => fileInputRef.current?.click()}
           disabled={uploading}
-          className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 border-2 border-dashed border-gray-300 rounded-lg hover:border-blue-500 hover:bg-blue-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 border-2 border-dashed border-gray-300 rounded-lg hover:border-violet-500 hover:bg-violet-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
         >
           {uploading ? (
             <>
-              <Loader2 className="w-5 h-5 animate-spin text-blue-600" />
+              <Loader2 className="w-5 h-5 animate-spin text-violet-600" />
               <span className="text-sm font-medium text-gray-700">Uploading...</span>
             </>
           ) : (
@@ -216,8 +216,8 @@ export default function EquipmentImageUpload({
                   key={index}
                   type="button"
                   onClick={() => handlePresetSelect(presetUrl)}
-                  className={`relative aspect-video bg-white border-2 rounded-lg overflow-hidden hover:border-blue-500 transition-colors ${
-                    value === presetUrl ? 'border-blue-500 ring-2 ring-blue-200' : 'border-gray-200'
+                  className={`relative aspect-video bg-white border-2 rounded-lg overflow-hidden hover:border-violet-500 transition-colors ${
+                    value === presetUrl ? 'border-violet-500 ring-2 ring-violet-200' : 'border-gray-200'
                   }`}
                 >
                   <Image

@@ -216,7 +216,7 @@ export default function SavedPostsPage() {
           <p className="text-gray-600 mb-6">Please sign in to view your saved posts.</p>
           <button
             onClick={() => router.push('/login')}
-            className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+            className="px-6 py-2 bg-violet-600 text-white rounded-lg hover:bg-violet-700"
           >
             Sign In
           </button>
@@ -230,7 +230,7 @@ export default function SavedPostsPage() {
       <div className="container mx-auto px-4 py-8">
         <div className="max-w-2xl mx-auto">
           <div className="flex items-center justify-center py-12">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-violet-600"></div>
           </div>
         </div>
       </div>

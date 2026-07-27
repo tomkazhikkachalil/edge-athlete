@@ -141,7 +141,7 @@ export default function PublicProfilePage() {
         <AppHeader showSearch={false} />
         <div className="flex items-center justify-center py-20">
           <div className="text-center">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-violet-600 mx-auto"></div>
             <p className="mt-3 text-gray-600">Loading profile...</p>
           </div>
         </div>
@@ -164,7 +164,7 @@ export default function PublicProfilePage() {
             </p>
             <Link
               href="/"
-              className="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+              className="inline-flex items-center px-4 py-2 bg-violet-600 text-white rounded-lg hover:bg-violet-700 transition-colors"
             >
               Go Home
             </Link>
@@ -190,14 +190,14 @@ export default function PublicProfilePage() {
             {user && privateProfileId ? (
               <Link
                 href={`/athlete/${privateProfileId}`}
-                className="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                className="inline-flex items-center px-4 py-2 bg-violet-600 text-white rounded-lg hover:bg-violet-700 transition-colors"
               >
                 Become a Fan
               </Link>
             ) : (
               <Link
                 href="/"
-                className="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                className="inline-flex items-center px-4 py-2 bg-violet-600 text-white rounded-lg hover:bg-violet-700 transition-colors"
               >
                 Sign In to Become a Fan
               </Link>
@@ -221,7 +221,7 @@ export default function PublicProfilePage() {
         {/* Profile Header */}
         <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
           {/* Cover area */}
-          <div className="h-24 sm:h-32 bg-gradient-to-r from-blue-500 to-blue-600" />
+          <div className="h-24 sm:h-32 bg-gradient-to-r from-violet-500 to-violet-600" />
 
           {/* Profile info */}
           <div className="px-4 sm:px-6 pb-6">
@@ -235,7 +235,7 @@ export default function PublicProfilePage() {
                     className="w-full h-full object-cover"
                   />
                 ) : (
-                  <div className="w-full h-full bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center">
+                  <div className="w-full h-full bg-gradient-to-br from-violet-500 to-violet-600 flex items-center justify-center">
                     <span className="text-2xl sm:text-3xl font-bold text-white">
                       {getInitials(displayName)}
                     </span>
@@ -316,7 +316,7 @@ export default function PublicProfilePage() {
                       href={`https://twitter.com/${profile.social_twitter.replace('@', '')}`}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="text-gray-500 hover:text-blue-400 transition-colors"
+                      className="text-gray-500 hover:text-violet-400 transition-colors"
                     >
                       <Twitter className="w-5 h-5" />
                     </a>
@@ -346,14 +346,14 @@ export default function PublicProfilePage() {
                 {user ? (
                   <Link
                     href={`/athlete/${profile.id}`}
-                    className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm font-medium"
+                    className="px-6 py-2 bg-violet-600 text-white rounded-lg hover:bg-violet-700 transition-colors text-sm font-medium"
                   >
                     View Full Profile
                   </Link>
                 ) : (
                   <Link
                     href="/"
-                    className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm font-medium"
+                    className="px-6 py-2 bg-violet-600 text-white rounded-lg hover:bg-violet-700 transition-colors text-sm font-medium"
                   >
                     Sign In to Connect
                   </Link>
@@ -371,7 +371,7 @@ export default function PublicProfilePage() {
               {badges.map((badge) => (
                 <span
                   key={badge.id}
-                  className="inline-flex items-center px-3 py-1 rounded-full text-sm bg-blue-50 text-blue-700 border border-blue-200"
+                  className="inline-flex items-center px-3 py-1 rounded-full text-sm bg-violet-50 text-violet-700 border border-violet-200"
                 >
                   {badge.label}
                 </span>
@@ -440,7 +440,7 @@ export default function PublicProfilePage() {
               <div className="mt-4 text-center">
                 <Link
                   href={`/athlete/${profile.id}`}
-                  className="text-sm text-blue-600 hover:text-blue-700 font-medium"
+                  className="text-sm text-violet-600 hover:text-violet-700 font-medium"
                 >
                   View All Posts
                 </Link>
@@ -458,14 +458,14 @@ export default function PublicProfilePage() {
 
         {/* Sign up CTA for logged out users */}
         {!user && (
-          <div className="mt-6 bg-gradient-to-r from-blue-600 to-blue-700 rounded-xl p-6 text-center text-white">
+          <div className="mt-6 bg-gradient-to-r from-violet-600 to-violet-700 rounded-xl p-6 text-center text-white">
             <h3 className="text-lg font-semibold mb-2">Join Edge Athlete</h3>
-            <p className="text-blue-100 mb-4">
+            <p className="text-violet-100 mb-4">
               Create your athlete profile and connect with {displayName}
             </p>
             <Link
               href="/"
-              className="inline-flex items-center px-6 py-2 bg-white text-blue-600 rounded-lg hover:bg-blue-50 transition-colors font-medium"
+              className="inline-flex items-center px-6 py-2 bg-white text-violet-600 rounded-lg hover:bg-violet-50 transition-colors font-medium"
             >
               Get Started
             </Link>

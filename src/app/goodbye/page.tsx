@@ -26,8 +26,8 @@ export default function GoodbyePage() {
         {/* Main Card */}
         <div className="bg-white rounded-2xl shadow-xl p-8 sm:p-12 text-center">
           {/* Icon */}
-          <div className="w-20 h-20 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-6">
-            <i className="fas fa-circle-check text-blue-600 text-3xl"></i>
+          <div className="w-20 h-20 bg-violet-100 rounded-full flex items-center justify-center mx-auto mb-6">
+            <i className="fas fa-circle-check text-violet-600 text-3xl"></i>
           </div>
 
           {/* Heading */}
@@ -81,7 +81,7 @@ export default function GoodbyePage() {
           <div className="flex justify-center">
             <button
               onClick={handleReturnHome}
-              className="inline-flex items-center justify-center gap-2 px-12 py-4 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-semibold text-lg shadow-lg hover:shadow-xl"
+              className="inline-flex items-center justify-center gap-2 px-12 py-4 bg-violet-600 text-white rounded-lg hover:bg-violet-700 transition-colors font-semibold text-lg shadow-lg hover:shadow-xl"
             >
               <i className="fas fa-home"></i>
               Return to Home
@@ -91,7 +91,7 @@ export default function GoodbyePage() {
           {/* Footer Note */}
           <p className="text-xs text-gray-500 mt-8">
             If you believe this was done in error or need assistance, please contact{' '}
-            <a href="mailto:support@edgeathlete.com" className="text-blue-600 hover:underline">
+            <a href="mailto:support@edgeathlete.com" className="text-violet-600 hover:underline">
               support@edgeathlete.com
             </a>
           </p>

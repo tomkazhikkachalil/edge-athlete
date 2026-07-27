@@ -22,7 +22,7 @@ export default function BadgesTab({ badges, onSave, isSubmitting }: BadgesTabPro
 
   const getBadgeColor = (colorToken: string): string => {
     const colors: Record<string, string> = {
-      primary: 'bg-blue-100 text-blue-800 border-blue-200',
+      primary: 'bg-violet-100 text-violet-800 border-violet-200',
       purple: 'bg-purple-100 text-purple-800 border-purple-200',
       green: 'bg-green-100 text-green-800 border-green-200',
       red: 'bg-red-100 text-red-800 border-red-200',
@@ -87,7 +87,7 @@ export default function BadgesTab({ badges, onSave, isSubmitting }: BadgesTabPro
         <h3 className="text-lg font-medium text-gray-900">Manage Badges</h3>
         <button
           onClick={() => setShowAddForm(true)}
-          className="inline-flex items-center px-3 py-2 border border-transparent text-sm leading-4 font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+          className="inline-flex items-center px-3 py-2 border border-transparent text-sm leading-4 font-medium rounded-md text-white bg-violet-600 hover:bg-violet-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-violet-500"
         >
           <i className="fas fa-plus mr-2" aria-hidden="true"></i>
           Add Badge
@@ -107,7 +107,7 @@ export default function BadgesTab({ badges, onSave, isSubmitting }: BadgesTabPro
                 type="text"
                 value={newBadge.label}
                 onChange={(e) => setNewBadge(prev => ({ ...prev, label: e.target.value }))}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-violet-500"
                 placeholder="Badge name"
               />
             </div>
@@ -119,7 +119,7 @@ export default function BadgesTab({ badges, onSave, isSubmitting }: BadgesTabPro
                 type="url"
                 value={newBadge.icon_url}
                 onChange={(e) => setNewBadge(prev => ({ ...prev, icon_url: e.target.value }))}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-violet-500"
                 placeholder="https://example.com/icon.png"
               />
             </div>
@@ -130,7 +130,7 @@ export default function BadgesTab({ badges, onSave, isSubmitting }: BadgesTabPro
               <select
                 value={newBadge.color_token}
                 onChange={(e) => setNewBadge(prev => ({ ...prev, color_token: e.target.value }))}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-violet-500"
               >
                 <option value="primary">Blue</option>
                 <option value="purple">Purple</option>
@@ -150,7 +150,7 @@ export default function BadgesTab({ badges, onSave, isSubmitting }: BadgesTabPro
               <button
                 onClick={addBadge}
                 disabled={!newBadge.label.trim()}
-                className="px-3 py-2 text-sm text-white bg-blue-600 rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                className="px-3 py-2 text-sm text-white bg-violet-600 rounded-md hover:bg-violet-700 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 Add Badge
               </button>
@@ -240,7 +240,7 @@ export default function BadgesTab({ badges, onSave, isSubmitting }: BadgesTabPro
         <button
           onClick={handleSave}
           disabled={isSubmitting}
-          className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
+          className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-violet-600 hover:bg-violet-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-violet-500 disabled:opacity-50 disabled:cursor-not-allowed"
         >
           {isSubmitting ? (
             <>

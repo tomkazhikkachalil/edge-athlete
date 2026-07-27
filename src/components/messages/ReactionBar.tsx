@@ -110,7 +110,7 @@ export default function ReactionBar({
           onTouchMove={cancelLongPress}
           className={`ea-reaction-chip inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs transition-colors border ${
             r.reacted
-              ? 'bg-blue-50 border-blue-300 text-blue-700'
+              ? 'bg-violet-50 border-violet-300 text-violet-700'
               : 'bg-gray-50 border-gray-200 text-gray-600 hover:bg-gray-100'
           }`}
           title={r.reacted ? 'Remove reaction (long-press to see who)' : 'React (long-press to see who)'}

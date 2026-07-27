@@ -97,7 +97,7 @@ export default function GolfTrendsPage() {
   if (authLoading || !user) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-violet-600"></div>
       </div>
     );
   }
@@ -137,7 +137,7 @@ export default function GolfTrendsPage() {
           </div>
           <Link
             href="/app/sport/golf/rounds"
-            className="text-sm text-blue-600 hover:text-blue-700 font-medium min-h-[44px] flex items-center"
+            className="text-sm text-violet-600 hover:text-violet-700 font-medium min-h-[44px] flex items-center"
           >
             View rounds list →
           </Link>
@@ -163,7 +163,7 @@ export default function GolfTrendsPage() {
                 key={r}
                 onClick={() => setRange(r)}
                 className={`px-4 py-2 min-h-[44px] rounded-md text-sm font-medium transition-colors ${
-                  range === r ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                  range === r ? 'bg-violet-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                 }`}
               >
                 {r === 200 ? 'All time' : `Last ${r}`}
@@ -174,7 +174,7 @@ export default function GolfTrendsPage() {
 
         {loading ? (
           <div className="text-center py-16">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-violet-600 mx-auto"></div>
             <p className="mt-3 text-gray-600">Crunching your rounds…</p>
           </div>
         ) : error ? (
@@ -242,7 +242,7 @@ export default function GolfTrendsPage() {
                 />
               </div>
             ) : summary?.handicapIndex === null ? (
-              <div className="mb-4 bg-blue-50 border border-blue-200 rounded-lg p-4 text-sm text-blue-800">
+              <div className="mb-4 bg-violet-50 border border-violet-200 rounded-lg p-4 text-sm text-violet-800">
                 <i className="fas fa-info-circle mr-2"></i>
                 Your estimated handicap appears after 3+ 18-hole rounds logged with a course
                 rating and slope (find them on the course&apos;s scorecard).

@@ -137,7 +137,7 @@ export default function MultiSportActivity({ profileId, onEdit, onDelete }: Mult
         className={`px-4 py-2 text-sm font-medium rounded-md transition-colors ${
           isActive
             ? isEnabled
-              ? 'bg-blue-100 text-blue-700 border border-blue-200'
+              ? 'bg-violet-100 text-violet-700 border border-violet-200'
               : 'bg-gray-100 text-gray-700 border border-gray-200'
             : isEnabled
               ? 'text-gray-500 hover:text-gray-700'
@@ -165,7 +165,7 @@ export default function MultiSportActivity({ profileId, onEdit, onDelete }: Mult
     if (isLoading) {
       return (
         <div className="text-center py-8">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-violet-600 mx-auto"></div>
           <p className="text-gray-500 mt-2">Loading...</p>
         </div>
       );
@@ -190,7 +190,7 @@ export default function MultiSportActivity({ profileId, onEdit, onDelete }: Mult
           {isEnabled && (
             <button
               onClick={handleAddActivity}
-              className="px-4 py-2 text-sm font-medium text-white bg-blue-600 border border-transparent rounded-md hover:bg-blue-700 transition-colors"
+              className="px-4 py-2 text-sm font-medium text-white bg-violet-600 border border-transparent rounded-md hover:bg-violet-700 transition-colors"
             >
               {sportDef.primary_action}
             </button>
@@ -207,7 +207,7 @@ export default function MultiSportActivity({ profileId, onEdit, onDelete }: Mult
               <th className="px-micro py-micro text-left text-chip text-gray-500 uppercase tracking-wider">
                 <div className="flex items-center space-x-1">
                   <span>{sportDef.activity_columns.col1}</span>
-                  <i className="fas fa-chevron-down text-xs text-blue-600" title="Newest → Oldest"></i>
+                  <i className="fas fa-chevron-down text-xs text-violet-600" title="Newest → Oldest"></i>
                 </div>
               </th>
               <th className="px-micro py-micro text-left text-chip text-gray-500 uppercase tracking-wider">
@@ -260,7 +260,7 @@ export default function MultiSportActivity({ profileId, onEdit, onDelete }: Mult
                         }
                         // Disabled sports: no-op (detail coming soon)
                       }}
-                      className="p-2 text-blue-600 hover:text-blue-800 transition-colors"
+                      className="p-2 text-violet-600 hover:text-violet-800 transition-colors"
                       title={adapter.isEnabled() ? `View ${sportDef.activity_columns.col2.slice(0, -1)} Details` : 'Coming soon'}
                     >
                       <i className={`fas ${adapter.isEnabled() ? 'fa-eye' : 'fa-clock'} icon-edit`}></i>
@@ -303,10 +303,10 @@ export default function MultiSportActivity({ profileId, onEdit, onDelete }: Mult
             {COPY.SORTING.NEWEST_OLDEST}
             {activeSportKey === 'golf' && (
               <>
-                <Link href="/app/sport/golf/rounds" className="ml-3 text-blue-600 hover:text-blue-700 font-medium">
+                <Link href="/app/sport/golf/rounds" className="ml-3 text-violet-600 hover:text-violet-700 font-medium">
                   View all rounds →
                 </Link>
-                <Link href="/app/sport/golf/trends" className="ml-3 text-blue-600 hover:text-blue-700 font-medium">
+                <Link href="/app/sport/golf/trends" className="ml-3 text-violet-600 hover:text-violet-700 font-medium">
                   Trends →
                 </Link>
               </>
@@ -319,7 +319,7 @@ export default function MultiSportActivity({ profileId, onEdit, onDelete }: Mult
           onClick={handleAddActivity}
           className={`px-4 py-2 text-sm font-medium border border-transparent rounded-md transition-colors ${
             getSportAdapter(activeSportKey).isEnabled()
-              ? 'text-white bg-blue-600 hover:bg-blue-700'
+              ? 'text-white bg-violet-600 hover:bg-violet-700'
               : 'text-gray-500 bg-gray-100 cursor-not-allowed'
           }`}
           disabled={!getSportAdapter(activeSportKey).isEnabled()}

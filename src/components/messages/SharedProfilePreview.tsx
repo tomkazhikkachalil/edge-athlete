@@ -49,7 +49,7 @@ export default function SharedProfilePreview({ profile, onClick }: Props) {
             height={40}
           />
         ) : (
-          <div className="w-10 h-10 rounded-full bg-blue-500 flex items-center justify-center text-white text-sm font-bold shrink-0">
+          <div className="w-10 h-10 rounded-full bg-violet-500 flex items-center justify-center text-white text-sm font-bold shrink-0">
             {getInitials(displayName)}
           </div>
         )}
@@ -59,7 +59,7 @@ export default function SharedProfilePreview({ profile, onClick }: Props) {
             <p className="text-xs text-gray-500 truncate">@{profile.handle}</p>
           )}
           {profile.sport && (
-            <span className="inline-block text-xs bg-blue-50 text-blue-700 px-1.5 py-0.5 rounded mt-0.5">
+            <span className="inline-block text-xs bg-violet-50 text-violet-700 px-1.5 py-0.5 rounded mt-0.5">
               {profile.sport}
             </span>
           )}

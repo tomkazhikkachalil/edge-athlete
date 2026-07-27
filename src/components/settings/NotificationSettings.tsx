@@ -60,8 +60,8 @@ function Toggle({ on, disabled, onChange, label }: { on: boolean; disabled: bool
       aria-label={label}
       disabled={disabled}
       onClick={onChange}
-      className={`relative inline-flex h-6 w-11 flex-shrink-0 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-1 disabled:opacity-50 ${
-        on ? 'bg-blue-600' : 'bg-gray-300'
+      className={`relative inline-flex h-6 w-11 flex-shrink-0 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-violet-500 focus:ring-offset-1 disabled:opacity-50 ${
+        on ? 'bg-violet-600' : 'bg-gray-300'
       }`}
     >
       <span
@@ -131,7 +131,7 @@ export default function NotificationSettings() {
   if (loading) {
     return (
       <div className="text-center py-12">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-violet-600 mx-auto"></div>
         <p className="mt-3 text-sm text-gray-600">Loading preferences…</p>
       </div>
     );

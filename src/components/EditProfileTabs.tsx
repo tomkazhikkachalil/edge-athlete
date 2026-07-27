@@ -530,7 +530,7 @@ export default function EditProfileTabs({
               <button
                 type="button"
                 onClick={open}
-                className="cursor-pointer inline-flex items-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                className="cursor-pointer inline-flex items-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-violet-500"
               >
                 <i className="fas fa-upload mr-2" aria-hidden="true"></i>
                 {basicForm.avatar_file ? 'Avatar ready — saves with profile' : 'Change Avatar'}
@@ -554,7 +554,7 @@ export default function EditProfileTabs({
             type="text"
             value={basicForm.first_name || ''}
             onChange={(e) => setBasicForm(prev => ({ ...prev, first_name: e.target.value }))}
-            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent"
             placeholder="John"
             required
           />
@@ -569,7 +569,7 @@ export default function EditProfileTabs({
             type="text"
             value={basicForm.last_name || ''}
             onChange={(e) => setBasicForm(prev => ({ ...prev, last_name: e.target.value }))}
-            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent"
             placeholder="Doe"
             required
           />
@@ -585,7 +585,7 @@ export default function EditProfileTabs({
           type="text"
           value={basicForm.middle_name || ''}
           onChange={(e) => setBasicForm(prev => ({ ...prev, middle_name: e.target.value }))}
-          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent"
           placeholder="Michael"
         />
       </div>
@@ -607,7 +607,7 @@ export default function EditProfileTabs({
               const value = e.target.value.replace(/^@/, '').replace(/\s/g, '').toLowerCase();
               setBasicForm(prev => ({ ...prev, handle: value }));
             }}
-            className={`w-full pl-8 pr-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
+            className={`w-full pl-8 pr-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent ${
               errors.handle ? 'border-red-500' : 'border-gray-300'
             }`}
             placeholder="yourhandle"
@@ -637,7 +637,7 @@ export default function EditProfileTabs({
           maxLength={500}
           value={basicForm.bio || ''}
           onChange={(e) => setBasicForm(prev => ({ ...prev, bio: e.target.value }))}
-          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
+          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent resize-none"
           placeholder="Tell us about yourself..."
         />
         <p className="mt-1 text-xs text-gray-500">
@@ -664,7 +664,7 @@ export default function EditProfileTabs({
                 ...prev,
                 visibility: prev.visibility === 'public' ? 'private' : 'public'
               }))}
-              className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 ${
+              className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-violet-500 focus:ring-offset-2 ${
                 basicForm.visibility === 'public' ? 'bg-green-600' : 'bg-gray-300'
               }`}
               aria-label={`Toggle profile visibility. Currently ${basicForm.visibility}`}
@@ -689,10 +689,10 @@ export default function EditProfileTabs({
         </div>
 
         {/* Explanation */}
-        <div className="mt-3 p-3 bg-blue-50 border border-blue-100 rounded-lg">
+        <div className="mt-3 p-3 bg-violet-50 border border-violet-100 rounded-lg">
           <div className="flex items-start gap-2">
-            <i className="fas fa-info-circle text-blue-600 mt-0.5"></i>
-            <div className="text-xs text-blue-900">
+            <i className="fas fa-info-circle text-violet-600 mt-0.5"></i>
+            <div className="text-xs text-violet-900">
               {basicForm.visibility === 'public' ? (
                 <>
                   <strong>Public profiles</strong> help you get discovered by coaches, scouts, and other athletes.
@@ -738,7 +738,7 @@ export default function EditProfileTabs({
             type="text"
             value={vitalsForm.height_cm || ''}
             onChange={(e) => setVitalsForm(prev => ({ ...prev, height_cm: e.target.value }))}
-            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent"
             placeholder="5'10&quot;, 5 10, 510, or 5.10"
           />
           <p className="mt-1 text-xs text-gray-500">
@@ -757,7 +757,7 @@ export default function EditProfileTabs({
               step="0.1"
               value={vitalsForm.weight_kg || ''}
               onChange={(e) => setVitalsForm(prev => ({ ...prev, weight_kg: e.target.value }))}
-              className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent"
               placeholder={vitalsForm.weight_unit === 'kg' ? '68' : vitalsForm.weight_unit === 'stone' ? '11.7' : '150'}
             />
             <select
@@ -770,7 +770,7 @@ export default function EditProfileTabs({
                   weight_unit: newUnit
                 }));
               }}
-              className="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              className="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent"
             >
               <option value="lbs">lbs</option>
               <option value="kg">kg</option>
@@ -794,7 +794,7 @@ export default function EditProfileTabs({
           type="date"
           value={vitalsForm.dob || ''}
           onChange={(e) => setVitalsForm(prev => ({ ...prev, dob: e.target.value }))}
-          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent"
         />
       </div>
 
@@ -807,7 +807,7 @@ export default function EditProfileTabs({
           type="text"
           value={vitalsForm.location || ''}
           onChange={(e) => setVitalsForm(prev => ({ ...prev, location: e.target.value }))}
-          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent"
           placeholder="City, State"
         />
       </div>
@@ -823,7 +823,7 @@ export default function EditProfileTabs({
           max="2040"
           value={vitalsForm.class_year || ''}
           onChange={(e) => setVitalsForm(prev => ({ ...prev, class_year: e.target.value }))}
-          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent"
           placeholder="2025"
         />
       </div>
@@ -844,7 +844,7 @@ export default function EditProfileTabs({
             step="0.1"
             value={golfForm.handicap || ''}
             onChange={(e) => setGolfForm(prev => ({ ...prev, handicap: e.target.value }))}
-            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent"
             placeholder="12.4"
           />
           <p className="mt-1 text-xs text-gray-500">
@@ -861,7 +861,7 @@ export default function EditProfileTabs({
             id="dominant_hand"
             value={golfForm.dominant_hand}
             onChange={(e) => setGolfForm(prev => ({ ...prev, dominant_hand: e.target.value as 'right' | 'left' }))}
-            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent"
           >
             <option value="right">Right-handed</option>
             <option value="left">Left-handed</option>
@@ -879,7 +879,7 @@ export default function EditProfileTabs({
           type="text"
           value={golfForm.home_course || ''}
           onChange={(e) => setGolfForm(prev => ({ ...prev, home_course: e.target.value }))}
-          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent"
           placeholder="Pebble Beach Golf Links"
         />
       </div>
@@ -893,7 +893,7 @@ export default function EditProfileTabs({
           id="tee_preference"
           value={golfForm.tee_preference}
           onChange={(e) => setGolfForm(prev => ({ ...prev, tee_preference: e.target.value as 'black' | 'blue' | 'white' | 'red' | 'gold' }))}
-          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent"
         >
           <option value="black">Black (Championship)</option>
           <option value="blue">Blue (Back/Tips)</option>
@@ -918,7 +918,7 @@ export default function EditProfileTabs({
             type="text"
             value={equipmentForm.driver_brand || ''}
             onChange={(e) => setEquipmentForm(prev => ({ ...prev, driver_brand: e.target.value }))}
-            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent"
             placeholder="TaylorMade, Callaway, Titleist..."
           />
         </div>
@@ -933,7 +933,7 @@ export default function EditProfileTabs({
             step="0.5"
             value={equipmentForm.driver_loft || ''}
             onChange={(e) => setEquipmentForm(prev => ({ ...prev, driver_loft: e.target.value }))}
-            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent"
             placeholder="10.5"
           />
         </div>
@@ -949,7 +949,7 @@ export default function EditProfileTabs({
           type="text"
           value={equipmentForm.irons_brand || ''}
           onChange={(e) => setEquipmentForm(prev => ({ ...prev, irons_brand: e.target.value }))}
-          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent"
           placeholder="Titleist, Ping, Mizuno..."
         />
       </div>
@@ -965,7 +965,7 @@ export default function EditProfileTabs({
             type="text"
             value={equipmentForm.putter_brand || ''}
             onChange={(e) => setEquipmentForm(prev => ({ ...prev, putter_brand: e.target.value }))}
-            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent"
             placeholder="Scotty Cameron, Odyssey..."
           />
         </div>
@@ -980,7 +980,7 @@ export default function EditProfileTabs({
             type="text"
             value={equipmentForm.ball_brand || ''}
             onChange={(e) => setEquipmentForm(prev => ({ ...prev, ball_brand: e.target.value }))}
-            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent"
             placeholder="Pro V1, TP5, Chrome Soft..."
           />
         </div>
@@ -992,7 +992,7 @@ export default function EditProfileTabs({
     <div className="space-y-6">
       <div>
         <label htmlFor="twitter" className="block text-sm font-medium text-gray-700 mb-1">
-          <i className="fab fa-twitter text-blue-400 mr-2" aria-hidden="true"></i>
+          <i className="fab fa-twitter text-violet-400 mr-2" aria-hidden="true"></i>
           Twitter Handle
         </label>
         <div className="relative">
@@ -1002,7 +1002,7 @@ export default function EditProfileTabs({
             type="text"
             value={socialsForm.social_twitter || ''}
             onChange={(e) => setSocialsForm(prev => ({ ...prev, social_twitter: e.target.value }))}
-            className="w-full pl-8 pr-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            className="w-full pl-8 pr-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent"
             placeholder="username"
           />
         </div>
@@ -1020,7 +1020,7 @@ export default function EditProfileTabs({
             type="text"
             value={socialsForm.social_instagram || ''}
             onChange={(e) => setSocialsForm(prev => ({ ...prev, social_instagram: e.target.value }))}
-            className="w-full pl-8 pr-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            className="w-full pl-8 pr-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent"
             placeholder="username"
           />
         </div>
@@ -1028,7 +1028,7 @@ export default function EditProfileTabs({
 
       <div>
         <label htmlFor="facebook" className="block text-sm font-medium text-gray-700 mb-1">
-          <i className="fab fa-facebook text-blue-600 mr-2" aria-hidden="true"></i>
+          <i className="fab fa-facebook text-violet-600 mr-2" aria-hidden="true"></i>
           Facebook Handle
         </label>
         <div className="relative">
@@ -1038,7 +1038,7 @@ export default function EditProfileTabs({
             type="text"
             value={socialsForm.social_facebook || ''}
             onChange={(e) => setSocialsForm(prev => ({ ...prev, social_facebook: e.target.value }))}
-            className="w-full pl-8 pr-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            className="w-full pl-8 pr-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent"
             placeholder="username"
           />
         </div>
@@ -1102,7 +1102,7 @@ export default function EditProfileTabs({
               </h2>
               <button
                 onClick={onClose}
-                className="text-gray-400 hover:text-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 rounded-md p-1"
+                className="text-gray-400 hover:text-gray-500 focus:outline-none focus:ring-2 focus:ring-violet-500 rounded-md p-1"
                 aria-label="Close modal"
               >
                 <i className="fas fa-times text-lg" aria-hidden="true"></i>
@@ -1120,8 +1120,8 @@ export default function EditProfileTabs({
                       !tab.enabled
                         ? 'border-transparent text-gray-400 cursor-not-allowed'
                         : activeTab === tab.id
-                        ? 'border-blue-500 text-blue-600'
-                        : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 focus:ring-2 focus:ring-blue-500 focus:ring-offset-2'
+                        ? 'border-violet-500 text-violet-600'
+                        : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 focus:ring-2 focus:ring-violet-500 focus:ring-offset-2'
                     }`}
                     aria-current={activeTab === tab.id ? 'page' : undefined}
                     disabled={!tab.enabled}
@@ -1150,7 +1150,7 @@ export default function EditProfileTabs({
             <button
               onClick={() => saveTab(activeTab)}
               disabled={isSubmitting}
-              className="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-blue-600 text-base font-medium text-white hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 sm:ml-3 sm:w-auto sm:text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+              className="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-violet-600 text-base font-medium text-white hover:bg-violet-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-violet-500 sm:ml-3 sm:w-auto sm:text-sm disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {isSubmitting ? (
                 <>
@@ -1166,7 +1166,7 @@ export default function EditProfileTabs({
             </button>
             <button
               onClick={onClose}
-              className="mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm"
+              className="mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-violet-500 sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm"
             >
               Cancel
             </button>

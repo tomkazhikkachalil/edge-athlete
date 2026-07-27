@@ -91,8 +91,8 @@ export default function EditEquipmentDatesModal({
         {/* Header */}
         <div className="flex items-center justify-between p-6 border-b border-gray-200">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center">
-              <CalendarDays className="w-5 h-5 text-blue-600" aria-hidden="true" />
+            <div className="w-10 h-10 rounded-full bg-violet-100 flex items-center justify-center">
+              <CalendarDays className="w-5 h-5 text-violet-600" aria-hidden="true" />
             </div>
             <div>
               <h2 className="text-xl font-bold text-gray-900">Edit Dates</h2>
@@ -122,7 +122,7 @@ export default function EditEquipmentDatesModal({
               value={acquiredOn}
               onChange={e => setAcquiredOn(e.target.value)}
               max={today()}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-base focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-base focus:outline-none focus:ring-2 focus:ring-violet-500 bg-white"
               required
             />
           </div>
@@ -139,7 +139,7 @@ export default function EditEquipmentDatesModal({
                 onChange={e => setRetiredOn(e.target.value)}
                 min={acquiredOn || undefined}
                 max={today()}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-base focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-base focus:outline-none focus:ring-2 focus:ring-violet-500 bg-white"
               />
             </div>
           )}
@@ -161,7 +161,7 @@ export default function EditEquipmentDatesModal({
             <button
               type="submit"
               disabled={saving}
-              className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+              className="inline-flex items-center gap-2 px-4 py-2 bg-violet-600 text-white rounded-lg font-semibold hover:bg-violet-700 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
             >
               {saving && (
                 <span className="animate-spin rounded-full h-4 w-4 border-b-2 border-white" aria-hidden="true" />

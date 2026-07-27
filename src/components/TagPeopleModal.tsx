@@ -175,7 +175,7 @@ export default function TagPeopleModal({
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="Search people..."
-              className="w-full px-4 py-2 pl-10 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full px-4 py-2 pl-10 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-500"
             />
             <i className="fas fa-search absolute left-3 top-3 text-gray-400"></i>
           </div>
@@ -183,7 +183,7 @@ export default function TagPeopleModal({
 
         {/* Selected People */}
         {selectedProfiles.length > 0 && (
-          <div className="p-4 border-b border-gray-200 bg-blue-50">
+          <div className="p-4 border-b border-gray-200 bg-violet-50">
             <p className="text-sm font-semibold text-gray-700 mb-2">
               Selected ({selectedProfiles.length})
             </p>
@@ -191,7 +191,7 @@ export default function TagPeopleModal({
               {selectedProfiles.map(profile => (
                 <div
                   key={profile.id}
-                  className="flex items-center gap-2 bg-white px-3 py-1 rounded-full border border-blue-300"
+                  className="flex items-center gap-2 bg-white px-3 py-1 rounded-full border border-violet-300"
                 >
                   <span className="text-sm font-medium text-gray-900">
                     {getDisplayName(profile)}
@@ -272,7 +272,7 @@ export default function TagPeopleModal({
                     </div>
 
                     {isSelected && (
-                      <i className="fas fa-check-circle text-blue-600 text-xl"></i>
+                      <i className="fas fa-check-circle text-violet-600 text-xl"></i>
                     )}
                   </button>
                 );
@@ -292,7 +292,7 @@ export default function TagPeopleModal({
           <button
             onClick={handleSubmit}
             disabled={selectedProfiles.length === 0 || submitting}
-            className="px-6 py-2 bg-blue-600 text-white font-semibold rounded-lg hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors"
+            className="px-6 py-2 bg-violet-600 text-white font-semibold rounded-lg hover:bg-violet-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors"
           >
             {submitting ? (
               <>

@@ -368,9 +368,9 @@ export default function ChatWindow({ conversationId, onBack }: Props) {
     if (el) {
       el.scrollIntoView({ behavior: 'smooth', block: 'center' });
       // Brief highlight
-      el.classList.add('ring-2', 'ring-blue-400', 'ring-offset-1', 'rounded-xl');
+      el.classList.add('ring-2', 'ring-violet-400', 'ring-offset-1', 'rounded-xl');
       setTimeout(() => {
-        el.classList.remove('ring-2', 'ring-blue-400', 'ring-offset-1', 'rounded-xl');
+        el.classList.remove('ring-2', 'ring-violet-400', 'ring-offset-1', 'rounded-xl');
       }, 1500);
     }
   }, []);
@@ -562,7 +562,7 @@ export default function ChatWindow({ conversationId, onBack }: Props) {
         <p className="text-sm text-gray-700 mb-4">{error}</p>
         <button
           onClick={() => router.push('/messages')}
-          className="text-blue-600 text-sm hover:underline"
+          className="text-violet-600 text-sm hover:underline"
         >
           Back to messages
         </button>
@@ -596,7 +596,7 @@ export default function ChatWindow({ conversationId, onBack }: Props) {
               height={40}
             />
           ) : (
-            <div className="w-10 h-10 rounded-full bg-blue-500 flex items-center justify-center text-white font-semibold text-sm shrink-0">
+            <div className="w-10 h-10 rounded-full bg-violet-500 flex items-center justify-center text-white font-semibold text-sm shrink-0">
               {getInitials(getHeaderAvatarName())}
             </div>
           )}
@@ -712,7 +712,7 @@ export default function ChatWindow({ conversationId, onBack }: Props) {
               else messageRefsMap.current.delete(msg.id);
             }}
             className={`transition-colors duration-300 rounded-xl ${
-              replyingTo?.id === msg.id ? 'bg-blue-50 ring-1 ring-blue-200' : ''
+              replyingTo?.id === msg.id ? 'bg-violet-50 ring-1 ring-violet-200' : ''
             }`}
           >
             <MessageBubble

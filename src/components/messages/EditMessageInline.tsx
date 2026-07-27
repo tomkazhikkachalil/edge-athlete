@@ -94,7 +94,7 @@ export default function EditMessageInline({
   };
 
   const bubbleBase = isOwn
-    ? 'bg-blue-600 text-white rounded-l-2xl rounded-tr-2xl'
+    ? 'bg-violet-600 text-white rounded-l-2xl rounded-tr-2xl'
     : 'bg-gray-100 text-gray-900 rounded-r-2xl rounded-tl-2xl';
 
   return (
@@ -133,8 +133,8 @@ export default function EditMessageInline({
           disabled={saving || !text.trim()}
           className={`text-xs px-3 py-1 rounded-md font-semibold transition-colors ${
             isOwn
-              ? 'bg-white text-blue-700 hover:bg-blue-50'
-              : 'bg-blue-600 text-white hover:bg-blue-700'
+              ? 'bg-white text-violet-700 hover:bg-violet-50'
+              : 'bg-violet-600 text-white hover:bg-violet-700'
           } disabled:opacity-50`}
         >
           {saving ? 'Saving…' : 'Save'}

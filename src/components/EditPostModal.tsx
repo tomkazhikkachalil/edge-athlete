@@ -142,7 +142,7 @@ export default function EditPostModal({
               value={caption}
               onChange={(e) => setCaption(e.target.value)}
               placeholder="Write your caption here..."
-              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 min-h-[120px] resize-none"
+              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-500 min-h-[120px] resize-none"
             />
           </div>
 
@@ -158,12 +158,12 @@ export default function EditPostModal({
                 {hashtags.map((tag) => (
                   <span
                     key={tag}
-                    className="inline-flex items-center gap-2 px-3 py-1 bg-blue-50 text-blue-700 rounded-full text-sm"
+                    className="inline-flex items-center gap-2 px-3 py-1 bg-violet-50 text-violet-700 rounded-full text-sm"
                   >
                     {tag}
                     <button
                       onClick={() => removeHashtag(tag)}
-                      className="hover:text-blue-900"
+                      className="hover:text-violet-900"
                     >
                       <i className="fas fa-times text-xs"></i>
                     </button>
@@ -180,12 +180,12 @@ export default function EditPostModal({
                 onChange={(e) => setCustomHashtag(e.target.value)}
                 onFocus={() => setShowHashtagSuggestions(true)}
                 placeholder="Add custom hashtag..."
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-500"
               />
               {customHashtag && (
                 <button
                   type="submit"
-                  className="absolute right-2 top-1/2 -translate-y-1/2 px-3 py-1 bg-blue-500 text-white rounded text-sm hover:bg-blue-600"
+                  className="absolute right-2 top-1/2 -translate-y-1/2 px-3 py-1 bg-violet-500 text-white rounded text-sm hover:bg-violet-600"
                 >
                   Add
                 </button>
@@ -223,7 +223,7 @@ export default function EditPostModal({
                 onClick={() => setVisibility('public')}
                 className={`flex-1 px-4 py-3 rounded-lg border-2 transition-all ${
                   visibility === 'public'
-                    ? 'border-blue-500 bg-blue-50'
+                    ? 'border-violet-500 bg-violet-50'
                     : 'border-gray-200 hover:border-gray-300'
                 }`}
               >
@@ -237,7 +237,7 @@ export default function EditPostModal({
                 onClick={() => setVisibility('private')}
                 className={`flex-1 px-4 py-3 rounded-lg border-2 transition-all ${
                   visibility === 'private'
-                    ? 'border-blue-500 bg-blue-50'
+                    ? 'border-violet-500 bg-violet-50'
                     : 'border-gray-200 hover:border-gray-300'
                 }`}
               >
@@ -263,7 +263,7 @@ export default function EditPostModal({
           <button
             onClick={handleSubmit}
             disabled={isSubmitting}
-            className="px-6 py-2 bg-blue-500 text-white rounded-lg font-medium hover:bg-blue-600 transition-colors disabled:opacity-50 flex items-center gap-2"
+            className="px-6 py-2 bg-violet-500 text-white rounded-lg font-medium hover:bg-violet-600 transition-colors disabled:opacity-50 flex items-center gap-2"
           >
             {isSubmitting ? (
               <>

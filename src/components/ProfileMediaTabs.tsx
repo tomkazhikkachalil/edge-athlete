@@ -408,7 +408,7 @@ export default function ProfileMediaTabs({ profileId, currentUserId, isOwnProfil
                     {/* Icon */}
                     <Icon
                       className={`w-4 h-4 transition-colors ${
-                        isActive ? 'text-blue-600' : 'text-gray-500'
+                        isActive ? 'text-violet-600' : 'text-gray-500'
                       }`}
                     />
 
@@ -422,7 +422,7 @@ export default function ProfileMediaTabs({ profileId, currentUserId, isOwnProfil
                         min-w-[20px] h-5 px-1.5 rounded-full text-xs font-bold
                         transition-colors
                         ${isActive
-                          ? 'bg-blue-600 text-white'
+                          ? 'bg-violet-600 text-white'
                           : 'bg-gray-200 text-gray-700'
                         }
                       `}>
@@ -479,7 +479,7 @@ export default function ProfileMediaTabs({ profileId, currentUserId, isOwnProfil
             <select
               value={sort}
               onChange={(e) => setSort(e.target.value as SortType)}
-              className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-violet-500"
             >
               <option value="newest">Newest First</option>
               <option value="most_engaged">Most Engaged</option>
@@ -489,7 +489,7 @@ export default function ProfileMediaTabs({ profileId, currentUserId, isOwnProfil
             <select
               value={mediaFilter}
               onChange={(e) => setMediaFilter(e.target.value as MediaFilterType)}
-              className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-violet-500"
             >
               <option value="all">All Types</option>
               <option value="photos">Photos Only</option>
@@ -513,7 +513,7 @@ export default function ProfileMediaTabs({ profileId, currentUserId, isOwnProfil
           {/* Loading state */}
           {loading && (
             <div className="flex justify-center items-center py-12">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-violet-600"></div>
             </div>
           )}
 
@@ -560,7 +560,7 @@ export default function ProfileMediaTabs({ profileId, currentUserId, isOwnProfil
           {/* Loading more indicator */}
           {loadingMore && (
             <div className="flex justify-center items-center py-6">
-              <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600"></div>
+              <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-violet-600"></div>
             </div>
           )}
 
@@ -667,19 +667,19 @@ function MediaGridItem({ item, onClick }: MediaGridItemProps) {
             <div className="flex flex-col h-full justify-between p-3">
               {/* Generic stats icon */}
               <div className="flex justify-center mb-2">
-                <div className="w-12 h-12 rounded-full bg-blue-600 flex items-center justify-center shadow-md">
+                <div className="w-12 h-12 rounded-full bg-violet-600 flex items-center justify-center shadow-md">
                   <i className="fas fa-chart-line text-white text-xl"></i>
                 </div>
               </div>
 
               {/* Stats card */}
-              <div className="bg-white/90 backdrop-blur-sm rounded-lg p-3 shadow-sm border border-blue-200">
+              <div className="bg-white/90 backdrop-blur-sm rounded-lg p-3 shadow-sm border border-violet-200">
                 <div className="text-center">
                   <div className="text-sm font-bold text-gray-900 line-clamp-2 mb-1">
                     {summary.primaryLine}
                   </div>
                   {summary.secondaryLine && (
-                    <div className="text-xs text-blue-700 font-semibold line-clamp-1">
+                    <div className="text-xs text-violet-700 font-semibold line-clamp-1">
                       {summary.secondaryLine}
                     </div>
                   )}
@@ -688,7 +688,7 @@ function MediaGridItem({ item, onClick }: MediaGridItemProps) {
 
               {/* Bottom accent */}
               <div className="mt-2 flex justify-center">
-                <div className="h-1 w-16 bg-blue-600 rounded-full"></div>
+                <div className="h-1 w-16 bg-violet-600 rounded-full"></div>
               </div>
             </div>
           );
@@ -707,7 +707,7 @@ function MediaGridItem({ item, onClick }: MediaGridItemProps) {
         item.golf_round
           ? 'bg-gray-100 hover:shadow-xl hover:shadow-green-200/50 hover:scale-105 ring-2 ring-green-100'
           : hasStats
-          ? 'bg-gray-100 hover:shadow-xl hover:shadow-blue-200/50 hover:scale-105 ring-2 ring-blue-100'
+          ? 'bg-gray-100 hover:shadow-xl hover:shadow-violet-200/50 hover:scale-105 ring-2 ring-violet-100'
           : 'bg-gray-100 hover:shadow-lg hover:scale-105'
       }`}
     >
@@ -743,7 +743,7 @@ function MediaGridItem({ item, onClick }: MediaGridItemProps) {
           item.golf_round
             ? 'bg-gradient-to-br from-green-50 via-emerald-50 to-green-100'
             : hasStats
-            ? 'bg-gradient-to-br from-blue-50 via-indigo-50 to-blue-100'
+            ? 'bg-gradient-to-br from-violet-50 via-purple-50 to-violet-100'
             : 'bg-gradient-to-br from-gray-50 to-gray-100'
         }`}>
           <div className="text-center w-full">
@@ -763,7 +763,7 @@ function MediaGridItem({ item, onClick }: MediaGridItemProps) {
         {/* Top indicators */}
         <div className="absolute top-2 right-2 flex gap-1">
           {hasStats && (
-            <span className="px-2 py-1 bg-blue-600 text-white text-xs font-semibold rounded-full">
+            <span className="px-2 py-1 bg-violet-600 text-white text-xs font-semibold rounded-full">
               + Stats
             </span>
           )}

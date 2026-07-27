@@ -85,18 +85,18 @@ export default function ResetPasswordPage() {
   };
 
   return (
-    <div className="min-h-screen flex flex-col bg-blue-50">
-      <div className="w-full bg-blue-600 py-3 px-4 sm:py-4">
+    <div className="min-h-screen flex flex-col bg-violet-50">
+      <div className="w-full bg-violet-600 py-3 px-4 sm:py-4">
         <h1 className="text-2xl sm:text-3xl lg:text-4xl font-bold text-white text-center">Edge Athlete</h1>
       </div>
 
       <div className="flex-grow flex items-center justify-center p-4">
         <div className="w-full max-w-md bg-white rounded-lg shadow-lg p-6 sm:p-8">
-          <h2 className="text-2xl font-bold text-blue-800 mb-6">Set a new password</h2>
+          <h2 className="text-2xl font-bold text-violet-800 mb-6">Set a new password</h2>
 
           {ready === 'checking' && (
             <div className="text-center py-6">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-violet-600 mx-auto"></div>
               <p className="mt-3 text-sm text-gray-600">Verifying your reset link…</p>
             </div>
           )}
@@ -109,7 +109,7 @@ export default function ResetPasswordPage() {
               </div>
               <Link
                 href="/forgot-password"
-                className="block w-full text-center bg-blue-600 text-white py-3 px-4 rounded-md hover:bg-blue-700 transition duration-300 font-medium"
+                className="block w-full text-center bg-violet-600 text-white py-3 px-4 rounded-md hover:bg-violet-700 transition duration-300 font-medium"
               >
                 Request a new link
               </Link>
@@ -139,7 +139,7 @@ export default function ResetPasswordPage() {
                     type="password"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
-                    className="w-full px-3 py-3 sm:py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-base text-gray-800"
+                    className="w-full px-3 py-3 sm:py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-violet-500 text-base text-gray-800"
                     placeholder="At least 6 characters"
                     autoComplete="new-password"
                     minLength={6}
@@ -155,7 +155,7 @@ export default function ResetPasswordPage() {
                     type="password"
                     value={confirm}
                     onChange={(e) => setConfirm(e.target.value)}
-                    className="w-full px-3 py-3 sm:py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-base text-gray-800"
+                    className="w-full px-3 py-3 sm:py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-violet-500 text-base text-gray-800"
                     placeholder="Repeat your new password"
                     autoComplete="new-password"
                     minLength={6}
@@ -165,7 +165,7 @@ export default function ResetPasswordPage() {
                 <button
                   type="submit"
                   disabled={submitting}
-                  className="w-full bg-blue-600 text-white py-3 px-4 rounded-md hover:bg-blue-700 transition duration-300 font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="w-full bg-violet-600 text-white py-3 px-4 rounded-md hover:bg-violet-700 transition duration-300 font-medium disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   {submitting ? (
                     <><i className="fas fa-spinner fa-spin mr-2"></i> Updating…</>

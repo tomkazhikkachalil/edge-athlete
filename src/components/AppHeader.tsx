@@ -65,7 +65,7 @@ export default function AppHeader({ showSearch = true, onCreatePost, onEditProfi
             <div className="flex items-center gap-6 flex-1">
               <button
                 onClick={() => router.push('/feed')}
-                className="text-xl font-bold text-gray-900 hover:text-blue-600 transition-colors whitespace-nowrap"
+                className="text-xl font-bold text-gray-900 hover:text-violet-600 transition-colors whitespace-nowrap"
               >
                 Edge Athlete
               </button>
@@ -83,7 +83,7 @@ export default function AppHeader({ showSearch = true, onCreatePost, onEditProfi
                       isActivePath(link.path)
                         ? link.accent === 'live'
                           ? 'text-red-600 border-b-2 border-red-600'
-                          : 'text-blue-600 border-b-2 border-blue-600'
+                          : 'text-violet-600 border-b-2 border-violet-600'
                         : 'text-gray-700 hover:text-gray-900'
                     }`}
                   >
@@ -112,7 +112,7 @@ export default function AppHeader({ showSearch = true, onCreatePost, onEditProfi
 
               <button
                 onClick={handleCreatePost}
-                className="bg-blue-600 text-white px-3 sm:px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2 text-sm font-medium"
+                className="bg-violet-600 text-white px-3 sm:px-4 py-2 rounded-lg hover:bg-violet-700 transition-colors flex items-center gap-2 text-sm font-medium"
                 aria-label="Create new post"
               >
                 <i className="fas fa-plus"></i>
@@ -310,8 +310,8 @@ export default function AppHeader({ showSearch = true, onCreatePost, onEditProfi
                   isActivePath(link.path)
                     ? link.accent === 'live'
                       ? 'bg-red-50 text-red-600'
-                      : 'bg-blue-50 text-blue-600'
-                    : 'text-gray-700 hover:bg-gray-50 hover:text-blue-600'
+                      : 'bg-violet-50 text-violet-600'
+                    : 'text-gray-700 hover:bg-gray-50 hover:text-violet-600'
                 }`}
               >
                 <i className={`fas ${link.icon} w-5 text-center ${link.accent === 'live' ? 'text-red-600 animate-pulse text-[10px]' : ''}`}></i>
@@ -321,7 +321,7 @@ export default function AppHeader({ showSearch = true, onCreatePost, onEditProfi
 
             <button
               onClick={handleCreatePost}
-              className="flex items-center gap-3 w-full px-4 py-3 text-left text-gray-700 hover:bg-blue-50 hover:text-blue-600 rounded-lg transition-colors"
+              className="flex items-center gap-3 w-full px-4 py-3 text-left text-gray-700 hover:bg-violet-50 hover:text-violet-600 rounded-lg transition-colors"
             >
               <i className="fas fa-plus w-5 text-center"></i>
               <span className="font-medium">Create Post</span>
@@ -336,7 +336,7 @@ export default function AppHeader({ showSearch = true, onCreatePost, onEditProfi
                 }
                 setIsMobileMenuOpen(false);
               }}
-              className="flex items-center gap-3 w-full px-4 py-3 text-left text-gray-700 hover:bg-blue-50 hover:text-blue-600 rounded-lg transition-colors"
+              className="flex items-center gap-3 w-full px-4 py-3 text-left text-gray-700 hover:bg-violet-50 hover:text-violet-600 rounded-lg transition-colors"
             >
               <i className="fas fa-edit w-5 text-center"></i>
               <span className="font-medium">Edit Profile</span>
@@ -347,7 +347,7 @@ export default function AppHeader({ showSearch = true, onCreatePost, onEditProfi
                 router.push('/athlete/saved');
                 setIsMobileMenuOpen(false);
               }}
-              className="flex items-center gap-3 w-full px-4 py-3 text-left text-gray-700 hover:bg-blue-50 hover:text-blue-600 rounded-lg transition-colors"
+              className="flex items-center gap-3 w-full px-4 py-3 text-left text-gray-700 hover:bg-violet-50 hover:text-violet-600 rounded-lg transition-colors"
             >
               <i className="fas fa-bookmark w-5 text-center"></i>
               <span className="font-medium">Saved Posts</span>
@@ -358,7 +358,7 @@ export default function AppHeader({ showSearch = true, onCreatePost, onEditProfi
                 router.push('/settings');
                 setIsMobileMenuOpen(false);
               }}
-              className="flex items-center gap-3 w-full px-4 py-3 text-left text-gray-700 hover:bg-blue-50 hover:text-blue-600 rounded-lg transition-colors"
+              className="flex items-center gap-3 w-full px-4 py-3 text-left text-gray-700 hover:bg-violet-50 hover:text-violet-600 rounded-lg transition-colors"
             >
               <i className="fas fa-cog w-5 text-center"></i>
               <span className="font-medium">Settings</span>

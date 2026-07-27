@@ -266,7 +266,7 @@ export default function DeleteAccountModal({ isOpen, onClose }: DeleteAccountMod
                 </p>
                 <a
                   href="mailto:support@edgeathlete.com"
-                  className="text-blue-600 hover:text-blue-700 text-sm font-medium"
+                  className="text-violet-600 hover:text-violet-700 text-sm font-medium"
                 >
                   Send us feedback →
                 </a>

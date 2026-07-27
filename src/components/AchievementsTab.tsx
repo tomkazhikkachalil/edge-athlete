@@ -130,7 +130,7 @@ export default function AchievementsTab({ profileId, isOwnProfile = false }: Ach
             isOwnProfile ? (
               <button
                 onClick={openAdd}
-                className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg font-semibold text-sm hover:bg-blue-700 transition-colors shadow-sm"
+                className="flex items-center gap-2 px-4 py-2 bg-violet-600 text-white rounded-lg font-semibold text-sm hover:bg-violet-700 transition-colors shadow-sm"
               >
                 <Plus className="w-4 h-4" />
                 Add Achievement
@@ -162,7 +162,7 @@ export default function AchievementsTab({ profileId, isOwnProfile = false }: Ach
       {/* Loading state */}
       {loading && (
         <div className="flex justify-center items-center py-16">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-violet-600"></div>
         </div>
       )}
 
@@ -172,7 +172,7 @@ export default function AchievementsTab({ profileId, isOwnProfile = false }: Ach
           <p className="text-gray-600 mb-4">Couldn&apos;t load achievements.</p>
           <button
             onClick={fetchAchievements}
-            className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg font-semibold text-sm hover:bg-blue-700 transition-colors"
+            className="inline-flex items-center gap-2 px-4 py-2 bg-violet-600 text-white rounded-lg font-semibold text-sm hover:bg-violet-700 transition-colors"
           >
             Try again
           </button>
@@ -194,7 +194,7 @@ export default function AchievementsTab({ profileId, isOwnProfile = false }: Ach
           {isOwnProfile && (
             <button
               onClick={openAdd}
-              className="inline-flex items-center gap-2 px-6 py-3 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700 transition-colors shadow-sm"
+              className="inline-flex items-center gap-2 px-6 py-3 bg-violet-600 text-white rounded-lg font-semibold hover:bg-violet-700 transition-colors shadow-sm"
             >
               <Plus className="w-5 h-5" />
               Add Your First Achievement
@@ -263,7 +263,7 @@ function AchievementCard({ achievement, isOwnProfile, onEdit, onDelete }: Achiev
     .join(' · ');
 
   return (
-    <div className="bg-white rounded-xl border-2 border-gray-200 hover:border-blue-400 hover:shadow-lg transition-all duration-200 p-4 flex flex-col gap-3">
+    <div className="bg-white rounded-xl border-2 border-gray-200 hover:border-violet-400 hover:shadow-lg transition-all duration-200 p-4 flex flex-col gap-3">
       <div className="flex items-start gap-3">
         <div className="w-10 h-10 rounded-full bg-amber-100 flex items-center justify-center flex-shrink-0">
           <Trophy className="w-5 h-5 text-amber-600" aria-hidden="true" />
@@ -279,7 +279,7 @@ function AchievementCard({ achievement, isOwnProfile, onEdit, onDelete }: Achiev
       <div className="flex items-center gap-2 flex-wrap">
         <span
           className={`px-2 py-1 rounded-md text-xs font-semibold ${
-            achievement.sport_key ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-700'
+            achievement.sport_key ? 'bg-violet-100 text-violet-700' : 'bg-gray-100 text-gray-700'
           }`}
         >
           {sportLabel}

@@ -155,7 +155,7 @@ export default function TrimTimeline({
             <div className="absolute inset-y-0 left-0 bg-black/70" style={{ width: `${startF * 100}%` }} />
             <div className="absolute inset-y-0 right-0 bg-black/70" style={{ width: `${(1 - endF) * 100}%` }} />
             <div
-              className="absolute inset-y-0 border-y-2 border-blue-500 pointer-events-none"
+              className="absolute inset-y-0 border-y-2 border-violet-500 pointer-events-none"
               style={{ left: `${startF * 100}%`, width: `${(endF - startF) * 100}%` }}
             />
           </>
@@ -177,7 +177,7 @@ export default function TrimTimeline({
               className="absolute inset-y-0 w-11 -ml-[22px] flex items-center justify-center touch-none cursor-ew-resize"
               style={{ left: `${startF * 100}%` }}
             >
-              <span className="w-1.5 h-full bg-blue-500 rounded-full" />
+              <span className="w-1.5 h-full bg-violet-500 rounded-full" />
             </button>
             <button
               type="button"
@@ -186,7 +186,7 @@ export default function TrimTimeline({
               className="absolute inset-y-0 w-11 -ml-[22px] flex items-center justify-center touch-none cursor-ew-resize"
               style={{ left: `${endF * 100}%` }}
             >
-              <span className="w-1.5 h-full bg-blue-500 rounded-full" />
+              <span className="w-1.5 h-full bg-violet-500 rounded-full" />
             </button>
           </>
         )}

@@ -110,7 +110,7 @@ export default function ParticipantAttestationModal({
                 <div>
                   <span className="font-semibold text-gray-900">{golfData.course_name}</span>
                   {golfData.round_type === 'indoor' ? (
-                    <span className="ml-2 inline-flex items-center gap-1 px-2 py-0.5 bg-blue-600 text-white text-xs font-bold rounded-full">
+                    <span className="ml-2 inline-flex items-center gap-1 px-2 py-0.5 bg-violet-600 text-white text-xs font-bold rounded-full">
                       <i className="fas fa-warehouse text-[8px]"></i>
                       INDOOR
                     </span>
@@ -153,14 +153,14 @@ export default function ParticipantAttestationModal({
           )}
 
           {/* What Happens Next */}
-          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
-            <h3 className="font-bold text-blue-900 mb-2 flex items-center gap-2">
+          <div className="bg-violet-50 border border-violet-200 rounded-lg p-4 mb-6">
+            <h3 className="font-bold text-violet-900 mb-2 flex items-center gap-2">
               <i className="fas fa-info-circle"></i>
               What happens next?
             </h3>
-            <ul className="text-sm text-blue-900 space-y-1">
+            <ul className="text-sm text-violet-900 space-y-1">
               <li className="flex items-start gap-2">
-                <i className="fas fa-check text-blue-600 mt-0.5"></i>
+                <i className="fas fa-check text-violet-600 mt-0.5"></i>
                 <span>If you <strong>confirm</strong>, you&apos;ll be able to add your scores and appear on the shared scorecard</span>
               </li>
               <li className="flex items-start gap-2">

@@ -180,14 +180,14 @@ export default function GroupSettingsModal({ conversation, currentUserId, onClos
                   type="text"
                   value={name}
                   onChange={e => setName(e.target.value)}
-                  className="flex-1 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="flex-1 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500"
                   placeholder="Group name"
                   maxLength={100}
                 />
                 <button
                   onClick={handleSaveName}
                   disabled={savingName || !name.trim() || name.trim() === conversation.name}
-                  className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-semibold hover:bg-blue-700 disabled:opacity-40 transition-colors"
+                  className="px-4 py-2 bg-violet-600 text-white rounded-lg text-sm font-semibold hover:bg-violet-700 disabled:opacity-40 transition-colors"
                 >
                   {savingName ? <i className="fas fa-spinner fa-spin"></i> : 'Save'}
                 </button>
@@ -217,7 +217,7 @@ export default function GroupSettingsModal({ conversation, currentUserId, onClos
                         height={36}
                       />
                     ) : (
-                      <div className="w-9 h-9 rounded-full bg-blue-500 flex items-center justify-center text-white text-xs font-bold shrink-0">
+                      <div className="w-9 h-9 rounded-full bg-violet-500 flex items-center justify-center text-white text-xs font-bold shrink-0">
                         {getInitials(displayName)}
                       </div>
                     )}
@@ -230,7 +230,7 @@ export default function GroupSettingsModal({ conversation, currentUserId, onClos
                       )}
                     </div>
                     {p.role === 'admin' && (
-                      <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full font-medium shrink-0">
+                      <span className="text-xs bg-violet-100 text-violet-700 px-2 py-0.5 rounded-full font-medium shrink-0">
                         Admin
                       </span>
                     )}
@@ -260,7 +260,7 @@ export default function GroupSettingsModal({ conversation, currentUserId, onClos
                   value={searchQuery}
                   onChange={e => setSearchQuery(e.target.value)}
                   placeholder="Search athletes…"
-                  className="w-full pl-8 pr-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full pl-8 pr-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-violet-500"
                 />
               </div>
               {(searching || searchResults.length > 0) && (
@@ -288,7 +288,7 @@ export default function GroupSettingsModal({ conversation, currentUserId, onClos
                               height={32}
                             />
                           ) : (
-                            <div className="w-8 h-8 rounded-full bg-blue-500 flex items-center justify-center text-white text-xs font-bold shrink-0">
+                            <div className="w-8 h-8 rounded-full bg-violet-500 flex items-center justify-center text-white text-xs font-bold shrink-0">
                               {getInitials(rName)}
                             </div>
                           )}
@@ -296,7 +296,7 @@ export default function GroupSettingsModal({ conversation, currentUserId, onClos
                             <p className="text-sm font-medium text-gray-900 truncate">{rName}</p>
                             {result.handle && <p className="text-xs text-gray-400">@{result.handle}</p>}
                           </div>
-                          <i className="fas fa-plus text-blue-600 text-xs shrink-0"></i>
+                          <i className="fas fa-plus text-violet-600 text-xs shrink-0"></i>
                         </button>
                       );
                     })

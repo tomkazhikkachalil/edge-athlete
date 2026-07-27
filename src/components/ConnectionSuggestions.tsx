@@ -107,7 +107,7 @@ export default function ConnectionSuggestions({
       {/* Header */}
       <div className="flex items-center justify-between mb-4">
         <h3 className={`font-bold text-gray-900 ${compact ? 'text-base' : 'text-lg'}`}>
-          <i className="fas fa-user-friends text-blue-600 mr-2"></i>
+          <i className="fas fa-user-friends text-violet-600 mr-2"></i>
           Suggested Connections
         </h3>
       </div>
@@ -140,7 +140,7 @@ export default function ConnectionSuggestions({
                   height={48}
                 />
               ) : (
-                <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center">
+                <div className="w-12 h-12 bg-gradient-to-br from-violet-500 to-purple-600 rounded-full flex items-center justify-center">
                   <span className="text-white text-sm font-semibold">
                     {getInitials(suggestion.suggested_name)}
                   </span>
@@ -159,7 +159,7 @@ export default function ConnectionSuggestions({
                     router.push(`/athlete/${suggestion.suggested_id}`);
                   }
                 }}
-                className="font-semibold text-gray-900 hover:text-blue-600 truncate block text-sm w-full text-left"
+                className="font-semibold text-gray-900 hover:text-violet-600 truncate block text-sm w-full text-left"
               >
                 {suggestion.suggested_name}
               </button>
@@ -172,7 +172,7 @@ export default function ConnectionSuggestions({
                 </p>
               )}
 
-              <p className="text-xs text-blue-600 mt-1 truncate">
+              <p className="text-xs text-violet-600 mt-1 truncate">
                 <i className="fas fa-lightbulb mr-1"></i>
                 {suggestion.reason}
               </p>
@@ -206,7 +206,7 @@ export default function ConnectionSuggestions({
       {compact && visibleSuggestions.length >= limit && (
         <button
           onClick={() => router.push('/app/suggestions')}
-          className="w-full mt-4 text-sm text-blue-600 hover:text-blue-700 font-medium"
+          className="w-full mt-4 text-sm text-violet-600 hover:text-violet-700 font-medium"
         >
           View all suggestions
         </button>

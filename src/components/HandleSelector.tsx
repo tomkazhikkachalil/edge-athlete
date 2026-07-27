@@ -129,7 +129,7 @@ export default function HandleSelector({
                 ? 'border-green-500 focus:ring-green-500'
                 : validationMessage && !isChecking
                   ? 'border-red-500 focus:ring-red-500'
-                  : 'border-gray-300 focus:ring-blue-500'
+                  : 'border-gray-300 focus:ring-violet-500'
               }
             `}
             required={required}
@@ -140,7 +140,7 @@ export default function HandleSelector({
           />
           <div className="absolute inset-y-0 right-0 pr-3 flex items-center">
             {isChecking ? (
-              <div className="animate-spin h-5 w-5 border-2 border-blue-500 border-t-transparent rounded-full"></div>
+              <div className="animate-spin h-5 w-5 border-2 border-violet-500 border-t-transparent rounded-full"></div>
             ) : isValid ? (
               <i className="fas fa-check-circle text-green-500 text-xl"></i>
             ) : validationMessage ? (
@@ -174,7 +174,7 @@ export default function HandleSelector({
                 key={suggestion}
                 type="button"
                 onClick={() => handleSuggestionClick(suggestion)}
-                className="px-3 py-1 bg-white border border-gray-300 rounded-full text-sm hover:bg-blue-50 hover:border-blue-500 transition-colors"
+                className="px-3 py-1 bg-white border border-gray-300 rounded-full text-sm hover:bg-violet-50 hover:border-violet-500 transition-colors"
               >
                 @{suggestion}
               </button>

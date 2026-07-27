@@ -107,15 +107,15 @@ export default function OnboardingPage() {
 
   if (loading || !user) {
     return (
-      <div className="min-h-screen bg-blue-50 flex items-center justify-center">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+      <div className="min-h-screen bg-violet-50 flex items-center justify-center">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-violet-600"></div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-blue-50 flex flex-col">
-      <div className="w-full bg-blue-600 py-3 px-4">
+    <div className="min-h-screen bg-violet-50 flex flex-col">
+      <div className="w-full bg-violet-600 py-3 px-4">
         <h1 className="text-2xl font-bold text-white text-center">Edge Athlete</h1>
       </div>
 
@@ -127,7 +127,7 @@ export default function OnboardingPage() {
               <span
                 key={s}
                 className={`h-2 rounded-full transition-all ${
-                  s === step ? 'w-8 bg-blue-600' : s < step ? 'w-2 bg-blue-300' : 'w-2 bg-gray-200'
+                  s === step ? 'w-8 bg-violet-600' : s < step ? 'w-2 bg-violet-300' : 'w-2 bg-gray-200'
                 }`}
               />
             ))}
@@ -149,7 +149,7 @@ export default function OnboardingPage() {
               <button
                 onClick={saveSports}
                 disabled={savingSports || selectedSports.length === 0}
-                className="w-full bg-blue-600 text-white py-3 px-4 rounded-md hover:bg-blue-700 transition font-medium disabled:opacity-50 mb-3"
+                className="w-full bg-violet-600 text-white py-3 px-4 rounded-md hover:bg-violet-700 transition font-medium disabled:opacity-50 mb-3"
               >
                 {savingSports ? (
                   <><i className="fas fa-spinner fa-spin mr-2"></i>Saving…</>
@@ -182,12 +182,12 @@ export default function OnboardingPage() {
                   <LazyImage
                     src={profile.avatar_url}
                     alt="Your profile photo"
-                    className="w-28 h-28 rounded-full object-cover border-4 border-blue-100"
+                    className="w-28 h-28 rounded-full object-cover border-4 border-violet-100"
                     width={112}
                     height={112}
                   />
                 ) : (
-                  <div className="w-28 h-28 rounded-full bg-blue-500 flex items-center justify-center text-white text-3xl font-bold border-4 border-blue-100">
+                  <div className="w-28 h-28 rounded-full bg-violet-500 flex items-center justify-center text-white text-3xl font-bold border-4 border-violet-100">
                     {getInitials(displayName) || '?'}
                   </div>
                 )}
@@ -214,7 +214,7 @@ export default function OnboardingPage() {
                       open();
                     }}
                     disabled={uploading}
-                    className="w-full bg-blue-600 text-white py-3 px-4 rounded-md hover:bg-blue-700 transition font-medium disabled:opacity-50 mb-3"
+                    className="w-full bg-violet-600 text-white py-3 px-4 rounded-md hover:bg-violet-700 transition font-medium disabled:opacity-50 mb-3"
                   >
                     {uploading ? (
                       <><i className="fas fa-spinner fa-spin mr-2"></i>Uploading…</>
@@ -230,7 +230,7 @@ export default function OnboardingPage() {
                 {profile?.avatar_url && (
                   <button
                     onClick={() => setStep(3)}
-                    className="text-sm font-medium text-blue-600 hover:text-blue-700 min-h-[44px]"
+                    className="text-sm font-medium text-violet-600 hover:text-violet-700 min-h-[44px]"
                   >
                     Looks good — continue
                   </button>
@@ -273,7 +273,7 @@ export default function OnboardingPage() {
                 </button>
                 <button
                   onClick={() => setStep(4)}
-                  className="bg-blue-600 text-white py-2.5 px-6 rounded-md hover:bg-blue-700 transition font-medium min-h-[44px]"
+                  className="bg-violet-600 text-white py-2.5 px-6 rounded-md hover:bg-violet-700 transition font-medium min-h-[44px]"
                 >
                   Continue
                 </button>
@@ -283,7 +283,7 @@ export default function OnboardingPage() {
 
           {step === 4 && (
             <div className="text-center">
-              <div className="text-5xl mb-4 text-blue-600">
+              <div className="text-5xl mb-4 text-violet-600">
                 <i className={primaryDef?.icon_id ?? 'fas fa-trophy'} aria-hidden="true"></i>
               </div>
               <h2 className="text-2xl font-bold text-gray-900 mb-2">You&apos;re all set!</h2>

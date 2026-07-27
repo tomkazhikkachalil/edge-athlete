@@ -47,9 +47,9 @@ export default function Home() {
   // Show loading state while auth is being determined - prevent flash of login page
   if (loading || !initialAuthCheckComplete) {
     return (
-      <div className="min-h-screen bg-blue-50 flex items-center justify-center">
+      <div className="min-h-screen bg-violet-50 flex items-center justify-center">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-violet-600 mx-auto"></div>
           <p className="mt-4 text-gray-700 font-medium">Checking your session...</p>
           <p className="mt-1 text-sm text-gray-500">This should only take a moment</p>
         </div>
@@ -63,9 +63,9 @@ export default function Home() {
   // the login form instead of spinning forever.
   if (user && profile) {
     return (
-      <div className="min-h-screen bg-blue-50 flex items-center justify-center">
+      <div className="min-h-screen bg-violet-50 flex items-center justify-center">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-violet-600 mx-auto"></div>
           <p className="mt-4 text-gray-700 font-medium">Welcome back!</p>
           <p className="mt-1 text-sm text-gray-500">Redirecting to your profile...</p>
         </div>
@@ -259,15 +259,15 @@ export default function Home() {
 
   if (showAthleteRegistration) {
     return (
-      <div className="min-h-screen flex flex-col bg-blue-50">
-        <div className="w-full bg-blue-600 py-micro px-micro">
+      <div className="min-h-screen flex flex-col bg-violet-50">
+        <div className="w-full bg-violet-600 py-micro px-micro">
           <h1 className="text-2xl sm:text-3xl font-bold text-white text-center">Edge Athlete</h1>
         </div>
         
         <div className="flex-grow flex items-center justify-center p-4">
           <div className="w-full max-w-3xl bg-white rounded-lg shadow-lg overflow-hidden">
             <div className="w-full p-6 sm:p-8">
-              <h2 className="text-xl sm:text-2xl font-bold text-blue-800 space-micro">Create Athlete Account</h2>
+              <h2 className="text-xl sm:text-2xl font-bold text-violet-800 space-micro">Create Athlete Account</h2>
               {error && (
                 <div className="bg-red-50 border border-red-200 text-red-600 px-4 py-3 rounded-md text-sm">
                   {error}
@@ -287,7 +287,7 @@ export default function Home() {
                       id="firstName"
                       value={formData.firstName}
                       onChange={handleInputChange}
-                      className="w-full px-4 py-3 text-sm text-gray-800 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500"
+                      className="w-full px-4 py-3 text-sm text-gray-800 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-violet-500"
                       placeholder="Enter first name"
                       required
                     />
@@ -299,7 +299,7 @@ export default function Home() {
                       id="lastName"
                       value={formData.lastName}
                       onChange={handleInputChange}
-                      className="w-full px-4 py-3 text-sm text-gray-800 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500"
+                      className="w-full px-4 py-3 text-sm text-gray-800 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-violet-500"
                       placeholder="Enter last name"
                       required
                     />
@@ -318,7 +318,7 @@ export default function Home() {
                     id="nickname"
                     value={formData.nickname}
                     onChange={handleInputChange}
-                    className="w-full px-4 py-3 text-sm text-gray-800 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500"
+                    className="w-full px-4 py-3 text-sm text-gray-800 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-violet-500"
                     placeholder="Enter nickname"
                   />
                 </div>
@@ -329,7 +329,7 @@ export default function Home() {
                     id="email"
                     value={formData.email}
                     onChange={handleInputChange}
-                    className="w-full px-4 py-3 text-sm text-gray-800 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500"
+                    className="w-full px-4 py-3 text-sm text-gray-800 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-violet-500"
                     placeholder="Enter email"
                     required
                   />
@@ -341,7 +341,7 @@ export default function Home() {
                     id="phone"
                     value={formData.phone}
                     onChange={handleInputChange}
-                    className="w-full px-4 py-3 text-sm text-gray-800 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500"
+                    className="w-full px-4 py-3 text-sm text-gray-800 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-violet-500"
                     placeholder="Enter phone number"
                   />
                 </div>
@@ -353,7 +353,7 @@ export default function Home() {
                       id="birthday"
                       value={formData.birthday}
                       onChange={handleInputChange}
-                      className="w-full px-4 py-3 text-sm text-gray-800 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500"
+                      className="w-full px-4 py-3 text-sm text-gray-800 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-violet-500"
                     />
                   </div>
                   <div>
@@ -366,7 +366,7 @@ export default function Home() {
                           value="female" 
                           checked={formData.gender === 'female'}
                           onChange={handleInputChange}
-                          className="form-radio text-blue-600" 
+                          className="form-radio text-violet-600" 
                         />
                         <span className="ml-1 text-sm">Female</span>
                       </label>
@@ -377,7 +377,7 @@ export default function Home() {
                           value="male" 
                           checked={formData.gender === 'male'}
                           onChange={handleInputChange}
-                          className="form-radio text-blue-600" 
+                          className="form-radio text-violet-600" 
                         />
                         <span className="ml-1 text-sm">Male</span>
                       </label>
@@ -388,7 +388,7 @@ export default function Home() {
                           value="custom" 
                           checked={formData.gender === 'custom'}
                           onChange={handleInputChange}
-                          className="form-radio text-blue-600" 
+                          className="form-radio text-violet-600" 
                         />
                         <span className="ml-1 text-sm">Custom</span>
                       </label>
@@ -405,7 +405,7 @@ export default function Home() {
                           id="location"
                           value={formData.location}
                           onChange={handleInputChange}
-                          className="w-full px-4 py-3 text-sm text-gray-800 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500"
+                          className="w-full px-4 py-3 text-sm text-gray-800 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-violet-500"
                           placeholder="Enter your location"
                         />
                       </div>
@@ -415,15 +415,15 @@ export default function Home() {
                           id="postalCode"
                           value={formData.postalCode}
                           onChange={handleInputChange}
-                          className="w-full px-4 py-3 text-sm text-gray-800 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500 pr-10"
+                          className="w-full px-4 py-3 text-sm text-gray-800 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-violet-500 pr-10"
                           placeholder="Enter postal code"
                         />
-                        <button type="button" className="absolute right-2 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-blue-500 sm:hidden">
+                        <button type="button" className="absolute right-2 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-violet-500 sm:hidden">
                           <i className="fas fa-location-dot text-sm"></i>
                         </button>
                       </div>
                     </div>
-                    <button type="button" className="hidden sm:block absolute right-2 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-blue-500">
+                    <button type="button" className="hidden sm:block absolute right-2 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-violet-500">
                       <i className="fas fa-location-dot"></i>
                     </button>
                   </div>
@@ -435,7 +435,7 @@ export default function Home() {
                     id="password"
                     value={formData.password}
                     onChange={handleInputChange}
-                    className="w-full px-4 py-3 text-sm text-gray-800 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500"
+                    className="w-full px-4 py-3 text-sm text-gray-800 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-violet-500"
                     placeholder="Enter password"
                     required
                     minLength={6}
@@ -448,7 +448,7 @@ export default function Home() {
                     id="confirmPassword"
                     value={formData.confirmPassword}
                     onChange={handleInputChange}
-                    className="w-full px-4 py-3 text-sm text-gray-800 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500"
+                    className="w-full px-4 py-3 text-sm text-gray-800 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-violet-500"
                     placeholder="Confirm password"
                     required
                     minLength={6}
@@ -457,7 +457,7 @@ export default function Home() {
                 <button 
                   type="submit" 
                   disabled={isSubmitting}
-                  className="w-full bg-blue-600 text-white py-3 px-4 rounded-md hover:bg-blue-700 transition duration-300 flex items-center justify-center text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="w-full bg-violet-600 text-white py-3 px-4 rounded-md hover:bg-violet-700 transition duration-300 flex items-center justify-center text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   {isSubmitting ? (
                     <>
@@ -474,7 +474,7 @@ export default function Home() {
                 <p className="text-xs text-gray-600">
                   Already have an account? 
                   <span 
-                    className="text-blue-600 hover:underline cursor-pointer ml-1"
+                    className="text-violet-600 hover:underline cursor-pointer ml-1"
                     onClick={handleBackToLogin}
                   >
                     Log in as an Athlete
@@ -489,8 +489,8 @@ export default function Home() {
   }
 
   return (
-    <div className="min-h-screen flex flex-col bg-blue-50">
-      <div className="w-full bg-blue-600 py-3 px-4 sm:py-4">
+    <div className="min-h-screen flex flex-col bg-violet-50">
+      <div className="w-full bg-violet-600 py-3 px-4 sm:py-4">
         <h1 className="text-2xl sm:text-3xl lg:text-4xl font-bold text-white text-center">Edge Athlete</h1>
       </div>
       
@@ -498,7 +498,7 @@ export default function Home() {
         <div className="w-full max-w-4xl flex flex-col lg:flex-row bg-white rounded-lg shadow-lg overflow-hidden">
           {/* Login Section */}
           <div className="w-full lg:w-1/2 p-6 sm:p-8 lg:p-12">
-            <h2 className="text-2xl sm:text-3xl font-bold text-blue-800 mb-6 sm:mb-8 text-center lg:text-left">Login to Your Account</h2>
+            <h2 className="text-2xl sm:text-3xl font-bold text-violet-800 mb-6 sm:mb-8 text-center lg:text-left">Login to Your Account</h2>
             {error && (
               <div className="bg-red-50 border border-red-200 text-red-600 px-4 py-3 rounded-md text-sm mb-4">
                 {error}
@@ -507,7 +507,7 @@ export default function Home() {
                     type="button"
                     onClick={handleResendConfirmation}
                     disabled={resendingConfirmation}
-                    className="block mt-2 font-semibold text-blue-600 hover:text-blue-700 disabled:opacity-50"
+                    className="block mt-2 font-semibold text-violet-600 hover:text-violet-700 disabled:opacity-50"
                   >
                     {resendingConfirmation ? 'Resending…' : 'Resend confirmation email'}
                   </button>
@@ -525,7 +525,7 @@ export default function Home() {
                 <input 
                   type="email" 
                   name="email"
-                  className="w-full px-3 py-3 sm:py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-base text-gray-800" 
+                  className="w-full px-3 py-3 sm:py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-violet-500 text-base text-gray-800" 
                   placeholder="Enter your email"
                   required
                 />
@@ -535,12 +535,12 @@ export default function Home() {
                 <input 
                   type="password" 
                   name="password"
-                  className="w-full px-3 py-3 sm:py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-base text-gray-800" 
+                  className="w-full px-3 py-3 sm:py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-violet-500 text-base text-gray-800" 
                   placeholder="Enter your password"
                   required
                 />
                 <div className="mt-2 text-right">
-                  <Link href="/forgot-password" className="text-sm text-blue-600 hover:text-blue-700 font-medium">
+                  <Link href="/forgot-password" className="text-sm text-violet-600 hover:text-violet-700 font-medium">
                     Forgot password?
                   </Link>
                 </div>
@@ -548,7 +548,7 @@ export default function Home() {
               <button 
                 type="submit" 
                 disabled={isSubmitting}
-                className="w-full bg-blue-600 text-white py-3 px-4 rounded-md hover:bg-blue-700 transition duration-300 font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+                className="w-full bg-violet-600 text-white py-3 px-4 rounded-md hover:bg-violet-700 transition duration-300 font-medium disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {isSubmitting ? (
                   <>
@@ -562,13 +562,13 @@ export default function Home() {
           </div>
           
           {/* Sign Up Section */}
-          <div className="w-full lg:w-1/2 bg-blue-600 p-6 sm:p-8 lg:p-12 text-white flex flex-col justify-between">
+          <div className="w-full lg:w-1/2 bg-violet-600 p-6 sm:p-8 lg:p-12 text-white flex flex-col justify-between">
             <div className="flex flex-col items-center justify-center flex-grow">
               <h2 className="text-2xl sm:text-3xl font-bold mb-4 text-center">New Here?</h2>
               <p className="mb-6 text-center text-sm sm:text-base">Choose your role and sign up to discover new opportunities!</p>
               <div className="grid grid-cols-2 gap-3 sm:gap-4 w-full max-w-sm">
                 <button 
-                  className="bg-white text-blue-600 py-3 px-3 sm:px-4 rounded-md font-semibold hover:bg-blue-100 transition duration-300 flex flex-col sm:flex-row items-center justify-center text-xs sm:text-sm"
+                  className="bg-white text-violet-600 py-3 px-3 sm:px-4 rounded-md font-semibold hover:bg-violet-100 transition duration-300 flex flex-col sm:flex-row items-center justify-center text-xs sm:text-sm"
                   onClick={handleAthleteClick}
                 >
                   <i className="fas fa-person-running mb-1 sm:mb-0 sm:mr-2 text-lg sm:text-base"></i>
@@ -576,21 +576,21 @@ export default function Home() {
                 </button>
                 <button 
                   onClick={() => handleWaitlistClick('Club')}
-                  className="bg-white text-blue-600 py-3 px-3 sm:px-4 rounded-md font-semibold hover:bg-blue-100 transition duration-300 flex flex-col sm:flex-row items-center justify-center text-xs sm:text-sm"
+                  className="bg-white text-violet-600 py-3 px-3 sm:px-4 rounded-md font-semibold hover:bg-violet-100 transition duration-300 flex flex-col sm:flex-row items-center justify-center text-xs sm:text-sm"
                 >
                   <i className="fas fa-shield mb-1 sm:mb-0 sm:mr-2 text-lg sm:text-base"></i>
                   <span>Club</span>
                 </button>
                 <button 
                   onClick={() => handleWaitlistClick('League')}
-                  className="bg-white text-blue-600 py-3 px-3 sm:px-4 rounded-md font-semibold hover:bg-blue-100 transition duration-300 flex flex-col sm:flex-row items-center justify-center text-xs sm:text-sm"
+                  className="bg-white text-violet-600 py-3 px-3 sm:px-4 rounded-md font-semibold hover:bg-violet-100 transition duration-300 flex flex-col sm:flex-row items-center justify-center text-xs sm:text-sm"
                 >
                   <i className="fas fa-trophy mb-1 sm:mb-0 sm:mr-2 text-lg sm:text-base"></i>
                   <span>League</span>
                 </button>
                 <button 
                   onClick={() => handleWaitlistClick('Fan')}
-                  className="bg-white text-blue-600 py-3 px-3 sm:px-4 rounded-md font-semibold hover:bg-blue-100 transition duration-300 flex flex-col sm:flex-row items-center justify-center text-xs sm:text-sm"
+                  className="bg-white text-violet-600 py-3 px-3 sm:px-4 rounded-md font-semibold hover:bg-violet-100 transition duration-300 flex flex-col sm:flex-row items-center justify-center text-xs sm:text-sm"
                 >
                   <i className="fas fa-star mb-1 sm:mb-0 sm:mr-2 text-lg sm:text-base"></i>
                   <span>Fan</span>
@@ -600,7 +600,7 @@ export default function Home() {
             <div className="mt-6 sm:mt-8">
               <button 
                 onClick={() => handleWaitlistClick('Guest')}
-                className="w-full bg-transparent border-2 border-white text-white py-3 px-4 rounded-md font-semibold hover:bg-white hover:text-blue-600 transition duration-300 flex items-center justify-center text-sm sm:text-base"
+                className="w-full bg-transparent border-2 border-white text-white py-3 px-4 rounded-md font-semibold hover:bg-white hover:text-violet-600 transition duration-300 flex items-center justify-center text-sm sm:text-base"
               >
                 <i className="fas fa-binoculars mr-2"></i> Explore as Guest
               </button>

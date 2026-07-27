@@ -25,8 +25,8 @@ export default function AccountSettings({ onEditProfile }: AccountSettingsProps)
           {/* Basic Info */}
           <div className="mb-8">
             <div className="flex items-center gap-3 mb-5">
-              <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
-                <i className="fas fa-user text-blue-600 text-lg"></i>
+              <div className="w-10 h-10 bg-violet-100 rounded-lg flex items-center justify-center">
+                <i className="fas fa-user text-violet-600 text-lg"></i>
               </div>
               <h4 className="text-lg font-bold text-gray-900 tracking-tight">Basic Information</h4>
             </div>
@@ -160,7 +160,7 @@ export default function AccountSettings({ onEditProfile }: AccountSettingsProps)
                   window.location.href = '/athlete';
                 }
               }}
-              className="inline-flex items-center gap-2 px-5 py-2.5 bg-blue-600 text-white font-semibold rounded-lg hover:bg-blue-700 transition-colors shadow-sm"
+              className="inline-flex items-center gap-2 px-5 py-2.5 bg-violet-600 text-white font-semibold rounded-lg hover:bg-violet-700 transition-colors shadow-sm"
             >
               <i className="fas fa-edit"></i>
               Edit Profile Details

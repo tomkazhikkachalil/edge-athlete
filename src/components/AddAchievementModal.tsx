@@ -160,7 +160,7 @@ export default function AddAchievementModal({
               onChange={e => set('title', e.target.value)}
               maxLength={120}
               placeholder="e.g. Club Championship Winner"
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-base focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-base focus:outline-none focus:ring-2 focus:ring-violet-500"
               required
             />
           </div>
@@ -174,7 +174,7 @@ export default function AddAchievementModal({
                 id="achievement-sport"
                 value={form.sportKey}
                 onChange={e => set('sportKey', e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-base focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-base focus:outline-none focus:ring-2 focus:ring-violet-500 bg-white"
               >
                 <option value="">General</option>
                 {getAllSports().map(key => (
@@ -195,7 +195,7 @@ export default function AddAchievementModal({
                 value={form.achievedOn}
                 onChange={e => set('achievedOn', e.target.value)}
                 max={today()}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-base focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-base focus:outline-none focus:ring-2 focus:ring-violet-500 bg-white"
                 required
               />
             </div>
@@ -213,7 +213,7 @@ export default function AddAchievementModal({
                 onChange={e => set('organization', e.target.value)}
                 maxLength={120}
                 placeholder="e.g. USGA, NCAA"
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-base focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-base focus:outline-none focus:ring-2 focus:ring-violet-500"
               />
             </div>
 
@@ -228,7 +228,7 @@ export default function AddAchievementModal({
                 onChange={e => set('placement', e.target.value)}
                 maxLength={60}
                 placeholder="e.g. 1st Place, Finalist"
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-base focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-base focus:outline-none focus:ring-2 focus:ring-violet-500"
               />
             </div>
           </div>
@@ -244,7 +244,7 @@ export default function AddAchievementModal({
               maxLength={1000}
               rows={3}
               placeholder="What made this one special?"
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-base focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-base focus:outline-none focus:ring-2 focus:ring-violet-500 resize-none"
             />
           </div>
 
@@ -266,7 +266,7 @@ export default function AddAchievementModal({
             <button
               type="submit"
               disabled={saving}
-              className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+              className="inline-flex items-center gap-2 px-4 py-2 bg-violet-600 text-white rounded-lg font-semibold hover:bg-violet-700 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
             >
               {saving && (
                 <span className="animate-spin rounded-full h-4 w-4 border-b-2 border-white" aria-hidden="true" />

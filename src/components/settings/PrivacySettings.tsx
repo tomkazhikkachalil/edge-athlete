@@ -58,14 +58,14 @@ export default function PrivacySettings() {
             disabled={saving}
             className={`w-full text-left p-4 rounded-lg border-2 transition-all ${
               visibility === 'public'
-                ? 'border-blue-600 bg-blue-50'
+                ? 'border-violet-600 bg-violet-50'
                 : 'border-gray-200 hover:border-gray-300'
             }`}
           >
             <div className="flex items-start gap-3">
               <div className={`mt-0.5 w-5 h-5 rounded-full border-2 flex items-center justify-center ${
                 visibility === 'public'
-                  ? 'border-blue-600 bg-blue-600'
+                  ? 'border-violet-600 bg-violet-600'
                   : 'border-gray-300'
               }`}>
                 {visibility === 'public' && (
@@ -74,7 +74,7 @@ export default function PrivacySettings() {
               </div>
               <div className="flex-1">
                 <div className="flex items-center gap-2 mb-1">
-                  <i className="fas fa-globe text-blue-600"></i>
+                  <i className="fas fa-globe text-violet-600"></i>
                   <h4 className="font-semibold text-gray-900">Public</h4>
                 </div>
                 <p className="text-sm text-gray-600">
@@ -90,14 +90,14 @@ export default function PrivacySettings() {
             disabled={saving}
             className={`w-full text-left p-4 rounded-lg border-2 transition-all ${
               visibility === 'private'
-                ? 'border-blue-600 bg-blue-50'
+                ? 'border-violet-600 bg-violet-50'
                 : 'border-gray-200 hover:border-gray-300'
             }`}
           >
             <div className="flex items-start gap-3">
               <div className={`mt-0.5 w-5 h-5 rounded-full border-2 flex items-center justify-center ${
                 visibility === 'private'
-                  ? 'border-blue-600 bg-blue-600'
+                  ? 'border-violet-600 bg-violet-600'
                   : 'border-gray-300'
               }`}>
                 {visibility === 'private' && (
@@ -119,12 +119,12 @@ export default function PrivacySettings() {
       </div>
 
       {/* Additional Privacy Info */}
-      <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+      <div className="bg-violet-50 border border-violet-200 rounded-lg p-4">
         <div className="flex gap-3">
-          <i className="fas fa-info-circle text-blue-600 mt-0.5"></i>
+          <i className="fas fa-info-circle text-violet-600 mt-0.5"></i>
           <div>
-            <h4 className="font-medium text-blue-900 mb-1">Privacy Note</h4>
-            <p className="text-sm text-blue-800">
+            <h4 className="font-medium text-violet-900 mb-1">Privacy Note</h4>
+            <p className="text-sm text-violet-800">
               Your profile picture and name are always visible to help others find you.
               All other information respects your privacy settings.
             </p>

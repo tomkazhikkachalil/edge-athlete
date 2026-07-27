@@ -30,7 +30,7 @@ export default function Filmstrip({ assets, previewUrls, recipes, activeId, onSe
             onClick={() => onSelect(asset.id)}
             aria-label={`Edit ${asset.file.name}`}
             className={`relative w-14 h-14 rounded-lg overflow-hidden flex-shrink-0 ${
-              active ? 'ring-2 ring-blue-500' : 'ring-1 ring-white/20'
+              active ? 'ring-2 ring-violet-500' : 'ring-1 ring-white/20'
             }`}
           >
             {asset.kind === 'video' ? (
@@ -40,7 +40,7 @@ export default function Filmstrip({ assets, previewUrls, recipes, activeId, onSe
               <img src={url} alt="" className="w-full h-full object-cover" />
             )}
             {edited && (
-              <span className="absolute top-1 right-1 w-2 h-2 rounded-full bg-blue-500" aria-hidden />
+              <span className="absolute top-1 right-1 w-2 h-2 rounded-full bg-violet-500" aria-hidden />
             )}
           </button>
         );

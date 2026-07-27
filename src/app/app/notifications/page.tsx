@@ -203,7 +203,7 @@ export default function NotificationsPage() {
               {unreadCount > 0 && (
                 <button
                   onClick={markAllAsRead}
-                  className="px-4 py-2 text-sm font-medium text-blue-600 hover:text-blue-700 transition-colors"
+                  className="px-4 py-2 text-sm font-medium text-violet-600 hover:text-violet-700 transition-colors"
                 >
                   Mark all read
                 </button>
@@ -233,14 +233,14 @@ export default function NotificationsPage() {
                 onClick={() => setActiveTab(tab.id)}
                 className={`px-4 py-3 text-sm font-medium transition-colors relative whitespace-nowrap flex-shrink-0 ${
                   activeTab === tab.id
-                    ? 'text-blue-600 border-b-2 border-blue-600'
+                    ? 'text-violet-600 border-b-2 border-violet-600'
                     : 'text-gray-600 hover:text-gray-900'
                 }`}
               >
                 {tab.icon && <i className={`fas ${tab.icon} mr-2`}></i>}
                 {tab.label}
                 {tab.count !== undefined && tab.count > 0 && (
-                  <span className="ml-2 px-2 py-0.5 text-xs bg-blue-100 text-blue-600 rounded-full">
+                  <span className="ml-2 px-2 py-0.5 text-xs bg-violet-100 text-violet-600 rounded-full">
                     {tab.count}
                   </span>
                 )}
@@ -254,7 +254,7 @@ export default function NotificationsPage() {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 py-6">
         {loading && notifications.length === 0 ? (
           <div className="flex justify-center py-12">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-violet-600"></div>
           </div>
         ) : filteredNotifications.length === 0 ? (
           <div className="text-center py-12">
@@ -279,7 +279,7 @@ export default function NotificationsPage() {
                       <div
                         key={notification.id}
                         className={`p-4 hover:bg-gray-50 transition-colors cursor-pointer ${
-                          !notification.is_read ? 'bg-blue-50' : ''
+                          !notification.is_read ? 'bg-violet-50' : ''
                         }`}
                         onClick={() => handleNotificationClick(notification)}
                       >
@@ -299,7 +299,7 @@ export default function NotificationsPage() {
                               className="rounded-full object-cover flex-shrink-0"
                             />
                           ) : notification.actor ? (
-                            <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center flex-shrink-0">
+                            <div className="w-12 h-12 bg-gradient-to-br from-violet-500 to-purple-600 rounded-full flex items-center justify-center flex-shrink-0">
                               <span className="text-white text-sm font-semibold">
                                 {getInitials(
                                   formatDisplayName(
@@ -312,8 +312,8 @@ export default function NotificationsPage() {
                               </span>
                             </div>
                           ) : (
-                            <div className="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center flex-shrink-0">
-                              <i className={`fas ${getNotificationIcon(notification.type)} text-blue-600`}></i>
+                            <div className="w-12 h-12 bg-violet-100 rounded-full flex items-center justify-center flex-shrink-0">
+                              <i className={`fas ${getNotificationIcon(notification.type)} text-violet-600`}></i>
                             </div>
                           )}
 
@@ -335,7 +335,7 @@ export default function NotificationsPage() {
                           {/* Actions */}
                           <div className="flex items-center gap-2">
                             {!notification.is_read && (
-                              <div className="w-2 h-2 bg-blue-600 rounded-full"></div>
+                              <div className="w-2 h-2 bg-violet-600 rounded-full"></div>
                             )}
                             <button
                               onClick={(e) => {

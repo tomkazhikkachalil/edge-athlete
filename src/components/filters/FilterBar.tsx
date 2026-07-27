@@ -41,7 +41,7 @@ export default function FilterBar({
 
         <div className="flex items-center gap-3">
           {resultCount !== undefined && (
-            <div className="inline-flex items-center px-3 py-1 rounded-full bg-blue-50 text-blue-700 text-sm font-semibold whitespace-nowrap">
+            <div className="inline-flex items-center px-3 py-1 rounded-full bg-violet-50 text-violet-700 text-sm font-semibold whitespace-nowrap">
               {resultCount} {resultCount === 1 ? resultNoun : resultNounPlural ?? `${resultNoun}s`}
             </div>
           )}
@@ -54,7 +54,7 @@ export default function FilterBar({
       <div className="flex items-center justify-between gap-3 px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg">
         <div className="flex items-center gap-2 text-sm">
           <Filter
-            className={`w-4 h-4 ${hasActive ? 'text-blue-600' : 'text-gray-400'}`}
+            className={`w-4 h-4 ${hasActive ? 'text-violet-600' : 'text-gray-400'}`}
             aria-hidden="true"
           />
           <span className={hasActive ? 'font-medium text-gray-800' : 'text-gray-500'}>
@@ -69,7 +69,7 @@ export default function FilterBar({
           onClick={onClearAll}
           className={`inline-flex items-center gap-1 text-sm font-semibold transition-colors ${
             hasActive
-              ? 'text-blue-600 hover:text-blue-700 cursor-pointer'
+              ? 'text-violet-600 hover:text-violet-700 cursor-pointer'
               : 'text-gray-400 cursor-not-allowed'
           }`}
           aria-label="Clear all filters"

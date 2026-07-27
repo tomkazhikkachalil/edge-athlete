@@ -70,7 +70,7 @@ export default function SportSelector({ selectedSport, onSelectSport, onClose }:
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="Search sports..."
-              className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-violet-500 focus:border-violet-500"
               autoFocus
             />
           </div>
@@ -87,12 +87,12 @@ export default function SportSelector({ selectedSport, onSelectSport, onClose }:
               onClick={handleSelectGeneral}
               className={`w-full p-3 border-2 rounded-lg text-left transition-all flex items-center gap-3 ${
                 selectedSport === 'general'
-                  ? 'border-blue-500 bg-blue-50'
+                  ? 'border-violet-500 bg-violet-50'
                   : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50'
               }`}
             >
               <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${
-                selectedSport === 'general' ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-500'
+                selectedSport === 'general' ? 'bg-violet-600 text-white' : 'bg-gray-100 text-gray-500'
               }`}>
                 <i className="fas fa-edit"></i>
               </div>
@@ -101,7 +101,7 @@ export default function SportSelector({ selectedSport, onSelectSport, onClose }:
                 <div className="text-sm text-gray-500">Text, photos, and hashtags</div>
               </div>
               {selectedSport === 'general' && (
-                <i className="fas fa-check-circle text-blue-600 text-xl"></i>
+                <i className="fas fa-check-circle text-violet-600 text-xl"></i>
               )}
             </button>
           </div>
@@ -215,7 +215,7 @@ function SportCard({ sport, isSelected, onSelect }: SportCardProps) {
       disabled={isDisabled}
       className={`relative p-3 border-2 rounded-lg text-left transition-all ${
         isSelected
-          ? 'border-blue-500 bg-blue-50'
+          ? 'border-violet-500 bg-violet-50'
           : isDisabled
             ? 'border-gray-200 bg-gray-50 opacity-60 cursor-not-allowed'
             : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50'
@@ -224,7 +224,7 @@ function SportCard({ sport, isSelected, onSelect }: SportCardProps) {
       <div className="flex items-center gap-3">
         <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${
           isSelected
-            ? 'bg-blue-600 text-white'
+            ? 'bg-violet-600 text-white'
             : isDisabled
               ? 'bg-gray-200 text-gray-400'
               : 'bg-gray-100 text-gray-600'
@@ -242,7 +242,7 @@ function SportCard({ sport, isSelected, onSelect }: SportCardProps) {
           )}
         </div>
         {isSelected && !isDisabled && (
-          <i className="fas fa-check-circle text-blue-600"></i>
+          <i className="fas fa-check-circle text-violet-600"></i>
         )}
         {isDisabled && (
           <i className="fas fa-lock text-gray-300 text-sm"></i>

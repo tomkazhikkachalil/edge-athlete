@@ -68,7 +68,7 @@ export default function ConversationItem({ conversation, currentUserId, isActive
       onClick={onClick}
       className={`w-full text-left flex items-center gap-3 px-4 py-3 transition-colors ${
         isActive
-          ? 'bg-blue-50 border-l-4 border-blue-600'
+          ? 'bg-violet-50 border-l-4 border-violet-600'
           : 'hover:bg-gray-50 border-l-4 border-transparent'
       }`}
     >
@@ -83,7 +83,7 @@ export default function ConversationItem({ conversation, currentUserId, isActive
             height={48}
           />
         ) : (
-          <div className="w-12 h-12 rounded-full bg-blue-500 flex items-center justify-center text-white font-semibold text-sm shrink-0">
+          <div className="w-12 h-12 rounded-full bg-violet-500 flex items-center justify-center text-white font-semibold text-sm shrink-0">
             {getInitials(avatarName)}
           </div>
         )}

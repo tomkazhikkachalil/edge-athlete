@@ -82,8 +82,8 @@ export default function ReplaceEquipmentModal({
             {/* Header */}
             <div className="sticky top-0 bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between rounded-t-2xl">
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center">
-                  <RefreshCw className="w-5 h-5 text-blue-600" />
+                <div className="w-10 h-10 rounded-full bg-violet-100 flex items-center justify-center">
+                  <RefreshCw className="w-5 h-5 text-violet-600" />
                 </div>
                 <div>
                   <h2 className="text-xl font-bold text-gray-900">Replace Equipment</h2>
@@ -156,14 +156,14 @@ export default function ReplaceEquipmentModal({
               </div>
 
               {/* Info message */}
-              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+              <div className="bg-violet-50 border border-violet-200 rounded-lg p-4">
                 <div className="flex items-start gap-3">
-                  <RefreshCw className="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5" />
+                  <RefreshCw className="w-5 h-5 text-violet-600 flex-shrink-0 mt-0.5" />
                   <div className="flex-1">
-                    <p className="text-sm font-semibold text-blue-900 mb-1">
+                    <p className="text-sm font-semibold text-violet-900 mb-1">
                       What happens next?
                     </p>
-                    <ul className="text-sm text-blue-700 space-y-1">
+                    <ul className="text-sm text-violet-700 space-y-1">
                       <li>• Your current equipment will be marked as &quot;retired&quot;</li>
                       <li>• It will remain in your equipment history</li>
                       <li>• You can add the new replacement equipment</li>
@@ -193,7 +193,7 @@ export default function ReplaceEquipmentModal({
               <button
                 onClick={handleConfirmReplace}
                 disabled={retiring}
-                className="px-6 py-2.5 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                className="px-6 py-2.5 bg-violet-600 text-white rounded-lg font-semibold hover:bg-violet-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
               >
                 {retiring ? (
                   <>

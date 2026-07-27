@@ -206,7 +206,7 @@ function FollowersContent() {
                 height={64}
               />
             ) : (
-              <div className="w-16 h-16 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center">
+              <div className="w-16 h-16 bg-gradient-to-br from-violet-500 to-purple-600 rounded-full flex items-center justify-center">
                 <span className="text-white text-xl font-semibold">
                   {getInitials(formatDisplayName(profile.first_name, null, profile.last_name, profile.full_name))}
                 </span>
@@ -224,7 +224,7 @@ function FollowersContent() {
                   router.push(`/athlete/${profile.id}`);
                 }
               }}
-              className="font-bold text-gray-900 hover:text-blue-600 truncate block"
+              className="font-bold text-gray-900 hover:text-violet-600 truncate block"
             >
               {formatDisplayName(profile.first_name, null, profile.last_name, profile.full_name)}
             </button>
@@ -284,7 +284,7 @@ function FollowersContent() {
               onClick={() => setActiveTab('followers')}
               className={`px-2 py-2 text-sm font-medium border-b-2 transition-colors ${
                 activeTab === 'followers'
-                  ? 'border-blue-600 text-blue-600'
+                  ? 'border-violet-600 text-violet-600'
                   : 'border-transparent text-gray-600 hover:text-gray-900'
               }`}
             >
@@ -294,7 +294,7 @@ function FollowersContent() {
               onClick={() => setActiveTab('following')}
               className={`px-2 py-2 text-sm font-medium border-b-2 transition-colors ${
                 activeTab === 'following'
-                  ? 'border-blue-600 text-blue-600'
+                  ? 'border-violet-600 text-violet-600'
                   : 'border-transparent text-gray-600 hover:text-gray-900'
               }`}
             >
@@ -304,7 +304,7 @@ function FollowersContent() {
               onClick={() => setActiveTab('requests')}
               className={`px-2 py-2 text-sm font-medium border-b-2 transition-colors relative ${
                 activeTab === 'requests'
-                  ? 'border-blue-600 text-blue-600'
+                  ? 'border-violet-600 text-violet-600'
                   : 'border-transparent text-gray-600 hover:text-gray-900'
               }`}
             >
@@ -406,7 +406,7 @@ function FollowersContent() {
                                 height={64}
                               />
                             ) : (
-                              <div className="w-16 h-16 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center">
+                              <div className="w-16 h-16 bg-gradient-to-br from-violet-500 to-purple-600 rounded-full flex items-center justify-center">
                                 <span className="text-white text-xl font-semibold">
                                   {getInitials(formatDisplayName(request.follower.first_name, null, request.follower.last_name, request.follower.full_name))}
                                 </span>
@@ -424,7 +424,7 @@ function FollowersContent() {
                                   router.push(`/athlete/${request.follower.id}`);
                                 }
                               }}
-                              className="font-bold text-gray-900 hover:text-blue-600 truncate block"
+                              className="font-bold text-gray-900 hover:text-violet-600 truncate block"
                             >
                               {formatDisplayName(request.follower.first_name, null, request.follower.last_name, request.follower.full_name)}
                             </button>
@@ -445,7 +445,7 @@ function FollowersContent() {
                             <div className="flex gap-2 mt-3">
                               <button
                                 onClick={() => handleAcceptRequest(request.id)}
-                                className="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition-colors"
+                                className="px-4 py-2 bg-violet-600 text-white text-sm font-medium rounded-lg hover:bg-violet-700 transition-colors"
                               >
                                 Accept
                               </button>

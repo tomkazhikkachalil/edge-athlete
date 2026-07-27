@@ -262,7 +262,7 @@ export default function PostDetailModal({
         <div className="overflow-y-auto max-h-modal p-6">
           {loading && (
             <div className="flex items-center justify-center py-12">
-              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-violet-600"></div>
             </div>
           )}
 
@@ -274,7 +274,7 @@ export default function PostDetailModal({
               <p className="text-gray-700">{error}</p>
               <button
                 onClick={fetchPost}
-                className="mt-4 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                className="mt-4 px-4 py-2 bg-violet-600 text-white rounded-lg hover:bg-violet-700"
               >
                 Try Again
               </button>

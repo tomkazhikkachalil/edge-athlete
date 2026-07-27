@@ -330,7 +330,7 @@ export default function AddEquipmentModal({
                   setLie('');
                   setGrip('');
                 }}
-                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-500 bg-white"
                 required
               >
                 {SPORT_OPTIONS.map((sport) => (
@@ -351,7 +351,7 @@ export default function AddEquipmentModal({
                 <select
                   value={category}
                   onChange={(e) => setCategory(e.target.value)}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-500 bg-white"
                   required
                 >
                   {getEquipmentCategories(sportKey).map((cat) => (
@@ -371,7 +371,7 @@ export default function AddEquipmentModal({
                   value={equipmentType}
                   onChange={(e) => setEquipmentType(e.target.value)}
                   placeholder="e.g., Running Shoes, Yoga Mat, Foam Roller"
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-500"
                   required
                 />
               </div>
@@ -401,7 +401,7 @@ export default function AddEquipmentModal({
                       }
                     }}
                     placeholder={sportKey === 'golf' ? 'Search brands...' : 'e.g., Nike, Adidas, Under Armour'}
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-500"
                     required
                     autoComplete="off"
                   />
@@ -425,7 +425,7 @@ export default function AddEquipmentModal({
                           key={suggestion.id}
                           type="button"
                           onClick={() => handleBrandSelect(suggestion.name)}
-                          className="w-full px-4 py-2.5 text-left text-sm text-gray-900 hover:bg-blue-50 hover:text-blue-700 transition-colors border-b border-gray-100 last:border-b-0 flex items-center gap-3"
+                          className="w-full px-4 py-2.5 text-left text-sm text-gray-900 hover:bg-violet-50 hover:text-violet-700 transition-colors border-b border-gray-100 last:border-b-0 flex items-center gap-3"
                         >
                           {suggestion.logo ? (
                             <Image
@@ -477,7 +477,7 @@ export default function AddEquipmentModal({
                   }}
                   onFocus={() => setShowModelDropdown(true)}
                   placeholder={sportKey === 'golf' ? 'e.g., Stealth 2, Pro V1' : 'e.g., Air Max, UltraBoost'}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-500"
                   required
                 />
                 {sportKey === 'golf' && showModelDropdown && (modelSuggestions.length > 0 || modelLoading) && (
@@ -496,7 +496,7 @@ export default function AddEquipmentModal({
                           key={suggestion.id}
                           type="button"
                           onClick={() => handleModelSelect(suggestion.name)}
-                          className="w-full px-4 py-2.5 text-left hover:bg-blue-50 transition-colors"
+                          className="w-full px-4 py-2.5 text-left hover:bg-violet-50 transition-colors"
                         >
                           <div className="text-sm font-medium text-gray-900">{suggestion.name}</div>
                           {suggestion.year && (
@@ -544,7 +544,7 @@ export default function AddEquipmentModal({
                     value="active"
                     checked={status === 'active'}
                     onChange={(e) => setStatus(e.target.value as 'active' | 'retired')}
-                    className="w-4 h-4 text-blue-600"
+                    className="w-4 h-4 text-violet-600"
                   />
                   <span className="text-sm font-medium text-gray-900">Active (currently using)</span>
                 </label>
@@ -573,7 +573,7 @@ export default function AddEquipmentModal({
                   value={acquiredOn}
                   onChange={(e) => setAcquiredOn(e.target.value)}
                   max={todayStr()}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-base bg-white"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-500 text-base bg-white"
                 />
                 <p className="text-xs text-gray-500 mt-1">
                   Backdate gear you owned before joining Edge Athlete.
@@ -591,7 +591,7 @@ export default function AddEquipmentModal({
                     onChange={(e) => setRetiredOn(e.target.value)}
                     min={acquiredOn || undefined}
                     max={todayStr()}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-base bg-white"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-500 text-base bg-white"
                   />
                   <p className="text-xs text-gray-500 mt-1">Defaults to today if left blank.</p>
                 </div>
@@ -612,7 +612,7 @@ export default function AddEquipmentModal({
                       value={loft}
                       onChange={(e) => setLoft(e.target.value)}
                       placeholder="e.g., 10.5°"
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-500 text-sm"
                     />
                   </div>
                   <div>
@@ -622,7 +622,7 @@ export default function AddEquipmentModal({
                       value={shaft}
                       onChange={(e) => setShaft(e.target.value)}
                       placeholder="e.g., Project X 6.0"
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-500 text-sm"
                     />
                   </div>
                   <div>
@@ -632,7 +632,7 @@ export default function AddEquipmentModal({
                       value={flex}
                       onChange={(e) => setFlex(e.target.value)}
                       placeholder="e.g., Stiff, Regular"
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-500 text-sm"
                     />
                   </div>
                   <div>
@@ -642,7 +642,7 @@ export default function AddEquipmentModal({
                       value={length}
                       onChange={(e) => setLength(e.target.value)}
                       placeholder='e.g., 45.5"'
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-500 text-sm"
                     />
                   </div>
                   <div>
@@ -652,7 +652,7 @@ export default function AddEquipmentModal({
                       value={lie}
                       onChange={(e) => setLie(e.target.value)}
                       placeholder="e.g., 59°"
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-500 text-sm"
                     />
                   </div>
                   <div>
@@ -662,7 +662,7 @@ export default function AddEquipmentModal({
                       value={grip}
                       onChange={(e) => setGrip(e.target.value)}
                       placeholder="e.g., Golf Pride Tour Velvet"
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-500 text-sm"
                     />
                   </div>
                 </div>
@@ -679,7 +679,7 @@ export default function AddEquipmentModal({
                 onChange={(e) => setNotes(e.target.value)}
                 placeholder="Add any personal notes about this equipment..."
                 rows={3}
-                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
+                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-500 resize-none"
               />
             </div>
           </div>
@@ -697,7 +697,7 @@ export default function AddEquipmentModal({
             <button
               type="submit"
               disabled={loading}
-              className="px-6 py-2.5 bg-blue-600 text-white font-semibold rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+              className="px-6 py-2.5 bg-violet-600 text-white font-semibold rounded-lg hover:bg-violet-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
             >
               {loading ? (
                 <>

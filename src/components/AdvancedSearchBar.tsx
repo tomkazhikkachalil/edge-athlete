@@ -101,7 +101,7 @@ export default function AdvancedSearchBar() {
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           placeholder="Search athletes, posts, clubs..."
-          className="w-full px-4 py-2.5 pl-10 pr-14 sm:pr-32 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all"
+          className="w-full px-4 py-2.5 pl-10 pr-14 sm:pr-32 border border-gray-300 rounded-lg focus:ring-2 focus:ring-violet-500 focus:border-violet-500 outline-none transition-all"
         />
         <i className="fas fa-search absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400"></i>
 
@@ -111,7 +111,7 @@ export default function AdvancedSearchBar() {
           style={{ right: '8px', top: '50%', transform: 'translateY(-50%)' }}
           className={`absolute px-3 py-1.5 rounded-md text-sm font-medium transition-all flex items-center gap-1.5 ${
             hasActiveFilters
-              ? 'bg-blue-600 text-white hover:bg-blue-700'
+              ? 'bg-violet-600 text-white hover:bg-violet-700'
               : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
           }`}
         >
@@ -120,7 +120,7 @@ export default function AdvancedSearchBar() {
           <i className="fas fa-filter text-xs"></i>
           <span className="hidden sm:inline">Filters</span>
           {hasActiveFilters && (
-            <span className="ml-0.5 bg-white text-blue-600 rounded-full w-5 h-5 inline-flex items-center justify-center text-xs font-semibold">
+            <span className="ml-0.5 bg-white text-violet-600 rounded-full w-5 h-5 inline-flex items-center justify-center text-xs font-semibold">
               {[filters.sport, filters.school, filters.league, filters.dateFrom, filters.type !== 'all'].filter(Boolean).length}
             </span>
           )}
@@ -128,7 +128,7 @@ export default function AdvancedSearchBar() {
 
         {loading && (
           <div className="absolute right-14 sm:right-32 top-1/2 transform -translate-y-1/2">
-            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600"></div>
+            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-violet-600"></div>
           </div>
         )}
       </div>
@@ -141,7 +141,7 @@ export default function AdvancedSearchBar() {
             {hasActiveFilters && (
               <button
                 onClick={clearFilters}
-                className="text-sm text-blue-600 hover:text-blue-700 font-medium"
+                className="text-sm text-violet-600 hover:text-violet-700 font-medium"
               >
                 Clear All
               </button>
@@ -157,7 +157,7 @@ export default function AdvancedSearchBar() {
               <select
                 value={filters.type}
                 onChange={(e) => setFilters({ ...filters, type: e.target.value as SearchFilters['type'] })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-violet-500 focus:border-violet-500"
               >
                 <option value="all">All Results</option>
                 <option value="athletes">Athletes Only</option>
@@ -174,7 +174,7 @@ export default function AdvancedSearchBar() {
               <select
                 value={filters.sport || ''}
                 onChange={(e) => setFilters({ ...filters, sport: e.target.value || undefined })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-violet-500 focus:border-violet-500"
               >
                 <option value="">All Sports</option>
                 {Object.values(SPORT_REGISTRY).map((sport) => (
@@ -195,7 +195,7 @@ export default function AdvancedSearchBar() {
                 value={filters.school || ''}
                 onChange={(e) => setFilters({ ...filters, school: e.target.value || undefined })}
                 placeholder="e.g., Stanford University"
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-violet-500 focus:border-violet-500"
               />
             </div>
 
@@ -209,7 +209,7 @@ export default function AdvancedSearchBar() {
                 value={filters.league || ''}
                 onChange={(e) => setFilters({ ...filters, league: e.target.value || undefined })}
                 placeholder="e.g., NCAA D1, Big Ten"
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-violet-500 focus:border-violet-500"
               />
             </div>
 
@@ -222,7 +222,7 @@ export default function AdvancedSearchBar() {
                 type="date"
                 value={filters.dateFrom || ''}
                 onChange={(e) => setFilters({ ...filters, dateFrom: e.target.value || undefined })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-violet-500 focus:border-violet-500"
               />
             </div>
 
@@ -235,7 +235,7 @@ export default function AdvancedSearchBar() {
                 type="date"
                 value={filters.dateTo || ''}
                 onChange={(e) => setFilters({ ...filters, dateTo: e.target.value || undefined })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-violet-500 focus:border-violet-500"
               />
             </div>
           </div>
@@ -282,7 +282,7 @@ export default function AdvancedSearchBar() {
                           className="rounded-full object-cover"
                         />
                       ) : (
-                        <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center">
+                        <div className="w-10 h-10 bg-gradient-to-br from-violet-500 to-purple-600 rounded-full flex items-center justify-center">
                           <span className="text-white text-sm font-semibold">
                             {getInitials(formatDisplayName(athlete.first_name, null, athlete.last_name, athlete.full_name))}
                           </span>

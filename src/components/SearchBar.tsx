@@ -95,7 +95,7 @@ export default function SearchBar() {
           onChange={(e) => setQuery(e.target.value)}
           onFocus={() => query.length >= 2 && setShowResults(true)}
           placeholder="Search athletes, posts, teams..."
-          className="w-full pl-10 pr-4 py-2 bg-gray-100 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+          className="w-full pl-10 pr-4 py-2 bg-gray-100 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent"
         />
         <i className="fas fa-search absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400"></i>
         {isLoading && (
@@ -139,7 +139,7 @@ export default function SearchBar() {
                       className="rounded-full object-cover"
                     />
                   ) : (
-                    <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center">
+                    <div className="w-10 h-10 bg-gradient-to-br from-violet-500 to-purple-600 rounded-full flex items-center justify-center">
                       <span className="text-white text-sm font-semibold">
                         {getInitials(formatDisplayName(athlete.first_name, null, athlete.last_name, athlete.full_name))}
                       </span>

@@ -148,7 +148,7 @@ export default function NewConversationModal({ onClose }: Props) {
           <button
             onClick={() => { setTab('dm'); setSearchQuery(''); setSearchResults([]); setError(''); }}
             className={`flex-1 py-3 text-sm font-medium border-b-2 transition-colors ${
-              tab === 'dm' ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700'
+              tab === 'dm' ? 'border-violet-600 text-violet-600' : 'border-transparent text-gray-500 hover:text-gray-700'
             }`}
           >
             <i className="fas fa-user mr-2"></i>Direct Message
@@ -156,7 +156,7 @@ export default function NewConversationModal({ onClose }: Props) {
           <button
             onClick={() => { setTab('group'); setSearchQuery(''); setSearchResults([]); setError(''); }}
             className={`flex-1 py-3 text-sm font-medium border-b-2 transition-colors ${
-              tab === 'group' ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700'
+              tab === 'group' ? 'border-violet-600 text-violet-600' : 'border-transparent text-gray-500 hover:text-gray-700'
             }`}
           >
             <i className="fas fa-users mr-2"></i>Group Chat
@@ -175,7 +175,7 @@ export default function NewConversationModal({ onClose }: Props) {
               value={groupName}
               onChange={e => setGroupName(e.target.value)}
               placeholder="Group name…"
-              className="w-full border border-gray-300 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full border border-gray-300 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500"
               maxLength={100}
             />
           )}
@@ -188,10 +188,10 @@ export default function NewConversationModal({ onClose }: Props) {
                 return (
                   <span
                     key={m.id}
-                    className="inline-flex items-center gap-1.5 bg-blue-100 text-blue-700 text-xs font-medium rounded-full px-3 py-1"
+                    className="inline-flex items-center gap-1.5 bg-violet-100 text-violet-700 text-xs font-medium rounded-full px-3 py-1"
                   >
                     {mName}
-                    <button onClick={() => handleToggleMember(m)} className="hover:text-blue-900">
+                    <button onClick={() => handleToggleMember(m)} className="hover:text-violet-900">
                       <i className="fas fa-times text-xs"></i>
                     </button>
                   </span>
@@ -208,7 +208,7 @@ export default function NewConversationModal({ onClose }: Props) {
               value={searchQuery}
               onChange={e => handleSearch(e.target.value)}
               placeholder="Search athletes…"
-              className="w-full pl-8 pr-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full pl-8 pr-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-violet-500"
               autoFocus
             />
           </div>
@@ -229,7 +229,7 @@ export default function NewConversationModal({ onClose }: Props) {
                     onClick={() => tab === 'dm' ? handleSelectDM(result) : handleToggleMember(result)}
                     disabled={creating}
                     className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-left transition-colors disabled:opacity-50 ${
-                      isSelected ? 'bg-blue-50' : 'hover:bg-gray-50'
+                      isSelected ? 'bg-violet-50' : 'hover:bg-gray-50'
                     }`}
                   >
                     {result.avatar_url ? (
@@ -241,7 +241,7 @@ export default function NewConversationModal({ onClose }: Props) {
                         height={40}
                       />
                     ) : (
-                      <div className="w-10 h-10 rounded-full bg-blue-500 flex items-center justify-center text-white text-sm font-bold shrink-0">
+                      <div className="w-10 h-10 rounded-full bg-violet-500 flex items-center justify-center text-white text-sm font-bold shrink-0">
                         {getInitials(rName)}
                       </div>
                     )}
@@ -251,7 +251,7 @@ export default function NewConversationModal({ onClose }: Props) {
                     </div>
                     {tab === 'group' && (
                       <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0 ${
-                        isSelected ? 'bg-blue-600 border-blue-600' : 'border-gray-300'
+                        isSelected ? 'bg-violet-600 border-violet-600' : 'border-gray-300'
                       }`}>
                         {isSelected && <i className="fas fa-check text-white text-xs"></i>}
                       </div>
@@ -271,7 +271,7 @@ export default function NewConversationModal({ onClose }: Props) {
             <button
               onClick={handleCreateGroup}
               disabled={creating || !groupName.trim() || selectedMembers.length < 2}
-              className="w-full py-2.5 bg-blue-600 text-white rounded-lg text-sm font-semibold hover:bg-blue-700 disabled:opacity-40 transition-colors"
+              className="w-full py-2.5 bg-violet-600 text-white rounded-lg text-sm font-semibold hover:bg-violet-700 disabled:opacity-40 transition-colors"
             >
               {creating ? (
                 <><i className="fas fa-spinner fa-spin mr-2"></i>Creating…</>

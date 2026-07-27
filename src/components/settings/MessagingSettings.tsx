@@ -19,7 +19,7 @@ const options: PermissionOption[] = [
     label: 'Everyone',
     description: 'Any Edge Athlete user can send you a direct message.',
     icon: 'fa-globe',
-    iconColor: 'text-blue-600',
+    iconColor: 'text-violet-600',
   },
   {
     value: 'fans_only',
@@ -96,14 +96,14 @@ export default function MessagingSettings() {
               disabled={saving}
               className={`w-full text-left p-4 rounded-lg border-2 transition-all disabled:opacity-60 ${
                 permission === opt.value
-                  ? 'border-blue-600 bg-blue-50'
+                  ? 'border-violet-600 bg-violet-50'
                   : 'border-gray-200 hover:border-gray-300'
               }`}
             >
               <div className="flex items-start gap-3">
                 <div className={`mt-0.5 w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0 ${
                   permission === opt.value
-                    ? 'border-blue-600 bg-blue-600'
+                    ? 'border-violet-600 bg-violet-600'
                     : 'border-gray-300'
                 }`}>
                   {permission === opt.value && (
@@ -123,12 +123,12 @@ export default function MessagingSettings() {
         </div>
       </div>
 
-      <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+      <div className="bg-violet-50 border border-violet-200 rounded-lg p-4">
         <div className="flex gap-3">
-          <i className="fas fa-info-circle text-blue-600 mt-0.5 shrink-0"></i>
+          <i className="fas fa-info-circle text-violet-600 mt-0.5 shrink-0"></i>
           <div>
-            <h4 className="font-medium text-blue-900 mb-1">Note</h4>
-            <p className="text-sm text-blue-800">
+            <h4 className="font-medium text-violet-900 mb-1">Note</h4>
+            <p className="text-sm text-violet-800">
               Group chats can still be created by admins regardless of this setting. Existing
               conversations are not affected when you change this setting.
             </p>

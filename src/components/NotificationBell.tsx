@@ -177,7 +177,7 @@ export default function NotificationBell() {
             {unreadCount > 0 && (
               <button
                 onClick={() => markAllAsRead()}
-                className="text-xs text-blue-600 hover:text-blue-700 font-medium"
+                className="text-xs text-violet-600 hover:text-violet-700 font-medium"
               >
                 Mark all read
               </button>
@@ -224,8 +224,8 @@ export default function NotificationBell() {
                           )}
                         />
                       ) : (
-                        <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center">
-                          <i className={`fas ${getNotificationIcon(notification.type)} text-blue-600`}></i>
+                        <div className="w-10 h-10 bg-violet-100 rounded-full flex items-center justify-center">
+                          <i className={`fas ${getNotificationIcon(notification.type)} text-violet-600`}></i>
                         </div>
                       )}
 
@@ -239,7 +239,7 @@ export default function NotificationBell() {
                           </p>
                           {/* Blue dot indicator for unread AND not viewed */}
                           {!notification.is_read && !viewedNotifications.has(notification.id) && (
-                            <div className="w-2 h-2 bg-blue-600 rounded-full mt-1 flex-shrink-0"></div>
+                            <div className="w-2 h-2 bg-violet-600 rounded-full mt-1 flex-shrink-0"></div>
                           )}
                         </div>
                         {notification.message && (
@@ -265,7 +265,7 @@ export default function NotificationBell() {
                 router.push('/app/notifications');
                 setShowDropdown(false);
               }}
-              className="w-full text-center text-sm text-blue-600 hover:text-blue-700 font-medium"
+              className="w-full text-center text-sm text-violet-600 hover:text-violet-700 font-medium"
             >
               View all notifications
             </button>

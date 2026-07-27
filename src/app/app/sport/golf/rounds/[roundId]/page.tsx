@@ -199,7 +199,7 @@ export default function GolfRoundDetailPage() {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-violet-600 mx-auto"></div>
           <p className="mt-2 text-gray-600">Loading round details...</p>
         </div>
       </div>
@@ -218,7 +218,7 @@ export default function GolfRoundDetailPage() {
             <p className="text-gray-600 mb-8">This golf round does not exist or you don&apos;t have access to it.</p>
             <button
               onClick={() => router.back()}
-              className="inline-flex items-center px-4 py-2 border border-transparent text-base font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 transition-colors"
+              className="inline-flex items-center px-4 py-2 border border-transparent text-base font-medium rounded-md text-white bg-violet-600 hover:bg-violet-700 transition-colors"
             >
               <i className="fas fa-arrow-left mr-2"></i>
               Go Back
@@ -287,7 +287,7 @@ export default function GolfRoundDetailPage() {
                 <button
                   onClick={handleSave}
                   disabled={saving}
-                  className="inline-flex items-center min-h-[44px] px-4 py-2 rounded-md text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 transition-colors disabled:opacity-50"
+                  className="inline-flex items-center min-h-[44px] px-4 py-2 rounded-md text-sm font-medium text-white bg-violet-600 hover:bg-violet-700 transition-colors disabled:opacity-50"
                 >
                   {saving ? (
                     <><i className="fas fa-spinner fa-spin mr-2"></i>Saving…</>
@@ -326,7 +326,7 @@ export default function GolfRoundDetailPage() {
             <div className="text-left sm:text-right flex-shrink-0">
               <div className="text-4xl font-bold text-gray-900">{grossScore}</div>
               <div className={`text-sm font-medium ${
-                scoreToPar === 0 ? 'text-blue-600' : scoreToPar > 0 ? 'text-red-600' : 'text-green-600'
+                scoreToPar === 0 ? 'text-violet-600' : scoreToPar > 0 ? 'text-red-600' : 'text-green-600'
               }`}>
                 {scoreToPar === 0 ? 'E' : scoreToPar > 0 ? `+${scoreToPar}` : scoreToPar}
                 <span className="text-gray-400 font-normal"> · par {parPlayed}</span>
@@ -404,7 +404,7 @@ export default function GolfRoundDetailPage() {
                               max={20}
                               value={eh.strokes}
                               onChange={e => updateEditHole(eh.hole_number, { strokes: e.target.value })}
-                              className="w-14 min-h-[40px] px-1 py-1 text-center border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                              className="w-14 min-h-[40px] px-1 py-1 text-center border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-violet-500"
                               aria-label={`Hole ${eh.hole_number} score`}
                             />
                           </td>
@@ -446,7 +446,7 @@ export default function GolfRoundDetailPage() {
                               max={10}
                               value={eh.putts}
                               onChange={e => updateEditHole(eh.hole_number, { putts: e.target.value })}
-                              className="w-14 min-h-[40px] px-1 py-1 text-center border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                              className="w-14 min-h-[40px] px-1 py-1 text-center border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-violet-500"
                               aria-label={`Hole ${eh.hole_number} putts`}
                             />
                           </td>
@@ -463,7 +463,7 @@ export default function GolfRoundDetailPage() {
                         <td className="px-3 py-2 text-sm text-gray-900 text-center font-medium">{h.strokes}</td>
                         <td className={`px-3 py-2 text-sm text-center font-medium ${
                           holeScore === null ? 'text-gray-400'
-                            : holeScore === 0 ? 'text-blue-600'
+                            : holeScore === 0 ? 'text-violet-600'
                             : holeScore > 0 ? 'text-red-600' : 'text-green-600'
                         }`}>
                           {holeScore === null ? '—' : holeScore === 0 ? 'E' : holeScore > 0 ? `+${holeScore}` : holeScore}

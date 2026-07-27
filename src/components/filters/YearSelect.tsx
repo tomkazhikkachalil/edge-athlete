@@ -57,7 +57,7 @@ export default function YearSelect({
         aria-expanded={isOpen}
         className={`inline-flex items-center min-h-[40px] px-3 py-1 rounded-md border text-label font-bold transition-colors ${
           value !== null
-            ? 'bg-blue-50 border-blue-500 text-blue-700'
+            ? 'bg-violet-50 border-violet-500 text-violet-700'
             : 'bg-gray-50 border-gray-200 text-gray-900 hover:bg-gray-100'
         }`}
       >
@@ -83,7 +83,7 @@ export default function YearSelect({
                 aria-selected={isSelected}
                 onClick={() => select(year)}
                 className={`w-full text-left px-4 py-2 text-sm transition-colors hover:bg-gray-50 ${
-                  isSelected ? 'font-semibold text-blue-700 bg-blue-50' : 'text-gray-700'
+                  isSelected ? 'font-semibold text-violet-700 bg-violet-50' : 'text-gray-700'
                 }`}
               >
                 {year === null ? allLabel : String(year)}

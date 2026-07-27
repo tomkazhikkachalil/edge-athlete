@@ -28,7 +28,7 @@ export default function AdjustPanel({ adjustments, onChange }: AdjustPanelProps)
             step={0.01}
             value={adjustments[key]}
             onChange={e => onChange({ ...adjustments, [key]: Number(e.target.value) })}
-            className="flex-1 accent-blue-500 min-h-[44px]"
+            className="flex-1 accent-violet-500 min-h-[44px]"
             aria-label={label}
           />
           <span className="text-chip text-white/60 w-10 text-right tabular-nums">

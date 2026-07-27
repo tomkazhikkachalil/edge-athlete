@@ -7,7 +7,7 @@ export const metadata = { title: 'Terms of Service — Edge Athlete' };
 export default function TermsPage() {
   return (
     <div className="min-h-screen bg-gray-50">
-      <div className="w-full bg-blue-600 py-3 px-4">
+      <div className="w-full bg-violet-600 py-3 px-4">
         <h1 className="text-2xl font-bold text-white text-center">Edge Athlete</h1>
       </div>
 
@@ -89,15 +89,15 @@ export default function TermsPage() {
             <section>
               <h2 className="text-lg font-semibold text-gray-900 mb-2">8. Contact</h2>
               <p>
-                Questions about these terms? <Link href="/contact" className="text-blue-600 hover:text-blue-700">Contact us</Link>.
+                Questions about these terms? <Link href="/contact" className="text-violet-600 hover:text-violet-700">Contact us</Link>.
               </p>
             </section>
           </div>
 
           <div className="mt-10 pt-6 border-t border-gray-200 flex flex-wrap gap-4 text-sm">
-            <Link href="/privacy" className="text-blue-600 hover:text-blue-700 font-medium">Privacy Policy</Link>
-            <Link href="/contact" className="text-blue-600 hover:text-blue-700 font-medium">Contact</Link>
-            <Link href="/" className="text-blue-600 hover:text-blue-700 font-medium">← Back to Edge Athlete</Link>
+            <Link href="/privacy" className="text-violet-600 hover:text-violet-700 font-medium">Privacy Policy</Link>
+            <Link href="/contact" className="text-violet-600 hover:text-violet-700 font-medium">Contact</Link>
+            <Link href="/" className="text-violet-600 hover:text-violet-700 font-medium">← Back to Edge Athlete</Link>
           </div>
         </div>
       </div>

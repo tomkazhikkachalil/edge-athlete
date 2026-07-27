@@ -41,24 +41,24 @@ export default function SportMultiSelect({
               aria-pressed={isSelected}
               className={`relative flex flex-col items-center justify-center gap-2 p-4 rounded-lg border-2 transition-all min-h-[88px] ${
                 isSelected
-                  ? 'border-blue-600 bg-blue-50'
+                  ? 'border-violet-600 bg-violet-50'
                   : blocked
                   ? 'border-gray-200 bg-gray-50 opacity-50 cursor-not-allowed'
-                  : 'border-gray-200 bg-white hover:border-blue-300 hover:bg-blue-50/50'
+                  : 'border-gray-200 bg-white hover:border-violet-300 hover:bg-violet-50/50'
               }`}
             >
               {isPrimary && (
-                <span className="absolute top-1.5 right-1.5 px-1.5 py-0.5 bg-blue-600 text-white text-[10px] font-bold rounded-full">
+                <span className="absolute top-1.5 right-1.5 px-1.5 py-0.5 bg-violet-600 text-white text-[10px] font-bold rounded-full">
                   PRIMARY
                 </span>
               )}
               {isSelected && !isPrimary && (
-                <span className="absolute top-1.5 right-1.5 w-5 h-5 bg-blue-600 text-white rounded-full flex items-center justify-center">
+                <span className="absolute top-1.5 right-1.5 w-5 h-5 bg-violet-600 text-white rounded-full flex items-center justify-center">
                   <i className="fas fa-check text-[10px]"></i>
                 </span>
               )}
-              <i className={`${def.icon_id} text-2xl ${isSelected ? 'text-blue-600' : 'text-gray-500'}`}></i>
-              <span className={`text-sm font-semibold ${isSelected ? 'text-blue-900' : 'text-gray-800'}`}>
+              <i className={`${def.icon_id} text-2xl ${isSelected ? 'text-violet-600' : 'text-gray-500'}`}></i>
+              <span className={`text-sm font-semibold ${isSelected ? 'text-violet-900' : 'text-gray-800'}`}>
                 {def.display_name}
               </span>
             </button>

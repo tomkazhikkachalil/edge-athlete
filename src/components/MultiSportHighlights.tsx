@@ -163,7 +163,7 @@ export default function MultiSportHighlights({ profileId, onSportClick }: MultiS
           : {})}
         className={`${cssClasses.LAYOUT.CARD} relative overflow-hidden rounded-lg border-2 transition-all hover:shadow-md ${colors.cardBorder} ${colors.cardBackground} ${
           clickable
-            ? 'w-full text-left cursor-pointer hover:shadow-lg hover:-translate-y-0.5 focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2'
+            ? 'w-full text-left cursor-pointer hover:shadow-lg hover:-translate-y-0.5 focus-visible:ring-2 focus-visible:ring-violet-500 focus-visible:ring-offset-2'
             : ''
         }`}
       >

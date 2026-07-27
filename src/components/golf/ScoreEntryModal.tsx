@@ -567,7 +567,7 @@ export default function ScoreEntryModal({
                   onClick={() => handlePuttClick(num)}
                   className={`py-3 px-2 rounded-lg font-bold text-lg transition-colors ${
                     currentHoleData.putts === num
-                      ? 'bg-blue-600 text-white'
+                      ? 'bg-violet-600 text-white'
                       : 'bg-gray-100 text-gray-900 hover:bg-gray-200'
                   }`}
                 >
@@ -683,7 +683,7 @@ export default function ScoreEntryModal({
                       isCurrent
                         ? 'bg-green-600 text-white ring-2 ring-green-800'
                         : hasScore
-                        ? 'bg-blue-100 text-blue-900 hover:bg-blue-200'
+                        ? 'bg-violet-100 text-violet-900 hover:bg-violet-200'
                         : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
                     }`}
                     title={isSaved ? 'Saved' : undefined}
@@ -729,7 +729,7 @@ export default function ScoreEntryModal({
               <button
                 onClick={handleDone}
                 disabled={saving || savingHole !== null}
-                className="flex-1 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 disabled:cursor-not-allowed text-white font-bold py-3 px-4 rounded-lg transition-colors"
+                className="flex-1 bg-violet-600 hover:bg-violet-700 disabled:bg-violet-400 disabled:cursor-not-allowed text-white font-bold py-3 px-4 rounded-lg transition-colors"
               >
                 {saving || savingHole !== null ? (
                   <><i className="fas fa-spinner fa-spin mr-2"></i>Saving…</>
@@ -741,7 +741,7 @@ export default function ScoreEntryModal({
               <button
                 onClick={handleSave}
                 disabled={saving}
-                className="flex-1 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 disabled:cursor-not-allowed text-white font-bold py-3 px-4 rounded-lg transition-colors"
+                className="flex-1 bg-violet-600 hover:bg-violet-700 disabled:bg-violet-400 disabled:cursor-not-allowed text-white font-bold py-3 px-4 rounded-lg transition-colors"
               >
                 {saving ? (
                   <>

@@ -171,7 +171,7 @@ export default function PerformanceModal({
                   type="date"
                   value={formData.date}
                   onChange={(e) => handleInputChange('date', e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-violet-500"
                 />
                 {errors.date && (
                   <p className="mt-1 text-sm text-red-600">{errors.date}</p>
@@ -188,7 +188,7 @@ export default function PerformanceModal({
                   value={formData.event}
                   onChange={(e) => handleInputChange('event', e.target.value)}
                   placeholder="e.g., 100m Freestyle, Shot Put, Marathon"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-violet-500"
                 />
                 {errors.event && (
                   <p className="mt-1 text-sm text-red-600">{errors.event}</p>
@@ -205,7 +205,7 @@ export default function PerformanceModal({
                   value={formData.result_place}
                   onChange={(e) => handleInputChange('result_place', e.target.value)}
                   placeholder="e.g., 1st, 3rd, DNF, PR"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-violet-500"
                 />
               </div>
 
@@ -219,7 +219,7 @@ export default function PerformanceModal({
                   value={formData.stat_primary}
                   onChange={(e) => handleInputChange('stat_primary', e.target.value)}
                   placeholder="e.g., 12.45s, 15.2m, 2:45:30"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-violet-500"
                 />
               </div>
 
@@ -233,7 +233,7 @@ export default function PerformanceModal({
                   value={formData.organization}
                   onChange={(e) => handleInputChange('organization', e.target.value)}
                   placeholder="e.g., NCAA, USATF, High School"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-violet-500"
                 />
               </div>
 
@@ -250,7 +250,7 @@ export default function PerformanceModal({
                   value={formData.athletic_score}
                   onChange={(e) => handleInputChange('athletic_score', e.target.value)}
                   placeholder="85"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-violet-500"
                 />
                 {errors.athletic_score && (
                   <p className="mt-1 text-sm text-red-600">{errors.athletic_score}</p>
@@ -271,7 +271,7 @@ export default function PerformanceModal({
             <button
               type="submit"
               disabled={saving}
-              className="px-4 py-2 text-sm font-medium text-white bg-blue-600 border border-transparent rounded-md hover:bg-blue-700 disabled:opacity-50 transition-colors"
+              className="px-4 py-2 text-sm font-medium text-white bg-violet-600 border border-transparent rounded-md hover:bg-violet-700 disabled:opacity-50 transition-colors"
             >
               {saving ? 'Saving...' : existingData ? 'Update Performance' : 'Add Performance'}
             </button>

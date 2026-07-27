@@ -203,7 +203,7 @@ export default function SharedRoundFullCard({
                                 </span>
                               </div>
                             )}
-                            <span className={`font-bold text-gray-900 text-xs truncate ${isCurrentUser ? 'text-blue-600' : ''}`}>
+                            <span className={`font-bold text-gray-900 text-xs truncate ${isCurrentUser ? 'text-violet-600' : ''}`}>
                               {displayName}
                               {isCurrentUser && <span className="ml-1">(You)</span>}
                             </span>
@@ -234,8 +234,8 @@ export default function SharedRoundFullCard({
                           );
                         })}
 
-                        <td className="text-center py-2 px-3 bg-blue-50">
-                          <span className="font-black text-blue-900 text-base">
+                        <td className="text-center py-2 px-3 bg-violet-50">
+                          <span className="font-black text-violet-900 text-base">
                             {subtotal || '-'}
                           </span>
                         </td>
@@ -275,7 +275,7 @@ export default function SharedRoundFullCard({
                                 </span>
                               </div>
                             )}
-                            <span className={`font-bold text-gray-600 text-xs truncate ${isCurrentUser ? 'text-blue-600' : ''}`}>
+                            <span className={`font-bold text-gray-600 text-xs truncate ${isCurrentUser ? 'text-violet-600' : ''}`}>
                               {displayName}
                               {isCurrentUser && <span className="ml-1">(You)</span>}
                             </span>
@@ -292,7 +292,7 @@ export default function SharedRoundFullCard({
                           {isCurrentUser && onAddScores ? (
                             <button
                               onClick={() => onAddScores(participant.id)}
-                              className="text-xs text-blue-600 hover:text-blue-800 font-bold px-3 py-2 -m-1 min-h-[40px] rounded-md hover:bg-blue-50"
+                              className="text-xs text-violet-600 hover:text-violet-800 font-bold px-3 py-2 -m-1 min-h-[40px] rounded-md hover:bg-violet-50"
                             >
                               Add
                             </button>
@@ -357,7 +357,7 @@ export default function SharedRoundFullCard({
                 )}
                 <span>
                   {golf_data.round_type === 'indoor' ? (
-                    <span className="inline-flex items-center gap-1 px-2 py-1 bg-blue-600 rounded-full text-xs">
+                    <span className="inline-flex items-center gap-1 px-2 py-1 bg-violet-600 rounded-full text-xs">
                       <i className="fas fa-warehouse"></i>
                       INDOOR
                     </span>
@@ -482,7 +482,7 @@ export default function SharedRoundFullCard({
                       const isCurrentUser = participant.profile_id === currentUserId;
 
                       return (
-                        <div key={participant.id} className={`flex items-center gap-4 p-4 ${isCurrentUser ? 'bg-blue-50' : 'hover:bg-gray-50'}`}>
+                        <div key={participant.id} className={`flex items-center gap-4 p-4 ${isCurrentUser ? 'bg-violet-50' : 'hover:bg-gray-50'}`}>
                           {/* Position */}
                           <div className="w-10 h-10 flex-shrink-0 flex items-center justify-center">
                             {index === 0 ? (
@@ -504,7 +504,7 @@ export default function SharedRoundFullCard({
                               height={48}
                             />
                           ) : (
-                            <div className="w-12 h-12 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center flex-shrink-0">
+                            <div className="w-12 h-12 rounded-full bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center flex-shrink-0">
                               <span className="text-white text-sm font-bold">
                                 {getInitials(displayName)}
                               </span>
@@ -513,7 +513,7 @@ export default function SharedRoundFullCard({
 
                           {/* Name */}
                           <div className="flex-1 min-w-0">
-                            <div className={`font-black text-base ${isCurrentUser ? 'text-blue-700' : 'text-gray-900'}`}>
+                            <div className={`font-black text-base ${isCurrentUser ? 'text-violet-700' : 'text-gray-900'}`}>
                               {displayName}
                               {isCurrentUser && <span className="ml-2 text-sm">(You)</span>}
                             </div>
@@ -533,7 +533,7 @@ export default function SharedRoundFullCard({
                           {isCreator && !isCurrentUser && onAddScores && (
                             <button
                               onClick={() => onAddScores(participant.id)}
-                              className="text-sm font-bold text-blue-600 hover:text-blue-700 px-3 py-2 rounded-lg border border-blue-200 hover:bg-blue-50 transition-colors flex-shrink-0"
+                              className="text-sm font-bold text-violet-600 hover:text-violet-700 px-3 py-2 rounded-lg border border-violet-200 hover:bg-violet-50 transition-colors flex-shrink-0"
                             >
                               Edit
                             </button>
@@ -600,7 +600,7 @@ export default function SharedRoundFullCard({
                           )}
 
                           <div className="flex-1 min-w-0">
-                            <div className={`font-bold text-base ${isCurrentUser ? 'text-blue-700' : 'text-gray-600'}`}>
+                            <div className={`font-bold text-base ${isCurrentUser ? 'text-violet-700' : 'text-gray-600'}`}>
                               {displayName}
                               {isCurrentUser && <span className="ml-2 text-sm">(You)</span>}
                             </div>
@@ -612,7 +612,7 @@ export default function SharedRoundFullCard({
                           {isCreator && !isCurrentUser && onAddScores && (
                             <button
                               onClick={() => onAddScores(participant.id)}
-                              className="text-sm font-bold text-blue-600 hover:text-blue-700 px-3 py-2 rounded-lg border border-blue-200 hover:bg-blue-50 transition-colors flex-shrink-0"
+                              className="text-sm font-bold text-violet-600 hover:text-violet-700 px-3 py-2 rounded-lg border border-violet-200 hover:bg-violet-50 transition-colors flex-shrink-0"
                             >
                               Add scores
                             </button>
@@ -621,7 +621,7 @@ export default function SharedRoundFullCard({
                           {isCurrentUser && onAddScores && (
                             <button
                               onClick={() => onAddScores(participant.id)}
-                              className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg text-sm transition-colors"
+                              className="bg-violet-600 hover:bg-violet-700 text-white font-bold py-2 px-4 rounded-lg text-sm transition-colors"
                             >
                               Add Scores
                             </button>
@@ -670,7 +670,7 @@ export default function SharedRoundFullCard({
 
               {/* Total Score Summary */}
               {front9.length > 0 && back9.length > 0 && (
-                <div className="bg-blue-100 border-2 border-blue-300 rounded-lg p-4 mb-4">
+                <div className="bg-violet-100 border-2 border-violet-300 rounded-lg p-4 mb-4">
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                     {participants
                       .filter(p => isActiveParticipant(p.participant.status) && p.scores.total_score)
@@ -685,8 +685,8 @@ export default function SharedRoundFullCard({
 
                         return (
                           <div key={participant.id} className="text-center">
-                            <div className="font-bold text-sm text-blue-900 mb-1">{displayName}</div>
-                            <div className="text-3xl font-black text-blue-900">{scores.total_score}</div>
+                            <div className="font-bold text-sm text-violet-900 mb-1">{displayName}</div>
+                            <div className="text-3xl font-black text-violet-900">{scores.total_score}</div>
                             {scores.to_par !== null && (
                               <div className={`text-sm font-bold ${scores.to_par < 0 ? 'text-green-600' : scores.to_par > 0 ? 'text-red-600' : 'text-gray-600'}`}>
                                 ({scores.to_par >= 0 ? '+' : ''}{scores.to_par})
@@ -702,11 +702,11 @@ export default function SharedRoundFullCard({
               {/* Legend */}
               <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-xs text-gray-600 mb-4">
                 <div className="flex items-center gap-1">
-                  <div className="w-5 h-5 rounded ring-2 ring-blue-500 ring-inset bg-white"></div>
+                  <div className="w-5 h-5 rounded ring-2 ring-violet-500 ring-inset bg-white"></div>
                   <span>Eagle (-2)</span>
                 </div>
                 <div className="flex items-center gap-1">
-                  <div className="w-5 h-5 rounded ring-1 ring-blue-400 ring-inset bg-white"></div>
+                  <div className="w-5 h-5 rounded ring-1 ring-violet-400 ring-inset bg-white"></div>
                   <span>Birdie (-1)</span>
                 </div>
                 <div className="flex items-center gap-1">
@@ -725,13 +725,13 @@ export default function SharedRoundFullCard({
         {/* Actions for Current User */}
         <div className="border-t border-gray-300 p-4 bg-gray-50">
           {currentUserParticipant && (
-            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+            <div className="bg-violet-50 border border-violet-200 rounded-lg p-4">
               <div className="flex items-center justify-between">
                 <div>
                   {currentUserParticipant.scores.total_score ? (
                     <div>
                       <span className="font-bold text-gray-900">Your Score: </span>
-                      <span className="text-2xl font-black text-blue-900">{currentUserParticipant.scores.total_score}</span>
+                      <span className="text-2xl font-black text-violet-900">{currentUserParticipant.scores.total_score}</span>
                       {currentUserParticipant.scores.to_par !== null && (
                         <span className={`ml-2 text-lg font-bold ${currentUserParticipant.scores.to_par < 0 ? 'text-green-600' : currentUserParticipant.scores.to_par > 0 ? 'text-red-600' : 'text-gray-600'}`}>
                           ({currentUserParticipant.scores.to_par >= 0 ? '+' : ''}{currentUserParticipant.scores.to_par})
@@ -747,7 +747,7 @@ export default function SharedRoundFullCard({
                 {onAddScores && (
                   <button
                     onClick={() => onAddScores(currentUserParticipant.participant.id)}
-                    className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg transition-colors"
+                    className="bg-violet-600 hover:bg-violet-700 text-white font-bold py-2 px-4 rounded-lg transition-colors"
                   >
                     {currentUserParticipant.scores.total_score ? 'Edit Scores' : 'Add Scores'}
                   </button>

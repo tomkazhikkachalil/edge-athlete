@@ -354,7 +354,7 @@ export default function CommentSection({
               className={`${avatarClass} object-cover`}
             />
           ) : (
-            <div className={`${avatarClass} bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white font-semibold ${isReply ? 'text-[10px]' : 'text-xs'}`}>
+            <div className={`${avatarClass} bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center text-white font-semibold ${isReply ? 'text-[10px]' : 'text-xs'}`}>
               {getInitials(displayName)}
             </div>
           )}
@@ -450,7 +450,7 @@ export default function CommentSection({
                   setReplyGifUrl(null);
                   requestAnimationFrame(() => replyInputRef.current?.focus());
                 }}
-                className="text-gray-500 hover:text-blue-600 transition-colors font-medium py-2 px-2 -mx-1"
+                className="text-gray-500 hover:text-violet-600 transition-colors font-medium py-2 px-2 -mx-1"
               >
                 Reply{replyCount > 0 ? ` (${replyCount})` : ''}
               </button>
@@ -486,7 +486,7 @@ export default function CommentSection({
           type="button"
           onClick={() => setShowReplyGifPicker(prev => !prev)}
           disabled={isSubmitting}
-          className="shrink-0 p-2 text-gray-400 hover:text-blue-500 transition-colors disabled:opacity-40 text-xs font-bold"
+          className="shrink-0 p-2 text-gray-400 hover:text-violet-500 transition-colors disabled:opacity-40 text-xs font-bold"
           title="Add a GIF"
         >
           GIF
@@ -510,14 +510,14 @@ export default function CommentSection({
             }
           }}
           placeholder="Write a reply..."
-          className="flex-1 px-3 py-1.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+          className="flex-1 px-3 py-1.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-500 text-sm"
           disabled={isSubmitting}
         />
         <button
           type="button"
           onClick={() => handleSubmitReply(parentCommentId)}
           disabled={(!replyText.trim() && !replyGifUrl) || isSubmitting}
-          className="px-3 py-1.5 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors shrink-0"
+          className="px-3 py-1.5 bg-violet-600 text-white rounded-lg text-sm font-medium hover:bg-violet-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors shrink-0"
         >
           {isSubmitting ? '...' : 'Reply'}
         </button>
@@ -540,7 +540,7 @@ export default function CommentSection({
         onClick={() => setShowComments(!showComments)}
         className="w-full px-4 py-3 text-left text-sm font-medium text-gray-600 hover:bg-gray-50 transition-colors"
       >
-        <i className={`fas fa-comment mr-2 ${showComments ? 'text-blue-600' : ''}`} />
+        <i className={`fas fa-comment mr-2 ${showComments ? 'text-violet-600' : ''}`} />
         {showComments ? 'Hide' : 'View'} Comments ({commentsCount})
       </button>
 
@@ -574,7 +574,7 @@ export default function CommentSection({
                   type="button"
                   onClick={() => setShowGifPicker(prev => !prev)}
                   disabled={isSubmitting}
-                  className="shrink-0 p-2 text-gray-400 hover:text-blue-500 transition-colors disabled:opacity-40 text-xs font-bold"
+                  className="shrink-0 p-2 text-gray-400 hover:text-violet-500 transition-colors disabled:opacity-40 text-xs font-bold"
                   title="Add a GIF"
                 >
                   GIF
@@ -592,13 +592,13 @@ export default function CommentSection({
                   value={newComment}
                   onChange={(e) => setNewComment(e.target.value)}
                   placeholder="Write a comment..."
-                  className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                  className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-500 text-sm"
                   disabled={isSubmitting}
                 />
                 <button
                   type="submit"
                   disabled={(!newComment.trim() && !gifUrl) || isSubmitting}
-                  className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors shrink-0"
+                  className="px-4 py-2 bg-violet-600 text-white rounded-lg text-sm font-medium hover:bg-violet-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors shrink-0"
                 >
                   {isSubmitting ? 'Posting...' : 'Post'}
                 </button>

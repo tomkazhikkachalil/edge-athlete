@@ -126,7 +126,7 @@ function MultiPlayerScorecardGrid({
           )}
           <button
             onClick={() => setShowStats(!showStats)}
-            className="text-sm text-blue-600 hover:text-blue-700 font-medium py-2 px-2 -mx-2"
+            className="text-sm text-violet-600 hover:text-violet-700 font-medium py-2 px-2 -mx-2"
           >
             {showStats ? 'Hide' : 'Show'} Detailed Stats
           </button>
@@ -164,8 +164,8 @@ function MultiPlayerScorecardGrid({
 
             {/* Par Row */}
             {holeData && holeData.length > 0 && (
-              <tr className="bg-blue-50 border-t border-gray-300">
-                <th className="sticky left-0 z-10 bg-blue-50 px-4 py-2 text-left text-xs font-semibold text-gray-900 uppercase tracking-wider border-r border-gray-300">
+              <tr className="bg-violet-50 border-t border-gray-300">
+                <th className="sticky left-0 z-10 bg-violet-50 px-4 py-2 text-left text-xs font-semibold text-gray-900 uppercase tracking-wider border-r border-gray-300">
                   Par
                 </th>
                 {displayHoles.map(holeNum => (
@@ -177,14 +177,14 @@ function MultiPlayerScorecardGrid({
                   </th>
                 ))}
                 {is18Holes && (
-                  <th className="px-4 py-2 text-center text-sm font-semibold text-gray-900 bg-blue-100 border-l border-gray-400">
+                  <th className="px-4 py-2 text-center text-sm font-semibold text-gray-900 bg-violet-100 border-l border-gray-400">
                     {displayHoles.reduce((sum, h) => sum + getHolePar(h), 0)}
                   </th>
                 )}
-                <th className="px-4 py-2 text-center text-sm font-semibold text-gray-900 bg-blue-100">
+                <th className="px-4 py-2 text-center text-sm font-semibold text-gray-900 bg-violet-100">
                   {holeData.reduce((sum, h) => sum + h.par, 0)}
                 </th>
-                <th className="px-4 py-2 bg-blue-100"></th>
+                <th className="px-4 py-2 bg-violet-100"></th>
               </tr>
             )}
 
@@ -238,7 +238,7 @@ function MultiPlayerScorecardGrid({
                           height={32}
                         />
                       ) : (
-                        <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center flex-shrink-0">
+                        <div className="w-8 h-8 bg-gradient-to-br from-violet-500 to-purple-600 rounded-full flex items-center justify-center flex-shrink-0">
                           <span className="text-white text-xs font-semibold">
                             {getInitials(formatDisplayName(player.profile.first_name, null, player.profile.last_name, player.profile.full_name))}
                           </span>
@@ -348,9 +348,9 @@ function MultiPlayerScorecardGrid({
                     </div>
                     {totals.total > 0 && (
                       <div className="text-xs text-gray-600 mt-0.5">
-                        {totals.eagles > 0 && <span className="text-blue-700 font-semibold">{totals.eagles}E</span>}
+                        {totals.eagles > 0 && <span className="text-violet-700 font-semibold">{totals.eagles}E</span>}
                         {totals.eagles > 0 && (totals.birdies > 0 || totals.pars > 0 || totals.bogeys > 0 || totals.doublePlus > 0) && '•'}
-                        {totals.birdies > 0 && <span className="text-blue-600">{totals.birdies}B</span>}
+                        {totals.birdies > 0 && <span className="text-violet-600">{totals.birdies}B</span>}
                         {totals.birdies > 0 && (totals.pars > 0 || totals.bogeys > 0 || totals.doublePlus > 0) && '•'}
                         {totals.pars > 0 && <span className="text-gray-700">{totals.pars}P</span>}
                         {totals.pars > 0 && (totals.bogeys > 0 || totals.doublePlus > 0) && '•'}
@@ -361,7 +361,7 @@ function MultiPlayerScorecardGrid({
                     )}
                   </td>
                   <td className={`px-4 py-3 text-center text-sm font-bold bg-gray-50 ${
-                    totals.toPar < 0 ? 'text-blue-600' : totals.toPar > 0 ? 'text-red-600' : 'text-gray-900'
+                    totals.toPar < 0 ? 'text-violet-600' : totals.toPar > 0 ? 'text-red-600' : 'text-gray-900'
                   }`}>
                     {totals.toPar > 0 ? `+${totals.toPar}` : totals.toPar || 'E'}
                   </td>
@@ -375,7 +375,7 @@ function MultiPlayerScorecardGrid({
       {/* Legend */}
       <div className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-2 text-xs text-gray-600">
         <div className="flex items-center gap-2">
-          <div className="w-6 h-6 bg-blue-50 border-2 border-blue-300 rounded-full"></div>
+          <div className="w-6 h-6 bg-violet-50 border-2 border-violet-300 rounded-full"></div>
           <span>Birdie</span>
         </div>
         <div className="flex items-center gap-2">
@@ -387,7 +387,7 @@ function MultiPlayerScorecardGrid({
           <span>Bogey</span>
         </div>
         <div className="flex items-center gap-2">
-          <div className="w-6 h-6 bg-blue-100 border-2 border-blue-400 rounded-full"></div>
+          <div className="w-6 h-6 bg-violet-100 border-2 border-violet-400 rounded-full"></div>
           <span>Eagle</span>
         </div>
         {showStats && (

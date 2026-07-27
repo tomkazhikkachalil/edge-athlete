@@ -47,7 +47,7 @@ export default function PrivateProfileView({ profile, onFollow }: PrivateProfile
               height={64}
             />
           ) : (
-            <div className="w-16 h-16 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center">
+            <div className="w-16 h-16 bg-gradient-to-br from-violet-500 to-purple-600 rounded-full flex items-center justify-center">
               <span className="text-white text-xl font-semibold">
                 {getInitials(formatDisplayName(profile.first_name, null, profile.last_name, profile.full_name))}
               </span>
@@ -79,10 +79,10 @@ export default function PrivateProfileView({ profile, onFollow }: PrivateProfile
         </div>
 
         {/* Info Note */}
-        <div className="mt-8 p-4 bg-blue-50 border border-blue-100 rounded-lg">
+        <div className="mt-8 p-4 bg-violet-50 border border-violet-100 rounded-lg">
           <div className="flex items-start gap-2 text-left">
-            <i className="fas fa-info-circle text-blue-600 mt-0.5 flex-shrink-0"></i>
-            <p className="text-sm text-blue-900">
+            <i className="fas fa-info-circle text-violet-600 mt-0.5 flex-shrink-0"></i>
+            <p className="text-sm text-violet-900">
               This athlete has a private profile. Once they accept your fan request,
               you&apos;ll be able to view their posts, stats, and all profile content.
             </p>

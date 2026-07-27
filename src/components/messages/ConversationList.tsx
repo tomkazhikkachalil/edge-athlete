@@ -50,7 +50,7 @@ export default function ConversationList({
         <button
           type="button"
           onClick={onNewConversation}
-          className="w-10 h-10 flex items-center justify-center text-gray-600 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+          className="w-10 h-10 flex items-center justify-center text-gray-600 hover:text-violet-600 hover:bg-violet-50 rounded-lg transition-colors"
           aria-label="New conversation"
         >
           <i className="fas fa-edit text-base"></i>
@@ -66,7 +66,7 @@ export default function ConversationList({
             value={search}
             onChange={e => setSearch(e.target.value)}
             placeholder="Search conversations…"
-            className="w-full pl-8 pr-3 py-2 bg-gray-100 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="w-full pl-8 pr-3 py-2 bg-gray-100 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-violet-500"
           />
         </div>
       </div>
@@ -93,7 +93,7 @@ export default function ConversationList({
                 <p className="text-xs text-gray-500 mb-4">Start a conversation with another athlete.</p>
                 <button
                   onClick={onNewConversation}
-                  className="inline-flex items-center gap-1.5 px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-semibold hover:bg-blue-700 transition-colors"
+                  className="inline-flex items-center gap-1.5 px-4 py-2 bg-violet-600 text-white rounded-lg text-sm font-semibold hover:bg-violet-700 transition-colors"
                 >
                   <i className="fas fa-plus text-xs"></i>
                   New Message

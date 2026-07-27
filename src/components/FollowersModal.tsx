@@ -269,7 +269,7 @@ export default function FollowersModal({ isOpen, onClose, profileId, initialTab 
             onClick={() => setActiveTab('followers')}
             className={`flex-1 py-3 text-sm font-medium transition-colors ${
               activeTab === 'followers'
-                ? 'text-blue-600 border-b-2 border-blue-600'
+                ? 'text-violet-600 border-b-2 border-violet-600'
                 : 'text-gray-600 hover:text-gray-900'
             }`}
           >
@@ -279,7 +279,7 @@ export default function FollowersModal({ isOpen, onClose, profileId, initialTab 
             onClick={() => setActiveTab('following')}
             className={`flex-1 py-3 text-sm font-medium transition-colors ${
               activeTab === 'following'
-                ? 'text-blue-600 border-b-2 border-blue-600'
+                ? 'text-violet-600 border-b-2 border-violet-600'
                 : 'text-gray-600 hover:text-gray-900'
             }`}
           >
@@ -291,7 +291,7 @@ export default function FollowersModal({ isOpen, onClose, profileId, initialTab 
         <div className="overflow-y-auto max-h-[calc(80vh-140px)] p-4">
           {loading && (
             <div className="flex items-center justify-center py-12">
-              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-violet-600"></div>
             </div>
           )}
 
@@ -303,7 +303,7 @@ export default function FollowersModal({ isOpen, onClose, profileId, initialTab 
               <p className="text-gray-900 font-medium">{error}</p>
               <button
                 onClick={loadData}
-                className="mt-4 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                className="mt-4 px-4 py-2 bg-violet-600 text-white rounded-lg hover:bg-violet-700"
               >
                 Try Again
               </button>
@@ -358,7 +358,7 @@ export default function FollowersModal({ isOpen, onClose, profileId, initialTab 
                           className="rounded-full object-cover flex-shrink-0"
                         />
                       ) : (
-                        <div className="w-12 h-12 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white font-semibold flex-shrink-0">
+                        <div className="w-12 h-12 rounded-full bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center text-white font-semibold flex-shrink-0">
                           {getInitials(displayName)}
                         </div>
                       )}
@@ -407,7 +407,7 @@ export default function FollowersModal({ isOpen, onClose, profileId, initialTab 
                                 className={`px-3 py-2 min-h-[36px] text-xs font-medium rounded-full transition-colors disabled:opacity-50 whitespace-nowrap ${
                                   requestedThem
                                     ? 'text-gray-700 bg-gray-200 hover:bg-gray-300'
-                                    : 'text-white bg-blue-600 hover:bg-blue-700'
+                                    : 'text-white bg-violet-600 hover:bg-violet-700'
                                 }`}
                               >
                                 {isLoadingThis ? (
@@ -455,7 +455,7 @@ export default function FollowersModal({ isOpen, onClose, profileId, initialTab 
                                 className={`px-3 py-2 min-h-[36px] text-xs font-medium rounded-full transition-colors disabled:opacity-50 whitespace-nowrap ${
                                   requestedThem
                                     ? 'text-gray-700 bg-gray-200 hover:bg-gray-300'
-                                    : 'text-white bg-blue-600 hover:bg-blue-700'
+                                    : 'text-white bg-violet-600 hover:bg-violet-700'
                                 }`}
                               >
                                 {isLoadingThis ? (

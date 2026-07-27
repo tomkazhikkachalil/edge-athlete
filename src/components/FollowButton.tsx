@@ -212,7 +212,7 @@ export default function FollowButton({
               ? 'bg-yellow-100 text-yellow-700 hover:bg-yellow-200'
               : isFollowing
                 ? 'bg-gray-200 text-gray-700 hover:bg-gray-300'
-                : 'bg-blue-600 text-white hover:bg-blue-700'
+                : 'bg-violet-600 text-white hover:bg-violet-700'
             }
             ${sizeClasses[size]}
             ${className}
@@ -243,7 +243,7 @@ export default function FollowButton({
               placeholder="Hi! I'd love to connect..."
               maxLength={200}
               rows={3}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none text-black"
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-500 resize-none text-black"
             />
 
             <div className="text-xs text-gray-500 mt-1 mb-4">
@@ -262,7 +262,7 @@ export default function FollowButton({
               </button>
               <button
                 onClick={handleFollow}
-                className="flex-1 px-4 py-2 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 transition-colors"
+                className="flex-1 px-4 py-2 bg-violet-600 text-white font-medium rounded-lg hover:bg-violet-700 transition-colors"
               >
                 Send Request
               </button>

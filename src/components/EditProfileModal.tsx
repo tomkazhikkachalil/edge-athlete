@@ -214,7 +214,7 @@ export default function EditProfileModal({ isOpen, onClose, profile, badges, onS
                 onClick={() => setActiveTab(tab.key as 'basic' | 'vitals' | 'socials' | 'badges')}
                 className={`px-3 py-2 text-sm font-medium rounded-md transition-colors ${
                   activeTab === tab.key
-                    ? 'bg-blue-100 text-blue-700'
+                    ? 'bg-violet-100 text-violet-700'
                     : 'text-gray-500 hover:text-gray-700'
                 }`}
               >
@@ -243,7 +243,7 @@ export default function EditProfileModal({ isOpen, onClose, profile, badges, onS
                   type="text"
                   value={formData.full_name || ''}
                   onChange={(e) => handleInputChange('full_name', e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-violet-500"
                   placeholder="Enter your full name"
                 />
               </div>
@@ -256,7 +256,7 @@ export default function EditProfileModal({ isOpen, onClose, profile, badges, onS
                   type="text"
                   value={formData.username || ''}
                   onChange={(e) => handleInputChange('username', e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-violet-500"
                   placeholder="Enter your username"
                 />
               </div>
@@ -269,7 +269,7 @@ export default function EditProfileModal({ isOpen, onClose, profile, badges, onS
                   value={formData.bio || ''}
                   onChange={(e) => handleInputChange('bio', e.target.value)}
                   rows={3}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-violet-500"
                   placeholder="Tell us about yourself"
                 />
               </div>
@@ -319,7 +319,7 @@ export default function EditProfileModal({ isOpen, onClose, profile, badges, onS
                     type="number"
                     value={formData.height_cm || ''}
                     onChange={(e) => handleInputChange('height_cm', parseFloat(e.target.value) || 0)}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-violet-500"
                     placeholder="170"
                     min="0"
                     max="300"
@@ -339,7 +339,7 @@ export default function EditProfileModal({ isOpen, onClose, profile, badges, onS
                       step="0.1"
                       value={formData.weight_display || ''}
                       onChange={(e) => handleInputChange('weight_display', parseFloat(e.target.value) || 0)}
-                      className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-violet-500"
                       placeholder={formData.weight_unit === 'kg' ? '68' : formData.weight_unit === 'stone' ? '11.7' : '150'}
                       min="0"
                       max={formData.weight_unit === 'kg' ? 500 : formData.weight_unit === 'stone' ? 80 : 1100}
@@ -347,7 +347,7 @@ export default function EditProfileModal({ isOpen, onClose, profile, badges, onS
                     <select
                       value={formData.weight_unit || 'lbs'}
                       onChange={(e) => handleInputChange('weight_unit', e.target.value)}
-                      className="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      className="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-violet-500"
                     >
                       <option value="lbs">lbs</option>
                       <option value="kg">kg</option>
@@ -373,7 +373,7 @@ export default function EditProfileModal({ isOpen, onClose, profile, badges, onS
                   type="date"
                   value={formData.dob || ''}
                   onChange={(e) => handleInputChange('dob', e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-violet-500"
                 />
                 {errors.dob && (
                   <p className="mt-1 text-sm text-red-600">{errors.dob}</p>
@@ -388,7 +388,7 @@ export default function EditProfileModal({ isOpen, onClose, profile, badges, onS
                   type="text"
                   value={formData.location || ''}
                   onChange={(e) => handleInputChange('location', e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-violet-500"
                   placeholder="City, State"
                 />
               </div>
@@ -401,7 +401,7 @@ export default function EditProfileModal({ isOpen, onClose, profile, badges, onS
                   type="text"
                   value={formData.class_year || ''}
                   onChange={(e) => handleInputChange('class_year', e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-violet-500"
                   placeholder="2025"
                   pattern="[0-9]{4}"
                 />
@@ -425,7 +425,7 @@ export default function EditProfileModal({ isOpen, onClose, profile, badges, onS
                     type="text"
                     value={formData.social_twitter || ''}
                     onChange={(e) => handleInputChange('social_twitter', e.target.value)}
-                    className="w-full pl-8 pr-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    className="w-full pl-8 pr-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-violet-500"
                     placeholder="username"
                   />
                 </div>
@@ -441,7 +441,7 @@ export default function EditProfileModal({ isOpen, onClose, profile, badges, onS
                     type="text"
                     value={formData.social_instagram || ''}
                     onChange={(e) => handleInputChange('social_instagram', e.target.value)}
-                    className="w-full pl-8 pr-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    className="w-full pl-8 pr-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-violet-500"
                     placeholder="username"
                   />
                 </div>
@@ -455,7 +455,7 @@ export default function EditProfileModal({ isOpen, onClose, profile, badges, onS
                   type="text"
                   value={formData.social_facebook || ''}
                   onChange={(e) => handleInputChange('social_facebook', e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-violet-500"
                   placeholder="Full name or username"
                 />
               </div>
@@ -470,7 +470,7 @@ export default function EditProfileModal({ isOpen, onClose, profile, badges, onS
                 <button
                   type="button"
                   onClick={addBadge}
-                  className="px-3 py-1 text-sm font-medium text-blue-600 border border-blue-600 rounded-md hover:bg-blue-50"
+                  className="px-3 py-1 text-sm font-medium text-violet-600 border border-violet-600 rounded-md hover:bg-violet-50"
                 >
                   <i className="fas fa-plus mr-1"></i>
                   Add Badge
@@ -487,14 +487,14 @@ export default function EditProfileModal({ isOpen, onClose, profile, badges, onS
                           value={badge.label}
                           onChange={(e) => updateBadge(index, { label: e.target.value })}
                           placeholder="Badge name"
-                          className="w-full px-2 py-2 text-sm border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
+                          className="w-full px-2 py-2 text-sm border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-violet-500"
                         />
                       </div>
                       <div className="sm:col-span-3">
                         <select
                           value={badge.color_token}
                           onChange={(e) => updateBadge(index, { color_token: e.target.value })}
-                          className="w-full px-2 py-2 text-sm border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
+                          className="w-full px-2 py-2 text-sm border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-violet-500"
                         >
                           <option value="primary">Blue</option>
                           <option value="green">Green</option>
@@ -510,7 +510,7 @@ export default function EditProfileModal({ isOpen, onClose, profile, badges, onS
                           value={badge.icon_url || ''}
                           onChange={(e) => updateBadge(index, { icon_url: e.target.value })}
                           placeholder="Icon URL"
-                          className="w-full px-2 py-2 text-sm border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
+                          className="w-full px-2 py-2 text-sm border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-violet-500"
                         />
                       </div>
                       <div className="sm:col-span-2 flex items-center space-x-1">
@@ -559,7 +559,7 @@ export default function EditProfileModal({ isOpen, onClose, profile, badges, onS
           <button
             onClick={handleSave}
             disabled={saving}
-            className="px-4 py-2 text-sm font-medium text-white bg-blue-600 border border-transparent rounded-md hover:bg-blue-700 disabled:opacity-50"
+            className="px-4 py-2 text-sm font-medium text-white bg-violet-600 border border-transparent rounded-md hover:bg-violet-700 disabled:opacity-50"
           >
             {saving ? 'Saving...' : 'Save Changes'}
           </button>

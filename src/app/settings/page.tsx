@@ -37,7 +37,7 @@ export default function SettingsPage() {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-violet-600 mx-auto"></div>
           <p className="mt-2 text-gray-600">Loading...</p>
         </div>
       </div>
@@ -81,7 +81,7 @@ export default function SettingsPage() {
                   disabled={tab.disabled}
                   className={`flex items-center gap-2 px-6 py-4 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
                     activeTab === tab.id
-                      ? 'border-blue-600 text-blue-600'
+                      ? 'border-violet-600 text-violet-600'
                       : tab.disabled
                       ? 'border-transparent text-gray-400 cursor-not-allowed'
                       : 'border-transparent text-gray-600 hover:text-gray-900 hover:border-gray-300'

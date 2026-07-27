@@ -185,7 +185,7 @@ export default function AthleteProfilePage() {
   // Badge color mapping helper (currently unused but kept for future feature)
   // const getBadgeColor = (colorToken: string) => {
   //   const colorMap: Record<string, string> = {
-  //     'blue': 'border-blue-200 bg-blue-50 text-blue-700',
+  //     'blue': 'border-violet-200 bg-violet-50 text-violet-700',
   //     'green': 'border-green-200 bg-green-50 text-green-700',
   //     'yellow': 'border-yellow-200 bg-yellow-50 text-yellow-700',
   //     'red': 'border-red-200 bg-red-50 text-red-700',
@@ -208,7 +208,7 @@ export default function AthleteProfilePage() {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-violet-600 mx-auto"></div>
           <p className="mt-2 text-gray-900 font-medium">Loading athlete profile...</p>
         </div>
       </div>
@@ -249,7 +249,7 @@ export default function AthleteProfilePage() {
           <div className="space-x-4">
             <button
               onClick={() => router.push('/feed')}
-              className="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 transition-colors"
+              className="bg-violet-600 text-white px-6 py-2 rounded-lg hover:bg-violet-700 transition-colors"
             >
               Back to Feed
             </button>
@@ -320,7 +320,7 @@ export default function AthleteProfilePage() {
             />
           ) : (
             <div
-              className="w-full aspect-[3/1] max-h-64 bg-gradient-to-r from-blue-600 via-blue-500 to-indigo-500"
+              className="w-full aspect-[3/1] max-h-64 bg-gradient-to-r from-violet-600 via-violet-500 to-purple-500"
               aria-hidden="true"
             />
           )}
@@ -332,12 +332,12 @@ export default function AthleteProfilePage() {
               <LazyImage
                 src={profile.avatar_url}
                 alt="Profile Picture"
-                className="w-32 h-32 sm:w-40 sm:h-40 lg:w-48 lg:h-48 rounded-full object-cover border-4 border-blue-500"
+                className="w-32 h-32 sm:w-40 sm:h-40 lg:w-48 lg:h-48 rounded-full object-cover border-4 border-violet-500"
                 width={192}
                 height={192}
               />
             ) : (
-              <div className="w-32 h-32 sm:w-40 sm:h-40 lg:w-48 lg:h-48 rounded-full bg-blue-500 border-4 border-blue-500 flex items-center justify-center text-white text-4xl sm:text-5xl font-bold">
+              <div className="w-32 h-32 sm:w-40 sm:h-40 lg:w-48 lg:h-48 rounded-full bg-violet-500 border-4 border-violet-500 flex items-center justify-center text-white text-4xl sm:text-5xl font-bold">
                 {getInitials(formatDisplayName(profile.first_name, null, profile.last_name, profile.full_name))}
               </div>
             )}
@@ -360,7 +360,7 @@ export default function AthleteProfilePage() {
                   {badges.slice(0, 2).map((badge, index) => (
                     <div
                       key={badge.id}
-                      className={`${index === 0 ? 'bg-gradient-to-r from-blue-600 to-blue-700' : 'bg-gradient-to-r from-purple-600 to-purple-700'} text-white px-4 py-1.5 rounded-full font-semibold flex items-center`}
+                      className={`${index === 0 ? 'bg-gradient-to-r from-violet-600 to-violet-700' : 'bg-gradient-to-r from-purple-600 to-purple-700'} text-white px-4 py-1.5 rounded-full font-semibold flex items-center`}
                     >
                       {badge.icon_url && (
                         <LazyImage
@@ -429,7 +429,7 @@ export default function AthleteProfilePage() {
                     setFollowersModalTab('following');
                     setIsFollowersModalOpen(true);
                   }}
-                  className="flex items-center gap-1 text-gray-900 font-bold hover:text-blue-600 transition-colors"
+                  className="flex items-center gap-1 text-gray-900 font-bold hover:text-violet-600 transition-colors"
                 >
                   <span className="font-bold">{followStats.followingCount}</span>
                   <span>Fan Of</span>
@@ -439,7 +439,7 @@ export default function AthleteProfilePage() {
                     setFollowersModalTab('followers');
                     setIsFollowersModalOpen(true);
                   }}
-                  className="flex items-center gap-1 text-gray-900 font-bold hover:text-blue-600 transition-colors"
+                  className="flex items-center gap-1 text-gray-900 font-bold hover:text-violet-600 transition-colors"
                 >
                   <span className="font-bold">{followStats.followersCount}</span>
                   <span>Fans</span>
@@ -448,7 +448,7 @@ export default function AthleteProfilePage() {
                 {/* Social Links */}
                 {profile.social_twitter && (
                   <div className="flex items-center gap-3">
-                    <i className="fa-brands fa-twitter text-2xl text-blue-500"></i>
+                    <i className="fa-brands fa-twitter text-2xl text-violet-500"></i>
                     <span className="text-gray-900 font-bold">
                       {formatSocialHandleDisplay(profile.social_twitter)}
                     </span>

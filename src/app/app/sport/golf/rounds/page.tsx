@@ -122,7 +122,7 @@ export default function GolfRoundsListPage() {
   if (authLoading || !user) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-violet-600"></div>
       </div>
     );
   }
@@ -148,14 +148,14 @@ export default function GolfRoundsListPage() {
           <div className="flex items-center gap-4">
             <Link
               href="/app/sport/golf/trends"
-              className="text-sm text-blue-600 hover:text-blue-700 font-medium min-h-[44px] flex items-center"
+              className="text-sm text-violet-600 hover:text-violet-700 font-medium min-h-[44px] flex items-center"
             >
               <i className="fas fa-chart-line mr-1"></i>
               Trends
             </Link>
             <Link
               href="/athlete"
-              className="text-sm text-blue-600 hover:text-blue-700 font-medium min-h-[44px] flex items-center"
+              className="text-sm text-violet-600 hover:text-violet-700 font-medium min-h-[44px] flex items-center"
             >
               ← Profile
             </Link>
@@ -170,7 +170,7 @@ export default function GolfRoundsListPage() {
               value={courseSearch}
               onChange={e => setCourseSearch(e.target.value)}
               placeholder="Search by course…"
-              className="flex-1 px-3 py-2 min-h-[44px] border border-gray-300 rounded-md text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="flex-1 px-3 py-2 min-h-[44px] border border-gray-300 rounded-md text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-violet-500"
               aria-label="Search rounds by course"
             />
             <div className="flex gap-2">
@@ -203,7 +203,7 @@ export default function GolfRoundsListPage() {
         {/* Content */}
         {loading ? (
           <div className="text-center py-16">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-violet-600 mx-auto"></div>
             <p className="mt-3 text-gray-600">Loading rounds…</p>
           </div>
         ) : error ? (

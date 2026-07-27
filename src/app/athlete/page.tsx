@@ -99,14 +99,14 @@ function InlineEdit({
         />
         {/* Edit box: viewport-centered on mobile, anchored to the field on sm+ */}
         <div className="fixed sm:absolute inset-0 z-50 flex items-center justify-center p-4 sm:p-0">
-          <div className="bg-white border-2 border-blue-500 rounded-lg shadow-xl p-4 min-w-[280px] max-w-[calc(100vw-2rem)]">
+          <div className="bg-white border-2 border-violet-500 rounded-lg shadow-xl p-4 min-w-[280px] max-w-[calc(100vw-2rem)]">
           <div className="flex flex-col gap-2">
             <div className="flex items-center gap-2">
               {multiline ? (
                 <textarea
                   value={tempValues[field] || ''}
                   onChange={(e) => setTempValue(field, e.target.value)}
-                  className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none min-h-[44px]"
+                  className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent resize-none min-h-[44px]"
                   style={{ direction: 'ltr', unicodeBidi: 'normal' }}
                   dir="ltr"
                   rows={3}
@@ -119,7 +119,7 @@ function InlineEdit({
                   type={inputType}
                   value={tempValues[field] || ''}
                   onChange={(e) => setTempValue(field, e.target.value)}
-                  className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent min-h-[44px]"
+                  className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent min-h-[44px]"
                   autoFocus
                   aria-label={ariaLabel || `Edit ${field}`}
                   disabled={isSubmitting}
@@ -162,7 +162,7 @@ function InlineEdit({
     <div className="relative">
       <button
         type="button"
-        className={`cursor-pointer hover:bg-blue-50 hover:outline hover:outline-2 hover:outline-blue-300 rounded-md px-2 py-1 min-h-[44px] text-left w-full focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors ${className} ${
+        className={`cursor-pointer hover:bg-violet-50 hover:outline hover:outline-2 hover:outline-violet-300 rounded-md px-2 py-1 min-h-[44px] text-left w-full focus:outline-none focus:ring-2 focus:ring-violet-500 transition-colors ${className} ${
           isEmpty ? 'text-gray-500 italic' : ''
         }`}
         onClick={() => startEditing(field, value)}
@@ -357,7 +357,7 @@ export default function AthleteProfilePage() {
   // Helper functions for display
   const getBadgeColor = (colorToken: string): string => {
     const colors: Record<string, string> = {
-      primary: 'bg-blue-100 text-blue-800 border-blue-200',
+      primary: 'bg-violet-100 text-violet-800 border-violet-200',
       purple: 'bg-purple-100 text-purple-800 border-purple-200',
       green: 'bg-green-100 text-green-800 border-green-200',
       red: 'bg-red-100 text-red-800 border-red-200',
@@ -676,7 +676,7 @@ export default function AthleteProfilePage() {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-violet-600 mx-auto"></div>
           <p className="mt-4 text-gray-700 font-medium">Checking your session...</p>
           <p className="mt-1 text-sm text-gray-500">This should only take a moment</p>
         </div>
@@ -695,7 +695,7 @@ export default function AthleteProfilePage() {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-violet-600 mx-auto"></div>
           <p className="mt-4 text-gray-700 font-medium">Loading your profile...</p>
           <p className="mt-1 text-sm text-gray-500">Getting everything ready</p>
         </div>
@@ -736,7 +736,7 @@ export default function AthleteProfilePage() {
               />
             ) : (
               <div
-                className="w-full h-full bg-gradient-to-r from-blue-600 via-blue-500 to-indigo-500"
+                className="w-full h-full bg-gradient-to-r from-violet-600 via-violet-500 to-purple-500"
                 aria-hidden="true"
               />
             )}
@@ -786,7 +786,7 @@ export default function AthleteProfilePage() {
                 {/* Rating Bubble */}
                 {athleticScore > 0 && (
                   <div
-                    className="absolute -top-2 -right-2 bg-blue-600 text-white text-lg font-bold px-3 py-2 rounded-full border-4 border-white shadow-lg"
+                    className="absolute -top-2 -right-2 bg-violet-600 text-white text-lg font-bold px-3 py-2 rounded-full border-4 border-white shadow-lg"
                     role="img"
                     aria-label="Athlete rating"
                   >
@@ -804,7 +804,7 @@ export default function AthleteProfilePage() {
                         type="button"
                         onClick={open}
                         disabled={uploading}
-                        className={`w-14 h-14 bg-blue-600 rounded-full flex items-center justify-center cursor-pointer shadow-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-colors ${
+                        className={`w-14 h-14 bg-violet-600 rounded-full flex items-center justify-center cursor-pointer shadow-lg hover:bg-violet-700 focus:outline-none focus:ring-2 focus:ring-violet-500 focus:ring-offset-2 transition-colors ${
                           uploading ? 'opacity-50 cursor-not-allowed' : ''
                         }`}
                         aria-label={uploading ? 'Uploading avatar...' : 'Upload new avatar'}
@@ -910,7 +910,7 @@ export default function AthleteProfilePage() {
                         setFollowersModalTab('following');
                         setIsFollowersModalOpen(true);
                       }}
-                      className="flex items-center gap-1 text-gray-600 hover:text-blue-600 transition-colors"
+                      className="flex items-center gap-1 text-gray-600 hover:text-violet-600 transition-colors"
                     >
                       <span className="font-semibold text-gray-900">{followingCount}</span>
                       <span>Fan Of</span>
@@ -920,7 +920,7 @@ export default function AthleteProfilePage() {
                         setFollowersModalTab('followers');
                         setIsFollowersModalOpen(true);
                       }}
-                      className="flex items-center gap-1 text-gray-600 hover:text-blue-600 transition-colors"
+                      className="flex items-center gap-1 text-gray-600 hover:text-violet-600 transition-colors"
                     >
                       <span className="font-semibold text-gray-900">{followersCount}</span>
                       <span>Fans</span>
@@ -1001,7 +1001,7 @@ export default function AthleteProfilePage() {
           <div className="border-t border-gray-200 px-4 sm:px-8 py-4">
             <div className="flex flex-wrap items-center justify-center gap-4 sm:gap-6" role="list" aria-label="Social media links">
               <div className="flex items-center gap-2" role="listitem">
-                <i className="fab fa-twitter text-blue-400 text-lg" aria-label="Twitter" aria-hidden="true"></i>
+                <i className="fab fa-twitter text-violet-400 text-lg" aria-label="Twitter" aria-hidden="true"></i>
                 <InlineEdit
                   field="social_twitter"
                   value={profile?.social_twitter ? formatSocialHandleDisplay(profile.social_twitter) : ''}
@@ -1021,7 +1021,7 @@ export default function AthleteProfilePage() {
                 />
               </div>
               <div className="flex items-center gap-2" role="listitem">
-                <i className="fab fa-facebook text-blue-600 text-lg" aria-label="Facebook" aria-hidden="true"></i>
+                <i className="fab fa-facebook text-violet-600 text-lg" aria-label="Facebook" aria-hidden="true"></i>
                 <InlineEdit
                   field="social_facebook"
                   value={profile?.social_facebook ? formatSocialHandleDisplay(profile.social_facebook) : ''}
@@ -1046,7 +1046,7 @@ export default function AthleteProfilePage() {
               <h2 className="text-2xl font-bold text-black">My Media</h2>
               <button
                 onClick={() => setIsCreatePostModalOpen(true)}
-                className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2"
+                className="bg-violet-600 text-white px-4 py-2 rounded-lg hover:bg-violet-700 transition-colors flex items-center gap-2"
               >
                 <i className="fas fa-plus"></i>
                 Create Post

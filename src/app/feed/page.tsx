@@ -443,7 +443,7 @@ export default function FeedPage() {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-violet-600 mx-auto"></div>
           <p className="mt-4 text-gray-700 font-medium">Loading your feed...</p>
           <p className="mt-1 text-sm text-gray-500">Getting everything ready</p>
         </div>
@@ -478,7 +478,7 @@ export default function FeedPage() {
                     height={40}
                   />
                 ) : (
-                  <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center">
+                  <div className="w-10 h-10 bg-gradient-to-br from-violet-500 to-purple-600 rounded-full flex items-center justify-center">
                     <span className="text-white text-sm font-semibold">
                       {getInitials(formatDisplayName(profile?.first_name, null, profile?.last_name, profile?.full_name))}
                     </span>
@@ -493,15 +493,15 @@ export default function FeedPage() {
               </div>
               <div className="flex items-center justify-between mt-3 pt-3 border-t border-gray-100">
                 <div className="flex items-center gap-2 sm:gap-4">
-                  <button onClick={() => setIsCreatePostModalOpen(true)} className="flex items-center gap-1 sm:gap-2 text-gray-600 hover:text-blue-600 transition-colors">
+                  <button onClick={() => setIsCreatePostModalOpen(true)} className="flex items-center gap-1 sm:gap-2 text-gray-600 hover:text-violet-600 transition-colors">
                     <i className="fas fa-image text-green-500"></i>
                     <span className="text-xs sm:text-sm">Photo/Video</span>
                   </button>
-                  <button onClick={() => setIsCreatePostModalOpen(true)} className="flex items-center gap-1 sm:gap-2 text-gray-600 hover:text-blue-600 transition-colors">
-                    <i className="fas fa-chart-line text-blue-500"></i>
+                  <button onClick={() => setIsCreatePostModalOpen(true)} className="flex items-center gap-1 sm:gap-2 text-gray-600 hover:text-violet-600 transition-colors">
+                    <i className="fas fa-chart-line text-violet-500"></i>
                     <span className="text-xs sm:text-sm hidden sm:inline">Stats</span>
                   </button>
-                  <button onClick={() => setIsCreatePostModalOpen(true)} className="flex items-center gap-1 sm:gap-2 text-gray-600 hover:text-blue-600 transition-colors">
+                  <button onClick={() => setIsCreatePostModalOpen(true)} className="flex items-center gap-1 sm:gap-2 text-gray-600 hover:text-violet-600 transition-colors">
                     <i className="fas fa-trophy text-yellow-500"></i>
                     <span className="text-xs sm:text-sm hidden sm:inline">Achievement</span>
                   </button>
@@ -561,7 +561,7 @@ export default function FeedPage() {
                 <div className="bg-white rounded-lg shadow-md border-2 border-gray-300 p-8 text-center">
                   {/* Empty state follows the athlete's declared sport; fully
                       neutral when none is set */}
-                  <div className={`mb-4 ${profileDefaultSport ? 'text-green-500' : 'text-blue-500'}`}>
+                  <div className={`mb-4 ${profileDefaultSport ? 'text-green-500' : 'text-violet-500'}`}>
                     <i className={`${profileDefaultSport ? getSportDefinition(profileDefaultSport).icon_id : 'fas fa-users'} text-4xl`}></i>
                   </div>
                   <h3 className="text-lg font-medium text-gray-900 mb-2">
@@ -620,7 +620,7 @@ export default function FeedPage() {
                     <div className="text-center py-4">
                       <button
                         onClick={() => loadFeed(true)}
-                        className="bg-white text-blue-600 border border-blue-600 px-6 py-2 rounded-lg hover:bg-blue-50 transition-colors font-medium"
+                        className="bg-white text-violet-600 border border-violet-600 px-6 py-2 rounded-lg hover:bg-violet-50 transition-colors font-medium"
                       >
                         Load More
                       </button>
@@ -644,8 +644,8 @@ export default function FeedPage() {
                 <h3 className="font-bold text-gray-900">Upcoming Events</h3>
               </div>
               <div className="flex flex-col items-center justify-center py-6 text-center">
-                <div className="w-10 h-10 bg-blue-50 rounded-full flex items-center justify-center mb-3">
-                  <i className="fas fa-calendar-days text-blue-400 text-lg"></i>
+                <div className="w-10 h-10 bg-violet-50 rounded-full flex items-center justify-center mb-3">
+                  <i className="fas fa-calendar-days text-violet-400 text-lg"></i>
                 </div>
                 <p className="text-sm font-medium text-gray-700 mb-1">No upcoming events</p>
                 <p className="text-xs text-gray-400">Tournament and event scheduling is coming soon.</p>

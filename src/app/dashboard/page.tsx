@@ -133,7 +133,7 @@ export default function AdminDashboardPage() {
       <div className="min-h-screen bg-gray-50">
         <AppHeader showSearch={false} />
         <div className="flex items-center justify-center py-20">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-violet-600"></div>
         </div>
       </div>
     );
@@ -160,7 +160,7 @@ export default function AdminDashboardPage() {
 
       <div className="max-w-4xl mx-auto px-4 py-6 space-y-8">
         <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">
-          <i className="fas fa-shield-alt mr-2 text-blue-600"></i>
+          <i className="fas fa-shield-alt mr-2 text-violet-600"></i>
           Admin
         </h1>
 
@@ -174,7 +174,7 @@ export default function AdminDashboardPage() {
                   key={f}
                   onClick={() => setStatusFilter(f)}
                   className={`px-3 py-1.5 min-h-[36px] rounded-md text-xs font-medium capitalize transition-colors ${
-                    statusFilter === f ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                    statusFilter === f ? 'bg-violet-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                   }`}
                 >
                   {f}
@@ -259,7 +259,7 @@ export default function AdminDashboardPage() {
             value={userQuery}
             onChange={e => setUserQuery(e.target.value)}
             placeholder="Search by name, email, or handle…"
-            className="w-full px-3 py-2 min-h-[44px] border border-gray-300 rounded-md text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-500 mb-4"
+            className="w-full px-3 py-2 min-h-[44px] border border-gray-300 rounded-md text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-violet-500 mb-4"
             aria-label="Search users"
           />
           {searching ? (
@@ -290,7 +290,7 @@ export default function AdminDashboardPage() {
                       <td className="px-3 py-2">
                         <button
                           onClick={() => router.push(`/athlete/${u.id}`)}
-                          className="text-xs font-medium text-blue-600 hover:text-blue-700"
+                          className="text-xs font-medium text-violet-600 hover:text-violet-700"
                         >
                           View →
                         </button>

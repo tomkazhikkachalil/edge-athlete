@@ -39,17 +39,17 @@ export default function ContactPage() {
   };
 
   const inputClass =
-    'w-full px-3 py-2 min-h-[44px] border border-gray-300 rounded-md text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-500';
+    'w-full px-3 py-2 min-h-[44px] border border-gray-300 rounded-md text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-violet-500';
 
   return (
-    <div className="min-h-screen flex flex-col bg-blue-50">
-      <div className="w-full bg-blue-600 py-3 px-4">
+    <div className="min-h-screen flex flex-col bg-violet-50">
+      <div className="w-full bg-violet-600 py-3 px-4">
         <h1 className="text-2xl font-bold text-white text-center">Edge Athlete</h1>
       </div>
 
       <div className="flex-grow flex items-center justify-center p-4">
         <div className="w-full max-w-md bg-white rounded-lg shadow-lg p-6 sm:p-8">
-          <h2 className="text-2xl font-bold text-blue-800 mb-2">Contact us</h2>
+          <h2 className="text-2xl font-bold text-violet-800 mb-2">Contact us</h2>
 
           {sent ? (
             <div>
@@ -57,7 +57,7 @@ export default function ContactPage() {
                 Message sent — we&apos;ll get back to you at{' '}
                 <span className="font-semibold">{email.trim()}</span>.
               </div>
-              <Link href="/" className="text-blue-600 hover:text-blue-700 text-sm font-medium">
+              <Link href="/" className="text-violet-600 hover:text-violet-700 text-sm font-medium">
                 ← Back to Edge Athlete
               </Link>
             </div>
@@ -87,14 +87,14 @@ export default function ContactPage() {
                 <div>
                   <label htmlFor="message" className="block text-sm font-medium text-gray-700 mb-1">Message</label>
                   <textarea id="message" rows={5} value={message} onChange={e => setMessage(e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-violet-500 resize-none"
                     maxLength={2000} required />
                   <p className="mt-1 text-xs text-gray-400 text-right">{message.length}/2000</p>
                 </div>
                 <button
                   type="submit"
                   disabled={submitting}
-                  className="w-full bg-blue-600 text-white py-3 px-4 rounded-md hover:bg-blue-700 transition font-medium disabled:opacity-50"
+                  className="w-full bg-violet-600 text-white py-3 px-4 rounded-md hover:bg-violet-700 transition font-medium disabled:opacity-50"
                 >
                   {submitting ? (
                     <><i className="fas fa-spinner fa-spin mr-2"></i>Sending…</>
@@ -105,7 +105,7 @@ export default function ContactPage() {
               </form>
 
               <div className="mt-6 text-center">
-                <Link href="/" className="text-blue-600 hover:text-blue-700 text-sm font-medium">
+                <Link href="/" className="text-violet-600 hover:text-violet-700 text-sm font-medium">
                   ← Back to Edge Athlete
                 </Link>
               </div>

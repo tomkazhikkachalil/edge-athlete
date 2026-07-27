@@ -50,7 +50,7 @@ export default function QuotedReply({ replyTo, isOwn, onScrollToMessage }: Props
   const isDeleted = !!replyTo.deleted_at;
 
   const barStyle = isOwn
-    ? 'bg-blue-700/30 border-l-2 border-blue-300'
+    ? 'bg-violet-700/30 border-l-2 border-violet-300'
     : 'bg-gray-100 border-l-2 border-gray-400';
 
   return (

@@ -54,7 +54,7 @@ export default function StatLineForm({ sportKey, value, onChange }: StatLineForm
   return (
     <div className="bg-gray-50 rounded-lg p-4 border border-gray-200 space-y-4">
       <div className="flex items-center gap-2">
-        <i className={`${sportDef.icon_id} text-blue-600`} aria-hidden="true"></i>
+        <i className={`${sportDef.icon_id} text-violet-600`} aria-hidden="true"></i>
         <h3 className="text-sm font-bold text-gray-900">
           {schema.activityNoun} Stats
         </h3>
@@ -72,7 +72,7 @@ export default function StatLineForm({ sportKey, value, onChange }: StatLineForm
             type="date"
             value={value.date ?? ''}
             onChange={e => onChange({ ...value, date: e.target.value })}
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm text-gray-900 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+            className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm text-gray-900 focus:ring-2 focus:ring-violet-500 focus:border-violet-500"
           />
         </div>
         <div>
@@ -86,7 +86,7 @@ export default function StatLineForm({ sportKey, value, onChange }: StatLineForm
             placeholder="e.g. Central High"
             value={value.opponent ?? ''}
             onChange={e => onChange({ ...value, opponent: e.target.value })}
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm text-gray-900 placeholder-gray-400 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+            className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm text-gray-900 placeholder-gray-400 focus:ring-2 focus:ring-violet-500 focus:border-violet-500"
           />
         </div>
         <div>
@@ -120,7 +120,7 @@ export default function StatLineForm({ sportKey, value, onChange }: StatLineForm
               aria-label="Score"
               value={value.result_score ?? ''}
               onChange={e => onChange({ ...value, result_score: e.target.value })}
-              className="w-16 px-2 py-2 border border-gray-300 rounded-lg text-sm text-center text-gray-900 placeholder-gray-400 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              className="w-16 px-2 py-2 border border-gray-300 rounded-lg text-sm text-center text-gray-900 placeholder-gray-400 focus:ring-2 focus:ring-violet-500 focus:border-violet-500"
             />
           </div>
         </div>
@@ -146,7 +146,7 @@ export default function StatLineForm({ sportKey, value, onChange }: StatLineForm
               placeholder="0"
               value={value.stats[field.key] ?? ''}
               onChange={e => setStat(field.key, e.target.value)}
-              className="w-full px-2 py-2 border border-gray-300 rounded-lg text-sm text-center text-gray-900 placeholder-gray-400 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              className="w-full px-2 py-2 border border-gray-300 rounded-lg text-sm text-center text-gray-900 placeholder-gray-400 focus:ring-2 focus:ring-violet-500 focus:border-violet-500"
             />
           </div>
         ))}

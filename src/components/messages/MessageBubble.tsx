@@ -94,7 +94,7 @@ export default function MessageBubble({
   );
 
   const bubbleBase = isOwn
-    ? 'bg-blue-600 text-white rounded-l-2xl rounded-tr-2xl'
+    ? 'bg-violet-600 text-white rounded-l-2xl rounded-tr-2xl'
     : 'bg-gray-100 text-gray-900 rounded-r-2xl rounded-tl-2xl';
 
   const handleCopy = () => {
@@ -166,7 +166,7 @@ export default function MessageBubble({
               height={20}
             />
           ) : (
-            <div className="w-5 h-5 rounded-full bg-blue-500 flex items-center justify-center text-white text-xs font-bold">
+            <div className="w-5 h-5 rounded-full bg-violet-500 flex items-center justify-center text-white text-xs font-bold">
               {getInitials(senderName)}
             </div>
           )}
