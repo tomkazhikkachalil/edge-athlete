@@ -1,5 +1,70 @@
 # Development Log
 
+## July 27, 2026 (evening) — Guardian profiles: proposal approved, Phases 0–1 + Phase-2 server core SHIPPED (dark)
+
+**PARENT-MANAGED ATHLETE PROFILES — the largest architectural change to
+date, approved via a written proposal (5 questions: schema, enforcement,
+consent method, transfer state machine, migration plan) before any code.
+6 commits 15bfb7f..29f8803, ALL dark behind FEATURE_GUARDIAN_PROFILES=
+false — zero behavior change for existing users (tests 281→348).**
+
+**Architecture: shadow auth identity.** profiles.id stays == an
+auth.users id forever; guardian-created minors get an admin.createUser
+shadow user (synthetic `<uuid>@minors.invalid`, unloginable) that IS the
+athlete's future login. Supervised login = real email OTP'd onto the
+shadow user; transfer = flip profile_access supervised→owner + password
+rotation (the session-revocation mechanism — supabase-js has no
+revoke-by-user-id). Profile row NEVER re-parented; all ~45 FK tables +
+storage keys stay valid for life.
+
+**THE load-bearing audit finding: 72/85 API routes use the service-role
+client — RLS is bypassed on the main HTTP surface.** Authorization today
+is 46 hand-written `!== user.id` checks. Therefore the PRIMARY
+enforcement layer is app-level: pure `resolveProfileAction` matrix
+(src/lib/profile-roles.ts — the proposal's role×action table IS the
+48-assertion test fixture) wrapped by `requireProfileRole()` in
+auth-server.ts. RLS `has_profile_access()` (SECURITY DEFINER, 035
+recursion-safe) is defense-in-depth only. Never accept UI-level or
+RLS-only role checks on this feature.
+
+Shipped:
+- **Phase 0 — live-schema reconciliation** (probe + Tom's SQL-editor
+  dump, recorded in database/docs/PHASE0_GUARDIAN_RECONCILIATION.md):
+  on_auth_user_created trigger ALREADY DROPPED live (orphaned
+  handle_new_user() remains, inert); follows FKs both → profiles(id)
+  (archive's auth.users variant never shipped); all DB-only RPC bodies
+  captured. Incidental find: search_profiles has NO visibility filter
+  (private profiles' names leak into search — pre-existing, follow-up).
+- **048–050 RUN + VERIFIED live** (backfill exact: profiles count ==
+  owner self-rows): profile_access (owner/guardian/supervised/viewer,
+  zero-access-row DEFERRABLE constraint trigger, ≤2-guardian cap,
+  one-self-role partial unique, append-only audit),
+  pending_profiles (COPPA data-minimization parking — no auth user
+  pre-consent), guardian_invites (app-owned sha256'd single-use tokens,
+  NOT PKCE links — parents open invites cross-device), consent_records
+  (append-only via raise-trigger — binds even service-role writes) +
+  private consent-evidence bucket.
+- **Phase-2 server core:** DOB gates in /api/signup AND
+  /api/auth/complete-profile (the sole OAuth choke point). Under-
+  threshold → park + 422 needsGuardian (no dead end) + branded guardian
+  invite email. Jurisdiction from Vercel IP hints (Quebec → CA-QC,
+  Law 25 = 14); thresholds in src/lib/config/minors-config.ts
+  (US 13 / GDPR per-state / fallback 16), snapshotted immutably.
+- **Migration 051 WRITTEN (not yet run):** posts.status
+  ('published'|'pending_approval'|'rejected', default published — all
+  rows grandfathered) + rewritten get_profile_all/stats/tagged_media +
+  get_profile_media_counts (022 force-drop pattern) + search_posts with
+  a status predicate (authors see own pending). App-side published-only
+  filters on feed/single/explore/search are FLAG-GATED so deploys can
+  never race the migration.
+
+REMAINING (each phase independently shippable, per approved plan):
+052 RLS template swaps → Phase 2 UI (DOB-first signup step machine,
+/invite/[token] landing, complete-profile dob field) → Phase 3 guardian
+console + approval queue → Phase 4 supervised login → Phase 5 transfer
++ combined daily cron (Hobby 2-cron cap: merge digest + minors scan)
+→ Phase 6 delete parity + support tooling.
+
 ## July 27, 2026 (later) — OAuth sprint: Google sign-in LIVE
 
 **GOOGLE OAUTH SHIPPED + VERIFIED IN PROD (6 commits 85e46d3..e469134,
