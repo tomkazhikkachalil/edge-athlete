@@ -1,5 +1,31 @@
 # Development Log
 
+## July 27, 2026 (early) — Editor UX polish + maintenance sync
+
+**SCREENSHOT-DRIVEN EDITOR POLISH (6fc0af3, DEPLOYED, prod 200).**
+Tom's "flow" feedback was directional, so the pass was evidence-based:
+headless-Chrome screenshots of all five editor tools at 390px + 1280px
+before AND after. Found + fixed: (1) the video play button anchored to
+the flex STAGE, floating in letterbox dead space far from the clip —
+now anchored to the video's own box (worst "doesn't flow" offender);
+(2) desktop control rows (adjust sliders, crop chips/straighten, trim
+timeline+info, cover caption) stretched the full 1280px — all
+constrained to centered max-w-xl, mobile untouched (it was already
+good); (3) Adjust's stray underlined Reset link → right-aligned pill;
+(4) filter strip centers when it fits. Both E2E suites re-passed after
+(image tabs 9/9, video flow 7/7 — the video wrapper change didn't
+break tap-to-play/trim). METHOD NOTE: for vague UX feedback,
+screenshot-first beats guessing — 3 of 4 fixes were visible only in
+the captures.
+
+**Maintenance checklist:** lint clean · `tsc --noEmit` clean · `vitest`
+255 passed (28 files) · `npm ci --dry-run` clean · full clean build
+exit 0 (dev server stopped, `.next` wiped) · migrations current
+through 047, none pending · deployed through 6fc0af3, Vercel green,
+prod 200 · QA users/posts/files all cleaned up. This entry is the
+maintenance-log commit → GitHub → Vercel. Still awaiting Tom's phone
+pass on video trim/cover + the polished layouts.
+
 ## July 26, 2026 (end of session) — Maintenance checklist + sync
 
 - lint clean · `tsc --noEmit` clean · `vitest` 255 passed (28 files) ·
