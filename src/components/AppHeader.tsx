@@ -191,6 +191,18 @@ export default function AppHeader({ showSearch = true, onCreatePost, onEditProfi
                               </span>
                             </button>
                           ))}
+                          {managedProfiles.length > 0 && (
+                            <button
+                              onClick={() => {
+                                router.push('/app/guardian/approvals');
+                                setIsProfileDropdownOpen(false);
+                              }}
+                              className="w-full text-left px-4 py-2 text-sm text-violet-700 hover:bg-violet-50 flex items-center gap-3"
+                            >
+                              <i className="fas fa-list-check w-4"></i>
+                              <span>Approval queue</span>
+                            </button>
+                          )}
                           <button
                             onClick={() => {
                               router.push('/app/guardian/add-athlete');

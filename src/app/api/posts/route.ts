@@ -520,12 +520,31 @@ export async function GET(request: NextRequest) {
       // read private posts. 404, not 403, so a hidden post's existence isn't
       // confirmed.
       const isOwnPost = currentUserId === post.profile_id;
-      // Pending/rejected posts are visible only to their author (guardian
-      // access arrives with the approval-queue UI). Flag-gated: posts.status
-      // doesn't exist until migration 051 runs.
+      // Guardian access: approve_content holders may open their athletes'
+      // posts (the approval queue reviews pending ones here). Resolved
+      // lazily and memoized — the profile_access lookup only runs when a
+      // cheaper gate would otherwise refuse.
+      let guardianAllowed: boolean | null = null;
+      const viewerIsGuardian = async (): Promise<boolean> => {
+        if (guardianAllowed === null) {
+          if (FEATURE_FLAGS.FEATURE_GUARDIAN_PROFILES && currentUserId && !isOwnPost) {
+            const { getProfileRole } = await import('@/lib/auth-server');
+            const { resolveProfileAction } = await import('@/lib/profile-roles');
+            const role = await getProfileRole(currentUserId, post.profile_id);
+            guardianAllowed = resolveProfileAction(role, 'approve_content');
+          } else {
+            guardianAllowed = false;
+          }
+        }
+        return guardianAllowed;
+      };
+      // Pending/rejected posts are visible only to their author and their
+      // guardians. Flag-gated: posts.status doesn't exist until migration
+      // 051 runs.
       if (
         FEATURE_FLAGS.FEATURE_GUARDIAN_PROFILES &&
-        post.status && post.status !== 'published' && !isOwnPost
+        post.status && post.status !== 'published' && !isOwnPost &&
+        !(await viewerIsGuardian())
       ) {
         return NextResponse.json({ error: 'Post not found' }, { status: 404 });
       }
@@ -555,6 +574,11 @@ export async function GET(request: NextRequest) {
               .maybeSingle();
             allowed = !!participantRow && isActiveParticipant(participantRow.status);
           }
+        }
+        // Guardians can view their (forced-private) athletes' posts without
+        // a follow edge.
+        if (!allowed) {
+          allowed = await viewerIsGuardian();
         }
         if (!allowed) {
           return NextResponse.json({ error: 'Post not found' }, { status: 404 });
