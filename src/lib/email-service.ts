@@ -168,6 +168,7 @@ This email was sent from your website's contact form.
       timezone: string;
       location?: string | null;
       description?: string | null;
+      recurrenceText?: string | null;
     },
     appUrl: string
   ): Promise<void> {
@@ -175,6 +176,7 @@ This email was sent from your website's contact form.
     const title = escapeHtml(data.title);
     const detailRows = [
       `<p style="color:#333;font-size:15px;margin:4px 0;"><strong>When:</strong> ${escapeHtml(data.whenText)} (${escapeHtml(data.timezone)})</p>`,
+      data.recurrenceText ? `<p style="color:#333;font-size:15px;margin:4px 0;"><strong>${escapeHtml(data.recurrenceText)}</strong></p>` : '',
       data.location ? `<p style="color:#333;font-size:15px;margin:4px 0;"><strong>Where:</strong> ${escapeHtml(data.location)}</p>` : '',
       data.description ? `<p style="color:#333;font-size:15px;margin:4px 0;"><strong>Details:</strong> ${escapeHtml(data.description)}</p>` : '',
     ].join('');
@@ -200,7 +202,7 @@ This email was sent from your website's contact form.
           </div>
         </div>
       `,
-      text: `${data.organizerName} invited you to ${data.title}\n\nWhen: ${data.whenText} (${data.timezone})${data.location ? `\nWhere: ${data.location}` : ''}${data.description ? `\nDetails: ${data.description}` : ''}\n\nTo respond and see updates, join Edge Athlete with this email address: ${appUrl}/\n\n— Edge Athlete`,
+      text: `${data.organizerName} invited you to ${data.title}\n\nWhen: ${data.whenText} (${data.timezone})${data.recurrenceText ? `\n${data.recurrenceText}` : ''}${data.location ? `\nWhere: ${data.location}` : ''}${data.description ? `\nDetails: ${data.description}` : ''}\n\nTo respond and see updates, join Edge Athlete with this email address: ${appUrl}/\n\n— Edge Athlete`,
     });
   }
 

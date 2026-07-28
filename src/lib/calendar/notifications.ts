@@ -30,11 +30,15 @@ async function actorName(supabase: Admin, profileId: string): Promise<string> {
 
 export interface EventNotifyContext {
   supabase: Admin;
-  eventId: string;
-  title: string; // event title
+  eventId: string; // anchor occurrence for deep links
+  title: string;   // event title
+  series?: boolean; // series-wide operation → series wording, ONE notification per guest
+  seriesId?: string;
 }
 
 const eventUrl = (eventId: string) => `/calendar?event=${eventId}`;
+const seriesMeta = (ctx: EventNotifyContext) =>
+  ctx.seriesId ? { series_id: ctx.seriesId } : {};
 
 /** Invitations: notify every invited registered guest (never the organizer). */
 export async function notifyEventInvites(
@@ -50,11 +54,13 @@ export async function notifyEventInvites(
       user_id: id,
       type: 'event_invite',
       actor_id: organizerId,
-      title: `${name} invited you to an event`,
+      title: ctx.series
+        ? `${name} invited you to a recurring event`
+        : `${name} invited you to an event`,
       message: ctx.title,
       action_url: eventUrl(ctx.eventId),
       is_read: false,
-      metadata: { event_id: ctx.eventId },
+      metadata: { event_id: ctx.eventId, ...seriesMeta(ctx) },
     }));
     const { error } = await ctx.supabase.from('notifications').insert(rows);
     if (error) console.error('[CALENDAR NOTIFY] invite fan-out failed:', error);
@@ -77,11 +83,13 @@ export async function notifyEventUpdated(
       user_id: id,
       type: 'event_update',
       actor_id: organizerId,
-      title: `${name} updated an event you're invited to`,
+      title: ctx.series
+        ? `${name} updated a recurring event you're invited to`
+        : `${name} updated an event you're invited to`,
       message: ctx.title,
       action_url: eventUrl(ctx.eventId),
       is_read: false,
-      metadata: { event_id: ctx.eventId, kind: 'details_changed' },
+      metadata: { event_id: ctx.eventId, kind: 'details_changed', ...seriesMeta(ctx) },
     }));
     const { error } = await ctx.supabase.from('notifications').insert(rows);
     if (error) console.error('[CALENDAR NOTIFY] update fan-out failed:', error);
@@ -104,11 +112,13 @@ export async function notifyEventCancelled(
       user_id: id,
       type: 'event_cancelled',
       actor_id: organizerId,
-      title: `${name} cancelled an event`,
+      title: ctx.series
+        ? `${name} cancelled a recurring event`
+        : `${name} cancelled an event`,
       message: ctx.title,
       action_url: eventUrl(ctx.eventId),
       is_read: false,
-      metadata: { event_id: ctx.eventId },
+      metadata: { event_id: ctx.eventId, ...seriesMeta(ctx) },
     }));
     const { error } = await ctx.supabase.from('notifications').insert(rows);
     if (error) console.error('[CALENDAR NOTIFY] cancel fan-out failed:', error);
@@ -127,10 +137,11 @@ export async function notifyEventResponse(
   try {
     if (responderId === organizerId) return;
     const name = await actorName(ctx.supabase, responderId);
+    const noun = ctx.series ? 'your recurring event' : 'your event';
     const titleText =
-      status === 'accepted' ? `${name} is going to your event`
-      : status === 'declined' ? `${name} declined your event`
-      : `${name} might come to your event`;
+      status === 'accepted' ? `${name} is going to ${noun}`
+      : status === 'declined' ? `${name} declined ${noun}`
+      : `${name} might come to ${noun}`;
     const { error } = await ctx.supabase.from('notifications').insert({
       user_id: organizerId,
       type: 'event_response',
@@ -139,7 +150,7 @@ export async function notifyEventResponse(
       message: ctx.title,
       action_url: eventUrl(ctx.eventId),
       is_read: false,
-      metadata: { event_id: ctx.eventId, response: status },
+      metadata: { event_id: ctx.eventId, response: status, ...seriesMeta(ctx) },
     });
     if (error) console.error('[CALENDAR NOTIFY] response failed:', error);
   } catch (e) {

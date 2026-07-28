@@ -3,6 +3,8 @@ import * as Sentry from '@sentry/nextjs';
 import { requireAuth, getSupabaseAdmin } from '@/lib/auth-server';
 import { FEATURE_FLAGS } from '@/lib/features';
 import { validateEventInput, validateGuestInput } from '@/lib/calendar/events';
+import { validateRecurrenceInput, describeRecurrence } from '@/lib/calendar/recurrence';
+import { insertSeriesOccurrences } from '@/lib/calendar/series-server';
 import { notifyEventInvites } from '@/lib/calendar/notifications';
 import { formatEventWhen } from '@/lib/calendar/format-server';
 
@@ -18,7 +20,7 @@ import { formatEventWhen } from '@/lib/calendar/format-server';
 const MAX_RANGE_DAYS = 62;
 
 const EVENT_FIELDS =
-  'id, organizer_id, title, description, location, starts_at, ends_at, all_day, timezone, category, status, cancelled_at';
+  'id, organizer_id, title, description, location, starts_at, ends_at, all_day, timezone, category, status, cancelled_at, series_id, series_override';
 
 export async function GET(request: NextRequest) {
   if (!FEATURE_FLAGS.FEATURE_CALENDAR) {
@@ -94,6 +96,112 @@ export async function POST(request: NextRequest) {
       if (missing.length > 0) {
         return NextResponse.json({ error: 'One of the invited guests no longer exists.' }, { status: 400 });
       }
+    }
+
+    // ── Recurring: series row → materialized occurrences + guest fan-out ──
+    if (body.recurrence !== undefined && body.recurrence !== null) {
+      const recValidated = validateRecurrenceInput(
+        body.recurrence, validated.event.starts_at, validated.event.ends_at, validated.event.timezone
+      );
+      if (!recValidated.ok) {
+        return NextResponse.json({ error: recValidated.error }, { status: 400 });
+      }
+      const { rule, occurrences } = recValidated;
+
+      const { data: series, error: seriesError } = await admin
+        .from('event_series')
+        .insert({
+          organizer_id: user.id,
+          freq: rule.freq,
+          interval_n: rule.interval_n,
+          byweekday: rule.byweekday,
+          ends: rule.ends,
+          until_at: rule.until_at,
+          count_n: rule.count_n,
+          generated_until: occurrences[occurrences.length - 1].starts_at,
+        })
+        .select('id')
+        .single();
+      if (seriesError || !series) {
+        console.error('[CALENDAR] series insert failed:', seriesError);
+        return NextResponse.json({ error: 'Could not create the event. Please try again.' }, { status: 500 });
+      }
+
+      const now = new Date().toISOString();
+      try {
+        await insertSeriesOccurrences(
+          admin,
+          series.id,
+          occurrences,
+          {
+            organizer_id: user.id,
+            title: validated.event.title,
+            description: validated.event.description,
+            location: validated.event.location,
+            all_day: validated.event.all_day,
+            timezone: validated.event.timezone,
+            category: validated.event.category,
+          },
+          [
+            { profile_id: user.id, role: 'organizer', status: 'accepted', responded_at: now },
+            ...profileIds.map(id => ({ profile_id: id, role: 'guest', status: 'invited' })),
+            ...emails.map(email => ({ invited_email: email, role: 'guest', status: 'invited' })),
+          ]
+        );
+      } catch (e) {
+        // Compensating delete — cascade wipes every occurrence + guest row.
+        await admin.from('event_series').delete().eq('id', series.id);
+        console.error('[CALENDAR] series materialization failed:', e);
+        Sentry.captureException(e, { tags: { area: 'calendar' } });
+        return NextResponse.json({ error: 'Nothing was saved — please try again.' }, { status: 500 });
+      }
+
+      const { data: firstEvent } = await admin
+        .from('events')
+        .select(EVENT_FIELDS)
+        .eq('series_id', series.id)
+        .order('starts_at', { ascending: true })
+        .limit(1)
+        .single();
+
+      // ONE notification per guest for the whole series; ONE email per invitee.
+      const ctx = {
+        supabase: admin,
+        eventId: firstEvent!.id,
+        title: validated.event.title,
+        series: true,
+        seriesId: series.id,
+      };
+      await notifyEventInvites(ctx, user.id, profileIds);
+      if (emails.length > 0 && process.env.SMTP_USER && process.env.SMTP_PASS) {
+        const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://edge-athlete.vercel.app';
+        const { emailService } = await import('@/lib/email-service');
+        const organizerName = await organizerDisplayName(admin, user.id);
+        const whenText = formatEventWhen(
+          firstEvent!.starts_at, firstEvent!.ends_at, firstEvent!.all_day, firstEvent!.timezone
+        );
+        const recurrenceText = describeRecurrence(rule, validated.event.timezone);
+        for (const email of emails) {
+          try {
+            await emailService.sendEventInvite(email, {
+              organizerName,
+              title: validated.event.title,
+              whenText,
+              timezone: validated.event.timezone,
+              location: validated.event.location,
+              description: validated.event.description,
+              recurrenceText,
+            }, appUrl);
+          } catch (e) {
+            console.error('[CALENDAR] invite email failed:', e);
+          }
+        }
+      }
+
+      return NextResponse.json(
+        { event: firstEvent, occurrence_count: occurrences.length },
+        { status: 201 }
+      );
     }
 
     const { data: event, error: eventError } = await admin
