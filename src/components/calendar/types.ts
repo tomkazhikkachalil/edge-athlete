@@ -40,6 +40,7 @@ export interface EventGuest {
   role: 'organizer' | 'guest';
   status: MyStatus | 'accepted';
   responded_at: string | null;
+  reminder_minutes: number;
   profiles: {
     id: string;
     first_name: string | null;

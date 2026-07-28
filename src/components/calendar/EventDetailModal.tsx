@@ -13,6 +13,7 @@ import { formatDisplayName, getInitials } from '@/lib/formatters';
 import { categoryColor, CATEGORY_LABELS } from '@/lib/calendar/categories';
 import { allDayDayLabels } from '@/lib/calendar/grid';
 import { describeRecurrence } from '@/lib/calendar/recurrence';
+import { REMINDER_OPTIONS, REMINDER_LABELS } from '@/lib/calendar/reminders';
 import type { EventDetail, EventGuest, MyStatus } from './types';
 
 // The event's home: full details, live guest list with per-person status,
@@ -83,6 +84,7 @@ export default function EventDetailModal({
   const [responding, setResponding] = useState(false);
   const [confirmingCancel, setConfirmingCancel] = useState(false);
   const [pendingResponse, setPendingResponse] = useState<MyStatus | null>(null);
+  const [savingReminder, setSavingReminder] = useState(false);
   useBodyScrollLock(isOpen);
 
   const load = useCallback(async () => {
@@ -148,6 +150,25 @@ export default function EventDetailModal({
     // "invitations cover the whole series"); one-off events respond directly.
     if (event?.series_id) setPendingResponse(status);
     else respond(status, 'this');
+  };
+
+  const setReminder = async (minutes: number) => {
+    if (!event || savingReminder) return;
+    setSavingReminder(true);
+    try {
+      const res = await fetch(`/api/calendar/events/${event.id}/reminder`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ minutes }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) { showError('Could not save', data.error || 'Please try again.'); return; }
+      await load();
+    } catch {
+      showError('Could not save', 'Please try again.');
+    } finally {
+      setSavingReminder(false);
+    }
   };
 
   const cancelEvent = async (scope: 'this' | 'following' | 'series') => {
@@ -227,6 +248,17 @@ export default function EventDetailModal({
                   {describeRecurrence(event.series, event.timezone)}
                 </p>
               )}
+              {!cancelled && (
+                <p className="text-xs pt-0.5">
+                  <a
+                    href={`/api/calendar/events/${event.id}/ics`}
+                    className="text-violet-600 hover:underline font-medium"
+                  >
+                    <i className="fas fa-download mr-1"></i>
+                    Add to calendar
+                  </a>
+                </p>
+              )}
             </div>
 
             {event.description && (
@@ -260,6 +292,30 @@ export default function EventDetailModal({
                     </button>
                   ))}
                 </div>
+              </div>
+            )}
+
+            {/* Reminder (any viewer with a guest row, organizer included) */}
+            {myGuestRow && !cancelled && (
+              <div className="border-t border-gray-100 pt-3 flex items-center gap-2 flex-wrap">
+                <label htmlFor="ev-reminder" className="text-sm font-semibold text-gray-900">
+                  <i className="fas fa-bell text-gray-400 mr-1.5"></i>
+                  Remind me
+                </label>
+                <select
+                  id="ev-reminder"
+                  value={myGuestRow.reminder_minutes}
+                  disabled={savingReminder}
+                  onChange={e => setReminder(Number(e.target.value))}
+                  className="px-2 py-1.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-violet-500 focus:outline-none disabled:opacity-50"
+                >
+                  {REMINDER_OPTIONS.map(m => (
+                    <option key={m} value={m}>{REMINDER_LABELS[m]}</option>
+                  ))}
+                </select>
+                {event.series_id && (
+                  <span className="text-xs text-gray-400">This event only</span>
+                )}
               </div>
             )}
 

@@ -3,6 +3,7 @@ import { getSupabaseAdmin } from '@/lib/auth-server';
 import { runNotificationDigest } from '@/lib/digest-server';
 import { runTransferSweep } from '@/lib/transfers';
 import { extendRecurringSeries } from '@/lib/calendar/series-server';
+import { runReminderSweep } from '@/lib/calendar/reminders-server';
 import { FEATURE_FLAGS } from '@/lib/features';
 
 export const maxDuration = 60;
@@ -53,6 +54,17 @@ export async function GET(request: NextRequest) {
   } catch (e) {
     console.error('[DAILY] recurrence phase failed:', e);
     summary.recurrence = { ok: false };
+  }
+  // Idempotent reminder safety net: the SAME strict sweep pg_cron runs
+  // every 10 minutes (reminded_at dedups). Deliberately NOT a widened
+  // variant — that would fire early and pre-empt the precise reminders.
+  try {
+    summary.reminders = FEATURE_FLAGS.FEATURE_CALENDAR
+      ? await runReminderSweep(admin)
+      : { skipped: 'flag off' };
+  } catch (e) {
+    console.error('[DAILY] reminders phase failed:', e);
+    summary.reminders = { ok: false };
   }
 
   console.log('[DAILY]', JSON.stringify(summary));

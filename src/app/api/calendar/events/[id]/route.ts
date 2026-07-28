@@ -11,6 +11,7 @@ import {
   notifyGuestRemoved,
 } from '@/lib/calendar/notifications';
 import { formatEventWhen } from '@/lib/calendar/format-server';
+import { loadEventForViewer } from '@/lib/calendar/detail-server';
 
 // ── /api/calendar/events/[id] ─────────────────────────────────────────────────
 // GET   → full detail (event + guest list + series rule when recurring).
@@ -29,7 +30,7 @@ import { formatEventWhen } from '@/lib/calendar/format-server';
 const EVENT_FIELDS =
   'id, organizer_id, title, description, location, starts_at, ends_at, all_day, timezone, category, status, cancelled_at, series_id, series_override';
 const GUEST_FIELDS =
-  'id, profile_id, invited_email, role, status, responded_at, profiles:profile_id (id, first_name, middle_name, last_name, full_name, avatar_url, handle)';
+  'id, profile_id, invited_email, role, status, responded_at, reminder_minutes, profiles:profile_id (id, first_name, middle_name, last_name, full_name, avatar_url, handle)';
 const SERIES_FIELDS = 'id, freq, interval_n, byweekday, ends, until_at, count_n';
 
 type Admin = ReturnType<typeof getSupabaseAdmin>;
@@ -41,26 +42,7 @@ function parseScope(raw: unknown): Scope | null {
   return null;
 }
 
-async function loadEventForViewer(admin: Admin, eventId: string, viewerId: string) {
-  const { data: event } = await admin
-    .from('events')
-    .select(EVENT_FIELDS)
-    .eq('id', eventId)
-    .maybeSingle();
-  if (!event) return null;
-  if (event.organizer_id !== viewerId) {
-    const { data: myGuestRow } = await admin
-      .from('event_guests')
-      .select('id')
-      .eq('event_id', eventId)
-      .eq('profile_id', viewerId)
-      .maybeSingle();
-    if (!myGuestRow) return null;
-  }
-  return event;
-}
-
-async function fullDetail(admin: Admin, event: Record<string, unknown>) {
+async function fullDetail(admin: Admin, event: { id: string; series_id?: string | null } & object) {
   const { data: guests } = await admin
     .from('event_guests')
     .select(GUEST_FIELDS)
@@ -233,7 +215,7 @@ export async function PATCH(
     }
 
     const nonTimeChanged = (['title', 'description', 'location', 'category'] as const)
-      .some(key => validated.event[key] !== (event as Record<string, unknown>)[key]);
+      .some(key => validated.event[key] !== (event as unknown as Record<string, unknown>)[key]);
 
     // ── Apply field edits ──
     const baseFields = {
