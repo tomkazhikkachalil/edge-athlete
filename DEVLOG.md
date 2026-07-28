@@ -1,5 +1,48 @@
 # Development Log
 
+## July 28, 2026 (early) — Guardian profiles: Phase 5 TRANSFER OF CONTROL shipped — feature functionally COMPLETE (dark)
+
+**Commit da7ec6b + migration 055 (RUN + verified), E2E 18/18 on the
+first run, tests 355. The last major chapter of the guardian spec: the
+age-out transfer state machine. With this, the ENTIRE guardian feature
+— data model, enforcement, DOB-gated signup, two-step parent flow,
+invites, consent + immutable audit + admin review, PIN login, approval
+queue, and transfer — is built, E2E-verified, and dark behind
+NEXT_PUBLIC_FEATURE_GUARDIAN_PROFILES.**
+
+State machine (lib/transfers.ts + /api/transfers[+/[id]]):
+eligible_notified (daily cron flags supervised profiles past their
+jurisdiction threshold) → initiated (guardian) / requested (athlete —
+NEVER executes; guardian must approve) → credentials_pending (athlete
+adds an INDEPENDENT email: rejects every guardian email, every
+consent-record snapshot, every existing account — +tag aliases
+normalized; 15-min 6-digit OTP via guardian_invites) → dual_confirm
+(both parties; the new owner chooses the guardian's post-role
+viewer/removed) → cooling_off (7 days, either party cancels one-click;
+restart-after-cancel verified) → executing → completed.
+Cooling-off is the LAST exit — nothing cancels once executing.
+
+Execution = idempotent 5-step journal (executed_steps; cron resumes
+partial runs; 3 failures → 'failed' + support): set real email on the
+shadow user → mirror profiles.email → rotate password (THE session
+revocation) + issue the app-owned reset token — only after rotation
+succeeds, so there is never a lockout window → flip supervised→owner +
+guardians→viewer/removed (+audit) → supervision_state='self'.
+Post-transfer world verified: old PIN dead, real email live,
+athlete_activation reset token issued to the verified contact, roles
+exactly owner+viewer. DOB-divergence checked on EVERY transition and
+in the cron: mid-flow DOB edit → aborted + dob_locked (verified).
+
+**Combined daily cron:** digest extracted to lib/digest-server (now
+skips synthetic @minors.invalid addresses — they bounce) + transfer
+sweep (flag/expire-14d-stalls/execute) in ONE /api/cron/daily slot;
+vercel.json repointed (Hobby 2-cron cap held). Old digest route kept.
+
+REMAINING (polish, non-blocking): transfer UI screens (machine is
+server-only today), dedicated approval-queue screen, post-transfer
+review walkthrough, guardian hard-delete parity + orphan/support
+tooling.
+
 ## July 27, 2026 (later still) — Guardian profiles: Phase 4 supervised login SHIPPED (dark)
 
 **Commit 4bf807f, E2E 11/11 (first full run), tests 355, dark behind
