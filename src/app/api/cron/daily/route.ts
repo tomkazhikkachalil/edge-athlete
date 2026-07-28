@@ -36,7 +36,7 @@ export async function GET(request: NextRequest) {
   }
   try {
     summary.transfers = FEATURE_FLAGS.FEATURE_GUARDIAN_PROFILES
-      ? await runTransferSweep(admin)
+      ? await runTransferSweep(admin, appUrl)
       : { skipped: 'flag off' };
   } catch (e) {
     console.error('[DAILY] transfer phase failed:', e);

@@ -154,6 +154,43 @@ This email was sent from your website's contact form.
   }
 
   /**
+   * Account activation after a completed transfer of control — the new
+   * owner's "the account is yours" email. The link carries the raw
+   * single-use athlete_activation token.
+   */
+  async sendAccountActivation(to: string, activationUrl: string, appUrl: string): Promise<void> {
+    await this.transporter.sendMail({
+      from: process.env.EMAIL_FROM || 'noreply@yourdomain.com',
+      to,
+      subject: 'Your Edge Athlete account is now yours',
+      html: `
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+          ${logoHeader(appUrl)}
+          <h2 style="color:#6d28d9;">Congratulations — your account is officially yours</h2>
+          <p style="color:#333;font-size:15px;line-height:1.6;">
+            The handover is complete. Your Edge Athlete account now belongs to
+            you. Set a password to sign in and take a quick look at your
+            privacy settings — it takes less than a minute.
+          </p>
+          <a href="${activationUrl}"
+             style="display:inline-block;background:#7c3aed;color:#fff;text-decoration:none;padding:10px 20px;border-radius:6px;font-size:14px;margin-top:8px;">
+            Set your password
+          </a>
+          <p style="color:#888;font-size:12px;margin-top:16px;">
+            This link is single-use and expires in 7 days. If it expires, you
+            can always sign in by resetting your password at
+            ${appUrl}/forgot-password using this email address.
+          </p>
+          <div style="margin-top:20px;padding-top:20px;border-top:1px solid #eee;color:#888;font-size:12px;">
+            <p>— Edge Athlete</p>
+          </div>
+        </div>
+      `,
+      text: `Congratulations — your Edge Athlete account is officially yours.\n\nThe handover is complete. Set a password to sign in (single-use link, expires in 7 days):\n\n${activationUrl}\n\nIf the link expires, you can always sign in by resetting your password at ${appUrl}/forgot-password using this email address.\n\n— Edge Athlete`,
+    });
+  }
+
+  /**
    * Transfer contact-verification code (guardian-profiles transfer flow).
    */
   async sendTransferCode(to: string, code: string, appUrl: string): Promise<void> {

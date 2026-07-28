@@ -78,17 +78,22 @@ export interface RedeemedInvite {
 /**
  * Atomic single-use redemption: the UPDATE's WHERE clause is the whole
  * validity check — zero rows back means invalid, expired, or already used.
+ * Pass inviteType when the caller only accepts one kind of token, so a
+ * valid token of another type is refused WITHOUT being consumed.
  */
 export async function redeemGuardianInvite(
   admin: SupabaseClient,
-  rawToken: string
+  rawToken: string,
+  inviteType?: InviteType
 ): Promise<RedeemedInvite | null> {
-  const { data, error } = await admin
+  let query = admin
     .from('guardian_invites')
     .update({ consumed_at: new Date().toISOString() })
     .eq('token_hash', hashInviteToken(rawToken))
     .is('consumed_at', null)
-    .gt('expires_at', new Date().toISOString())
+    .gt('expires_at', new Date().toISOString());
+  if (inviteType) query = query.eq('invite_type', inviteType);
+  const { data, error } = await query
     .select('id, invite_type, invited_email, pending_profile_id, profile_id, created_by')
     .maybeSingle();
   if (error) {

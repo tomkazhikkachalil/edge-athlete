@@ -144,7 +144,8 @@ export function stepExpiryCutoff(): string {
  */
 export async function executeTransfer(
   admin: SupabaseClient,
-  transfer: TransferRow
+  transfer: TransferRow,
+  appUrl?: string
 ): Promise<{ ok: boolean; failedStep?: string }> {
   const steps: string[] = [...(transfer.executed_steps ?? [])];
   const journal = async (step: string) => {
@@ -189,7 +190,22 @@ export async function executeTransfer(
         profile_id: transfer.profile_id,
         expires_at: new Date(Date.now() + 7 * 86_400_000).toISOString(),
       });
-      // Email the reset link (best-effort; token row is the source of truth).
+      // Email the activation link (best-effort; the token row is the source
+      // of truth, and /forgot-password on the new email always works). A
+      // crash before the journal below re-runs this step: a second valid
+      // single-use token + duplicate email — harmless by design.
+      if (appUrl && process.env.SMTP_USER && process.env.SMTP_PASS) {
+        try {
+          const { emailService } = await import('./email-service');
+          await emailService.sendAccountActivation(
+            transfer.athlete_contact_email!.toLowerCase(),
+            `${appUrl}/activate/${raw}`,
+            appUrl
+          );
+        } catch (e) {
+          console.error('[TRANSFERS] activation email failed:', e);
+        }
+      }
       await journal('rotate_credentials');
     }
     // 4. Flip access: supervised → owner; guardians → viewer/removed.
@@ -249,7 +265,7 @@ export async function executeTransfer(
  * Daily sweep: flag newly-eligible supervised profiles, expire stalled
  * transfers, execute those past cooling-off. Returns a summary.
  */
-export async function runTransferSweep(admin: SupabaseClient) {
+export async function runTransferSweep(admin: SupabaseClient, appUrl?: string) {
   const today = new Date().toISOString().slice(0, 10);
   const summary = { flagged: 0, expired: 0, executed: 0, failed: 0 };
 
@@ -298,7 +314,7 @@ export async function runTransferSweep(admin: SupabaseClient) {
         .eq('id', t.id)
         .eq('state', 'cooling_off');
     }
-    const result = await executeTransfer(admin, { ...t, state: 'executing' } as TransferRow);
+    const result = await executeTransfer(admin, { ...t, state: 'executing' } as TransferRow, appUrl);
     if (result.ok) summary.executed++;
     else summary.failed++;
   }
