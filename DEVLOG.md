@@ -1,5 +1,36 @@
 # Development Log
 
+## July 28, 2026 (end of session, late) — Maintenance checklist + sync
+
+- lint clean · `tsc --noEmit` clean · `vitest` 371 passed (36 files) ·
+  `npm ci --dry-run` clean · full clean `npm run build` success, 105
+  pages (dev servers stopped, `.next` wiped first).
+- Migration state: through 056, ALL run + behaviorally verified live
+  (048–056 = the complete guardian data layer; 056 verified 30/30 with
+  service-role append-only probes).
+- Deployed through c362904, Vercel green on every push today, prod
+  site 200. Guardian feature dark in prod
+  (NEXT_PUBLIC_FEATURE_GUARDIAN_PROFILES unset); ON in Tom's
+  .env.local. This entry is the maintenance-log commit → GitHub →
+  Vercel.
+- Today's session in one line: guardian feature polish-to-COMPLETE —
+  approval-queue screen (1ed9103) → transfer-of-control UI (c4dd446,
+  incl. the initiated_by CHECK bug fix) → post-transfer activation +
+  review walkthrough (04a74af, incl. the discarded-token fix) →
+  hard-delete parity + co-guardian invites + admin orphan tooling
+  (0470810 + 8a71243, incl. the consent append-only trigger bug →
+  migration 056). Tests 355→371; five E2E suites (16+25+15+30 API
+  checks, 9+8+9 browser smoke) all green.
+- Untracked in the working tree: AGENTS.md (a Codex-oriented copy of
+  CLAUDE.md) — deliberately left uncommitted; Tom's call whether it
+  belongs in the repo.
+- Awaiting Tom: end-to-end guardian walkthrough (parent → athlete →
+  consent → approve at /dashboard/consent → PIN → kid login → post →
+  approve at /app/guardian/approvals → transfer via /app/guardian/
+  transfers → kid activation link → delete paths + /dashboard/guardians),
+  then the flag decision. Also still open from earlier sessions: phone
+  pass on the mobile fixes, two-phone golf test, Edge Vitals loop.
+
 ## July 28, 2026 (night) — Guardian hard-delete parity + orphan/support tooling SHIPPED — GUARDIAN FEATURE COMPLETE (dark)
 
 **Commits 0470810 + 8a71243, E2E 27/27 + browser smoke 9/9, tests 371,
