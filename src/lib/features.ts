@@ -28,6 +28,12 @@ export const FEATURE_FLAGS = {
   // enabled in an environment.
   FEATURE_CALENDAR: process.env.NEXT_PUBLIC_FEATURE_CALENDAR === '1',
 
+  // Persistent chat dock (big screens; the FB/LinkedIn bottom-corner
+  // pattern). Pure view layer over the existing messaging system — no
+  // migrations. Rides the root layout, so it ships dark and Tom flips it
+  // after testing.
+  FEATURE_CHAT_DOCK: process.env.NEXT_PUBLIC_FEATURE_CHAT_DOCK === '1',
+
   // Future feature flags can be added here
   // FEATURE_PUBLIC_PROFILES: false,
   // FEATURE_MESSAGING: false,

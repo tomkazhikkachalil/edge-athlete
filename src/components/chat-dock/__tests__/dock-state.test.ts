@@ -1,0 +1,110 @@
+import { describe, it, expect } from 'vitest';
+import {
+  dockReducer,
+  initialDockState,
+  windowCapForWidth,
+  parseDockState,
+  serializeDockState,
+  MAX_OPEN_WINDOWS,
+  type DockState,
+} from '../dock-state';
+
+const state = (overrides: Partial<DockState> = {}): DockState => ({
+  ...initialDockState,
+  ...overrides,
+});
+
+describe('windowCapForWidth', () => {
+  it('scales with viewport width, clamped 1..3', () => {
+    expect(windowCapForWidth(1024)).toBe(1);
+    expect(windowCapForWidth(1100)).toBe(2);
+    expect(windowCapForWidth(1440)).toBe(3);
+    expect(windowCapForWidth(3000)).toBe(MAX_OPEN_WINDOWS);
+    expect(windowCapForWidth(600)).toBe(1); // never zero
+  });
+});
+
+describe('dockReducer', () => {
+  it('opens windows, deduping and un-minimizing', () => {
+    let s = dockReducer(state(), { type: 'OPEN_WINDOW', id: 'a' });
+    s = dockReducer(s, { type: 'OPEN_WINDOW', id: 'a' });
+    expect(s.open).toEqual(['a']);
+    s = dockReducer(state({ minimized: ['b'] }), { type: 'OPEN_WINDOW', id: 'b' });
+    expect(s.open).toEqual(['b']);
+    expect(s.minimized).toEqual([]);
+  });
+
+  it('minimizes the OLDEST window when the cap is exceeded', () => {
+    let s = state({ cap: 2 });
+    s = dockReducer(s, { type: 'OPEN_WINDOW', id: 'a' });
+    s = dockReducer(s, { type: 'OPEN_WINDOW', id: 'b' });
+    s = dockReducer(s, { type: 'OPEN_WINDOW', id: 'c' });
+    expect(s.open).toEqual(['b', 'c']);
+    expect(s.minimized).toEqual(['a']);
+  });
+
+  it('SET_CAP shrink minimizes overflow; growth does not restore', () => {
+    let s = state({ open: ['a', 'b', 'c'], cap: 3 });
+    s = dockReducer(s, { type: 'SET_CAP', cap: 1 });
+    expect(s.open).toEqual(['c']);
+    expect(s.minimized).toEqual(['a', 'b']);
+    s = dockReducer(s, { type: 'SET_CAP', cap: 3 });
+    expect(s.open).toEqual(['c']); // restore is explicit, not automatic
+  });
+
+  it('minimize/restore round-trip preserves membership', () => {
+    let s = state({ open: ['a', 'b'] });
+    s = dockReducer(s, { type: 'MINIMIZE', id: 'a' });
+    expect(s.open).toEqual(['b']);
+    expect(s.minimized).toEqual(['a']);
+    s = dockReducer(s, { type: 'RESTORE', id: 'a' });
+    expect(s.open).toEqual(['b', 'a']);
+    expect(s.minimized).toEqual([]);
+  });
+
+  it('close removes from both lists', () => {
+    let s = state({ open: ['a'], minimized: ['b'] });
+    s = dockReducer(s, { type: 'CLOSE_WINDOW', id: 'a' });
+    s = dockReducer(s, { type: 'CLOSE_WINDOW', id: 'b' });
+    expect(s.open).toEqual([]);
+    expect(s.minimized).toEqual([]);
+  });
+
+  it('HYDRATE dedupes open∩minimized (open wins) and applies the cap', () => {
+    const s = dockReducer(state({ cap: 2 }), {
+      type: 'HYDRATE',
+      state: { panelOpen: true, open: ['a', 'b', 'c', 'a'], minimized: ['b', 'd'] },
+    });
+    expect(s.panelOpen).toBe(true);
+    expect(s.open).toEqual(['b', 'c']);
+    expect(s.minimized.sort()).toEqual(['a', 'd']);
+  });
+
+  it('PRUNE drops ids not in the conversation list', () => {
+    const s = dockReducer(state({ open: ['a', 'gone'], minimized: ['b', 'gone2'] }), {
+      type: 'PRUNE',
+      validIds: ['a', 'b'],
+    });
+    expect(s.open).toEqual(['a']);
+    expect(s.minimized).toEqual(['b']);
+  });
+});
+
+describe('persistence round-trip', () => {
+  it('serialize → parse preserves layout', () => {
+    const s = state({ panelOpen: true, open: ['a'], minimized: ['b'] });
+    expect(parseDockState(serializeDockState(s))).toEqual({
+      panelOpen: true,
+      open: ['a'],
+      minimized: ['b'],
+    });
+  });
+
+  it('rejects garbage and wrong versions', () => {
+    expect(parseDockState(null)).toBeNull();
+    expect(parseDockState('not json')).toBeNull();
+    expect(parseDockState(JSON.stringify({ v: 2, open: [] }))).toBeNull();
+    expect(parseDockState(JSON.stringify({ v: 1, open: [1, 'a'], minimized: null, panelOpen: 'x' })))
+      .toEqual({ panelOpen: false, open: ['a'], minimized: [] });
+  });
+});

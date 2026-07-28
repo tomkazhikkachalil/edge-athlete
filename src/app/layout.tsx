@@ -6,6 +6,7 @@ import { MessagesProvider } from "@/lib/messages";
 import { GlobalToasts } from "@/components/Toast";
 import ActingAsBanner from "@/components/ActingAsBanner";
 import TransferBanner from "@/components/TransferBanner";
+import ChatDock from "@/components/chat-dock/ChatDock";
 import "./globals.css";
 import "@fortawesome/fontawesome-free/css/all.min.css";
 
@@ -75,6 +76,9 @@ export default function RootLayout({
               <ActingAsBanner />
               <TransferBanner />
               {children}
+              {/* Persistent chat dock (big screens; flag-gated internally).
+                  Root-level = survives every client navigation untouched. */}
+              <ChatDock />
               {/* One app-wide toast surface — every component's useToast()
                   renders here (per-page containers are gone) */}
               <GlobalToasts />

@@ -18,6 +18,11 @@ interface Props {
   disabled?: boolean;
   replyingTo?: Message | null;
   onCancelReply?: () => void;
+  // Draft support (chat dock): seed the input and observe every text
+  // change (typing, emoji insertion, clear-on-send) from one place.
+  // Behavior is unchanged when these props are absent.
+  initialText?: string;
+  onTextChange?: (text: string) => void;
 }
 
 const MESSAGE_EDITOR_CONFIG: EditorConfig = {
@@ -29,8 +34,8 @@ const MESSAGE_EDITOR_CONFIG: EditorConfig = {
 
 const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50MB
 
-export default function MessageInput({ conversationId, currentUserId, onSend, disabled, replyingTo, onCancelReply }: Props) {
-  const [text, setText] = useState('');
+export default function MessageInput({ conversationId, currentUserId, onSend, disabled, replyingTo, onCancelReply, initialText, onTextChange }: Props) {
+  const [text, setText] = useState(initialText ?? '');
   const [attachedFile, setAttachedFile] = useState<File | null>(null);
   const [attachedPreview, setAttachedPreview] = useState<string | null>(null);
   const [attachedType, setAttachedType] = useState<'image' | 'video' | null>(null);
@@ -49,6 +54,16 @@ export default function MessageInput({ conversationId, currentUserId, onSend, di
       textareaRef.current.focus();
     }
   }, [replyingTo]);
+
+  // Draft observer (chat dock): one effect covers every text mutation —
+  // typing, emoji insertion, and the clear-on-send reset.
+  const onTextChangeRef = useRef(onTextChange);
+  useEffect(() => {
+    onTextChangeRef.current = onTextChange;
+  }, [onTextChange]);
+  useEffect(() => {
+    onTextChangeRef.current?.(text);
+  }, [text]);
 
   // Broadcast typing indicator
   const broadcastTyping = useCallback(() => {
