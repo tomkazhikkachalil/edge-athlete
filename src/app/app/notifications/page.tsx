@@ -50,7 +50,10 @@ export default function NotificationsPage() {
       return ['like', 'comment', 'comment_reply', 'mention', 'tag'].includes(notification.type);
     }
     if (activeTab === 'system') {
-      return ['achievement', 'system_announcement', 'club_update', 'team_update'].includes(notification.type);
+      return [
+        'achievement', 'system_announcement', 'club_update', 'team_update',
+        'event_invite', 'event_update', 'event_cancelled', 'event_response',
+      ].includes(notification.type);
     }
     return true; // 'all'
   });

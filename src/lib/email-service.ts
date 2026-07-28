@@ -154,6 +154,86 @@ This email was sent from your website's contact form.
   }
 
   /**
+   * Calendar event invitation for an EMAIL invitee (not an app user yet) —
+   * read-only v1: full details + a join-the-app path. Registered guests get
+   * in-app notifications instead, never this email. whenText is formatted
+   * server-side in the event's own time zone (email has no browser tz).
+   */
+  async sendEventInvite(
+    to: string,
+    data: {
+      organizerName: string;
+      title: string;
+      whenText: string;
+      timezone: string;
+      location?: string | null;
+      description?: string | null;
+    },
+    appUrl: string
+  ): Promise<void> {
+    const organizer = escapeHtml(data.organizerName);
+    const title = escapeHtml(data.title);
+    const detailRows = [
+      `<p style="color:#333;font-size:15px;margin:4px 0;"><strong>When:</strong> ${escapeHtml(data.whenText)} (${escapeHtml(data.timezone)})</p>`,
+      data.location ? `<p style="color:#333;font-size:15px;margin:4px 0;"><strong>Where:</strong> ${escapeHtml(data.location)}</p>` : '',
+      data.description ? `<p style="color:#333;font-size:15px;margin:4px 0;"><strong>Details:</strong> ${escapeHtml(data.description)}</p>` : '',
+    ].join('');
+    await this.transporter.sendMail({
+      from: process.env.EMAIL_FROM || 'noreply@yourdomain.com',
+      to,
+      subject: `Invitation: ${data.title}`,
+      html: `
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+          ${logoHeader(appUrl)}
+          <h2 style="color:#6d28d9;">${organizer} invited you to ${title}</h2>
+          ${detailRows}
+          <p style="color:#333;font-size:15px;line-height:1.6;margin-top:12px;">
+            To respond and see updates, join Edge Athlete with this email
+            address — the event will be waiting on your calendar.
+          </p>
+          <a href="${appUrl}/"
+             style="display:inline-block;background:#7c3aed;color:#fff;text-decoration:none;padding:10px 20px;border-radius:6px;font-size:14px;margin-top:8px;">
+            Join Edge Athlete
+          </a>
+          <div style="margin-top:20px;padding-top:20px;border-top:1px solid #eee;color:#888;font-size:12px;">
+            <p>— Edge Athlete</p>
+          </div>
+        </div>
+      `,
+      text: `${data.organizerName} invited you to ${data.title}\n\nWhen: ${data.whenText} (${data.timezone})${data.location ? `\nWhere: ${data.location}` : ''}${data.description ? `\nDetails: ${data.description}` : ''}\n\nTo respond and see updates, join Edge Athlete with this email address: ${appUrl}/\n\n— Edge Athlete`,
+    });
+  }
+
+  /**
+   * Calendar event cancellation for an EMAIL invitee.
+   */
+  async sendEventCancelled(
+    to: string,
+    data: { organizerName: string; title: string; whenText: string },
+    appUrl: string
+  ): Promise<void> {
+    await this.transporter.sendMail({
+      from: process.env.EMAIL_FROM || 'noreply@yourdomain.com',
+      to,
+      subject: `Cancelled: ${data.title}`,
+      html: `
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+          ${logoHeader(appUrl)}
+          <h2 style="color:#6d28d9;">${escapeHtml(data.title)} was cancelled</h2>
+          <p style="color:#333;font-size:15px;line-height:1.6;">
+            ${escapeHtml(data.organizerName)} cancelled this event
+            (${escapeHtml(data.whenText)}). No action is needed.
+          </p>
+          <div style="margin-top:20px;padding-top:20px;border-top:1px solid #eee;color:#888;font-size:12px;">
+            <p>— Edge Athlete</p>
+          </div>
+        </div>
+      `,
+      text: `${data.title} was cancelled.\n\n${data.organizerName} cancelled this event (${data.whenText}). No action is needed.\n\n— Edge Athlete`,
+    });
+  }
+
+  /**
    * Co-guardian invite — an existing guardian or support invites another
    * adult to become the guardian of an EXISTING supervised profile (second
    * guardian, or orphan-profile takeover). The link carries the raw
