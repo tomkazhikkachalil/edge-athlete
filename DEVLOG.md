@@ -1,5 +1,77 @@
 # Development Log
 
+## July 28, 2026 (night) — Guardian hard-delete parity + orphan/support tooling SHIPPED — GUARDIAN FEATURE COMPLETE (dark)
+
+**Commits 0470810 + 8a71243, E2E 27/27 + browser smoke 9/9, tests 371,
+dark behind the flag (admin routes follow the requireAdmin-only
+convention). This was the last guardian item — the feature is now DONE
+end to end: create → consent → credentials → approve → transfer →
+activation → delete parity → support tooling.**
+
+**⚠️ MIGRATION 056 WRITTEN, NOT YET RUN** (no SQL access this session —
+paste `database/migrations/056_consent_records_allow_fk_setnull.sql`
+into the SQL editor). It fixes a REAL schema bug the E2E found: 050's
+design has consent rows survive deletion via FK ON DELETE SET NULL, but
+the shared append-only trigger blocked that exact UPDATE — so ANY
+account with consent rows was UNDELETABLE (even via auth cascade; the
+guardian's own later self-delete too, via the guardian_user_id FK). 056
+gives consent_records its own guard permitting ONLY the FK-null
+transition; plain UPDATEs and DELETEs still raise. Until it runs, the
+deletion engine releases the FKs explicitly UP FRONT and aborts cleanly
+with nothing deleted (E2E-verified in the pre-056 world; rerun the
+harness after 056 for the full consented-delete flow). Transitional
+quirk: a pre-056 failed child-delete leaves the just-written
+'withdrawn' consent row (needed the live FK), so that child reads
+consent=withdrawn without being deleted — resolves once 056 runs.
+
+- **Shared deletion engine (lib/account-deletion.ts)** — one hard-delete
+  path for self-serve, guardian child-delete, and admin cleanup. Fixes
+  the old route's storage cleanup (wrong buckets: split on
+  avatars/post-media while uploads live in 'uploads'; covers never
+  cleaned; workout media missed) via storageRefFromUrl (unit-tested,
+  consent-evidence denylisted — signed forms survive by design).
+- **/api/account/delete is now guardian-aware** (flag-gated preflight,
+  BEFORE any deletion): supervised minors 403 (a child who knew their
+  password could previously self-delete — policy hole); sole-guardian
+  of supervised children 409 naming them (previously: 500 MID-deletion
+  on the zero-access trigger for credential-less children — half-deleted
+  guardian account — or silent orphaning for credentialed ones);
+  co-guardian children allowed + 'revoked' audit rows. DeleteAccountModal
+  needed zero changes (it already surfaces data.error).
+- **Child hard-delete** — DELETE /api/guardian/athletes/[profileId]:
+  guardian-only, supervised-only, type-the-handle server-verified (no
+  password — OAuth guardians). Writes 'withdrawn' consent row (snapshot
+  copied forward) + 'revoked' audit rows first. Danger-zone card on the
+  credentials page (disabled-until-match, consent-retention notice).
+- **Co-guardian invites unbroken** — the claim route used to CONSUME a
+  guardian_additional token then 410 (burn bug). Now peek-then-typed-
+  redeem: preconditions validated before consuming (supervised target /
+  not the child / not already guardian / 2-guardian cap), typed redeems
+  mean foreign tokens (athlete_activation etc.) are never burned,
+  RPC-failure un-consumes. grant_guardian_access RPC finally has a
+  caller. Landing page + peek render the "become {name}'s guardian"
+  story; new sendCoGuardianInvite email.
+- **Admin orphan tooling** — /api/admin/guardian-support: GET lists
+  supervised profiles with ZERO guardians (has-login + consent badges);
+  invite_guardian → guardian_additional token, returns {inviteUrl,
+  emailSent} (link copyable when SMTP off — no silent failure);
+  delete_profile → engine. /dashboard/guardians queue page; admin home
+  gains a "Queues" section (consent reviews were reachable only by
+  typing the URL before).
+- E2E (disposable users incl. a disposable admin via ADMIN_EMAILS env
+  override on the dev server): self-delete regression with real storage
+  files verified gone; sole-guardian 409 with NOTHING partially
+  deleted; supervised self-delete 403; wrong-handle 400; non-managed
+  403; pre-056 clean abort; orphan manufactured (service-role strip) →
+  listed → invited → claimed → granted → resolved; wrong-type claim 410
+  token intact; double-claim 410; already-guardian 409 token intact;
+  admin delete. Browser: danger-zone flow deletes for real, guardians
+  queue renders, co-guardian landing copy. lint / tsc / vitest 371 /
+  clean build (105 pages) green.
+
+REMAINING (guardian feature): NOTHING — run migration 056, then Tom's
+end-to-end walkthrough.
+
 ## July 28, 2026 (evening) — Post-transfer activation + review walkthrough SHIPPED (dark)
 
 **Commit 04a74af, API E2E 15/15 + browser smoke 8/8, tests 365, dark.
