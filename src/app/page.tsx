@@ -252,6 +252,26 @@ export default function Home() {
     const password = formDataObj.get('password') as string;
 
     try {
+      // Supervised-minor login: an identifier without '@' is a username
+      // (their handle). The server hard-rejects non-supervised accounts, so
+      // this can never become a general login path.
+      if (FEATURE_FLAGS.FEATURE_GUARDIAN_PROFILES && email && !email.includes('@')) {
+        const res = await fetch('/api/auth/username-login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ username: email, secret: password }),
+        });
+        if (res.ok) {
+          // Cookies were set server-side — hard reload picks up the session.
+          window.location.href = '/athlete';
+          return;
+        }
+        const data = await res.json().catch(() => ({}));
+        setError(data.error || 'Invalid username or password');
+        setIsSubmitting(false);
+        return;
+      }
+
       const { error } = await signIn(email, password);
       
       if (error) {
@@ -581,12 +601,15 @@ export default function Home() {
             )}
             <form className="space-y-4" onSubmit={handleLoginSubmit}>
               <div>
-                <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-2">Email</label>
-                <input 
-                  type="email" 
+                <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-2">
+                  {FEATURE_FLAGS.FEATURE_GUARDIAN_PROFILES ? 'Email or username' : 'Email'}
+                </label>
+                <input
+                  type={FEATURE_FLAGS.FEATURE_GUARDIAN_PROFILES ? 'text' : 'email'}
                   name="email"
-                  className="w-full px-3 py-3 sm:py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-violet-500 text-base text-gray-800" 
-                  placeholder="Enter your email"
+                  autoComplete="username"
+                  className="w-full px-3 py-3 sm:py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-violet-500 text-base text-gray-800"
+                  placeholder={FEATURE_FLAGS.FEATURE_GUARDIAN_PROFILES ? 'Enter your email or username' : 'Enter your email'}
                   required
                 />
               </div>

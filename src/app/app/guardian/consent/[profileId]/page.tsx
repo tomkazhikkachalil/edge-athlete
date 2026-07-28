@@ -89,6 +89,15 @@ export default function ConsentPage() {
                   ? "You're all set — you can now choose what to share from their profile."
                   : "We've received your signed form. We'll review it shortly — the profile stays private until then."}
               </p>
+              {state === 'approved' && (
+                <button
+                  type="button"
+                  onClick={() => router.push(`/app/guardian/credentials/${profileId}`)}
+                  className="w-full max-w-xs mx-auto bg-violet-600 text-white py-3 px-4 rounded-md hover:bg-violet-700 transition text-sm font-medium mb-3 block"
+                >
+                  Set up their login
+                </button>
+              )}
               <button type="button" onClick={() => router.push('/athlete')} className="text-sm text-violet-600 hover:underline">
                 Back to my account
               </button>

@@ -10,6 +10,7 @@ import {
   jurisdictionFromHeaders,
 } from '@/lib/config/minors-config';
 import { randomBytes } from 'crypto';
+import { validateSupervisedHandle } from '@/lib/supervised-credentials';
 
 // ── /api/guardian/athletes ────────────────────────────────────────────────────
 // Step B: a guardian creates (and lists) managed athlete profiles.
@@ -67,6 +68,14 @@ export async function POST(request: NextRequest) {
     const formatResult = validateHandleFormat(handle);
     if (!formatResult.isValid) {
       return NextResponse.json({ error: formatResult.error || 'Invalid handle format.' }, { status: 400 });
+    }
+    // Minor-safety: usernames must not leak identity (full name, name +
+    // birth-year). The handle IS the child's future login username.
+    const pii = validateSupervisedHandle(
+      handle, first_name, last_name, new Date(dob).getUTCFullYear()
+    );
+    if (!pii.ok) {
+      return NextResponse.json({ error: pii.reason }, { status: 400 });
     }
 
     const admin = getSupabaseAdmin();

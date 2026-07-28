@@ -63,6 +63,14 @@ export async function POST(request: NextRequest) {
         );
       }
       userId = targetProfileId;
+    } else if (FEATURE_FLAGS.FEATURE_GUARDIAN_PROFILES) {
+      // Supervised minors posting to their OWN profile: content queues for
+      // guardian approval — they can write, never publish (resolver matrix).
+      const { getProfileRole } = await import('@/lib/auth-server');
+      const selfRole = await getProfileRole(user.id, user.id);
+      if (selfRole === 'supervised') {
+        body.__forcePendingApproval = true;
+      }
     }
 
     // Validate post type: 'general' plus any registry-enabled sport.
@@ -95,6 +103,8 @@ export async function POST(request: NextRequest) {
       sport_key: postType, // Use postType as sport_key for our unified approach
       caption: caption,
       visibility: visibility,
+      // Supervised authors queue for guardian approval (guardian-profiles).
+      ...(body.__forcePendingApproval ? { status: 'pending_approval' } : {}),
       tags: taggedProfiles, // Store tagged people IDs (not category tags)
       hashtags: hashtags,
       likes_count: 0,
@@ -925,13 +935,13 @@ export async function PATCH(request: NextRequest) {
     if (!postId || typeof postId !== 'string') {
       return NextResponse.json({ error: 'Post ID is required' }, { status: 400 });
     }
-    if (action !== 'pin' && action !== 'unpin') {
-      return NextResponse.json({ error: "action must be 'pin' or 'unpin'" }, { status: 400 });
+    if (!['pin', 'unpin', 'approve', 'reject'].includes(action)) {
+      return NextResponse.json({ error: "action must be 'pin', 'unpin', 'approve', or 'reject'" }, { status: 400 });
     }
 
     const { data: post, error: fetchError } = await supabase
       .from('posts')
-      .select('id, profile_id, is_pinned')
+      .select('id, profile_id, is_pinned, status')
       .eq('id', postId)
       .maybeSingle();
 
@@ -942,6 +952,31 @@ export async function PATCH(request: NextRequest) {
     if (!post) {
       return NextResponse.json({ error: 'Post not found' }, { status: 404 });
     }
+    // Approval-queue actions (guardian-profiles): guardians of the post's
+    // profile publish or reject a supervised author's pending post.
+    if (action === 'approve' || action === 'reject') {
+      if (!FEATURE_FLAGS.FEATURE_GUARDIAN_PROFILES) {
+        return NextResponse.json({ error: 'Not available' }, { status: 404 });
+      }
+      const { getProfileRole } = await import('@/lib/auth-server');
+      const { resolveProfileAction } = await import('@/lib/profile-roles');
+      const role = await getProfileRole(user.id, post.profile_id);
+      if (!resolveProfileAction(role, 'approve_content')) {
+        return NextResponse.json({ error: 'Guardian access required' }, { status: 403 });
+      }
+      if (post.status !== 'pending_approval') {
+        return NextResponse.json({ error: 'This post is not awaiting approval' }, { status: 400 });
+      }
+      const { error: statusError } = await supabase
+        .from('posts')
+        .update({ status: action === 'approve' ? 'published' : 'rejected' })
+        .eq('id', postId);
+      if (statusError) {
+        return NextResponse.json({ error: 'Failed to update post' }, { status: 500 });
+      }
+      return NextResponse.json({ ok: true, status: action === 'approve' ? 'published' : 'rejected' });
+    }
+
     if (post.profile_id !== user.id) {
       return NextResponse.json({ error: 'You can only pin your own posts' }, { status: 403 });
     }
