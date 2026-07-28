@@ -1,5 +1,28 @@
 # Development Log
 
+## July 28, 2026 (night 3) — Maintenance sync + CALENDAR LAUNCH PREP
+
+- lint clean · `tsc --noEmit` clean · `vitest` 431 passed (41 files) ·
+  `npm ci --dry-run` clean · full clean `npm run build` success, 110
+  pages (dev servers stopped, `.next` wiped first).
+- Migration state: through 059, ALL run + behaviorally verified
+  (059 same night: sync+reminders E2E 28/28; Tom to eyeball cron.job /
+  net._http_response per the migration's verification queries).
+- **Tom approved LAUNCHING the calendar publicly.** The Vercel CLI's
+  env-write was permission-blocked from the agent side, so the flag is
+  a manual dashboard step: Vercel → edge-athlete → Settings →
+  Environment Variables → add NEXT_PUBLIC_FEATURE_CALENDAR = 1
+  (Production; Preview optional). NEXT_PUBLIC_* is build-time-inlined:
+  the flag takes effect on the NEXT deployment (the launch commit that
+  follows Tom's confirmation triggers a fresh build), NOT retroactively.
+  Launch verification probe: GET /api/calendar/events unauthenticated →
+  401 = flag baked in and live; 404 = still dark.
+- The calendar ships everything from the brief except org invites
+  (blocked on organizations existing): views, events, full invite loop,
+  recurrence with scope editing, feed widget, reminders (pg_cron
+  10-min trigger + daily safety net), Add-to-calendar + subscribe feed.
+- Guardian feature remains dark by choice (awaiting Tom's walkthrough).
+
 ## July 28, 2026 (night 2) — Calendar EXTERNAL SYNC + REMINDERS built (dark)
 
 **Commits a553798 / e519524 / e8c3778 (+ docs), dark behind the calendar
