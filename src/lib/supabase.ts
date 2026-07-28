@@ -109,6 +109,10 @@ export interface Profile {
   cover_url?: string;
   // Privacy settings
   visibility?: 'public' | 'private';
+  // Guardian-profiles: 'supervised' while a guardian manages the account,
+  // 'self' after the transfer of control completes.
+  supervision_state?: 'self' | 'supervised' | string;
+  dob_locked?: boolean;
   // Note: Sport-specific settings (golf, hockey, etc.) are now stored in the sport_settings table
 }
 

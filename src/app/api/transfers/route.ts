@@ -21,7 +21,7 @@ export async function GET(request: NextRequest) {
 
     const { data } = await getSupabaseAdmin()
       .from('profile_transfers')
-      .select('id, state, initiated_by, athlete_contact_email, contact_verified_at, athlete_confirmed_at, guardian_confirmed_at, cooling_off_ends_at, created_at')
+      .select('id, state, initiated_by, athlete_contact_email, contact_verified_at, athlete_confirmed_at, guardian_confirmed_at, cooling_off_ends_at, guardian_post_role, created_at')
       .eq('profile_id', profileId)
       .in('state', [...ACTIVE_TRANSFER_STATES])
       .maybeSingle();
@@ -72,7 +72,12 @@ export async function POST(request: NextRequest) {
       }
       const { data: updated } = await admin
         .from('profile_transfers')
-        .update({ state: targetState, initiated_by: role, initiator_user_id: user.id })
+        // initiated_by CHECK allows 'athlete', not the 'supervised' role string.
+        .update({
+          state: targetState,
+          initiated_by: role === 'supervised' ? 'athlete' : role,
+          initiator_user_id: user.id,
+        })
         .eq('id', existing.id)
         .select('id, state')
         .single();
@@ -84,7 +89,7 @@ export async function POST(request: NextRequest) {
       .insert({
         profile_id: profileId,
         state: targetState,
-        initiated_by: role,
+        initiated_by: role === 'supervised' ? 'athlete' : role,
         initiator_user_id: user.id,
         dob_snapshot: profile.dob,
       })
