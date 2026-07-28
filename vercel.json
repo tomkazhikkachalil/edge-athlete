@@ -69,7 +69,7 @@
   ],
   "crons": [
     {
-      "path": "/api/cron/notification-digest",
+      "path": "/api/cron/daily",
       "schedule": "0 14 * * *"
     },
     {

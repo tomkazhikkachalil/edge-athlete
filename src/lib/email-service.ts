@@ -154,6 +154,27 @@ This email was sent from your website's contact form.
   }
 
   /**
+   * Transfer contact-verification code (guardian-profiles transfer flow).
+   */
+  async sendTransferCode(to: string, code: string, appUrl: string): Promise<void> {
+    await this.transporter.sendMail({
+      from: process.env.EMAIL_FROM || 'noreply@yourdomain.com',
+      to,
+      subject: `${code} is your Edge Athlete verification code`,
+      html: `
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+          ${logoHeader(appUrl)}
+          <h2 style="color:#6d28d9;">Verify your email</h2>
+          <p style="color:#333;font-size:15px;">Enter this code to confirm this email belongs to you:</p>
+          <p style="font-size:28px;font-weight:bold;letter-spacing:6px;color:#111;">${escapeHtml(code)}</p>
+          <p style="color:#888;font-size:12px;">The code expires in 15 minutes. If you weren't expecting this, ignore it.</p>
+        </div>
+      `,
+      text: `${code} is your Edge Athlete verification code. It expires in 15 minutes.`,
+    });
+  }
+
+  /**
    * Notification digest — a summary of a user's recent unread activity.
    * Sent to the user's own email (opt-in via notification_preferences).
    */
