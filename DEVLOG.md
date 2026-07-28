@@ -1,5 +1,43 @@
 # Development Log
 
+## July 28, 2026 (later) — Guardian approval-queue screen SHIPPED (dark)
+
+**Commit 1ed9103, E2E 16/16 first run, dark behind the flag. Closes the
+biggest guardian polish gap: pending posts were only reviewable by
+browsing the child's grids while acting-as — now there's a dedicated
+queue.**
+
+- **GET /api/guardian/pending-posts** — every pending_approval post
+  across ALL the caller's managed athletes (profile_access guardian
+  rows), oldest first, with post_media + athlete join. Uses the
+  051 partial index (`idx_posts_status_pending`). Flag off → `[]`.
+- **/app/guardian/approvals** — queue page in the guardian console
+  style (BrandBar, violet). Approve/reject per post via the EXISTING
+  `PATCH /api/posts {postId, action}` (which re-verifies the guardian
+  row + approve_content per call — listing grants nothing the decision
+  endpoint wouldn't). Approved/rejected rows drop from the list
+  optimistically; empty state "All caught up." Linked from the "Your
+  athletes" section of the AppHeader profile switcher (only when the
+  user has managed athletes).
+- **Single-post guardian access** — GET /api/posts?postId= now lets
+  approve_content holders open their athletes' posts: both the
+  pending-status gate and the private-profile/no-follow-edge gate
+  accept a guardian. The role lookup is lazy + memoized — it only runs
+  when a cheaper gate would otherwise refuse, so the hot path
+  (published/public posts) is unchanged. This was the in-code TODO
+  ("guardian access arrives with the approval-queue UI").
+- E2E (disposable guardian/child/stranger vs local dev, cleaned up):
+  athlete creation via the real Step-B API, queue listing/ordering/
+  joins, stranger sees empty queue, anon 401, guardian opens pending
+  post (200) / stranger 404, stranger approve 403, approve→published +
+  DB verified, reject→rejected + DB verified, queue drains, re-approve
+  of a published post 400.
+- lint / tsc / vitest 355 / clean `npm run build` all green.
+
+REMAINING guardian polish: transfer UI screens (machine still
+server-only), post-transfer review walkthrough, guardian hard-delete
+parity + orphan/support tooling.
+
 ## July 28, 2026 (end of session) — Maintenance checklist + sync
 
 - lint clean · `tsc --noEmit` clean · `vitest` 355 passed (34 files) ·
