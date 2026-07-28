@@ -13,6 +13,7 @@ import type { CalendarViewKind, EventDetail, EventListItem } from './types';
 
 const EventFormModal = dynamic(() => import('./EventFormModal'), { ssr: false });
 const EventDetailModal = dynamic(() => import('./EventDetailModal'), { ssr: false });
+const CalendarSyncModal = dynamic(() => import('./CalendarSyncModal'), { ssr: false });
 
 const VIEWS: { key: CalendarViewKind; label: string; icon: string }[] = [
   { key: 'month', label: 'Month', icon: 'fa-calendar' },
@@ -39,6 +40,7 @@ export default function CalendarPage({
   // ?new=1 hand-off (feed widget) opens the create form immediately.
   const [formOpen, setFormOpen] = useState(autoCreate);
   const [editingEvent, setEditingEvent] = useState<EventDetail | null>(null);
+  const [syncOpen, setSyncOpen] = useState(false);
 
   // The visible range drives the fetch (month/agenda use the full 42-cell
   // grid so boundary days render their events too).
@@ -170,6 +172,16 @@ export default function CalendarPage({
 
         <button
           type="button"
+          onClick={() => setSyncOpen(true)}
+          aria-label="Sync to another calendar"
+          title="Sync to another calendar"
+          className="h-9 px-2.5 rounded-lg border border-gray-300 text-gray-600 hover:border-violet-400 hover:text-violet-600 text-sm"
+        >
+          <i className="fas fa-rotate"></i>
+        </button>
+
+        <button
+          type="button"
           onClick={() => { setEditingEvent(null); setFormOpen(true); }}
           className="h-9 px-3 sm:px-4 bg-violet-600 text-white rounded-lg text-sm font-medium hover:bg-violet-700 transition flex items-center gap-1.5"
         >
@@ -221,6 +233,7 @@ export default function CalendarPage({
           setFormOpen(true);
         }}
       />
+      <CalendarSyncModal isOpen={syncOpen} onClose={() => setSyncOpen(false)} />
     </div>
   );
 }

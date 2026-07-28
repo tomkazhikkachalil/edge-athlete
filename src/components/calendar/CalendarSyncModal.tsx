@@ -1,0 +1,169 @@
+'use client';
+
+import { useEffect, useState } from 'react';
+import { X, CalendarSync } from 'lucide-react';
+import { useBodyScrollLock } from '@/hooks/useBodyScrollLock';
+import { useToast } from '@/components/Toast';
+import ConfirmModal from '@/components/ConfirmModal';
+
+// "See your Edge Athlete events in Google/Outlook": creates a personal
+// subscribe link (capability URL — shown ONCE, hash-stored server-side).
+// Regenerating invalidates the old link everywhere it was added.
+
+export default function CalendarSyncModal({
+  isOpen,
+  onClose,
+}: {
+  isOpen: boolean;
+  onClose: () => void;
+}) {
+  const { showSuccess, showError } = useToast();
+  const [exists, setExists] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [creating, setCreating] = useState(false);
+  const [url, setUrl] = useState<string | null>(null);
+  const [confirmRotate, setConfirmRotate] = useState(false);
+  useBodyScrollLock(isOpen);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    setUrl(null);
+    setLoading(true);
+    (async () => {
+      try {
+        const res = await fetch('/api/calendar/feed-token');
+        const data = await res.json().catch(() => ({}));
+        if (res.ok) setExists(!!data.exists);
+      } catch {
+        // status is a nicety; the create button still works
+      } finally {
+        setLoading(false);
+      }
+    })();
+  }, [isOpen]);
+
+  if (!isOpen) return null;
+
+  const create = async () => {
+    setConfirmRotate(false);
+    setCreating(true);
+    try {
+      const res = await fetch('/api/calendar/feed-token', { method: 'POST' });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) { showError('Could not create the link', data.error || 'Please try again.'); return; }
+      setUrl(data.url);
+      setExists(true);
+    } catch {
+      showError('Could not create the link', 'Please try again.');
+    } finally {
+      setCreating(false);
+    }
+  };
+
+  const copy = async () => {
+    if (!url) return;
+    try {
+      await navigator.clipboard.writeText(url);
+      showSuccess('Copied', 'Paste it into Google or Outlook.');
+    } catch {
+      showError('Could not copy', 'Select and copy the link manually.');
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+      <div className="bg-white rounded-lg shadow-xl max-w-lg w-full max-h-[85vh] overflow-y-auto">
+        <div className="flex items-center justify-between p-6 border-b border-gray-200">
+          <div className="flex items-center gap-3">
+            <span className="w-9 h-9 rounded-full bg-violet-100 flex items-center justify-center">
+              <CalendarSync className="w-5 h-5 text-violet-600" />
+            </span>
+            <h2 className="text-lg font-bold text-gray-900">Sync to another calendar</h2>
+          </div>
+          <button type="button" onClick={onClose} aria-label="Close" className="text-gray-400 hover:text-gray-600">
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+
+        <div className="p-6 space-y-4">
+          <p className="text-sm text-gray-600">
+            Subscribe once from Google or Outlook and your Edge Athlete events
+            appear there automatically and stay updated. The link is read-only.
+          </p>
+
+          {loading ? (
+            <div className="flex justify-center py-4">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-violet-600"></div>
+            </div>
+          ) : url ? (
+            <div className="space-y-3">
+              <div className="bg-violet-50 border border-violet-200 rounded-lg p-3">
+                <p className="text-xs font-semibold text-violet-800 mb-1.5">
+                  Your personal calendar link — treat it like a password:
+                </p>
+                <code className="block text-xs text-gray-800 break-all select-all mb-2">{url}</code>
+                <button
+                  type="button"
+                  onClick={copy}
+                  className="bg-violet-600 text-white px-3 py-1.5 rounded-md text-xs font-medium hover:bg-violet-700"
+                >
+                  <i className="fas fa-copy mr-1.5"></i>
+                  Copy link
+                </button>
+              </div>
+              <p className="text-xs text-gray-500">
+                This is the only time the link is shown. Anyone with it can see
+                your events; if it ever leaks, regenerate it here and the old
+                link stops working.
+              </p>
+            </div>
+          ) : (
+            <button
+              type="button"
+              onClick={() => (exists ? setConfirmRotate(true) : create())}
+              disabled={creating}
+              className="w-full bg-violet-600 text-white py-3 px-4 rounded-lg hover:bg-violet-700 transition flex items-center justify-center text-sm font-medium disabled:opacity-50 min-h-[44px]"
+            >
+              {creating ? (
+                <><i className="fas fa-spinner fa-spin mr-2"></i> Creating…</>
+              ) : exists ? 'Regenerate my calendar link' : 'Create my calendar link'}
+            </button>
+          )}
+          {exists && !url && !loading && (
+            <p className="text-xs text-gray-500">
+              You already have a link. For your security it can&apos;t be shown
+              again — regenerating creates a new one and invalidates the old.
+            </p>
+          )}
+
+          <div className="border-t border-gray-100 pt-4 text-xs text-gray-500 space-y-2">
+            <p className="font-semibold text-gray-700">How to subscribe</p>
+            <p>
+              <span className="font-medium text-gray-700">Google Calendar:</span>{' '}
+              Settings → Add calendar → From URL → paste the link.
+            </p>
+            <p>
+              <span className="font-medium text-gray-700">Outlook:</span>{' '}
+              Add calendar → Subscribe from web → paste the link.
+            </p>
+            <p className="text-gray-400">
+              Calendar apps refresh subscriptions on their own schedule —
+              new events can take a few hours to appear there.
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <ConfirmModal
+        isOpen={confirmRotate}
+        title="Regenerate your calendar link?"
+        message="Your current link will stop working everywhere it was added. You'll need to re-subscribe with the new one."
+        confirmText="Regenerate"
+        cancelText="Keep current link"
+        confirmButtonClass="bg-violet-600 hover:bg-violet-700"
+        onConfirm={create}
+        onCancel={() => setConfirmRotate(false)}
+      />
+    </div>
+  );
+}
