@@ -1,5 +1,52 @@
 # Development Log
 
+## July 28, 2026 (evening 2) — CALENDAR RECURRENCE BUILT (dark) — series, scope editing, per-occurrence declines
+
+**Commits 860f347 / d64a841 / 7e4d809 (+ docs), dark behind the calendar
+flag. Stage 3 of Tom's calendar brief: repeat patterns, the classic
+"This event / This and following / Entire series" question,
+single-occurrence overrides, series invitations with per-occurrence
+decline. ⚠️ MIGRATION 058 WRITTEN, NOT YET RUN — live E2E waits on it
+(scratchpad recurrence-e2e.mjs, ~25 checks, ready).**
+
+- **Architecture: MATERIALIZED OCCURRENCES.** event_series holds ONLY
+  the rule; every occurrence is a real events row with its own guest
+  rows — the entire v1 read path (range query, respond, tally, deep
+  links, pending styling) is untouched. Per-occurrence decline IS the
+  v1 respond endpoint. One cap: 104 occurrences; 'never' series roll a
+  ~6-month window the daily cron extends (new phase 3, flag-gated).
+- **DST-safe pure core (tests 396→415, all first-run green):**
+  zonedWallClockToUtc two-pass offset solver over cached Intl
+  formatters — weekly 18:00 New York stays 18:00 local across both DST
+  transitions; pinned semantics: fall-back ambiguity → earlier
+  instant, spring-forward gap → lands after the gap (2026-03-08 02:30
+  NY → 03:30 EDT, fixture-tested). Weekly stepping anchors to the
+  FIRST occurrence's week so every-other-week parity survives cron
+  resumption (fixture). Monthly-31/Feb-29 skip shorter periods (RFC
+  5545). byweekday must include the start day (validator).
+- **Scope semantics (API):** PATCH/DELETE scope this|following|series +
+  respond scope this|series. Field edits skip overridden occurrences
+  (scope=this sets series_override; anchor always included); guest
+  changes and CANCELLATION never skip. Scoped time edits keep each
+  occurrence's own date via applyWallTime (date moves → 400 "edit just
+  this event"). following/series cancel bulk-flips + stops generation
+  (ends→'until'); ONE notification per guest for every series-wide
+  operation, never per occurrence. Series respond updates all active
+  occurrences ({updated_count}). Rule editing post-creation is
+  deliberately unsupported (cancel + recreate).
+- **Client:** Repeat section in the create form (frequency, "Every [n]
+  weeks", day chips with start-day locked, Never/Until/After-N);
+  ScopeChooserModal asks the classic question for edit (default: this
+  event only), cancel (destructive), and respond (default: ALL events
+  — the brief's "invitations cover the series by default"; "Just this
+  event" is the per-occurrence decline). Detail modal shows "Repeats
+  weekly on Tue, Thu · until Oct 6" ; chips get a repeat glyph.
+- Static verification: 415 unit tests, lint/tsc clean, clean build
+  (108 pages). Live E2E (series create/fan-out counts, series accept,
+  single decline, override semantics, scoped time edit, following
+  cancel + one-notification assertions, cron extension with parity +
+  status-copy checks) runs the moment 058 is applied.
+
 ## July 28, 2026 (later) — CALENDAR v1 BUILT (dark) — views + events + full invite loop
 
 **Commits fa23896 / f308de5 / 4fe5b8a (+ this docs commit), dark behind
