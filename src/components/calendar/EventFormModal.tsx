@@ -1,0 +1,378 @@
+'use client';
+
+import { useEffect, useState } from 'react';
+import { X, CalendarPlus } from 'lucide-react';
+import { useBodyScrollLock } from '@/hooks/useBodyScrollLock';
+import { useToast } from '@/components/Toast';
+import { EVENT_CATEGORIES } from '@/lib/calendar/events';
+import { CATEGORY_LABELS, categoryColor } from '@/lib/calendar/categories';
+import GuestPicker, { type GuestChip } from './GuestPicker';
+import { formatDisplayName } from '@/lib/formatters';
+import type { EventDetail } from './types';
+
+// Quick-create by default (title + when), everything else behind
+// "More options" — the Google Calendar pattern from the product brief.
+// ISO timestamps are built from numeric parts (never new Date('YYYY-MM-DD')).
+
+interface FormState {
+  title: string;
+  date: string;      // YYYY-MM-DD (native date input)
+  startTime: string; // HH:mm
+  endTime: string;   // HH:mm
+  allDay: boolean;
+  description: string;
+  location: string;
+  category: string;
+}
+
+function pad(n: number): string {
+  return String(n).padStart(2, '0');
+}
+
+function nextHalfHour(): Date {
+  const now = new Date();
+  now.setSeconds(0, 0);
+  const add = 30 - (now.getMinutes() % 30);
+  now.setMinutes(now.getMinutes() + (add === 0 ? 30 : add));
+  return now;
+}
+
+function emptyForm(defaultDay?: Date): FormState {
+  const start = nextHalfHour();
+  if (defaultDay) {
+    start.setFullYear(defaultDay.getFullYear(), defaultDay.getMonth(), defaultDay.getDate());
+  }
+  const end = new Date(start.getTime() + 3_600_000);
+  return {
+    title: '',
+    date: `${start.getFullYear()}-${pad(start.getMonth() + 1)}-${pad(start.getDate())}`,
+    startTime: `${pad(start.getHours())}:${pad(start.getMinutes())}`,
+    endTime: `${pad(end.getHours())}:${pad(end.getMinutes())}`,
+    allDay: false,
+    description: '',
+    location: '',
+    category: 'general',
+  };
+}
+
+function formFromEvent(event: EventDetail): FormState {
+  const start = new Date(Date.parse(event.starts_at));
+  const end = new Date(Date.parse(event.ends_at));
+  return {
+    title: event.title,
+    date: `${start.getFullYear()}-${pad(start.getMonth() + 1)}-${pad(start.getDate())}`,
+    startTime: `${pad(start.getHours())}:${pad(start.getMinutes())}`,
+    endTime: `${pad(end.getHours())}:${pad(end.getMinutes())}`,
+    allDay: event.all_day,
+    description: event.description ?? '',
+    location: event.location ?? '',
+    category: event.category,
+  };
+}
+
+function chipsFromEvent(event: EventDetail): GuestChip[] {
+  return event.guests
+    .filter(g => g.role !== 'organizer')
+    .map(g =>
+      g.profile_id
+        ? {
+            kind: 'profile' as const,
+            id: g.profile_id,
+            label: formatDisplayName(g.profiles?.first_name, null, g.profiles?.last_name, g.profiles?.full_name),
+            handle: g.profiles?.handle,
+            avatarUrl: g.profiles?.avatar_url,
+          }
+        : { kind: 'email' as const, id: g.invited_email!, label: g.invited_email! }
+    );
+}
+
+export default function EventFormModal({
+  isOpen,
+  onClose,
+  onSaved,
+  editing,
+  defaultDay,
+}: {
+  isOpen: boolean;
+  onClose: () => void;
+  onSaved: () => void;
+  editing?: EventDetail | null;
+  defaultDay?: Date;
+}) {
+  const { showSuccess } = useToast();
+  const [form, setForm] = useState<FormState>(() => emptyForm());
+  const [chips, setChips] = useState<GuestChip[]>([]);
+  const [moreOpen, setMoreOpen] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
+  useBodyScrollLock(isOpen);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    if (editing) {
+      setForm(formFromEvent(editing));
+      setChips(chipsFromEvent(editing));
+      setMoreOpen(true);
+    } else {
+      setForm(emptyForm(defaultDay));
+      setChips([]);
+      setMoreOpen(false);
+    }
+    setError('');
+  }, [isOpen, editing, defaultDay]);
+
+  if (!isOpen) return null;
+
+  const set = <K extends keyof FormState>(key: K, value: FormState[K]) =>
+    setForm(prev => ({ ...prev, [key]: value }));
+
+  const buildTimestamps = (): { starts_at: string; ends_at: string } | null => {
+    const [y, m, d] = form.date.split('-').map(Number);
+    if (!y || !m || !d) return null;
+    if (form.allDay) {
+      const start = new Date(y, m - 1, d, 0, 0, 0, 0);
+      const end = new Date(y, m - 1, d + 1, 0, 0, 0, 0); // exclusive midnight
+      return { starts_at: start.toISOString(), ends_at: end.toISOString() };
+    }
+    const [sh, sm] = form.startTime.split(':').map(Number);
+    const [eh, em] = form.endTime.split(':').map(Number);
+    if ([sh, sm, eh, em].some(n => !Number.isFinite(n))) return null;
+    const start = new Date(y, m - 1, d, sh, sm, 0, 0);
+    let end = new Date(y, m - 1, d, eh, em, 0, 0);
+    // An end time at/before the start means "past midnight" (10pm–1am).
+    if (end.getTime() <= start.getTime()) {
+      end = new Date(y, m - 1, d + 1, eh, em, 0, 0);
+    }
+    return { starts_at: start.toISOString(), ends_at: end.toISOString() };
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (saving) return;
+    setError('');
+    if (!form.title.trim()) { setError('Please give the event a title.'); return; }
+    const times = buildTimestamps();
+    if (!times) { setError('Please provide a valid date and time.'); return; }
+
+    const eventFields = {
+      title: form.title,
+      description: form.description,
+      location: form.location,
+      ...times,
+      all_day: form.allDay,
+      timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+      category: form.category,
+    };
+
+    setSaving(true);
+    try {
+      let res: Response;
+      if (editing) {
+        const originalChips = chipsFromEvent(editing);
+        const removed = editing.guests.filter(g =>
+          g.role !== 'organizer' &&
+          !chips.some(c => (g.profile_id ? c.kind === 'profile' && c.id === g.profile_id : c.kind === 'email' && c.id === g.invited_email))
+        );
+        const added = chips.filter(c =>
+          !originalChips.some(o => o.kind === c.kind && o.id === c.id)
+        );
+        res = await fetch(`/api/calendar/events/${editing.id}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            ...eventFields,
+            add_guests: {
+              profile_ids: added.filter(c => c.kind === 'profile').map(c => c.id),
+              emails: added.filter(c => c.kind === 'email').map(c => c.id),
+            },
+            remove_guest_ids: removed.map(g => g.id),
+          }),
+        });
+      } else {
+        res = await fetch('/api/calendar/events', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            ...eventFields,
+            guests: {
+              profile_ids: chips.filter(c => c.kind === 'profile').map(c => c.id),
+              emails: chips.filter(c => c.kind === 'email').map(c => c.id),
+            },
+          }),
+        });
+      }
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) { setError(data.error || 'Could not save the event.'); return; }
+      showSuccess(editing ? 'Event updated' : 'Event created', form.title.trim());
+      onSaved();
+      onClose();
+    } catch {
+      setError('Could not save the event. Please try again.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+      <div className="bg-white rounded-lg shadow-xl max-w-lg w-full max-h-[85vh] overflow-y-auto">
+        <div className="flex items-center justify-between p-6 border-b border-gray-200">
+          <div className="flex items-center gap-3">
+            <span className="w-9 h-9 rounded-full bg-violet-100 flex items-center justify-center">
+              <CalendarPlus className="w-5 h-5 text-violet-600" />
+            </span>
+            <h2 className="text-lg font-bold text-gray-900">
+              {editing ? 'Edit event' : 'New event'}
+            </h2>
+          </div>
+          <button type="button" onClick={onClose} aria-label="Close" className="text-gray-400 hover:text-gray-600">
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+
+        <form onSubmit={handleSubmit} className="p-6 space-y-4">
+          {error && (
+            <div role="alert" className="bg-red-50 border border-red-200 text-red-600 px-4 py-3 rounded-md text-sm">
+              {error}
+            </div>
+          )}
+
+          <div>
+            <label htmlFor="ev-title" className="block text-sm font-semibold text-gray-900 mb-1">Title</label>
+            <input
+              id="ev-title"
+              type="text"
+              value={form.title}
+              onChange={e => set('title', e.target.value)}
+              maxLength={120}
+              required
+              placeholder="Team practice"
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-base focus:ring-2 focus:ring-violet-500 focus:outline-none"
+            />
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <div>
+              <label htmlFor="ev-date" className="block text-sm font-semibold text-gray-900 mb-1">Date</label>
+              <input
+                id="ev-date"
+                type="date"
+                value={form.date}
+                onChange={e => set('date', e.target.value)}
+                required
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-base focus:ring-2 focus:ring-violet-500 focus:outline-none"
+              />
+            </div>
+            {!form.allDay && (
+              <>
+                <div>
+                  <label htmlFor="ev-start" className="block text-sm font-semibold text-gray-900 mb-1">Starts</label>
+                  <input
+                    id="ev-start"
+                    type="time"
+                    value={form.startTime}
+                    onChange={e => set('startTime', e.target.value)}
+                    required
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-base focus:ring-2 focus:ring-violet-500 focus:outline-none"
+                  />
+                </div>
+                <div>
+                  <label htmlFor="ev-end" className="block text-sm font-semibold text-gray-900 mb-1">Ends</label>
+                  <input
+                    id="ev-end"
+                    type="time"
+                    value={form.endTime}
+                    onChange={e => set('endTime', e.target.value)}
+                    required
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-base focus:ring-2 focus:ring-violet-500 focus:outline-none"
+                  />
+                </div>
+              </>
+            )}
+          </div>
+
+          <label className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={form.allDay}
+              onChange={e => set('allDay', e.target.checked)}
+              className="accent-violet-600 w-4 h-4"
+            />
+            All day
+          </label>
+
+          {!moreOpen ? (
+            <button
+              type="button"
+              onClick={() => setMoreOpen(true)}
+              className="text-sm text-violet-600 hover:underline"
+            >
+              More options — guests, location, details…
+            </button>
+          ) : (
+            <>
+              <div>
+                <label className="block text-sm font-semibold text-gray-900 mb-1">Guests</label>
+                <GuestPicker chips={chips} onChange={setChips} />
+              </div>
+              <div>
+                <label htmlFor="ev-location" className="block text-sm font-semibold text-gray-900 mb-1">Location</label>
+                <input
+                  id="ev-location"
+                  type="text"
+                  value={form.location}
+                  onChange={e => set('location', e.target.value)}
+                  maxLength={200}
+                  placeholder="Riverside Field, or a video link"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-base focus:ring-2 focus:ring-violet-500 focus:outline-none"
+                />
+              </div>
+              <div>
+                <label htmlFor="ev-desc" className="block text-sm font-semibold text-gray-900 mb-1">Details</label>
+                <textarea
+                  id="ev-desc"
+                  value={form.description}
+                  onChange={e => set('description', e.target.value)}
+                  maxLength={2000}
+                  rows={3}
+                  placeholder="Bring both jerseys…"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-base focus:ring-2 focus:ring-violet-500 focus:outline-none"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-semibold text-gray-900 mb-1">Category</label>
+                <div className="flex flex-wrap gap-2">
+                  {EVENT_CATEGORIES.map(cat => (
+                    <button
+                      key={cat}
+                      type="button"
+                      onClick={() => set('category', cat)}
+                      className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium border transition ${
+                        form.category === cat
+                          ? 'border-violet-600 bg-violet-50 text-violet-700'
+                          : 'border-gray-300 text-gray-600 hover:border-violet-300'
+                      }`}
+                    >
+                      <span className={`w-2 h-2 rounded-full ${categoryColor(cat).dot}`} />
+                      {CATEGORY_LABELS[cat]}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </>
+          )}
+
+          <button
+            type="submit"
+            disabled={saving}
+            className="w-full bg-violet-600 text-white py-3 px-4 rounded-lg hover:bg-violet-700 transition flex items-center justify-center text-sm font-medium disabled:opacity-50 min-h-[44px]"
+          >
+            {saving ? (
+              <><i className="fas fa-spinner fa-spin mr-2"></i> Saving…</>
+            ) : editing ? 'Save changes' : 'Create event'}
+          </button>
+        </form>
+      </div>
+    </div>
+  );
+}

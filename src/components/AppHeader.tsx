@@ -51,6 +51,9 @@ export default function AppHeader({ showSearch = true, onCreatePost, onEditProfi
   const navLinks = [
     { path: '/feed', label: 'Feed', icon: 'fa-home' },
     { path: '/explore', label: 'Explore', icon: 'fa-compass' },
+    ...(FEATURE_FLAGS.FEATURE_CALENDAR
+      ? [{ path: '/calendar', label: 'Calendar', icon: 'fa-calendar-alt' }]
+      : []),
     { path: '/live', label: 'Live', icon: 'fa-circle', accent: 'live' as const },
     { path: '/athlete', label: 'Profile', icon: 'fa-user' },
     { path: '/messages', label: 'Messages', icon: 'fa-comment-alt' },
