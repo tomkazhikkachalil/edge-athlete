@@ -1,5 +1,20 @@
 # Development Log
 
+## July 28, 2026 (night 3b) — 🚀 CALENDAR LAUNCHED
+
+Tom set NEXT_PUBLIC_FEATURE_CALENDAR=1 in Vercel (Production); this
+commit triggers the fresh build that bakes the flag in. Live for all
+users: Calendar tab + four views, event creation, the full invite loop
+(pending-slot styling, accept/decline/maybe, tallies), recurring events
+with scope editing, the feed mini-calendar widget, reminders (pg_cron
+10-minute sweep goes live with this build — its pre-launch
+"skipped: flag off" responses flip to real sweeps), Add-to-calendar
+downloads and the Google/Outlook subscribe feed. Launch verification:
+the unauthenticated /api/calendar/events probe must flip 404 → 401.
+Built and verified over one day: migrations 057-059, 60 calendar unit
+tests, five E2E suites (36+27+28 API checks), four browser smokes —
+all first-run green except two harness-side fixes.
+
 ## July 28, 2026 (night 3) — Maintenance sync + CALENDAR LAUNCH PREP
 
 - lint clean · `tsc --noEmit` clean · `vitest` 431 passed (41 files) ·
