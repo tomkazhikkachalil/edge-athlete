@@ -51,12 +51,21 @@ cron slots taken), and external sync are later stages.**
   (flag-conditional). Emails for email-invitees only (invite +
   cancellation, event-zone times) — registered guests get in-app
   notifications, no dual-channel spam.
-- **Verification so far:** 396 unit tests green, lint/tsc clean, clean
-  build (108 pages incl. all calendar routes), flag-off 404s verified
-  live. **Live E2E + browser smoke are WRITTEN and WAITING on migration
-  057** (scratchpad: calendar-e2e.mjs — 30+ checks over the whole
-  invite loop; calendar-smoke.mjs — real two-browser create→pending→
-  accept→solid walk + mobile). Run 057, then the suites run.
+- **Verification — COMPLETE (Tom ran 057 same day):** 396 unit tests,
+  lint/tsc clean, clean build (108 pages), flag-off 404s verified live.
+  **API E2E 36/36 first run** (invite-search privacy both ways, create
+  with 2 profile + 1 email guest, invite notifications with deep links,
+  validation 400s, outsider 404 / guest-PATCH 403 / organizer-respond
+  403, pending state in range queries, accept→notify→maybe→declined→
+  changed-mind-back chain, declined leaves calendar but deep link
+  works, live tally, edit fan-out, guest removal (notified, calendar
+  emptied, detail 404, organizer row irremovable), all-day midnight
+  validation, cancel fan-out + 409s, anon 401). **Browser smoke 10/10**
+  (screenshots reviewed): month grid + nav, event created through the
+  real modal with a GuestPicker chip, invitee's dashed PENDING chip →
+  accept → solid, notification deep link opens the modal, 390px mobile
+  month → tap-day → Day view with the event block; view-switcher
+  active-state DOM-probed correct. Zero page errors.
 
 NEXT (calendar roadmap): recurrence (series vs occurrence editing), org
 invites (needs organizations to exist first), reminders (cron design),
