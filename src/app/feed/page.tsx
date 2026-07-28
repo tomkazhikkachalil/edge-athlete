@@ -15,6 +15,8 @@ import { resolveSportKey, isComposerSport } from '@/lib/sports/resolve-sport-key
 import { getSportDefinition, type SportKey } from '@/lib/sports/SportRegistry';
 import { getEmptyStateMessage, getActivityEncouragement, COPY } from '@/lib/copy';
 import LiveNowStrip from '@/components/LiveNowStrip';
+import FeedCalendarWidget from '@/components/calendar/FeedCalendarWidget';
+import { FEATURE_FLAGS } from '@/lib/features';
 
 // Heavy modals (~2100 / ~1090 / ~330 lines) — split into their own chunks,
 // loaded only when the user opens them. Cuts First Load JS on /feed.
@@ -638,19 +640,24 @@ export default function FeedPage() {
               <ConnectionSuggestions profileId={user.id} limit={5} compact={true} />
             )}
 
-            {/* Upcoming Events */}
-            <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
-              <div className="flex items-center justify-between mb-3">
-                <h3 className="font-bold text-gray-900">Upcoming Events</h3>
-              </div>
-              <div className="flex flex-col items-center justify-center py-6 text-center">
-                <div className="w-10 h-10 bg-violet-50 rounded-full flex items-center justify-center mb-3">
-                  <i className="fas fa-calendar-days text-violet-400 text-lg"></i>
+            {/* Upcoming Events — real calendar widget when the flag is on;
+                the coming-soon shell otherwise (prod unchanged). */}
+            {FEATURE_FLAGS.FEATURE_CALENDAR && user ? (
+              <FeedCalendarWidget />
+            ) : (
+              <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
+                <div className="flex items-center justify-between mb-3">
+                  <h3 className="font-bold text-gray-900">Upcoming Events</h3>
                 </div>
-                <p className="text-sm font-medium text-gray-700 mb-1">No upcoming events</p>
-                <p className="text-xs text-gray-400">Tournament and event scheduling is coming soon.</p>
+                <div className="flex flex-col items-center justify-center py-6 text-center">
+                  <div className="w-10 h-10 bg-violet-50 rounded-full flex items-center justify-center mb-3">
+                    <i className="fas fa-calendar-days text-violet-400 text-lg"></i>
+                  </div>
+                  <p className="text-sm font-medium text-gray-700 mb-1">No upcoming events</p>
+                  <p className="text-xs text-gray-400">Tournament and event scheduling is coming soon.</p>
+                </div>
               </div>
-            </div>
+            )}
 
             {/* Your Club */}
             <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">

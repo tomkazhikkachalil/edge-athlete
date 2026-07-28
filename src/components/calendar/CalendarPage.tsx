@@ -21,7 +21,13 @@ const VIEWS: { key: CalendarViewKind; label: string; icon: string }[] = [
   { key: 'agenda', label: 'Agenda', icon: 'fa-list' },
 ];
 
-export default function CalendarPage({ deepLinkEventId }: { deepLinkEventId: string | null }) {
+export default function CalendarPage({
+  deepLinkEventId,
+  autoCreate = false,
+}: {
+  deepLinkEventId: string | null;
+  autoCreate?: boolean;
+}) {
   const router = useRouter();
   const { showError } = useToast();
   const [view, setView] = useState<CalendarViewKind>('month');
@@ -30,7 +36,8 @@ export default function CalendarPage({ deepLinkEventId }: { deepLinkEventId: str
   const [loading, setLoading] = useState(true);
   const [refetchKey, setRefetchKey] = useState(0);
   const [detailEventId, setDetailEventId] = useState<string | null>(deepLinkEventId);
-  const [formOpen, setFormOpen] = useState(false);
+  // ?new=1 hand-off (feed widget) opens the create form immediately.
+  const [formOpen, setFormOpen] = useState(autoCreate);
   const [editingEvent, setEditingEvent] = useState<EventDetail | null>(null);
 
   // The visible range drives the fetch (month/agenda use the full 42-cell
@@ -194,7 +201,11 @@ export default function CalendarPage({ deepLinkEventId }: { deepLinkEventId: str
 
       <EventFormModal
         isOpen={formOpen}
-        onClose={() => setFormOpen(false)}
+        onClose={() => {
+          setFormOpen(false);
+          // Drop a consumed ?new=1 so refresh/back doesn't reopen the form.
+          if (autoCreate) router.replace('/calendar');
+        }}
         onSaved={refetch}
         editing={editingEvent}
         defaultDay={view === 'day' ? focusDate : undefined}

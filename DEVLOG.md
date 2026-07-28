@@ -1,5 +1,35 @@
 # Development Log
 
+## July 28, 2026 (evening 3) — Feed calendar widget (dark) — mini calendar + quick view in the sidebar
+
+**Tom's ask: the feed's "Upcoming Events" slot should hold a mini
+calendar that expands for a quick view; editing/creating hands off to
+the full /calendar page. Smoke 10/10, zero new endpoints or migrations,
+dark behind the calendar flag (flag off keeps the old "coming soon"
+shell — prod pixel-identical).**
+
+- **FeedCalendarWidget** (sidebar card, replaces the hard-coded shell
+  when NEXT_PUBLIC_FEATURE_CALENDAR=1): next-4 upcoming list (category
+  dot, date · time, pending invites faded with a violet "needs reply"),
+  a "Show calendar" toggle expanding a tiny month grid (today filled,
+  event-day dots, prev/next), and tapping a day opens an inline
+  quick-view panel of that day's events. Tapping an event opens the
+  EXISTING EventDetailModal right in the feed — reading and RSVPing
+  happen without leaving; the modal's Edit button in this context
+  routes to /calendar?event=<id>, and "+ New event" routes to
+  /calendar?new=1 (the calendar page now consumes ?new=1 to auto-open
+  the create form, same consumed-param pattern as ?event=). Errors
+  degrade to a quiet retry link (LiveNowStrip rule: a sidebar widget
+  never breaks the feed). One data fetch (the 42-day month-grid range)
+  serves the list, the dots, and the day panels.
+- Smoke (two browsers + 390px): pending event listed with needs-reply →
+  mini month expand → day panel → in-feed RSVP (marker clears) →
+  organizer Edit lands on /calendar with the detail open →
+  /calendar?new=1 opens the form → mobile stacked rendering. One
+  harness-only fix (wait was too short for the dev-mode refetch).
+  Screenshots reviewed. lint / tsc / vitest 415 / clean build (108
+  pages) green.
+
 ## July 28, 2026 (evening 2) — CALENDAR RECURRENCE BUILT (dark) — series, scope editing, per-occurrence declines
 
 **Commits 860f347 / d64a841 / 7e4d809 (+ docs), dark behind the calendar
