@@ -1,5 +1,52 @@
 # Development Log
 
+## July 28, 2026 (night 2) — Calendar EXTERNAL SYNC + REMINDERS built (dark)
+
+**Commits a553798 / e519524 / e8c3778 (+ docs), dark behind the calendar
+flag. Stages 5+6 of Tom's calendar brief: "Add to calendar" .ics
+downloads, a personal Google/Outlook subscribe feed, and reminders
+(default 30 min before, per-event adjustable, in-app notifications).
+⚠️ MIGRATION 059 WRITTEN, NOT YET RUN — and it needs a find-replace of
+__CRON_SECRET__ with the real CRON_SECRET before running (a guard
+refuses unsubstituted runs; do NOT commit the substituted file).**
+
+- **The scheduling problem, solved off-Vercel:** Hobby crons run at most
+  once daily (both slots taken), so migration 059 schedules Supabase
+  pg_cron + pg_net to hit /api/cron/reminders every 10 minutes with the
+  Bearer secret. The pg_cron section is exception-wrapped — if the
+  extensions are unavailable the schema still lands and reminders fall
+  back to the SAME strict sweep running once daily inside
+  /api/cron/daily (idempotent by reminded_at; deliberately never a
+  widened variant, which would fire early). Pre-launch the endpoint
+  answers {"skipped":"flag off"} with 200 — healthy pg_cron logs.
+- **Reminders:** preset leads only (Off/10m/30m default/1h/1d) → the
+  sweep is one exact PostgREST query per lead (no per-row interval SQL,
+  no RPC), mark-then-insert (a rare miss beats 10-minute spam),
+  humanized titles ("Reminder: X starts in 30 minutes"), deep links.
+  Per-guest reminder select in the detail modal (organizer included;
+  cancelled 409; series occurrences independent, hint shown); changing
+  the value clears reminded_at so widening the lead re-reminds once.
+- **Add to calendar:** GET /events/[id]/ics — cookie-authed via the
+  SAME guest gate (extracted to lib/calendar/detail-server), stable
+  UID <id>@edge-athlete, all-day VALUE=DATE with exclusive DTEND in the
+  event's zone, recurring occurrences note their series rule in the
+  DESCRIPTION. Modal "Add to calendar" link.
+- **Subscribe feed:** calendar_feed_tokens capability URLs (sha256 at
+  rest, raw shown ONCE, rotate=replace) → cookie-less
+  /api/calendar/feed/[token] serving [now−30d, now+183d] non-declined
+  events + recently-cancelled as STATUS:CANCELLED (plain VEVENTs — the
+  materialized-occurrence model means NO RRULE ever). Toolbar Sync
+  modal: create/regenerate w/ confirm, one-time copy,
+  treat-like-a-password copy, Google/Outlook subscribe instructions.
+- **Verified so far:** 431 unit tests (16 new: RFC 5545 escaping,
+  75-octet UTF-8 folding, exclusive all-day DTEND, CRLF purity, isDue
+  boundaries), lint/tsc clean, clean build (110 pages), and the ics
+  download E2E section 7/7 live (auth matrix + content asserts — needs
+  no new tables). **Feed + reminder E2E sections auto-skip until 059 is
+  run** (scratchpad sync-reminders-e2e.mjs probes and reports; ~20 more
+  checks incl. rotate/old-token-404, declined-excluded,
+  cancelled-STATUS, sweep dedup, widened-lead re-remind, preset 400s).
+
 ## July 28, 2026 (evening 3) — Feed calendar widget (dark) — mini calendar + quick view in the sidebar
 
 **Tom's ask: the feed's "Upcoming Events" slot should hold a mini
