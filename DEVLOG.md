@@ -8,9 +8,13 @@ convention). This was the last guardian item — the feature is now DONE
 end to end: create → consent → credentials → approve → transfer →
 activation → delete parity → support tooling.**
 
-**⚠️ MIGRATION 056 WRITTEN, NOT YET RUN** (no SQL access this session —
-paste `database/migrations/056_consent_records_allow_fk_setnull.sql`
-into the SQL editor). It fixes a REAL schema bug the E2E found: 050's
+**✅ MIGRATION 056 RUN + BEHAVIORALLY VERIFIED (Tom ran it July 28,
+later): delete-parity E2E now 30/30 — consented child hard-delete
+succeeds, consent rows survive with profile_id NULLed (granted +
+withdrawn), and the guardian's own subsequent self-delete works (the
+guardian_user_id SET NULL path). Service-role probes confirm plain
+UPDATE and DELETE on consent_records still raise "append-only" — the
+guard is exactly as narrow as designed.** It fixes a REAL schema bug the E2E found: 050's
 design has consent rows survive deletion via FK ON DELETE SET NULL, but
 the shared append-only trigger blocked that exact UPDATE — so ANY
 account with consent rows was UNDELETABLE (even via auth cascade; the
@@ -69,8 +73,8 @@ consent=withdrawn without being deleted — resolves once 056 runs.
   queue renders, co-guardian landing copy. lint / tsc / vitest 371 /
   clean build (105 pages) green.
 
-REMAINING (guardian feature): NOTHING — run migration 056, then Tom's
-end-to-end walkthrough.
+REMAINING (guardian feature): NOTHING — all migrations (048–056) run
+and verified. Awaiting Tom's end-to-end walkthrough, then the flag.
 
 ## July 28, 2026 (evening) — Post-transfer activation + review walkthrough SHIPPED (dark)
 
