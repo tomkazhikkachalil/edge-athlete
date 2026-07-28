@@ -1,5 +1,65 @@
 # Development Log
 
+## July 28, 2026 (later still) — Transfer-of-control UI SHIPPED (dark) — guardian feature now has a COMPLETE surface
+
+**Commit c4dd446, API E2E 25/25 + browser smoke 9/9 (both first run),
+tests 365, dark behind the flag. The Phase-5 state machine was
+server-only; now both parties have screens for every step. With this,
+every guardian capability has UI: create → consent → credentials →
+approve posts → transfer.**
+
+- **/app/transfer/[profileId]** — ONE shared page for BOTH parties,
+  keyed by (viewerRole, state) from GET /api/transfers (which already
+  returns viewerRole). Neutral URL on purpose: the kid uses it too.
+  Screens: start (guardian) / ask-to-take-over (athlete),
+  eligible_notified, guardian approval of an athlete request,
+  independent-email form, 6-digit OTP entry (inputMode numeric,
+  one-time-code autocomplete; "Send a new code" re-submits the same
+  email — the server re-issue IS the resend path; "Use a different
+  email"), dual confirm with per-side ✓/waiting rows and the
+  athlete-only guardian post-role radio (viewer/removed), cooling-off
+  countdown + what-happens list + cancel, executing (uncancellable).
+  30s poll + refresh-on-tab-focus so "waiting" screens advance; every
+  action re-fetches rather than patching local state; 410/409 also
+  re-fetch so stale forms collapse. Cancel goes through ConfirmModal.
+  Kid-appropriate copy on the athlete side throughout.
+- **/app/guardian/transfers** — overview: managed athletes with state
+  chips (amber = guardian action needed), rows link into the shared
+  page; "Transferred" rows inert. Linked from the AppHeader "Your
+  athletes" switcher as "Account transfers".
+- **TransferBanner** (root layout, ActingAsBanner pattern, violet):
+  supervised athlete with a transfer in flight sees a one-line status
+  + "See details" on every screen. Renders null unless flag + session
+  + supervision_state='supervised' + active transfer.
+- **lib/transfer-ui.ts** — pure chip/countdown/banner-copy helpers
+  (10 unit tests; 355→365).
+- **Server fixes shipped with it:** (1) REAL BUG — POST /api/transfers
+  wrote initiated_by='supervised' but 055's CHECK allows only
+  guardian/athlete/system, so the athlete-initiated request 500ed on
+  insert; now maps supervised→'athlete' (regression-tested against the
+  live DB). (2) GET /api/transfers now also returns guardian_post_role
+  so cooling-off shows the athlete's choice. (3) Profile type gains
+  supervision_state/dob_locked (loaded all along via select('*'), just
+  untyped).
+- E2E (disposable guardian/child/stranger vs local dev): full machine
+  via the real endpoints (Step-B create → PIN credentials →
+  username-login cookies → request → approve → guardian-email 409 →
+  fresh email → planted OTP wrong/right → dual confirm both sides →
+  cooling_off + guardian_post_role in GET → cancel → restart →
+  executing-cancel 409 → terminal 410). Browser smoke (playwright-core
+  + system Chrome, 390px viewport): both parties' real screens through
+  confirm→cooling_off→cancel-via-modal, banner placement above the
+  app header verified from screenshots, zero page errors.
+- lint / tsc / vitest 365 / clean build (102 pages) green. Build's
+  only warnings are the pre-existing @supabase/realtime-js Edge
+  Runtime notes (middleware import trace, untouched by this change).
+
+REMAINING guardian polish: post-transfer review walkthrough, guardian
+hard-delete parity + orphan/support tooling, and the athlete_activation
+reset email is still a server-side TODO (token row is created; email
+not sent — the executing screen tells the athlete to watch their
+inbox, which today only holds the OTP mail).
+
 ## July 28, 2026 (later) — Guardian approval-queue screen SHIPPED (dark)
 
 **Commit 1ed9103, E2E 16/16 first run, dark behind the flag. Closes the
