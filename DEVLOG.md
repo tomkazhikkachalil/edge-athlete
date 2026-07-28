@@ -38,14 +38,20 @@ refuses unsubstituted runs; do NOT commit the substituted file).**
   materialized-occurrence model means NO RRULE ever). Toolbar Sync
   modal: create/regenerate w/ confirm, one-time copy,
   treat-like-a-password copy, Google/Outlook subscribe instructions.
-- **Verified so far:** 431 unit tests (16 new: RFC 5545 escaping,
-  75-octet UTF-8 folding, exclusive all-day DTEND, CRLF purity, isDue
-  boundaries), lint/tsc clean, clean build (110 pages), and the ics
-  download E2E section 7/7 live (auth matrix + content asserts — needs
-  no new tables). **Feed + reminder E2E sections auto-skip until 059 is
-  run** (scratchpad sync-reminders-e2e.mjs probes and reports; ~20 more
-  checks incl. rotate/old-token-404, declined-excluded,
-  cancelled-STATUS, sweep dedup, widened-lead re-remind, preset 400s).
+- **✅ MIGRATION 059 RUN (Tom, same night, via a secret-substituted copy
+  generated OUTSIDE the repo and deleted after) — FULL E2E 28/28 first
+  run:** ics auth matrix + escaped/all-day content; feed create →
+  rotate → old-token 404/new 200 → cookie-less serving with name +
+  refresh hints → declined excluded → cancelled STATUS:CANCELLED;
+  reminders: sweep delivered to guest AND organizer with humanized
+  titles, second sweep no-op (reminded_at dedup), widened-lead
+  re-remind after change, off/preset-400 guards, bearer 401. Browser
+  smoke 4/4 (Add-to-calendar link, Remind-me persists across reopen,
+  Sync modal one-time URL — screenshot reviewed). 431 unit tests,
+  lint/tsc, clean build (110 pages). Remaining for Tom whenever:
+  migration 059's verification queries #3-#4 (cron.job row + 200s in
+  net._http_response after ~10 min) — the app can't see the cron
+  schema, only the SQL editor can.
 
 ## July 28, 2026 (evening 3) — Feed calendar widget (dark) — mini calendar + quick view in the sidebar
 
