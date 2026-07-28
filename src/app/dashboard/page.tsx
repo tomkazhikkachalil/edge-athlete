@@ -164,6 +164,32 @@ export default function AdminDashboardPage() {
           Admin
         </h1>
 
+        {/* Queues — dedicated admin pages */}
+        <section className="grid sm:grid-cols-2 gap-4">
+          <button
+            type="button"
+            onClick={() => router.push('/dashboard/consent')}
+            className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 text-left hover:border-violet-300 transition"
+          >
+            <p className="text-sm font-semibold text-gray-900">
+              <i className="fas fa-file-signature text-violet-600 mr-2"></i>
+              Consent reviews
+            </p>
+            <p className="text-xs text-gray-500 mt-1">Signed parental-consent submissions awaiting review.</p>
+          </button>
+          <button
+            type="button"
+            onClick={() => router.push('/dashboard/guardians')}
+            className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 text-left hover:border-violet-300 transition"
+          >
+            <p className="text-sm font-semibold text-gray-900">
+              <i className="fas fa-user-shield text-violet-600 mr-2"></i>
+              Guardian support
+            </p>
+            <p className="text-xs text-gray-500 mt-1">Orphaned supervised profiles — invite a guardian or delete.</p>
+          </button>
+        </section>
+
         {/* Message reports queue */}
         <section className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 sm:p-6">
           <div className="flex flex-wrap items-center justify-between gap-3 mb-4">

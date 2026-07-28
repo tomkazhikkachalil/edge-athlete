@@ -13,7 +13,7 @@ import { FEATURE_FLAGS } from '@/lib/features';
 export default function CredentialsPage() {
   const params = useParams();
   const router = useRouter();
-  const { user, loading, initialAuthCheckComplete, managedProfiles } = useAuth();
+  const { user, loading, initialAuthCheckComplete, managedProfiles, refreshManagedProfiles } = useAuth();
   const profileId = params.profileId as string;
   const athlete = managedProfiles.find(p => p.id === profileId);
 
@@ -23,6 +23,11 @@ export default function CredentialsPage() {
   const [issued, setIssued] = useState<{ username: string; mode: string } | null>(null);
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  // Danger zone (consent withdrawal = permanent deletion)
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [deleteConfirm, setDeleteConfirm] = useState('');
+  const [deleteBusy, setDeleteBusy] = useState(false);
+  const [deleteError, setDeleteError] = useState('');
 
   useEffect(() => {
     if (!loading && initialAuthCheckComplete && !user) router.replace('/');
@@ -58,10 +63,35 @@ export default function CredentialsPage() {
     }
   };
 
+  const expectedConfirm = (athlete?.handle || athlete?.first_name || '').toLowerCase();
+  const confirmMatches =
+    !!expectedConfirm &&
+    deleteConfirm.trim().toLowerCase().replace(/^@/, '') === expectedConfirm;
+
+  const handleDelete = async () => {
+    setDeleteError('');
+    setDeleteBusy(true);
+    try {
+      const res = await fetch(`/api/guardian/athletes/${profileId}`, {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ confirmHandle: deleteConfirm }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) { setDeleteError(data.error || 'Could not delete the profile.'); return; }
+      await refreshManagedProfiles();
+      router.push('/athlete');
+    } catch {
+      setDeleteError('Could not delete the profile. Please try again.');
+    } finally {
+      setDeleteBusy(false);
+    }
+  };
+
   return (
     <div className="min-h-screen flex flex-col bg-violet-50">
       <BrandBar />
-      <div className="flex-grow flex items-center justify-center p-4">
+      <div className="flex-grow flex flex-col items-center justify-center gap-4 p-4">
         <div className="w-full max-w-lg bg-white rounded-lg shadow-lg p-6 sm:p-8">
           {issued ? (
             <div className="text-center py-4">
@@ -160,6 +190,70 @@ export default function CredentialsPage() {
                 </button>
               </form>
             </>
+          )}
+        </div>
+
+        {/* Danger zone — consent withdrawal = permanent deletion */}
+        <div className="w-full max-w-lg bg-white border border-red-200 rounded-lg p-6">
+          <h3 className="text-sm font-bold text-red-700 mb-1">Danger zone</h3>
+          {!deleteOpen ? (
+            <div className="flex items-center justify-between gap-4">
+              <p className="text-xs text-gray-500">
+                Withdrawing consent permanently deletes {athlete?.first_name ?? 'this athlete'}&apos;s
+                profile and everything on it.
+              </p>
+              <button
+                type="button"
+                onClick={() => { setDeleteOpen(true); setDeleteConfirm(''); setDeleteError(''); }}
+                className="shrink-0 border border-red-300 text-red-600 px-3 py-2 rounded-md text-xs font-medium hover:bg-red-50 transition"
+              >
+                Delete profile
+              </button>
+            </div>
+          ) : (
+            <div>
+              <p className="text-sm text-gray-700 mb-2">
+                This permanently deletes {athlete?.first_name ?? 'this athlete'}&apos;s profile,
+                posts, media, and login. <span className="font-medium">It cannot be undone.</span>
+              </p>
+              <p className="text-xs text-gray-500 mb-3">
+                Signed consent records are retained as required for compliance.
+              </p>
+              {deleteError && (
+                <div role="alert" className="bg-red-50 border border-red-200 text-red-600 px-4 py-3 rounded-md text-sm mb-3">
+                  {deleteError}
+                </div>
+              )}
+              <label htmlFor="delete-confirm" className="block text-sm font-medium text-gray-700 mb-1">
+                Type <span className="font-mono text-red-700">{athlete?.handle ?? athlete?.first_name ?? ''}</span> to confirm
+              </label>
+              <input
+                type="text"
+                id="delete-confirm"
+                value={deleteConfirm}
+                onChange={e => setDeleteConfirm(e.target.value)}
+                autoComplete="off"
+                className="w-full px-4 py-3 text-sm text-gray-800 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-red-500 mb-3"
+              />
+              <div className="flex gap-3">
+                <button
+                  type="button"
+                  onClick={handleDelete}
+                  disabled={!confirmMatches || deleteBusy}
+                  className="bg-red-600 text-white px-4 py-2 rounded-md text-sm font-medium hover:bg-red-700 transition disabled:opacity-50"
+                >
+                  {deleteBusy ? <><i className="fas fa-spinner fa-spin mr-2"></i>Deleting...</> : 'Permanently delete'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setDeleteOpen(false)}
+                  disabled={deleteBusy}
+                  className="border border-gray-300 text-gray-700 px-4 py-2 rounded-md text-sm font-medium hover:bg-gray-50 transition disabled:opacity-50"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
           )}
         </div>
       </div>

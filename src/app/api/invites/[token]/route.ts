@@ -37,6 +37,19 @@ export async function GET(
     }
     athleteFirstName =
       (pending.payload as Record<string, unknown>)?.first_name as string | null;
+  } else if (invite.invite_type === 'guardian_additional' && invite.profile_id) {
+    // Co-guardian invite: the target must still be a supervised profile.
+    // (athlete_activation invites also carry profile_id but their profile
+    // is 'self' post-transfer — they keep the default pass-through.)
+    const { data: child } = await admin
+      .from('profiles')
+      .select('first_name, supervision_state')
+      .eq('id', invite.profile_id)
+      .maybeSingle();
+    if (!child || child.supervision_state !== 'supervised') {
+      return NextResponse.json({ valid: false }, { status: 404 });
+    }
+    athleteFirstName = child.first_name ?? null;
   }
 
   // Registered guardian = match, not collision: tell the page so the CTA

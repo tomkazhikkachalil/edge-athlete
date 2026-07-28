@@ -21,6 +21,7 @@ export default function InvitePage() {
   const [athleteFirstName, setAthleteFirstName] = useState<string | null>(null);
   const [invitedEmail, setInvitedEmail] = useState('');
   const [hasAccount, setHasAccount] = useState(false);
+  const [inviteType, setInviteType] = useState('');
 
   useEffect(() => {
     let cancelled = false;
@@ -36,6 +37,7 @@ export default function InvitePage() {
         setAthleteFirstName(data.athleteFirstName ?? null);
         setInvitedEmail(data.invitedEmail ?? '');
         setHasAccount(!!data.guardianHasAccount);
+        setInviteType(data.inviteType ?? '');
         setState('valid');
       } catch {
         if (!cancelled) setState('invalid');
@@ -43,6 +45,10 @@ export default function InvitePage() {
     })();
     return () => { cancelled = true; };
   }, [token]);
+
+  // Co-guardian invite (support takeover / second guardian): the athlete
+  // profile already exists — claiming grants guardian access directly.
+  const isCoGuardian = inviteType === 'guardian_additional';
 
   return (
     <div className="min-h-screen flex flex-col bg-violet-50">
@@ -77,23 +83,23 @@ export default function InvitePage() {
           {state === 'valid' && (
             <>
               <h2 className="text-xl sm:text-2xl font-bold text-violet-800 mb-2">
-                {athleteFirstName
-                  ? `${athleteFirstName} wants to join Edge Athlete`
-                  : 'A young athlete wants to join Edge Athlete'}
+                {isCoGuardian
+                  ? `You're invited to become ${athleteFirstName ?? 'a young athlete'}'s guardian`
+                  : athleteFirstName
+                    ? `${athleteFirstName} wants to join Edge Athlete`
+                    : 'A young athlete wants to join Edge Athlete'}
               </h2>
               <p className="text-sm text-gray-600 mb-4">
-                Edge Athlete requires a parent or guardian to set up and manage
-                accounts for young athletes. As their guardian you control the
-                profile&apos;s privacy, approve what gets posted, and decide who
-                can contact them.
+                {isCoGuardian
+                  ? `${athleteFirstName ?? 'This athlete'} already has a profile on Edge Athlete that needs a guardian. As their guardian you control the profile's privacy, approve what gets posted, and decide who can contact them.`
+                  : 'Edge Athlete requires a parent or guardian to set up and manage accounts for young athletes. As their guardian you control the profile’s privacy, approve what gets posted, and decide who can contact them.'}
               </p>
               <div className="bg-violet-50 border border-violet-100 rounded-md p-4 mb-6">
                 <p className="text-sm text-gray-700">
                   <i className="fas fa-shield-halved text-violet-600 mr-2"></i>
-                  Setting this up takes a few minutes: create your own account
-                  (or log in), review your athlete&apos;s details, and give your
-                  consent. Nothing about your athlete is published until you
-                  approve it.
+                  {isCoGuardian
+                    ? 'Accepting adds the athlete to your account — you can review their profile, approve posts, and manage their settings right away.'
+                    : "Setting this up takes a few minutes: create your own account (or log in), review your athlete's details, and give your consent. Nothing about your athlete is published until you approve it."}
                 </p>
               </div>
               <p className="text-xs text-gray-500 mb-4">
@@ -123,6 +129,12 @@ export default function InvitePage() {
                       setClaimError(data.error || 'Could not claim this invite.');
                       return;
                     }
+                    if (data.granted) {
+                      // Co-guardian grant: access exists now — hard reload so
+                      // managedProfiles refreshes from the new access row.
+                      window.location.href = '/athlete';
+                      return;
+                    }
                     try {
                       window.sessionStorage.setItem('ea:athlete-dob', data.athlete?.dob ?? '');
                       window.sessionStorage.setItem('ea:athlete-name', JSON.stringify({
@@ -143,14 +155,15 @@ export default function InvitePage() {
                 {claiming
                   ? 'One moment…'
                   : user
-                    ? 'Review and set up their profile'
+                    ? (isCoGuardian ? 'Accept and manage their profile' : 'Review and set up their profile')
                     : hasAccount
                       ? 'Log in to continue'
                       : 'Create your account'}
               </button>
               <p className="text-xs text-gray-500 mt-3 text-center">
-                Keep this email — you&apos;ll finish your athlete&apos;s setup from
-                your account.
+                {isCoGuardian
+                  ? 'Keep this email — accept the invite from your account.'
+                  : 'Keep this email — you’ll finish your athlete’s setup from your account.'}
               </p>
             </>
           )}

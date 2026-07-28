@@ -154,6 +154,52 @@ This email was sent from your website's contact form.
   }
 
   /**
+   * Co-guardian invite — an existing guardian or support invites another
+   * adult to become the guardian of an EXISTING supervised profile (second
+   * guardian, or orphan-profile takeover). The link carries the raw
+   * single-use token.
+   */
+  async sendCoGuardianInvite(
+    to: string,
+    athleteFirstName: string,
+    inviteUrl: string,
+    appUrl: string
+  ): Promise<void> {
+    const name = athleteFirstName ? escapeHtml(athleteFirstName) : 'a young athlete';
+    const htmlContent = `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+        ${logoHeader(appUrl)}
+        <h2 style="color:#6d28d9;">You've been invited to help manage ${name}'s profile</h2>
+        <p style="color:#333;font-size:15px;line-height:1.6;">
+          ${name} has an athlete profile on Edge Athlete that needs a parent
+          or guardian. Accepting makes you their guardian — you'll review
+          their profile, approve what gets posted, and manage their privacy
+          and who can contact them.
+        </p>
+        <a href="${inviteUrl}"
+           style="display:inline-block;background:#7c3aed;color:#fff;text-decoration:none;padding:10px 20px;border-radius:6px;font-size:14px;margin-top:8px;">
+          Accept the invite
+        </a>
+        <p style="color:#888;font-size:12px;margin-top:16px;">
+          This link is single-use and expires in 7 days. If you weren't
+          expecting this email, you can ignore it — nothing changes without
+          your acceptance.
+        </p>
+        <div style="margin-top:20px;padding-top:20px;border-top:1px solid #eee;color:#888;font-size:12px;">
+          <p>— Edge Athlete</p>
+        </div>
+      </div>
+    `;
+    await this.transporter.sendMail({
+      from: process.env.EMAIL_FROM || 'noreply@yourdomain.com',
+      to,
+      subject: `You've been invited to help manage ${athleteFirstName || 'a young athlete'}'s Edge Athlete profile`,
+      html: htmlContent,
+      text: `${athleteFirstName || 'A young athlete'} has an athlete profile on Edge Athlete that needs a parent or guardian.\n\nAccepting makes you their guardian — you'll review their profile, approve what gets posted, and manage their privacy. Accept here (single-use link, expires in 7 days):\n\n${inviteUrl}\n\nIf you weren't expecting this email, you can ignore it — nothing changes without your acceptance.\n\n— Edge Athlete`,
+    });
+  }
+
+  /**
    * Account activation after a completed transfer of control — the new
    * owner's "the account is yours" email. The link carries the raw
    * single-use athlete_activation token.
