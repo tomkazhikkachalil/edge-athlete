@@ -1,5 +1,55 @@
 # Development Log
 
+## July 27, 2026 (later still) — Guardian profiles: Phase 4 supervised login SHIPPED (dark)
+
+**Commit 4bf807f, E2E 11/11 (first full run), tests 355, dark behind
+the flag. The child's side of the platform now exists: guardian-issued
+username/PIN login, guardian-only recovery, and an approval queue with
+teeth. The supervised lifecycle from the original spec is functionally
+COMPLETE except transfer-of-control and delete parity.**
+
+- **Credential issuance** (/app/guardian/credentials/[profileId], wired
+  from the consent-approved screen): username = the child's handle;
+  secret = password (≥6) or a 4–6 digit PIN for younger kids. PIN is
+  never stored or used raw — it derives the actual Supabase password
+  via HMAC(service-key, profileId:pin) (lib/supervised-credentials.ts),
+  so a leaked PIN is useless without the server secret + profile id.
+  First issuance creates the supervised self-access row (profile_access
+  user_id = profile_id, role='supervised') + audit. Reset = the same
+  screen; the password change revokes the child's other sessions
+  (Supabase behavior — exactly what a guardian reset should do).
+  Recovery is guardian-only BY CONSTRUCTION: the child has no email.
+- **Username login** — POST /api/auth/username-login: handle →
+  profile MUST be supervision_state='supervised' (everything else
+  hard-rejected, so username login can never become a general path;
+  E2E-proven with an adult account) → synthetic email → server-side
+  password grant with the ssr getAll/setAll cookie adapter (OAuth-
+  callback pattern). PIN-shaped secrets try the derived password first,
+  then literal. Uniform "Invalid username or password" (no existence
+  leaks), rate-limited per ip+username. Login screen accepts
+  email-or-username when flagged (type=email relaxed to text).
+- **PII username guard** — validateSupervisedHandle blocks full-name
+  and name+birth-year handles at athlete creation ("emma2015" refused
+  with kid-appropriate copy; "speedy.striker" passes). Unit matrix in
+  supervised-credentials.test.ts.
+- **Approval queue end-to-end** — supervised self-posts are FORCED to
+  status='pending_approval' in posts POST (self-role check); posts
+  PATCH gains approve/reject actions gated by
+  resolveProfileAction(role, 'approve_content') — supervised authors
+  get 403 on self-approve; guardian approve → published, reject →
+  rejected. Pending posts stay invisible to the world per the 051/052
+  read-surface work.
+- E2E (11/11): PII rejection, PIN issue, supervised row, PIN login with
+  session cookies, wrong-PIN 401, adult-account 401, forced pending on
+  own profile, self-approve 403, approve→published, reject→rejected,
+  reset revokes old PIN.
+
+REMAINING (guardian feature): transfer-of-control state machine +
+combined daily cron (Hobby 2-cron cap: fold digest + minors scan into
+/api/cron/daily), guardian hard-delete parity + orphan/support tooling,
+and a dedicated guardian approval-queue screen (pending posts currently
+reviewable via the child's grids while acting-as).
+
 ## July 27, 2026 (late night) — Guardian profiles: Phase 3b consent + review + guardian posting SHIPPED (dark)
 
 **Commits 7915ab3..a60c7cb, E2E 12/12, tests 348, all dark behind the
