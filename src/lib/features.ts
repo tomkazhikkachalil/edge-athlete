@@ -22,6 +22,12 @@ export const FEATURE_FLAGS = {
   // before this is ever enabled in an environment.
   FEATURE_GUARDIAN_PROFILES: process.env.NEXT_PUBLIC_FEATURE_GUARDIAN_PROFILES === '1',
 
+  // Personal calendar (events + invite loop). Build-time env flag: set
+  // NEXT_PUBLIC_FEATURE_CALENDAR=1 locally to develop/test; leave unset in
+  // Vercel until launch. Migration 057 must be run before this is ever
+  // enabled in an environment.
+  FEATURE_CALENDAR: process.env.NEXT_PUBLIC_FEATURE_CALENDAR === '1',
+
   // Future feature flags can be added here
   // FEATURE_PUBLIC_PROFILES: false,
   // FEATURE_MESSAGING: false,
