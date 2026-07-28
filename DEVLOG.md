@@ -1,5 +1,62 @@
 # Development Log
 
+## July 28, 2026 (evening) — Post-transfer activation + review walkthrough SHIPPED (dark)
+
+**Commit 04a74af, API E2E 15/15 + browser smoke 8/8, tests 365, dark.
+Closes the last UX gap in the transfer story AND a real hole: the
+engine created an athlete_activation token but DISCARDED the raw value
+— no email was ever sent and nothing could consume the token, so a new
+owner's only way in was guessing to use /forgot-password.**
+
+Per Tom's directive the flow is deliberately minimal — the new owner's
+ENTIRE experience is 3 touches:
+1. **Email** "Your Edge Athlete account is now yours" (new
+   sendAccountActivation, violet branding) with ONE button → the
+   activation link. Sent from executeTransfer's rotate_credentials step
+   (appUrl threaded cron → runTransferSweep → executeTransfer);
+   best-effort behind SMTP env — token row stays the source of truth,
+   /forgot-password on the new email is the documented fallback (in the
+   email's small print too).
+2. **/activate/[token]** — set password (+confirm), automatically
+   signed in. POST /api/auth/activate: atomic type-filtered redeem
+   (redeemGuardianInvite gained optional inviteType so an activation
+   endpoint can never consume other token kinds), password set, stamps
+   onboarded_at (guardian-created profiles never onboarded — without
+   this the new owner bounces into generic onboarding), returns
+   guardianAccess (the athlete's own dual-confirm choice, read from the
+   completed profile_transfers row), signs in via the ssr cookie
+   adapter. Redeem-before-set: a burned token still leaves the reset
+   path — never a lockout. Rate-limited; 400/410/429 guardrails.
+3. **One review card** "Your account, your rules": visibility (Private
+   preselected) + who-can-message (Nobody preselected, the 4 options
+   from MessagingSettings), a gray line on what the former guardian can
+   see (view-only / no access), single **Done** → one PUT → hard reload
+   into /athlete. NO skip link by design: defaults persist and
+   onboarded_at is already stamped server-side, so closing the tab IS
+   skipping. Expired/used link → friendly screen with "Reset my
+   password" CTA.
+
+**Bug found by the browser smoke (would have shipped broken):** after
+Done, client-side router.push('/athlete') bounced to the login page —
+the session cookies were set by the activate API mid-page, so the auth
+provider's in-memory state was still signed-out. Fix: hard reload
+(window.location.href), the same pattern username-login already uses.
+Screenshot-verified after the fix: Done lands signed-in on /athlete.
+
+E2E (disposable users, real cron): transfer driven to cooling_off via
+the actual APIs, cooling_off_ends_at backdated, GET /api/cron/daily
+with Bearer CRON_SECRET → executed:1 with SMTP off (no crash),
+supervision_state 'self' + real email + activation token row; planted
+raw token → peek valid; short password 400; garbage token 410;
+activate 200 (signedIn, guardianAccess viewer, Set-Cookie works);
+replay 410; onboarded_at stamped; old PIN 401; review PUT persists.
+Browser: password mismatch validation, defaults preselected, Done →
+signed-in profile, used-token screen. lint / tsc / vitest 365 / clean
+build (103 pages) green.
+
+REMAINING guardian polish: guardian hard-delete parity + orphan/support
+tooling (the last item).
+
 ## July 28, 2026 (later still) — Transfer-of-control UI SHIPPED (dark) — guardian feature now has a COMPLETE surface
 
 **Commit c4dd446, API E2E 25/25 + browser smoke 9/9 (both first run),
