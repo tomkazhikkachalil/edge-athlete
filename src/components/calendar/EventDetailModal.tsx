@@ -8,9 +8,11 @@ import { useAuth } from '@/lib/auth';
 import { useBodyScrollLock } from '@/hooks/useBodyScrollLock';
 import { useToast } from '@/components/Toast';
 import ConfirmModal from '@/components/ConfirmModal';
+import ScopeChooserModal from './ScopeChooserModal';
 import { formatDisplayName, getInitials } from '@/lib/formatters';
 import { categoryColor, CATEGORY_LABELS } from '@/lib/calendar/categories';
 import { allDayDayLabels } from '@/lib/calendar/grid';
+import { describeRecurrence } from '@/lib/calendar/recurrence';
 import type { EventDetail, EventGuest, MyStatus } from './types';
 
 // The event's home: full details, live guest list with per-person status,
@@ -80,6 +82,7 @@ export default function EventDetailModal({
   const [loading, setLoading] = useState(false);
   const [responding, setResponding] = useState(false);
   const [confirmingCancel, setConfirmingCancel] = useState(false);
+  const [pendingResponse, setPendingResponse] = useState<MyStatus | null>(null);
   useBodyScrollLock(isOpen);
 
   const load = useCallback(async () => {
@@ -115,21 +118,23 @@ export default function EventDetailModal({
   const myGuestRow = event?.guests.find(g => g.profile_id === user?.id) ?? null;
   const cancelled = event?.status === 'cancelled';
 
-  const respond = async (status: MyStatus) => {
+  const respond = async (status: MyStatus, scope: 'this' | 'series') => {
     if (!event || responding) return;
     setResponding(true);
     try {
       const res = await fetch(`/api/calendar/events/${event.id}/respond`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status }),
+        body: JSON.stringify({ status, scope }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) { showError('Could not respond', data.error || 'Please try again.'); return; }
       await load();
       onChanged();
       if (status === 'declined') {
-        showSuccess('Declined', 'The event was removed from your calendar.');
+        showSuccess('Declined', scope === 'series'
+          ? 'The series was removed from your calendar.'
+          : 'The event was removed from your calendar.');
       }
     } catch {
       showError('Could not respond', 'Please try again.');
@@ -138,14 +143,24 @@ export default function EventDetailModal({
     }
   };
 
-  const cancelEvent = async () => {
+  const handleRespondTap = (status: MyStatus) => {
+    // Recurring events ask the scope question (series is the default —
+    // "invitations cover the whole series"); one-off events respond directly.
+    if (event?.series_id) setPendingResponse(status);
+    else respond(status, 'this');
+  };
+
+  const cancelEvent = async (scope: 'this' | 'following' | 'series') => {
     if (!event) return;
     setConfirmingCancel(false);
     try {
-      const res = await fetch(`/api/calendar/events/${event.id}`, { method: 'DELETE' });
+      const res = await fetch(`/api/calendar/events/${event.id}?scope=${scope}`, { method: 'DELETE' });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) { showError('Could not cancel', data.error || 'Please try again.'); return; }
-      showSuccess('Event cancelled', 'Every guest has been notified.');
+      showSuccess(
+        scope === 'this' ? 'Event cancelled' : scope === 'following' ? 'Events cancelled' : 'Series cancelled',
+        'Every guest has been notified.'
+      );
       onChanged();
       onClose();
     } catch {
@@ -206,6 +221,12 @@ export default function EventDetailModal({
                 <span className={`inline-block w-2 h-2 rounded-full mr-1 ${color!.dot}`} />
                 {CATEGORY_LABELS[event.category] ?? event.category}
               </p>
+              {event.series && (
+                <p className="text-gray-500 text-xs">
+                  <i className="fas fa-arrows-rotate text-gray-400 mr-1"></i>
+                  {describeRecurrence(event.series, event.timezone)}
+                </p>
+              )}
             </div>
 
             {event.description && (
@@ -228,7 +249,7 @@ export default function EventDetailModal({
                       key={opt.value}
                       type="button"
                       disabled={responding}
-                      onClick={() => respond(opt.value)}
+                      onClick={() => handleRespondTap(opt.value)}
                       className={`flex-1 py-2 rounded-lg text-sm font-medium border transition min-h-[44px] disabled:opacity-50 ${
                         myGuestRow.status === opt.value
                           ? 'bg-violet-600 text-white border-violet-600'
@@ -309,14 +330,51 @@ export default function EventDetailModal({
         )}
       </div>
 
+      {/* One-off events keep the binary confirm; series get the scope question. */}
       <ConfirmModal
-        isOpen={confirmingCancel}
+        isOpen={confirmingCancel && !event?.series_id}
         title="Cancel this event?"
         message="Every guest will be notified and the event will leave their calendars. This cannot be undone."
         confirmText="Yes, cancel it"
         cancelText="Keep the event"
-        onConfirm={cancelEvent}
+        onConfirm={() => cancelEvent('this')}
         onCancel={() => setConfirmingCancel(false)}
+      />
+      <ScopeChooserModal
+        isOpen={confirmingCancel && !!event?.series_id}
+        title="Cancel repeating event"
+        message="Guests will be notified. This cannot be undone."
+        options={[
+          { value: 'this', label: 'This event only' },
+          { value: 'following', label: 'This and following events' },
+          { value: 'series', label: 'The entire series' },
+        ]}
+        defaultValue="this"
+        confirmText="Cancel event"
+        destructive
+        onConfirm={scope => cancelEvent(scope)}
+        onCancel={() => setConfirmingCancel(false)}
+      />
+      <ScopeChooserModal
+        isOpen={pendingResponse !== null}
+        title="This is a repeating event"
+        message={
+          pendingResponse === 'accepted' ? 'Say yes to…'
+          : pendingResponse === 'declined' ? 'Say no to…'
+          : 'Answer maybe for…'
+        }
+        options={[
+          { value: 'series', label: 'All events in the series' },
+          { value: 'this', label: 'Just this event' },
+        ]}
+        defaultValue="series"
+        confirmText="Send response"
+        onConfirm={scope => {
+          const status = pendingResponse!;
+          setPendingResponse(null);
+          respond(status, scope as 'this' | 'series');
+        }}
+        onCancel={() => setPendingResponse(null)}
       />
     </div>
   );

@@ -5,10 +5,12 @@ import { X, CalendarPlus } from 'lucide-react';
 import { useBodyScrollLock } from '@/hooks/useBodyScrollLock';
 import { useToast } from '@/components/Toast';
 import { EVENT_CATEGORIES } from '@/lib/calendar/events';
+import { describeRecurrence, MAX_OCCURRENCES } from '@/lib/calendar/recurrence';
 import { CATEGORY_LABELS, categoryColor } from '@/lib/calendar/categories';
 import GuestPicker, { type GuestChip } from './GuestPicker';
+import ScopeChooserModal from './ScopeChooserModal';
 import { formatDisplayName } from '@/lib/formatters';
-import type { EventDetail } from './types';
+import type { EditScope, EventDetail } from './types';
 
 // Quick-create by default (title + when), everything else behind
 // "More options" — the Google Calendar pattern from the product brief.
@@ -23,6 +25,29 @@ interface FormState {
   description: string;
   location: string;
   category: string;
+}
+
+type RepeatFreq = 'none' | 'daily' | 'weekly' | 'monthly' | 'yearly';
+interface RepeatState {
+  freq: RepeatFreq;
+  interval: number;
+  byweekday: number[];
+  endsKind: 'never' | 'until' | 'count';
+  until: string;  // YYYY-MM-DD
+  count: number;
+}
+
+const DOW_CHIP_LABELS = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
+
+const emptyRepeat = (): RepeatState => ({
+  freq: 'none', interval: 1, byweekday: [], endsKind: 'never', until: '', count: 10,
+});
+
+/** Day-of-week of a YYYY-MM-DD form date (local, parsed from parts). */
+function formDateDow(date: string): number {
+  const [y, m, d] = date.split('-').map(Number);
+  if (!y || !m || !d) return new Date().getDay();
+  return new Date(y, m - 1, d).getDay();
 }
 
 function pad(n: number): string {
@@ -101,10 +126,12 @@ export default function EventFormModal({
 }) {
   const { showSuccess } = useToast();
   const [form, setForm] = useState<FormState>(() => emptyForm());
+  const [repeat, setRepeat] = useState<RepeatState>(() => emptyRepeat());
   const [chips, setChips] = useState<GuestChip[]>([]);
   const [moreOpen, setMoreOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
+  const [scopeOpen, setScopeOpen] = useState(false);
   useBodyScrollLock(isOpen);
 
   useEffect(() => {
@@ -118,8 +145,21 @@ export default function EventFormModal({
       setChips([]);
       setMoreOpen(false);
     }
+    setRepeat(emptyRepeat());
+    setScopeOpen(false);
     setError('');
   }, [isOpen, editing, defaultDay]);
+
+  // The start day is always part of a weekly repeat and follows date changes.
+  const startDow = formDateDow(form.date);
+  useEffect(() => {
+    if (repeat.freq !== 'weekly') return;
+    setRepeat(prev =>
+      prev.byweekday.includes(startDow)
+        ? prev
+        : { ...prev, byweekday: [...prev.byweekday, startDow].sort((a, b) => a - b) }
+    );
+  }, [startDow, repeat.freq]);
 
   if (!isOpen) return null;
 
@@ -151,6 +191,16 @@ export default function EventFormModal({
     if (saving) return;
     setError('');
     if (!form.title.trim()) { setError('Please give the event a title.'); return; }
+    if (!buildTimestamps()) { setError('Please provide a valid date and time.'); return; }
+    // Editing an occurrence of a series: ask the classic scope question first.
+    if (editing?.series_id) {
+      setScopeOpen(true);
+      return;
+    }
+    await doSubmit('this');
+  };
+
+  const doSubmit = async (scope: EditScope) => {
     const times = buildTimestamps();
     if (!times) { setError('Please provide a valid date and time.'); return; }
 
@@ -181,6 +231,7 @@ export default function EventFormModal({
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             ...eventFields,
+            scope,
             add_guests: {
               profile_ids: added.filter(c => c.kind === 'profile').map(c => c.id),
               emails: added.filter(c => c.kind === 'email').map(c => c.id),
@@ -194,6 +245,21 @@ export default function EventFormModal({
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             ...eventFields,
+            ...(repeat.freq !== 'none'
+              ? {
+                  recurrence: {
+                    freq: repeat.freq,
+                    interval: repeat.interval,
+                    ...(repeat.freq === 'weekly' ? { byweekday: repeat.byweekday } : {}),
+                    ends:
+                      repeat.endsKind === 'until'
+                        ? { kind: 'until', until: repeat.until }
+                        : repeat.endsKind === 'count'
+                          ? { kind: 'count', count: repeat.count }
+                          : { kind: 'never' },
+                  },
+                }
+              : {}),
             guests: {
               profile_ids: chips.filter(c => c.kind === 'profile').map(c => c.id),
               emails: chips.filter(c => c.kind === 'email').map(c => c.id),
@@ -301,6 +367,156 @@ export default function EventFormModal({
             All day
           </label>
 
+          {/* Repeat — create only; the rule can't change after creation. */}
+          {editing ? (
+            editing.series && (
+              <p className="text-sm text-gray-500">
+                <i className="fas fa-arrows-rotate text-gray-400 mr-1.5"></i>
+                {describeRecurrence(editing.series, editing.timezone)}
+                <span className="block text-xs text-gray-400 mt-0.5">
+                  The repeat schedule can&apos;t be changed — cancel the series and
+                  create a new one instead.
+                </span>
+              </p>
+            )
+          ) : (
+            <div className="space-y-3">
+              <div className="flex items-center gap-3">
+                <label htmlFor="ev-repeat" className="text-sm font-semibold text-gray-900">Repeat</label>
+                <select
+                  id="ev-repeat"
+                  value={repeat.freq}
+                  onChange={e => {
+                    const freq = e.target.value as RepeatFreq;
+                    setRepeat(prev => ({
+                      ...prev,
+                      freq,
+                      byweekday: freq === 'weekly' ? [startDow] : [],
+                    }));
+                  }}
+                  className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-violet-500 focus:outline-none"
+                >
+                  <option value="none">Does not repeat</option>
+                  <option value="daily">Daily</option>
+                  <option value="weekly">Weekly</option>
+                  <option value="monthly">Monthly</option>
+                  <option value="yearly">Yearly</option>
+                </select>
+              </div>
+
+              {repeat.freq !== 'none' && (
+                <div className="rounded-lg border border-gray-200 bg-gray-50/60 p-3 space-y-3">
+                  <div className="flex items-center gap-2 text-sm text-gray-700">
+                    Every
+                    <input
+                      type="number"
+                      min={1}
+                      max={12}
+                      value={repeat.interval}
+                      onChange={e =>
+                        setRepeat(prev => ({
+                          ...prev,
+                          interval: Math.min(Math.max(parseInt(e.target.value, 10) || 1, 1), 12),
+                        }))
+                      }
+                      className="w-16 px-2 py-1.5 border border-gray-300 rounded-lg text-sm text-center focus:ring-2 focus:ring-violet-500 focus:outline-none"
+                    />
+                    {repeat.freq === 'daily' && (repeat.interval === 1 ? 'day' : 'days')}
+                    {repeat.freq === 'weekly' && (repeat.interval === 1 ? 'week' : 'weeks')}
+                    {repeat.freq === 'monthly' && (repeat.interval === 1 ? 'month' : 'months')}
+                    {repeat.freq === 'yearly' && (repeat.interval === 1 ? 'year' : 'years')}
+                  </div>
+
+                  {repeat.freq === 'weekly' && (
+                    <div className="flex gap-1.5">
+                      {DOW_CHIP_LABELS.map((label, dow) => {
+                        const active = repeat.byweekday.includes(dow);
+                        const locked = dow === startDow;
+                        return (
+                          <button
+                            key={dow}
+                            type="button"
+                            disabled={locked}
+                            title={locked ? "The event's start day always repeats" : undefined}
+                            onClick={() =>
+                              setRepeat(prev => ({
+                                ...prev,
+                                byweekday: active
+                                  ? prev.byweekday.filter(d => d !== dow)
+                                  : [...prev.byweekday, dow].sort((a, b) => a - b),
+                              }))
+                            }
+                            className={`w-8 h-8 rounded-full text-xs font-semibold transition ${
+                              active
+                                ? 'bg-violet-600 text-white'
+                                : 'bg-white border border-gray-300 text-gray-600 hover:border-violet-400'
+                            } ${locked ? 'opacity-90 cursor-default ring-1 ring-violet-300' : ''}`}
+                          >
+                            {label}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
+
+                  <div className="space-y-1.5 text-sm text-gray-700">
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="radio"
+                        name="repeat-ends"
+                        checked={repeat.endsKind === 'never'}
+                        onChange={() => setRepeat(prev => ({ ...prev, endsKind: 'never' }))}
+                        className="accent-violet-600"
+                      />
+                      Never ends
+                    </label>
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="radio"
+                        name="repeat-ends"
+                        checked={repeat.endsKind === 'until'}
+                        onChange={() => setRepeat(prev => ({ ...prev, endsKind: 'until' }))}
+                        className="accent-violet-600"
+                      />
+                      Until
+                      <input
+                        type="date"
+                        value={repeat.until}
+                        onChange={e => setRepeat(prev => ({ ...prev, until: e.target.value, endsKind: 'until' }))}
+                        className="px-2 py-1 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-violet-500 focus:outline-none"
+                      />
+                    </label>
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="radio"
+                        name="repeat-ends"
+                        checked={repeat.endsKind === 'count'}
+                        onChange={() => setRepeat(prev => ({ ...prev, endsKind: 'count' }))}
+                        className="accent-violet-600"
+                      />
+                      After
+                      <input
+                        type="number"
+                        min={1}
+                        max={MAX_OCCURRENCES}
+                        value={repeat.count}
+                        onChange={e =>
+                          setRepeat(prev => ({
+                            ...prev,
+                            count: Math.min(Math.max(parseInt(e.target.value, 10) || 1, 1), MAX_OCCURRENCES),
+                            endsKind: 'count',
+                          }))
+                        }
+                        className="w-16 px-2 py-1 border border-gray-300 rounded-lg text-sm text-center focus:ring-2 focus:ring-violet-500 focus:outline-none"
+                      />
+                      times
+                    </label>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
           {!moreOpen ? (
             <button
               type="button"
@@ -373,6 +589,23 @@ export default function EventFormModal({
           </button>
         </form>
       </div>
+
+      <ScopeChooserModal
+        isOpen={scopeOpen}
+        title="Edit repeating event"
+        options={[
+          { value: 'this', label: 'This event only', description: 'Other events in the series stay as they are.' },
+          { value: 'following', label: 'This and following events' },
+          { value: 'series', label: 'All events in the series' },
+        ]}
+        defaultValue="this"
+        confirmText="Save changes"
+        onConfirm={scope => {
+          setScopeOpen(false);
+          doSubmit(scope);
+        }}
+        onCancel={() => setScopeOpen(false)}
+      />
     </div>
   );
 }

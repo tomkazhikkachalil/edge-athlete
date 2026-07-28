@@ -44,6 +44,7 @@ export function EventChip({
         <span className={`mr-1 ${pending ? '' : 'text-white/80'}`}>{eventTimeLabel(event)}</span>
       )}
       <span className="font-medium">{event.title}</span>
+      {event.series_id && <i className="fas fa-arrows-rotate ml-1 text-[9px] opacity-70"></i>}
     </button>
   );
 }
@@ -87,6 +88,7 @@ export function EventBlock({
       <span className="font-medium block truncate">
         {maybe && <span className="font-bold mr-0.5">?</span>}
         {event.title}
+        {event.series_id && <i className="fas fa-arrows-rotate ml-1 text-[9px] opacity-70"></i>}
       </span>
       {!event.all_day && (
         <span className={`block truncate ${pending ? '' : 'text-white/80'}`}>
