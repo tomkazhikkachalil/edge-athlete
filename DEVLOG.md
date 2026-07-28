@@ -1,5 +1,25 @@
 # Development Log
 
+## July 28, 2026 (end of session) — Maintenance checklist + sync
+
+- lint clean · `tsc --noEmit` clean · `vitest` 355 passed (34 files) ·
+  `npm ci --dry-run` clean · full clean `npm run build` exit 0 (dev
+  servers stopped, `.next` wiped first).
+- Migration state: through 055, ALL run + behaviorally verified live
+  (048–055 = the complete guardian data layer).
+- Deployed through e9f964b, Vercel green, prod site 200. Guardian
+  feature dark in prod (NEXT_PUBLIC_FEATURE_GUARDIAN_PROFILES unset);
+  ON in Tom's .env.local for the local walkthrough. This entry is the
+  maintenance-log commit → GitHub → Vercel.
+- The July 27–28 session in one line: purple rebrand → launch
+  hardening + signup fix → Google OAuth live in prod → guardian
+  profiles spec-to-functionally-complete (8 migrations, 5 E2E suites /
+  70 scenario checks, tests 255→355).
+- Awaiting Tom: local guardian walkthrough (parent → athlete → consent
+  → approve at /dashboard/consent → PIN → kid login → post → approve →
+  transfer), phone pass on the mobile fixes, Monday's storage-sweep
+  dry-run log, two-phone golf test, Edge Vitals loop.
+
 ## July 28, 2026 (early) — Guardian profiles: Phase 5 TRANSFER OF CONTROL shipped — feature functionally COMPLETE (dark)
 
 **Commit da7ec6b + migration 055 (RUN + verified), E2E 18/18 on the
