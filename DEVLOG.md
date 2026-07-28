@@ -1,5 +1,67 @@
 # Development Log
 
+## July 28, 2026 (later) — CALENDAR v1 BUILT (dark) — views + events + full invite loop
+
+**Commits fa23896 / f308de5 / 4fe5b8a (+ this docs commit), dark behind
+NEXT_PUBLIC_FEATURE_CALENDAR (unset everywhere; migration 057 must run
+first). Tom's new feature brief: a Google/Outlook-class personal
+calendar; approved first build = stages 1+2 (views + one-time events +
+the invite loop — "the invite loop is the product"). Custom-built grid
+with the already-installed date-fns v4 — ZERO new dependencies.
+Recurrence, org invites (orgs don't exist yet), reminders (both Hobby
+cron slots taken), and external sync are later stages.**
+
+- **Migration 057 (WRITTEN, NOT YET RUN):** events + event_guests. The
+  organizer holds a guest row (role organizer, accepted) so ONE query —
+  my guest rows ⋈ active events — serves created+invited; email
+  invitees use the exactly-one-of identity CHECK (guardian_invites
+  precedent); cancel is a status flip so the guest list survives for
+  fan-out and deep links never 404. Four event_* notification types
+  (full-list CHECK re-ADD; direct-inserted — create_notification would
+  silently drop them). RLS on, zero policies.
+- **Pure libs (tests 371→396):** validators mirroring the DB CHECKs
+  (all-day must be midnight-in-event-zone both ends — off-by-one bugs
+  become 400s, not grid errors), grid math (monthMatrix always 6×7,
+  allDayDayLabels = the ONLY all-day date accessor, formatted in the
+  EVENT's IANA zone — Tokyo-event/LA-viewer unit-tested), assignLanes
+  cluster sweep for Google-style side-by-side overlap, static category
+  color map.
+- **API:** GET range list (62-day cap, true interval overlap, declined
+  excluded, my_status + is_organizer per item); POST create with
+  compensating delete on partial guest insert; GET/PATCH/DELETE detail
+  (readable by organizer or ANY guest row incl. declined — deep-link
+  mind-changing; outsiders get 404, never existence); respond
+  (changeable anytime, organizer fixed); invite-search (public + accepted
+  follows either direction — /api/search is public-only, which would
+  have made private friends uninvitable). Every route 404s flag-off
+  (verified live against a flag-less dev server).
+- **Client:** /calendar with Month/Week/Day/Agenda (custom Tailwind
+  grid; Week/Day share a TimeGridView with sticky all-day row, hour
+  gutter, absolute lane-laid blocks, 7am auto-scroll; phones get month
+  dots + tap-day→Day view, Week scrolls horizontally). Google/Outlook
+  visual convention: pending invites render dashed+faded holding the
+  slot; maybe gets a "?"; declined disappears (still reachable via the
+  notification deep link to change your mind). EventFormModal =
+  quick-create + "More options" (GuestPicker chips: debounced user
+  search + invite-by-email rows). EventDetailModal = details with
+  viewer-local times (+ event-zone secondary line when zones differ),
+  live guest list with status pills, running tally ("3 going · 1 maybe
+  · 2 pending"), Yes/Maybe/No, organizer Edit/Cancel. ?event= deep link
+  from notifications opens the modal. AppHeader Calendar nav item
+  (flag-conditional). Emails for email-invitees only (invite +
+  cancellation, event-zone times) — registered guests get in-app
+  notifications, no dual-channel spam.
+- **Verification so far:** 396 unit tests green, lint/tsc clean, clean
+  build (108 pages incl. all calendar routes), flag-off 404s verified
+  live. **Live E2E + browser smoke are WRITTEN and WAITING on migration
+  057** (scratchpad: calendar-e2e.mjs — 30+ checks over the whole
+  invite loop; calendar-smoke.mjs — real two-browser create→pending→
+  accept→solid walk + mobile). Run 057, then the suites run.
+
+NEXT (calendar roadmap): recurrence (series vs occurrence editing), org
+invites (needs organizations to exist first), reminders (cron design),
+"Add to calendar" ICS + subscribe feed.
+
 ## July 28, 2026 (end of session, late) — Maintenance checklist + sync
 
 - lint clean · `tsc --noEmit` clean · `vitest` 371 passed (36 files) ·
