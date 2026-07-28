@@ -6,8 +6,17 @@
 flag. Stage 3 of Tom's calendar brief: repeat patterns, the classic
 "This event / This and following / Entire series" question,
 single-occurrence overrides, series invitations with per-occurrence
-decline. ⚠️ MIGRATION 058 WRITTEN, NOT YET RUN — live E2E waits on it
-(scratchpad recurrence-e2e.mjs, ~25 checks, ready).**
+decline. ✅ MIGRATION 058 RUN by Tom same evening — API E2E 27/27
+(series create/fan-out counts, ONE-notification-per-guest deltas,
+series accept + single-occurrence decline, override semantics, scoped
+time edit keeping per-occurrence dates, date-move 400, following
+cancel + generation stop, cron extension with weekly-parity and
+guest-status-copy assertions, scope guards) + browser smoke 14/14
+(Repeat UI creates a real biweekly Tue+Thu ×10 series, immutable-rule
+note, scope chooser on edit/cancel, respond chooser defaulting to
+"All events in the series", series cancel clears the grid; screenshots
+reviewed, zero page errors). One harness fix mid-run (cumulative vs
+delta notification count — test bug, not code).**
 
 - **Architecture: MATERIALIZED OCCURRENCES.** event_series holds ONLY
   the rule; every occurrence is a real events row with its own guest
