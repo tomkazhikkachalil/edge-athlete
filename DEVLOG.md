@@ -1,5 +1,17 @@
 # Development Log
 
+## July 28, 2026 (night 4b) — 🚀 CHAT DOCK LAUNCHED
+
+Tom set NEXT_PUBLIC_FEATURE_CHAT_DOCK=1 in Vercel (Production); this
+commit triggers the fresh build that inlines the flag. Live for all
+signed-in desktop users (≥1024px, everywhere except /messages): the
+Messages pill with unread badge, conversation panel with presence and
+inline compose, mini chat windows that persist across navigation and
+refresh (drafts included), and minimize-to-bubble. Phones keep the
+existing full-screen messaging untouched. Launch verification: headless
+Chrome against prod with a disposable user must find the dock pill on
+/feed.
+
 ## July 28, 2026 (night 4) — Persistent chat dock (shipped DARK)
 
 FB/LinkedIn-style bottom-right chat dock on every big-screen page,
