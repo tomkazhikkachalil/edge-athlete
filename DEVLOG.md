@@ -1,5 +1,54 @@
 # Development Log
 
+## July 28, 2026 (night 4) — Persistent chat dock (shipped DARK)
+
+FB/LinkedIn-style bottom-right chat dock on every big-screen page,
+behind new flag `NEXT_PUBLIC_FEATURE_CHAT_DOCK` (dark until Tom flips
+it in Vercel + fresh build — same routine as the calendar launch).
+
+- **One system, two doors** (the brief's golden rule): the dock is a
+  pure second VIEW over existing messaging. `MessagesProvider` is its
+  entire list/badge data source; mini windows reuse MessageBubble /
+  MessageInput / TypingIndicator and the same `/api/messages/*`
+  endpoints on a distinct realtime topic (`dockchat:<id>`, coexisting
+  with the provider's `messages:<id>` — dual channels already proven in
+  prod). Deleting `src/components/chat-dock/` leaves messaging pristine.
+  Only live-messaging file touched: MessageInput, additive
+  `initialText`/`onTextChange` props (~10-line diff, inert when absent).
+- **Persistence IS the product**: dock mounts once in the root layout
+  (App Router soft nav never unmounts it); layout persists to
+  localStorage `ea:chat-dock:v1`, per-conversation drafts to
+  `ea:chat-draft:v1:<id>` (48h TTL, debounced 400ms, write-through on
+  empty so send clears reliably). Minimized windows stay mounted-hidden
+  for instant restore; a minimizedRef guards read-marking.
+- Pill → panel (active-now row, filter, ConversationItem list reused
+  verbatim, inline composer) → up to 3 mini windows (width-aware cap
+  `clamp(1,3,floor((vw-360)/336))`, oldest auto-minimizes) → avatar
+  bubbles. Presence v1: client-only Supabase Realtime Presence channel
+  `presence:global`, mounted only inside the gated dock — no DB, no
+  migration; mobile users read as offline (documented v1 limit).
+- Gates are JS-level, not just CSS (phones must not run phantom
+  presence/read-marking): flag && user && matchMedia(min-width:1024px),
+  and the dock renders nothing on /messages (the full page IS the big
+  door). z-[45]: above header (40), below all modals (50+).
+- Verification: 445 unit tests green (dock reducer 10, drafts 4 — node
+  env with a localStorage stub, no jsdom dep). Two-browser Chrome smoke
+  **20/20** incl. THE test: mini window + half-typed draft survive
+  /feed→/calendar navigation AND a hard refresh; realtime both
+  directions; B's unread badge; A's presence dot in B's panel;
+  dock-read state agrees with the full messages page; minimize→bubble→
+  instant restore; "Open full view" lands on /messages?c=<id>; dock
+  suppressed on /messages and on a 390px viewport; zero page errors.
+- Smoke-harness lesson: `button:has-text("Messages")` matched the
+  header NAV button and silently navigated instead of opening the dock
+  → the pill now carries aria-label="Messages dock" (a11y win too) and
+  the panel/window shells carry data-testids.
+- lint clean · tsc clean · vitest 445/445 (43 files) · clean prod
+  build (dev server killed, .next wiped first).
+- Deferred (cut line, in order): toast+sound near dock, "recently
+  active" presence state, MutationObserver title fix, full-page draft
+  adoption, group creation in dock.
+
 ## July 28, 2026 (night 3b) — 🚀 CALENDAR LAUNCHED
 
 Tom set NEXT_PUBLIC_FEATURE_CALENDAR=1 in Vercel (Production); this
