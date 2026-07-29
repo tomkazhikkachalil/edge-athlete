@@ -175,6 +175,7 @@ export default function ChatDock() {
           onClick={() => dispatch({ type: 'TOGGLE_PANEL' })}
           className="flex items-center gap-2 bg-violet-600 text-white pl-4 pr-3 py-2.5 rounded-t-lg shadow-lg hover:bg-violet-700 transition text-sm font-medium"
           aria-expanded={state.panelOpen}
+          aria-label="Messages dock"
         >
           <i className="fas fa-comment-alt"></i>
           Messages

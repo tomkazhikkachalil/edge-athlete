@@ -60,7 +60,7 @@ export default function MiniChatWindow({
   };
 
   return (
-    <div className="w-80 bg-white rounded-t-lg shadow-2xl border border-gray-200 border-b-0 flex flex-col" style={{ height: '26rem' }}>
+    <div data-testid="mini-chat-window" className="w-80 bg-white rounded-t-lg shadow-2xl border border-gray-200 border-b-0 flex flex-col" style={{ height: '26rem' }}>
       {/* Header */}
       <div className="flex items-center gap-2 px-3 py-2 bg-violet-600 text-white rounded-t-lg shrink-0">
         <span className="relative shrink-0">
