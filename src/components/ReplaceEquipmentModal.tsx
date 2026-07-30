@@ -7,6 +7,7 @@ import AddEquipmentModal from './AddEquipmentModal';
 import { type EquipmentItem } from './EquipmentSection';
 import { getCategoryConfig } from '@/lib/equipment-config';
 import { useBodyScrollLock } from '@/hooks/useBodyScrollLock';
+import { useToast } from './Toast';
 
 interface ReplaceEquipmentModalProps {
   isOpen: boolean;
@@ -23,6 +24,7 @@ export default function ReplaceEquipmentModal({
   profileId,
   oldEquipment,
 }: ReplaceEquipmentModalProps) {
+  const { showError } = useToast();
   const [step, setStep] = useState<'confirm' | 'add'>('confirm');
   const [retiring, setRetiring] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -34,38 +36,39 @@ export default function ReplaceEquipmentModal({
     onClose();
   };
 
-  // Retire old equipment and proceed to add new
-  const handleConfirmReplace = async () => {
+  // Move to the add step. The old gear is retired only AFTER the
+  // replacement is actually added (see handleAddSuccess) — retiring first
+  // meant backing out of step 2 left the athlete with retired gear, no
+  // replacement, and no way to undo it from this UI.
+  const handleConfirmReplace = () => {
+    setError(null);
+    setStep('add');
+  };
+
+  // The replacement now exists — retire the old item to complete the swap.
+  const handleAddSuccess = async () => {
     try {
       setRetiring(true);
-      setError(null);
-
-      // Retire the old equipment
       const response = await fetch(`/api/equipment/${oldEquipment.id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
         body: JSON.stringify({ status: 'retired' }),
       });
-
-      if (!response.ok) {
-        throw new Error('Failed to retire equipment');
-      }
-
-      // Move to add new equipment step
-      setStep('add');
+      if (!response.ok) throw new Error('Failed to retire equipment');
     } catch (err) {
+      // The new gear was added, so never fail the whole flow here — just
+      // tell the athlete the one step that didn't stick.
       console.error('Error retiring equipment:', err);
-      setError('Failed to retire equipment. Please try again.');
+      showError(
+        'Old equipment not retired',
+        'Your new gear was added, but the old item is still active — retire it from your equipment list.'
+      );
     } finally {
       setRetiring(false);
+      onSuccess(); // Refresh equipment list
+      handleClose();
     }
-  };
-
-  // Handle successful addition of new equipment
-  const handleAddSuccess = () => {
-    onSuccess(); // Refresh equipment list
-    handleClose(); // Close modal
   };
 
   // Lock background scroll while open (iOS scroll-chaining behind overlays)
@@ -164,7 +167,7 @@ export default function ReplaceEquipmentModal({
                       What happens next?
                     </p>
                     <ul className="text-sm text-violet-700 space-y-1">
-                      <li>• Your current equipment will be marked as &quot;retired&quot;</li>
+                      <li>• Your current equipment is marked as &quot;retired&quot; once the new gear is added</li>
                       <li>• It will remain in your equipment history</li>
                       <li>• You can add the new replacement equipment</li>
                       <li>• The category will be pre-selected for you</li>
@@ -195,17 +198,8 @@ export default function ReplaceEquipmentModal({
                 disabled={retiring}
                 className="px-6 py-2.5 bg-violet-600 text-white rounded-lg font-semibold hover:bg-violet-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
               >
-                {retiring ? (
-                  <>
-                    <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                    Retiring...
-                  </>
-                ) : (
-                  <>
-                    <RefreshCw className="w-4 h-4" />
-                    Continue to Add New
-                  </>
-                )}
+                <RefreshCw className="w-4 h-4" />
+                Continue to Add New
               </button>
             </div>
           </div>

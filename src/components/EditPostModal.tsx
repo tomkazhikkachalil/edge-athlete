@@ -3,6 +3,9 @@
 import { useState, useRef, useEffect } from 'react';
 import { useToast } from '@/components/Toast';
 import { useBodyScrollLock } from '@/hooks/useBodyScrollLock';
+import { useDirtyClose } from '@/hooks/useDirtyClose';
+import ConfirmModal from '@/components/ConfirmModal';
+import { COPY } from '@/lib/copy';
 
 interface Post {
   id: string;
@@ -112,18 +115,36 @@ export default function EditPostModal({
   };
 
   // Lock background scroll while open (iOS scroll-chaining behind overlays)
+  // Edits count as unsaved when they differ from the post as loaded.
+  const isDirty = () =>
+    caption !== (post.caption || '') ||
+    JSON.stringify(hashtags) !== JSON.stringify(post.hashtags || []) ||
+    visibility !== (post.visibility || 'public') ||
+    customHashtag.trim() !== '';
+
+  const { requestClose, confirmOpen, confirmDiscard, cancelDiscard } = useDirtyClose(isDirty, onClose);
+
   useBodyScrollLock(isOpen);
 
   if (!isOpen) return null;
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+      <ConfirmModal
+        isOpen={confirmOpen}
+        title={COPY.FORMS.DISCARD_TITLE}
+        message={COPY.FORMS.DISCARD_CONFIRM}
+        confirmText={COPY.FORMS.DISCARD_ACTION}
+        cancelText={COPY.FORMS.KEEP_EDITING}
+        onConfirm={confirmDiscard}
+        onCancel={cancelDiscard}
+      />
       <div className="bg-white rounded-lg max-w-2xl w-full max-h-modal flex flex-col">
         {/* Header */}
         <div className="p-6 border-b border-gray-200 flex items-center justify-between">
           <h2 className="text-xl font-bold text-gray-900">Edit Post</h2>
           <button
-            onClick={onClose}
+            onClick={requestClose}
             className="text-gray-400 hover:text-gray-600 transition-colors"
           >
             <i className="fas fa-times text-xl"></i>
@@ -254,7 +275,7 @@ export default function EditPostModal({
         {/* Footer */}
         <div className="p-6 border-t border-gray-200 flex justify-end gap-3">
           <button
-            onClick={onClose}
+            onClick={requestClose}
             disabled={isSubmitting}
             className="px-6 py-2 border border-gray-300 rounded-lg text-gray-700 font-medium hover:bg-gray-50 transition-colors disabled:opacity-50"
           >

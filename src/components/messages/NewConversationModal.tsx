@@ -5,6 +5,9 @@ import { useRouter } from 'next/navigation';
 import LazyImage from '@/components/LazyImage';
 import { formatDisplayName, getInitials } from '@/lib/formatters';
 import { useMessages } from '@/lib/messages';
+import { useDirtyClose } from '@/hooks/useDirtyClose';
+import ConfirmModal from '@/components/ConfirmModal';
+import { COPY } from '@/lib/copy';
 
 interface SearchProfile {
   id: string;
@@ -32,6 +35,13 @@ export default function NewConversationModal({ onClose }: Props) {
   const [selectedMembers, setSelectedMembers] = useState<SearchProfile[]>([]);
   const [creating, setCreating] = useState(false);
   const [error, setError] = useState('');
+
+  // A chosen recipient / typed group name is work the user would not
+  // expect a stray backdrop click to throw away.
+  const isDirty = () =>
+    selectedMembers.length > 0 || groupName.trim() !== '' || searchQuery.trim() !== '';
+
+  const { requestClose, confirmOpen, confirmDiscard, cancelDiscard } = useDirtyClose(isDirty, onClose);
 
   // Debounced + sequence-guarded search: without the guard, out-of-order
   // responses could display results for a stale query.
@@ -130,7 +140,16 @@ export default function NewConversationModal({ onClose }: Props) {
   };
 
   return (
-    <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={onClose}>
+    <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={requestClose}>
+      <ConfirmModal
+        isOpen={confirmOpen}
+        title={COPY.FORMS.DISCARD_TITLE}
+        message={COPY.FORMS.DISCARD_CONFIRM}
+        confirmText={COPY.FORMS.DISCARD_ACTION}
+        cancelText={COPY.FORMS.KEEP_EDITING}
+        onConfirm={confirmDiscard}
+        onCancel={cancelDiscard}
+      />
       <div
         className="max-w-md w-full bg-white rounded-xl shadow-xl flex flex-col max-h-modal"
         onClick={e => e.stopPropagation()}
@@ -138,7 +157,7 @@ export default function NewConversationModal({ onClose }: Props) {
         {/* Header */}
         <div className="flex items-center justify-between px-5 py-4 border-b border-gray-200 shrink-0">
           <h2 className="text-lg font-bold text-gray-900">New Message</h2>
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 p-1">
+          <button onClick={requestClose} className="text-gray-400 hover:text-gray-600 p-1">
             <i className="fas fa-times"></i>
           </button>
         </div>

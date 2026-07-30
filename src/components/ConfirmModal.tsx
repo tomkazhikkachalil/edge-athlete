@@ -9,6 +9,9 @@ interface ConfirmModalProps {
   confirmText?: string;
   cancelText?: string;
   confirmButtonClass?: string;
+  /** Overlay z-index class. Raise it above z-[60] when the caller's own
+   *  overlay sits higher (e.g. the full-bleed media editor at z-[65]). */
+  overlayZClass?: string;
   onConfirm: () => void;
   onCancel: () => void;
 }
@@ -20,6 +23,7 @@ export default function ConfirmModal({
   confirmText = 'Confirm',
   cancelText = 'Cancel',
   confirmButtonClass = 'bg-red-600 hover:bg-red-700',
+  overlayZClass = 'z-[60]',
   onConfirm,
   onCancel
 }: ConfirmModalProps) {
@@ -31,7 +35,7 @@ export default function ConfirmModal({
   // z-[60]: ConfirmModal can stack over z-50 modals (e.g. End Round over
   // SharedRoundFullCard) — same layer would rely on DOM order alone.
   return (
-    <div className="fixed inset-0 bg-black/50 z-[60] flex items-center justify-center p-4">
+    <div className={`fixed inset-0 bg-black/50 ${overlayZClass} flex items-center justify-center p-4`}>
       <div className="bg-white rounded-lg shadow-xl max-w-md w-full max-h-[85vh] overflow-y-auto">
         {/* Header */}
         <div className="p-6 border-b border-gray-200">

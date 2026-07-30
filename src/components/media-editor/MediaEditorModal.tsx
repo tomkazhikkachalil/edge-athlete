@@ -11,9 +11,12 @@
  * (TagPeopleModal etc.), below Toast (z-[70]).
  */
 
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { X } from 'lucide-react';
 import { useBodyScrollLock } from '@/hooks/useBodyScrollLock';
+import { useDirtyClose } from '@/hooks/useDirtyClose';
+import ConfirmModal from '@/components/ConfirmModal';
+import { COPY } from '@/lib/copy';
 import { useToast } from '@/components/Toast';
 import { cssFilterString, composeAdjustments } from '@/lib/media/filters';
 import { exportAsset, passThrough } from '@/lib/media/export';
@@ -58,6 +61,14 @@ export default function MediaEditorModal({ assets: initialAssets, config, onDone
   const [activeId, setActiveId] = useState(initialAssets[0]?.id ?? '');
   const [tool, setTool] = useState<Tool>(initialAssets[0]?.kind === 'video' ? 'trim' : 'crop');
   const [exporting, setExporting] = useState<{ done: number; total: number } | null>(null);
+
+  // Crop/filter/trim recipes are deliberately non-persistable, so a confirm
+  // on cancel is the only protection against losing the edits.
+  const initialRecipesRef = useRef(JSON.stringify(recipes));
+  const isDirty = () =>
+    assets.length !== initialAssets.length || JSON.stringify(recipes) !== initialRecipesRef.current;
+
+  const { requestClose, confirmOpen, confirmDiscard, cancelDiscard } = useDirtyClose(isDirty, onCancel);
 
   const active = assets.find(a => a.id === activeId) ?? assets[0];
   if (!active) return null;
@@ -111,11 +122,21 @@ export default function MediaEditorModal({ assets: initialAssets, config, onDone
 
   return (
     <div className="fixed inset-0 z-[65] bg-black flex flex-col safe-top safe-bottom">
+      <ConfirmModal
+        isOpen={confirmOpen}
+        title={COPY.FORMS.DISCARD_TITLE}
+        message={COPY.FORMS.DISCARD_CONFIRM}
+        confirmText={COPY.FORMS.DISCARD_ACTION}
+        cancelText={COPY.FORMS.KEEP_EDITING}
+        overlayZClass="z-[75]"
+        onConfirm={confirmDiscard}
+        onCancel={cancelDiscard}
+      />
       {/* Header */}
       <div className="flex items-center justify-between px-4 py-2 flex-shrink-0">
         <button
           type="button"
-          onClick={onCancel}
+          onClick={requestClose}
           aria-label="Cancel editing"
           className="w-11 h-11 flex items-center justify-center rounded-full text-white hover:bg-white/10"
         >
