@@ -22,7 +22,7 @@ interface AppHeaderProps {
 export default function AppHeader({ showSearch = true, onCreatePost, onEditProfile }: AppHeaderProps) {
   const router = useRouter();
   const pathname = usePathname();
-  const { profile, signOut, managedProfiles, activeProfile, setActiveProfile } = useAuth();
+  const { user, initialAuthCheckComplete, profile, signOut, managedProfiles, activeProfile, setActiveProfile } = useAuth();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isProfileDropdownOpen, setIsProfileDropdownOpen] = useState(false);
 
@@ -59,6 +59,73 @@ export default function AppHeader({ showSearch = true, onCreatePost, onEditProfi
     { path: '/messages', label: 'Messages', icon: 'fa-comment-alt' },
     { path: '/app/followers', label: 'Connections', icon: 'fa-user-friends', hideOnMobile: true },
   ];
+
+  // While auth state resolves: a logo-only shell with the same height, so
+  // public pages (/explore, /u/[username]) don't flash the wrong chrome.
+  if (!initialAuthCheckComplete) {
+    return (
+      <header className="bg-white shadow-sm border-b border-gray-200 sticky top-0 z-40 safe-top safe-x">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6">
+          <div className="flex items-center h-16">
+            <Image
+              src="/logo.png"
+              alt="Edge Athlete"
+              width={140}
+              height={35}
+              priority
+              className="h-7 w-auto"
+            />
+          </div>
+        </div>
+      </header>
+    );
+  }
+
+  // Logged-out visitors (public pages) get sign-in chrome instead of the
+  // authenticated nav: no bells (they'd poll protected APIs), no Post
+  // button, no empty avatar or Sign Out — just the way in.
+  if (!user) {
+    return (
+      <header className="bg-white shadow-sm border-b border-gray-200 sticky top-0 z-40 safe-top safe-x">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6">
+          <div className="flex items-center justify-between h-16 gap-4">
+            <Link
+              href="/"
+              className="flex items-center hover:opacity-80 transition-opacity whitespace-nowrap"
+              aria-label="Edge Athlete — go to sign in"
+            >
+              <Image
+                src="/logo.png"
+                alt="Edge Athlete"
+                width={140}
+                height={35}
+                priority
+                className="h-7 w-auto"
+              />
+            </Link>
+            <div className="flex items-center gap-2 sm:gap-3">
+              <Link href="/" className="text-sm font-medium text-gray-700 hover:text-gray-900 px-2 py-2">
+                Log in
+              </Link>
+              <Link
+                href="/"
+                className="bg-violet-600 text-white px-3 sm:px-4 py-2 rounded-lg hover:bg-violet-700 transition-colors text-sm font-medium"
+              >
+                Sign up
+              </Link>
+            </div>
+          </div>
+        </div>
+        {showSearch && (
+          <div className="border-t border-gray-100">
+            <div className="max-w-7xl mx-auto px-4 sm:px-6 py-3">
+              <AdvancedSearchBar />
+            </div>
+          </div>
+        )}
+      </header>
+    );
+  }
 
   return (
     <>
