@@ -3,6 +3,8 @@
 import { useCallback, useEffect, useReducer, useState } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth';
+import LazyImage from '@/components/LazyImage';
+import { formatDisplayName, getInitials } from '@/lib/formatters';
 import { useMessages } from '@/lib/messages';
 import { FEATURE_FLAGS } from '@/lib/features';
 import {
@@ -14,6 +16,11 @@ import {
   windowCapForWidth,
 } from './dock-state';
 import { usePresence } from './usePresence';
+import {
+  isChatDockHidden,
+  setChatDockHidden,
+  subscribeChatDockVisibility,
+} from '@/lib/chat-dock-visibility';
 import DockPanel from './DockPanel';
 import MiniChatWindow from './MiniChatWindow';
 import MinimizedStack from './MinimizedStack';
@@ -41,23 +48,31 @@ import MinimizedStack from './MinimizedStack';
 // every part on-screen.
 
 export default function ChatDock() {
-  const { user } = useAuth();
+  const { user, profile } = useAuth();
   const pathname = usePathname();
   const router = useRouter();
   const { conversations, totalUnreadCount, loading, fetchConversations } = useMessages();
   const [state, dispatch] = useReducer(dockReducer, initialDockState);
   const [hydrated, setHydrated] = useState(false);
   const [isDesktop, setIsDesktop] = useState(false);
-  // Panel exit needs the element to outlive panelOpen for one animation
-  // (the Toast idiom). Dismissal is deliberately NOT persisted: closing
-  // clears the corner for this page view, and the dock is back on the next
-  // load. Messaging also stays reachable from the header nav, so hiding
-  // the dock is never a dead end.
-  const [panelExiting, setPanelExiting] = useState(false);
-  const [dismissed, setDismissed] = useState(false);
+  // Closing the widget is a persisted preference, not a per-view dismissal:
+  // this component lives in the root layout and never unmounts, so state
+  // alone would survive navigation but die on refresh — and there'd be no
+  // way back. The flag lives in localStorage and the switch that restores
+  // it lives in the Messages area (see QuickMessagesToggle).
+  const [hidden, setHidden] = useState(false);
+  // Compose lives in the bar now, so its state belongs to the widget.
+  const [composing, setComposing] = useState(false);
 
   const enabled = FEATURE_FLAGS.FEATURE_CHAT_DOCK && !!user && isDesktop;
-  const visible = enabled && !dismissed && !isDockSuppressedPath(pathname);
+  const open = state.panelOpen;
+  const myName = formatDisplayName(
+    profile?.first_name,
+    null,
+    profile?.last_name,
+    profile?.full_name
+  );
+  const visible = enabled && !hidden && !isDockSuppressedPath(pathname);
 
   // Viewport gate + width-aware window cap (SSR-safe: starts false).
   useEffect(() => {
@@ -86,6 +101,14 @@ export default function ChatDock() {
     if (persisted) dispatch({ type: 'HYDRATE', state: persisted });
     setHydrated(true);
   }, [enabled, hydrated]);
+
+  // Visibility preference: read once, then follow changes from the Messages
+  // toggle (same tab, via CustomEvent) or another tab (storage event).
+  useEffect(() => {
+    if (!FEATURE_FLAGS.FEATURE_CHAT_DOCK) return;
+    setHidden(isChatDockHidden());
+    return subscribeChatDockVisibility(setHidden);
+  }, []);
 
   useEffect(() => {
     if (hydrated) saveDockState(state);
@@ -116,28 +139,24 @@ export default function ChatDock() {
     router.push(`/messages?c=${conversationId}`);
   }, [router]);
 
-  /** Collapse the panel back into the pill, playing the sink animation. */
-  const closePanel = useCallback(() => {
-    setPanelExiting(true);
-    setTimeout(() => {
-      dispatch({ type: 'CLOSE_PANEL' });
-      setPanelExiting(false);
-    }, 160); // matches .ea-dock-sink
+  // The widget morphs via CSS transitions on its own width/height, so
+  // collapsing is a plain state change — no mount/unmount, and none of the
+  // timers the old two-element version needed to keep them in sync.
+  const collapsePanel = useCallback(() => {
+    dispatch({ type: 'CLOSE_PANEL' });
+    setComposing(false);
   }, []);
 
   const togglePanel = useCallback(() => {
-    if (state.panelOpen) closePanel();
-    else dispatch({ type: 'TOGGLE_PANEL' });
-  }, [state.panelOpen, closePanel]);
+    dispatch({ type: 'TOGGLE_PANEL' });
+  }, []);
 
-  /** Close (X): sink the panel, then hide the dock for this page view. */
-  const dismissDock = useCallback(() => {
-    setPanelExiting(true);
-    setTimeout(() => {
-      dispatch({ type: 'CLOSE_PANEL' });
-      setPanelExiting(false);
-      setDismissed(true);
-    }, 160);
+  /** Close (X): put the whole widget away and remember that. Also tears
+   *  down open windows — closing means "clear my messaging workspace". */
+  const hideWidget = useCallback(() => {
+    dispatch({ type: 'CLEAR_WINDOWS' });
+    setComposing(false);
+    setChatDockHidden(true); // persists + notifies (setHidden via subscribe)
   }, []);
 
   if (!visible) return null;
@@ -200,50 +219,126 @@ export default function ChatDock() {
           onClose={id => dispatch({ type: 'CLOSE_WINDOW', id })}
         />
 
-        {(state.panelOpen || panelExiting) && (
-          /* -mb-2 cancels the column gap so the panel sits flush on the
-             pill — together they read as one surface, which is the whole
-             point of expanding out of the pill rather than floating above it. */
-          <div className={`-mb-2 ${panelExiting ? 'ea-dock-sink' : ''}`}>
+        {/* ── The widget ──────────────────────────────────────────────────
+            ONE element in two states. The violet bar is always the same
+            DOM node: collapsed it IS the pill, expanded it becomes the
+            panel's banner with the conversation body beneath. Width and
+            body height are transitioned between two explicit values —
+            `auto` can't be interpolated, and a content-derived height
+            collapses unevenly — so the pill appears to grow into the
+            panel rather than a second surface appearing above it. */}
+        <div
+          data-testid="chat-widget"
+          className={`bg-white rounded-t-lg shadow-2xl border border-gray-200 border-b-0 overflow-hidden flex flex-col transition-[width] duration-200 ease-out ${
+            open ? 'w-80' : 'w-44'
+          }`}
+        >
+          {/* The bar. Collapsed it's the whole click target; expanded it
+              holds its own controls (buttons can't nest, so the element
+              type differs by state even though the visuals don't). */}
+          {open ? (
+            <div className="flex items-center gap-2 px-3 h-11 bg-violet-600 text-white shrink-0">
+              <span className="block w-7 h-7 rounded-full overflow-hidden bg-violet-400 shrink-0">
+                {profile?.avatar_url ? (
+                  <LazyImage src={profile.avatar_url} alt={myName} className="w-full h-full object-cover" />
+                ) : (
+                  <span className="w-full h-full flex items-center justify-center text-[10px] font-semibold text-white">
+                    {getInitials(myName)}
+                  </span>
+                )}
+              </span>
+              <span className="flex-1 min-w-0 flex items-center gap-1.5">
+                <span className="text-sm font-semibold truncate">Messages</span>
+                {totalUnreadCount > 0 && (
+                  <span className="shrink-0 bg-white text-violet-700 text-[10px] font-bold rounded-full min-w-4.5 h-4.5 px-1 flex items-center justify-center">
+                    {totalUnreadCount > 99 ? '99+' : totalUnreadCount}
+                  </span>
+                )}
+              </span>
+              <button
+                type="button"
+                onClick={() => setComposing(c => !c)}
+                aria-label="New message"
+                title="New message"
+                aria-pressed={composing}
+                className={`w-6 h-6 rounded flex items-center justify-center transition-colors ${
+                  composing ? 'bg-white text-violet-700' : 'hover:bg-violet-500'
+                }`}
+              >
+                <i className="fas fa-pen text-[10px]"></i>
+              </button>
+              <button
+                type="button"
+                onClick={() => router.push('/settings?tab=messaging')}
+                aria-label="Messaging settings"
+                title="Messaging settings"
+                className="w-6 h-6 rounded flex items-center justify-center transition-colors hover:bg-violet-500"
+              >
+                <i className="fas fa-cog text-[10px]"></i>
+              </button>
+              <button
+                type="button"
+                onClick={collapsePanel}
+                aria-label="Minimize messages"
+                title="Minimize"
+                className="w-6 h-6 rounded flex items-center justify-center transition-colors hover:bg-violet-500"
+              >
+                <i className="fas fa-chevron-down text-[10px]"></i>
+              </button>
+              <button
+                type="button"
+                onClick={hideWidget}
+                aria-label="Close messages"
+                title="Close"
+                className="w-6 h-6 rounded flex items-center justify-center transition-colors hover:bg-violet-500"
+              >
+                <i className="fas fa-xmark text-xs"></i>
+              </button>
+            </div>
+          ) : (
+            <button
+              type="button"
+              onClick={togglePanel}
+              className="flex items-center gap-2 px-3 h-11 bg-violet-600 text-white hover:bg-violet-700 transition-colors text-sm font-medium w-full"
+              aria-expanded={false}
+              aria-label="Messages dock"
+            >
+              <i className="fas fa-comment-alt"></i>
+              Messages
+              {totalUnreadCount > 0 && (
+                <span className="bg-white text-violet-700 text-xs font-bold rounded-full min-w-5 h-5 px-1 flex items-center justify-center">
+                  {totalUnreadCount > 99 ? '99+' : totalUnreadCount}
+                </span>
+              )}
+              <i className="fas fa-chevron-up text-xs opacity-70 ml-auto"></i>
+            </button>
+          )}
+
+          {/* The body. Always mounted so the morph is a pure transition;
+              inert + aria-hidden while collapsed keeps its controls out of
+              the tab order and unclickable at zero height. */}
+          <div
+            className="overflow-hidden transition-[height,opacity] duration-200 ease-out"
+            style={{ height: open ? 'min(24rem, calc(100vh - 7rem))' : '0px', opacity: open ? 1 : 0 }}
+            inert={!open}
+            aria-hidden={!open}
+          >
             <DockPanel
               conversations={conversations}
               currentUserId={user!.id}
               onlineIds={onlineIds}
               windowIds={new Set([...state.open, ...state.minimized])}
-              unreadCount={totalUnreadCount}
+              composing={composing}
+              onComposingChange={setComposing}
               onSelect={id => {
                 openWindow(id);
-                closePanel();
+                collapsePanel();
               }}
               onOpenWindow={openWindow}
-              onMinimize={closePanel}
-              onDismiss={dismissDock}
               fetchConversations={fetchConversations}
             />
           </div>
-        )}
-
-        {/* The collapsed pill. */}
-        <button
-          type="button"
-          onClick={togglePanel}
-          className="flex items-center gap-2 bg-violet-600 text-white pl-4 pr-3 py-2.5 rounded-t-lg shadow-lg hover:bg-violet-700 transition text-sm font-medium"
-          aria-expanded={state.panelOpen}
-          aria-label="Messages dock"
-        >
-          <i className="fas fa-comment-alt"></i>
-          Messages
-          {totalUnreadCount > 0 && (
-            <span className="bg-white text-violet-700 text-xs font-bold rounded-full min-w-5 h-5 px-1 flex items-center justify-center">
-              {totalUnreadCount > 99 ? '99+' : totalUnreadCount}
-            </span>
-          )}
-          <i
-            className={`fas fa-chevron-up text-xs opacity-70 transition-transform ${
-              state.panelOpen ? 'rotate-180' : ''
-            }`}
-          ></i>
-        </button>
+        </div>
       </div>
     </div>
   );

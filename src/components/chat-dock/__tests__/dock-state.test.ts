@@ -91,6 +91,23 @@ describe('dockReducer', () => {
   });
 });
 
+describe('CLEAR_WINDOWS', () => {
+  it('tears down the whole workspace', () => {
+    const s = dockReducer(
+      state({ panelOpen: true, open: ['a', 'b'], minimized: ['c'] }),
+      { type: 'CLEAR_WINDOWS' }
+    );
+    expect(s.panelOpen).toBe(false);
+    expect(s.open).toEqual([]);
+    expect(s.minimized).toEqual([]);
+  });
+
+  it('is a no-op-shaped result when nothing is open', () => {
+    const s = dockReducer(state(), { type: 'CLEAR_WINDOWS' });
+    expect(s).toEqual(state());
+  });
+});
+
 describe('persistence round-trip', () => {
   it('serialize → parse preserves layout', () => {
     const s = state({ panelOpen: true, open: ['a'], minimized: ['b'] });

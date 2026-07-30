@@ -1,5 +1,70 @@
 # Development Log
 
+## July 30, 2026 (later) — Messaging widget: one element, two states
+
+Two defects in yesterday's panel, both reported by Tom.
+
+**1. It was two components, not one.** The panel and the pill were
+siblings — `DockPanel` had its own violet banner AND the violet pill
+button rendered below it. Even sitting flush that's two violet bars: the
+"duplicated / overlapping pill". Now there is a single `chat-widget`
+element whose violet bar is the same DOM node in both states — collapsed
+it IS the pill, expanded it becomes the body's banner:
+- Width transitions between two explicit values (`w-44` → `w-80`);
+  `auto` can't be interpolated, so the collapsed pill takes a fixed width.
+- Body height transitions `0` → `min(24rem, calc(100vh - 7rem))`. A FIXED
+  target on purpose: a content-derived height needs measurement and
+  collapses unevenly when the content is shorter than the clamp. The list
+  already scrolls, so this is smooth in both directions.
+- `DockPanel` lost its banner and is body-only (search + active-now +
+  list + composer); the bar in `ChatDock` owns compose/settings/minimize/
+  close, so compose state lifted up with it.
+- The body stays mounted with `inert` + `aria-hidden` while collapsed, so
+  the morph is a pure transition — **no mount/unmount, and both
+  `setTimeout(160)` calls are gone** (they were un-cancelled on unmount).
+  The `ea-dock-rise`/`ea-dock-sink` keyframes are deleted with them.
+- Verified: collapsed 176px → expanded 320px, bottom and right edges
+  unchanged (anchor holds), and **exactly one violet bar in both states**.
+
+**2. Close was a dead end.** `dismissed` was `useState` in a component
+that lives in the root layout and never unmounts, so closing survived
+navigation and only a hard refresh restored it — while I had described it
+as returning "on next page load". Measured: close → /explore → back to
+/feed → still gone; refresh → back. Now:
+- New `src/lib/chat-dock-visibility.ts` persists the preference under its
+  own key (`ea:chat-dock-hidden:v1`, `'1'`-or-absent, matching the app's
+  other dismissal flags). Deliberately NOT a field in `ea:chat-dock:v1` —
+  reshaping that payload risks wiping existing users' window layout on
+  parse — and deliberately in `lib/` not `chat-dock/`, so the Messages
+  toggle doesn't break if the dock folder is ever deleted.
+- The dock never remounts, so a write from /messages can't be picked up by
+  re-reading: the lib dispatches a `CustomEvent` (the native `storage`
+  event does not fire in the writing tab) and also listens to `storage`
+  for other tabs. This is the codebase's first cross-component event; it
+  follows house style (namespaced const, silent try/catch, subscribe in an
+  effect with cleanup).
+- Close also clears the workspace via a new pure `CLEAR_WINDOWS` action —
+  open mini windows go too, per Tom's choice.
+- Restore lives in the Messages area: `QuickMessagesToggle`, an
+  always-visible switch pinned under the conversation list ("Quick
+  messages / Chat pill in the corner of every page"), `hidden lg:flex`
+  since the widget only exists at ≥1024px. The page's sidebar wrapper
+  became a flex column with `min-h-0` so the list keeps its own scroll and
+  the row stays pinned — `ConversationList` itself is untouched, and note
+  `lg:block` → `lg:flex` in the active-conversation branch.
+
+Verification: 469 unit tests (11 new — visibility lib incl. private-mode
+throws, event and cross-tab paths, `'1'`-only coercion; plus
+`CLEAR_WINDOWS`) · lint + tsc clean · clean production build · browser
+smoke **35/35**: one widget element and one violet bar collapsed AND
+expanded, no separate pill when open, width/height morph with bottom-right
+anchor held, minimize→reopen twice, selecting a person unchanged, close
+removes widget + windows and stays gone across soft nav, return trip, and
+hard refresh, restore from the Messages toggle puts the pill back
+bottom-right with the switch reflecting state on revisit, on-screen at
+620px tall, absent at 390px, zero page errors. Screenshots reviewed for
+both states.
+
 ## July 30, 2026 — Chat dock panel: expands out of the pill
 
 The expanded state read as a disconnected dropdown (white header, lone

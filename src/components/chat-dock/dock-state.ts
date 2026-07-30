@@ -34,6 +34,7 @@ export type DockAction =
   | { type: 'CLOSE_PANEL' }
   | { type: 'HYDRATE'; state: Pick<DockState, 'panelOpen' | 'open' | 'minimized'> }
   | { type: 'SET_CAP'; cap: number }
+  | { type: 'CLEAR_WINDOWS' }
   | { type: 'PRUNE'; validIds: string[] };
 
 /** Width-aware window cap: how many 320px windows fit beside the panel. */
@@ -130,6 +131,10 @@ export function dockReducer(state: DockState, action: DockAction): DockState {
       return { ...state, panelOpen: !state.panelOpen };
     case 'CLOSE_PANEL':
       return state.panelOpen ? { ...state, panelOpen: false } : state;
+    case 'CLEAR_WINDOWS':
+      // Closing the widget tears down the whole messaging workspace:
+      // panel collapsed, every open and minimized window gone.
+      return { ...state, panelOpen: false, open: [], minimized: [] };
     case 'HYDRATE': {
       // Dedupe open∩minimized (open wins) before capping.
       const open = [...new Set(action.state.open)];

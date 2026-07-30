@@ -1,20 +1,19 @@
 'use client';
 
 import { useMemo, useState } from 'react';
-import { useRouter } from 'next/navigation';
 import LazyImage from '@/components/LazyImage';
-import { useAuth } from '@/lib/auth';
 import { formatDisplayName, getInitials } from '@/lib/formatters';
 import DockComposer from './DockComposer';
 import DockConversationRow from './DockConversationRow';
 import { conversationIdentity } from './conversation-identity';
 import type { Conversation, ParticipantProfile } from '@/types/messages';
 
-// The expanded dock panel — one continuous surface with the pill it grew
-// out of: same violet chrome on top, same width, same rounded-top shell.
-// Top to bottom: banner (you + controls), search, active contacts, your
-// conversations. Selecting anyone opens a mini window; nothing here
-// navigates away except the settings gear.
+// The widget's BODY: search, active contacts, and the conversation list
+// (or the composer). The violet bar above it lives in ChatDock, because
+// that bar is the pill itself — collapsed it's the launcher, expanded it's
+// this body's banner. Keeping them in one component there is what makes the
+// morph a single element rather than a panel stacked on a pill.
+// Selecting anyone opens a mini window; nothing here navigates away.
 
 const ACTIVE_ROW_CAP = 8;
 
@@ -38,11 +37,10 @@ export default function DockPanel({
   currentUserId,
   onlineIds,
   windowIds,
-  unreadCount,
+  composing,
+  onComposingChange,
   onSelect,
   onOpenWindow,
-  onMinimize,
-  onDismiss,
   fetchConversations,
 }: {
   conversations: Conversation[];
@@ -50,24 +48,14 @@ export default function DockPanel({
   onlineIds: Set<string>;
   /** Conversations that already have an open or minimized window. */
   windowIds: Set<string>;
-  unreadCount: number;
+  /** Compose mode is owned by the widget bar, which holds the pen button. */
+  composing: boolean;
+  onComposingChange: (composing: boolean) => void;
   onSelect: (conversationId: string) => void;
   onOpenWindow: (conversationId: string) => void;
-  onMinimize: () => void;
-  onDismiss: () => void;
   fetchConversations: () => Promise<void>;
 }) {
-  const router = useRouter();
-  const { profile } = useAuth();
   const [filter, setFilter] = useState('');
-  const [composing, setComposing] = useState(false);
-
-  const myName = formatDisplayName(
-    profile?.first_name,
-    null,
-    profile?.last_name,
-    profile?.full_name
-  );
 
   // A direct conversation with this partner, if one already exists.
   const directWith = (profileId: string): string | null =>
@@ -102,91 +90,18 @@ export default function DockPanel({
     });
   }, [conversations, filter, currentUserId]);
 
-  const iconBtn = 'w-6 h-6 rounded flex items-center justify-center transition-colors';
-
   return (
-    <div
-      data-testid="dock-panel"
-      className="w-80 bg-white rounded-t-lg shadow-2xl border border-gray-200 border-b-0 overflow-hidden flex flex-col ea-dock-rise"
-      /* Leave room for the pill below so the panel's top never leaves the
-         viewport — it grows upward from the bottom-anchored column. */
-      style={{ maxHeight: 'min(28rem, calc(100vh - 5rem))' }}
-    >
-      {/* Banner — the same violet as the pill, so the panel reads as the
-          pill expanded rather than a separate dropdown. */}
-      <div className="flex items-center gap-2 px-3 py-2 bg-violet-600 text-white rounded-t-lg shrink-0">
-        <span className="block w-7 h-7 rounded-full overflow-hidden bg-violet-400 shrink-0">
-          {profile?.avatar_url ? (
-            <LazyImage
-              src={profile.avatar_url}
-              alt={myName}
-              className="w-full h-full object-cover"
-            />
-          ) : (
-            <span className="w-full h-full flex items-center justify-center text-[10px] font-semibold text-white">
-              {getInitials(myName)}
-            </span>
-          )}
-        </span>
-
-        <span className="flex-1 min-w-0 flex items-center gap-1.5">
-          <span className="text-sm font-semibold truncate">Messages</span>
-          {unreadCount > 0 && (
-            <span className="shrink-0 bg-white text-violet-700 text-[10px] font-bold rounded-full min-w-4.5 h-4.5 px-1 flex items-center justify-center">
-              {unreadCount > 99 ? '99+' : unreadCount}
-            </span>
-          )}
-        </span>
-
-        <button
-          type="button"
-          onClick={() => setComposing(c => !c)}
-          aria-label="New message"
-          title="New message"
-          aria-pressed={composing}
-          className={`${iconBtn} ${composing ? 'bg-white text-violet-700' : 'hover:bg-violet-500'}`}
-        >
-          <i className="fas fa-pen text-[10px]"></i>
-        </button>
-        <button
-          type="button"
-          onClick={() => router.push('/settings?tab=messaging')}
-          aria-label="Messaging settings"
-          title="Messaging settings"
-          className={`${iconBtn} hover:bg-violet-500`}
-        >
-          <i className="fas fa-cog text-[10px]"></i>
-        </button>
-        <button
-          type="button"
-          onClick={onMinimize}
-          aria-label="Minimize messages"
-          title="Minimize"
-          className={`${iconBtn} hover:bg-violet-500`}
-        >
-          <i className="fas fa-chevron-down text-[10px]"></i>
-        </button>
-        <button
-          type="button"
-          onClick={onDismiss}
-          aria-label="Close messages"
-          title="Close"
-          className={`${iconBtn} hover:bg-violet-500`}
-        >
-          <i className="fas fa-xmark text-xs"></i>
-        </button>
-      </div>
-
+    <div data-testid="dock-panel" className="h-full flex flex-col bg-white">
       {composing ? (
         <DockComposer
           currentUserId={currentUserId}
           existingDirectWith={directWith}
           onOpened={conversationId => {
-            setComposing(false);
+            onComposingChange(false);
             onOpenWindow(conversationId);
             fetchConversations();
           }}
-          onCancel={() => setComposing(false)}
+          onCancel={() => onComposingChange(false)}
         />
       ) : (
         <>
@@ -270,7 +185,7 @@ export default function DockPanel({
                     </p>
                     <button
                       type="button"
-                      onClick={() => setComposing(true)}
+                      onClick={() => onComposingChange(true)}
                       className="inline-flex items-center gap-1.5 px-4 py-2 bg-violet-600 text-white rounded-lg text-sm font-semibold hover:bg-violet-700 transition-colors"
                     >
                       <i className="fas fa-pen text-xs"></i>

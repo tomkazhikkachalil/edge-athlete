@@ -8,6 +8,7 @@ import AppHeader from '@/components/AppHeader';
 import ConversationList from '@/components/messages/ConversationList';
 import ChatWindow from '@/components/messages/ChatWindow';
 import NewConversationModal from '@/components/messages/NewConversationModal';
+import QuickMessagesToggle from '@/components/messages/QuickMessagesToggle';
 import { useVisualViewportHeight } from '@/hooks/useVisualViewportHeight';
 
 function MessagesContent() {
@@ -39,19 +40,27 @@ function MessagesContent() {
   return (
     <>
       <div className="flex h-full">
-        {/* Conversation list — full width on mobile when no active chat, sidebar on desktop */}
+        {/* Conversation list — full width on mobile when no active chat, sidebar on desktop.
+            A flex column with min-h-0 so the list keeps its own scroll and the
+            Quick messages row stays pinned at the bottom instead of being
+            pushed off-screen. Note lg:flex (not lg:block) for the same reason. */}
         <div className={`
-          flex-shrink-0 border-r border-gray-200
-          ${activeId ? 'hidden lg:block lg:w-80' : 'w-full lg:w-80'}
+          flex-shrink-0 border-r border-gray-200 flex flex-col min-h-0
+          ${activeId ? 'hidden lg:flex lg:w-80' : 'w-full lg:w-80'}
         `}>
-          <ConversationList
-            conversations={conversations}
-            currentUserId={user.id}
-            loading={loading}
-            activeId={activeId}
-            onSelect={(id) => router.push(`/messages?c=${id}`)}
-            onNewConversation={() => setShowNewModal(true)}
-          />
+          <div className="flex-1 min-h-0">
+            <ConversationList
+              conversations={conversations}
+              currentUserId={user.id}
+              loading={loading}
+              activeId={activeId}
+              onSelect={(id) => router.push(`/messages?c=${id}`)}
+              onNewConversation={() => setShowNewModal(true)}
+            />
+          </div>
+          <div className="shrink-0">
+            <QuickMessagesToggle />
+          </div>
         </div>
 
         {/* Chat pane */}
