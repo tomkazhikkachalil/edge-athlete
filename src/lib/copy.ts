@@ -104,6 +104,10 @@ export const COPY = {
     SAVE_SUCCESS: (itemType: string) => `${itemType} saved successfully!`,
     DELETE_SUCCESS: (itemType: string) => `${itemType} deleted successfully!`,
     DELETE_CONFIRM: (itemType: string) => `Are you sure you want to delete this ${itemType.toLowerCase()}? This action cannot be undone.`,
+    DISCARD_TITLE: 'Discard changes?',
+    DISCARD_CONFIRM: "You have unsaved changes. If you close now, they'll be lost.",
+    DISCARD_ACTION: 'Discard',
+    KEEP_EDITING: 'Keep editing',
   },
 
   // Error Messages

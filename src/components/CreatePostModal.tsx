@@ -16,6 +16,9 @@ import { getStatSchema, type StatLineData } from '@/lib/sports/stat-schemas';
 import type { HoleData, GolfCourse } from '@/types/golf';
 import type { CompleteGolfScorecard, ParticipantRole } from '@/types/group-posts';
 import { useBodyScrollLock } from '@/hooks/useBodyScrollLock';
+import { useDirtyClose } from '@/hooks/useDirtyClose';
+import ConfirmModal from '@/components/ConfirmModal';
+import { COPY } from '@/lib/copy';
 import { MediaEditor } from '@/components/media-editor';
 import { validateFiles } from '@/lib/media/validation';
 import { uploadPostMedia } from '@/lib/media/upload';
@@ -390,11 +393,34 @@ export default function CreatePostModal({
     setPlayerScores([]);
   };
 
-  // Handle close
-  const handleClose = () => {
+  // Close-and-reset, used directly by post-success paths (never confirm
+  // after a save). User-initiated closes (X, Cancel) go through
+  // requestClose below, which asks before discarding unsaved work.
+  const closeAndReset = () => {
     reset();
     onClose();
   };
+
+  // Anything reset() would throw away counts as unsaved work — an
+  // 18-hole scorecard is the most painful loss this modal can inflict.
+  const isDirty = () =>
+    caption.trim() !== '' ||
+    mediaFiles.length > 0 ||
+    selectedTags.length > 0 ||
+    hashtags.length > 0 ||
+    customHashtag.trim() !== '' ||
+    taggedProfiles.length > 0 ||
+    golfRoundData !== null ||
+    statLineData !== null ||
+    roundType !== 'individual' ||
+    sharedRoundParticipants.length > 0 ||
+    selectedCourse !== null ||
+    sharedRoundDetails.courseName.trim() !== '' ||
+    manualParEntry.length > 0 ||
+    manualYardageEntry.length > 0 ||
+    playerScores.length > 0;
+
+  const { requestClose, confirmOpen, confirmDiscard, cancelDiscard } = useDirtyClose(isDirty, closeAndReset);
 
   // Picked files go through the shared media editor before joining the post.
   // Validation now mirrors the server allowlist AT PICK (HEIC no longer fails
@@ -811,7 +837,7 @@ export default function CreatePostModal({
           onPostCreated(groupPostResult.group_post);
         }
 
-        handleClose();
+        closeAndReset();
         return;
       }
 
@@ -873,7 +899,7 @@ export default function CreatePostModal({
       }
 
       // Close modal
-      handleClose();
+      closeAndReset();
     } catch (e) {
       console.error('Failed to create post:', e);
       showError('Failed to create post', 'Please try again');
@@ -908,12 +934,21 @@ export default function CreatePostModal({
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+      <ConfirmModal
+        isOpen={confirmOpen}
+        title={COPY.FORMS.DISCARD_TITLE}
+        message={COPY.FORMS.DISCARD_CONFIRM}
+        confirmText={COPY.FORMS.DISCARD_ACTION}
+        cancelText={COPY.FORMS.KEEP_EDITING}
+        onConfirm={confirmDiscard}
+        onCancel={cancelDiscard}
+      />
       <div className="bg-white rounded-lg shadow-xl max-w-4xl w-full max-h-modal flex flex-col">
         {/* Header */}
         <div className="flex items-center justify-between p-6 border-b border-gray-200">
           <h2 className="text-2xl font-bold text-gray-900">Create Post</h2>
           <button
-            onClick={handleClose}
+            onClick={requestClose}
             className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
             aria-label="Close modal"
           >
@@ -1932,7 +1967,7 @@ export default function CreatePostModal({
 
           <div className="flex gap-3">
             <button
-              onClick={handleClose}
+              onClick={requestClose}
               className="px-6 py-2 text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
             >
               Cancel
