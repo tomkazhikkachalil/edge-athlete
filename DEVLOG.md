@@ -1,5 +1,29 @@
 # Development Log
 
+## July 30, 2026 (node) — Pin Node 22 in the repo
+
+Closes the gap the dependency pass surfaced: CI (`.github/workflows/ci.yml`),
+the devcontainer and local dev were all on Node 22, but nothing enforced it
+for Vercel or for a contributor's shell — and the `@img/sharp-*` binaries
+the audit fix added are ABI-sensitive, so a Node-major mismatch would surface
+as image-optimizer failures rather than an obvious error.
+
+- `package.json` → `"engines": { "node": "22.x" }`
+- `.nvmrc` → `22` (so `nvm use` picks it up automatically)
+
+**Consequence worth knowing:** per Vercel's docs, `engines.node` *overrides*
+the Node.js Version setting in the project dashboard, and Vercel's default
+for new projects is now **24.x**. So if the dashboard was on 24.x, production
+builds move to the latest 22.x — deliberate, since the whole point is that
+prod, CI, the devcontainer and local all run the same major. Vercel maps
+`22.x` to the latest 22 patch and applies security updates itself. Switching
+everything to 24 later is a one-line change in these two files plus the CI
+workflow.
+
+Verified: `engines` parses and local v22.18.0 satisfies `22.x`, `npm ci`
+clean with no `EBADENGINE` warnings, tsc + lint clean, 469 tests (45 files),
+clean production build.
+
 ## July 30, 2026 (deps) — In-range audit fixes: 8 vulnerabilities → 5
 
 Lockfile-only change (`package.json` verified byte-identical before and
