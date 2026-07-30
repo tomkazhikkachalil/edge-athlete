@@ -219,6 +219,7 @@ export default function AthleteProfilePage() {
   if (!hasAccess && profile) {
     return (
       <div className="min-h-screen bg-gray-50">
+        <AppHeader showSearch={false} />
         <PrivateProfileView
           profile={profile}
           onFollow={(isFollowing) => {

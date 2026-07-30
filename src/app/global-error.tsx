@@ -66,22 +66,43 @@ export default function GlobalError({
               {error.message.length > 280 ? error.message.slice(0, 280) + '…' : error.message}
             </p>
           )}
-          <button
-            type="button"
-            onClick={reset}
-            style={{
-              padding: '0.75rem 1.5rem',
-              backgroundColor: '#7c3aed',
-              color: '#ffffff',
-              border: 'none',
-              borderRadius: '0.5rem',
-              fontWeight: 600,
-              cursor: 'pointer',
-              fontSize: '1rem',
-            }}
-          >
-            Try again
-          </button>
+          <div style={{ display: 'flex', gap: '0.75rem', justifyContent: 'center', flexWrap: 'wrap' }}>
+            <button
+              type="button"
+              onClick={reset}
+              style={{
+                padding: '0.75rem 1.5rem',
+                backgroundColor: '#7c3aed',
+                color: '#ffffff',
+                border: 'none',
+                borderRadius: '0.5rem',
+                fontWeight: 600,
+                cursor: 'pointer',
+                fontSize: '1rem',
+              }}
+            >
+              Try again
+            </button>
+            {/* Hard navigation on purpose — the root layout is broken in
+                this boundary, so router/Link are unavailable, and reset()
+                alone can re-mount the same broken tree forever. */}
+            <button
+              type="button"
+              onClick={() => window.location.assign('/')}
+              style={{
+                padding: '0.75rem 1.5rem',
+                backgroundColor: '#ffffff',
+                color: '#374151',
+                border: '1px solid #d1d5db',
+                borderRadius: '0.5rem',
+                fontWeight: 600,
+                cursor: 'pointer',
+                fontSize: '1rem',
+              }}
+            >
+              Go home
+            </button>
+          </div>
           {error.digest && (
             <p style={{ fontSize: '0.75rem', color: '#9ca3af', marginTop: '1.5rem' }}>
               Error ID: <code>{error.digest}</code>

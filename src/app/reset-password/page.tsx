@@ -126,6 +126,11 @@ export default function ResetPasswordPage() {
               {error && (
                 <div className="bg-red-50 border border-red-200 text-red-600 px-4 py-3 rounded-md text-sm mb-4">
                   {error}
+                  {/* A submit-time failure usually means the link expired —
+                      offer the way out right where the user is looking. */}
+                  <Link href="/" className="block mt-2 text-violet-600 hover:underline font-medium">
+                    Back to sign in
+                  </Link>
                 </div>
               )}
               <form onSubmit={handleSubmit} className="space-y-4">
@@ -173,6 +178,11 @@ export default function ResetPasswordPage() {
                   )}
                 </button>
               </form>
+              <p className="text-center mt-4">
+                <Link href="/" className="text-sm text-violet-600 hover:underline">
+                  Back to sign in
+                </Link>
+              </p>
             </>
           )}
         </div>

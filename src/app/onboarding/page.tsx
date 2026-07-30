@@ -21,7 +21,7 @@ type Step = 1 | 2 | 3 | 4;
 
 export default function OnboardingPage() {
   const router = useRouter();
-  const { user, profile, loading, refreshProfile } = useAuth();
+  const { user, profile, loading, refreshProfile, signOut } = useAuth();
 
   const [step, setStep] = useState<Step>(1);
   const [selectedSports, setSelectedSports] = useState<SportKey[]>([]);
@@ -322,6 +322,17 @@ export default function OnboardingPage() {
               </button>
             </div>
           )}
+
+          {/* Always-available exit — onboarding resumes on next sign-in,
+              so leaving loses nothing that isn't already saved. */}
+          <div className="text-center mt-6 pt-4 border-t border-gray-100">
+            <button
+              onClick={() => signOut()}
+              className="text-xs text-gray-400 hover:text-violet-600 hover:underline"
+            >
+              Sign out — you can finish this later
+            </button>
+          </div>
         </div>
       </div>
     </div>

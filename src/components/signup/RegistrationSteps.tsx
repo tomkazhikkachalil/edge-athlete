@@ -466,6 +466,14 @@ export default function RegistrationSteps({ onBackToLogin }: { onBackToLogin: ()
                   )}
                 </button>
               </form>
+              <div className="mt-4">
+                <p className="text-xs text-gray-600">
+                  Already have an account?
+                  <span className="text-violet-600 hover:underline cursor-pointer ml-1" onClick={onBackToLogin}>
+                    Log in
+                  </span>
+                </p>
+              </div>
             </>
           )}
 

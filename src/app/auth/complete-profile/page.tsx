@@ -288,6 +288,17 @@ export default function CompleteProfilePage() {
                 </>
               )}
             </button>
+
+            {/* Guaranteed exit: this page is the only destination for a
+                signed-in, profile-less user ("/" bounces straight back
+                here), so without this a persistent error would trap them. */}
+            <button
+              type="button"
+              onClick={() => signOut()}
+              className="text-sm text-gray-500 hover:text-violet-600 hover:underline text-center"
+            >
+              Sign out and return to login
+            </button>
           </form>
         </div>
       </div>

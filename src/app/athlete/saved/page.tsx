@@ -55,7 +55,7 @@ interface SavedPost {
 
 export default function SavedPostsPage() {
   const router = useRouter();
-  const { user } = useAuth();
+  const { user, initialAuthCheckComplete } = useAuth();
   const [savedPosts, setSavedPosts] = useState<SavedPost[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -208,29 +208,37 @@ export default function SavedPostsPage() {
     );
   };
 
-  if (!user) {
+  // Auth boot must win over the !user branch — otherwise a signed-in
+  // user refreshing this page flashes "Sign In Required".
+  if (!initialAuthCheckComplete || (user && loading)) {
     return (
-      <div className="container mx-auto px-4 py-8">
-        <div className="max-w-2xl mx-auto text-center">
-          <h1 className="text-2xl font-bold mb-4">Sign In Required</h1>
-          <p className="text-gray-600 mb-6">Please sign in to view your saved posts.</p>
-          <button
-            onClick={() => router.push('/')}
-            className="px-6 py-2 bg-violet-600 text-white rounded-lg hover:bg-violet-700"
-          >
-            Sign In
-          </button>
+      <div className="min-h-screen bg-gray-50">
+        <AppHeader showSearch={false} />
+        <div className="container mx-auto px-4 py-8">
+          <div className="max-w-2xl mx-auto">
+            <div className="flex items-center justify-center py-12">
+              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-violet-600"></div>
+            </div>
+          </div>
         </div>
       </div>
     );
   }
 
-  if (loading) {
+  if (!user) {
     return (
-      <div className="container mx-auto px-4 py-8">
-        <div className="max-w-2xl mx-auto">
-          <div className="flex items-center justify-center py-12">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-violet-600"></div>
+      <div className="min-h-screen bg-gray-50">
+        <AppHeader showSearch={false} />
+        <div className="container mx-auto px-4 py-8">
+          <div className="max-w-2xl mx-auto text-center">
+            <h1 className="text-2xl font-bold mb-4">Sign In Required</h1>
+            <p className="text-gray-600 mb-6">Please sign in to view your saved posts.</p>
+            <button
+              onClick={() => router.push('/')}
+              className="px-6 py-2 bg-violet-600 text-white rounded-lg hover:bg-violet-700"
+            >
+              Sign In
+            </button>
           </div>
         </div>
       </div>
@@ -239,10 +247,13 @@ export default function SavedPostsPage() {
 
   if (error) {
     return (
-      <div className="container mx-auto px-4 py-8">
-        <div className="max-w-2xl mx-auto">
-          <div className="bg-red-50 border border-red-200 rounded-lg p-4">
-            <p className="text-red-600">{error}</p>
+      <div className="min-h-screen bg-gray-50">
+        <AppHeader showSearch={false} />
+        <div className="container mx-auto px-4 py-8">
+          <div className="max-w-2xl mx-auto">
+            <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+              <p className="text-red-600">{error}</p>
+            </div>
           </div>
         </div>
       </div>
