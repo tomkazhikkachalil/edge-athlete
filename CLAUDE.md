@@ -4,11 +4,7 @@
 
 ## 🎯 Project Overview
 
-**Multi-Sport Athlete Social Network** built with:
-- **Next.js 15** (App Router) + **React 19**
-- **Supabase** (auth, database, storage)
-- **TypeScript** (strict mode)
-- **Tailwind CSS 4**
+**Multi-Sport Athlete Social Network** (Next.js 15 App Router + Supabase — see `package.json` for the full stack).
 
 **Platform Features:**
 - Athlete profiles with performance stats
@@ -40,14 +36,6 @@ SMTP_USER=your@email.com
 SMTP_PASS=your-app-password
 ```
 
-### Development Commands
-```bash
-npm run dev          # Start dev server → http://localhost:3000
-npm run build        # Production build + TypeScript check
-npm run start        # Start production server
-npm run lint         # Run ESLint
-```
-
 ### Production Deployment (Vercel)
 
 **Status:** ✅ Deployed to Vercel
@@ -68,51 +56,9 @@ npm run lint         # Run ESLint
 - **Redirect URLs:** `https://your-app.vercel.app/**`
 - Also keep `http://localhost:3000/**` for local development
 
-**Known Issues:**
-- ~~Connection suggestions feature~~ - FIXED (Jan 2026): Run `database/migrations/fix-suggestions-feature-complete.sql`
-
-**Pending Database Migrations:**
-- `fix-suggestions-feature-complete.sql` - Creates connection_suggestions table and fixes RPC function
-
 ---
 
 ## 📁 Architecture Overview
-
-### App Router Structure
-```
-src/app/
-├── feed/                    # Main feed (posts from followed athletes)
-├── athlete/[id]/            # Profile pages by user ID
-├── u/[username]/            # Profile pages by username
-├── app/
-│   ├── profile/             # Logged-in user's profile editor
-│   ├── followers/           # Followers/following management
-│   ├── notifications/       # Notifications page
-│   └── sport/[sport_key]/   # Sport-specific pages
-├── dashboard/               # Admin dashboard
-└── api/                     # API routes
-    ├── posts/               # CRUD for posts
-    ├── comments/            # CRUD for comments
-    ├── follow/              # Follow/unfollow
-    ├── notifications/       # Notification management
-    ├── golf/                # Golf-specific endpoints
-    └── ...
-```
-
-### Key Libraries & Utilities
-
-**`src/lib/supabase.ts`** - Supabase client setup
-- `supabase` - Browser client (SSR-compatible with cookies)
-- `supabaseAdmin` - Server-side client (bypasses RLS, use sparingly)
-- TypeScript interfaces for all database tables
-
-**`src/lib/auth.tsx`** - Authentication context
-- `useAuth()` - Hook for accessing user/profile
-- Handles sign up, sign in, sign out, profile updates
-
-**`src/middleware.ts`** - Supabase auth middleware
-- Refreshes sessions on every request
-- Required for SSR authentication
 
 ### Sport Adapter Pattern
 
@@ -131,22 +77,6 @@ Platform uses adapters for sport-specific logic:
 
 ## 🗄️ Database Structure
 
-### Core Tables
-- `profiles` - User profiles (extends auth.users)
-- `posts` - Social posts with media and stats
-- `post_media` - Media attachments (images/videos)
-- `post_comments` - Comments with threading and likes
-- `post_likes` - Post likes
-- `comment_likes` - Comment likes
-- `saved_posts` - Bookmarked posts
-- `follows` - Follow relationships (with pending/accepted status)
-- `notifications` - User notifications
-- `notification_preferences` - User notification settings
-- `golf_rounds` - Golf round data (with indoor/outdoor support)
-- `golf_holes` - Hole-by-hole scores
-- `season_highlights` - Sport performance highlights
-- `sport_settings` - Sport-specific user settings (JSONB)
-
 ### Important Patterns
 - **RLS Enabled** - All tables have Row Level Security
 - **Cascading Deletes** - Foreign keys auto-delete related data
@@ -158,69 +88,7 @@ Platform uses adapters for sport-specific logic:
 
 ## 🔌 API Patterns
 
-### Next.js 15 Cookie Authentication Pattern
-
-**CRITICAL:** All API routes must use cookie header reading (NOT `await cookies()`):
-
-```typescript
-import { NextRequest, NextResponse } from 'next/server';
-import { createServerClient } from '@supabase/ssr';
-
-// Helper function for cookie authentication
-function createSupabaseClient(request: NextRequest) {
-  return createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      cookies: {
-        get(name: string) {
-          const cookieHeader = request.headers.get('cookie');
-          if (!cookieHeader) return undefined;
-          const cookies = Object.fromEntries(
-            cookieHeader.split('; ').map(cookie => {
-              const [key, value] = cookie.split('=');
-              return [key, decodeURIComponent(value)];
-            })
-          );
-          return cookies[name];
-        },
-      },
-    }
-  );
-}
-
-export async function GET(request: NextRequest) {
-  const supabase = createSupabaseClient(request);
-
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-
-  // RLS automatically enforces access control
-  // ...
-}
-```
-
-### When to Use Admin Client
-
-For operations that bypass RLS (e.g., viewing follow request sender profiles):
-
-```typescript
-import { createClient } from '@supabase/supabase-js';
-
-const supabaseAdmin = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!,
-  {
-    auth: {
-      autoRefreshToken: false,
-      persistSession: false
-    }
-  }
-);
-
-// Use sparingly - bypasses ALL RLS policies
-const { data } = await supabaseAdmin.from('profiles').select('*');
-```
+**CRITICAL:** All API routes must use the cookie header authentication pattern (NOT `await cookies()`) — see `src/app/api/CLAUDE.md` for the required pattern and admin-client guidance.
 
 ---
 
@@ -316,38 +184,6 @@ const { canView } = await response.json();
 
 ---
 
-## 🆕 Recent Critical Fixes (January 2025)
-
-### Local Development Migration
-**Context:** Migrated from GitHub Codespaces to local VS Code
-
-**Fixed:**
-- ✅ Missing `SUPABASE_SERVICE_ROLE_KEY` in `.env.local`
-- ✅ Incorrect anon key (was using service_role key - security issue!)
-- ✅ Build errors in API routes
-- ✅ All environment variables properly configured
-
-### Environment Configuration
-`.env.local` now has correct structure:
-- `NEXT_PUBLIC_SUPABASE_ANON_KEY` - Safe for browser
-- `SUPABASE_SERVICE_ROLE_KEY` - Server-only, bypasses RLS
-
-### Database Performance Optimizations
-**Achievement:** Database optimized for billion-user scale
-
-- ✅ RLS policies optimized: `auth.uid()` → `(select auth.uid())`
-- ✅ 70+ policies updated across 18 tables
-- ✅ Query speed: 10-100x faster
-- ✅ All foreign keys have covering indexes
-- ✅ Follow request notifications working for private accounts
-
-**Key Migrations:**
-- `fix-rls-initplan-performance-corrected.sql`
-- `fix-notification-functions-schema-qualified.sql`
-- `fix-follow-request-private-accounts.sql`
-
----
-
 ## 📚 Detailed Documentation
 
 This project has extensive documentation for specific features:
@@ -380,29 +216,4 @@ This project has extensive documentation for specific features:
 
 ---
 
-## 🎯 Tech Stack Summary
-
-- **Framework:** Next.js 15 (App Router) + React 19
-- **Database:** Supabase (PostgreSQL)
-- **Auth:** Supabase Auth (magic links, OAuth)
-- **Storage:** Supabase Storage (user avatars, post media)
-- **Styling:** Tailwind CSS 4
-- **Language:** TypeScript (strict mode)
-- **Icons:** Lucide React
-- **Optional:** OpenAI API (AI features), Nodemailer (email)
-
----
-
-## 💡 Pro Tips
-
-1. **Always check RLS policies** when adding new tables
-2. **Use `supabaseAdmin` sparingly** - it bypasses all security
-3. **Test privacy controls** - Verify private profiles are protected
-4. **Follow spacing rhythm** - 12px/24px/48px only
-5. **Reference existing patterns** - Look at Golf implementation as reference
-6. **Keep .env.local secure** - Never commit to git
-
----
-
-**Last Updated:** January 2025 (Local Development Migration)
-**Environment:** macOS (Darwin 25.0.0), Node 22.18.0, npm 10.9.3
+**Last Updated:** July 2026 (doctor cleanup — API patterns moved to `src/app/api/CLAUDE.md`)
