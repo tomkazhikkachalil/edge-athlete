@@ -8,6 +8,7 @@ import { FEATURE_FLAGS } from '@/lib/features';
 import {
   dockReducer,
   initialDockState,
+  isDockSuppressedPath,
   loadDockState,
   saveDockState,
   windowCapForWidth,
@@ -27,10 +28,17 @@ import MinimizedStack from './MinimizedStack';
 // src/components/chat-dock/ leaves messaging exactly as it was.
 //
 // Gates (all JS-level — CSS hiding alone would still run presence and
-// read-marking on phones): feature flag, signed-in user, viewport >= lg,
-// and NOT on /messages (the dedicated page IS the full experience — the
-// FB/LinkedIn convention, and it avoids double realtime + racing
-// read-marking on the same conversation).
+// read-marking on phones): feature flag, signed-in user, viewport big
+// enough in BOTH axes, and a route where a floating panel is appropriate
+// (see isDockSuppressedPath — /messages is the full experience, and
+// focused workflows must not have their submit buttons covered).
+//
+// The height half of the viewport gate matters: the dock is anchored to
+// the bottom and grows UPWARD, so on a short viewport (iPad landscape, a
+// short laptop window, bottom-docked devtools) an expanded panel would
+// run off the top of the screen. Below the threshold it hides entirely
+// rather than rendering clipped; above it, the max-heights below keep
+// every part on-screen.
 
 export default function ChatDock() {
   const { user } = useAuth();
@@ -42,15 +50,18 @@ export default function ChatDock() {
   const [isDesktop, setIsDesktop] = useState(false);
 
   const enabled = FEATURE_FLAGS.FEATURE_CHAT_DOCK && !!user && isDesktop;
-  const visible = enabled && !pathname?.startsWith('/messages');
+  const visible = enabled && !isDockSuppressedPath(pathname);
 
   // Viewport gate + width-aware window cap (SSR-safe: starts false).
   useEffect(() => {
     if (!FEATURE_FLAGS.FEATURE_CHAT_DOCK) return;
-    const media = window.matchMedia('(min-width: 1024px)');
+    const media = window.matchMedia('(min-width: 1024px) and (min-height: 600px)');
     const apply = () => {
       setIsDesktop(media.matches);
-      dispatch({ type: 'SET_CAP', cap: windowCapForWidth(window.innerWidth) });
+      // clientWidth, not innerWidth: innerWidth includes the classic
+      // scrollbar, which the fixed-positioning viewport excludes — at a cap
+      // boundary that over-count fits one window too many and they overlap.
+      dispatch({ type: 'SET_CAP', cap: windowCapForWidth(document.documentElement.clientWidth) });
     };
     apply();
     media.addEventListener('change', apply);
@@ -110,7 +121,7 @@ export default function ChatDock() {
           const conversation = conversationById.get(id);
           if (!conversation) return null;
           return (
-            <div key={id} className="pointer-events-auto">
+            <div key={id} className="pointer-events-auto shrink-0">
               <MiniChatWindow
                 conversation={conversation}
                 currentUserId={user!.id}
@@ -144,8 +155,11 @@ export default function ChatDock() {
         })}
       </div>
 
-      {/* Dock corner: minimized bubbles above the panel/pill. */}
-      <div className="fixed bottom-0 right-4 z-[45] flex flex-col items-end gap-2 pb-0">
+      {/* Dock corner: minimized bubbles above the panel/pill. Capped to the
+          viewport height so the column can never grow off the top edge.
+          z-[45] is deliberate: above the sticky header (z-40), below the
+          dropdown/modal bands (50+) so modals correctly cover the dock. */}
+      <div className="fixed bottom-0 right-4 z-[45] flex flex-col items-end gap-2 pb-0 max-h-[calc(100vh-0.5rem)]">
         <MinimizedStack
           ids={state.minimized}
           conversationById={conversationById}

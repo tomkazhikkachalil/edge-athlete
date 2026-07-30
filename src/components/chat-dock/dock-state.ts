@@ -42,6 +42,45 @@ export function windowCapForWidth(viewportWidth: number): number {
   return Math.min(Math.max(fit, 1), MAX_OPEN_WINDOWS);
 }
 
+/**
+ * Routes where the dock stays out of the way. Two reasons a path is here:
+ * `/messages` IS the full experience (one system, two doors), and focused
+ * workflows — forms, wizards, consequential decisions — must not have a
+ * floating panel over their submit buttons, fields, or validation. The dock
+ * only hides its UI on these routes; its state keeps running, so windows and
+ * half-typed drafts are intact when the user comes back out.
+ *
+ * Deliberately NOT here: /privacy and /terms (long reading pages, not
+ * workflows), /dashboard/* (status lists), and all browsing surfaces.
+ */
+export const DOCK_HIDDEN_PREFIXES = [
+  '/messages',
+  '/app/guardian',        // add-athlete ("Add Sub-Profile"), consent, credentials, approvals, transfers
+  '/app/transfer',        // irreversible transfer-of-control wizard
+  '/app/workout',         // workout editor
+  '/onboarding',
+  '/auth/complete-profile',
+  '/activate',
+  '/invite',
+  '/reset-password',
+  '/forgot-password',
+  '/contact',
+  '/settings',
+];
+
+/**
+ * `/` is matched EXACTLY (it's the sign-in page; prefix-matching it would
+ * hide the dock everywhere). Prefixes require a full segment boundary, so
+ * `/contact` never swallows a future `/contacts`.
+ */
+export function isDockSuppressedPath(pathname: string | null | undefined): boolean {
+  if (!pathname) return true; // unknown route: stay out of the way
+  if (pathname === '/') return true;
+  return DOCK_HIDDEN_PREFIXES.some(
+    prefix => pathname === prefix || pathname.startsWith(prefix + '/')
+  );
+}
+
 /** Enforce the cap by minimizing the OLDEST open windows. */
 function applyCap(state: DockState): DockState {
   if (state.open.length <= state.cap) return state;

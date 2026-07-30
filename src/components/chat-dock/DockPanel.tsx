@@ -76,7 +76,13 @@ export default function DockPanel({
     )?.id ?? null;
 
   return (
-    <div data-testid="dock-panel" className="w-80 bg-white rounded-t-lg shadow-2xl border border-gray-200 border-b-0 overflow-hidden flex flex-col" style={{ maxHeight: '28rem' }}>
+    <div
+      data-testid="dock-panel"
+      className="w-80 bg-white rounded-t-lg shadow-2xl border border-gray-200 border-b-0 overflow-hidden flex flex-col"
+      /* Leave room for the pill below so the panel's top never leaves the
+         viewport — it grows upward from the bottom-anchored column. */
+      style={{ maxHeight: 'min(28rem, calc(100vh - 5rem))' }}
+    >
       <div className="flex items-center justify-between px-3 py-2.5 border-b border-gray-100">
         <h3 className="font-bold text-gray-900 text-sm">Messages</h3>
         <button

@@ -60,7 +60,14 @@ export default function MiniChatWindow({
   };
 
   return (
-    <div data-testid="mini-chat-window" className="w-80 bg-white rounded-t-lg shadow-2xl border border-gray-200 border-b-0 flex flex-col" style={{ height: '26rem' }}>
+    <div
+      data-testid="mini-chat-window"
+      className="w-80 bg-white rounded-t-lg shadow-2xl border border-gray-200 border-b-0 flex flex-col"
+      /* 30rem gives the emoji/reaction pickers room inside the message
+         scroller (they need ~350px and were being clipped at 26rem); the
+         min() keeps the whole window on-screen on short viewports. */
+      style={{ height: 'min(30rem, calc(100vh - 2rem))' }}
+    >
       {/* Header */}
       <div className="flex items-center gap-2 px-3 py-2 bg-violet-600 text-white rounded-t-lg shrink-0">
         <span className="relative shrink-0">

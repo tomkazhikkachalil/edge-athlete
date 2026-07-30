@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
   dockReducer,
   initialDockState,
+  isDockSuppressedPath,
   windowCapForWidth,
   parseDockState,
   serializeDockState,
@@ -106,5 +107,48 @@ describe('persistence round-trip', () => {
     expect(parseDockState(JSON.stringify({ v: 2, open: [] }))).toBeNull();
     expect(parseDockState(JSON.stringify({ v: 1, open: [1, 'a'], minimized: null, panelOpen: 'x' })))
       .toEqual({ panelOpen: false, open: ['a'], minimized: [] });
+  });
+});
+
+describe('isDockSuppressedPath', () => {
+  it('shows the dock on browsing surfaces', () => {
+    for (const p of [
+      '/feed', '/explore', '/live', '/athlete', '/athlete/abc', '/athlete/saved',
+      '/u/someone', '/calendar', '/dashboard', '/dashboard/guardians',
+      '/app/notifications', '/app/followers', '/app/sport/golf/rounds',
+      '/privacy', '/terms',
+    ]) {
+      expect(isDockSuppressedPath(p), p).toBe(false);
+    }
+  });
+
+  it('hides on the full messages page and every focused workflow', () => {
+    for (const p of [
+      '/messages', '/messages/abc',
+      '/app/guardian/add-athlete', '/app/guardian/consent/xyz', '/app/guardian/approvals',
+      '/app/transfer/xyz', '/app/workout/new', '/app/workout/abc',
+      '/onboarding', '/auth/complete-profile', '/activate/token', '/invite/token',
+      '/reset-password', '/forgot-password', '/contact', '/settings',
+    ]) {
+      expect(isDockSuppressedPath(p), p).toBe(true);
+    }
+  });
+
+  it('matches "/" exactly — prefix-matching it would hide the dock everywhere', () => {
+    expect(isDockSuppressedPath('/')).toBe(true);
+    expect(isDockSuppressedPath('/feed')).toBe(false);
+  });
+
+  it('requires a full segment boundary, so sibling routes are unaffected', () => {
+    expect(isDockSuppressedPath('/contacts')).toBe(false);
+    expect(isDockSuppressedPath('/invites')).toBe(false);
+    expect(isDockSuppressedPath('/app/guardianship')).toBe(false);
+    expect(isDockSuppressedPath('/settings-help')).toBe(false);
+  });
+
+  it('stays out of the way when the route is unknown', () => {
+    expect(isDockSuppressedPath(null)).toBe(true);
+    expect(isDockSuppressedPath(undefined)).toBe(true);
+    expect(isDockSuppressedPath('')).toBe(true);
   });
 });
