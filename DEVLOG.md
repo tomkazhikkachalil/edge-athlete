@@ -1,5 +1,72 @@
 # Development Log
 
+## July 29, 2026 (later) — Chat dock: not a regression, but four real fixes
+
+Tom reported the messaging pop-up regressed "after a recent push".
+Audited the dock across every route, viewport and auth state.
+
+**No regression from the push.** `git diff a459a70 HEAD` over the dock,
+`layout.tsx`, `auth.tsx`, `messages.tsx`, `features.ts` and `globals.css`
+shows only the 3 a11y/test-id lines from 487af29. `<ChatDock/>` is a
+SIBLING of `{children}` in the app's only layout and all three providers
+render zero DOM, so nothing a page or modal does can become its ancestor,
+create a containing block, or clip it — the nav batch is structurally
+incapable of breaking it. Confirmed the deployed prod bundle still
+contains the dock (`Messages dock` present in `layout-*.js`).
+
+**Root cause of "it disappeared": `.env.local` never had
+`NEXT_PUBLIC_FEATURE_CHAT_DOCK`.** The flag was only ever set in Vercel
+Production, and `NEXT_PUBLIC_*` is build-time-inlined, so on `npm run dev`
+the component returns null and renders NO DOM. The dock has never
+appeared locally. Added the flag to `.env.local` (gitignored). Note:
+Vercel Preview needs the var too if preview URLs are being tested.
+
+**Four genuine defects fixed (all present since launch):**
+- The dock column is bottom-anchored and grows upward with no height cap
+  (panel 448px + bubbles + pill ≈ 650px), and `lg` gates on width only —
+  so on iPad landscape or a 1280×800 window the panel's top was cut off
+  above the viewport. Added max-heights on the column, panel and window
+  plus a `(min-height: 600px)` gate: below that it hides rather than
+  rendering clipped.
+- Mini window 26rem → 30rem. The message scroller is `overflow-y-auto`,
+  which per spec computes overflow-x to `auto` too, so it clips BOTH axes
+  — defeating the shell's deliberate "no overflow-hidden". The ~350px
+  emoji/reaction pickers had only ~300px. Fixed by height alone; no
+  shared messaging component was touched (never fork messaging).
+- Window-row wrappers lacked `shrink-0` while children are a hard `w-80`,
+  and the cap came from `innerWidth` (includes the scrollbar the
+  fixed-positioning viewport excludes) — at a cap boundary that fit one
+  window too many and they overlapped. Now `shrink-0` +
+  `documentElement.clientWidth`.
+- z-[45] kept deliberately (above the z-40 header, below the 50+ dropdown
+  /modal bands so modals correctly cover the dock) — now documented in
+  the component so nobody "fixes" it.
+
+**Contextual suppression** — new `isDockSuppressedPath` in `dock-state.ts`
+(colocated, so deleting `chat-dock/` still leaves messaging untouched).
+Hides the UI on `/messages` (the full experience) and on focused
+workflows: every guardian screen incl. Add Sub-Profile, transfer of
+control, the workout editor, onboarding, complete-profile,
+activation/invite tokens, password flows, contact, settings, and the
+sign-in page. Prefix matching requires a segment boundary, so `/contacts`
+and `/app/guardianship` are unaffected. Suppression gates the UI ONLY —
+presence, badges and localStorage keep running, so open windows and
+half-typed drafts are intact on the way back out. Kept visible on
+`/privacy`, `/terms`, `/dashboard/*` and all browsing surfaces.
+
+Verification: 450 unit tests (5 new for the path predicate incl. the
+boundary and null cases) · lint + tsc clean · clean production build ·
+browser smoke **27/27**: launcher bottom-right, panel and window fully
+on-screen at 1280×900 and at 620px tall, dock absent at 560px and back
+when the viewport grows, open→minimize→restore→close twice with no
+duplicates, absent on six focused routes + the sign-in page, the Add
+Sub-Profile submit button hit-testable via `elementFromPoint`, the open
+window restored after leaving the flow, no dock at 390px, zero page
+errors. Harness lesson: an onboarded user is redirected off
+`/onboarding`, so testing suppression there needs a NOT-yet-onboarded
+user — and the same user must still get the dock on `/feed`, proving the
+absence is route-based rather than a broken gate.
+
 ## July 29, 2026 — Navigation audit: no more dead ends
 
 Full audit of every route, modal, and flow for screens a user could get
