@@ -158,6 +158,24 @@ body {
   animation: ea-edit-pulse 600ms ease-out;
 }
 
+/* Chat-dock panel: rises and expands out of the launcher pill. The
+ * bottom-right origin is what sells the connection to the pill, and it
+ * can't be expressed with a Tailwind utility here, so it lives in CSS. */
+@keyframes ea-dock-rise {
+  from { opacity: 0; transform: translateY(8px) scale(0.96); }
+  to   { opacity: 1; transform: none; }
+}
+
+.ea-dock-rise {
+  animation: ea-dock-rise 200ms ease-out;
+  transform-origin: bottom right;
+}
+
+.ea-dock-sink {
+  animation: ea-dock-rise 160ms ease-in reverse both;
+  transform-origin: bottom right;
+}
+
 /* Respect reduced-motion preference — disables animations for users
  * who have motion sensitivity set at the OS level. */
 @media (prefers-reduced-motion: reduce) {

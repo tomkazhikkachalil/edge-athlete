@@ -48,9 +48,16 @@ export default function ChatDock() {
   const [state, dispatch] = useReducer(dockReducer, initialDockState);
   const [hydrated, setHydrated] = useState(false);
   const [isDesktop, setIsDesktop] = useState(false);
+  // Panel exit needs the element to outlive panelOpen for one animation
+  // (the Toast idiom). Dismissal is deliberately NOT persisted: closing
+  // clears the corner for this page view, and the dock is back on the next
+  // load. Messaging also stays reachable from the header nav, so hiding
+  // the dock is never a dead end.
+  const [panelExiting, setPanelExiting] = useState(false);
+  const [dismissed, setDismissed] = useState(false);
 
   const enabled = FEATURE_FLAGS.FEATURE_CHAT_DOCK && !!user && isDesktop;
-  const visible = enabled && !isDockSuppressedPath(pathname);
+  const visible = enabled && !dismissed && !isDockSuppressedPath(pathname);
 
   // Viewport gate + width-aware window cap (SSR-safe: starts false).
   useEffect(() => {
@@ -108,6 +115,30 @@ export default function ChatDock() {
   const openFullView = useCallback((conversationId: string) => {
     router.push(`/messages?c=${conversationId}`);
   }, [router]);
+
+  /** Collapse the panel back into the pill, playing the sink animation. */
+  const closePanel = useCallback(() => {
+    setPanelExiting(true);
+    setTimeout(() => {
+      dispatch({ type: 'CLOSE_PANEL' });
+      setPanelExiting(false);
+    }, 160); // matches .ea-dock-sink
+  }, []);
+
+  const togglePanel = useCallback(() => {
+    if (state.panelOpen) closePanel();
+    else dispatch({ type: 'TOGGLE_PANEL' });
+  }, [state.panelOpen, closePanel]);
+
+  /** Close (X): sink the panel, then hide the dock for this page view. */
+  const dismissDock = useCallback(() => {
+    setPanelExiting(true);
+    setTimeout(() => {
+      dispatch({ type: 'CLOSE_PANEL' });
+      setPanelExiting(false);
+      setDismissed(true);
+    }, 160);
+  }, []);
 
   if (!visible) return null;
 
@@ -169,24 +200,30 @@ export default function ChatDock() {
           onClose={id => dispatch({ type: 'CLOSE_WINDOW', id })}
         />
 
-        {state.panelOpen && (
-          <DockPanel
-            conversations={conversations}
-            currentUserId={user!.id}
-            onlineIds={onlineIds}
-            onSelect={id => {
-              openWindow(id);
-              dispatch({ type: 'CLOSE_PANEL' });
-            }}
-            onOpenWindow={openWindow}
-            fetchConversations={fetchConversations}
-          />
+        {(state.panelOpen || panelExiting) && (
+          <div className={panelExiting ? 'ea-dock-sink' : undefined}>
+            <DockPanel
+              conversations={conversations}
+              currentUserId={user!.id}
+              onlineIds={onlineIds}
+              windowIds={new Set([...state.open, ...state.minimized])}
+              unreadCount={totalUnreadCount}
+              onSelect={id => {
+                openWindow(id);
+                closePanel();
+              }}
+              onOpenWindow={openWindow}
+              onMinimize={closePanel}
+              onDismiss={dismissDock}
+              fetchConversations={fetchConversations}
+            />
+          </div>
         )}
 
         {/* The collapsed pill. */}
         <button
           type="button"
-          onClick={() => dispatch({ type: 'TOGGLE_PANEL' })}
+          onClick={togglePanel}
           className="flex items-center gap-2 bg-violet-600 text-white pl-4 pr-3 py-2.5 rounded-t-lg shadow-lg hover:bg-violet-700 transition text-sm font-medium"
           aria-expanded={state.panelOpen}
           aria-label="Messages dock"
@@ -198,7 +235,11 @@ export default function ChatDock() {
               {totalUnreadCount > 99 ? '99+' : totalUnreadCount}
             </span>
           )}
-          <i className={`fas fa-chevron-${state.panelOpen ? 'down' : 'up'} text-xs opacity-70`}></i>
+          <i
+            className={`fas fa-chevron-up text-xs opacity-70 transition-transform ${
+              state.panelOpen ? 'rotate-180' : ''
+            }`}
+          ></i>
         </button>
       </div>
     </div>

@@ -1,9 +1,9 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, Suspense, useCallback } from 'react';
 import dynamic from 'next/dynamic';
 import { useAuth } from '@/lib/auth';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import AppHeader from '@/components/AppHeader';
 import AccountSettings from '@/components/settings/AccountSettings';
 import PrivacySettings from '@/components/settings/PrivacySettings';
@@ -16,11 +16,29 @@ const EditProfileTabs = dynamic(() => import('@/components/EditProfileTabs'), { 
 
 type SettingsTab = 'account' | 'privacy' | 'messaging' | 'notifications' | 'security';
 
+const SETTINGS_TABS: SettingsTab[] = ['account', 'privacy', 'messaging', 'notifications', 'security'];
+
+// useSearchParams must live under Suspense (house rule) — this tiny reader
+// honours ?tab=<id> so other surfaces can deep-link to a section (the chat
+// dock's settings gear points at ?tab=messaging). Unknown values are
+// ignored, leaving the default tab.
+function TabParamReader({ onTab }: { onTab: (tab: SettingsTab) => void }) {
+  const searchParams = useSearchParams();
+  const requested = searchParams.get('tab');
+  useEffect(() => {
+    if (requested && (SETTINGS_TABS as string[]).includes(requested)) {
+      onTab(requested as SettingsTab);
+    }
+  }, [requested, onTab]);
+  return null;
+}
+
 export default function SettingsPage() {
   const { user, profile, loading } = useAuth();
   const router = useRouter();
   const [activeTab, setActiveTab] = useState<SettingsTab>('account');
   const [isEditProfileModalOpen, setIsEditProfileModalOpen] = useState(false);
+  const handleTabParam = useCallback((tab: SettingsTab) => setActiveTab(tab), []);
 
   // Redirect if not authenticated
   useEffect(() => {
@@ -54,6 +72,9 @@ export default function SettingsPage() {
 
   return (
     <div className="min-h-screen bg-gray-50">
+      <Suspense fallback={null}>
+        <TabParamReader onTab={handleTabParam} />
+      </Suspense>
       <AppHeader showSearch={false} />
 
       <div className="max-w-5xl mx-auto px-4 sm:px-6 py-6 sm:py-8">
