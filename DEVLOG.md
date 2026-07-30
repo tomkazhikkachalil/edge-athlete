@@ -1,5 +1,34 @@
 # Development Log
 
+## July 30, 2026 (sync) — Maintenance checklist
+
+Tom confirmed the rebuilt messaging widget works well; full checklist run
+against `84c0ecb` (already pushed and deployed).
+
+- lint clean · `tsc --noEmit` clean · `vitest` **469 passed** (46 files) ·
+  `npm ci --dry-run` clean · clean `npm run build`, **152 routes** (dev
+  server stopped and `.next` wiped first).
+- Prod health, all as designed: `/`, `/feed`, `/explore`, `/calendar`,
+  `/messages` → 200 · `/login` → 307 to `/` · unknown URL → 404 (the
+  branded not-found page) · `/api/calendar/events` unauthenticated → 401.
+- Migration state: numbered files through **059**, all run and
+  behaviourally verified. Nothing pending.
+- Housekeeping: deleted the leftover local `build-wt` branch (fully merged,
+  never pushed — `git branch -d` verified that before removing it), and the
+  throwaway `preview-flag-check` branch is gone from both local and remote.
+  `main` is now the only branch. `AGENTS.md` stays untracked by choice.
+
+**Flagged, deliberately NOT actioned in this sync** — `npm audit`
+(production deps only) reports 8 vulnerabilities: 1 critical (`tar`), 6
+high (`next`, `form-data`, `postcss`, `sharp`, `ws`, `nodemailer`), 1
+moderate (`uuid`). Seven have fixes *inside* the current semver ranges, so
+`npm audit fix` would resolve them with patch/minor bumps; `nodemailer`
+needs 7 → 9, which is a major and would touch the contact-form mail path.
+Left alone here because dependency upgrades aren't part of the maintenance
+checklist and Tom asked for no breakage — this wants its own pass with the
+full suite plus a build and smoke run after upgrading, and the nodemailer
+major handled separately from the in-range ones.
+
 ## July 30, 2026 (later) — Messaging widget: one element, two states
 
 Two defects in yesterday's panel, both reported by Tom.
