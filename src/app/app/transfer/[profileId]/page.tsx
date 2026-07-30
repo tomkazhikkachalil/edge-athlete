@@ -198,7 +198,7 @@ export default function TransferPage() {
 
   return (
     <div className="min-h-screen flex flex-col bg-violet-50">
-      <BrandBar />
+      <BrandBar hideEscape={state === 'executing'} />
       <div className="flex-grow flex items-center justify-center p-4">
         <div className="w-full max-w-2xl bg-white rounded-lg shadow-lg p-6 sm:p-8">
           {error && (

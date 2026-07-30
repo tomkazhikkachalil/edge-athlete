@@ -132,7 +132,7 @@ export default function CompleteProfilePage() {
   if (parkedMessage) {
     return (
       <div className="min-h-screen flex flex-col bg-violet-50">
-        <BrandBar />
+        <BrandBar hideEscape />
         <div className="flex-grow flex items-center justify-center p-4">
           <div className="w-full max-w-lg bg-white rounded-lg shadow-lg p-6 sm:p-8 text-center">
             <i className="fas fa-envelope-circle-check text-violet-600 text-4xl mb-4"></i>
@@ -155,7 +155,7 @@ export default function CompleteProfilePage() {
 
   return (
     <div className="min-h-screen flex flex-col bg-violet-50">
-      <BrandBar />
+      <BrandBar hideEscape />
       <div className="flex-grow flex items-center justify-center p-4">
         <div className="w-full max-w-lg bg-white rounded-lg shadow-lg p-6 sm:p-8">
           <h2 className="text-xl sm:text-2xl font-bold text-violet-800 mb-1">
