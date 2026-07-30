@@ -34,7 +34,7 @@ export default function SportActivityDetailPage() {
 
   useEffect(() => {
     if (!authLoading && !user) {
-      router.push('/login');
+      router.push('/');
       return;
     }
   }, [user, authLoading, router]);
