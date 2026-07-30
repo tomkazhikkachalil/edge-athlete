@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useAuth } from '@/lib/auth';
 import { useToast } from './Toast';
 import LazyImage from './LazyImage';
@@ -10,6 +10,8 @@ import { getSportDefinition, getEnabledSports, getAllSports, type SportKey } fro
 import { resolveSportKey } from '@/lib/sports/resolve-sport-key';
 import SportMultiSelect from './SportMultiSelect';
 import { COPY, getComingSoonMessage } from '@/lib/copy';
+import ConfirmModal from './ConfirmModal';
+import { useDirtyClose } from '@/hooks/useDirtyClose';
 import {
   formatHeight,
   getInitials,
@@ -136,6 +138,25 @@ export default function EditProfileTabs({
     ball_brand: '',
   });
 
+  // Dirty-close support: per-group snapshots of the last loaded/saved
+  // values (loads write them directly with local values; successful tab
+  // saves refresh their own group). Save is per-tab, so edits in OTHER
+  // tabs must survive a save and still count as unsaved on close.
+  const snapRef = useRef<Record<string, string>>({});
+  const serializeGroup = {
+    basic: () => JSON.stringify({ ...basicForm, avatar_file: basicForm.avatar_file?.name ?? null }),
+    sports: () => JSON.stringify(selectedSports),
+    vitals: () => JSON.stringify(vitalsForm),
+    socials: () => JSON.stringify(socialsForm),
+    golf: () => JSON.stringify(golfForm),
+    equipment: () => JSON.stringify(equipmentForm),
+  } as const;
+  const isDirty = () =>
+    (Object.keys(serializeGroup) as (keyof typeof serializeGroup)[]).some(
+      key => snapRef.current[key] !== undefined && snapRef.current[key] !== serializeGroup[key]()
+    );
+  const { requestClose, confirmOpen, confirmDiscard, cancelDiscard } = useDirtyClose(isDirty, onClose);
+
   // Load golf settings from sport_settings table
   useEffect(() => {
     if (!user?.id) return;
@@ -148,21 +169,25 @@ export default function EditProfileTabs({
           const settings = data.settings || {};
 
           // Update golf form with settings from sport_settings table
-          setGolfForm({
+          const loadedGolf = {
             handicap: settings.handicap?.toString() || '',
             home_course: settings.home_course || '',
             tee_preference: (settings.tee_preference as 'black' | 'blue' | 'white' | 'red' | 'gold') || 'white',
             dominant_hand: (settings.dominant_hand as 'right' | 'left') || 'right',
-          });
+          };
+          setGolfForm(loadedGolf);
+          snapRef.current.golf = JSON.stringify(loadedGolf);
 
           // Update equipment form with settings from sport_settings table
-          setEquipmentForm({
+          const loadedEquipment = {
             driver_brand: settings.driver_brand || '',
             driver_loft: settings.driver_loft?.toString() || '',
             irons_brand: settings.irons_brand || '',
             putter_brand: settings.putter_brand || '',
             ball_brand: settings.ball_brand || '',
-          });
+          };
+          setEquipmentForm(loadedEquipment);
+          snapRef.current.equipment = JSON.stringify(loadedEquipment);
         }
       } catch (error) {
         console.error('Error loading golf settings:', error);
@@ -193,6 +218,7 @@ export default function EditProfileTabs({
         for (const key of settingsKeys) if (!ordered.includes(key)) ordered.push(key);
         setSelectedSports(ordered);
         setInitialSports(ordered);
+        snapRef.current.sports = JSON.stringify(ordered);
       } catch (e) {
         console.error('Error loading sports:', e);
       }
@@ -204,33 +230,39 @@ export default function EditProfileTabs({
 
   // Initialize forms when profile changes
   useEffect(() => {
-    setBasicForm({
+    const loadedBasic = {
       first_name: (profile?.first_name || '').toString(),
       middle_name: (profile?.middle_name || '').toString(),
       last_name: (profile?.last_name || '').toString(),
       full_name: (profile?.full_name || '').toString(), // fallback display name (not editable)
       handle: (profile?.handle || '').toString(), // unique @handle identifier
       bio: (profile?.bio || '').toString(),
-      avatar_file: null,
+      avatar_file: null as File | null,
       visibility: (profile?.visibility || 'public') as 'public' | 'private',
-    });
+    };
+    setBasicForm(loadedBasic);
+    snapRef.current.basic = JSON.stringify({ ...loadedBasic, avatar_file: null });
 
     // Initialize weight with user's saved values - no conversion
     const savedUnit = (profile?.weight_unit || 'lbs') as 'lbs' | 'kg' | 'stone';
-    setVitalsForm({
+    const loadedVitals = {
       height_cm: profile?.height_cm ? formatHeight(profile.height_cm) : '',
       weight_kg: profile?.weight_display ? String(profile.weight_display) : '',
       weight_unit: savedUnit,
       dob: (profile?.dob || '').toString(),
       location: (profile?.location || '').toString(),
       class_year: profile?.class_year ? String(profile.class_year) : '',
-    });
+    };
+    setVitalsForm(loadedVitals);
+    snapRef.current.vitals = JSON.stringify(loadedVitals);
 
-    setSocialsForm({
+    const loadedSocials = {
       social_twitter: formatSocialHandle(profile?.social_twitter),
       social_instagram: formatSocialHandle(profile?.social_instagram),
       social_facebook: formatSocialHandle(profile?.social_facebook),
-    });
+    };
+    setSocialsForm(loadedSocials);
+    snapRef.current.socials = JSON.stringify(loadedSocials);
 
     // Golf and equipment settings are now loaded from sport_settings API
     // (see useEffect above that fetches from /api/sport-settings)
@@ -385,6 +417,7 @@ export default function EditProfileTabs({
               throw new Error('Failed to save golf settings');
             }
 
+            snapRef.current.golf = serializeGroup.golf();
             showSuccess('Changes Saved', 'Golf settings updated successfully!');
             onSave(); // Refresh parent data
           }
@@ -422,6 +455,7 @@ export default function EditProfileTabs({
               throw new Error('Failed to save equipment settings');
             }
 
+            snapRef.current.equipment = serializeGroup.equipment();
             showSuccess('Changes Saved', 'Equipment updated successfully!');
             onSave(); // Refresh parent data
           }
@@ -455,6 +489,12 @@ export default function EditProfileTabs({
 
         await response.json();
 
+        // The profile PUT covers basic/vitals/socials plus sports — refresh
+        // those snapshots so a saved tab no longer reads as unsaved.
+        snapRef.current.basic = serializeGroup.basic();
+        snapRef.current.vitals = serializeGroup.vitals();
+        snapRef.current.socials = serializeGroup.socials();
+        snapRef.current.sports = serializeGroup.sports();
         showSuccess('Changes Saved', `${TABS.find(t => t.id === tabId)?.label} updated successfully!`);
         onSave(); // Refresh parent data
       }
@@ -1084,12 +1124,21 @@ export default function EditProfileTabs({
 
   return (
     <div className="fixed inset-0 z-50 overflow-y-auto" aria-labelledby="edit-profile-title" role="dialog" aria-modal="true">
+      <ConfirmModal
+        isOpen={confirmOpen}
+        title={COPY.FORMS.DISCARD_TITLE}
+        message={COPY.FORMS.DISCARD_CONFIRM}
+        confirmText={COPY.FORMS.DISCARD_ACTION}
+        cancelText={COPY.FORMS.KEEP_EDITING}
+        onConfirm={confirmDiscard}
+        onCancel={cancelDiscard}
+      />
       <div className="flex items-center justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
         {/* Backdrop */}
         <div 
           className="fixed inset-0 bg-gray-500/75 transition-opacity" 
           aria-hidden="true"
-          onClick={onClose}
+          onClick={requestClose}
         ></div>
 
         {/* Modal */}
@@ -1101,7 +1150,7 @@ export default function EditProfileTabs({
                 Edit Profile
               </h2>
               <button
-                onClick={onClose}
+                onClick={requestClose}
                 className="text-gray-400 hover:text-gray-500 focus:outline-none focus:ring-2 focus:ring-violet-500 rounded-md p-1"
                 aria-label="Close modal"
               >
@@ -1165,7 +1214,7 @@ export default function EditProfileTabs({
               )}
             </button>
             <button
-              onClick={onClose}
+              onClick={requestClose}
               className="mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-violet-500 sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm"
             >
               Cancel

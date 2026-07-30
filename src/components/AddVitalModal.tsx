@@ -2,6 +2,9 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useBodyScrollLock } from '@/hooks/useBodyScrollLock';
+import { useDirtyClose } from '@/hooks/useDirtyClose';
+import ConfirmModal from '@/components/ConfirmModal';
+import { COPY } from '@/lib/copy';
 import { MediaEditor } from '@/components/media-editor';
 import { validateFiles } from '@/lib/media/validation';
 import { uploadPostMedia } from '@/lib/media/upload';
@@ -64,6 +67,18 @@ export default function AddVitalModal({ isOpen, onClose, onSaved }: AddVitalModa
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Anything the open-reset effect below clears counts as unsaved work.
+  const isDirty = () =>
+    form.categoryKey !== '' ||
+    form.metricKey !== '' ||
+    form.rawValue.trim() !== '' ||
+    form.notes.trim() !== '' ||
+    caption.trim() !== '' ||
+    mediaFiles.length > 0 ||
+    mode !== 'metric_only';
+
+  const { requestClose, confirmOpen, confirmDiscard, cancelDiscard } = useDirtyClose(isDirty, onClose);
 
   // Reset form when modal opens
   useEffect(() => {
@@ -293,6 +308,15 @@ export default function AddVitalModal({ isOpen, onClose, onSaved }: AddVitalModa
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+      <ConfirmModal
+        isOpen={confirmOpen}
+        title={COPY.FORMS.DISCARD_TITLE}
+        message={COPY.FORMS.DISCARD_CONFIRM}
+        confirmText={COPY.FORMS.DISCARD_ACTION}
+        cancelText={COPY.FORMS.KEEP_EDITING}
+        onConfirm={confirmDiscard}
+        onCancel={cancelDiscard}
+      />
       <div className="bg-white rounded-xl shadow-xl w-full max-w-md max-h-modal overflow-y-auto">
         {/* Header */}
         <div className="flex items-center justify-between p-5 border-b border-gray-100">
@@ -301,7 +325,7 @@ export default function AddVitalModal({ isOpen, onClose, onSaved }: AddVitalModa
             <p className="text-xs text-gray-500 mt-0.5">Each entry is saved permanently as part of your development record.</p>
           </div>
           <button
-            onClick={onClose}
+            onClick={requestClose}
             className="min-w-[44px] min-h-[44px] flex items-center justify-center rounded-full hover:bg-gray-100 text-gray-500 transition-colors"
           >
             <i className="fas fa-times text-sm"></i>
@@ -542,7 +566,7 @@ export default function AddVitalModal({ isOpen, onClose, onSaved }: AddVitalModa
           <div className="flex gap-3 pt-1">
             <button
               type="button"
-              onClick={onClose}
+              onClick={requestClose}
               className="flex-1 px-4 py-2.5 border border-gray-300 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-50 transition-colors"
             >
               Cancel

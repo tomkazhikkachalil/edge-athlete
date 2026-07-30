@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { X, CalendarPlus } from 'lucide-react';
 import { useBodyScrollLock } from '@/hooks/useBodyScrollLock';
 import { useToast } from '@/components/Toast';
@@ -9,6 +9,9 @@ import { describeRecurrence, MAX_OCCURRENCES } from '@/lib/calendar/recurrence';
 import { CATEGORY_LABELS, categoryColor } from '@/lib/calendar/categories';
 import GuestPicker, { type GuestChip } from './GuestPicker';
 import ScopeChooserModal from './ScopeChooserModal';
+import ConfirmModal from '@/components/ConfirmModal';
+import { useDirtyClose } from '@/hooks/useDirtyClose';
+import { COPY } from '@/lib/copy';
 import { formatDisplayName } from '@/lib/formatters';
 import type { EditScope, EventDetail } from './types';
 
@@ -132,6 +135,7 @@ export default function EventFormModal({
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [scopeOpen, setScopeOpen] = useState(false);
+  const snapRef = useRef<string | null>(null);
   useBodyScrollLock(isOpen);
 
   useEffect(() => {
@@ -148,6 +152,12 @@ export default function EventFormModal({
     setRepeat(emptyRepeat());
     setScopeOpen(false);
     setError('');
+    // Baseline for the discard guard: whatever this modal opened with.
+    snapRef.current = JSON.stringify({
+      form: editing ? formFromEvent(editing) : emptyForm(defaultDay),
+      chips: editing ? chipsFromEvent(editing) : [],
+      repeat: emptyRepeat(),
+    });
   }, [isOpen, editing, defaultDay]);
 
   // The start day is always part of a weekly repeat and follows date changes.
@@ -160,6 +170,11 @@ export default function EventFormModal({
         : { ...prev, byweekday: [...prev.byweekday, startDow].sort((a, b) => a - b) }
     );
   }, [startDow, repeat.freq]);
+
+  const { requestClose, confirmOpen, confirmDiscard, cancelDiscard } = useDirtyClose(
+    () => snapRef.current !== null && snapRef.current !== JSON.stringify({ form, chips, repeat }),
+    onClose
+  );
 
   if (!isOpen) return null;
 
@@ -281,6 +296,15 @@ export default function EventFormModal({
 
   return (
     <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+      <ConfirmModal
+        isOpen={confirmOpen}
+        title={COPY.FORMS.DISCARD_TITLE}
+        message={COPY.FORMS.DISCARD_CONFIRM}
+        confirmText={COPY.FORMS.DISCARD_ACTION}
+        cancelText={COPY.FORMS.KEEP_EDITING}
+        onConfirm={confirmDiscard}
+        onCancel={cancelDiscard}
+      />
       <div className="bg-white rounded-lg shadow-xl max-w-lg w-full max-h-[85vh] overflow-y-auto">
         <div className="flex items-center justify-between p-6 border-b border-gray-200">
           <div className="flex items-center gap-3">
@@ -291,7 +315,7 @@ export default function EventFormModal({
               {editing ? 'Edit event' : 'New event'}
             </h2>
           </div>
-          <button type="button" onClick={onClose} aria-label="Close" className="text-gray-400 hover:text-gray-600">
+          <button type="button" onClick={requestClose} aria-label="Close" className="text-gray-400 hover:text-gray-600">
             <X className="w-5 h-5" />
           </button>
         </div>

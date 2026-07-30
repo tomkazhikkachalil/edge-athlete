@@ -9,6 +9,9 @@ import { getCatalogService, getPresetImages, type EquipmentBrand, type Equipment
 import { getEquipmentCategories, getEquipmentSportOptions } from '@/lib/equipment-config';
 import EquipmentImageUpload from './EquipmentImageUpload';
 import { useBodyScrollLock } from '@/hooks/useBodyScrollLock';
+import { useDirtyClose } from '@/hooks/useDirtyClose';
+import ConfirmModal from './ConfirmModal';
+import { COPY } from '@/lib/copy';
 
 interface AddEquipmentModalProps {
   isOpen: boolean;
@@ -181,6 +184,29 @@ export default function AddEquipmentModal({
   // Lock background scroll while open (iOS scroll-chaining behind overlays)
   useBodyScrollLock(isOpen);
 
+  const closeAndReset = () => {
+    resetForm();
+    onClose();
+  };
+
+  // Any user-entered field (the ones resetForm clears) counts as unsaved.
+  const isDirty = () =>
+    equipmentType.trim() !== '' ||
+    brand.trim() !== '' ||
+    model.trim() !== '' ||
+    imageUrl.trim() !== '' ||
+    notes.trim() !== '' ||
+    loft.trim() !== '' ||
+    shaft.trim() !== '' ||
+    flex.trim() !== '' ||
+    length.trim() !== '' ||
+    lie.trim() !== '' ||
+    grip.trim() !== '' ||
+    retiredOn.trim() !== '' ||
+    status !== 'active';
+
+  const { requestClose, confirmOpen, confirmDiscard, cancelDiscard } = useDirtyClose(isDirty, closeAndReset);
+
   if (!isOpen) return null;
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -281,11 +307,6 @@ export default function AddEquipmentModal({
     setShowModelDropdown(false);
   };
 
-  const handleClose = () => {
-    resetForm();
-    onClose();
-  };
-
   const handleBrandSelect = (brandName: string) => {
     setBrand(brandName);
     setShowBrandDropdown(false);
@@ -300,6 +321,15 @@ export default function AddEquipmentModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50">
+      <ConfirmModal
+        isOpen={confirmOpen}
+        title={COPY.FORMS.DISCARD_TITLE}
+        message={COPY.FORMS.DISCARD_CONFIRM}
+        confirmText={COPY.FORMS.DISCARD_ACTION}
+        cancelText={COPY.FORMS.KEEP_EDITING}
+        onConfirm={confirmDiscard}
+        onCancel={cancelDiscard}
+      />
       <div className="relative w-full max-w-2xl bg-white rounded-xl shadow-2xl max-h-modal overflow-hidden flex flex-col">
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200">
@@ -314,7 +344,7 @@ export default function AddEquipmentModal({
             )}
           </div>
           <button
-            onClick={handleClose}
+            onClick={requestClose}
             className="p-2 text-gray-400 hover:text-gray-600 rounded-lg hover:bg-gray-100 transition-colors"
           >
             <X className="w-6 h-6" />
@@ -702,7 +732,7 @@ export default function AddEquipmentModal({
           <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-gray-200 bg-gray-50">
             <button
               type="button"
-              onClick={handleClose}
+              onClick={requestClose}
               className="px-6 py-2.5 text-gray-700 font-semibold rounded-lg hover:bg-gray-200 transition-colors"
               disabled={loading}
             >
