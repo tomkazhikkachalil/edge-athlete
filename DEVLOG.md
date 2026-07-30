@@ -1,5 +1,67 @@
 # Development Log
 
+## July 30, 2026 (deps) — In-range audit fixes: 8 vulnerabilities → 5
+
+Lockfile-only change (`package.json` verified byte-identical before and
+after — that's what "in-range" means).
+
+**Genuinely remediated (4):** `tar` 7.4.3 → 7.5.22 (**the critical** —
+two uncatchable DoS paths), `ws` 8.18.2 → 8.21.1 (uninitialized memory
+disclosure + memory-exhaustion DoS), `form-data` 4.0.4 → 4.0.6, `uuid`
+13.0.0 → 13.0.2.
+
+**Bumped but still flagged — correcting yesterday's note, where I trusted
+npm's optimistic `fixAvailable` flag:** `next` 15.5.7 → **15.5.22** (the
+advisory range runs to ≤16.3.0-preview.7, so only a Next major clears it),
+`sharp` 0.34.4 → 0.34.5 (needs ≥0.35.0; `next@15.5.22` declares
+`sharp: "^0.34.3"`), `nodemailer` 7.0.10 → 7.0.13 (needs v9).
+`postcss` was **not touched at all** — Next exact-pins 8.4.31, while the
+copy that actually compiles our CSS is `@tailwindcss/postcss`'s 8.5.22,
+already above the advisory. So the CSS pipeline was never at risk.
+
+The 5 remaining trace to just three roots: postcss + sharp pinned by Next
+(which is why `next` and `@sentry/nextjs` appear too — inheritance, not
+flaws in their own code) and nodemailer needing a major. **Do not run
+`npm audit fix --force`**: npm's suggested "fix" for the next/postcss/sharp
+entries is a downgrade to `next@9.3.3`.
+
+**Where the risk actually was** — not the four remediated packages, but
+Next moving 15 patch releases. Those releases tightened
+`images.remotePatterns` matching (GHSA-9g9p-9gw9-jx7f), and our config uses
+leading-wildcard hostnames (`**.supabase.co`, `**.giphy.com`) — exactly
+that surface. A regression would have broken every avatar, post image and
+GIF. So a **baseline was captured before upgrading**: `/_next/image` for a
+real Supabase Storage avatar and a Giphy URL, plus page codes. After the
+upgrade both responses are **byte-identical** (2,915 and 2,434,068 bytes),
+webp negotiation still works, and a non-allowlisted host still gets a 400.
+
+Verification: `tsc` clean · lint clean · 469 unit tests · **cold**
+`rm -rf node_modules .next && npm ci && npm run build` (the step that bites
+in CI — proves the new tar/Tailwind-oxide native path and ~122 added
+`@img/sharp-*` platform entries resolve from scratch), 152 routes ·
+post-upgrade browser smoke **12/12** (logged-out redirect, signed-in deep
+link, session-survives-refresh, images decode with no broken `img`
+elements, live DM delivery both directions between two browsers, dock
+presence dot, dock mini thread, avatar upload through a route handler) ·
+widget suite re-run unchanged **35/35** · zero page errors.
+
+Deliberately not covered, and why: AI endpoints (they cost credits, and
+`form-data` only arrives via `@types/node-fetch` while our AI routes are
+plain JSON), `uuid` (its one import site is `/api/upload/route.ts`, which
+has no callers, and the advisory affects v3/v5/v6 with a `buf` argument
+while we use v4), email (nodemailer untouched by this pass).
+
+Rollback if ever needed: one file — `git checkout <sha> -- package-lock.json
+&& npm ci`, or revert the commit.
+
+Follow-ups this surfaced: (a) `nodemailer` 7 → 9 needs its own pass (touches
+contact, waitlist, calendar invites, digests, transfers); (b) clearing the
+sharp/postcss advisories needs either a Next major or npm `overrides`
+forcing past Next's pins — the latter is doable but riskier; (c) no
+`engines` field or `.nvmrc` exists — CI and the devcontainer both say Node
+22 and local is 22.18, but nothing enforces it for Vercel or a contributor
+shell, and the `@img/sharp-*` binaries are ABI-sensitive.
+
 ## July 30, 2026 (sync) — Maintenance checklist
 
 Tom confirmed the rebuilt messaging widget works well; full checklist run
