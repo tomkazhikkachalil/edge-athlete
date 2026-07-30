@@ -11,7 +11,7 @@ interface Props {
   onClick: () => void;
 }
 
-function getRelativeTime(dateStr: string): string {
+export function getRelativeTime(dateStr: string): string {
   const diff = Date.now() - new Date(dateStr).getTime();
   const mins = Math.floor(diff / 60000);
   if (mins < 1) return 'now';
@@ -23,7 +23,7 @@ function getRelativeTime(dateStr: string): string {
   return new Date(dateStr).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 }
 
-function getLastMessagePreview(conversation: Conversation, currentUserId: string): string {
+export function getLastMessagePreview(conversation: Conversation, currentUserId: string): string {
   const msg = conversation.last_message;
   if (!msg) return 'No messages yet';
   if (msg.deleted_at) return 'Message deleted';

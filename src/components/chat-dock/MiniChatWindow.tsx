@@ -6,8 +6,8 @@ import GifPickerModal from '@/components/GifPickerModal';
 import MessageBubble from '@/components/messages/MessageBubble';
 import MessageInput from '@/components/messages/MessageInput';
 import TypingIndicator from '@/components/messages/TypingIndicator';
-import { formatDisplayName, getInitials } from '@/lib/formatters';
 import { useMiniThread } from './useMiniThread';
+import { conversationIdentity, isConversationPartnerOnline } from './conversation-identity';
 import { loadDraft, saveDraft } from './drafts';
 import type { Conversation } from '@/types/messages';
 
@@ -38,16 +38,9 @@ export default function MiniChatWindow({
   const draftTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const initialDraft = useMemo(() => loadDraft(conversation.id), [conversation.id]);
 
-  const other = (conversation.participants ?? []).find(p => p.profile?.id !== currentUserId)?.profile;
-  const title =
-    conversation.type === 'group'
-      ? conversation.name || 'Group'
-      : other
-        ? formatDisplayName(other.first_name, null, other.last_name, other.full_name)
-        : 'Conversation';
-  const avatarUrl = conversation.type === 'group' ? conversation.avatar_url : other?.avatar_url;
-  const online = conversation.type === 'direct' && !!other && onlineIds.has(other.id);
-  const isGroup = conversation.type === 'group';
+  const identity = conversationIdentity(conversation, currentUserId);
+  const { title, avatarUrl, initials, isGroup } = identity;
+  const online = isConversationPartnerOnline(identity, onlineIds);
 
   const handleTextChange = (text: string) => {
     if (draftTimerRef.current) clearTimeout(draftTimerRef.current);
@@ -76,7 +69,7 @@ export default function MiniChatWindow({
               <LazyImage src={avatarUrl} alt={title} className="w-full h-full object-cover" />
             ) : (
               <span className="w-full h-full flex items-center justify-center text-[10px] font-semibold text-white">
-                {getInitials(title)}
+                {initials}
               </span>
             )}
           </span>

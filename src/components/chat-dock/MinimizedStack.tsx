@@ -1,24 +1,13 @@
 'use client';
 
 import LazyImage from '@/components/LazyImage';
-import { formatDisplayName, getInitials } from '@/lib/formatters';
+import { conversationIdentity, isConversationPartnerOnline } from './conversation-identity';
 import type { Conversation } from '@/types/messages';
 
 // Minimized chats as avatar bubbles above the dock pill (the FB pattern).
 // Unread badges come straight from the provider's per-conversation counts.
-
-function bubbleIdentity(conversation: Conversation, currentUserId: string) {
-  if (conversation.type === 'group') {
-    return { name: conversation.name || 'Group', avatarUrl: conversation.avatar_url ?? null };
-  }
-  const other = (conversation.participants ?? []).find(p => p.profile?.id !== currentUserId)?.profile;
-  return {
-    name: other
-      ? formatDisplayName(other.first_name, null, other.last_name, other.full_name)
-      : 'Conversation',
-    avatarUrl: other?.avatar_url ?? null,
-  };
-}
+// Titles come from the dock's shared identity helper so a bubble, its row
+// in the panel, and the window it restores all read identically.
 
 export default function MinimizedStack({
   ids,
@@ -42,9 +31,9 @@ export default function MinimizedStack({
       {ids.map(id => {
         const conversation = conversationById.get(id);
         if (!conversation) return null;
-        const { name, avatarUrl } = bubbleIdentity(conversation, currentUserId);
-        const other = (conversation.participants ?? []).find(p => p.profile?.id !== currentUserId)?.profile;
-        const online = conversation.type === 'direct' && !!other && onlineIds.has(other.id);
+        const identity = conversationIdentity(conversation, currentUserId);
+        const { title: name, avatarUrl, initials } = identity;
+        const online = isConversationPartnerOnline(identity, onlineIds);
         const unread = conversation.unread_count ?? 0;
         return (
           <div key={id} className="relative group">
@@ -58,7 +47,7 @@ export default function MinimizedStack({
                 <LazyImage src={avatarUrl} alt={name} className="w-full h-full object-cover" />
               ) : (
                 <span className="w-full h-full flex items-center justify-center text-sm font-semibold text-violet-700">
-                  {getInitials(name)}
+                  {initials}
                 </span>
               )}
             </button>
