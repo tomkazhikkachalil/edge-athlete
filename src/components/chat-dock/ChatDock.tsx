@@ -201,7 +201,10 @@ export default function ChatDock() {
         />
 
         {(state.panelOpen || panelExiting) && (
-          <div className={panelExiting ? 'ea-dock-sink' : undefined}>
+          /* -mb-2 cancels the column gap so the panel sits flush on the
+             pill — together they read as one surface, which is the whole
+             point of expanding out of the pill rather than floating above it. */
+          <div className={`-mb-2 ${panelExiting ? 'ea-dock-sink' : ''}`}>
             <DockPanel
               conversations={conversations}
               currentUserId={user!.id}

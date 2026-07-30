@@ -1,5 +1,68 @@
 # Development Log
 
+## July 30, 2026 — Chat dock panel: expands out of the pill
+
+The expanded state read as a disconnected dropdown (white header, lone
+compose pen, pill-shaped search matching nothing else, full-page-sized
+rows). Redesigned into one continuous surface with the pill.
+
+- **Rise/sink animation** — new `ea-dock-rise` keyframes in globals.css
+  beside the existing `ea-*` microinteractions, `transform-origin: bottom
+  right` so the panel unfolds from the pill's corner (no Tailwind utility
+  can express that origin here). Exit keeps the panel mounted for one
+  160ms animation using the Toast idiom (`Toast.tsx:74-83`). The global
+  `prefers-reduced-motion` wildcard neutralizes both automatically — no
+  per-component variants needed. Pill chevron now rotates rather than
+  swapping glyphs, matching AppHeader.
+- **Violet banner** matching the pill and mini-window chrome: own avatar
+  at 28px, "Messages" + unread total, then compose / messaging settings /
+  minimize / close. `-mb-2` on the panel wrapper cancels the column gap so
+  the panel sits FLUSH on the pill — banner on top, white body, pill as
+  the foot, one surface. Smoke asserts the seam is ≤2px.
+- **Search** moved directly under the banner using the full messages
+  page's exact markup (`bg-gray-100 rounded-lg`, inset search icon), which
+  the dock previously diverged from.
+- **`DockConversationRow`** (new) sized for 320px chrome: 36px avatar,
+  presence dot, two-line hierarchy, divider lines, and rows whose
+  conversation already has a window get the active violet treatment.
+  `ConversationItem` is untouched apart from `export` on its two pure
+  formatters, so preview/timestamp wording stays single-sourced with the
+  full page (it still serves /messages at full width).
+- **`conversation-identity.ts`** (new) replaces the direct-vs-group
+  derivation that was copy-pasted across three dock files with different
+  fallbacks — a row could read "Unknown" while the window it opened said
+  "Conversation". Also fixes a latent bug: the dock matched participants on
+  the nested `profile?.id`, which selects the CURRENT USER when a
+  participant's profile fails to load. Groups never get a presence dot.
+- **Minimize vs close** now mean different things: minimize collapses to
+  the pill; close clears the corner for this page view (deliberately not
+  persisted — it returns next load, and messaging stays reachable from the
+  header nav, so it is not a dead end).
+- **Active-now** avatars filtered to partners with an existing direct
+  thread — a partner known only from a group chat had no thread to open, so
+  the avatar was a silent no-op. Empty state gained the messages-page
+  treatment plus a compose CTA.
+- **Settings deep link**: `/settings` now honours `?tab=<id>` via a
+  Suspense-wrapped reader (house rule for `useSearchParams`), so the gear
+  lands on Messaging instead of Account. Unknown values keep the default.
+
+Verification: 458 unit tests (8 new for the identity helper, incl. the
+self-selection and missing-profile cases) · lint + tsc clean · clean
+production build · browser smoke **25/25**: all four banner controls by
+aria-label, banner colour numerically equal to the pill's, flush seam,
+banner→search→list order by bounding boxes, panel fully on-screen at
+1280×900 and 1280×620, selecting a person still opens the window with
+history, minimize/reopen, close-then-reload, settings deep link, compose
+open/cancel, no dock at 390px, zero page errors. Screenshots reviewed at
+both heights.
+
+Three harness lessons worth keeping: the panel's open state persists
+across navigation (that's the product), so a test must never blind-click
+the pill to "open" it; Tailwind 4 emits `oklch()` and a mid-transition
+element can serialize as `oklab()`, so colour assertions must normalize
+rather than string-compare; and a hovered pill reports its hover shade, so
+park the cursor before measuring.
+
 ## July 29, 2026 (later) — Chat dock: not a regression, but four real fixes
 
 Tom reported the messaging pop-up regressed "after a recent push".
