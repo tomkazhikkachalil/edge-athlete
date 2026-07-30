@@ -1,5 +1,80 @@
 # Development Log
 
+## July 29, 2026 — Navigation audit: no more dead ends
+
+Full audit of every route, modal, and flow for screens a user could get
+stuck on. Three parallel explorer passes (routes/nav, modals/forms,
+auth boundary) found one systemic cause plus a set of point defects;
+all fixed in 7 commits. Ships live (no flag) — it only adds exits.
+
+**Systemic cause.** `BrandBar` — the header on all 15 standalone pages
+(auth flows, guardian flows, onboarding, legal) — was deliberately
+non-interactive, so ~10 screens had no way back: guardian
+approvals/transfers had NO exit in any state, and consent/transfer/
+activate/reset-password/invite/onboarding had dead-end states. The logo
+stays non-interactive (original intent); a right-aligned auth-aware
+escape link now guarantees an exit — signed in → /feed, signed out →
+the sign-in page. Hidden on "/" itself, while auth resolves, and via
+`hideEscape` for genuinely modal steps (transfer mid-execution;
+complete-profile, which gets its own sign-out).
+
+**Other fixes.**
+- No `not-found.tsx` existed → bad URLs hit Next's bare 404 (no links at
+  all). Added a branded one; `/login` (a route that never existed but
+  which TWO pages pushed to — saved posts' Sign In button and the sport
+  activity guard) now server-redirects to "/".
+- `AppHeader` had no logged-out branch: anonymous visitors on /explore
+  and /u/[username] saw the full authenticated nav — bells polling
+  protected APIs, Post button, empty avatar, Sign Out — and no way in.
+  Now a logo-only shell while auth resolves, then Log in + Sign up.
+  ("Explore as Guest" on the login page makes /explore a real public
+  surface, so this path matters.)
+- `/auth/complete-profile` was a genuine trap loop: "/" bounces
+  profile-less sessions straight back, and the form state had no exit,
+  so any persistent profile-creation error stranded the user. Now a
+  permanent "Sign out and return to login".
+- Onboarding gets a quiet per-step sign-out (gating unchanged); the
+  signup `guardian` step gets the "Log in" footer every other step had;
+  reset-password gets "Back to sign in" under the form and inside the
+  submit-time expired-link error; the private-profile view and saved
+  posts' signed-out/error states now mount the header; `global-error`
+  gets "Go home" (reset() alone can re-mount a broken tree forever).
+- Saved posts had a guard-order bug: a signed-in refresh flashed "Sign
+  In Required" (and its button 404'd). Auth boot now wins.
+
+**Unsaved-changes confirmations.** New `useDirtyClose` hook +
+`COPY.FORMS.DISCARD_*`, reusing the existing ConfirmModal (which gained
+an optional `overlayZClass` so it can stack above the z-[65] media
+editor). Wired into 8 modals: CreatePostModal (its X silently reset ~30
+fields including a full 18-hole scorecard — the worst loss available in
+the product), EditProfileTabs (per-tab save + a backdrop click that
+discarded every other tab; its guard snapshots each field group and
+refreshes only the group that saved), AddEquipment, EventForm, AddVital,
+MediaEditor, EditPost, NewConversation. Clean closes and post-save
+closes are untouched — no confirm after a successful save.
+
+**Destructive half-state fixed.** ReplaceEquipment retired the old item
+BEFORE the add step, so backing out left the athlete with retired gear,
+no replacement, and no undo. The retire now runs after the new item
+exists; if only the retire fails they keep the new gear and get told to
+retire the old one manually.
+
+Verification: 445 unit tests · lint + tsc clean · clean production build
+(152 routes; /_not-found and /login present) · production-server check
+confirming the branded 404 body and the /login 307 · browser smoke
+**24/24** over 7 scenarios (404 both auth states, /login alias,
+logged-out explore header with zero protected-API polling, BrandBar
+escape present off-"/" and absent on it, complete-profile sign-out
+escape, CreatePostModal clean-vs-dirty close incl. Keep-editing
+preserving the caption and Discard clearing it, saved-posts guard
+order), zero page errors. Harness lesson: `text=Create Post` also
+matched a hidden menu label — anchor composer assertions on the h2.
+
+Deliberately out of scope: BrandBar logo stays non-link; onboarding
+gating unchanged; no per-route notFound() calls; no AppHeader-into-
+layout refactor; no beforeunload guards (in-app close paths only); no
+new Esc-key close paths; no draft persistence (confirm was the ask).
+
 ## July 28, 2026 (night 4b) — 🚀 CHAT DOCK LAUNCHED
 
 Tom set NEXT_PUBLIC_FEATURE_CHAT_DOCK=1 in Vercel (Production); this
