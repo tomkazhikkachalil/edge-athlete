@@ -10,6 +10,12 @@ import type { Message } from '@/types/messages';
 import { MediaEditor } from '@/components/media-editor';
 import { validateFiles } from '@/lib/media/validation';
 import { isOptimizableImageSrc } from '@/lib/media/image-src';
+import {
+  COMPOSER_MAX_HEIGHT,
+  COMPOSER_MIN_HEIGHT,
+  canSendMessage,
+  composerTextareaHeight,
+} from './composer-layout';
 import { uploadPostMedia } from '@/lib/media/upload';
 import type { EditedMedia, EditorConfig, MediaAsset } from '@/lib/media/types';
 
@@ -36,7 +42,7 @@ const MESSAGE_EDITOR_CONFIG: EditorConfig = {
 
 const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50MB
 
-export default function MessageInput({ conversationId, currentUserId, onSend, disabled, replyingTo, onCancelReply, initialText, onTextChange }: Props) {
+export default function MessageInput({ conversationId, currentUserId, onSend, disabled = false, replyingTo, onCancelReply, initialText, onTextChange }: Props) {
   const [text, setText] = useState(initialText ?? '');
   const [attachedFile, setAttachedFile] = useState<File | null>(null);
   const [attachedPreview, setAttachedPreview] = useState<string | null>(null);
@@ -90,12 +96,12 @@ export default function MessageInput({ conversationId, currentUserId, onSend, di
     setText(e.target.value);
     if (e.target.value) broadcastTyping();
 
-    // Auto-resize
+    // Auto-resize. The bounds live in composer-layout so the inline style
+    // below and this measurement cannot drift apart.
     const ta = textareaRef.current;
     if (ta) {
       ta.style.height = 'auto';
-      const maxHeight = 5 * 24; // ~5 lines
-      ta.style.height = Math.min(ta.scrollHeight, maxHeight) + 'px';
+      ta.style.height = composerTextareaHeight(ta.scrollHeight) + 'px';
     }
   };
 
@@ -232,7 +238,13 @@ export default function MessageInput({ conversationId, currentUserId, onSend, di
     }
   };
 
-  const canSend = (text.trim().length > 0 || attachedFile !== null || gifUrl !== null) && !sending && !disabled;
+  const canSend = canSendMessage({
+    text,
+    hasAttachment: attachedFile !== null,
+    hasGif: gifUrl !== null,
+    sending,
+    disabled,
+  });
 
   const replyingSenderName = replyingTo?.sender
     ? formatDisplayName(replyingTo.sender.first_name, null, replyingTo.sender.last_name, replyingTo.sender.full_name)
@@ -331,13 +343,13 @@ export default function MessageInput({ conversationId, currentUserId, onSend, di
 
       {/* Error */}
       {error && (
-        <p className="text-xs text-red-600 mb-2">{error}</p>
+        <p role="alert" className="text-xs text-red-600 mb-2">{error}</p>
       )}
 
       <div className="flex items-end gap-1">
         {/* Emoji picker */}
         <div className="relative shrink-0">
-          <EmojiPickerButton onEmojiSelect={handleEmojiSelect} />
+          <EmojiPickerButton onEmojiSelect={handleEmojiSelect} disabled={disabled || sending} />
         </div>
 
         {/* GIF picker */}
@@ -351,14 +363,6 @@ export default function MessageInput({ conversationId, currentUserId, onSend, di
         >
           GIF
         </button>
-        {showGifPicker && (
-          <GifPickerModal
-            title="Send a GIF"
-            onGifSelect={handleGifSelect}
-            onClose={() => setShowGifPicker(false)}
-          />
-        )}
-
         {/* Attachment button */}
         <button
           type="button"
@@ -369,15 +373,6 @@ export default function MessageInput({ conversationId, currentUserId, onSend, di
         >
           <i className="fas fa-paperclip text-lg"></i>
         </button>
-        <input
-          ref={fileInputRef}
-          type="file"
-          accept="image/*,video/*"
-          className="hidden"
-          onChange={handleFileSelect}
-          onClick={e => { (e.target as HTMLInputElement).value = ''; }}
-        />
-
         {/* Text input */}
         <textarea
           ref={textareaRef}
@@ -388,7 +383,7 @@ export default function MessageInput({ conversationId, currentUserId, onSend, di
           rows={1}
           disabled={disabled || sending}
           className="flex-1 resize-none border border-gray-300 rounded-2xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500 disabled:opacity-40 overflow-hidden"
-          style={{ minHeight: 40, maxHeight: 120 }}
+          style={{ minHeight: COMPOSER_MIN_HEIGHT, maxHeight: COMPOSER_MAX_HEIGHT }}
         />
 
         {/* Send button */}
@@ -407,6 +402,28 @@ export default function MessageInput({ conversationId, currentUserId, onSend, di
         </button>
       </div>
       </div>
+
+      {/* Hidden file input lives at the component root, NOT inside the button
+          row: the leading buttons sit in an `inert` subtree when collapsed,
+          and an inert ancestor can swallow a programmatic .click(). */}
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="image/*,video/*"
+        className="hidden"
+        onChange={handleFileSelect}
+        onClick={e => { (e.target as HTMLInputElement).value = ''; }}
+      />
+
+      {/* GIF picker is a fixed-inset modal — rendering it as a flex child of
+          the button row made it a zero-width flex item plus a stray gap. */}
+      {showGifPicker && (
+        <GifPickerModal
+          title="Send a GIF"
+          onGifSelect={handleGifSelect}
+          onClose={() => setShowGifPicker(false)}
+        />
+      )}
 
       {/* Shared media editor (z-[65]) */}
       {editorAssets && (
