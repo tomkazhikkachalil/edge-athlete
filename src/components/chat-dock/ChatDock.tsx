@@ -21,7 +21,7 @@ import {
   setChatDockHidden,
   subscribeChatDockVisibility,
 } from '@/lib/chat-dock-visibility';
-import DockPanel from './DockPanel';
+import DockPanel, { type DockComposeMode } from './DockPanel';
 import MiniChatWindow from './MiniChatWindow';
 import MinimizedStack from './MinimizedStack';
 
@@ -62,7 +62,7 @@ export default function ChatDock() {
   // it lives in the Messages area (see QuickMessagesToggle).
   const [hidden, setHidden] = useState(false);
   // Compose lives in the bar now, so its state belongs to the widget.
-  const [composing, setComposing] = useState(false);
+  const [mode, setMode] = useState<DockComposeMode>('list');
 
   const enabled = FEATURE_FLAGS.FEATURE_CHAT_DOCK && !!user && isDesktop;
   const open = state.panelOpen;
@@ -144,7 +144,7 @@ export default function ChatDock() {
   // timers the old two-element version needed to keep them in sync.
   const collapsePanel = useCallback(() => {
     dispatch({ type: 'CLOSE_PANEL' });
-    setComposing(false);
+    setMode('list');
   }, []);
 
   const togglePanel = useCallback(() => {
@@ -155,7 +155,7 @@ export default function ChatDock() {
    *  down open windows — closing means "clear my messaging workspace". */
   const hideWidget = useCallback(() => {
     dispatch({ type: 'CLEAR_WINDOWS' });
-    setComposing(false);
+    setMode('list');
     setChatDockHidden(true); // persists + notifies (setHidden via subscribe)
   }, []);
 
@@ -257,12 +257,12 @@ export default function ChatDock() {
               </span>
               <button
                 type="button"
-                onClick={() => setComposing(c => !c)}
+                onClick={() => setMode(m => (m === 'direct' ? 'list' : 'direct'))}
                 aria-label="New message"
                 title="New message"
-                aria-pressed={composing}
+                aria-pressed={mode === 'direct'}
                 className={`w-6 h-6 rounded flex items-center justify-center transition-colors ${
-                  composing ? 'bg-white text-violet-700' : 'hover:bg-violet-500'
+                  mode === 'direct' ? 'bg-white text-violet-700' : 'hover:bg-violet-500'
                 }`}
               >
                 <i className="fas fa-pen text-[10px]"></i>
@@ -328,8 +328,8 @@ export default function ChatDock() {
               currentUserId={user!.id}
               onlineIds={onlineIds}
               windowIds={new Set([...state.open, ...state.minimized])}
-              composing={composing}
-              onComposingChange={setComposing}
+              mode={mode}
+              onModeChange={setMode}
               onSelect={id => {
                 openWindow(id);
                 collapsePanel();
