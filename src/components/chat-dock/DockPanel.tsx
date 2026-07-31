@@ -57,6 +57,26 @@ export default function DockPanel({
 }) {
   const [filter, setFilter] = useState('');
 
+  // Open a just-created conversation as a mini window.
+  //
+  // The refetch MUST be awaited BEFORE dispatching. ChatDock renders a window
+  // only for a conversation the provider already knows, and it PRUNEs window
+  // ids against that list on every conversations update — so with a fire-and-
+  // forget refetch, a realtime INSERT or the 30s poll landing in the gap drops
+  // the brand-new id and the window silently never appears. Awaiting is safe:
+  // GET /api/messages lists every conversation with no "has messages" filter,
+  // so an empty new group is in the list immediately.
+  //
+  // The guard skips the round trip on the existing-conversation fast path,
+  // where nothing was created and the id is already known.
+  const openConversation = async (conversationId: string) => {
+    if (!conversations.some(c => c.id === conversationId)) {
+      await fetchConversations();
+    }
+    onComposingChange(false);
+    onOpenWindow(conversationId);
+  };
+
   // A direct conversation with this partner, if one already exists.
   const directWith = (profileId: string): string | null =>
     conversations.find(
@@ -96,11 +116,7 @@ export default function DockPanel({
         <DockComposer
           currentUserId={currentUserId}
           existingDirectWith={directWith}
-          onOpened={conversationId => {
-            onComposingChange(false);
-            onOpenWindow(conversationId);
-            fetchConversations();
-          }}
+          onOpened={openConversation}
           onCancel={() => onComposingChange(false)}
         />
       ) : (
