@@ -114,6 +114,11 @@ export default function GifPicker({ onGifSelect, onClose, variant = 'popover' }:
   // Close on outside click or Escape
   useEffect(() => {
     function handleClick(e: MouseEvent) {
+      // Ignore the control that toggles this picker. mousedown fires before
+      // click, so without this a `prev => !prev` toggle would close here and
+      // immediately reopen. Inert for the modal call sites — nothing else
+      // carries the attribute.
+      if ((e.target as Element)?.closest?.('[data-gif-picker-toggle]')) return;
       if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
         onClose();
       }
@@ -140,7 +145,11 @@ export default function GifPicker({ onGifSelect, onClose, variant = 'popover' }:
       className={
         isModal
           ? 'flex flex-col overflow-hidden h-full'
-          : 'absolute bottom-full mb-2 left-0 w-72 bg-white rounded-xl shadow-xl border border-gray-200 z-50 flex flex-col overflow-hidden'
+          // Right-aligned, matching the emoji panel: both anchor to the
+          // composer's field wrapper, so they share an edge and both track the
+          // field as it grows. max-w-[80vw] is the house pairing for a fixed
+          // w-* popover (see ReactionDetails).
+          : 'absolute bottom-full mb-2 right-0 w-72 max-w-[80vw] bg-white rounded-xl shadow-xl border border-gray-200 z-50 flex flex-col overflow-hidden'
       }
       style={isModal ? undefined : { maxHeight: 360 }}
     >

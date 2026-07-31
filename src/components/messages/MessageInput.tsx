@@ -14,12 +14,14 @@ import {
   CHEVRON_PX,
   COMPOSER_MAX_HEIGHT,
   COMPOSER_MIN_HEIGHT,
+  GIF_POPOVER_MIN_VIEWPORT_PX,
   LEADING_OPEN_PX,
   canSendMessage,
   composerLeadingReducer,
   composerTextareaHeight,
   initialLeadingOpen,
 } from './composer-layout';
+import GifPicker from '@/components/GifPicker';
 import { uploadPostMedia } from '@/lib/media/upload';
 import type { EditedMedia, EditorConfig, MediaAsset } from '@/lib/media/types';
 
@@ -57,6 +59,20 @@ export default function MessageInput({ conversationId, currentUserId, onSend, di
     initialText,
     initialLeadingOpen
   );
+  // GIF picker presentation. A popover on desktop (anchored to the field, like
+  // the emoji panel); a bottom sheet below sm, where the keyboard leaves only
+  // ~350px of visible viewport and a 360px popover would be off-screen.
+  // SSR-safe default false -> sheet; no flash is possible because the picker
+  // only renders after a click, long after this effect has settled.
+  const [gifPopover, setGifPopover] = useState(false);
+  useEffect(() => {
+    const media = window.matchMedia(`(min-width: ${GIF_POPOVER_MIN_VIEWPORT_PX}px)`);
+    const apply = () => setGifPopover(media.matches);
+    apply();
+    media.addEventListener('change', apply);
+    return () => media.removeEventListener('change', apply);
+  }, []);
+
   const [attachedFile, setAttachedFile] = useState<File | null>(null);
   const [attachedPreview, setAttachedPreview] = useState<string | null>(null);
   const [attachedType, setAttachedType] = useState<'image' | 'video' | null>(null);
@@ -419,6 +435,7 @@ export default function MessageInput({ conversationId, currentUserId, onSend, di
               type="button"
               onClick={() => setShowGifPicker(prev => !prev)}
               disabled={disabled || sending}
+              data-gif-picker-toggle
               className="w-10 h-10 shrink-0 flex items-center justify-center text-gray-400 hover:text-violet-500 transition-colors disabled:opacity-40 text-xs font-bold"
               aria-label="Send GIF"
               title="Send a GIF"
@@ -467,6 +484,20 @@ export default function MessageInput({ conversationId, currentUserId, onSend, di
               className="pointer-events-auto"
             />
           </div>
+
+          {/* GIF popover is a SIBLING of the emoji strip inside the field
+              wrapper, so it shares the same containing block and gets the
+              identical right-edge alignment and growth tracking. It must not
+              live in the leading cluster — that box is overflow-hidden and
+              would clip it to zero width the moment the user types, and it
+              would vanish when the GIF button collapses away. */}
+          {showGifPicker && gifPopover && (
+            <GifPicker
+              variant="popover"
+              onGifSelect={handleGifSelect}
+              onClose={() => setShowGifPicker(false)}
+            />
+          )}
         </div>
 
         {/* Send button */}
@@ -500,7 +531,7 @@ export default function MessageInput({ conversationId, currentUserId, onSend, di
 
       {/* GIF picker is a fixed-inset modal — rendering it as a flex child of
           the button row made it a zero-width flex item plus a stray gap. */}
-      {showGifPicker && (
+      {showGifPicker && !gifPopover && (
         <GifPickerModal
           title="Send a GIF"
           onGifSelect={handleGifSelect}
