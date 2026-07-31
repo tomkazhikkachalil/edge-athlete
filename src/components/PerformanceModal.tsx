@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import type { Performance } from '@/lib/supabase';
 import { useBodyScrollLock } from '@/hooks/useBodyScrollLock';
 
@@ -37,12 +37,19 @@ export default function PerformanceModal({
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
 
-  useEffect(() => {
+  // State synchronisation, not a side effect: doing it during render means
+  // the previous values never paint for a frame.
+  const [syncedOpen, setSyncedOpen] = useState({ isOpen, existingData });
+  if (
+    syncedOpen.isOpen !== isOpen ||
+    syncedOpen.existingData !== existingData
+  ) {
+    setSyncedOpen({ isOpen, existingData });
     if (isOpen) {
       if (existingData) {
         // Format the date for input field (YYYY-MM-DD)
         const formattedDate = existingData.date ? new Date(existingData.date).toISOString().split('T')[0] : '';
-        
+      
         setFormData({
           date: formattedDate,
           event: existingData.event || '',
@@ -63,7 +70,7 @@ export default function PerformanceModal({
       }
       setErrors({});
     }
-  }, [isOpen, existingData]);
+  }
 
   const validateForm = (): boolean => {
     const newErrors: Record<string, string> = {};

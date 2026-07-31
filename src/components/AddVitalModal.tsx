@@ -81,7 +81,13 @@ export default function AddVitalModal({ isOpen, onClose, onSaved }: AddVitalModa
   const { requestClose, confirmOpen, confirmDiscard, cancelDiscard } = useDirtyClose(isDirty, onClose);
 
   // Reset form when modal opens
-  useEffect(() => {
+  // State synchronisation, not a side effect: doing it during render means
+  // the previous values never paint for a frame.
+  const [syncedOpen, setSyncedOpen] = useState({ isOpen });
+  if (
+    syncedOpen.isOpen !== isOpen
+  ) {
+    setSyncedOpen({ isOpen });
     if (isOpen) {
       setForm({ categoryKey: '', metricKey: '', rawValue: '', notes: '', recordedAt: today() });
       setMode('metric_only');
@@ -90,7 +96,7 @@ export default function AddVitalModal({ isOpen, onClose, onSaved }: AddVitalModa
       setMediaFiles([]);
       setError('');
     }
-  }, [isOpen]);
+  }
 
   // Revoke object URLs on unmount and when files change
   useEffect(() => {

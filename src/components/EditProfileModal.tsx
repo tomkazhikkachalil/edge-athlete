@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef } from 'react';
 import Image from 'next/image';
 import type { AthleteBadge, Profile } from '@/lib/supabase';
 import { useBodyScrollLock } from '@/hooks/useBodyScrollLock';
@@ -36,7 +36,14 @@ export default function EditProfileModal({ isOpen, onClose, profile, badges, onS
   const [activeTab, setActiveTab] = useState<'basic' | 'vitals' | 'socials' | 'badges'>('basic');
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  useEffect(() => {
+  // State synchronisation, not a side effect: doing it during render means
+  // the previous values never paint for a frame.
+  const [syncedProfile, setSyncedProfile] = useState({ profile, badges });
+  if (
+    syncedProfile.profile !== profile ||
+    syncedProfile.badges !== badges
+  ) {
+    setSyncedProfile({ profile, badges });
     if (profile) {
       setFormData({
         full_name: profile.full_name || '',
@@ -54,7 +61,7 @@ export default function EditProfileModal({ isOpen, onClose, profile, badges, onS
       });
     }
     setBadgeData([...badges]);
-  }, [profile, badges]);
+  }
 
   const validateForm = (): boolean => {
     const newErrors: Record<string, string> = {};

@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { X, Trophy } from 'lucide-react';
 import { useBodyScrollLock } from '@/hooks/useBodyScrollLock';
 import { useToast } from './Toast';
@@ -49,7 +49,14 @@ export default function AddAchievementModal({
   useBodyScrollLock(isOpen);
 
   // Reset / prefill whenever the modal opens
-  useEffect(() => {
+  // State synchronisation, not a side effect: doing it during render means
+  // the previous values never paint for a frame.
+  const [syncedOpen, setSyncedOpen] = useState({ isOpen, editing });
+  if (
+    syncedOpen.isOpen !== isOpen ||
+    syncedOpen.editing !== editing
+  ) {
+    setSyncedOpen({ isOpen, editing });
     if (!isOpen) return;
     if (editing) {
       setForm({
@@ -64,7 +71,7 @@ export default function AddAchievementModal({
       setForm(emptyForm());
     }
     setError('');
-  }, [isOpen, editing]);
+  }
 
   if (!isOpen) return null;
 
