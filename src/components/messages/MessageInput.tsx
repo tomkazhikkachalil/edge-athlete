@@ -195,7 +195,9 @@ export default function MessageInput({ conversationId, currentUserId, onSend, di
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
+    // isComposing guard: without it, pressing Enter to COMMIT a Japanese or
+    // Chinese IME composition sends the half-composed text instead.
+    if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) {
       e.preventDefault();
       handleSend();
     }
