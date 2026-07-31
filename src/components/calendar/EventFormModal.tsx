@@ -158,14 +158,19 @@ export default function EventFormModal({
       setRepeat(emptyRepeat());
       setScopeOpen(false);
       setError('');
-      // Baseline for the discard guard: whatever this modal opened with.
-      snapRef.current = JSON.stringify({
-        form: editing ? formFromEvent(editing) : emptyForm(defaultDay),
-        chips: editing ? chipsFromEvent(editing) : [],
-        repeat: emptyRepeat(),
-      });
     }
   }
+
+  // The discard-guard baseline is written to a REF, which must not happen
+  // during render — this effect runs immediately after the seeding render.
+  useEffect(() => {
+    if (!isOpen) return;
+    snapRef.current = JSON.stringify({
+      form: editing ? formFromEvent(editing) : emptyForm(defaultDay),
+      chips: editing ? chipsFromEvent(editing) : [],
+      repeat: emptyRepeat(),
+    });
+  }, [isOpen, editing, defaultDay]);
 
   // The start day is always part of a weekly repeat and follows date changes.
   // This is an invariant over current state, so it is enforced during render.

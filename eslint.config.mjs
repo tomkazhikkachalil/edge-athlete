@@ -31,20 +31,31 @@ export default defineConfig([
     },
   },
 
-  // TEMPORARY — eslint-config-next 16 bundles eslint-plugin-react-hooks v6,
-  // whose React Compiler rules land as errors and flag 121 pre-existing sites
-  // across 80 files. They are being fixed in the commits that follow this one;
-  // this block is deleted (rules return to their default `error`) in the final
-  // commit of that series, together with `--max-warnings 0`. If you are reading
-  // this on `main`, the series did not finish — that is a bug, not a decision.
+  // eslint-config-next 16 bundles eslint-plugin-react-hooks v6, whose React
+  // Compiler rules arrived as errors and flagged 121 pre-existing sites across
+  // 80 files. 76 were fixed (see the fix(react-hooks) commits); five of the six
+  // rules — refs, immutability, purity, static-components,
+  // preserve-manual-memoization — are clean and stay at their default `error`.
+  //
+  // set-state-in-effect is held at `warn` for the 45 that remain, deliberately
+  // and with a known list (DEVLOG, 2026-07-31). Two kinds are left:
+  //
+  //   1. The rule flags the CALL SITE of any function containing setState,
+  //      invoked from an effect — it cannot see through a useCallback, so
+  //      removing every synchronous setState does NOT clear it. Satisfying it
+  //      means inlining ~31 data-fetching functions into their effects as
+  //      cancellable async IIFEs. Worth doing, but as its own PR with its own
+  //      testing, not inside a framework upgrade.
+  //   2. ~13 are legitimately effects: browser-API reads on mount that would
+  //      break hydration if moved into render (sessionStorage, location),
+  //      realtime connection lifecycle, and the media editor's object URLs,
+  //      which MUST stay effect-owned (see DEVLOG, the StrictMode revoke bug).
+  //
+  // Do not silence this by wrapping calls in `void (async () => …)()`. That
+  // satisfies the analyzer without changing when anything executes.
   {
     rules: {
       'react-hooks/set-state-in-effect': 'warn',
-      'react-hooks/refs': 'warn',
-      'react-hooks/immutability': 'warn',
-      'react-hooks/purity': 'warn',
-      'react-hooks/static-components': 'warn',
-      'react-hooks/preserve-manual-memoization': 'warn',
     },
   },
 
