@@ -734,7 +734,7 @@ export default function AthleteProfilePage() {
                 src={profile.cover_url}
                 alt="Profile cover"
                 fill
-                priority
+                preload
                 sizes="(max-width: 1280px) 100vw, 1232px"
                 className="object-cover"
                 unoptimized={!isOptimizableImageSrc(profile.cover_url)}

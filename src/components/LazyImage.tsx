@@ -59,8 +59,13 @@ export default function LazyImage({
         style={{ width: width ? `${width}px` : '100%', height: height ? `${height}px` : 'auto', display: 'block' }}
         onLoad={() => setIsLoaded(true)}
         onError={() => { setHasError(true); onError?.(); }}
+        // NOT renamed to `preload`. This component already expresses its
+        // intent through `loading`, and Next 16's own guidance is to prefer
+        // loading="eager" / fetchPriority="high" over preload in most cases.
+        // Setting both was contradictory — a preload <link> alongside
+        // loading="lazy" is exactly the conflict the rename exists to expose.
+        // `priority` stays on LazyImageProps as this component's public API.
         loading={priority ? 'eager' : 'lazy'}
-        priority={priority}
       />
     </div>
   );
