@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useSyncExternalStore } from 'react';
 import {
   isChatDockHidden,
   setChatDockHidden,
@@ -16,14 +16,16 @@ import {
 // on a phone would switch something the user can never see.
 
 export default function QuickMessagesToggle() {
-  const [hidden, setHidden] = useState(false);
-  const [ready, setReady] = useState(false);
-
-  useEffect(() => {
-    setHidden(isChatDockHidden());
-    setReady(true);
-    return subscribeChatDockVisibility(setHidden);
-  }, []);
+  // useSyncExternalStore is precisely this: read an external store, subscribe
+  // to it, and stay hydration-safe via the server snapshot. The previous
+  // mount-effect + setState pair also needed a `ready` flag to avoid acting on
+  // the pre-read value; the store hook makes the value correct on the first
+  // client render, so that flag is gone.
+  const hidden = useSyncExternalStore(
+    subscribeChatDockVisibility,
+    isChatDockHidden,
+    () => false
+  );
 
   const enabled = !hidden;
 
@@ -39,7 +41,6 @@ export default function QuickMessagesToggle() {
         aria-checked={enabled}
         aria-label="Quick messages"
         onClick={() => setChatDockHidden(enabled)}
-        disabled={!ready}
         className={`relative shrink-0 w-11 h-6 rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-violet-500 focus:ring-offset-1 disabled:opacity-50 ${
           enabled ? 'bg-violet-600' : 'bg-gray-300'
         }`}

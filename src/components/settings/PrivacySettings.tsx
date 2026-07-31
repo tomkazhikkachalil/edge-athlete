@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useAuth } from '@/lib/auth';
 import { useToast } from '@/components/Toast';
 
@@ -10,11 +10,13 @@ export default function PrivacySettings() {
   const [visibility, setVisibility] = useState<'public' | 'private'>('public');
   const [saving, setSaving] = useState(false);
 
-  useEffect(() => {
-    if (profile?.visibility) {
-      setVisibility(profile.visibility as 'public' | 'private');
-    }
-  }, [profile]);
+  // Sync from the profile during render, not in an effect: the stale value
+  // paints for a frame otherwise.
+  const [syncedProfile, setSyncedProfile] = useState(profile);
+  if (syncedProfile !== profile) {
+    setSyncedProfile(profile);
+    if (profile?.visibility) setVisibility(profile.visibility as 'public' | 'private');
+  }
 
   const handleVisibilityChange = async (newVisibility: 'public' | 'private') => {
     try {
