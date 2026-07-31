@@ -13,11 +13,30 @@ const EmojiPicker = dynamic(() => import('emoji-picker-react'), {
 interface Props {
   onEmojiSelect: (emoji: string) => void;
   className?: string;
+  /** Anchor side for the panel — defaults to 'left'. Set to 'right' when the
+   *  button sits at a container's trailing edge, or the 300px panel runs off
+   *  screen. Same vocabulary as ReactionBar's `align`. */
+  align?: 'left' | 'right';
+  disabled?: boolean;
 }
 
-export default function EmojiPickerButton({ onEmojiSelect, className = '' }: Props) {
+export default function EmojiPickerButton({
+  onEmojiSelect,
+  className = '',
+  align = 'left',
+  disabled = false,
+}: Props) {
   const [open, setOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
+
+  // A panel left open while the button goes disabled (a send starting, say)
+  // would hover over a dead control. Render-phase sync, not an effect — the
+  // orphaned panel would otherwise paint for a frame.
+  const [syncedDisabled, setSyncedDisabled] = useState(disabled);
+  if (syncedDisabled !== disabled) {
+    setSyncedDisabled(disabled);
+    if (disabled) setOpen(false);
+  }
 
   // Close on outside click or Escape
   useEffect(() => {
@@ -48,7 +67,8 @@ export default function EmojiPickerButton({ onEmojiSelect, className = '' }: Pro
       <button
         type="button"
         onClick={() => setOpen(prev => !prev)}
-        className="shrink-0 p-2.5 text-gray-400 hover:text-yellow-500 transition-colors"
+        disabled={disabled}
+        className="shrink-0 p-2.5 text-gray-400 hover:text-yellow-500 transition-colors disabled:opacity-40"
         aria-label="Add emoji"
         title="Add emoji"
       >
@@ -56,7 +76,7 @@ export default function EmojiPickerButton({ onEmojiSelect, className = '' }: Pro
       </button>
 
       {open && (
-        <div className="absolute bottom-full mb-2 left-0 z-50">
+        <div className={`absolute bottom-full mb-2 z-50 ${align === 'right' ? 'right-0' : 'left-0'}`}>
           <EmojiPicker
             onEmojiClick={handleEmojiClick}
             lazyLoadEmojis
