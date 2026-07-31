@@ -1,5 +1,33 @@
 # Development Log
 
+## July 30, 2026 (sync 2) — Maintenance checklist
+
+Run against `9b03205`, after the chat-widget flag was restored and verified
+live in production.
+
+- lint clean · `tsc --noEmit` clean · `vitest` **469 passed** (45 files) ·
+  `npm ci --dry-run` clean · clean `npm run build` (dev server stopped and
+  `.next` wiped first), 80 routes in the manifest.
+- Node pin agrees everywhere: `engines` `22.x` · `.nvmrc` `22` · local
+  v22.18.0 · CI `node-version: 22` · devcontainer image `:22`.
+- Production health: `/`, `/feed`, `/explore`, `/calendar`, `/messages` →
+  200 · `/login` → 307 · unknown URL → branded 404 ·
+  `/api/calendar/events` unauthenticated → 401.
+- **Live flag state** (the check that actually proves anything — inlined
+  literal, not string presence): `FEATURE_CALENDAR: !0`,
+  `FEATURE_CHAT_DOCK: !0`, `FEATURE_GUARDIAN_PROFILES` still an unresolved
+  runtime lookup, i.e. intentionally dark pending Tom's walkthrough.
+- Migrations: numbered files through **059**, all run and verified.
+  Nothing pending. `main` is the only branch; `AGENTS.md` stays untracked
+  by choice.
+
+Dependency posture unchanged from the earlier pass: **5** production
+advisories (1 moderate, 4 high), no critical. All five need major bumps —
+`nodemailer` 7 → 9, and sharp/postcss which are pinned by Next (so they
+also surface as the `next` and `@sentry/nextjs` entries). Still deliberately
+not actioned here; `nodemailer` in particular wants its own pass with real
+send-path testing.
+
 ## July 30, 2026 (flag) — Chat widget re-enabled in production
 
 Tom reported the messaging widget missing from production. It was: the
