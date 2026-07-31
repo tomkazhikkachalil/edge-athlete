@@ -144,6 +144,9 @@ export default function TrimTimeline({
       >
         <div className="absolute inset-0 flex">
           {thumbs.map((src, i) => (
+            // Raw <img>: data: URI canvas frames the optimizer cannot fetch.
+            // draggable={false} is load-bearing — the parent is a pointer-drag
+            // scrubber, and a native image drag would hijack it.
             // eslint-disable-next-line @next/next/no-img-element
             <img key={i} src={src} alt="" className="h-full flex-1 object-cover min-w-0" draggable={false} />
           ))}

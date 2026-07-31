@@ -408,6 +408,10 @@ export default function CommentSection({
               </p>
             )}
             {comment.gif_url && (
+              // Raw <img>: animated Giphy GIF. The optimizer streams animated
+              // sources through unchanged (zero bytes saved, one billable
+              // transformation), and max-h-40/max-w-xs means the intrinsic
+              // size is genuinely unknown — there is no honest width/height.
               // eslint-disable-next-line @next/next/no-img-element
               <img
                 src={comment.gif_url}
@@ -467,6 +471,8 @@ export default function CommentSection({
       {/* Reply GIF preview */}
       {replyGifUrl && (
         <div className="relative inline-block mb-2">
+          {/* Raw <img>: animated Giphy GIF, fixed height + auto width — no
+              honest intrinsic dimensions to hand <Image>. */}
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src={replyGifUrl} alt="GIF" className="h-16 rounded-lg border border-gray-200 object-cover" />
           <button
@@ -553,6 +559,8 @@ export default function CommentSection({
               {/* GIF preview */}
               {gifUrl && (
                 <div className="relative inline-block mb-2">
+                  {/* Raw <img>: animated Giphy GIF, fixed height + auto width
+                      — same reasoning as the reply composer above. */}
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img src={gifUrl} alt="GIF" className="h-20 rounded-lg border border-gray-200 object-cover" />
                   <button

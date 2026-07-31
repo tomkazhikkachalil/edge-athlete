@@ -309,6 +309,9 @@ export default function MessageInput({ conversationId, currentUserId, onSend, di
       {attachedPreview && (
         <div className="mb-2 relative inline-block">
           {attachedType === 'image' ? (
+            // Raw <img>: blob: object URL (or a Giphy URL when a GIF is
+            // attached). The optimizer fetches server-side and cannot read a
+            // client-only URL; next/image force-sets unoptimized for these.
             // eslint-disable-next-line @next/next/no-img-element
             <img src={attachedPreview} alt="Attachment" className="h-16 w-16 object-cover rounded-lg border border-gray-200" />
           ) : (

@@ -182,6 +182,10 @@ export default function GifPicker({ onGifSelect, onClose, variant = 'popover' }:
                     i >= 3 ? 'hidden sm:block' : ''
                   }`}
                 >
+                  {/* Raw <img>: animated Giphy GIF. Next's optimizer streams
+                      animated sources through unchanged — zero bytes saved,
+                      one billable transformation spent. The fluid width +
+                      inline pixel height also give no honest width/height. */}
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img
                     src={gif.preview_url}
@@ -223,6 +227,8 @@ export default function GifPicker({ onGifSelect, onClose, variant = 'popover' }:
                 }}
                 className="rounded-lg overflow-hidden hover:ring-2 hover:ring-violet-500 transition-all focus:outline-none focus:ring-2 focus:ring-violet-500"
               >
+                {/* Raw <img>: animated Giphy GIF — see the Recent grid above
+                    for why the optimizer is not worth spending here. */}
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
                   src={gif.preview_url}
