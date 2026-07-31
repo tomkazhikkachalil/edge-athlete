@@ -1,6 +1,6 @@
 'use client';
 
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import Image from 'next/image';
 import { Camera, Check, Copy, Play, Plus, StickyNote, Trash2, X } from 'lucide-react';
 import { EXERCISE_MAP, type ExerciseInputMode } from '@/lib/workout-config';
@@ -66,11 +66,18 @@ function SetRow({ set, inputMode, onChange, onDelete }: SetRowProps) {
   const { showError } = useToast();
   const [uploading, setUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  // Latest set for async callbacks (media upload completes after re-renders;
-  // patching from a stale closure would revert concurrent edits)
+  // Latest set for the ASYNC media upload only — it completes after
+  // re-renders, and patching from a stale closure would revert concurrent
+  // edits. Written in an effect, never during render.
+  //
+  // Synchronous event handlers do NOT need this: React recreates them each
+  // render, so `set` is current by definition at event time. Reading the ref
+  // from them was both unnecessary and what react-hooks/refs flagged.
   const setRef = useRef(set);
-  setRef.current = set;
-  const patch = (partial: Partial<EntrySet>) => onChange({ ...setRef.current, ...partial });
+  useEffect(() => {
+    setRef.current = set;
+  }, [set]);
+  const patch = (partial: Partial<EntrySet>) => onChange({ ...set, ...partial });
   const done = set.completedAt !== null;
 
   // Per-set media: pick → shared editor → upload immediately (form-check
@@ -86,7 +93,7 @@ function SetRow({ set, inputMode, onChange, onDelete }: SetRowProps) {
       maxBytes: SET_MEDIA_MAX_BYTES,
       allowVideo: true,
       maxCount: MAX_MEDIA_PER_SET,
-      existingCount: setRef.current.media.length,
+      existingCount: set.media.length,
     });
     if (rejected.length > 0) {
       showError('File not added', rejected[0].message);
@@ -117,13 +124,14 @@ function SetRow({ set, inputMode, onChange, onDelete }: SetRowProps) {
       showError('Upload failed', err instanceof Error ? err.message : 'Could not upload media');
     } finally {
       // One onChange with everything that succeeded (partial success kept)
-      if (added.length > 0) patch({ media: [...setRef.current.media, ...added] });
+      // The one genuinely async patch: read the LATEST set, not this closure's.
+      if (added.length > 0) onChange({ ...setRef.current, media: [...setRef.current.media, ...added] });
       setUploading(false);
     }
   };
 
   const removeMedia = (index: number) => {
-    patch({ media: setRef.current.media.filter((_, i) => i !== index) });
+    patch({ media: set.media.filter((_, i) => i !== index) });
   };
 
   const durationMin = set.durationSeconds !== null ? Math.floor(set.durationSeconds / 60) : null;

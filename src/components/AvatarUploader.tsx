@@ -10,7 +10,7 @@
  * Render-prop trigger so each surface keeps its own button UI.
  */
 
-import { useMemo, useRef, useState, type ReactNode } from 'react';
+import { useCallback, useMemo, useState, type ReactNode } from 'react';
 import { useToast } from '@/components/Toast';
 import { MediaEditor } from '@/components/media-editor';
 import { validateFiles } from '@/lib/media/validation';
@@ -45,7 +45,10 @@ export default function AvatarUploader({
   onError,
   render,
 }: AvatarUploaderProps) {
-  const inputRef = useRef<HTMLInputElement>(null);
+  // Callback ref into state rather than useRef: `render` is invoked DURING
+  // render, so any ref read reachable from the props we hand it trips
+  // react-hooks/refs. Holding the element in state removes the ref entirely.
+  const [inputEl, setInputEl] = useState<HTMLInputElement | null>(null);
   const { showError } = useToast();
   const [pending, setPending] = useState<MediaAsset | null>(null);
   const [uploading, setUploading] = useState(false);
@@ -100,10 +103,12 @@ export default function AvatarUploader({
     }
   };
 
+  const open = useCallback(() => inputEl?.click(), [inputEl]);
+
   return (
     <>
       <input
-        ref={inputRef}
+        ref={setInputEl}
         type="file"
         accept="image/jpeg,image/png,image/gif,image/webp,image/heic,image/heif"
         className="sr-only"
@@ -112,7 +117,7 @@ export default function AvatarUploader({
           e.target.value = ''; // allow re-selecting the same file
         }}
       />
-      {render({ open: () => inputRef.current?.click(), uploading })}
+      {render({ open, uploading })}
       {editorAssets && (
         <MediaEditor
           assets={editorAssets}
