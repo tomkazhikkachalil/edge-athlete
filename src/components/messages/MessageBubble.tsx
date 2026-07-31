@@ -58,6 +58,11 @@ export default function MessageBubble({
   onMessageEdited,
 }: Props) {
   const [showMenu, setShowMenu] = useState(false);
+  // Timestamp captured when the menu OPENS, not read during render.
+  // Date.now() in render is impure (react-hooks/purity) and made the edit
+  // window depend on whenever React happened to re-render this bubble.
+  // Evaluating it at open time is what the check actually means.
+  const [menuOpenedAt, setMenuOpenedAt] = useState(0);
   const [showQuickReact, setShowQuickReact] = useState(false);
   const [showFullPicker, setShowFullPicker] = useState(false);
   const [editing, setEditing] = useState(false);
@@ -145,7 +150,7 @@ export default function MessageBubble({
 
   // Edit eligibility: own text message, within 15-min window, not deleted.
   // Mirrors the server check so the UI doesn't expose options that will 403.
-  const editableAgeMs = Date.now() - new Date(message.created_at).getTime();
+  const editableAgeMs = menuOpenedAt - new Date(message.created_at).getTime();
   const canEdit =
     isOwn
     && message.type === 'text'
@@ -316,7 +321,7 @@ export default function MessageBubble({
               {/* Context actions — always available so Report is reachable on every incoming message */}
               <div className="w-px h-4 bg-gray-200 mx-0.5" />
               <button
-                onClick={() => { setShowMenu(prev => !prev); }}
+                onClick={() => { setMenuOpenedAt(Date.now()); setShowMenu(prev => !prev); }}
                 className="w-7 h-7 flex items-center justify-center rounded-full hover:bg-gray-100 transition-colors"
                 aria-label="More options"
               >
@@ -367,7 +372,7 @@ export default function MessageBubble({
                   </button>
                   <div className="w-px h-5 bg-gray-200 mx-0.5" />
                   <button
-                    onClick={() => { setShowQuickReact(false); setShowMenu(true); }}
+                    onClick={() => { setShowQuickReact(false); setMenuOpenedAt(Date.now()); setShowMenu(true); }}
                     className="w-9 h-9 flex items-center justify-center rounded-full hover:bg-gray-100 active:bg-gray-200 transition-colors"
                   >
                     <i className="fas fa-ellipsis-h text-xs text-gray-400"></i>

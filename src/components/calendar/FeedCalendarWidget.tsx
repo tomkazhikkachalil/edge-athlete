@@ -56,6 +56,17 @@ export default function FeedCalendarWidget() {
   const [focusMonth, setFocusMonth] = useState<Date>(() => new Date());
   const [events, setEvents] = useState<EventListItem[]>([]);
   const [failed, setFailed] = useState(false);
+
+  // The "has this event already ended" cutoff, ticked once a minute rather
+  // than read during render — Date.now() in render is impure
+  // (react-hooks/purity) and made the filter depend on unrelated re-renders.
+  // One interval for the whole widget; a minute is well inside the resolution
+  // anyone perceives on an upcoming-events list.
+  const [nowMs, setNowMs] = useState(() => Date.now());
+  useEffect(() => {
+    const id = setInterval(() => setNowMs(Date.now()), 60_000);
+    return () => clearInterval(id);
+  }, []);
   const [gridOpen, setGridOpen] = useState(false);
   const [expandedDay, setExpandedDay] = useState<string | null>(null);
   const [detailEventId, setDetailEventId] = useState<string | null>(null);
@@ -88,12 +99,12 @@ export default function FeedCalendarWidget() {
 
   // Upcoming: next few events from now (or from the paged month's start).
   const upcoming = useMemo(() => {
-    const cutoff = Date.now();
+    const cutoff = nowMs;
     return [...events]
       .filter(e => Date.parse(e.ends_at) >= cutoff)
       .sort((a, b) => Date.parse(a.starts_at) - Date.parse(b.starts_at))
       .slice(0, UPCOMING_COUNT);
-  }, [events]);
+  }, [events, nowMs]);
 
   const eventsForDay = (day: Date) =>
     events
