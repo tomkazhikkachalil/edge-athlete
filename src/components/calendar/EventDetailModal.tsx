@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import Image from 'next/image';
+import { isOptimizableImageSrc } from '@/lib/media/image-src';
 import { format } from 'date-fns';
 import { X, CalendarDays } from 'lucide-react';
 import { useAuth } from '@/lib/auth';
@@ -341,7 +342,14 @@ export default function EventDetailModal({
                         {guest.invited_email ? (
                           <i className="fas fa-envelope text-gray-400 text-xs"></i>
                         ) : guest.profiles?.avatar_url ? (
-                          <Image src={guest.profiles.avatar_url} alt="" fill sizes="28px" className="object-cover" />
+                          <Image
+                            src={guest.profiles.avatar_url}
+                            alt=""
+                            fill
+                            sizes="28px"
+                            className="object-cover"
+                            unoptimized={!isOptimizableImageSrc(guest.profiles.avatar_url)}
+                          />
                         ) : (
                           <span className="text-[10px] font-semibold text-violet-700">{getInitials(name)}</span>
                         )}
