@@ -1,5 +1,115 @@
 # Development Log
 
+## July 31, 2026 — Group chat in the dock pill + picker anchoring
+
+Same branch, 8 more commits. 528 tests, tsc + lint clean, lint total still 45.
+
+### Pickers now anchor to the field, not to their button
+
+The emoji panel sat off-centre and, worse, stopped tracking the composer as it
+grew. **Both were my own regression** from the iMessage layout commit: moving
+the button inside the field left the panel anchored to the *button*.
+
+The diagnosis took two passes and the first one was wrong, so it is worth
+recording. There are **two** positioned layers, not one: `EmojiPickerButton`'s
+root is `relative`, *and* the holder around it was `absolute right-1 bottom-0`
+— an abspos element is itself a containing block. Dropping `relative` alone
+(my first instinct) would have re-anchored the panel to a 40px shrink-wrapped
+box still pinned to the field's bottom, reproducing both symptoms.
+
+The fix makes the holder **congruent with the field**: `absolute inset-y-0
+right-0 pr-1 flex items-end`. Its height *is* the field's height, so
+`bottom-full` resolves to the field's top at every height and `right-0` to the
+field's right edge. Alignment and growth-tracking both fall out of the box
+model — no ResizeObserver, no portal, no measurement. `pr-1` sits inside the
+containing block, so the button is still 4px in and looks identical.
+`pointer-events-none` on the strip is load-bearing: it now spans the whole
+field, so without it clicking the right gutter of a multi-line composer would
+stop moving the caret.
+
+`EmojiPickerButton` gained `anchor?: 'trigger' | 'container'` (additive,
+default `trigger`) — the third additive prop in this series, and the other
+three call sites stay untouched.
+
+**Right edge, not centred** — chosen deliberately. On the full page the field
+can exceed 1000px, so centring a 300px panel would park it ~350px from the
+button that opened it and read as detached.
+
+The **GIF picker now sits the same way**, reviving `GifPicker`'s
+`variant='popover'` branch (dead since it was written) retuned to `right-0
+w-72 max-w-[80vw]` and rendered as a sibling of the emoji strip so it shares
+the containing block. Below 640px it stays the bottom sheet: with a keyboard up
+on a 375px phone only ~350px is visible, so a 360px popover would be
+off-screen. Exactly one branch mounts — `GifPicker` fetches trending and
+autofocuses on mount, so two would double-fetch Giphy and fight for focus.
+Fixed an outside-click bug it would have hit head-on: the listener is
+unconditional and `mousedown` beats `click`, so against a `prev => !prev`
+toggle it closed and immediately reopened. Guarded by
+`[data-gif-picker-toggle]`, inert for all five modal call sites.
+
+The emoji panel clears the 320px dock window by exactly **4px** (320 − 16 − 300).
+That was previously luck; `pickerFitsSurface` now makes it a test. Writing that
+test caught a modelling error in my first draft — I budgeted against the
+padding *box* (288px), which fails the panel. A popover is not in-flow: it
+floats over the left padding and only has to stay inside the surface.
+
+### Group chat without leaving the pill
+
+"New group chat" now leads the expanded panel, above search — a labelled row,
+not a fifth unlabelled icon in a bar already carrying four in 320px. The whole
+flow runs in the pill; nothing navigates to `/messages`.
+
+The board's `NewConversationModal` **cannot** be reused (448px fixed-inset card,
+above the dock's z-band, redirects on success), so what is shared is the
+**rules**: `group-draft.ts` owns the name requirement, the member minimum, the
+toggle, the submit predicate and the payload — and the board was migrated onto
+it in the same pass, which is what actually stops the two drifting.
+
+**`GROUP_MIN_MEMBERS = 2`, deliberately stricter than the server's 1.** Not
+taste: a 2-person "group" is functionally a DM but takes the group code path,
+which has **no duplicate detection**, so picking one person would mint a fresh
+room on every attempt instead of reopening the DM you already have. Pinned by a
+test named THE POLICY. The server staying permissive costs nothing — every
+member is block- and permission-checked either way.
+
+`composing: boolean` became `DockComposeMode = 'list' | 'direct' | 'group'`, so
+the modes are mutually exclusive by construction and the pen's `aria-pressed`
+stays honest.
+
+Two dock-specific calls worth not re-litigating:
+
+- **Chips scroll horizontally** (the panel's own "Active now" idiom) rather than
+  wrapping like the modal. Wrapping is unbounded and would eat a 384px panel;
+  this costs a fixed ~34px at any member count, with the count in the footer
+  button so nothing is hidden.
+- **No discard confirm**, deviating from CLAUDE.md's dirty-close rule. Resolved
+  by making the loss not happen: the draft lives in `DockPanel`, which is always
+  mounted, so collapsing the pill, Cancel, or bouncing to the direct composer
+  all preserve it. Nothing is discarded, so there is nothing to confirm — and a
+  full-screen `z-[60]` confirm over a 320px pill would be worse than the loss.
+  Navigating to `/messages` unmounts the dock and does lose it; accepted.
+
+Also fixed en route: **DockPanel dispatched `OPEN_WINDOW` before an un-awaited
+`fetchConversations()`**. ChatDock renders a window only for a conversation the
+provider knows and PRUNEs ids on every update, so a realtime INSERT or the 30s
+poll landing in that gap dropped the brand-new id and the window silently never
+appeared. Pre-existing DockComposer bug, fixed before the group flow inherited
+it. And `useProfileSearch` extracted the debounce + seq-guard that was about to
+exist a third time (DockComposer migrated; the board's copy deliberately not —
+it differs on both knobs and nothing here can regression-test it).
+
+### Not verified in a browser
+
+Same caveat as always: vitest is node-only, so the 528 tests cover policy and
+nothing visual, and there is no component or e2e harness for the dock at all.
+Highest-risk items: the `min-h-0` chain (the dock body is fixed-height and
+`overflow-hidden`, so a missing one silently clips the Create button away); the
+PRUNE race, which needs a >30s wait to reproduce; double-submit making two
+rooms (no server dedupe on this path); the strip's `pointer-events` on a
+multi-line composer; the GIF toggle open/close; and the emoji panel escaping the
+mini window's top edge at max composer height, which is new behaviour because
+today the panel never rises at all.
+
 ## July 31, 2026 — iMessage-style message composer
 
 Branch `feat/composer-imessage-layout`, 7 commits. The composer put **three**
