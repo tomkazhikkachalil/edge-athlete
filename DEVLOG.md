@@ -1,5 +1,98 @@
 # Development Log
 
+## July 31, 2026 — iMessage-style message composer
+
+Branch `feat/composer-imessage-layout`, 7 commits. The composer put **three**
+action buttons before the text field — `[emoji][GIF][paperclip][textarea][send]`
+— squeezing the typing area worst at 375px and in the 320px dock window.
+
+Now: **emoji lives pinned inside the field's trailing edge in every state**, and
+**attachment + GIF collapse into a single chevron on the first keystroke**. The
+split is the point — emoji is *text entry*, used constantly mid-sentence, while
+GIF and attachments are *media insertion* used far less often, so only the
+latter pair earns the collapse.
+
+Note `DockComposer.tsx` is **not** a message composer (it is the dock's
+new-conversation people search). There is exactly one, `MessageInput`, rendered
+on two surfaces — the full page and the dock's fixed-height mini window.
+
+**Three decisions worth not re-litigating:**
+
+1. **No auto-expand when the field is emptied.** The latch is one-way: typing
+   collapses, backspacing to empty does *not* re-expand; only the chevron or a
+   successful send re-opens it. Backspacing to empty is overwhelmingly mid-edit
+   — fixing a typo, not deciding to attach a photo — and re-expanding there
+   yanks 40px out from under the caret and slides the send button while a thumb
+   hovers it. Send is the real session boundary. The tempting
+   `leadingOpen = text.length === 0` derivation gives exactly the behaviour we
+   rejected; `composer-layout.test.ts` fails 3 cases if anyone "simplifies" it
+   back, including one named `THE POLICY`.
+2. **Explicit px width constants + `w-10` on the buttons.** Two reasons, both
+   previously learned: `auto` cannot be interpolated by a CSS transition (the
+   chat-dock morph, Jul 28), and FontAwesome is an icon **font**, so a
+   padding-sized button measures differently before and after the font loads —
+   a measured or padding-derived width would be wrong on a cold cache.
+3. **Touch targets stay under 44px, at 40.** Continues the documented exception
+   for dense composer chrome (see the entries at ~3286/3296) — and is actually
+   *up* from the previous ~36-38px.
+
+Mechanism is the chat dock's morph idiom verbatim: both boxes stay **mounted**
+and counter-animate `width` between explicit constants, with `inert` +
+`aria-hidden` on whichever sits at zero. One flex item holds both, so the
+collapsed state has one `gap-1` rather than two stray ones. Reduced-motion is
+already handled globally — not re-implemented.
+
+`EmojiPickerButton` gained two **additive** props, `align` and `disabled`.
+`align` reuses `ReactionBar`'s existing vocabulary verbatim (same name, same
+JSDoc phrasing, same ternary) rather than inventing collision detection: a
+trailing-edge button needs `right-0` or its 300px panel runs off screen, and
+left-at-leading / right-at-trailing are both inherently safe. `disabled` closes
+a real gap — the composer disabled its other three buttons but not this one —
+and closes an open panel when the button goes disabled mid-send. Done as a
+render-phase sync, not an effect, so it neither paints an orphaned panel for a
+frame nor adds a 46th `set-state-in-effect` warning to the 45 documented today.
+
+Also folded in: the GIF modal was rendered *as a flex child of the button row*
+(it is `fixed inset-0`, so it was a zero-width flex item plus a stray gap); the
+hidden file input moved to the component root, because an `inert` ancestor can
+swallow a programmatic `.click()`; the `120` duplicated between the inline
+style and the resize handler (once as `120`, once as `5 * 24`) collapsed into
+one constant; and the error `<p>` gained `role="alert"` to match DockComposer.
+
+**Separate commit, droppable: an IME guard.** `handleKeyDown` had no
+`isComposing` check, so pressing Enter to *commit* a Japanese or Chinese
+composition sent the half-composed text. Real correctness bug, three characters,
+in the exact handler this work reasons about.
+
+**Deliberately out of scope:** `CommentSection`'s two near-duplicate emoji+GIF
+clusters. The space problem is weaker there (two leading buttons, and emoji
+leaves the row anyway), the mechanics differ (`<input>`, not a growing
+textarea; a text submit button, not a 44px circle), and bundling them triples
+the browser matrix. Both keep working untouched because the new props default
+to current behaviour. A parity pass — folding in their drifted `p-2` vs `p-2.5`
+and `items-center` vs `items-end` — is the natural follow-up.
+
+**Verification.** 508 tests (20 new, all policy: the latch, the height clamp,
+the send predicate), tsc + lint clean, lint total still 45 warnings. The tests
+cover **no** visual behaviour — vitest is node-only with no jsdom, so
+positioning, the width transition, `inert` semantics, panel geometry and real
+`scrollHeight` are all invisible to it. Geometry was checked by arithmetic
+against the Tailwind scale: `w-10` = 40px, two = 80px matching the constants;
+`right-1` (4px) + a ~38px `p-2.5` emoji button = 42px against a 48px `pr-12`
+gutter, so ~6px clearance and text cannot run under it at any line count.
+
+**Not yet verified in a browser** — the real remaining risk: the mobile keyboard
+chain (`h-dvh` + `--vvh` + `interactiveWidget`, broken and fixed twice before —
+mitigated structurally by keeping every edit inside `.px-4.py-3` and never
+touching the shell's `shrink-0 safe-bottom`); the right-flipped emoji panel at
+375/768/1440 and in a 320px dock window, where a 300px panel is expected to
+spill ~48px *inward* (acceptable — `MiniChatWindow` deliberately omits
+`overflow-hidden` so popovers can escape); composer `offsetHeight` being
+byte-identical before/after, since a fixed-height dock window trades composer
+height for message rows; a dock draft mounting already collapsed with no flash;
+tab order skipping the zero-width box; and the first-keystroke reflow not
+jumping the caret.
+
 ## July 31, 2026 — Next.js 16 upgrade (+ the react-hooks reckoning it triggered)
 
 Branch `chore/next-16`, 20 commits. `npm run verify` green throughout:
