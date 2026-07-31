@@ -58,12 +58,18 @@ export default function AdvancedSearchBar() {
     }
   }
 
-  useEffect(() => {
+  // Clearing is synchronisation (render phase); the debounced search stays.
+  const [syncedShortQuery, setSyncedShortQuery] = useState(query);
+  if (syncedShortQuery !== query) {
+    setSyncedShortQuery(query);
     if (query.length < 2) {
       setResults({ athletes: [], posts: [], clubs: [] });
       setShowResults(false);
-      return;
     }
+  }
+
+  useEffect(() => {
+    if (query.length < 2) return;
 
     const timer = setTimeout(() => {
       performSearch();
