@@ -1,5 +1,33 @@
 # Development Log
 
+## July 31, 2026 (sync) — Maintenance checklist
+
+Run against `eb4f935`, closing out the three dependency passes.
+
+- lint clean · `tsc --noEmit` clean · `vitest` **469 passed** (45 files) ·
+  `npm ci --dry-run` clean · clean `npm run build` (dev server stopped and
+  `.next` wiped first), 80 routes in the manifest.
+- Node 22 agrees in all five places: `engines` `22.x` · `.nvmrc` `22` ·
+  local v22.18.0 · CI `node-version: 22` · devcontainer image `:22`.
+- Production healthy: core pages 200 · `/login` → 307 · unknown URL →
+  branded 404 · `/api/calendar/events` unauthenticated → 401 · image
+  optimizer serving `image/webp`.
+- Live flags verified by inlined value (not string presence):
+  `FEATURE_CALENDAR: !0`, `FEATURE_CHAT_DOCK: !0`.
+  `FEATURE_GUARDIAN_PROFILES` remains unresolved, i.e. intentionally dark.
+- Migrations through **059**, all run and verified. `main` is the only
+  branch locally and on the remote. `AGENTS.md` stays untracked by choice.
+
+**Dependency posture after this week's work: 8 → 4 production advisories.**
+Cleared: the critical `tar` DoS, `ws` memory disclosure, `form-data`,
+`uuid`, and all six `nodemailer` CVEs. Everything updatable inside the
+declared ranges is current, and the deprecated `@supabase/auth-helpers-nextjs`
+is retired. The remaining 4 share one root cause — Next pins `postcss`
+8.4.31 exactly and `sharp` `^0.34.3`, which also makes `next` and
+`@sentry/nextjs` appear — so clearing them needs a Next 16 major or npm
+`overrides` forcing past those pins. Deliberately deferred; both routes
+deserve their own pass.
+
 ## July 30, 2026 (deps 3) — Retire the deprecated Supabase auth-helpers
 
 `@supabase/auth-helpers-nextjs` is deprecated upstream ("Package no longer
