@@ -111,7 +111,10 @@ export default function AthleteProfilePage() {
   // profiles (same route, new param — the component stays mounted).
   const requestSeqRef = useRef(0);
 
-  const loadAthleteProfile = async () => {
+  // Hoisted function declaration, not a `const` arrow: an effect above calls it,
+  // and react-hooks/immutability flags a reference to a binding declared later
+  // in the body. Function declarations are hoisted, so there is no TDZ.
+  async function loadAthleteProfile() {
     const seq = ++requestSeqRef.current;
     try {
       setLoading(true);
@@ -162,7 +165,7 @@ export default function AthleteProfilePage() {
     } finally {
       if (seq === requestSeqRef.current) setLoading(false);
     }
-  };
+  }
 
   const loadFollowStats = async () => {
     try {

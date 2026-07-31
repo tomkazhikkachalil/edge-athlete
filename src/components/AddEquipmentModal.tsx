@@ -184,6 +184,32 @@ export default function AddEquipmentModal({
   // Lock background scroll while open (iOS scroll-chaining behind overlays)
   useBodyScrollLock(isOpen);
 
+  // Declared above its first use (closeAndReset, below): react-hooks/
+  // immutability requires declaration before access in source order, and
+  // hoisting does not satisfy it outside a useEffect callback.
+  function resetForm() {
+    setSportKey(initialSport);
+    setEquipmentType('');
+    setCategory(getEquipmentCategories(initialSport)[0]?.value || 'other');
+    setBrand('');
+    setModel('');
+    setImageUrl('');
+    setStatus('active');
+    setNotes('');
+    setAcquiredOn(todayStr());
+    setRetiredOn('');
+    setLoft('');
+    setShaft('');
+    setFlex('');
+    setLength('');
+    setLie('');
+    setGrip('');
+    setBrandSuggestions([]);
+    setModelSuggestions([]);
+    setShowBrandDropdown(false);
+    setShowModelDropdown(false);
+  }
+
   const closeAndReset = () => {
     resetForm();
     onClose();
@@ -284,28 +310,6 @@ export default function AddEquipmentModal({
     }
   };
 
-  const resetForm = () => {
-    setSportKey(initialSport);
-    setEquipmentType('');
-    setCategory(getEquipmentCategories(initialSport)[0]?.value || 'other');
-    setBrand('');
-    setModel('');
-    setImageUrl('');
-    setStatus('active');
-    setNotes('');
-    setAcquiredOn(todayStr());
-    setRetiredOn('');
-    setLoft('');
-    setShaft('');
-    setFlex('');
-    setLength('');
-    setLie('');
-    setGrip('');
-    setBrandSuggestions([]);
-    setModelSuggestions([]);
-    setShowBrandDropdown(false);
-    setShowModelDropdown(false);
-  };
 
   const handleBrandSelect = (brandName: string) => {
     setBrand(brandName);

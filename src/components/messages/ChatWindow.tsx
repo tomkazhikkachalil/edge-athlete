@@ -168,24 +168,10 @@ export default function ChatWindow({ conversationId, onBack }: Props) {
     };
   }, [conversationId, user, currentUserId]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Infinite scroll — load older messages when sentinel enters view
-  useEffect(() => {
-    if (!hasMore || loadingMore) return;
-    const sentinel = sentinelRef.current;
-    if (!sentinel) return;
-
-    const observer = new IntersectionObserver(
-      (entries) => {
-        if (entries[0].isIntersecting && hasMore && !loadingMore) {
-          loadOlderMessages();
-        }
-      },
-      { threshold: 0.1 }
-    );
-    observer.observe(sentinel);
-    return () => observer.disconnect();
-  }, [hasMore, loadingMore, nextCursor]); // eslint-disable-line react-hooks/exhaustive-deps
-
+  // Defined above the infinite-scroll effect that calls it: react-hooks/
+  // immutability requires declaration before access in source order.
+  // Relocating a useCallback is safe — React requires a consistent hook
+  // order across renders, not a particular one, and this stays unconditional.
   const loadOlderMessages = useCallback(async () => {
     if (!nextCursor || loadingMore) return;
     setLoadingMore(true);
@@ -205,6 +191,25 @@ export default function ChatWindow({ conversationId, onBack }: Props) {
       setLoadingMore(false);
     }
   }, [conversationId, nextCursor, loadingMore]);
+
+  // Infinite scroll — load older messages when sentinel enters view
+  useEffect(() => {
+    if (!hasMore || loadingMore) return;
+    const sentinel = sentinelRef.current;
+    if (!sentinel) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting && hasMore && !loadingMore) {
+          loadOlderMessages();
+        }
+      },
+      { threshold: 0.1 }
+    );
+    observer.observe(sentinel);
+    return () => observer.disconnect();
+  }, [hasMore, loadingMore, nextCursor]); // eslint-disable-line react-hooks/exhaustive-deps
+
 
   const handleSend = useCallback((message: Message) => {
     // Enrich with reply_to if this was a reply

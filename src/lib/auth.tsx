@@ -219,7 +219,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const fetchProfile = async (userId: string) => {
+  // Hoisted function declaration, not a `const` arrow: an effect above calls it,
+  // and react-hooks/immutability flags a reference to a binding declared later
+  // in the body. Function declarations are hoisted, so there is no TDZ.
+  async function fetchProfile(userId: string) {
     try {
       const { data, error } = await supabase
         .from('profiles')
@@ -255,7 +258,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       // Error in fetchProfile
       setProfile(null);
     }
-  };
+  }
 
   const signUp = async (email: string, password: string, profileData: Partial<Profile>) => {
     try {

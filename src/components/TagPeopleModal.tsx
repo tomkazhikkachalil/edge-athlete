@@ -42,6 +42,33 @@ export default function TagPeopleModal({
   const [submitting, setSubmitting] = useState(false);
   const { showSuccess, showError } = useToast();
 
+  // Declared above the effect that references it: react-hooks/immutability
+  // requires declaration before access in source order.
+  async function searchProfiles() {
+    try {
+      setLoading(true);
+      const response = await fetch(`/api/search?q=${encodeURIComponent(searchQuery)}&type=athletes`);
+
+      if (!response.ok) {
+        throw new Error('Search failed');
+      }
+
+      const data = await response.json();
+      const profiles = data.results?.athletes || data.athletes || [];
+
+      const filtered = profiles.filter(
+        (profile: Profile) => !existingTags.includes(profile.id)
+      );
+
+      setSearchResults(filtered);
+    } catch (e) {
+      console.error('Failed to search profiles for tagging:', e);
+      setSearchResults([]);
+    } finally {
+      setLoading(false);
+    }
+  }
+
   useEffect(() => {
     if (searchQuery.length >= 2) {
       const timer = setTimeout(() => {
@@ -54,31 +81,6 @@ export default function TagPeopleModal({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchQuery]);
 
-  const searchProfiles = async () => {
-    try {
-      setLoading(true);
-      const response = await fetch(`/api/search?q=${encodeURIComponent(searchQuery)}&type=athletes`);
-
-      if (!response.ok) {
-        throw new Error('Search failed');
-      }
-
-      const data = await response.json();
-      const profiles = data.results?.athletes || data.athletes || [];
-
-      // Filter out already tagged profiles
-      const filtered = profiles.filter(
-        (profile: Profile) => !existingTags.includes(profile.id)
-      );
-
-      setSearchResults(filtered);
-    } catch (e) {
-      console.error('Failed to search profiles for tagging:', e);
-      setSearchResults([]);
-    } finally {
-      setLoading(false);
-    }
-  };
 
   const toggleProfile = (profile: Profile) => {
     const isSelected = selectedProfiles.some(p => p.id === profile.id);

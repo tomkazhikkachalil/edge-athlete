@@ -33,6 +33,31 @@ export default function AdvancedSearchBar() {
   });
 
   // Debounced search
+  // Declared above the effect that references it: react-hooks/immutability
+  // requires declaration before access in source order.
+  async function performSearch() {
+    setLoading(true);
+    try {
+      const params = new URLSearchParams({ q: query });
+      if (filters.type !== 'all') params.append('type', filters.type);
+      if (filters.sport) params.append('sport', filters.sport);
+      if (filters.school) params.append('school', filters.school);
+      if (filters.league) params.append('league', filters.league);
+      if (filters.dateFrom) params.append('dateFrom', filters.dateFrom);
+      if (filters.dateTo) params.append('dateTo', filters.dateTo);
+
+      const response = await fetch(`/api/search?${params}`);
+      const data = await response.json();
+
+      setResults(data.results || { athletes: [], posts: [], clubs: [] });
+      setShowResults(true);
+    } catch (e) {
+      console.error('Failed to perform advanced search:', e);
+    } finally {
+      setLoading(false);
+    }
+  }
+
   useEffect(() => {
     if (query.length < 2) {
       setResults({ athletes: [], posts: [], clubs: [] });
@@ -61,30 +86,6 @@ export default function AdvancedSearchBar() {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  const performSearch = async () => {
-    setLoading(true);
-    try {
-      // Build query params
-      const params = new URLSearchParams({ q: query });
-      if (filters.type !== 'all') params.append('type', filters.type);
-      if (filters.sport) params.append('sport', filters.sport);
-      if (filters.school) params.append('school', filters.school);
-      if (filters.league) params.append('league', filters.league);
-      if (filters.dateFrom) params.append('dateFrom', filters.dateFrom);
-      if (filters.dateTo) params.append('dateTo', filters.dateTo);
-
-      const response = await fetch(`/api/search?${params}`);
-      const data = await response.json();
-
-      // API returns { query, results, total }, we need the results object
-      setResults(data.results || { athletes: [], posts: [], clubs: [] });
-      setShowResults(true);
-    } catch (e) {
-      console.error('Failed to perform advanced search:', e);
-    } finally {
-      setLoading(false);
-    }
-  };
 
   const clearFilters = () => {
     setFilters({ type: 'all' });
