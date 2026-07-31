@@ -241,14 +241,17 @@ export default function ProfileMediaTabs({ profileId, currentUserId, isOwnProfil
   // Sport-card spotlight from the parent (Sport Highlights click): jump to
   // the All tab filtered to that sport (and its selected highlight year,
   // when one is active). Identity-based — see SportSpotlight.
-  useEffect(() => {
-    if (!sportSpotlight) return;
-    setActiveTab('all');
-    setSelectedSports([sportSpotlight.sportKey]);
-    if (sportSpotlight.year != null) {
-      setSelectedYears([sportSpotlight.year]);
+  const [syncedSpotlight, setSyncedSpotlight] = useState(sportSpotlight);
+  if (syncedSpotlight !== sportSpotlight) {
+    setSyncedSpotlight(sportSpotlight);
+    if (sportSpotlight) {
+      setActiveTab('all');
+      setSelectedSports([sportSpotlight.sportKey]);
+      if (sportSpotlight.year != null) {
+        setSelectedYears([sportSpotlight.year]);
+      }
     }
-  }, [sportSpotlight]);
+  }
 
   // Load media when tab/filter/sort/profileId or sport/year filters change.
   // Only the media-backed tabs (all/stats/tagged) call the media endpoint;

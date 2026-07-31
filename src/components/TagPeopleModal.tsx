@@ -69,14 +69,20 @@ export default function TagPeopleModal({
     }
   }
 
+  // Clearing results for a short query is synchronisation (render phase); the
+  // debounced search stays an effect.
+  const [syncedSearchQuery, setSyncedSearchQuery] = useState(searchQuery);
+  if (syncedSearchQuery !== searchQuery) {
+    setSyncedSearchQuery(searchQuery);
+    if (searchQuery.length < 2) setSearchResults([]);
+  }
+
   useEffect(() => {
     if (searchQuery.length >= 2) {
       const timer = setTimeout(() => {
         searchProfiles();
       }, 300); // Debounce search
       return () => clearTimeout(timer);
-    } else {
-      setSearchResults([]);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchQuery]);

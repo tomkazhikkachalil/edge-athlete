@@ -108,11 +108,16 @@ export default function EventDetailModal({
     }
   }, [eventId, onClose, showError]);
 
+  // Clearing the previous event is synchronisation, so the old one never
+  // paints while the new fetch is in flight; the fetch stays an effect.
+  const [syncedTarget, setSyncedTarget] = useState({ isOpen, eventId });
+  if (syncedTarget.isOpen !== isOpen || syncedTarget.eventId !== eventId) {
+    setSyncedTarget({ isOpen, eventId });
+    if (isOpen && eventId) setEvent(null);
+  }
+
   useEffect(() => {
-    if (isOpen && eventId) {
-      setEvent(null);
-      load();
-    }
+    if (isOpen && eventId) load();
   }, [isOpen, eventId, load]);
 
   if (!isOpen) return null;
