@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { validateHandleFormat, checkHandleAvailability, generateHandleSuggestions } from '@/lib/handle-validation';
 
 interface HandleSelectorProps {
@@ -22,23 +22,34 @@ export default function HandleSelector({
   const [validationMessage, setValidationMessage] = useState('');
   const [isValid, setIsValid] = useState(false);
   const [isChecking, setIsChecking] = useState(false);
-  const [suggestions, setSuggestions] = useState<string[]>([]);
+  const nameSuggestions = useMemo(
+    () => (firstName || lastName ? generateHandleSuggestions(firstName, lastName) : []),
+    [firstName, lastName]
+  );
+  // Availability checks can replace the derived list; null means "use derived".
+  const [overrideSuggestions, setSuggestions] = useState<string[] | null>(null);
+  const suggestions = overrideSuggestions ?? nameSuggestions;
   const [showSuggestions, setShowSuggestions] = useState(false);
 
-  // Generate initial suggestions based on name
-  useEffect(() => {
-    if (firstName || lastName) {
-      const initialSuggestions = generateHandleSuggestions(firstName, lastName);
-      setSuggestions(initialSuggestions);
-    }
-  }, [firstName, lastName]);
+  // Suggestions are derived from the name, so derive them — the effect that
+  // copied them into state was a render behind.
 
-  // Debounced validation and availability check
-  useEffect(() => {
+  // Clearing the local validation state is synchronisation (render phase).
+  // onHandleSelected is the PARENT's setter, so it stays in the effect below —
+  // updating another component during render is not allowed.
+  const [syncedHandle, setSyncedHandle] = useState(handle);
+  if (syncedHandle !== handle) {
+    setSyncedHandle(handle);
     if (!handle) {
       setValidationMessage('');
       setIsValid(false);
       setShowSuggestions(false);
+    }
+  }
+
+  // Debounced validation and availability check
+  useEffect(() => {
+    if (!handle) {
       onHandleSelected('');
       return;
     }

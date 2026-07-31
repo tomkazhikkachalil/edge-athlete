@@ -41,9 +41,17 @@ export default function GuestPicker({
   const [error, setError] = useState('');
   const containerRef = useRef<HTMLDivElement>(null);
 
+  // Clearing results for a too-short query is synchronisation (render phase);
+  // the debounced fetch stays an effect.
+  const [syncedQuery, setSyncedQuery] = useState(query);
+  if (syncedQuery !== query) {
+    setSyncedQuery(query);
+    if (query.trim().length < 2) setResults([]);
+  }
+
   useEffect(() => {
     const q = query.trim();
-    if (q.length < 2) { setResults([]); return; }
+    if (q.length < 2) return;
     const timer = setTimeout(async () => {
       try {
         const res = await fetch(`/api/calendar/invite-search?q=${encodeURIComponent(q)}`);

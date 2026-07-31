@@ -32,15 +32,23 @@ export default function GroupSettingsModal({ conversation, currentUserId, onClos
     [conversation.participants]
   );
 
-  useEffect(() => {
+  // Mirrors a prop — synchronise during render so the old name never paints.
+  const [syncedName, setSyncedName] = useState(conversation.name);
+  if (syncedName !== conversation.name) {
+    setSyncedName(conversation.name);
     setName(conversation.name || '');
-  }, [conversation.name]);
+  }
+
+  // Clearing results for an empty query is synchronisation — do it during
+  // render so stale hits never paint. The debounced fetch stays an effect.
+  const [syncedQuery, setSyncedQuery] = useState(searchQuery);
+  if (syncedQuery !== searchQuery) {
+    setSyncedQuery(searchQuery);
+    if (!searchQuery.trim()) setSearchResults([]);
+  }
 
   useEffect(() => {
-    if (!searchQuery.trim()) {
-      setSearchResults([]);
-      return;
-    }
+    if (!searchQuery.trim()) return;
     const timer = setTimeout(async () => {
       setSearching(true);
       try {
