@@ -1,5 +1,24 @@
 # Development Log
 
+## July 31, 2026 (sync) — Maintenance checklist
+
+Run against the composer branch before merging it.
+
+- `tsc --noEmit` clean · lint **0 errors / 45 warnings** · `vitest` **528 passed**
+  (49 files) · `npm ci --dry-run` clean · clean `npm run build` (`.next/build`
+  wiped first), **Turbopack, compiled in 9.4s**.
+- **`npm audit --omit=dev`: 0 vulnerabilities.** The overrides added with the
+  Next 16 upgrade (postcss 8.5.25, sharp 0.35.3) are holding.
+- Node 22 agrees in all five places: `engines` `22.x` · `.nvmrc` `22` · CI
+  `node-version: 22` · devcontainer `:22` · local v22.18.0.
+- Migrations unchanged at **059** — this work is UI-only, no schema.
+- The 45 lint warnings are the documented `set-state-in-effect` set from the
+  Next 16 pass; no new ones were added by any of the 16 commits on this branch.
+  The one build warning is the deliberate `middleware`-convention deprecation.
+- Tom's dev server stayed up throughout. Next 16 separates `.next/dev` from
+  `.next/build`, so concurrent dev + build is no longer the corruption hazard it
+  was on Next 15.
+
 ## July 31, 2026 — Group chat in the dock pill + picker anchoring
 
 Same branch, 8 more commits. 528 tests, tsc + lint clean, lint total still 45.
