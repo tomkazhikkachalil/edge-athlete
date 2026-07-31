@@ -1,5 +1,39 @@
 # Development Log
 
+## July 30, 2026 (flag) — Chat widget re-enabled in production
+
+Tom reported the messaging widget missing from production. It was: the
+code shipped fine, but `NEXT_PUBLIC_FEATURE_CHAT_DOCK` was absent from the
+Production environment when the last build ran, so the flag evaluated
+false and `ChatDock` rendered nothing. Tom re-added the variable; this
+docs-only commit triggers the fresh build that bakes it in
+(`NEXT_PUBLIC_*` is inlined at build time — saving the variable alone
+changes nothing about the running site).
+
+**Diagnostic lesson worth keeping.** On July 29 I "verified" the dock was
+live by finding its strings in the deployed bundle. That check is
+worthless: `FEATURE_FLAGS.FEATURE_CHAT_DOCK` is a property on an exported
+object, so the minifier cannot dead-strip the component and its markup
+ships whether the flag is on or off. The check that actually proves
+anything is the **inlined flag value** in the chunk that contains
+`FEATURE_SPORTS`:
+
+```
+FEATURE_CALENDAR: !0                                             ← enabled
+FEATURE_CHAT_DOCK: "1"===a.env.NEXT_PUBLIC_FEATURE_CHAT_DOCK     ← NOT set at build time
+```
+
+Both live in the same object in the same build, so the contrast is
+conclusive: a defined variable is replaced with a literal, an undefined
+one is left as a runtime lookup against an empty browser `env` object
+(always false). Behavioural confirmation used alongside it: sign a
+disposable user into production in headless Chrome and count
+`[data-testid="chat-widget"]`.
+
+No code changed in this commit — the tree is identical to d1eae86, which
+already passed lint, tsc, 469 tests, a clean build, CI and a production
+deploy. The only delta is the environment variable.
+
 ## July 30, 2026 (node) — Pin Node 22 in the repo
 
 Closes the gap the dependency pass surfaced: CI (`.github/workflows/ci.yml`),
