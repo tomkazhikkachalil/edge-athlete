@@ -138,38 +138,44 @@ export default function EventFormModal({
   const snapRef = useRef<string | null>(null);
   useBodyScrollLock(isOpen);
 
-  useEffect(() => {
-    if (!isOpen) return;
-    if (editing) {
-      setForm(formFromEvent(editing));
-      setChips(chipsFromEvent(editing));
-      setMoreOpen(true);
-    } else {
-      setForm(emptyForm(defaultDay));
-      setChips([]);
-      setMoreOpen(false);
+  // Seeding the form is state synchronisation — done during render so the
+  // previous values never paint for a frame.
+  const [syncedOpen, setSyncedOpen] = useState({ isOpen, editing, defaultDay });
+  if (syncedOpen.isOpen !== isOpen || syncedOpen.editing !== editing || syncedOpen.defaultDay !== defaultDay) {
+    setSyncedOpen({ isOpen, editing, defaultDay });
+    // Nested, NOT an early return: this runs in the component body now, so a
+    // `return` here would skip every hook below it.
+    if (isOpen) {
+      if (editing) {
+        setForm(formFromEvent(editing));
+        setChips(chipsFromEvent(editing));
+        setMoreOpen(true);
+      } else {
+        setForm(emptyForm(defaultDay));
+        setChips([]);
+        setMoreOpen(false);
+      }
+      setRepeat(emptyRepeat());
+      setScopeOpen(false);
+      setError('');
+      // Baseline for the discard guard: whatever this modal opened with.
+      snapRef.current = JSON.stringify({
+        form: editing ? formFromEvent(editing) : emptyForm(defaultDay),
+        chips: editing ? chipsFromEvent(editing) : [],
+        repeat: emptyRepeat(),
+      });
     }
-    setRepeat(emptyRepeat());
-    setScopeOpen(false);
-    setError('');
-    // Baseline for the discard guard: whatever this modal opened with.
-    snapRef.current = JSON.stringify({
-      form: editing ? formFromEvent(editing) : emptyForm(defaultDay),
-      chips: editing ? chipsFromEvent(editing) : [],
-      repeat: emptyRepeat(),
-    });
-  }, [isOpen, editing, defaultDay]);
+  }
 
   // The start day is always part of a weekly repeat and follows date changes.
+  // This is an invariant over current state, so it is enforced during render.
   const startDow = formDateDow(form.date);
-  useEffect(() => {
-    if (repeat.freq !== 'weekly') return;
-    setRepeat(prev =>
-      prev.byweekday.includes(startDow)
-        ? prev
-        : { ...prev, byweekday: [...prev.byweekday, startDow].sort((a, b) => a - b) }
-    );
-  }, [startDow, repeat.freq]);
+  if (repeat.freq === 'weekly' && !repeat.byweekday.includes(startDow)) {
+    setRepeat(prev => ({
+      ...prev,
+      byweekday: [...prev.byweekday, startDow].sort((a, b) => a - b),
+    }));
+  }
 
   const { requestClose, confirmOpen, confirmDiscard, cancelDiscard } = useDirtyClose(
     () => snapRef.current !== null && snapRef.current !== JSON.stringify({ form, chips, repeat }),

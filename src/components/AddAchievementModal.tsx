@@ -57,20 +57,23 @@ export default function AddAchievementModal({
     syncedOpen.editing !== editing
   ) {
     setSyncedOpen({ isOpen, editing });
-    if (!isOpen) return;
-    if (editing) {
-      setForm({
-        title: editing.title,
-        sportKey: editing.sport_key ?? '',
-        achievedOn: editing.achieved_on,
-        organization: editing.organization ?? '',
-        placement: editing.placement ?? '',
-        description: editing.description ?? '',
-      });
-    } else {
-      setForm(emptyForm());
+    // Nested, NOT an early return: this runs in the component body now, so a
+    // bare `return` would return undefined from the component.
+    if (isOpen) {
+      if (editing) {
+        setForm({
+          title: editing.title,
+          sportKey: editing.sport_key ?? '',
+          achievedOn: editing.achieved_on,
+          organization: editing.organization ?? '',
+          placement: editing.placement ?? '',
+          description: editing.description ?? '',
+        });
+      } else {
+        setForm(emptyForm());
+      }
+      setError('');
     }
-    setError('');
   }
 
   if (!isOpen) return null;

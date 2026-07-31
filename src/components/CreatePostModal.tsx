@@ -195,11 +195,11 @@ export default function CreatePostModal({
 
   // "Playing now" is ONE flow (live round, friends optional) — it always
   // runs on the shared-round rails, solo just means zero invitees.
-  useEffect(() => {
-    if (postType === 'golf' && !sharedRoundDetails.alreadyPlayed && roundType !== 'shared') {
-      setRoundType('shared');
-    }
-  }, [postType, sharedRoundDetails.alreadyPlayed, roundType]);
+  // A constraint on the current state, not a side effect: apply it during
+  // render so an invalid roundType never reaches the UI for a frame.
+  if (postType === 'golf' && !sharedRoundDetails.alreadyPlayed && roundType !== 'shared') {
+    setRoundType('shared');
+  }
 
   // Golf course search for shared rounds
   const [courseSearchOpen, setCourseSearchOpen] = useState(false);

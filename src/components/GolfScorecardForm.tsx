@@ -96,7 +96,11 @@ export default function GolfScorecardForm({ onDataChange }: GolfScorecardFormPro
   };
 
   // Initialize holes data
-  useEffect(() => {
+  // The hole grid is a function of holeCount/startingHole. Building it during
+  // render means the previous grid never paints after the count changes.
+  const [syncedHoles, setSyncedHoles] = useState({ holeCount, startingHole });
+  if (syncedHoles.holeCount !== holeCount || syncedHoles.startingHole !== startingHole) {
+    setSyncedHoles({ holeCount, startingHole });
     const numHoles = holeCount;
     const startHole = holeCount === 9 && startingHole === 'back' ? 10 : 1;
 
@@ -127,7 +131,8 @@ export default function GolfScorecardForm({ onDataChange }: GolfScorecardFormPro
     }
 
     setHolesData(newHolesData);
-  }, [holeCount, startingHole]);
+  }
+
 
   // Search for golf courses
   const searchCourses = useCallback(async (query: string) => {
@@ -189,8 +194,11 @@ export default function GolfScorecardForm({ onDataChange }: GolfScorecardFormPro
     setCourseSearchQuery('');
   }, [holeCount, startingHole, teeBox, showSuccess]);
 
-  // Update course data when tee box changes
-  useEffect(() => {
+  // Course rating/slope/yardages are all functions of the selected course and
+  // tee box, so derive them during render rather than a frame later.
+  const [syncedTee, setSyncedTee] = useState({ selectedCourse, teeBox });
+  if (syncedTee.selectedCourse !== selectedCourse || syncedTee.teeBox !== teeBox) {
+    setSyncedTee({ selectedCourse, teeBox });
     if (selectedCourse) {
       const teeKey = teeBox as keyof typeof selectedCourse.courseRating;
       setCourseRating(selectedCourse.courseRating[teeKey]);
@@ -208,7 +216,7 @@ export default function GolfScorecardForm({ onDataChange }: GolfScorecardFormPro
         return hole;
       }));
     }
-  }, [teeBox, selectedCourse]);
+  }
 
   // Calculate statistics (memoized)
   const stats = useMemo(() => {

@@ -229,7 +229,11 @@ export default function EditProfileTabs({
   // No conversion - save exactly what user enters
 
   // Initialize forms when profile changes
-  useEffect(() => {
+  // Seeding the form is state synchronisation — done during render so the
+  // previous values never paint for a frame.
+  const [syncedProfileTabs, setSyncedProfileTabs] = useState({ profile });
+  if (syncedProfileTabs.profile !== profile) {
+    setSyncedProfileTabs({ profile });
     const loadedBasic = {
       first_name: (profile?.first_name || '').toString(),
       middle_name: (profile?.middle_name || '').toString(),
@@ -266,7 +270,7 @@ export default function EditProfileTabs({
 
     // Golf and equipment settings are now loaded from sport_settings API
     // (see useEffect above that fetches from /api/sport-settings)
-  }, [profile]);
+  }
 
   const saveTab = async (tabId: TabId) => {
     if (!user?.id) {
