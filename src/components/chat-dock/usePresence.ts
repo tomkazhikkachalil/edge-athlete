@@ -12,11 +12,15 @@ import { supabase } from '@/lib/supabase';
 export function usePresence(userId: string | null): Set<string> {
   const [onlineIds, setOnlineIds] = useState<Set<string>>(() => new Set());
 
+  // Clearing when the user signs out is synchronisation, not a side effect.
+  const [syncedUserId, setSyncedUserId] = useState(userId);
+  if (syncedUserId !== userId) {
+    setSyncedUserId(userId);
+    if (!userId) setOnlineIds(new Set());
+  }
+
   useEffect(() => {
-    if (!userId) {
-      setOnlineIds(new Set());
-      return;
-    }
+    if (!userId) return;
     const channel = supabase.channel('presence:global', {
       config: { presence: { key: userId } },
     });

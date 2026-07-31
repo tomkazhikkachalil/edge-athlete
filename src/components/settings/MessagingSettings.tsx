@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useAuth } from '@/lib/auth';
 import { useToast } from '@/components/Toast';
 import type { MessagingPermission } from '@/types/messages';
@@ -50,11 +50,17 @@ export default function MessagingSettings() {
   const [permission, setPermission] = useState<MessagingPermission>('everyone');
   const [saving, setSaving] = useState(false);
 
-  useEffect(() => {
+  // State synchronisation, not a side effect: doing it during render means
+  // the previous values never paint for a frame.
+  const [syncedProfile, setSyncedProfile] = useState({ profile });
+  if (
+    syncedProfile.profile !== profile
+  ) {
+    setSyncedProfile({ profile });
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const p = (profile as any)?.messaging_permission as MessagingPermission | undefined;
     if (p) setPermission(p);
-  }, [profile]);
+  }
 
   const handleChange = async (newPermission: MessagingPermission) => {
     if (newPermission === permission || saving) return;

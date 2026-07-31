@@ -21,8 +21,16 @@ export default function TransferBanner() {
     !!user &&
     profile?.supervision_state === 'supervised';
 
+  // Clearing on ineligible is state synchronisation; do it during render so
+  // a stale banner never paints. The fetch below stays a real side effect.
+  const [syncedEligible, setSyncedEligible] = useState(eligible);
+  if (syncedEligible !== eligible) {
+    setSyncedEligible(eligible);
+    if (!eligible) setTransfer(null);
+  }
+
   useEffect(() => {
-    if (!eligible) { setTransfer(null); return; }
+    if (!eligible) return;
     let cancelled = false;
     (async () => {
       try {

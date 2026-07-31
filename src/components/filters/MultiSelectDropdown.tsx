@@ -42,14 +42,16 @@ export default function MultiSelectDropdown<T extends string | number>({
     return options.filter(opt => opt.label.toLowerCase().includes(q));
   }, [options, searchQuery]);
 
-  // Reset search whenever the popover closes so reopening starts clean.
+  // Reset search whenever the popover closes so reopening starts clean —
+  // synchronisation, render phase. Focusing the input is a real side effect.
+  const [wasOpen, setWasOpen] = useState(isOpen);
+  if (wasOpen !== isOpen) {
+    setWasOpen(isOpen);
+    if (!isOpen) setSearchQuery('');
+  }
+
   useEffect(() => {
-    if (!isOpen) {
-      setSearchQuery('');
-      return;
-    }
-    // Auto-focus the search input when the popover opens
-    searchInputRef.current?.focus();
+    if (isOpen) searchInputRef.current?.focus();
   }, [isOpen]);
 
   // Outside-click + Escape behavior. Escape first clears the search if it's

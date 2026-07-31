@@ -36,10 +36,13 @@ export default function AthleteProfilePage() {
   // Without this reader every shared post link just showed the profile.
   const [deepLinkPostId, setDeepLinkPostId] = useState<string | null>(null);
 
-  useEffect(() => {
+  // Reading the query string is synchronisation, not a side effect.
+  const [syncedParams, setSyncedParams] = useState(searchParams);
+  if (syncedParams !== searchParams) {
+    setSyncedParams(searchParams);
     const postParam = searchParams.get('post');
     if (postParam) setDeepLinkPostId(postParam);
-  }, [searchParams]);
+  }
 
   // Sport Highlights card click → filter media + open the sport's latest
   // post (reuses the deep-link modal below; privacy is server-side in
@@ -111,7 +114,10 @@ export default function AthleteProfilePage() {
   // profiles (same route, new param — the component stays mounted).
   const requestSeqRef = useRef(0);
 
-  const loadAthleteProfile = async () => {
+  // Hoisted function declaration, not a `const` arrow: an effect above calls it,
+  // and react-hooks/immutability flags a reference to a binding declared later
+  // in the body. Function declarations are hoisted, so there is no TDZ.
+  async function loadAthleteProfile() {
     const seq = ++requestSeqRef.current;
     try {
       setLoading(true);
@@ -162,7 +168,7 @@ export default function AthleteProfilePage() {
     } finally {
       if (seq === requestSeqRef.current) setLoading(false);
     }
-  };
+  }
 
   const loadFollowStats = async () => {
     try {
@@ -322,7 +328,7 @@ export default function AthleteProfilePage() {
                 src={profile.cover_url}
                 alt=""
                 fill
-                priority
+                preload
                 sizes="(max-width: 1280px) 100vw, 1232px"
                 className="object-cover"
                 unoptimized={!isOptimizableImageSrc(profile.cover_url)}

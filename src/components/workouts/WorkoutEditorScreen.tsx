@@ -76,12 +76,17 @@ export default function WorkoutEditorScreen({ mode, session, currentUserId }: Wo
   const [selectedMedia, setSelectedMedia] = useState<Set<number>>(new Set());
 
   // ── Live timer (derived from started_at, never counted) ─────────────────
-  const [, setNowTick] = useState(0);
+  // The tick stores the TIMESTAMP, not a throwaway counter: reading Date.now()
+  // during render is impure (react-hooks/purity) and makes the displayed time
+  // depend on whenever React happens to re-render. Now the rendered value is
+  // exactly the ticked value.
+  const [now, setNow] = useState(() => Date.now());
   useEffect(() => {
     if (mode !== 'live' || phase !== 'editing') return;
-    const interval = setInterval(() => setNowTick(t => t + 1), 1000);
+    const tick = () => setNow(Date.now());
+    const interval = setInterval(tick, 1000);
     const onVisible = () => {
-      if (document.visibilityState === 'visible') setNowTick(t => t + 1);
+      if (document.visibilityState === 'visible') tick();
     };
     document.addEventListener('visibilitychange', onVisible);
     return () => {
@@ -91,7 +96,7 @@ export default function WorkoutEditorScreen({ mode, session, currentUserId }: Wo
   }, [mode, phase]);
 
   const elapsedSeconds =
-    mode === 'live' && session ? Math.floor((Date.now() - Date.parse(session.started_at)) / 1000) : 0;
+    mode === 'live' && session ? Math.floor((now - Date.parse(session.started_at)) / 1000) : 0;
 
   // Rest indicator: seconds since the most recent completed set
   const lastCompletedMs = useMemo(() => {
@@ -103,11 +108,15 @@ export default function WorkoutEditorScreen({ mode, session, currentUserId }: Wo
     }
     return latest;
   }, [exercises]);
-  const restSeconds = lastCompletedMs > 0 ? Math.floor((Date.now() - lastCompletedMs) / 1000) : null;
+  const restSeconds = lastCompletedMs > 0 ? Math.floor((now - lastCompletedMs) / 1000) : null;
 
   // ── Server sync engine (live mode): debounced single-flight PUT ──────────
+  // Latest exercises/title for the async sync + draft writers below. Written
+  // in an effect, never during render (react-hooks/refs).
   const stateRef = useRef({ exercises, title });
-  stateRef.current = { exercises, title };
+  useEffect(() => {
+    stateRef.current = { exercises, title };
+  }, [exercises, title]);
   const inFlightRef = useRef(false);
   const pendingRef = useRef(false);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -120,26 +129,35 @@ export default function WorkoutEditorScreen({ mode, session, currentUserId }: Wo
       return true;
     }
     inFlightRef.current = true;
-    setSyncState('saving');
     try {
-      const response = await fetch(`/api/workouts/${session.id}/entries`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({ savedAt: Date.now(), exercises: stateRef.current.exercises }),
-      });
-      const ok = response.ok;
-      setSyncState(ok ? 'saved' : 'error');
+      // Loops instead of recursing. An edit that lands mid-flight sets
+      // pendingRef, and we re-send from here rather than calling syncNow()
+      // again — that self-reference is what stopped React Compiler preserving
+      // this memoization. The flag is now held for the whole chain, so this is
+      // a true single-flight, and the returned value is the LAST attempt's
+      // result rather than the first's.
+      let ok = true;
+      for (;;) {
+        setSyncState('saving');
+        try {
+          const response = await fetch(`/api/workouts/${session.id}/entries`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'include',
+            body: JSON.stringify({ savedAt: Date.now(), exercises: stateRef.current.exercises }),
+          });
+          ok = response.ok;
+          setSyncState(ok ? 'saved' : 'error');
+        } catch {
+          setSyncState('error');
+          ok = false;
+        }
+        if (!pendingRef.current) break;
+        pendingRef.current = false;
+      }
       return ok;
-    } catch {
-      setSyncState('error');
-      return false;
     } finally {
       inFlightRef.current = false;
-      if (pendingRef.current) {
-        pendingRef.current = false;
-        void syncNow();
-      }
     }
   }, [mode, session]);
 

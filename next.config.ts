@@ -23,10 +23,20 @@ const nextConfig: NextConfig = {
     ],
     // Optimize for various device sizes
     deviceSizes: [640, 750, 828, 1080, 1200, 1920, 2048, 3840],
+    // LOAD-BEARING, not decorative: Next 16 dropped 16 from the DEFAULT
+    // imageSizes. This explicit array is the only thing preserving it.
     imageSizes: [16, 32, 48, 64, 96, 128, 256, 384],
     // Supported formats (WebP and AVIF for modern browsers)
     formats: ['image/webp', 'image/avif'],
-    // Cache optimized images for 1 year (31536000 seconds)
+    // Next 16 narrowed the DEFAULT qualities from "anything" to [75], and
+    // coerces unlisted values to the nearest listed one SILENTLY — no error,
+    // no warning, just a quieter image. These three are exactly what this
+    // codebase asks for today (75 from a bare <Image>, 85 from
+    // OptimizedImage/AvatarImage, 90 from MediaImage), so declaring them keeps
+    // output identical. Removing a value here is a visual change.
+    qualities: [75, 85, 90],
+    // LOAD-BEARING: Next 16 raised the DEFAULT minimumCacheTTL from 60s to 4h.
+    // This explicit 1-year value predates and overrides both.
     minimumCacheTTL: 31536000,
     // Disable image optimization for external URLs that don't support it
     unoptimized: false,

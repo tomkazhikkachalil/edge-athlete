@@ -272,7 +272,10 @@ export default function FeedPage() {
   // to eliminate 850K+ Realtime overhead. Using optimistic UI updates instead for
   // instant feedback like Instagram/Facebook. Feed refreshes via pull-to-refresh.
 
-  const loadFeed = async (loadMore = false) => {
+  // Hoisted function declaration, not a `const` arrow: the mount effect above
+  // calls it, and react-hooks/immutability flags a reference to a binding
+  // declared later in the body.
+  async function loadFeed(loadMore = false) {
     // In-flight guard: a double-tapped "Load More" used to fetch the same
     // offset twice and append duplicate posts (duplicate React keys).
     if (loadMore && loadInFlightRef.current) return;
@@ -318,7 +321,7 @@ export default function FeedPage() {
       loadInFlightRef.current = false;
       setFeedLoading(false);
     }
-  };
+  }
 
   const handleLike = async (postId: string) => {
     if (!user) {

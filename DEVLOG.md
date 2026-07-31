@@ -1,5 +1,109 @@
 # Development Log
 
+## July 31, 2026 — Next.js 16 upgrade (+ the react-hooks reckoning it triggered)
+
+Branch `chore/next-16`, 20 commits. `npm run verify` green throughout:
+tsc clean, **0 lint errors, 488 tests, clean Turbopack build in 7.6s**
+(webpack was ~23s). **npm advisories 4 → 0.**
+
+### The upgrade itself was the small part
+
+Next 15.5.22 → 16.2.12. No React, Node or TypeScript change needed — 19.2.8,
+22.x and 5.9.3 already cleared 16's floors. The codebase turned out to be
+unusually well-positioned: zero parallel/intercepting routes (so the new "every
+slot needs `default.js` or the build fails" rule never applied), zero
+`export const dynamic|revalidate|runtime`, zero `unstable_cache`/PPR/AMP/
+`serverRuntimeConfig`, and the async request APIs were already fully migrated.
+
+**Turbopack is now the default bundler and it just worked.** The feared failure
+— "a plugin is adding a webpack option" — did not happen: `@sentry/nextjs`
+10.69.0 declares `next: ^16.0.0-0` and ships the Turbopack-compatible hook, and
+the build log confirms it runs (`Running next.config.js provided
+runAfterProductionCompile ... Completed in 278ms`). No `--webpack` fallback.
+
+**`images.qualities` was the one real breaking change here.** Next 16 narrowed
+the default from "any quality" to `[75]` and coerces anything else to the
+nearest listed value **silently** — no error, no warning, just softer images.
+`OptimizedImage` ships 85 and 90 to live surfaces, so `[75, 85, 90]` is
+declared, landed one commit *before* the bump so the bump is image-neutral.
+`imageSizes` and `minimumCacheTTL` are now marked load-bearing in
+`next.config.ts`: Next 16 changed both defaults, so those explicit values are
+the only thing holding current behaviour.
+
+**The advisories were not fixed by the major, contrary to the premise.**
+`next@16.2.12` still pins `postcss` 8.4.31 exactly and `sharp` ^0.34.5; the
+advisory range is `next 9.3.4-canary.0 - 16.3.0-preview.7`. npm `overrides`
+(postcss 8.5.25, sharp 0.35.3) were always the only route, at any Next version.
+Since `sharp` powers `/_next/image`, it was smoke-tested directly rather than
+assumed — AVIF encode OK, libvips 8.18.3.
+
+**One accepted build warning, deliberately.** `⚠ The "middleware" file
+convention is deprecated.` We stay on `middleware` because `proxy` is forced to
+the Node runtime and "cannot be configured", while `vercel.json` pins
+`regions: ["iad1"]` and this middleware makes a Supabase network call on every
+non-API request — a Sydney user would pay Sydney→Virginia→Supabase→back before
+routing begins, plus Node cold starts on 100% of navigations. The matcher
+comment already records that the `api` exclusion exists *because* `getUser()`
+cost 100–300ms per call; migrating re-introduces that on a larger surface.
+Dated rationale and revisit triggers are in `src/middleware.ts`.
+
+### The part that actually cost the session
+
+`next lint` is removed in 16, and migrating is not a script rename. `next lint`
+silently scoped itself to source dirs; `eslint .` does not. Run as-is this repo
+reported **34,840 problems**, 34,831 of them from `.next/` build output — and
+the official `next-lint-to-eslint-cli` codemod does *not* fix that, because it
+emits the FlatCompat shape and `compat.extends()` cannot carry flat-config
+`ignores`. We adopted the native flat config instead, with `globalIgnores`
+stated explicitly rather than inherited from a transitive default.
+
+Then `eslint-config-next@16` brought `eslint-plugin-react-hooks` v6, whose
+React Compiler rules arrived **as errors** and flagged **121 pre-existing sites
+across 80 files**. 76 were fixed. Five of the six rules — `refs`,
+`immutability`, `purity`, `static-components`, `preserve-manual-memoization` —
+are now at **zero and gate as errors**.
+
+`set-state-in-effect` is held at `warn` for the 45 that remain, deliberately:
+
+- **~31 are flagged at the CALL SITE.** The rule cannot see through a
+  `useCallback`, so removing every synchronous `setState` does not clear it —
+  verified directly on FollowersModal. Satisfying it means inlining ~31
+  data-fetching functions into their effects as cancellable async IIFEs, which
+  is worth doing but belongs in its own PR with its own testing.
+- **~13 are legitimately effects**: mount-time `sessionStorage`/`location`
+  reads that would break hydration if moved into render, realtime connection
+  lifecycle, and the media editor's object URLs — which **must** stay
+  effect-owned (see the StrictMode revoke bug, July 26).
+
+**Do not silence these by wrapping calls in `void (async () => …)()`.** It
+satisfies the analyzer without changing when anything executes. Noted in
+`eslint.config.mjs` next to the rule.
+
+Two genuine bugs were introduced *by the refactor* and caught before landing,
+both from lifting `if (!isOpen) return;` out of an effect body into the
+component body: `EventFormModal` (caught by `rules-of-hooks` — it skipped
+`useDirtyClose`) and `AddAchievementModal` (would have returned `undefined`
+from render, i.e. crashed on close). The tree was swept for that shape; those
+were the only two. Two `snapRef.current = …` writes also drifted into render
+and were split back into effects.
+
+Worthwhile changes that fell out of it: `QuickMessagesToggle` now uses
+`useSyncExternalStore` (retiring a hand-rolled subscribe and its `ready` flag);
+`WorkoutEditorScreen`'s sync is a true single-flight instead of self-recursion,
+and its timer stores a timestamp instead of a throwaway counter;
+`MessageBubble`'s 15-minute edit window is evaluated when the menu opens rather
+than depending on render timing; `PostCard` shed a write-only state.
+
+### Not verified by me — needs a browser and a preview deploy
+
+The 488 tests **de-risk approximately none of this**: `vitest.config.ts` sets
+only the `@` alias, so it runs in Node with no jsdom, and every test is a
+pure-function lib test. They stay green whether this worked or broke every
+image on the site. Outstanding: image quality on the production optimizer
+(`/_next/image?…&q=85`/`q=90` must not 400), auth/session survival, the
+media-editor filter and trim scrub, `next/font` rendering, and Sentry
+symbolication under the Turbopack source-map hook.
+
 ## July 31, 2026 — Image optimization (the 6 that matter) + Sentry environments
 
 Branch `chore/image-optimization-sentry-env`, five commits.

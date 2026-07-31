@@ -13,7 +13,7 @@ interface OptimizedImageProps {
   width?: number;
   height?: number;
   className?: string;
-  priority?: boolean;
+  preload?: boolean;
   fallback?: React.ReactNode;
   quality?: number;
 }
@@ -24,7 +24,7 @@ export default function OptimizedImage({
   width = 100,
   height = 100,
   className = '',
-  priority = false,
+  preload = false,
   fallback,
   quality = 85,
 }: OptimizedImageProps) {
@@ -53,7 +53,7 @@ export default function OptimizedImage({
       width={width}
       height={height}
       className={className}
-      priority={priority}
+      preload={preload}
       quality={quality}
       onError={() => setError(true)}
       // Allow images from Supabase Storage and other common sources
@@ -114,13 +114,13 @@ export function MediaImage({
   src,
   alt,
   className = '',
-  priority = false,
+  preload = false,
   fill = false,
 }: {
   src: string;
   alt: string;
   className?: string;
-  priority?: boolean;
+  preload?: boolean;
   fill?: boolean;
 }) {
   const [error, setError] = useState(false);
@@ -141,7 +141,7 @@ export function MediaImage({
         fill
         className={`object-cover ${className}`}
         quality={90}
-        priority={priority}
+        preload={preload}
         onError={() => setError(true)}
         sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
         unoptimized={src.startsWith('http') && !src.includes('supabase')}
@@ -157,7 +157,7 @@ export function MediaImage({
       height={600}
       className={className}
       quality={90}
-      priority={priority}
+      preload={preload}
       onError={() => setError(true)}
       style={{ width: '100%', height: 'auto' }}
       unoptimized={src.startsWith('http') && !src.includes('supabase')}

@@ -32,12 +32,15 @@ export default function ReactionDetails({
     ? initialEmoji
     : tabs[0]?.emoji ?? null;
 
-  const [activeEmoji, setActiveEmoji] = useState<string | null>(defaultEmoji);
+  const [selectedEmoji, setActiveEmoji] = useState<string | null>(defaultEmoji);
 
-  useEffect(() => {
-    if (activeEmoji && tabs.some(t => t.emoji === activeEmoji)) return;
-    setActiveEmoji(tabs[0]?.emoji ?? null);
-  }, [tabs, activeEmoji]);
+  // Derived, not synchronised: if the selection is no longer among the tabs
+  // (a reaction was removed), fall back to the first tab. Computing this during
+  // render means there is no frame showing an emoji that no longer exists.
+  const activeEmoji =
+    selectedEmoji && tabs.some(t => t.emoji === selectedEmoji)
+      ? selectedEmoji
+      : tabs[0]?.emoji ?? null;
 
   // Outside-click + Escape to close
   useEffect(() => {

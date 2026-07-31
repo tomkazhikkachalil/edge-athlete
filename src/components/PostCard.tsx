@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef, memo } from 'react';
+import { useState, useEffect, useRef, memo, createElement } from 'react';
 import { formatDistanceToNow } from 'date-fns';
 import { useRouter } from 'next/navigation';
 import { useSharedRound } from '@/hooks/useSharedRound';
@@ -70,6 +70,19 @@ interface Post {
   group_scorecard?: CompleteGolfScorecard; // Shared round scorecard
 }
 
+// Module scope, so the component identity is stable across renders.
+// getSportIcon is a registry lookup and its result is already stable, but a
+// capitalized local used as a JSX tag is indistinguishable from an
+// inline-defined component — to the linter, and to React's reconciler if that
+// lookup ever stopped being stable.
+function SportGlyph({ sportKey, color }: { sportKey: string; color: string }) {
+  // createElement, not <Icon />: getSportIcon returns a component from a
+  // registry, and binding it to a capitalized local to use as a JSX tag is
+  // exactly the shape react-hooks/static-components exists to catch. This
+  // creates an ELEMENT from an existing component rather than a component.
+  return createElement(getSportIcon(sportKey), { size: 14, style: { color } });
+}
+
 interface PostCardProps {
   post: Post;
   currentUserId?: string;
@@ -105,7 +118,6 @@ function PostCard({
   );
   const [localLikesCount, setLocalLikesCount] = useState(post.likes_count);
   const [localCommentsCount, setLocalCommentsCount] = useState(post.comments_count);
-  const [, setLocalSavesCount] = useState(post.saves_count || 0);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [isPinned, setIsPinned] = useState(post.is_pinned || false);
   const [pinBusy, setPinBusy] = useState(false);
@@ -133,11 +145,14 @@ function PostCard({
   // without changing groupScorecard's identity, and time-based expiry must
   // still be re-evaluated. The functional setState bails on equality, so
   // this cannot loop.
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  useEffect(() => {
+  // Evaluated during render rather than in a dep-less effect: it runs on every
+  // render either way (which is the point — the hook's minute tick re-renders
+  // without changing groupScorecard's identity, and time-based expiry must
+  // still be re-evaluated), and the equality guard means it cannot loop.
+  {
     const next = groupScorecard ? isRoundLive(groupScorecard.group_post) : false;
-    setLiveEnabled(prev => (prev === next ? prev : next));
-  });
+    if (liveEnabled !== next) setLiveEnabled(next);
+  }
   const [scoreEntryParticipantId, setScoreEntryParticipantId] = useState<string | null>(null);
   const [commentSectionOpen, setCommentSectionOpen] = useState(false);
 
@@ -162,35 +177,50 @@ function PostCard({
   const [showShareModal, setShowShareModal] = useState(false);
   const commentSectionRef = useRef<HTMLDivElement>(null);
 
-  // Update isLiked state when post.likes array changes
-  useEffect(() => {
-    setIsLiked(post.likes?.some(like => like.profile_id === currentUserId) || false);
-  }, [post.likes, currentUserId]);
-
-  // Update isSaved state when post.saved_posts array changes
-  useEffect(() => {
-    setIsSaved(post.saved_posts?.some(save => save.profile_id === currentUserId) || false);
-  }, [post.saved_posts, currentUserId]);
-
-  // Update local likes count when post prop changes
-  useEffect(() => {
-    setLocalLikesCount(post.likes_count);
-  }, [post.likes_count]);
-
-  // Update local comments count when post prop changes
-  useEffect(() => {
-    setLocalCommentsCount(post.comments_count);
-  }, [post.comments_count]);
-
-  // Update local saves count when post prop changes
-  useEffect(() => {
-    setLocalSavesCount(post.saves_count || 0);
-  }, [post.saves_count]);
-
-  // Update pin state when post prop changes (e.g. list refetch)
-  useEffect(() => {
-    setIsPinned(post.is_pinned || false);
-  }, [post.is_pinned]);
+  // Re-sync the optimistic local state when the post prop itself changes (a
+  // feed refetch, say). Adjusting state DURING RENDER rather than in an effect
+  // is the pattern React documents for this: it re-runs the component before
+  // committing, so the stale values never paint.
+  //
+  // Each field is compared and applied INDEPENDENTLY, exactly as the six
+  // separate effects this replaces behaved. Collapsing them into one "if
+  // anything changed, reset everything" block would discard an in-flight
+  // optimistic like whenever an unrelated field (a comment count, say)
+  // refetched.
+  const [synced, setSynced] = useState({
+    likes: post.likes,
+    savedPosts: post.saved_posts,
+    likesCount: post.likes_count,
+    commentsCount: post.comments_count,
+    pinned: post.is_pinned,
+    userId: currentUserId,
+  });
+  if (
+    synced.likes !== post.likes ||
+    synced.savedPosts !== post.saved_posts ||
+    synced.likesCount !== post.likes_count ||
+    synced.commentsCount !== post.comments_count ||
+    synced.pinned !== post.is_pinned ||
+    synced.userId !== currentUserId
+  ) {
+    if (synced.likes !== post.likes || synced.userId !== currentUserId) {
+      setIsLiked(post.likes?.some(like => like.profile_id === currentUserId) || false);
+    }
+    if (synced.savedPosts !== post.saved_posts || synced.userId !== currentUserId) {
+      setIsSaved(post.saved_posts?.some(save => save.profile_id === currentUserId) || false);
+    }
+    if (synced.likesCount !== post.likes_count) setLocalLikesCount(post.likes_count);
+    if (synced.commentsCount !== post.comments_count) setLocalCommentsCount(post.comments_count);
+    if (synced.pinned !== post.is_pinned) setIsPinned(post.is_pinned || false);
+    setSynced({
+      likes: post.likes,
+      savedPosts: post.saved_posts,
+      likesCount: post.likes_count,
+      commentsCount: post.comments_count,
+      pinned: post.is_pinned,
+      userId: currentUserId,
+    });
+  }
 
   const displayName = formatDisplayName(
     post.profile.first_name,
@@ -201,7 +231,6 @@ function PostCard({
 
   const timeAgo = formatDistanceToNow(new Date(post.created_at), { addSuffix: true });
 
-  const SportIcon = post.sport_key ? getSportIcon(post.sport_key) : null;
   const sportColor = post.sport_key ? getSportColor(post.sport_key) : '#6B7280';
 
   const handleLike = () => {
@@ -255,8 +284,7 @@ function PostCard({
         return;
       }
 
-      // Update counts from server
-      setLocalSavesCount(data.savesCount);
+      // Update state from server (the saves count is not rendered here)
       setIsSaved(data.isSaved);
     } catch (e) {
       console.error('Failed to toggle saved post:', e);
@@ -397,7 +425,7 @@ function PostCard({
                   <>
                     <span className="text-sm text-gray-700 font-medium">•</span>
                     <div className="flex items-center gap-1">
-                      {SportIcon && <SportIcon size={14} style={{ color: sportColor }} />}
+                      <SportGlyph sportKey={post.sport_key} color={sportColor} />
                       <span className="text-sm text-gray-700 font-semibold">{getSportName(post.sport_key)}</span>
                     </div>
                   </>

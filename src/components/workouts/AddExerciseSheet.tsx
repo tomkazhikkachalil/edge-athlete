@@ -24,11 +24,16 @@ export default function AddExerciseSheet({ isOpen, onClose, onAdd }: AddExercise
 
   useBodyScrollLock(isOpen);
 
+  // Query reset is synchronisation (render phase); focusing the DOM is a real
+  // side effect and stays in an effect.
+  const [wasOpen, setWasOpen] = useState(isOpen);
+  if (wasOpen !== isOpen) {
+    setWasOpen(isOpen);
+    if (isOpen) setQuery('');
+  }
+
   useEffect(() => {
-    if (isOpen) {
-      setQuery('');
-      inputRef.current?.focus();
-    }
+    if (isOpen) inputRef.current?.focus();
   }, [isOpen]);
 
   if (!isOpen) return null;

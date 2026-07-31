@@ -82,12 +82,16 @@ export default function AdminDashboardPage() {
     if (user?.id) loadReports(statusFilter);
   }, [user?.id, statusFilter, loadReports]);
 
+  // Clearing is synchronisation (render phase); the debounced fetch stays here.
+  const [syncedUserQuery, setSyncedUserQuery] = useState({ authorized, userQuery });
+  if (syncedUserQuery.authorized !== authorized || syncedUserQuery.userQuery !== userQuery) {
+    setSyncedUserQuery({ authorized, userQuery });
+    if (!authorized || userQuery.trim().length < 2) setUsers([]);
+  }
+
   // Debounced user search
   useEffect(() => {
-    if (!authorized || userQuery.trim().length < 2) {
-      setUsers([]);
-      return;
-    }
+    if (!authorized || userQuery.trim().length < 2) return;
     const timer = setTimeout(async () => {
       setSearching(true);
       try {

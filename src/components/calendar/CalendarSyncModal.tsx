@@ -25,10 +25,18 @@ export default function CalendarSyncModal({
   const [confirmRotate, setConfirmRotate] = useState(false);
   useBodyScrollLock(isOpen);
 
+  // Reset on open during render; the fetch stays in the effect.
+  const [wasOpen, setWasOpen] = useState(isOpen);
+  if (wasOpen !== isOpen) {
+    setWasOpen(isOpen);
+    if (isOpen) {
+      setUrl(null);
+      setLoading(true);
+    }
+  }
+
   useEffect(() => {
     if (!isOpen) return;
-    setUrl(null);
-    setLoading(true);
     (async () => {
       try {
         const res = await fetch('/api/calendar/feed-token');

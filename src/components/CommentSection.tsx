@@ -97,15 +97,16 @@ export default function CommentSection({
     }
   }, [showComments, fetchComments]);
 
-  // Open comments when parent requests it
-  useEffect(() => {
+  // Both mirror props — synchronise during render so neither is a frame late.
+  const [syncedProps, setSyncedProps] = useState({ isOpen, initialCommentsCount });
+  if (
+    syncedProps.isOpen !== isOpen ||
+    syncedProps.initialCommentsCount !== initialCommentsCount
+  ) {
+    setSyncedProps({ isOpen, initialCommentsCount });
     if (isOpen) setShowComments(true);
-  }, [isOpen]);
-
-  // Update count when initialCommentsCount prop changes
-  useEffect(() => {
     setCommentsCount(initialCommentsCount);
-  }, [initialCommentsCount]);
+  }
 
   const handleEmojiSelect = (emoji: string) => {
     const input = commentInputRef.current;

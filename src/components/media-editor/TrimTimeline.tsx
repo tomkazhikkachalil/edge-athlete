@@ -96,7 +96,10 @@ export default function TrimTimeline({
     return fractionToTime((clientX - rect.left) / rect.width, duration);
   };
 
-  const dragHandle = (handle: 'start' | 'end') => (e: React.PointerEvent<HTMLButtonElement>) => {
+  // Uncurried on purpose: `dragHandle('start')` was INVOKED during render,
+  // which made its ref read (via timeAt) a render-phase access. Taking the
+  // handle as an argument moves the whole thing to event time.
+  const dragHandle = (handle: 'start' | 'end', e: React.PointerEvent<HTMLButtonElement>) => {
     if (!onTrimChange) return;
     e.preventDefault();
     const target = e.currentTarget;
@@ -176,7 +179,7 @@ export default function TrimTimeline({
             <button
               type="button"
               aria-label="Trim start"
-              onPointerDown={dragHandle('start')}
+              onPointerDown={e => dragHandle('start', e)}
               className="absolute inset-y-0 w-11 -ml-[22px] flex items-center justify-center touch-none cursor-ew-resize"
               style={{ left: `${startF * 100}%` }}
             >
@@ -185,7 +188,7 @@ export default function TrimTimeline({
             <button
               type="button"
               aria-label="Trim end"
-              onPointerDown={dragHandle('end')}
+              onPointerDown={e => dragHandle('end', e)}
               className="absolute inset-y-0 w-11 -ml-[22px] flex items-center justify-center touch-none cursor-ew-resize"
               style={{ left: `${endF * 100}%` }}
             >

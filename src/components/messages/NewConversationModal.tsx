@@ -46,12 +46,18 @@ export default function NewConversationModal({ onClose }: Props) {
   // Debounced + sequence-guarded search: without the guard, out-of-order
   // responses could display results for a stale query.
   const searchSeq = useRef(0);
-  useEffect(() => {
+  // Clearing is synchronisation (render phase); the guarded fetch stays here.
+  const [syncedSearch, setSyncedSearch] = useState(searchQuery);
+  if (syncedSearch !== searchQuery) {
+    setSyncedSearch(searchQuery);
     if (!searchQuery.trim()) {
       setSearchResults([]);
       setSearching(false);
-      return;
     }
+  }
+
+  useEffect(() => {
+    if (!searchQuery.trim()) return;
     const seq = ++searchSeq.current;
     const timer = setTimeout(async () => {
       setSearching(true);

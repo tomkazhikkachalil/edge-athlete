@@ -63,11 +63,24 @@ export default function GolfTrendsPage() {
     if (!authLoading && !user) router.push('/');
   }, [user, authLoading, router]);
 
+  // Same as the rounds list: the loading/error reset is synchronisation keyed
+  // on the fetch's own inputs, so it happens during render.
+  const [syncedQuery, setSyncedQuery] = useState({ uid: user?.id, range, holesFilter });
+  if (
+    syncedQuery.uid !== user?.id ||
+    syncedQuery.range !== range ||
+    syncedQuery.holesFilter !== holesFilter
+  ) {
+    setSyncedQuery({ uid: user?.id, range, holesFilter });
+    if (user?.id) {
+      setLoading(true);
+      setError(null);
+    }
+  }
+
   useEffect(() => {
     if (!user?.id) return;
     const seq = ++requestSeqRef.current;
-    setLoading(true);
-    setError(null);
 
     (async () => {
       try {

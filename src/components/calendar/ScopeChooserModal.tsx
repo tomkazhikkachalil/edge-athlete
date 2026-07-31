@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { useBodyScrollLock } from '@/hooks/useBodyScrollLock';
 
 // The classic recurring-event question ("This event only / This and
@@ -36,9 +36,12 @@ export default function ScopeChooserModal<T extends string>({
 }) {
   const [selected, setSelected] = useState<T>(defaultValue);
   useBodyScrollLock(isOpen);
-  useEffect(() => {
+  // Reset the selection when the modal opens — synchronisation, render phase.
+  const [synced, setSynced] = useState({ isOpen, defaultValue });
+  if (synced.isOpen !== isOpen || synced.defaultValue !== defaultValue) {
+    setSynced({ isOpen, defaultValue });
     if (isOpen) setSelected(defaultValue);
-  }, [isOpen, defaultValue]);
+  }
 
   if (!isOpen) return null;
 

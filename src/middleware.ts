@@ -1,3 +1,30 @@
+// ─────────────────────────────────────────────────────────────────────────────
+// DECISION (2026-07-31, Next 16.2.12): we deliberately stay on the `middleware`
+// file convention and accept its build-time deprecation warning. This is the
+// project's one known, justified build warning.
+//
+// Next 16 renames this to `proxy`, and `proxy` is FORCED to the Node.js runtime
+// — "it cannot be configured" (Next's words), with edge support explicitly
+// deferred to a future minor. Today this file runs as Edge Middleware: a V8
+// isolate at the PoP nearest the user. Under `proxy` it becomes a Node function
+// bound to us-east-1, because vercel.json pins regions: ["iad1"].
+//
+// That matters here specifically because this middleware makes a NETWORK CALL
+// (supabase.auth.getUser) on every non-API request. A user in Sydney would pay
+// Sydney -> Virginia -> Supabase -> back BEFORE routing even begins, plus Node
+// cold starts on 100% of navigations. Note the matcher comment below: the `api`
+// exclusion exists precisely because getUser() was costing 100-300ms per call.
+// Migrating re-introduces that same class of latency on a larger surface, and
+// this time the matcher cannot exclude it.
+//
+// REVISIT WHEN either is true:
+//   1. Next ships edge-runtime support for `proxy`, or
+//   2. this middleware no longer needs a per-request network call.
+//
+// Migrating is also three changes, not one: rename the file, rename the export,
+// and prune sentry.edge.config.ts plus the NEXT_RUNTIME === 'edge' branch in
+// instrumentation.ts, which go dead once middleware runs on Node.
+// ─────────────────────────────────────────────────────────────────────────────
 import { createServerClient, type CookieOptions } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
 

@@ -29,7 +29,7 @@ export default function BrandBar({ hideEscape = false }: { hideEscape?: boolean 
         alt="Edge Athlete"
         width={180}
         height={45}
-        priority
+        preload
         className="h-8 sm:h-9 w-auto"
       />
       {showEscape && (

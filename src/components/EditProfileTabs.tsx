@@ -229,7 +229,11 @@ export default function EditProfileTabs({
   // No conversion - save exactly what user enters
 
   // Initialize forms when profile changes
-  useEffect(() => {
+  // Seeding the form is state synchronisation — done during render so the
+  // previous values never paint for a frame.
+  const [syncedProfileTabs, setSyncedProfileTabs] = useState({ profile });
+  if (syncedProfileTabs.profile !== profile) {
+    setSyncedProfileTabs({ profile });
     const loadedBasic = {
       first_name: (profile?.first_name || '').toString(),
       middle_name: (profile?.middle_name || '').toString(),
@@ -241,7 +245,6 @@ export default function EditProfileTabs({
       visibility: (profile?.visibility || 'public') as 'public' | 'private',
     };
     setBasicForm(loadedBasic);
-    snapRef.current.basic = JSON.stringify({ ...loadedBasic, avatar_file: null });
 
     // Initialize weight with user's saved values - no conversion
     const savedUnit = (profile?.weight_unit || 'lbs') as 'lbs' | 'kg' | 'stone';
@@ -254,7 +257,6 @@ export default function EditProfileTabs({
       class_year: profile?.class_year ? String(profile.class_year) : '',
     };
     setVitalsForm(loadedVitals);
-    snapRef.current.vitals = JSON.stringify(loadedVitals);
 
     const loadedSocials = {
       social_twitter: formatSocialHandle(profile?.social_twitter),
@@ -262,10 +264,19 @@ export default function EditProfileTabs({
       social_facebook: formatSocialHandle(profile?.social_facebook),
     };
     setSocialsForm(loadedSocials);
-    snapRef.current.socials = JSON.stringify(loadedSocials);
 
     // Golf and equipment settings are now loaded from sport_settings API
     // (see useEffect above that fetches from /api/sport-settings)
+  }
+
+  // Dirty-close baselines are written to a REF, which must not happen during
+  // render. This effect runs right after the seeding render above, so it
+  // snapshots exactly the values that were just applied.
+  useEffect(() => {
+    snapRef.current.basic = JSON.stringify({ ...basicForm, avatar_file: null });
+    snapRef.current.vitals = JSON.stringify(vitalsForm);
+    snapRef.current.socials = JSON.stringify(socialsForm);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [profile]);
 
   const saveTab = async (tabId: TabId) => {

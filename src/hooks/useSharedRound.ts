@@ -54,9 +54,13 @@ export function useSharedRound({
   const [, setNowTick] = useState(0);
 
   // Keep in sync when the parent re-provides a scorecard (e.g. feed refetch).
-  useEffect(() => {
+  // Render-phase synchronisation — an effect here left the previous round's
+  // scores on screen for a frame after a refetch.
+  const [syncedInitial, setSyncedInitial] = useState(initialScorecard);
+  if (syncedInitial !== initialScorecard) {
+    setSyncedInitial(initialScorecard);
     if (initialScorecard) setScorecard(initialScorecard);
-  }, [initialScorecard]);
+  }
 
   /** Refetch the scorecard. Resolves true on success, false on failure
    *  (callers that NEED freshness — e.g. opening score entry — can decide

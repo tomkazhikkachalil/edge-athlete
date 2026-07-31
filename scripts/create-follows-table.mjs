@@ -1,5 +1,4 @@
 import { createClient } from '@supabase/supabase-js';
-import fs from 'fs';
 import dotenv from 'dotenv';
 
 // Load environment variables
@@ -29,7 +28,7 @@ async function createFollowsTable() {
       console.log('Table does not exist, creating...');
       
       // Use raw SQL to create the table
-      const { data, error } = await supabase.rpc('exec', {
+      const { error } = await supabase.rpc('exec', {
         sql: `
           -- Create follows table for athlete following relationships
           CREATE TABLE follows (

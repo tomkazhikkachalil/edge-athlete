@@ -75,7 +75,7 @@ async function cleanupTestData() {
 
 async function createTestUser(userId, email) {
   // Create auth user
-  const { data: authData, error: authError } = await supabase.auth.admin.createUser({
+  const { error: authError } = await supabase.auth.admin.createUser({
     id: userId,
     email: email,
     email_confirm: true

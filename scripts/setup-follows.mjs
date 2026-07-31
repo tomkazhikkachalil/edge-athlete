@@ -29,7 +29,7 @@ async function setupFollows() {
     console.log('Creating follows table...');
     
     // Create the table with SQL
-    const { data, error } = await supabase.rpc('execute_sql', {
+    const { error } = await supabase.rpc('execute_sql', {
       query: `
         CREATE TABLE IF NOT EXISTS follows (
           id UUID DEFAULT gen_random_uuid() PRIMARY KEY,

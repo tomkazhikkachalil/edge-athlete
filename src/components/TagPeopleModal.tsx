@@ -42,19 +42,9 @@ export default function TagPeopleModal({
   const [submitting, setSubmitting] = useState(false);
   const { showSuccess, showError } = useToast();
 
-  useEffect(() => {
-    if (searchQuery.length >= 2) {
-      const timer = setTimeout(() => {
-        searchProfiles();
-      }, 300); // Debounce search
-      return () => clearTimeout(timer);
-    } else {
-      setSearchResults([]);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [searchQuery]);
-
-  const searchProfiles = async () => {
+  // Declared above the effect that references it: react-hooks/immutability
+  // requires declaration before access in source order.
+  async function searchProfiles() {
     try {
       setLoading(true);
       const response = await fetch(`/api/search?q=${encodeURIComponent(searchQuery)}&type=athletes`);
@@ -66,7 +56,6 @@ export default function TagPeopleModal({
       const data = await response.json();
       const profiles = data.results?.athletes || data.athletes || [];
 
-      // Filter out already tagged profiles
       const filtered = profiles.filter(
         (profile: Profile) => !existingTags.includes(profile.id)
       );
@@ -78,7 +67,26 @@ export default function TagPeopleModal({
     } finally {
       setLoading(false);
     }
-  };
+  }
+
+  // Clearing results for a short query is synchronisation (render phase); the
+  // debounced search stays an effect.
+  const [syncedSearchQuery, setSyncedSearchQuery] = useState(searchQuery);
+  if (syncedSearchQuery !== searchQuery) {
+    setSyncedSearchQuery(searchQuery);
+    if (searchQuery.length < 2) setSearchResults([]);
+  }
+
+  useEffect(() => {
+    if (searchQuery.length >= 2) {
+      const timer = setTimeout(() => {
+        searchProfiles();
+      }, 300); // Debounce search
+      return () => clearTimeout(timer);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchQuery]);
+
 
   const toggleProfile = (profile: Profile) => {
     const isSelected = selectedProfiles.some(p => p.id === profile.id);

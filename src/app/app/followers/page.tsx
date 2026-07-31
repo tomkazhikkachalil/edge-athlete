@@ -59,7 +59,11 @@ function FollowersContent() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user, activeTab]);
 
-  const loadData = async () => {
+  // Hoisted function declaration, not a `const` arrow: the effect above calls
+  // it, and react-hooks/immutability flags a reference to a binding declared
+  // later in the body. Function declarations are hoisted and initialised, so
+  // there is no temporal dead zone.
+  async function loadData() {
     try {
       setLoading(true);
       const response = await fetch(`/api/followers?type=${activeTab}`);
@@ -97,7 +101,7 @@ function FollowersContent() {
     } finally {
       setLoading(false);
     }
-  };
+  }
 
   const handleAcceptRequest = async (followId: string) => {
     try {

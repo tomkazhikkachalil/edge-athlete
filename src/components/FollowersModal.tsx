@@ -45,10 +45,12 @@ export default function FollowersModal({ isOpen, onClose, profileId, initialTab 
   // different profile while a previous load is still in flight.
   const requestSeqRef = useRef(0);
 
+  // NOTE: the loading/error reset lives in the render-phase open sync below,
+  // not here — setting it synchronously from the effect that calls this is the
+  // cascading render react-hooks/set-state-in-effect exists to prevent. This
+  // has exactly one caller, so the two are equivalent.
   const loadData = useCallback(async () => {
     const seq = ++requestSeqRef.current;
-    setLoading(true);
-    setError(null);
 
     try {
       // Fetch followers of the profile being viewed
@@ -102,12 +104,25 @@ export default function FollowersModal({ isOpen, onClose, profileId, initialTab 
     }
   }, [profileId, user]);
 
-  useEffect(() => {
+  // Tab selection is state synchronisation (render phase); the fetch is a real
+  // side effect (stays in an effect).
+  const [syncedOpen, setSyncedOpen] = useState({ isOpen, initialTab, profileId });
+  if (
+    syncedOpen.isOpen !== isOpen ||
+    syncedOpen.initialTab !== initialTab ||
+    syncedOpen.profileId !== profileId
+  ) {
+    setSyncedOpen({ isOpen, initialTab, profileId });
     if (isOpen) {
       setActiveTab(initialTab);
-      loadData();
+      setLoading(true);
+      setError(null);
     }
-  }, [isOpen, initialTab, loadData]);
+  }
+
+  useEffect(() => {
+    if (isOpen) loadData();
+  }, [isOpen, loadData]);
 
   const handleProfileClick = (id: string) => {
     onClose();

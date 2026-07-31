@@ -72,7 +72,7 @@ export default function AppHeader({ showSearch = true, onCreatePost, onEditProfi
               alt="Edge Athlete"
               width={140}
               height={35}
-              priority
+              preload
               className="h-7 w-auto"
             />
           </div>
@@ -99,7 +99,7 @@ export default function AppHeader({ showSearch = true, onCreatePost, onEditProfi
                 alt="Edge Athlete"
                 width={140}
                 height={35}
-                priority
+                preload
                 className="h-7 w-auto"
               />
             </Link>
@@ -145,7 +145,7 @@ export default function AppHeader({ showSearch = true, onCreatePost, onEditProfi
                   alt="Edge Athlete"
                   width={140}
                   height={35}
-                  priority
+                  preload
                   className="h-7 w-auto"
                 />
               </button>

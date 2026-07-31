@@ -37,14 +37,19 @@ export default function DockComposer({
   const [error, setError] = useState('');
   const seqRef = useRef(0);
 
+  // Clearing results for a too-short query is synchronisation (render phase);
+  // the debounced fetch stays an effect.
+  const [syncedQuery, setSyncedQuery] = useState(query);
+  if (syncedQuery !== query) {
+    setSyncedQuery(query);
+    if (query.trim().length < 2) setResults([]);
+    else setSearching(true);
+  }
+
   useEffect(() => {
     const q = query.trim();
-    if (q.length < 2) {
-      setResults([]);
-      return;
-    }
+    if (q.length < 2) return;
     const seq = ++seqRef.current;
-    setSearching(true);
     const timer = setTimeout(async () => {
       try {
         const res = await fetch(`/api/search?q=${encodeURIComponent(q)}&type=athletes`);

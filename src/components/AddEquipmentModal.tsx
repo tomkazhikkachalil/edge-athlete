@@ -88,12 +88,17 @@ export default function AddEquipmentModal({
   const [lie, setLie] = useState('');
   const [grip, setGrip] = useState('');
 
+  // Clearing for a non-golf sport is synchronisation (render phase); the
+  // brand fetch stays an effect.
+  const [syncedSport, setSyncedSport] = useState(sportKey);
+  if (syncedSport !== sportKey) {
+    setSyncedSport(sportKey);
+    if (sportKey !== 'golf') setBrandSuggestions([]);
+  }
+
   // Load all brands on mount or when sport changes (for golf)
   useEffect(() => {
-    if (sportKey !== 'golf') {
-      setBrandSuggestions([]);
-      return;
-    }
+    if (sportKey !== 'golf') return;
 
     // Load all brands immediately for dropdown
     const loadBrands = async () => {
@@ -117,12 +122,16 @@ export default function AddEquipmentModal({
     b.name.toLowerCase().includes(brand.toLowerCase())
   );
 
+  // Same split for the model search.
+  const [syncedModel, setSyncedModel] = useState({ sportKey, model });
+  if (syncedModel.sportKey !== sportKey || syncedModel.model !== model) {
+    setSyncedModel({ sportKey, model });
+    if (sportKey !== 'golf' || model.length < 1) setModelSuggestions([]);
+  }
+
   // Debounced model search
   useEffect(() => {
-    if (sportKey !== 'golf' || model.length < 1) {
-      setModelSuggestions([]);
-      return;
-    }
+    if (sportKey !== 'golf' || model.length < 1) return;
 
     const timer = setTimeout(async () => {
       setModelLoading(true);
@@ -183,6 +192,32 @@ export default function AddEquipmentModal({
 
   // Lock background scroll while open (iOS scroll-chaining behind overlays)
   useBodyScrollLock(isOpen);
+
+  // Declared above its first use (closeAndReset, below): react-hooks/
+  // immutability requires declaration before access in source order, and
+  // hoisting does not satisfy it outside a useEffect callback.
+  function resetForm() {
+    setSportKey(initialSport);
+    setEquipmentType('');
+    setCategory(getEquipmentCategories(initialSport)[0]?.value || 'other');
+    setBrand('');
+    setModel('');
+    setImageUrl('');
+    setStatus('active');
+    setNotes('');
+    setAcquiredOn(todayStr());
+    setRetiredOn('');
+    setLoft('');
+    setShaft('');
+    setFlex('');
+    setLength('');
+    setLie('');
+    setGrip('');
+    setBrandSuggestions([]);
+    setModelSuggestions([]);
+    setShowBrandDropdown(false);
+    setShowModelDropdown(false);
+  }
 
   const closeAndReset = () => {
     resetForm();
@@ -284,28 +319,6 @@ export default function AddEquipmentModal({
     }
   };
 
-  const resetForm = () => {
-    setSportKey(initialSport);
-    setEquipmentType('');
-    setCategory(getEquipmentCategories(initialSport)[0]?.value || 'other');
-    setBrand('');
-    setModel('');
-    setImageUrl('');
-    setStatus('active');
-    setNotes('');
-    setAcquiredOn(todayStr());
-    setRetiredOn('');
-    setLoft('');
-    setShaft('');
-    setFlex('');
-    setLength('');
-    setLie('');
-    setGrip('');
-    setBrandSuggestions([]);
-    setModelSuggestions([]);
-    setShowBrandDropdown(false);
-    setShowModelDropdown(false);
-  };
 
   const handleBrandSelect = (brandName: string) => {
     setBrand(brandName);

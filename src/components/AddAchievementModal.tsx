@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { X, Trophy } from 'lucide-react';
 import { useBodyScrollLock } from '@/hooks/useBodyScrollLock';
 import { useToast } from './Toast';
@@ -49,22 +49,32 @@ export default function AddAchievementModal({
   useBodyScrollLock(isOpen);
 
   // Reset / prefill whenever the modal opens
-  useEffect(() => {
-    if (!isOpen) return;
-    if (editing) {
-      setForm({
-        title: editing.title,
-        sportKey: editing.sport_key ?? '',
-        achievedOn: editing.achieved_on,
-        organization: editing.organization ?? '',
-        placement: editing.placement ?? '',
-        description: editing.description ?? '',
-      });
-    } else {
-      setForm(emptyForm());
+  // State synchronisation, not a side effect: doing it during render means
+  // the previous values never paint for a frame.
+  const [syncedOpen, setSyncedOpen] = useState({ isOpen, editing });
+  if (
+    syncedOpen.isOpen !== isOpen ||
+    syncedOpen.editing !== editing
+  ) {
+    setSyncedOpen({ isOpen, editing });
+    // Nested, NOT an early return: this runs in the component body now, so a
+    // bare `return` would return undefined from the component.
+    if (isOpen) {
+      if (editing) {
+        setForm({
+          title: editing.title,
+          sportKey: editing.sport_key ?? '',
+          achievedOn: editing.achieved_on,
+          organization: editing.organization ?? '',
+          placement: editing.placement ?? '',
+          description: editing.description ?? '',
+        });
+      } else {
+        setForm(emptyForm());
+      }
+      setError('');
     }
-    setError('');
-  }, [isOpen, editing]);
+  }
 
   if (!isOpen) return null;
 
