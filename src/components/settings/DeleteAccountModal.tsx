@@ -21,33 +21,45 @@ export default function DeleteAccountModal({ isOpen, onClose }: DeleteAccountMod
   const [reauthPassword, setReauthPassword] = useState('');
   const [isReauthenticating, setIsReauthenticating] = useState(false);
 
-  // Reset state when modal opens/closes
-  useEffect(() => {
+  // Reset the form the moment the modal opens. Done during render rather than
+  // in an effect: the fields are visibly stale for one paint otherwise, and it
+  // is state synchronisation, not a side effect.
+  const [wasOpen, setWasOpen] = useState(isOpen);
+  if (isOpen !== wasOpen) {
+    setWasOpen(isOpen);
     if (isOpen) {
       setStep(1);
       setConfirmText('');
       setPassword('');
       setNeedsReauth(false);
       setReauthPassword('');
-      checkSessionAge();
     }
-  }, [isOpen]);
+  }
 
-  // Check if session is older than 10 minutes
-  const checkSessionAge = async () => {
-    try {
-      const response = await fetch('/api/auth/check-session');
-      const data = await response.json();
+  // The session check IS a side effect, so it stays in one — inlined as a
+  // cancellable async IIFE. Every setState now happens after an await and
+  // behind a cancellation flag, so closing the modal mid-flight no longer
+  // updates state on an unmounted component.
+  useEffect(() => {
+    if (!isOpen) return;
+    let cancelled = false;
 
-      if (data.needsReauth) {
-        setNeedsReauth(true);
+    (async () => {
+      try {
+        const response = await fetch('/api/auth/check-session');
+        const data = await response.json();
+        if (!cancelled && data.needsReauth) setNeedsReauth(true);
+      } catch (error) {
+        console.error('Error checking session:', error);
+        // Assume re-auth is needed for safety
+        if (!cancelled) setNeedsReauth(true);
       }
-    } catch (error) {
-      console.error('Error checking session:', error);
-      // Assume re-auth is needed for safety
-      setNeedsReauth(true);
-    }
-  };
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [isOpen]);
 
   const handleReauthenticate = async () => {
     if (!user?.email || !reauthPassword) {
