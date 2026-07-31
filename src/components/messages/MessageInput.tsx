@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef, useCallback, useEffect } from 'react';
+import { useState, useRef, useCallback, useEffect, useReducer } from 'react';
 import Image from 'next/image';
 import { supabase } from '@/lib/supabase';
 import EmojiPickerButton from '@/components/EmojiPickerButton';
@@ -10,6 +10,18 @@ import type { Message } from '@/types/messages';
 import { MediaEditor } from '@/components/media-editor';
 import { validateFiles } from '@/lib/media/validation';
 import { isOptimizableImageSrc } from '@/lib/media/image-src';
+import {
+  CHEVRON_PX,
+  COMPOSER_MAX_HEIGHT,
+  COMPOSER_MIN_HEIGHT,
+  GIF_POPOVER_MIN_VIEWPORT_PX,
+  LEADING_OPEN_PX,
+  canSendMessage,
+  composerLeadingReducer,
+  composerTextareaHeight,
+  initialLeadingOpen,
+} from './composer-layout';
+import GifPicker from '@/components/GifPicker';
 import { uploadPostMedia } from '@/lib/media/upload';
 import type { EditedMedia, EditorConfig, MediaAsset } from '@/lib/media/types';
 
@@ -36,8 +48,31 @@ const MESSAGE_EDITOR_CONFIG: EditorConfig = {
 
 const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50MB
 
-export default function MessageInput({ conversationId, currentUserId, onSend, disabled, replyingTo, onCancelReply, initialText, onTextChange }: Props) {
+export default function MessageInput({ conversationId, currentUserId, onSend, disabled = false, replyingTo, onCancelReply, initialText, onTextChange }: Props) {
   const [text, setText] = useState(initialText ?? '');
+  // iMessage-style leading cluster. One-way latch: typing collapses it,
+  // emptying the field does NOT re-expand (see composer-layout for why).
+  // Seeded from initialText so a restored dock draft mounts already collapsed
+  // instead of flashing expand->collapse.
+  const [{ leadingOpen }, dispatchLeading] = useReducer(
+    composerLeadingReducer,
+    initialText,
+    initialLeadingOpen
+  );
+  // GIF picker presentation. A popover on desktop (anchored to the field, like
+  // the emoji panel); a bottom sheet below sm, where the keyboard leaves only
+  // ~350px of visible viewport and a 360px popover would be off-screen.
+  // SSR-safe default false -> sheet; no flash is possible because the picker
+  // only renders after a click, long after this effect has settled.
+  const [gifPopover, setGifPopover] = useState(false);
+  useEffect(() => {
+    const media = window.matchMedia(`(min-width: ${GIF_POPOVER_MIN_VIEWPORT_PX}px)`);
+    const apply = () => setGifPopover(media.matches);
+    apply();
+    media.addEventListener('change', apply);
+    return () => media.removeEventListener('change', apply);
+  }, []);
+
   const [attachedFile, setAttachedFile] = useState<File | null>(null);
   const [attachedPreview, setAttachedPreview] = useState<string | null>(null);
   const [attachedType, setAttachedType] = useState<'image' | 'video' | null>(null);
@@ -88,14 +123,15 @@ export default function MessageInput({ conversationId, currentUserId, onSend, di
 
   const handleTextChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     setText(e.target.value);
+    dispatchLeading({ type: 'TEXT_CHANGED', text: e.target.value });
     if (e.target.value) broadcastTyping();
 
-    // Auto-resize
+    // Auto-resize. The bounds live in composer-layout so the inline style
+    // below and this measurement cannot drift apart.
     const ta = textareaRef.current;
     if (ta) {
       ta.style.height = 'auto';
-      const maxHeight = 5 * 24; // ~5 lines
-      ta.style.height = Math.min(ta.scrollHeight, maxHeight) + 'px';
+      ta.style.height = composerTextareaHeight(ta.scrollHeight) + 'px';
     }
   };
 
@@ -105,6 +141,9 @@ export default function MessageInput({ conversationId, currentUserId, onSend, di
     const pos = ta?.selectionStart ?? text.length;
     const next = text.slice(0, pos) + emoji + text.slice(pos);
     setText(next);
+    // An emoji is text: inserting one into an empty field collapses the
+    // leading cluster exactly as typing a character does.
+    dispatchLeading({ type: 'TEXT_CHANGED', text: next });
     // Restore cursor after the inserted emoji
     requestAnimationFrame(() => {
       if (ta) {
@@ -172,7 +211,9 @@ export default function MessageInput({ conversationId, currentUserId, onSend, di
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
+    // isComposing guard: without it, pressing Enter to COMMIT a Japanese or
+    // Chinese IME composition sends the half-composed text instead.
+    if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) {
       e.preventDefault();
       handleSend();
     }
@@ -220,8 +261,10 @@ export default function MessageInput({ conversationId, currentUserId, onSend, di
       const data = await res.json();
       onSend(data.message as Message);
 
-      // Reset
+      // Reset. Send is the session boundary, so the full leading cluster
+      // comes back without the user asking for it.
       setText('');
+      dispatchLeading({ type: 'SENT' });
       removeAttachment();
       onCancelReply?.();
       if (textareaRef.current) textareaRef.current.style.height = 'auto';
@@ -232,7 +275,13 @@ export default function MessageInput({ conversationId, currentUserId, onSend, di
     }
   };
 
-  const canSend = (text.trim().length > 0 || attachedFile !== null || gifUrl !== null) && !sending && !disabled;
+  const canSend = canSendMessage({
+    text,
+    hasAttachment: attachedFile !== null,
+    hasGif: gifUrl !== null,
+    sending,
+    disabled,
+  });
 
   const replyingSenderName = replyingTo?.sender
     ? formatDisplayName(replyingTo.sender.first_name, null, replyingTo.sender.last_name, replyingTo.sender.full_name)
@@ -331,65 +380,125 @@ export default function MessageInput({ conversationId, currentUserId, onSend, di
 
       {/* Error */}
       {error && (
-        <p className="text-xs text-red-600 mb-2">{error}</p>
+        <p role="alert" className="text-xs text-red-600 mb-2">{error}</p>
       )}
 
       <div className="flex items-end gap-1">
-        {/* Emoji picker */}
-        <div className="relative shrink-0">
-          <EmojiPickerButton onEmojiSelect={handleEmojiSelect} />
+        {/* Leading media cluster — ONE flex item holding two counter-animating
+            boxes, so the collapsed state has one gap-1, not two stray ones.
+            Both stay mounted and animate width between explicit px constants:
+            `auto` cannot be interpolated, and the buttons carry explicit w-10
+            because FontAwesome is an icon FONT whose glyph width differs
+            before and after load — a padding-sized button would not reliably
+            add up to LEADING_OPEN_PX on a cold cache.
+            inert + aria-hidden keeps whichever box is at zero width out of the
+            tab order and unclickable. Same idiom as the chat dock's morph. */}
+        <div className="shrink-0 flex items-end">
+          <div
+            className="overflow-hidden transition-[width,opacity] duration-200 ease-out"
+            style={{ width: leadingOpen ? 0 : CHEVRON_PX, opacity: leadingOpen ? 0 : 1 }}
+            inert={leadingOpen}
+            aria-hidden={leadingOpen}
+          >
+            <button
+              type="button"
+              onClick={() => dispatchLeading({ type: 'TOGGLE' })}
+              disabled={disabled || sending}
+              className="w-10 h-10 flex items-center justify-center text-gray-400 hover:text-violet-500 transition-colors disabled:opacity-40"
+              aria-label="Show attachment and GIF buttons"
+              title="More options"
+              aria-expanded={leadingOpen}
+            >
+              <i className="fas fa-chevron-right text-sm"></i>
+            </button>
+          </div>
+
+          <div
+            className="overflow-hidden transition-[width,opacity] duration-200 ease-out flex items-end"
+            style={{ width: leadingOpen ? LEADING_OPEN_PX : 0, opacity: leadingOpen ? 1 : 0 }}
+            inert={!leadingOpen}
+            aria-hidden={!leadingOpen}
+          >
+            {/* Attachment */}
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              disabled={disabled || sending}
+              className="w-10 h-10 shrink-0 flex items-center justify-center text-gray-400 hover:text-gray-600 transition-colors disabled:opacity-40"
+              aria-label="Attach file"
+              title="Attach a photo or video"
+            >
+              <i className="fas fa-paperclip text-lg"></i>
+            </button>
+            {/* GIF */}
+            <button
+              type="button"
+              onClick={() => setShowGifPicker(prev => !prev)}
+              disabled={disabled || sending}
+              data-gif-picker-toggle
+              className="w-10 h-10 shrink-0 flex items-center justify-center text-gray-400 hover:text-violet-500 transition-colors disabled:opacity-40 text-xs font-bold"
+              aria-label="Send GIF"
+              title="Send a GIF"
+            >
+              GIF
+            </button>
+          </div>
         </div>
-
-        {/* GIF picker */}
-        <button
-          type="button"
-          onClick={() => setShowGifPicker(prev => !prev)}
-          disabled={disabled || sending}
-          className="shrink-0 p-2.5 text-gray-400 hover:text-violet-500 transition-colors disabled:opacity-40 text-xs font-bold"
-          aria-label="Send GIF"
-          title="Send a GIF"
-        >
-          GIF
-        </button>
-        {showGifPicker && (
-          <GifPickerModal
-            title="Send a GIF"
-            onGifSelect={handleGifSelect}
-            onClose={() => setShowGifPicker(false)}
+        {/* Text field. The wrapper is the emoji button's positioning context,
+            so it must never get overflow-hidden — that would clip the picker
+            panel. `pr-12` reserves the button's gutter on EVERY line, which is
+            why text can't run underneath it at any height. */}
+        <div className="relative flex-1 min-w-0">
+          <textarea
+            ref={textareaRef}
+            value={text}
+            onChange={handleTextChange}
+            onKeyDown={handleKeyDown}
+            placeholder={replyingTo ? 'Reply…' : 'Message…'}
+            rows={1}
+            disabled={disabled || sending}
+            className="w-full resize-none border border-gray-300 rounded-2xl pl-4 pr-12 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500 disabled:opacity-40 overflow-hidden block"
+            style={{ minHeight: COMPOSER_MIN_HEIGHT, maxHeight: COMPOSER_MAX_HEIGHT }}
           />
-        )}
+          {/* Emoji stays pinned inside the field's trailing edge in every
+              state — it is text entry, unlike GIF/attachments which are media
+              insertion and collapse away.
 
-        {/* Attachment button */}
-        <button
-          type="button"
-          onClick={() => fileInputRef.current?.click()}
-          disabled={disabled || sending}
-          className="shrink-0 p-2.5 text-gray-400 hover:text-gray-600 transition-colors disabled:opacity-40"
-          aria-label="Attach file"
-        >
-          <i className="fas fa-paperclip text-lg"></i>
-        </button>
-        <input
-          ref={fileInputRef}
-          type="file"
-          accept="image/*,video/*"
-          className="hidden"
-          onChange={handleFileSelect}
-          onClick={e => { (e.target as HTMLInputElement).value = ''; }}
-        />
+              This strip is CONGRUENT WITH THE FIELD (inset-y-0 right-0), not
+              shrink-wrapped around the button, and that is the whole trick:
+              the panel anchors to the strip, so `bottom-full` resolves to the
+              FIELD'S TOP at every height and `right-0` to the field's right
+              edge. The panel therefore lines up with the chat box and rises
+              with it as it grows 40->120px, with no measurement or observer.
+              `pr-1` lives inside the containing block, so the button still
+              sits 4px in and looks identical to before.
+              pointer-events-none is load-bearing: the strip now spans the full
+              field height, so without it clicking the right gutter of a
+              multi-line composer would stop moving the caret. */}
+          <div className="absolute inset-y-0 right-0 pr-1 flex items-end pointer-events-none">
+            <EmojiPickerButton
+              onEmojiSelect={handleEmojiSelect}
+              align="right"
+              anchor="container"
+              disabled={disabled || sending}
+              className="pointer-events-auto"
+            />
+          </div>
 
-        {/* Text input */}
-        <textarea
-          ref={textareaRef}
-          value={text}
-          onChange={handleTextChange}
-          onKeyDown={handleKeyDown}
-          placeholder={replyingTo ? 'Reply…' : 'Message…'}
-          rows={1}
-          disabled={disabled || sending}
-          className="flex-1 resize-none border border-gray-300 rounded-2xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500 disabled:opacity-40 overflow-hidden"
-          style={{ minHeight: 40, maxHeight: 120 }}
-        />
+          {/* GIF popover is a SIBLING of the emoji strip inside the field
+              wrapper, so it shares the same containing block and gets the
+              identical right-edge alignment and growth tracking. It must not
+              live in the leading cluster — that box is overflow-hidden and
+              would clip it to zero width the moment the user types, and it
+              would vanish when the GIF button collapses away. */}
+          {showGifPicker && gifPopover && (
+            <GifPicker
+              variant="popover"
+              onGifSelect={handleGifSelect}
+              onClose={() => setShowGifPicker(false)}
+            />
+          )}
+        </div>
 
         {/* Send button */}
         <button
@@ -407,6 +516,28 @@ export default function MessageInput({ conversationId, currentUserId, onSend, di
         </button>
       </div>
       </div>
+
+      {/* Hidden file input lives at the component root, NOT inside the button
+          row: the leading buttons sit in an `inert` subtree when collapsed,
+          and an inert ancestor can swallow a programmatic .click(). */}
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="image/*,video/*"
+        className="hidden"
+        onChange={handleFileSelect}
+        onClick={e => { (e.target as HTMLInputElement).value = ''; }}
+      />
+
+      {/* GIF picker is a fixed-inset modal — rendering it as a flex child of
+          the button row made it a zero-width flex item plus a stray gap. */}
+      {showGifPicker && !gifPopover && (
+        <GifPickerModal
+          title="Send a GIF"
+          onGifSelect={handleGifSelect}
+          onClose={() => setShowGifPicker(false)}
+        />
+      )}
 
       {/* Shared media editor (z-[65]) */}
       {editorAssets && (

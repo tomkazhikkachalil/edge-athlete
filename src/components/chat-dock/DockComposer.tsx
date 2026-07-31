@@ -1,23 +1,15 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useState } from 'react';
 import LazyImage from '@/components/LazyImage';
 import { formatDisplayName, getInitials } from '@/lib/formatters';
+import { useProfileSearch, type SearchProfile } from '@/hooks/useProfileSearch';
 
 // Start a conversation from the dock: search-as-you-type over app users
 // (same endpoint + debounce pattern as the full page's NewConversationModal)
 // → create-or-reactivate the direct conversation server-side (blocks and
 // messaging permissions enforced there) → open a mini window. If a
 // conversation with the person already exists locally we skip the POST.
-
-interface SearchProfile {
-  id: string;
-  first_name: string | null;
-  last_name: string | null;
-  full_name: string | null;
-  avatar_url: string | null;
-  handle: string | null;
-}
 
 export default function DockComposer({
   currentUserId,
@@ -30,44 +22,9 @@ export default function DockComposer({
   onOpened: (conversationId: string) => void;
   onCancel: () => void;
 }) {
-  const [query, setQuery] = useState('');
-  const [results, setResults] = useState<SearchProfile[]>([]);
-  const [searching, setSearching] = useState(false);
+  const { query, setQuery, results, searching } = useProfileSearch({ excludeId: currentUserId });
   const [creating, setCreating] = useState(false);
   const [error, setError] = useState('');
-  const seqRef = useRef(0);
-
-  // Clearing results for a too-short query is synchronisation (render phase);
-  // the debounced fetch stays an effect.
-  const [syncedQuery, setSyncedQuery] = useState(query);
-  if (syncedQuery !== query) {
-    setSyncedQuery(query);
-    if (query.trim().length < 2) setResults([]);
-    else setSearching(true);
-  }
-
-  useEffect(() => {
-    const q = query.trim();
-    if (q.length < 2) return;
-    const seq = ++seqRef.current;
-    const timer = setTimeout(async () => {
-      try {
-        const res = await fetch(`/api/search?q=${encodeURIComponent(q)}&type=athletes`);
-        if (!res.ok || seq !== seqRef.current) return;
-        const data = await res.json();
-        if (seq === seqRef.current) {
-          setResults(
-            ((data.results?.athletes ?? []) as SearchProfile[]).filter(p => p.id !== currentUserId)
-          );
-        }
-      } catch {
-        // typing again retries
-      } finally {
-        if (seq === seqRef.current) setSearching(false);
-      }
-    }, 300);
-    return () => clearTimeout(timer);
-  }, [query, currentUserId]);
 
   const pick = async (profile: SearchProfile) => {
     if (creating) return;

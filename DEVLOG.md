@@ -1,5 +1,227 @@
 # Development Log
 
+## July 31, 2026 (sync) — Maintenance checklist
+
+Run against the composer branch before merging it.
+
+- `tsc --noEmit` clean · lint **0 errors / 45 warnings** · `vitest` **528 passed**
+  (49 files) · `npm ci --dry-run` clean · clean `npm run build` (`.next/build`
+  wiped first), **Turbopack, compiled in 9.4s**.
+- **`npm audit --omit=dev`: 0 vulnerabilities.** The overrides added with the
+  Next 16 upgrade (postcss 8.5.25, sharp 0.35.3) are holding.
+- Node 22 agrees in all five places: `engines` `22.x` · `.nvmrc` `22` · CI
+  `node-version: 22` · devcontainer `:22` · local v22.18.0.
+- Migrations unchanged at **059** — this work is UI-only, no schema.
+- The 45 lint warnings are the documented `set-state-in-effect` set from the
+  Next 16 pass; no new ones were added by any of the 16 commits on this branch.
+  The one build warning is the deliberate `middleware`-convention deprecation.
+- Tom's dev server stayed up throughout. Next 16 separates `.next/dev` from
+  `.next/build`, so concurrent dev + build is no longer the corruption hazard it
+  was on Next 15.
+
+## July 31, 2026 — Group chat in the dock pill + picker anchoring
+
+Same branch, 8 more commits. 528 tests, tsc + lint clean, lint total still 45.
+
+### Pickers now anchor to the field, not to their button
+
+The emoji panel sat off-centre and, worse, stopped tracking the composer as it
+grew. **Both were my own regression** from the iMessage layout commit: moving
+the button inside the field left the panel anchored to the *button*.
+
+The diagnosis took two passes and the first one was wrong, so it is worth
+recording. There are **two** positioned layers, not one: `EmojiPickerButton`'s
+root is `relative`, *and* the holder around it was `absolute right-1 bottom-0`
+— an abspos element is itself a containing block. Dropping `relative` alone
+(my first instinct) would have re-anchored the panel to a 40px shrink-wrapped
+box still pinned to the field's bottom, reproducing both symptoms.
+
+The fix makes the holder **congruent with the field**: `absolute inset-y-0
+right-0 pr-1 flex items-end`. Its height *is* the field's height, so
+`bottom-full` resolves to the field's top at every height and `right-0` to the
+field's right edge. Alignment and growth-tracking both fall out of the box
+model — no ResizeObserver, no portal, no measurement. `pr-1` sits inside the
+containing block, so the button is still 4px in and looks identical.
+`pointer-events-none` on the strip is load-bearing: it now spans the whole
+field, so without it clicking the right gutter of a multi-line composer would
+stop moving the caret.
+
+`EmojiPickerButton` gained `anchor?: 'trigger' | 'container'` (additive,
+default `trigger`) — the third additive prop in this series, and the other
+three call sites stay untouched.
+
+**Right edge, not centred** — chosen deliberately. On the full page the field
+can exceed 1000px, so centring a 300px panel would park it ~350px from the
+button that opened it and read as detached.
+
+The **GIF picker now sits the same way**, reviving `GifPicker`'s
+`variant='popover'` branch (dead since it was written) retuned to `right-0
+w-72 max-w-[80vw]` and rendered as a sibling of the emoji strip so it shares
+the containing block. Below 640px it stays the bottom sheet: with a keyboard up
+on a 375px phone only ~350px is visible, so a 360px popover would be
+off-screen. Exactly one branch mounts — `GifPicker` fetches trending and
+autofocuses on mount, so two would double-fetch Giphy and fight for focus.
+Fixed an outside-click bug it would have hit head-on: the listener is
+unconditional and `mousedown` beats `click`, so against a `prev => !prev`
+toggle it closed and immediately reopened. Guarded by
+`[data-gif-picker-toggle]`, inert for all five modal call sites.
+
+The emoji panel clears the 320px dock window by exactly **4px** (320 − 16 − 300).
+That was previously luck; `pickerFitsSurface` now makes it a test. Writing that
+test caught a modelling error in my first draft — I budgeted against the
+padding *box* (288px), which fails the panel. A popover is not in-flow: it
+floats over the left padding and only has to stay inside the surface.
+
+### Group chat without leaving the pill
+
+"New group chat" now leads the expanded panel, above search — a labelled row,
+not a fifth unlabelled icon in a bar already carrying four in 320px. The whole
+flow runs in the pill; nothing navigates to `/messages`.
+
+The board's `NewConversationModal` **cannot** be reused (448px fixed-inset card,
+above the dock's z-band, redirects on success), so what is shared is the
+**rules**: `group-draft.ts` owns the name requirement, the member minimum, the
+toggle, the submit predicate and the payload — and the board was migrated onto
+it in the same pass, which is what actually stops the two drifting.
+
+**`GROUP_MIN_MEMBERS = 2`, deliberately stricter than the server's 1.** Not
+taste: a 2-person "group" is functionally a DM but takes the group code path,
+which has **no duplicate detection**, so picking one person would mint a fresh
+room on every attempt instead of reopening the DM you already have. Pinned by a
+test named THE POLICY. The server staying permissive costs nothing — every
+member is block- and permission-checked either way.
+
+`composing: boolean` became `DockComposeMode = 'list' | 'direct' | 'group'`, so
+the modes are mutually exclusive by construction and the pen's `aria-pressed`
+stays honest.
+
+Two dock-specific calls worth not re-litigating:
+
+- **Chips scroll horizontally** (the panel's own "Active now" idiom) rather than
+  wrapping like the modal. Wrapping is unbounded and would eat a 384px panel;
+  this costs a fixed ~34px at any member count, with the count in the footer
+  button so nothing is hidden.
+- **No discard confirm**, deviating from CLAUDE.md's dirty-close rule. Resolved
+  by making the loss not happen: the draft lives in `DockPanel`, which is always
+  mounted, so collapsing the pill, Cancel, or bouncing to the direct composer
+  all preserve it. Nothing is discarded, so there is nothing to confirm — and a
+  full-screen `z-[60]` confirm over a 320px pill would be worse than the loss.
+  Navigating to `/messages` unmounts the dock and does lose it; accepted.
+
+Also fixed en route: **DockPanel dispatched `OPEN_WINDOW` before an un-awaited
+`fetchConversations()`**. ChatDock renders a window only for a conversation the
+provider knows and PRUNEs ids on every update, so a realtime INSERT or the 30s
+poll landing in that gap dropped the brand-new id and the window silently never
+appeared. Pre-existing DockComposer bug, fixed before the group flow inherited
+it. And `useProfileSearch` extracted the debounce + seq-guard that was about to
+exist a third time (DockComposer migrated; the board's copy deliberately not —
+it differs on both knobs and nothing here can regression-test it).
+
+### Not verified in a browser
+
+Same caveat as always: vitest is node-only, so the 528 tests cover policy and
+nothing visual, and there is no component or e2e harness for the dock at all.
+Highest-risk items: the `min-h-0` chain (the dock body is fixed-height and
+`overflow-hidden`, so a missing one silently clips the Create button away); the
+PRUNE race, which needs a >30s wait to reproduce; double-submit making two
+rooms (no server dedupe on this path); the strip's `pointer-events` on a
+multi-line composer; the GIF toggle open/close; and the emoji panel escaping the
+mini window's top edge at max composer height, which is new behaviour because
+today the panel never rises at all.
+
+## July 31, 2026 — iMessage-style message composer
+
+Branch `feat/composer-imessage-layout`, 7 commits. The composer put **three**
+action buttons before the text field — `[emoji][GIF][paperclip][textarea][send]`
+— squeezing the typing area worst at 375px and in the 320px dock window.
+
+Now: **emoji lives pinned inside the field's trailing edge in every state**, and
+**attachment + GIF collapse into a single chevron on the first keystroke**. The
+split is the point — emoji is *text entry*, used constantly mid-sentence, while
+GIF and attachments are *media insertion* used far less often, so only the
+latter pair earns the collapse.
+
+Note `DockComposer.tsx` is **not** a message composer (it is the dock's
+new-conversation people search). There is exactly one, `MessageInput`, rendered
+on two surfaces — the full page and the dock's fixed-height mini window.
+
+**Three decisions worth not re-litigating:**
+
+1. **No auto-expand when the field is emptied.** The latch is one-way: typing
+   collapses, backspacing to empty does *not* re-expand; only the chevron or a
+   successful send re-opens it. Backspacing to empty is overwhelmingly mid-edit
+   — fixing a typo, not deciding to attach a photo — and re-expanding there
+   yanks 40px out from under the caret and slides the send button while a thumb
+   hovers it. Send is the real session boundary. The tempting
+   `leadingOpen = text.length === 0` derivation gives exactly the behaviour we
+   rejected; `composer-layout.test.ts` fails 3 cases if anyone "simplifies" it
+   back, including one named `THE POLICY`.
+2. **Explicit px width constants + `w-10` on the buttons.** Two reasons, both
+   previously learned: `auto` cannot be interpolated by a CSS transition (the
+   chat-dock morph, Jul 28), and FontAwesome is an icon **font**, so a
+   padding-sized button measures differently before and after the font loads —
+   a measured or padding-derived width would be wrong on a cold cache.
+3. **Touch targets stay under 44px, at 40.** Continues the documented exception
+   for dense composer chrome (see the entries at ~3286/3296) — and is actually
+   *up* from the previous ~36-38px.
+
+Mechanism is the chat dock's morph idiom verbatim: both boxes stay **mounted**
+and counter-animate `width` between explicit constants, with `inert` +
+`aria-hidden` on whichever sits at zero. One flex item holds both, so the
+collapsed state has one `gap-1` rather than two stray ones. Reduced-motion is
+already handled globally — not re-implemented.
+
+`EmojiPickerButton` gained two **additive** props, `align` and `disabled`.
+`align` reuses `ReactionBar`'s existing vocabulary verbatim (same name, same
+JSDoc phrasing, same ternary) rather than inventing collision detection: a
+trailing-edge button needs `right-0` or its 300px panel runs off screen, and
+left-at-leading / right-at-trailing are both inherently safe. `disabled` closes
+a real gap — the composer disabled its other three buttons but not this one —
+and closes an open panel when the button goes disabled mid-send. Done as a
+render-phase sync, not an effect, so it neither paints an orphaned panel for a
+frame nor adds a 46th `set-state-in-effect` warning to the 45 documented today.
+
+Also folded in: the GIF modal was rendered *as a flex child of the button row*
+(it is `fixed inset-0`, so it was a zero-width flex item plus a stray gap); the
+hidden file input moved to the component root, because an `inert` ancestor can
+swallow a programmatic `.click()`; the `120` duplicated between the inline
+style and the resize handler (once as `120`, once as `5 * 24`) collapsed into
+one constant; and the error `<p>` gained `role="alert"` to match DockComposer.
+
+**Separate commit, droppable: an IME guard.** `handleKeyDown` had no
+`isComposing` check, so pressing Enter to *commit* a Japanese or Chinese
+composition sent the half-composed text. Real correctness bug, three characters,
+in the exact handler this work reasons about.
+
+**Deliberately out of scope:** `CommentSection`'s two near-duplicate emoji+GIF
+clusters. The space problem is weaker there (two leading buttons, and emoji
+leaves the row anyway), the mechanics differ (`<input>`, not a growing
+textarea; a text submit button, not a 44px circle), and bundling them triples
+the browser matrix. Both keep working untouched because the new props default
+to current behaviour. A parity pass — folding in their drifted `p-2` vs `p-2.5`
+and `items-center` vs `items-end` — is the natural follow-up.
+
+**Verification.** 508 tests (20 new, all policy: the latch, the height clamp,
+the send predicate), tsc + lint clean, lint total still 45 warnings. The tests
+cover **no** visual behaviour — vitest is node-only with no jsdom, so
+positioning, the width transition, `inert` semantics, panel geometry and real
+`scrollHeight` are all invisible to it. Geometry was checked by arithmetic
+against the Tailwind scale: `w-10` = 40px, two = 80px matching the constants;
+`right-1` (4px) + a ~38px `p-2.5` emoji button = 42px against a 48px `pr-12`
+gutter, so ~6px clearance and text cannot run under it at any line count.
+
+**Not yet verified in a browser** — the real remaining risk: the mobile keyboard
+chain (`h-dvh` + `--vvh` + `interactiveWidget`, broken and fixed twice before —
+mitigated structurally by keeping every edit inside `.px-4.py-3` and never
+touching the shell's `shrink-0 safe-bottom`); the right-flipped emoji panel at
+375/768/1440 and in a 320px dock window, where a 300px panel is expected to
+spill ~48px *inward* (acceptable — `MiniChatWindow` deliberately omits
+`overflow-hidden` so popovers can escape); composer `offsetHeight` being
+byte-identical before/after, since a fixed-height dock window trades composer
+height for message rows; a dock draft mounting already collapsed with no flash;
+tab order skipping the zero-width box; and the first-keystroke reflow not
+jumping the caret.
+
 ## July 31, 2026 — Next.js 16 upgrade (+ the react-hooks reckoning it triggered)
 
 Branch `chore/next-16`, 20 commits. `npm run verify` green throughout:

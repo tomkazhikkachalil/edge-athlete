@@ -8,6 +8,13 @@ import { useMessages } from '@/lib/messages';
 import { useDirtyClose } from '@/hooks/useDirtyClose';
 import ConfirmModal from '@/components/ConfirmModal';
 import { COPY } from '@/lib/copy';
+import {
+  GROUP_NAME_MAX,
+  buildGroupCreateBody,
+  canCreateGroup,
+  groupDraftError,
+  toggleGroupMember,
+} from './group-draft';
 
 interface SearchProfile {
   id: string;
@@ -108,27 +115,19 @@ export default function NewConversationModal({ onClose }: Props) {
   };
 
   const handleToggleMember = (profile: SearchProfile) => {
-    setSelectedMembers(prev => {
-      const exists = prev.some(p => p.id === profile.id);
-      if (exists) return prev.filter(p => p.id !== profile.id);
-      return [...prev, profile];
-    });
+    setSelectedMembers(prev => toggleGroupMember(prev, profile));
   };
 
   const handleCreateGroup = async () => {
-    if (!groupName.trim()) { setError('Group name is required'); return; }
-    if (selectedMembers.length < 2) { setError('Add at least 2 members'); return; }
+    const invalid = groupDraftError(groupName, selectedMembers);
+    if (invalid) { setError(invalid); return; }
     setCreating(true);
     setError('');
     try {
       const res = await fetch('/api/messages', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          type: 'group',
-          name: groupName.trim(),
-          participantIds: selectedMembers.map(m => m.id),
-        }),
+        body: JSON.stringify(buildGroupCreateBody(groupName, selectedMembers)),
       });
       if (!res.ok) {
         const d = await res.json();
@@ -201,7 +200,7 @@ export default function NewConversationModal({ onClose }: Props) {
               onChange={e => setGroupName(e.target.value)}
               placeholder="Group name…"
               className="w-full border border-gray-300 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500"
-              maxLength={100}
+              maxLength={GROUP_NAME_MAX}
             />
           )}
 
@@ -295,7 +294,7 @@ export default function NewConversationModal({ onClose }: Props) {
           <div className="px-4 py-3 border-t border-gray-200 shrink-0">
             <button
               onClick={handleCreateGroup}
-              disabled={creating || !groupName.trim() || selectedMembers.length < 2}
+              disabled={!canCreateGroup({ name: groupName, members: selectedMembers, creating })}
               className="w-full py-2.5 bg-violet-600 text-white rounded-lg text-sm font-semibold hover:bg-violet-700 disabled:opacity-40 transition-colors"
             >
               {creating ? (

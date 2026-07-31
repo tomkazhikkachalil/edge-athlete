@@ -4,9 +4,13 @@ import { useMemo, useState } from 'react';
 import LazyImage from '@/components/LazyImage';
 import { formatDisplayName, getInitials } from '@/lib/formatters';
 import DockComposer from './DockComposer';
+import DockGroupComposer, { EMPTY_GROUP_DRAFT, type GroupDraft } from './DockGroupComposer';
 import DockConversationRow from './DockConversationRow';
 import { conversationIdentity } from './conversation-identity';
 import type { Conversation, ParticipantProfile } from '@/types/messages';
+
+/** Which body the expanded panel shows. Mutually exclusive by construction. */
+export type DockComposeMode = 'list' | 'direct' | 'group';
 
 // The widget's BODY: search, active contacts, and the conversation list
 // (or the composer). The violet bar above it lives in ChatDock, because
@@ -37,8 +41,8 @@ export default function DockPanel({
   currentUserId,
   onlineIds,
   windowIds,
-  composing,
-  onComposingChange,
+  mode,
+  onModeChange,
   onSelect,
   onOpenWindow,
   fetchConversations,
@@ -49,13 +53,38 @@ export default function DockPanel({
   /** Conversations that already have an open or minimized window. */
   windowIds: Set<string>;
   /** Compose mode is owned by the widget bar, which holds the pen button. */
-  composing: boolean;
-  onComposingChange: (composing: boolean) => void;
+  mode: DockComposeMode;
+  onModeChange: (mode: DockComposeMode) => void;
   onSelect: (conversationId: string) => void;
   onOpenWindow: (conversationId: string) => void;
   fetchConversations: () => Promise<void>;
 }) {
   const [filter, setFilter] = useState('');
+  // The group draft lives HERE, not in DockGroupComposer: this panel is always
+  // mounted (ChatDock keeps the body mounted and inert while collapsed), so
+  // collapsing the pill, hitting Cancel, or bouncing to the direct composer all
+  // preserve what the user typed. That is why the flow needs no discard confirm.
+  const [groupDraft, setGroupDraft] = useState<GroupDraft>(EMPTY_GROUP_DRAFT);
+
+  // Open a just-created conversation as a mini window.
+  //
+  // The refetch MUST be awaited BEFORE dispatching. ChatDock renders a window
+  // only for a conversation the provider already knows, and it PRUNEs window
+  // ids against that list on every conversations update — so with a fire-and-
+  // forget refetch, a realtime INSERT or the 30s poll landing in the gap drops
+  // the brand-new id and the window silently never appears. Awaiting is safe:
+  // GET /api/messages lists every conversation with no "has messages" filter,
+  // so an empty new group is in the list immediately.
+  //
+  // The guard skips the round trip on the existing-conversation fast path,
+  // where nothing was created and the id is already known.
+  const openConversation = async (conversationId: string) => {
+    if (!conversations.some(c => c.id === conversationId)) {
+      await fetchConversations();
+    }
+    onModeChange('list');
+    onOpenWindow(conversationId);
+  };
 
   // A direct conversation with this partner, if one already exists.
   const directWith = (profileId: string): string | null =>
@@ -92,19 +121,38 @@ export default function DockPanel({
 
   return (
     <div data-testid="dock-panel" className="h-full flex flex-col bg-white">
-      {composing ? (
+      {mode === 'direct' ? (
         <DockComposer
           currentUserId={currentUserId}
           existingDirectWith={directWith}
-          onOpened={conversationId => {
-            onComposingChange(false);
-            onOpenWindow(conversationId);
-            fetchConversations();
-          }}
-          onCancel={() => onComposingChange(false)}
+          onOpened={openConversation}
+          onCancel={() => onModeChange('list')}
+        />
+      ) : mode === 'group' ? (
+        <DockGroupComposer
+          currentUserId={currentUserId}
+          draft={groupDraft}
+          onDraftChange={setGroupDraft}
+          onOpened={openConversation}
+          onCancel={() => onModeChange('list')}
         />
       ) : (
         <>
+          {/* Group chat is a first-class starting point, not something buried
+              on the full board — so it leads the panel, above search. */}
+          <div className="px-3 py-2 border-b border-gray-100 shrink-0">
+            <button
+              type="button"
+              onClick={() => onModeChange('group')}
+              className="w-full flex items-center gap-2.5 rounded-lg px-2 py-1.5 text-left hover:bg-violet-50 transition-colors"
+            >
+              <span className="w-8 h-8 rounded-full bg-violet-100 text-violet-700 flex items-center justify-center shrink-0">
+                <i className="fas fa-users text-xs"></i>
+              </span>
+              <span className="text-sm font-semibold text-gray-900">New group chat</span>
+            </button>
+          </div>
+
           {/* Search — same markup as the full messages page's list search. */}
           <div className="px-3 py-2 border-b border-gray-100 shrink-0">
             <div className="relative">
@@ -185,7 +233,7 @@ export default function DockPanel({
                     </p>
                     <button
                       type="button"
-                      onClick={() => onComposingChange(true)}
+                      onClick={() => onModeChange('direct')}
                       className="inline-flex items-center gap-1.5 px-4 py-2 bg-violet-600 text-white rounded-lg text-sm font-semibold hover:bg-violet-700 transition-colors"
                     >
                       <i className="fas fa-pen text-xs"></i>
