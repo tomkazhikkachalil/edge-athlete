@@ -445,14 +445,26 @@ export default function MessageInput({ conversationId, currentUserId, onSend, di
           />
           {/* Emoji stays pinned inside the field's trailing edge in every
               state — it is text entry, unlike GIF/attachments which are media
-              insertion and collapse away. bottom-0 keeps it on the LAST line
-              as the field grows; align="right" flips the 300px panel so it
-              opens inward instead of off the right edge. */}
-          <div className="absolute right-1 bottom-0">
+              insertion and collapse away.
+
+              This strip is CONGRUENT WITH THE FIELD (inset-y-0 right-0), not
+              shrink-wrapped around the button, and that is the whole trick:
+              the panel anchors to the strip, so `bottom-full` resolves to the
+              FIELD'S TOP at every height and `right-0` to the field's right
+              edge. The panel therefore lines up with the chat box and rises
+              with it as it grows 40->120px, with no measurement or observer.
+              `pr-1` lives inside the containing block, so the button still
+              sits 4px in and looks identical to before.
+              pointer-events-none is load-bearing: the strip now spans the full
+              field height, so without it clicking the right gutter of a
+              multi-line composer would stop moving the caret. */}
+          <div className="absolute inset-y-0 right-0 pr-1 flex items-end pointer-events-none">
             <EmojiPickerButton
               onEmojiSelect={handleEmojiSelect}
               align="right"
+              anchor="container"
               disabled={disabled || sending}
+              className="pointer-events-auto"
             />
           </div>
         </div>

@@ -18,6 +18,17 @@ interface Props {
    *  screen. Same vocabulary as ReactionBar's `align`. */
   align?: 'left' | 'right';
   disabled?: boolean;
+  /** What the panel positions against.
+   *
+   *  'trigger' (default) — this component's own wrapper, i.e. the button. Every
+   *  existing call site wants this.
+   *
+   *  'container' — leave the wrapper static so the panel resolves against the
+   *  nearest positioned ANCESTOR. The composer needs it: the anchor there must
+   *  be the growing text field, not the fixed-height button pinned to its
+   *  bottom edge. Outside-click is unaffected either way — the panel stays a
+   *  DOM descendant of containerRef regardless of what it positions against. */
+  anchor?: 'trigger' | 'container';
 }
 
 export default function EmojiPickerButton({
@@ -25,6 +36,7 @@ export default function EmojiPickerButton({
   className = '',
   align = 'left',
   disabled = false,
+  anchor = 'trigger',
 }: Props) {
   const [open, setOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -63,7 +75,10 @@ export default function EmojiPickerButton({
   };
 
   return (
-    <div className={`relative ${className}`} ref={containerRef}>
+    <div
+      className={`${anchor === 'trigger' ? 'relative ' : ''}${className}`}
+      ref={containerRef}
+    >
       <button
         type="button"
         onClick={() => setOpen(prev => !prev)}
