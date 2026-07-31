@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef } from 'react';
 import { useToast } from '@/components/Toast';
 import { useBodyScrollLock } from '@/hooks/useBodyScrollLock';
 import { useDirtyClose } from '@/hooks/useDirtyClose';
@@ -49,12 +49,16 @@ export default function EditPostModal({
   const postType = post.sport_key || 'general';
   const currentHashtagSuggestions = HASHTAG_SUGGESTIONS[postType as keyof typeof HASHTAG_SUGGESTIONS] || HASHTAG_SUGGESTIONS.general;
 
-  // Reset form when post changes
-  useEffect(() => {
+  // Reset the form when the post changes. Done during render rather than in an
+  // effect: this is state synchronisation, and in an effect the old post's
+  // values paint for one frame first.
+  const [syncedPost, setSyncedPost] = useState(post);
+  if (syncedPost !== post) {
+    setSyncedPost(post);
     setCaption(post.caption || '');
     setHashtags(post.hashtags || []);
     setVisibility(post.visibility || 'public');
-  }, [post]);
+  }
 
   const addHashtag = (tag: string) => {
     const formattedTag = tag.startsWith('#') ? tag : `#${tag}`;

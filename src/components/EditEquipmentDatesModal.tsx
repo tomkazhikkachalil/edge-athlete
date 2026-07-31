@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { X, CalendarDays } from 'lucide-react';
 import { useBodyScrollLock } from '@/hooks/useBodyScrollLock';
 import { useToast } from './Toast';
@@ -34,12 +34,17 @@ export default function EditEquipmentDatesModal({
 
   useBodyScrollLock(isOpen);
 
-  useEffect(() => {
-    if (!isOpen || !item) return;
-    setAcquiredOn(item.acquired_on ?? '');
-    setRetiredOn(item.retired_on ?? '');
-    setError('');
-  }, [isOpen, item]);
+  // Seed the fields when the modal opens or the item changes — state
+  // synchronisation, so it happens during render, not in an effect.
+  const [synced, setSynced] = useState({ isOpen, item });
+  if (synced.isOpen !== isOpen || synced.item !== item) {
+    setSynced({ isOpen, item });
+    if (isOpen && item) {
+      setAcquiredOn(item.acquired_on ?? '');
+      setRetiredOn(item.retired_on ?? '');
+      setError('');
+    }
+  }
 
   if (!isOpen || !item) return null;
 
