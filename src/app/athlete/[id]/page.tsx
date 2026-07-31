@@ -36,10 +36,13 @@ export default function AthleteProfilePage() {
   // Without this reader every shared post link just showed the profile.
   const [deepLinkPostId, setDeepLinkPostId] = useState<string | null>(null);
 
-  useEffect(() => {
+  // Reading the query string is synchronisation, not a side effect.
+  const [syncedParams, setSyncedParams] = useState(searchParams);
+  if (syncedParams !== searchParams) {
+    setSyncedParams(searchParams);
     const postParam = searchParams.get('post');
     if (postParam) setDeepLinkPostId(postParam);
-  }, [searchParams]);
+  }
 
   // Sport Highlights card click → filter media + open the sport's latest
   // post (reuses the deep-link modal below; privacy is server-side in

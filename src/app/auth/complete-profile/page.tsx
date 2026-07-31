@@ -39,8 +39,10 @@ export default function CompleteProfilePage() {
   }, [user, profile, loading, initialAuthCheckComplete, router]);
 
   // Prefill names from OAuth metadata once the user is known.
-  useEffect(() => {
-    if (!user || prefilled) return;
+  // Prefill from the OAuth metadata as soon as the user is known. Render-phase
+  // synchronisation, so the empty fields never paint first; `prefilled` still
+  // guarantees it happens exactly once and never clobbers user edits.
+  if (user && !prefilled) {
     const { firstName: f, lastName: l } = deriveNamesFromMetadata(
       user.user_metadata,
       user.email
@@ -48,7 +50,7 @@ export default function CompleteProfilePage() {
     setFirstName(f);
     setLastName(l);
     setPrefilled(true);
-  }, [user, prefilled]);
+  }
 
   // Same visibility treatment as the signup form: bring errors on-screen.
   useEffect(() => {

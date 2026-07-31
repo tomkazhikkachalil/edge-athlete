@@ -60,12 +60,27 @@ export default function GolfRoundsListPage() {
     return params.toString();
   }, [holesFilter, courseSearch, sort]);
 
+  // The loading/error reset is synchronisation keyed on the same inputs that
+  // trigger the fetch; doing it during render keeps stale rows from painting
+  // while the new query is in flight.
+  const [syncedQuery, setSyncedQuery] = useState({ uid: user?.id, holesFilter, courseSearch, sort });
+  if (
+    syncedQuery.uid !== user?.id ||
+    syncedQuery.holesFilter !== holesFilter ||
+    syncedQuery.courseSearch !== courseSearch ||
+    syncedQuery.sort !== sort
+  ) {
+    setSyncedQuery({ uid: user?.id, holesFilter, courseSearch, sort });
+    if (user?.id) {
+      setLoading(true);
+      setError(null);
+    }
+  }
+
   // Initial load + reload on filter change (debounced for the text input)
   useEffect(() => {
     if (!user?.id) return;
     const seq = ++requestSeqRef.current;
-    setLoading(true);
-    setError(null);
 
     const timer = setTimeout(async () => {
       try {
