@@ -47,5 +47,9 @@
     "eslint": "^9",
     "eslint-config-next": "^16.2.12",
     "vitest": "^4.1.10"
+  },
+  "overrides": {
+    "postcss": "8.5.25",
+    "sharp": "0.35.3"
   }
 }
