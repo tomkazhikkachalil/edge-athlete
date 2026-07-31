@@ -26,6 +26,64 @@ export const LEADING_OPEN_PX = 80;
 export const COMPOSER_MIN_HEIGHT = 40;
 export const COMPOSER_MAX_HEIGHT = 120;
 
+// ── Picker geometry ─────────────────────────────────────────────────────────
+// Both pickers anchor to the TEXT FIELD, not to their trigger button, so their
+// right edge lines up with the field's and `bottom-full` tracks the field as it
+// grows. The numbers below are the budget that makes that safe in the narrowest
+// surface we ship (the 320px dock window) — they exist so widening a panel or
+// the composer's padding breaks a test rather than a user.
+
+export const EMOJI_PANEL_WIDTH_PX = 300;
+export const EMOJI_PANEL_HEIGHT_PX = 350;
+export const GIF_POPOVER_WIDTH_PX = 288; // Tailwind w-72
+/** `mb-2` between a panel's bottom and the field's top. */
+export const PICKER_GAP_PX = 8;
+
+/** The narrowest surface a composer renders in: the dock mini window (w-80). */
+export const DOCK_SURFACE_WIDTH_PX = 320;
+/** The composer's horizontal padding on each side (`px-4`). */
+export const SURFACE_PADDING_X_PX = 16;
+
+/**
+ * Does a panel of `panelWidth` fit inside a surface?
+ *
+ * The panel is a floating popover, NOT an in-flow child, so it may overhang the
+ * composer's left padding — what it must not do is leave the surface. It is
+ * right-aligned to the field's right edge, which sits one `surfacePaddingX` in
+ * from the surface's right, so it spans leftward from there:
+ *
+ *     |<-------------- surfaceWidth -------------->|
+ *     |  pad |            field             | pad  |
+ *          [========= panel =========]<-- right edge aligned to the field
+ *     ^ must not cross this edge
+ *
+ * Budget is therefore `surfaceWidth - surfacePaddingX`, counting the right
+ * padding once — not the padding box.
+ */
+export function pickerFitsSurface({
+  surfaceWidth,
+  surfacePaddingX,
+  panelWidth,
+}: {
+  surfaceWidth: number;
+  surfacePaddingX: number;
+  panelWidth: number;
+}): boolean {
+  return panelWidth <= surfaceWidth - surfacePaddingX;
+}
+
+/**
+ * Below this the GIF picker stays a bottom sheet. Matches GifPickerModal's own
+ * `sm:items-center` breakpoint, so under it we keep exactly the surface that
+ * was designed for a phone with the keyboard up — where the visible viewport is
+ * ~350px tall and a 360px popover above the composer would be off-screen.
+ */
+export const GIF_POPOVER_MIN_VIEWPORT_PX = 640;
+
+export function gifPickerPresentation(viewportWidth: number): 'popover' | 'sheet' {
+  return viewportWidth >= GIF_POPOVER_MIN_VIEWPORT_PX ? 'popover' : 'sheet';
+}
+
 export interface ComposerLeadingState {
   /** true = attachment + GIF visible; false = collapsed to the chevron. */
   leadingOpen: boolean;

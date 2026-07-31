@@ -3,11 +3,20 @@ import {
   CHEVRON_PX,
   COMPOSER_MAX_HEIGHT,
   COMPOSER_MIN_HEIGHT,
+  DOCK_SURFACE_WIDTH_PX,
+  EMOJI_PANEL_HEIGHT_PX,
+  EMOJI_PANEL_WIDTH_PX,
+  GIF_POPOVER_MIN_VIEWPORT_PX,
+  GIF_POPOVER_WIDTH_PX,
   LEADING_OPEN_PX,
+  PICKER_GAP_PX,
+  SURFACE_PADDING_X_PX,
   canSendMessage,
   composerLeadingReducer,
   composerTextareaHeight,
+  gifPickerPresentation,
   initialLeadingOpen,
+  pickerFitsSurface,
   type ComposerLeadingState,
 } from '../composer-layout';
 
@@ -94,6 +103,52 @@ describe('composerTextareaHeight', () => {
 
   it('is safe on a non-finite measurement', () => {
     expect(composerTextareaHeight(Number.NaN)).toBe(COMPOSER_MIN_HEIGHT);
+  });
+});
+
+describe('picker geometry budget', () => {
+  const dock = {
+    surfaceWidth: DOCK_SURFACE_WIDTH_PX,
+    surfacePaddingX: SURFACE_PADDING_X_PX,
+  };
+
+  it('the emoji panel fits the 320px dock window, with 4px to spare', () => {
+    // Budget is 320 - 16 = 304 (the right padding, counted once — the panel
+    // floats over the LEFT padding, it just must not leave the window).
+    expect(pickerFitsSurface({ ...dock, panelWidth: EMOJI_PANEL_WIDTH_PX })).toBe(true);
+    expect(DOCK_SURFACE_WIDTH_PX - SURFACE_PADDING_X_PX - EMOJI_PANEL_WIDTH_PX).toBe(4);
+  });
+
+  it('the GIF popover fits the same window more comfortably', () => {
+    expect(pickerFitsSurface({ ...dock, panelWidth: GIF_POPOVER_WIDTH_PX })).toBe(true);
+  });
+
+  it('rejects a panel that would leave the surface', () => {
+    // The emoji panel clears by only 4px, so this is the guard: widen the panel
+    // or the composer padding and a test fails instead of a user seeing spill.
+    expect(pickerFitsSurface({ ...dock, panelWidth: 304 })).toBe(true);
+    expect(pickerFitsSurface({ ...dock, panelWidth: 305 })).toBe(false);
+    expect(pickerFitsSurface({ ...dock, panelWidth: 320 })).toBe(false);
+  });
+
+  it('a panel needs its height plus the gap above the field', () => {
+    expect(EMOJI_PANEL_HEIGHT_PX + PICKER_GAP_PX).toBe(358);
+  });
+});
+
+describe('gifPickerPresentation', () => {
+  it('is a sheet below the sm breakpoint', () => {
+    expect(gifPickerPresentation(375)).toBe('sheet');
+    expect(gifPickerPresentation(GIF_POPOVER_MIN_VIEWPORT_PX - 1)).toBe('sheet');
+  });
+
+  it('is a popover at and above the sm breakpoint', () => {
+    expect(gifPickerPresentation(GIF_POPOVER_MIN_VIEWPORT_PX)).toBe('popover');
+    expect(gifPickerPresentation(1440)).toBe('popover');
+  });
+
+  it('defaults to the sheet for a zero/unknown width (SSR)', () => {
+    expect(gifPickerPresentation(0)).toBe('sheet');
   });
 });
 
