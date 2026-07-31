@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef, useCallback, useEffect } from 'react';
+import { useState, useRef, useCallback, useEffect, useReducer } from 'react';
 import Image from 'next/image';
 import { supabase } from '@/lib/supabase';
 import EmojiPickerButton from '@/components/EmojiPickerButton';
@@ -11,10 +11,14 @@ import { MediaEditor } from '@/components/media-editor';
 import { validateFiles } from '@/lib/media/validation';
 import { isOptimizableImageSrc } from '@/lib/media/image-src';
 import {
+  CHEVRON_PX,
   COMPOSER_MAX_HEIGHT,
   COMPOSER_MIN_HEIGHT,
+  LEADING_OPEN_PX,
   canSendMessage,
+  composerLeadingReducer,
   composerTextareaHeight,
+  initialLeadingOpen,
 } from './composer-layout';
 import { uploadPostMedia } from '@/lib/media/upload';
 import type { EditedMedia, EditorConfig, MediaAsset } from '@/lib/media/types';
@@ -44,6 +48,15 @@ const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50MB
 
 export default function MessageInput({ conversationId, currentUserId, onSend, disabled = false, replyingTo, onCancelReply, initialText, onTextChange }: Props) {
   const [text, setText] = useState(initialText ?? '');
+  // iMessage-style leading cluster. One-way latch: typing collapses it,
+  // emptying the field does NOT re-expand (see composer-layout for why).
+  // Seeded from initialText so a restored dock draft mounts already collapsed
+  // instead of flashing expand->collapse.
+  const [{ leadingOpen }, dispatchLeading] = useReducer(
+    composerLeadingReducer,
+    initialText,
+    initialLeadingOpen
+  );
   const [attachedFile, setAttachedFile] = useState<File | null>(null);
   const [attachedPreview, setAttachedPreview] = useState<string | null>(null);
   const [attachedType, setAttachedType] = useState<'image' | 'video' | null>(null);
@@ -94,6 +107,7 @@ export default function MessageInput({ conversationId, currentUserId, onSend, di
 
   const handleTextChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     setText(e.target.value);
+    dispatchLeading({ type: 'TEXT_CHANGED', text: e.target.value });
     if (e.target.value) broadcastTyping();
 
     // Auto-resize. The bounds live in composer-layout so the inline style
@@ -111,6 +125,9 @@ export default function MessageInput({ conversationId, currentUserId, onSend, di
     const pos = ta?.selectionStart ?? text.length;
     const next = text.slice(0, pos) + emoji + text.slice(pos);
     setText(next);
+    // An emoji is text: inserting one into an empty field collapses the
+    // leading cluster exactly as typing a character does.
+    dispatchLeading({ type: 'TEXT_CHANGED', text: next });
     // Restore cursor after the inserted emoji
     requestAnimationFrame(() => {
       if (ta) {
@@ -226,8 +243,10 @@ export default function MessageInput({ conversationId, currentUserId, onSend, di
       const data = await res.json();
       onSend(data.message as Message);
 
-      // Reset
+      // Reset. Send is the session boundary, so the full leading cluster
+      // comes back without the user asking for it.
       setText('');
+      dispatchLeading({ type: 'SENT' });
       removeAttachment();
       onCancelReply?.();
       if (textareaRef.current) textareaRef.current.style.height = 'auto';
@@ -347,27 +366,65 @@ export default function MessageInput({ conversationId, currentUserId, onSend, di
       )}
 
       <div className="flex items-end gap-1">
-        {/* GIF picker */}
-        <button
-          type="button"
-          onClick={() => setShowGifPicker(prev => !prev)}
-          disabled={disabled || sending}
-          className="shrink-0 p-2.5 text-gray-400 hover:text-violet-500 transition-colors disabled:opacity-40 text-xs font-bold"
-          aria-label="Send GIF"
-          title="Send a GIF"
-        >
-          GIF
-        </button>
-        {/* Attachment button */}
-        <button
-          type="button"
-          onClick={() => fileInputRef.current?.click()}
-          disabled={disabled || sending}
-          className="shrink-0 p-2.5 text-gray-400 hover:text-gray-600 transition-colors disabled:opacity-40"
-          aria-label="Attach file"
-        >
-          <i className="fas fa-paperclip text-lg"></i>
-        </button>
+        {/* Leading media cluster — ONE flex item holding two counter-animating
+            boxes, so the collapsed state has one gap-1, not two stray ones.
+            Both stay mounted and animate width between explicit px constants:
+            `auto` cannot be interpolated, and the buttons carry explicit w-10
+            because FontAwesome is an icon FONT whose glyph width differs
+            before and after load — a padding-sized button would not reliably
+            add up to LEADING_OPEN_PX on a cold cache.
+            inert + aria-hidden keeps whichever box is at zero width out of the
+            tab order and unclickable. Same idiom as the chat dock's morph. */}
+        <div className="shrink-0 flex items-end">
+          <div
+            className="overflow-hidden transition-[width,opacity] duration-200 ease-out"
+            style={{ width: leadingOpen ? 0 : CHEVRON_PX, opacity: leadingOpen ? 0 : 1 }}
+            inert={leadingOpen}
+            aria-hidden={leadingOpen}
+          >
+            <button
+              type="button"
+              onClick={() => dispatchLeading({ type: 'TOGGLE' })}
+              disabled={disabled || sending}
+              className="w-10 h-10 flex items-center justify-center text-gray-400 hover:text-violet-500 transition-colors disabled:opacity-40"
+              aria-label="Show attachment and GIF buttons"
+              title="More options"
+              aria-expanded={leadingOpen}
+            >
+              <i className="fas fa-chevron-right text-sm"></i>
+            </button>
+          </div>
+
+          <div
+            className="overflow-hidden transition-[width,opacity] duration-200 ease-out flex items-end"
+            style={{ width: leadingOpen ? LEADING_OPEN_PX : 0, opacity: leadingOpen ? 1 : 0 }}
+            inert={!leadingOpen}
+            aria-hidden={!leadingOpen}
+          >
+            {/* Attachment */}
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              disabled={disabled || sending}
+              className="w-10 h-10 shrink-0 flex items-center justify-center text-gray-400 hover:text-gray-600 transition-colors disabled:opacity-40"
+              aria-label="Attach file"
+              title="Attach a photo or video"
+            >
+              <i className="fas fa-paperclip text-lg"></i>
+            </button>
+            {/* GIF */}
+            <button
+              type="button"
+              onClick={() => setShowGifPicker(prev => !prev)}
+              disabled={disabled || sending}
+              className="w-10 h-10 shrink-0 flex items-center justify-center text-gray-400 hover:text-violet-500 transition-colors disabled:opacity-40 text-xs font-bold"
+              aria-label="Send GIF"
+              title="Send a GIF"
+            >
+              GIF
+            </button>
+          </div>
+        </div>
         {/* Text field. The wrapper is the emoji button's positioning context,
             so it must never get overflow-hidden — that would clip the picker
             panel. `pr-12` reserves the button's gutter on EVERY line, which is
