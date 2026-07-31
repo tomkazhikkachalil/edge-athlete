@@ -56,7 +56,7 @@ async function testDatabaseConnection() {
   log('\n🔌 Testing Database Connection...', 'cyan');
   
   try {
-    const { data, error } = await supabase
+    const { error } = await supabase
       .from('profiles')
       .select('count')
       .limit(1);
@@ -90,7 +90,7 @@ async function testTableStructure() {
   
   for (const table of tables) {
     try {
-      const { data, error } = await supabase
+      const { error } = await supabase
         .from(table)
         .select('*')
         .limit(1);
@@ -149,7 +149,7 @@ async function createTestUser() {
   
   try {
     // Create auth user
-    const { data: authData, error: authError } = await supabase.auth.admin
+    const { error: authError } = await supabase.auth.admin
       .createUser({
         id: testUserId,
         email: testEmail,
@@ -162,7 +162,7 @@ async function createTestUser() {
     }
     
     // Create profile
-    const { data: profileData, error: profileError } = await supabase
+    const { error: profileError } = await supabase
       .from('profiles')
       .insert({
         id: testUserId,
