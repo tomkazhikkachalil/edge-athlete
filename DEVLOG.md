@@ -1,5 +1,25 @@
 # Development Log
 
+## July 30, 2026 (deps 3) — Retire the deprecated Supabase auth-helpers
+
+`@supabase/auth-helpers-nextjs` is deprecated upstream ("Package no longer
+supported") in favour of `@supabase/ssr`. Turned out to be a pure deletion:
+**zero imports anywhere in `src/`** — the migration to `@supabase/ssr` had
+already happened (8 files use it: `middleware.ts`, `lib/supabase.ts`,
+`lib/auth-server.ts`, the auth callback and username-login/activate routes,
+and more). The package was only a declared dependency, dragging in
+`@supabase/auth-helpers-shared` and `set-cookie-parser` behind it.
+
+Removed the one line from `package.json`; both it and its private
+dependency are gone from the tree, and nothing else depended on them.
+No source changes.
+
+Verified: tsc + lint clean, 469 tests, cold `npm ci` + build (proves the
+lockfile resolves without it). Because the package is auth-adjacent even
+while unused, also re-ran the auth/session browser smoke — **12/12**:
+logged-out redirect, signed-in deep link, session surviving a refresh,
+plus realtime, images and upload. Diff is 44 deleted lines, nothing added.
+
 ## July 30, 2026 (deps 2) — nodemailer 7 → 9, then the in-range updates
 
 Two separate commits so a regression bisects cleanly.

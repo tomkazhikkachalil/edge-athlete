@@ -19,7 +19,6 @@
     "@fortawesome/fontawesome-free": "^7.2.0",
     "@hello-pangea/dnd": "^18.0.1",
     "@sentry/nextjs": "^10.68.0",
-    "@supabase/auth-helpers-nextjs": "^0.10.0",
     "@supabase/ssr": "^0.7.0",
     "@supabase/supabase-js": "^2.57.0",
     "@tailwindcss/postcss": "^4",
