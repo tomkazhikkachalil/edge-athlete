@@ -3,6 +3,8 @@
 import { useEffect, useState, useRef, useCallback } from 'react';
 import { useAuth } from '@/lib/auth';
 import { useRouter, useParams, useSearchParams } from 'next/navigation';
+import Image from 'next/image';
+import { isOptimizableImageSrc } from '@/lib/media/image-src';
 import LazyImage from '@/components/LazyImage';
 import AppHeader from '@/components/AppHeader';
 import FollowButton from '@/components/FollowButton';
@@ -313,12 +315,19 @@ export default function AthleteProfilePage() {
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 mb-6 overflow-hidden">
           {/* Cover photo (3:1; gradient until the athlete sets one) */}
           {profile.cover_url ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
-              src={profile.cover_url}
-              alt=""
-              className="w-full aspect-[3/1] max-h-64 object-cover"
-            />
+            // The 3:1 ratio moves to this wrapper so <Image fill> has a
+            // positioned parent to fill; the gradient branch keeps it inline.
+            <div className="relative w-full aspect-[3/1] max-h-64">
+              <Image
+                src={profile.cover_url}
+                alt=""
+                fill
+                priority
+                sizes="(max-width: 1280px) 100vw, 1232px"
+                className="object-cover"
+                unoptimized={!isOptimizableImageSrc(profile.cover_url)}
+              />
+            </div>
           ) : (
             <div
               className="w-full aspect-[3/1] max-h-64 bg-gradient-to-r from-violet-600 via-violet-500 to-purple-500"
