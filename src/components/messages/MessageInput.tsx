@@ -347,11 +347,6 @@ export default function MessageInput({ conversationId, currentUserId, onSend, di
       )}
 
       <div className="flex items-end gap-1">
-        {/* Emoji picker */}
-        <div className="relative shrink-0">
-          <EmojiPickerButton onEmojiSelect={handleEmojiSelect} disabled={disabled || sending} />
-        </div>
-
         {/* GIF picker */}
         <button
           type="button"
@@ -373,18 +368,35 @@ export default function MessageInput({ conversationId, currentUserId, onSend, di
         >
           <i className="fas fa-paperclip text-lg"></i>
         </button>
-        {/* Text input */}
-        <textarea
-          ref={textareaRef}
-          value={text}
-          onChange={handleTextChange}
-          onKeyDown={handleKeyDown}
-          placeholder={replyingTo ? 'Reply…' : 'Message…'}
-          rows={1}
-          disabled={disabled || sending}
-          className="flex-1 resize-none border border-gray-300 rounded-2xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500 disabled:opacity-40 overflow-hidden"
-          style={{ minHeight: COMPOSER_MIN_HEIGHT, maxHeight: COMPOSER_MAX_HEIGHT }}
-        />
+        {/* Text field. The wrapper is the emoji button's positioning context,
+            so it must never get overflow-hidden — that would clip the picker
+            panel. `pr-12` reserves the button's gutter on EVERY line, which is
+            why text can't run underneath it at any height. */}
+        <div className="relative flex-1 min-w-0">
+          <textarea
+            ref={textareaRef}
+            value={text}
+            onChange={handleTextChange}
+            onKeyDown={handleKeyDown}
+            placeholder={replyingTo ? 'Reply…' : 'Message…'}
+            rows={1}
+            disabled={disabled || sending}
+            className="w-full resize-none border border-gray-300 rounded-2xl pl-4 pr-12 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500 disabled:opacity-40 overflow-hidden block"
+            style={{ minHeight: COMPOSER_MIN_HEIGHT, maxHeight: COMPOSER_MAX_HEIGHT }}
+          />
+          {/* Emoji stays pinned inside the field's trailing edge in every
+              state — it is text entry, unlike GIF/attachments which are media
+              insertion and collapse away. bottom-0 keeps it on the LAST line
+              as the field grows; align="right" flips the 300px panel so it
+              opens inward instead of off the right edge. */}
+          <div className="absolute right-1 bottom-0">
+            <EmojiPickerButton
+              onEmojiSelect={handleEmojiSelect}
+              align="right"
+              disabled={disabled || sending}
+            />
+          </div>
+        </div>
 
         {/* Send button */}
         <button
