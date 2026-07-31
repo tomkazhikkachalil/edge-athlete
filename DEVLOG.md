@@ -1,5 +1,79 @@
 # Development Log
 
+## July 30, 2026 (deps 2) — nodemailer 7 → 9, then the in-range updates
+
+Two separate commits so a regression bisects cleanly.
+
+### Phase A — nodemailer 7 → 9 (b7a9699)
+
+Clears its six advisories, including SMTP command injection
+(GHSA-c7w3-x93f-qmm8). **Zero code changes were needed**, and the DEVLOG's
+earlier fear about this bump turned out to be overstated once the surface
+was actually measured:
+
+- Exactly ONE file imports nodemailer (`src/lib/email-service.ts`): one
+  `createTransport` with only host/port/`secure:false`/auth, ten
+  `sendMail` calls whose entire option vocabulary is
+  from/to/subject/text/html/replyTo, and one `verify()` that is dead code.
+  Return values are all discarded, so `SentMessageInfo` changes can't bite.
+- Neither breaking change applies. v9 tightened TLS validation when
+  *fetching remote content* (attachment href/path URLs, OAuth2 endpoints,
+  proxy CONNECT) — we do none of those and use plain SMTP user/pass. v8
+  renamed `NoAuth` → `ENOAUTH` — nothing matches on it. The hardening
+  around `envelope`, `raw`, `List-*`, `disableFileAccess`/`disableUrlAccess`
+  is moot: zero uses in `src/`. The calendar path emails HTML only — the
+  .ics generator is download/subscribe-feed, never a mail attachment.
+- `@types/nodemailer` 6.4 → 8.0 in step. Verified against the published
+  tarball that **nodemailer ships no `.d.ts` and has no `types` field**, so
+  the types package is still required (an exploration pass had claimed
+  otherwise).
+
+**Email has no automated coverage, no dry-run mode, and `.env.local` has
+no SMTP keys — so `npm test` proves nothing here.** The send path was
+exercised for real instead: a purpose-built local SMTP sink advertising
+AUTH (our transporter always authenticates and hardcodes `secure:false`,
+so a plain debug server won't do), dev server pointed at it, then
+`POST /api/contact` — chosen because it's the only route that hard-fails
+on mail errors and it exercises the widest option set including the sole
+`replyTo`. Result: **200**, message received with correct envelope,
+From/To/Subject, `Reply-To` preserved, and a multipart/alternative body
+carrying both text and HTML parts. Failure path re-checked with the sink
+stopped: clean 500, error logged, route and server unaffected.
+
+### Phase B — in-range updates (13a5e3c)
+
+Lockfile only; `package.json` byte-identical, so all declared ranges are
+untouched. Notable: `@supabase/supabase-js` 2.57 → **2.111** (54 minors —
+realtime and auth), `tailwindcss` + `@tailwindcss/postcss` 4.1.6 → 4.3.3,
+`react`/`react-dom` 19.1 → 19.2.8, `typescript` 5.8.3 → 5.9.3,
+`@sentry/nextjs` 10.69, `date-fns` 4.4, `eslint` 9.39.
+
+Verified against what changed, not just "the suite is green": tsc clean on
+TS 5.9, lint clean, 469 tests, cold `npm ci` + build. Browser — realtime
+smoke **12/12** (two-browser DM both directions, presence, dock mini
+thread, auth/middleware, image decoding, upload) and the widget suite
+**35/35**, which numerically compares computed colours and the flush seam
+and therefore doubles as a genuine CSS-output regression detector for the
+Tailwind bump. Feed screenshot reviewed — no visual change.
+
+Side effect worth knowing: the middleware bundle grows **137 kB → 159 kB**
+from the larger supabase-js.
+
+### Where the dependency posture now stands
+
+**8 → 4 production advisories** across both dependency passes, critical and
+nodemailer gone. The remaining 4 are all one root cause: Next pins
+`postcss` 8.4.31 exactly and `sharp` `^0.34.3`, and those two surface again
+as the `next` and `@sentry/nextjs` entries. Clearing them needs either a
+Next 16 major or npm `overrides` forcing past Next's pins — a deliberate
+decision for another day, not a drive-by. Majors still available and
+deliberately untouched: Next 16, zod 4, openai 7, eslint 10, uuid 14,
+lucide 1.x, TypeScript 7.
+
+Also noted while in here, not actioned: `@supabase/auth-helpers-nextjs`
+(0.10.0) is deprecated upstream in favour of `@supabase/ssr`, which the
+project already uses — worth retiring the old package eventually.
+
 ## July 30, 2026 (sync 2) — Maintenance checklist
 
 Run against `9b03205`, after the chat-widget flag was restored and verified
