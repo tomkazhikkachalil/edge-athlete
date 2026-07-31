@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useRef, useCallback, useEffect } from 'react';
+import Image from 'next/image';
 import { supabase } from '@/lib/supabase';
 import EmojiPickerButton from '@/components/EmojiPickerButton';
 import GifPickerModal from '@/components/GifPickerModal';
@@ -8,6 +9,7 @@ import { formatDisplayName } from '@/lib/formatters';
 import type { Message } from '@/types/messages';
 import { MediaEditor } from '@/components/media-editor';
 import { validateFiles } from '@/lib/media/validation';
+import { isOptimizableImageSrc } from '@/lib/media/image-src';
 import { uploadPostMedia } from '@/lib/media/upload';
 import type { EditedMedia, EditorConfig, MediaAsset } from '@/lib/media/types';
 
@@ -274,11 +276,16 @@ export default function MessageInput({ conversationId, currentUserId, onSend, di
             <p className="text-xs text-gray-500 truncate">{replyPreviewText}</p>
           </div>
           {replyThumbnailUrl && (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
+            // src is polymorphic — Supabase media/avatar, a Google OAuth
+            // avatar, or a Giphy gif_reaction. The guard optimizes only the
+            // first and passes the rest through untouched.
+            <Image
               src={replyThumbnailUrl}
               alt=""
+              width={40}
+              height={40}
               className="w-10 h-10 rounded object-cover shrink-0"
+              unoptimized={!isOptimizableImageSrc(replyThumbnailUrl)}
             />
           )}
           {replyingTo.type === 'video' && !replyThumbnailUrl && (
@@ -302,6 +309,9 @@ export default function MessageInput({ conversationId, currentUserId, onSend, di
       {attachedPreview && (
         <div className="mb-2 relative inline-block">
           {attachedType === 'image' ? (
+            // Raw <img>: blob: object URL (or a Giphy URL when a GIF is
+            // attached). The optimizer fetches server-side and cannot read a
+            // client-only URL; next/image force-sets unoptimized for these.
             // eslint-disable-next-line @next/next/no-img-element
             <img src={attachedPreview} alt="Attachment" className="h-16 w-16 object-cover rounded-lg border border-gray-200" />
           ) : (

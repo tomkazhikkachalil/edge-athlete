@@ -184,6 +184,10 @@ export default function MediaEditorModal({ assets: initialAssets, config, onDone
             />
           ) : (
             <div className="relative flex-1 min-h-0 flex items-center justify-center overflow-hidden">
+              {/* Raw <img>: blob: object URL the optimizer cannot fetch. The
+                  live style={{filter}} IS the preview feature, and an
+                  arbitrary user photo on a fluid stage has no honest
+                  intrinsic width/height to give <Image>. */}
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
                 src={activeUrl}
@@ -210,6 +214,8 @@ export default function MediaEditorModal({ assets: initialAssets, config, onDone
         </>
       ) : (
         <div className="flex-1 min-h-0 flex flex-col items-center justify-center gap-3 px-6">
+          {/* Raw <img>: both reasons apply — a blob: object URL the optimizer
+              cannot fetch, holding an animated GIF it would not shrink. */}
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src={activeUrl} alt="Preview" className="max-w-full max-h-[60vh] object-contain rounded-lg" />
           <p className="text-label text-white/70 text-center">

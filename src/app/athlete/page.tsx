@@ -2,6 +2,8 @@
 
 import { useEffect, useState, useRef, useCallback, createContext, useContext } from 'react';
 import dynamic from 'next/dynamic';
+import Image from 'next/image';
+import { isOptimizableImageSrc } from '@/lib/media/image-src';
 import { useAuth } from '@/lib/auth';
 import { useRouter } from 'next/navigation';
 import { AthleteService } from '@/lib/athleteService';
@@ -728,11 +730,14 @@ export default function AthleteProfilePage() {
           {/* Cover photo (3:1, cropped in the media editor; gradient until set) */}
           <div className="relative w-full aspect-[3/1] max-h-64">
             {profile?.cover_url ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img
+              <Image
                 src={profile.cover_url}
                 alt="Profile cover"
-                className="w-full h-full object-cover"
+                fill
+                priority
+                sizes="(max-width: 1280px) 100vw, 1232px"
+                className="object-cover"
+                unoptimized={!isOptimizableImageSrc(profile.cover_url)}
               />
             ) : (
               <div

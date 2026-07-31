@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import Image from 'next/image';
+import { isOptimizableImageSrc } from '@/lib/media/image-src';
 import { formatDisplayName, getInitials } from '@/lib/formatters';
 import { MAX_GUESTS } from '@/lib/calendar/events';
 
@@ -131,7 +132,14 @@ export default function GuestPicker({
               >
                 <span className="relative w-7 h-7 rounded-full overflow-hidden bg-violet-100 flex items-center justify-center shrink-0">
                   {p.avatar_url ? (
-                    <Image src={p.avatar_url} alt="" fill sizes="28px" className="object-cover" />
+                    <Image
+                      src={p.avatar_url}
+                      alt=""
+                      fill
+                      sizes="28px"
+                      className="object-cover"
+                      unoptimized={!isOptimizableImageSrc(p.avatar_url)}
+                    />
                   ) : (
                     <span className="text-[10px] font-semibold text-violet-700">{getInitials(name)}</span>
                   )}

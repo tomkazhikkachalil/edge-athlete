@@ -36,6 +36,9 @@ export default function Filmstrip({ assets, previewUrls, recipes, activeId, onSe
             {asset.kind === 'video' ? (
               <video src={url} className="w-full h-full object-cover" preload="metadata" muted />
             ) : (
+              // Raw <img>: effect-owned blob: object URL. The optimizer
+              // fetches server-side and cannot read a client-only URL —
+              // next/image force-sets unoptimized for these anyway.
               // eslint-disable-next-line @next/next/no-img-element
               <img src={url} alt="" className="w-full h-full object-cover" />
             )}

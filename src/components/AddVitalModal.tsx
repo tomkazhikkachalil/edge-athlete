@@ -490,6 +490,10 @@ export default function AddVitalModal({ isOpen, onClose, onSaved }: AddVitalModa
                     {mediaFiles.map(f => (
                       <div key={f.id} className="relative w-20 h-20 rounded-lg overflow-hidden border border-gray-200 bg-gray-100 shrink-0">
                         {f.type === 'image' ? (
+                          // Raw <img>: blob: object URL. The optimizer fetches
+                          // server-side and cannot read a client-only URL —
+                          // next/image force-sets unoptimized for these, so
+                          // <Image> would be pure overhead.
                           // eslint-disable-next-line @next/next/no-img-element
                           <img src={f.preview} alt="" className="w-full h-full object-cover" />
                         ) : (

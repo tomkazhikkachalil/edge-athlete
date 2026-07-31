@@ -1,6 +1,8 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
+import Image from 'next/image';
+import { isOptimizableImageSrc } from '@/lib/media/image-src';
 import { holePar } from '@/lib/golf/scoring';
 import {
   firstUnscoredHole,
@@ -438,8 +440,14 @@ export default function ScoreEntryModal({
             <div className="flex items-center gap-2 min-w-0">
               {activePlayer && (
                 activePlayer.avatarUrl ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img src={activePlayer.avatarUrl} alt="" className="w-7 h-7 rounded-full object-cover border-2 border-white/60 flex-shrink-0" />
+                  <Image
+                    src={activePlayer.avatarUrl}
+                    alt=""
+                    width={28}
+                    height={28}
+                    className="w-7 h-7 rounded-full object-cover border-2 border-white/60 flex-shrink-0"
+                    unoptimized={!isOptimizableImageSrc(activePlayer.avatarUrl)}
+                  />
                 ) : (
                   <span className="w-7 h-7 rounded-full bg-white/25 flex items-center justify-center text-xs font-bold flex-shrink-0">
                     {activePlayer.name.charAt(0)}
@@ -495,8 +503,14 @@ export default function ScoreEntryModal({
                   }`}
                 >
                   {p.avatarUrl ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img src={p.avatarUrl} alt="" className="w-5 h-5 rounded-full object-cover" />
+                    <Image
+                      src={p.avatarUrl}
+                      alt=""
+                      width={20}
+                      height={20}
+                      className="w-5 h-5 rounded-full object-cover"
+                      unoptimized={!isOptimizableImageSrc(p.avatarUrl)}
+                    />
                   ) : (
                     <span className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] ${active ? 'bg-white/25' : 'bg-gray-200'}`}>
                       {p.name.charAt(0)}

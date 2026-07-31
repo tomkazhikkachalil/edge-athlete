@@ -28,6 +28,9 @@ export default function FilterStrip({ imageUrl, activeFilterId, onSelect }: Filt
           onClick={() => onSelect(option.id)}
           className="flex flex-col items-center gap-1 flex-shrink-0"
         >
+          {/* Raw <img>: blob: object URL the optimizer cannot fetch, and the
+              CSS style={{filter}} below IS the preset preview — it must reach
+              the element verbatim. */}
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
             src={imageUrl}

@@ -1,5 +1,85 @@
 # Development Log
 
+## July 31, 2026 — Image optimization (the 6 that matter) + Sentry environments
+
+Branch `chore/image-optimization-sentry-env`, five commits.
+
+**Only 6 of the 18 raw `<img>` sites were worth converting.** The audit that
+prompted this counted 18 `@next/next/no-img-element` suppressions and read
+them as 18 missed optimizations. They are not:
+
+- **6 convertible** — 2 cover photos (Supabase Storage) + 4 avatar/message
+  thumbnails. Real optimizer wins, now `<Image>`.
+- **5 Giphy** — the optimizer *streams animated GIF/WebP/APNG through
+  unchanged*. `<Image>` would save zero bytes while spending a billable
+  Vercel Image Optimization transformation per source-per-size. (The
+  animation-loss fear that motivated the original raw `<img>` choice turns
+  out to be wrong — but the conclusion holds for a better reason.)
+- **7 `blob:`/`data:`** — the optimizer fetches server-side and cannot read a
+  client-only URL. `next/image` force-sets `unoptimized` for these, so
+  `<Image>` is strictly overhead plus a maintenance trap: a future reader
+  sees no `unoptimized` prop and assumes optimization is happening.
+
+The 12 keep their raw `<img>` and their `eslint-disable`, but each now
+carries the reason above it. 18 bare suppressions → 18 explained ones. Two
+sites also record what must survive verbatim: `style={{filter}}` (the live
+media-editor preview *is* that prop) and `draggable={false}` (the trim
+scrubber would otherwise hijack to a native image drag). Lint was already
+clean before and after — the rule is `"warn"` and every site suppressed it —
+so converting the 12 would have bought nothing.
+
+**Live bug found while planning: Google-OAuth avatars were already broken.**
+`deriveAvatarUrl` (`lib/oauth-profile.ts`) returns Google's `picture` URL
+verbatim and `api/auth/complete-profile` writes it to `profiles.avatar_url`.
+`lh3.googleusercontent.com` is **not** in `next.config.ts` `remotePatterns`,
+so `GuestPicker`, `EventDetailModal` and the guardian transfers page have
+been 400ing at `/_next/image` for every Google-signup user since OAuth
+shipped Jul 27. Fixed in its own commit. New `lib/media/image-src.ts`
+(`isOptimizableImageSrc`) is the shared guard — same-origin paths and
+Supabase Storage objects only — and every converted site uses it. **Not**
+touched: `OptimizedImage.tsx`'s looser `!src.includes('supabase')` heuristic
+would accept `https://evil.com/supabase`; tightening it hits ~22 files of
+consumers and deserves its own pass.
+
+**Sentry could not tell dev from prod.** All three inits gated solely on DSN
+presence with no `environment` field, so the DSN added to `.env.local` this
+session meant local errors + 10% of traces landed in the production project,
+indistinguishable from real incidents. New `lib/observability/sentry-env.ts`
+resolves `explicitEnv → vercelEnv → nodeEnv`; unrecognized strings fall
+through so a typo cannot mint a rogue environment. Traces 0.1 in
+production/preview, **0** locally. Dev stays *enabled and tagged*, not
+silently disabled — that would be the kind of hidden fix the standing
+requirements forbid, and it would block verifying Sentry locally.
+
+Two things that are easy to get wrong and are now pinned by comment + test:
+the resolver takes env values as **arguments** and never reads `process.env`
+itself (Next's DefinePlugin substitutes `process.env.X` at the *call site*;
+a module reading them internally would inline nothing in the browser build);
+and the client reads **`NEXT_PUBLIC_VERCEL_ENV`**, not `VERCEL_ENV`, because
+only `NEXT_PUBLIC_*` reaches the browser and Vercel preview builds run
+`NODE_ENV=production` — losing that value would tag every preview browser
+event as `production`. Verified in the built bundle: the call site compiles
+to `{…,vercelEnv:i.env.NEXT_PUBLIC_VERCEL_ENV,nodeEnv:"production"}` and the
+sampling ternary to `.1*("development"!==a)`.
+
+Tests **469 → 488** (45 → 47 files). tsc + lint clean, clean `npm run build`
+(dev server confirmed stopped first).
+
+**Two follow-ups still open — the code is done, these are not:**
+1. **Sentry dashboard (Tom):** scope alert rules to `environment:production`.
+   Without it events are tagged correctly but dev errors still page. This is
+   the difference between "tagged" and "actually fixed".
+2. **Confirm preview tagging on a real preview deploy.** If a preview event
+   reports `production`, Vercel's *Automatically expose System Environment
+   Variables* is off → set `NEXT_PUBLIC_SENTRY_ENVIRONMENT=preview` on the
+   Preview environment. Worth noting: `vercel env pull --environment=
+   production` did **not** list `NEXT_PUBLIC_VERCEL_ENV`, so this is a real
+   possibility, not a theoretical one.
+
+Not verified by me: the 6 conversions in a browser (no jsdom in this repo, so
+they cannot be unit-tested) — the Google-avatar render check, the cover-photo
+responsive pass, and the media-editor filter/scrub smoke are Tom's.
+
 ## July 31, 2026 (sync) — Maintenance checklist
 
 Run against `eb4f935`, closing out the three dependency passes.

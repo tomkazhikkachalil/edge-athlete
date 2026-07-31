@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Image from 'next/image';
+import { isOptimizableImageSrc } from '@/lib/media/image-src';
 import { useAuth } from '@/lib/auth';
 import BrandBar from '@/components/BrandBar';
 import { FEATURE_FLAGS } from '@/lib/features';
@@ -119,7 +120,14 @@ export default function GuardianTransfersPage() {
               <>
                 <div className="relative w-10 h-10 rounded-full overflow-hidden bg-violet-100 flex items-center justify-center shrink-0">
                   {athlete.avatar_url ? (
-                    <Image src={athlete.avatar_url} alt="" fill sizes="40px" className="object-cover" />
+                    <Image
+                      src={athlete.avatar_url}
+                      alt=""
+                      fill
+                      sizes="40px"
+                      className="object-cover"
+                      unoptimized={!isOptimizableImageSrc(athlete.avatar_url)}
+                    />
                   ) : (
                     <span className="text-sm font-semibold text-violet-700">{getInitials(name)}</span>
                   )}

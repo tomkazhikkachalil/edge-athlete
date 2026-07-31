@@ -1,6 +1,8 @@
 'use client';
 
+import Image from 'next/image';
 import { formatDisplayName } from '@/lib/formatters';
+import { isOptimizableImageSrc } from '@/lib/media/image-src';
 import type { ReplyPreview } from '@/types/messages';
 
 interface Props {
@@ -60,12 +62,15 @@ export default function QuotedReply({ replyTo, isOwn, onScrollToMessage }: Props
       className={`flex items-center gap-2 rounded-lg px-3 py-1.5 mb-1 max-w-full hover:opacity-70 transition-opacity ${barStyle}`}
     >
       {thumbnail && (
-        // eslint-disable-next-line @next/next/no-img-element
-        <img
+        // Same polymorphic src as the reply bar in MessageInput; next/image
+        // lazy-loads by default, so the explicit loading="lazy" is dropped.
+        <Image
           src={thumbnail}
           alt=""
+          width={24}
+          height={24}
           className="w-6 h-6 rounded object-cover shrink-0"
-          loading="lazy"
+          unoptimized={!isOptimizableImageSrc(thumbnail)}
         />
       )}
       <span className="text-xs truncate min-w-0">
