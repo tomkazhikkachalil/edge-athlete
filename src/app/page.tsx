@@ -11,6 +11,7 @@ import WaitlistPopup from '@/components/WaitlistPopup';
 import HandleSelector from '@/components/HandleSelector';
 import OAuthButtons from '@/components/OAuthButtons';
 import RegistrationSteps from '@/components/signup/RegistrationSteps';
+import LogoDevAttribution from '@/components/LogoDevAttribution';
 import { FEATURE_FLAGS } from '@/lib/features';
 
 export default function Home() {
@@ -698,6 +699,10 @@ export default function Home() {
           <Link href="/terms" className="hover:text-gray-700">Terms</Link>
           <Link href="/privacy" className="hover:text-gray-700">Privacy</Link>
           <Link href="/contact" className="hover:text-gray-700">Contact</Link>
+          {/* Logo.dev's free plan requires a PUBLICLY reachable credit; the
+              equipment picker that shows their logos is behind login, so the
+              verifiable copy lives here. Renders nothing without a token. */}
+          <LogoDevAttribution />
           <span>&copy; {new Date().getFullYear()} Edge Athlete</span>
         </div>
       </footer>

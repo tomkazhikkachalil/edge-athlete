@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { logoUrl } from '@/lib/logo-dev';
 
 /**
  * Brand mark for an equipment suggestion, with an initial-letter fallback.
@@ -26,8 +27,6 @@ import { useState } from 'react';
  *     clean onError, and every miss would burn an optimization request.
  */
 
-const LOGO_TOKEN = process.env.NEXT_PUBLIC_LOGO_DEV_TOKEN;
-
 interface BrandLogoProps {
   /** Brand's own domain, e.g. 'titleist.com'. Absent → letter tile. */
   domain?: string;
@@ -41,9 +40,9 @@ export default function BrandLogo({ domain, name, size = 24 }: BrandLogoProps) {
   const [failed, setFailed] = useState(false);
 
   const box = { width: size, height: size };
-  const useLogo = Boolean(LOGO_TOKEN && domain) && !failed;
+  const src = logoUrl(domain, size);
 
-  if (!useLogo) {
+  if (!src || failed) {
     return (
       <div
         style={box}
@@ -61,7 +60,7 @@ export default function BrandLogo({ domain, name, size = 24 }: BrandLogoProps) {
   return (
     // eslint-disable-next-line @next/next/no-img-element
     <img
-      src={`https://img.logo.dev/${domain}?token=${LOGO_TOKEN}&size=${size * 2}&format=png&retina=true`}
+      src={src}
       alt={name}
       width={size}
       height={size}

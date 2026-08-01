@@ -1,5 +1,47 @@
 # Development Log
 
+## August 1, 2026 — Logo.dev attribution, and the two ways it silently fails verification
+
+Prerequisite for turning brand logos on. Logo.dev's free tier requires a visible credit for
+**commercial** use, and their definition explicitly includes "startups, including pre-launch
+and pre-revenue" — so Edge Athlete owes it. Their docs were read rather than guessed at,
+which was worth doing, because the obvious implementation fails on two counts.
+
+### `rel="noopener noreferrer"` would have failed it
+
+Verification requires the link to be **passing referrer data**. The reflexive `rel` for an
+external `target="_blank"` link strips exactly that. `noopener` alone is kept — it closes
+the reverse-tabnabbing hole without removing the referrer. A test asserts no `rel` attribute
+in the component contains `noreferrer`, since the next person to "harden" that link would
+otherwise break a contractual requirement with a change that looks like an improvement.
+
+### A client-rendered credit may not count
+
+The other two conditions are that the link be on **production** and **publicly accessible
+and viewable in a browser**. The equipment picker is behind login, and their docs name that
+case directly ("on about pages — for apps behind authentication").
+
+The login page footer at `/` was the obvious public home — but `/` is a client component, so
+the credit only exists **after hydration**. Confirmed by fetching the page: absent from the
+served HTML, present in a real browser. A verifier that does not execute JavaScript would
+see nothing.
+
+So the credit also goes on `/terms`, a **server component that is statically prerendered** —
+verified by curling the built page and finding the anchor in the raw HTML. Three placements
+in total: near the logos (picker), the public footer, and the no-JS-required Terms page.
+
+Renders nothing at all when no token is configured — verified in both directions, including
+that no orphaned "Credits" heading is left behind. Crediting a service we are not using
+would be worse than not crediting it.
+
+Gate: **45 warnings / 0 errors, 628 tests (+9), clean build (109 pages).**
+
+**The token itself is still Tom's to create** — it requires a Logo.dev signup. It is a
+*publishable* key (it ships in the client bundle by design, so it is not a secret). Until it
+is set the picker shows initial-letter tiles, which is the designed fallback.
+
+---
+
 ## August 1, 2026 — Maintenance sync: the equipment stack landed in production
 
 Merged the three stacked equipment PRs into `main` in order — **#13 → #14 → #15** — and
