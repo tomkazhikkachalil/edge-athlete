@@ -209,6 +209,9 @@ export default function LiveRoundPage() {
           currentUserId={user.id}
           onClose={() => setShowFullCard(false)}
           onAddScores={entry.mode === 'score' ? openScorer : undefined}
+          // A media edit refetches in place. NOT onStatusChange, which on this
+          // page navigates away to the finished post.
+          onMediaChanged={refresh}
         />
       )}
 
