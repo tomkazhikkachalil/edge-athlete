@@ -103,10 +103,22 @@ export default function MediaTile({
 
   const boxClass = `relative overflow-hidden bg-gray-100 ${className}`;
 
-  if (!onClick) return <div className={boxClass}>{body}</div>;
+  // Stable hook for verification. Browser checks have to assert on RENDERED
+  // GEOMETRY (a crop bug is invisible to "is the image present?"), and matching
+  // on `img[src*=...]` also catches the site logo and every avatar, which
+  // produced false failures. Cheap to keep, and it documents intent.
+  const marker = { 'data-media-tile': kind };
+
+  if (!onClick) return <div className={boxClass} {...marker}>{body}</div>;
 
   return (
-    <button type="button" onClick={onClick} className={`${boxClass} block w-full`} aria-label={alt}>
+    <button
+      type="button"
+      onClick={onClick}
+      className={`${boxClass} block w-full`}
+      aria-label={alt}
+      {...marker}
+    >
       {body}
     </button>
   );

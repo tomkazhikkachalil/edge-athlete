@@ -125,6 +125,12 @@ export default function SharedRoundFullCard({
     p => p.participant.profile_id === currentUserId
   );
 
+  // The footer exists ONLY to offer scoring. Close is the header X — a second
+  // Close button in a footer was half of the two-bar stack that squeezed the
+  // scroll area, and duplicating an affordance already on screen adds nothing.
+  const canScore = !!currentUserParticipant && !!onAddScores;
+
+
   const renderScorecardTable = (holeNumbers: number[], title: string) => {
     if (holeNumbers.length === 0) return null;
 
@@ -779,31 +785,23 @@ export default function SharedRoundFullCard({
             The score itself is deliberately NOT repeated here: the leaderboard
             above already shows it per player and highlights your own row, so
             for a solo round this was the same number twice, inches apart. */}
-        <div className="shrink-0 border-t border-gray-300 p-4 bg-gray-50 safe-bottom">
-          <div className="flex items-center justify-between gap-3">
-            <div className="min-w-0 text-sm text-gray-700">
-              {currentUserParticipant && !currentUserParticipant.scores.total_score && (
-                <span className="font-bold text-gray-900">You haven&apos;t added your scores yet</span>
-              )}
-            </div>
-            <div className="flex items-center gap-2 shrink-0">
-              {currentUserParticipant && onAddScores && (
-                <button
-                  onClick={() => onAddScores(currentUserParticipant.participant.id)}
-                  className="bg-violet-600 hover:bg-violet-700 text-white font-bold py-2 px-4 rounded-lg transition-colors"
-                >
-                  {currentUserParticipant.scores.total_score ? 'Edit Scores' : 'Add Scores'}
-                </button>
-              )}
+        {canScore && (
+          <div className="shrink-0 border-t border-gray-300 p-4 bg-gray-50 safe-bottom">
+            <div className="flex items-center justify-between gap-3">
+              <div className="min-w-0 text-sm text-gray-700">
+                {!currentUserParticipant!.scores.total_score && (
+                  <span className="font-bold text-gray-900">You haven&apos;t added your scores yet</span>
+                )}
+              </div>
               <button
-                onClick={onClose}
-                className="bg-white border border-gray-300 hover:bg-gray-100 text-gray-800 font-bold py-2 px-4 rounded-lg transition-colors"
+                onClick={() => onAddScores!(currentUserParticipant!.participant.id)}
+                className="shrink-0 bg-violet-600 hover:bg-violet-700 text-white font-bold py-2 px-4 rounded-lg transition-colors"
               >
-                Close
+                {currentUserParticipant!.scores.total_score ? 'Edit Scores' : 'Add Scores'}
               </button>
             </div>
           </div>
-        </div>
+        )}
       </div>
 
       {/* Full-screen viewer. Tiles crop to fill; this contains, because
