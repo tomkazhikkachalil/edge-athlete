@@ -1,5 +1,65 @@
 # Development Log
 
+## August 1, 2026 — Equipment photo upload targeted a bucket that does not exist
+
+`EquipmentImageUpload` uploaded straight from the browser to `supabase.storage.from('media')`.
+There is no `media` bucket in this project — the buckets are `avatars`, `badges`, `uploads`
+and `consent-evidence` — so **every** equipment photo upload has been failing with
+"Bucket not found" and surfacing as a red error under the picker. Noted in passing at the
+end of the previous entry while tracing upload targets; this is the fix.
+
+### Routed instead of client-direct
+
+New `POST /api/upload/equipment`, following the cover route's pattern rather than repairing
+the direct-to-storage call: `requireAuth`, admin client, field `image`, the shared
+`ALLOWED_IMAGE_MIME` allowlist, 5MB, and a server-chosen path of
+`equipment/{userId}/{timestamp}.{ext}` in `uploads`. Going through a route moves the
+size/MIME check to where it cannot be skipped and stops the client picking its own storage
+path.
+
+It writes no DB column, which is the one way it differs from the avatar and cover routes:
+the modal holds the returned URL and saves it with the rest of the equipment row, or
+discards it on cancel. An abandoned upload is therefore a genuine orphan — and is collected
+by the storage sweep after its 48h grace, because `athlete_equipment.image_url` is already
+one of the scanned `URL_SOURCE_COLUMNS`. That was checked, not assumed.
+
+### Verified end to end against the production build, not the dev server
+
+`npm run start`, driven with a disposable authenticated user:
+
+- API (16/16): unauthenticated → **401**; no file → 400; `application/pdf` → 400; >5MB →
+  400; real PNG → **200** with the URL under `uploads/equipment/<uid>/`; file confirmed
+  present via the storage **list** API (never the CDN URL); the URL survives
+  `POST /api/equipment` and reads back verbatim through `GET /api/equipment`; the row is
+  visible to the sweep's scanned column.
+- Real UI in system Chrome (10/10): profile → Equipment → Add Equipment → file chooser →
+  media editor → upload → preview decodes (`naturalWidth > 0`, not just "an img exists") →
+  save → **tile still shows the image after a reload**.
+- Fixtures deleted afterwards and the deletion verified by service-role lookup — user gone,
+  profile gone, zero files left under the folder.
+
+Two harness traps worth remembering: the tile renders through `next/image`, so the bucket
+path arrives **URL-encoded** and a raw `includes('/uploads/equipment/')` misses it; and in
+the Add Equipment modal, brand is a searchable combobox (must be picked from its list) while
+model's placeholder names examples rather than the word "model".
+
+Gate: **45 warnings / 0 errors, 583 tests, clean build (109 pages), prod-build E2E 26/26.**
+
+### Found while verifying: the equipment catalog points almost entirely at dead URLs
+
+Probed all 126 external URLs in `src/lib/equipment-catalog.ts` — **124 are dead.** All 66
+`logo.clearbit.com` brand logos fail DNS outright (the Clearbit logo API was decommissioned),
+and every manufacturer preset image returns 403/404/429 with fabricated-looking paths
+(`dw1a2b3c4d`, `dw5e6f7g8h`, …). Only 2 Unsplash images still resolve.
+
+User-visible today: 66 broken image slots in the brand picker, ~30 failed requests per open,
+and a "Presets" feature that can never show a preset — worse, picking one would persist a
+permanently dead URL into `athlete_equipment.image_url`. Not touched here; it is a separate
+change and needs a product call on whether to re-source logos or drop them and let the
+existing fallbacks (initial-letter tile, "No preset images available") do the work.
+
+---
+
 ## August 1, 2026 — Turning the sweep cron loose, and the column that would have made it destructive
 
 Dropped `?dryRun=1` from the `vercel.json` storage-sweep cron so the weekly run actually

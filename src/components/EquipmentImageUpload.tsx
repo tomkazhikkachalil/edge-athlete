@@ -3,7 +3,6 @@
 import { useState, useRef } from 'react';
 import { Upload, X, Loader2, Image as ImageIcon } from 'lucide-react';
 import Image from 'next/image';
-import { createBrowserClient } from '@supabase/ssr';
 import { MediaEditor } from '@/components/media-editor';
 import { validateFiles } from '@/lib/media/validation';
 import type { EditedMedia, EditorConfig, MediaAsset } from '@/lib/media/types';
@@ -32,11 +31,6 @@ export default function EquipmentImageUpload({
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [showPresets, setShowPresets] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
-
-  const supabase = createBrowserClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-  );
 
   // Picked file goes through the shared media editor (square crop for
   // consistent equipment tiles) before uploading.
@@ -70,29 +64,22 @@ export default function EquipmentImageUpload({
     setUploadError(null);
 
     try {
-      // Generate unique filename
-      const fileExt = file.name.split('.').pop();
-      const fileName = `${Math.random().toString(36).substring(2)}-${Date.now()}.${fileExt}`;
-      const filePath = `equipment-images/${fileName}`;
-
-      // Upload to Supabase storage
-      const { error } = await supabase.storage
-        .from('media')
-        .upload(filePath, file, {
-          cacheControl: '3600',
-          upsert: false,
-        });
-
-      if (error) {
-        throw error;
+      // POST /api/upload/equipment — the server owns the bucket, the path and
+      // the size/MIME re-check. This used to upload straight to a bucket named
+      // `media`, which does not exist in this project, so it always failed.
+      const formData = new FormData();
+      formData.append('image', file);
+      const response = await fetch('/api/upload/equipment', {
+        method: 'POST',
+        body: formData,
+      });
+      const payload = await response.json();
+      if (!response.ok) {
+        setUploadError(payload.error || 'Failed to upload image');
+        return;
       }
 
-      // Get public URL
-      const { data: { publicUrl } } = supabase.storage
-        .from('media')
-        .getPublicUrl(filePath);
-
-      onChange(publicUrl);
+      onChange(payload.image_url);
     } catch (err) {
       console.error('Upload error:', err);
       setUploadError(err instanceof Error ? err.message : 'Failed to upload image');
