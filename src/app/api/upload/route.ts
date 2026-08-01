@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseAdmin, requireAuth } from '@/lib/auth-server';
-import { v4 as uuidv4 } from 'uuid';
 
 const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
 // Extensions derived from the validated MIME type — never from the client
@@ -49,7 +48,9 @@ export async function POST(request: NextRequest) {
     // the old `temp/` fallback was an unowned dumping ground (and userId can
     // never be absent here: requireAuth guarantees it).
     const fileExt = isImage ? ALLOWED_IMAGE_TYPES[fileType] : ALLOWED_VIDEO_TYPES[fileType];
-    const fileName = `${uuidv4()}.${fileExt}`;
+    // crypto.randomUUID is built into Node 22 (our pinned runtime) and is
+    // cryptographically random, same as uuid v4 — one less dependency.
+    const fileName = `${crypto.randomUUID()}.${fileExt}`;
     const filePath = `${userId}/${fileName}`;
     
     // Convert File to ArrayBuffer then to Buffer
