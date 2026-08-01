@@ -312,6 +312,10 @@ export interface RoundMediaItem {
   thumbnail_url?: string | null;
   /** Video length in seconds (migration 061). NULL for images. */
   duration_seconds?: number | null;
+  /** Athlete-chosen lead item for the round (migration 062). */
+  is_highlight?: boolean | null;
+  created_at?: string | null;
+  position?: number | null;
 }
 
 export interface CompleteGolfScorecard {

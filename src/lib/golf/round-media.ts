@@ -11,7 +11,12 @@ import type { RoundMediaItem } from '@/types/group-posts';
 import type { CollageItem } from '@/components/media/MediaCollage';
 
 /** A collage item that remembers which segment of the event it came from. */
-export type RoundCollageItem = CollageItem & { segment?: number | null };
+export type RoundCollageItem = CollageItem & {
+  segment?: number | null;
+  isHighlight?: boolean | null;
+  position?: number | null;
+  createdAt?: string | null;
+};
 
 /**
  * A row's segment, tolerating rows written before migration 061 (and any
@@ -49,8 +54,12 @@ export function toCollageItems(media: RoundMediaItem[] | undefined | null): Roun
       thumbnailUrl: m.thumbnail_url ?? null,
       alt: m.caption || 'Round media',
       durationSeconds: m.duration_seconds ?? null,
-      // Carried so callers can label without a second lookup.
+      // Carried so callers can label, and so the hero picker can rank,
+      // without a second lookup.
       segment: segmentOf(m),
+      isHighlight: m.is_highlight ?? false,
+      position: m.position ?? null,
+      createdAt: m.created_at ?? null,
     }));
 }
 

@@ -10,6 +10,7 @@ import { asGameFormat, calcStablefordTotal, calcMatchStatus, GAME_FORMAT_LABELS 
 import ConfirmModal from '../ConfirmModal';
 import MediaTile from '../media/MediaTile';
 import MediaGrid from '../media/MediaGrid';
+import RoundMediaManager, { RoundMediaItemControls } from './RoundMediaManager';
 import MediaCollage from '../media/MediaCollage';
 import MediaLightbox from '../media/MediaLightbox';
 import { toCollageItems, groupMediaBySegment, type RoundCollageItem } from '@/lib/golf/round-media';
@@ -142,6 +143,11 @@ export default function SharedRoundFullCard({
   // Close button in a footer was half of the two-bar stack that squeezed the
   // scroll area, and duplicating an affordance already on screen adds nothing.
   const canScore = !!currentUserParticipant && !!onAddScores;
+
+  // Curating media is for people IN the round (or its creator) — RLS enforces
+  // the same rule server-side; this just avoids showing controls that would
+  // 403. Not gated on liveness: adding after the round is the point.
+  const canManageMedia = (!!currentUserParticipant || isCreator) && !!onStatusChange;
 
   // Overview shows only the best one or two, chosen rather than sliced:
   // video first, then anything from the best-scoring hole, then the earliest.
@@ -861,6 +867,19 @@ export default function SharedRoundFullCard({
           {/* Media Tab — everything, grouped by the moment it happened in. */}
           {activeTab === 'media' && (
             <div id="round-panel-media" role="tabpanel" aria-labelledby="round-tab-media">
+              {/* Adding is allowed AFTER the round too — a photo you took on
+                  the course but never got round to attaching still knows its
+                  moment, because inferSegment suggests one from its capture
+                  time. Live capture remains the exact path. */}
+              {canManageMedia && (
+                <RoundMediaManager
+                  groupPostId={group_post.id}
+                  sportKey="golf"
+                  holeScores={currentUserParticipant?.scores.hole_scores}
+                  onChanged={() => onStatusChange?.()}
+                />
+              )}
+
               {roundMediaItems.length === 0 ? (
                 <div className="py-12 text-center text-gray-500">
                   <i className="fas fa-images text-4xl text-gray-300 mb-3 block" aria-hidden="true"></i>
@@ -884,6 +903,21 @@ export default function SharedRoundFullCard({
                         setLightboxIndex(roundMediaItems.findIndex(m => m.id === group[i].id))
                       }
                     />
+                    {canManageMedia && (
+                      <div className="mt-1 grid grid-cols-3 gap-2 sm:grid-cols-4">
+                        {group.map(item => (
+                          <RoundMediaItemControls
+                            key={item.id}
+                            groupPostId={group_post.id}
+                            mediaId={item.id}
+                            sportKey="golf"
+                            segment={item.segment ?? null}
+                            isHighlight={!!item.isHighlight}
+                            onChanged={() => onStatusChange?.()}
+                          />
+                        ))}
+                      </div>
+                    )}
                   </div>
                 ))
               )}

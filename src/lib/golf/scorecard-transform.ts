@@ -43,7 +43,10 @@ export const GROUP_SCORECARD_SELECT = `
     uploaded_by,
     caption,
     thumbnail_url,
-    duration_seconds
+    duration_seconds,
+    is_highlight,
+    created_at,
+    position
   ),
   participants:group_post_participants (
     id,
