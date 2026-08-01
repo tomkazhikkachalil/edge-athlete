@@ -30,6 +30,21 @@ Gate: **45 warnings / 0 errors, 619 tests, clean build (109 pages), 0 vulnerabil
 The lint cap stays at 45: deleting ~16 golf branches removed one warning and `BrandLogo`'s
 deliberate `<img>` added one, so the ratchet could not be lowered this time.
 
+**Found by testing production, which local testing could not have shown**
+
+The oversized-upload case returns **413 `FUNCTION_PAYLOAD_TOO_LARGE`** from Vercel's edge,
+not the route's own friendly 400 — the platform rejects the body before the function runs,
+at a limit below the route's 5MB cap. Locally the route answers 400, so this only appears
+against the real deployment.
+
+Not user-reachable through the UI (the picker validates at 5MB *before* the editor, and the
+editor re-encodes to a ≤1200px JPEG, typically a few hundred KB). The real defect it
+exposed was in the client: `await response.json()` ran unconditionally, so **any** non-JSON
+failure body — the 413's plain text, or a gateway 502/504's HTML — threw a syntax error
+that was then displayed to the athlete as the upload message. Now parsed defensively with
+a specific message for 413. The unreachable path is left unreachable; the error handling
+that sat behind it is the thing that was actually wrong.
+
 **Still outstanding, and not a bug:** `NEXT_PUBLIC_LOGO_DEV_TOKEN` is unset in Vercel, so
 the brand picker shows initial-letter tiles. That is the designed fallback, verified
 against a dead logo host. Setting the token requires a **redeploy** — `NEXT_PUBLIC_*` is
