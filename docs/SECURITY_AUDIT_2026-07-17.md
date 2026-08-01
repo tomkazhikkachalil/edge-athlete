@@ -1,72 +1,121 @@
-# Security Audit — July 17, 2026
+# Security Audit — July 17, 2026 · re-verified August 1, 2026
 
-Full sweep of all 67 API routes for auth / authorization / privacy gaps
-(RLS-bypassing admin client + missing checks). Trigger: two HIGH holes found
-during feature work (`/api/profile`, `/api/golf/stats`).
+**Route count: 67 at the original audit → 107 at re-verification.** That number is
+recorded deliberately: the reason 43 routes went unaudited for two weeks is that nobody
+could see the surface had grown. If it has moved again since, this document is out of date
+by exactly that much.
 
-## ✅ Fixed this session (10 total)
+**How to read this.** Every claim below states its *method*, because the strength of a
+finding is the strength of how it was checked:
 
-**HIGH (all were RLS-bypassing admin client + no auth):**
-- `/api/profile` GET+PUT — IDOR write + PII leak (email/phone/GPA/SAT/DOB) → `b340147`
-- `/api/golf/stats` GET — private performance data leak → `ec30cec`
-- `/api/performances` POST + `/api/performances/[id]` DELETE — IDOR write/delete → `efabbeb`
-- `/api/season-highlights` POST — IDOR upsert → `efabbeb`
-- `/api/follow` POST — forge follows as any user → `efabbeb`
-- `/api/posts/like` POST — forge likes as any user → `efabbeb`
-- `/api/upload/avatar` POST — overwrite any user's avatar → `efabbeb`
-- `/api/upload/post-media` DELETE — delete others' media → `efabbeb`
-- `/api/equipment` GET — private athletes' equipment leak → `efabbeb`
+| tag | means |
+|---|---|
+| **[anon]** | probed live with the public anon key — the bypass an attacker gets for free |
+| **[auth]** | probed live as a signed-in stranger (disposable account, non-follower, non-participant) |
+| **[code]** | read the implementation; not exercised at runtime |
+| **[test]** | pinned by an automated test that fails if it regresses |
 
-Pattern applied everywhere: `requireAuth(request)`, derive the acting profile
-from the **session** (never body/query), ownership check on mutations,
-`canViewProfile()` on cross-profile reads, `if (error instanceof Response) return error` in catch.
+---
 
-> **Staleness note (Aug 2026):** this list has not been re-verified since
-> 17 Jul 2026 and at least one open item below has since been fixed in code
-> without being struck through here. Treat unresolved entries as *needs
-> checking*, not as confirmed-live vulnerabilities.
+## ✅ Original HIGH findings — fixed July 17 (10 total)
 
-## 🟡 MEDIUM findings
+All were RLS-bypassing admin client + no auth: `/api/profile` GET+PUT (IDOR write + PII
+leak) `b340147` · `/api/golf/stats` `ec30cec` · `/api/performances` POST + `[id]` DELETE,
+`/api/season-highlights` POST, `/api/follow` POST, `/api/posts/like` POST,
+`/api/upload/avatar` POST, `/api/upload/post-media` DELETE, `/api/equipment` GET `efabbeb`.
 
-1. **`/api/suggestions` GET+POST** — takes `profileId`, returns connection
-   suggestions (fallback reveals whom a user follows) + writes dismissals for
-   an arbitrary profileId. Add `requireAuth` + `profileId === user.id`.
-2. ~~**`/api/vitals` GET** — public profile leaked private training posts~~
-   ✅ FIXED — non-owners get `.eq('visibility','public')` on training posts.
-3. **`/api/upload` POST** — explicitly allows unauthenticated uploads to
-   `temp/` (storage/cost abuse). Enforce `requireAuth`.
-   *(Aug 2026: appears already fixed — the route now calls `requireAuth` and
-   the `temp/` fallback is gone. Left listed pending a proper re-audit.)*
-4. ~~**`/api/ai/text` + `/api/ai/image` POST** — unauthenticated paid OpenAI
-   proxy (spend/abuse vector)~~ ✅ **RESOLVED PERMANENTLY (Aug 2026)** — both
-   routes were deleted outright. They were unreferenced scaffolding and
-   `OPENAI_API_KEY` was never set in Vercel; removing them also dropped the
-   `openai` dependency. No auth check to regress.
-5. **`/api/follow/stats` GET** — `currentUserId` caller-supplied/spoofable;
-   data mostly public. Derive viewer from session.
-6. **`/api/posts/[id]` GET** — returns a single post by id with no post/author
-   `visibility` gate; a private post fetched by direct id would return. Add a
-   privacy check if private-post confidentiality matters.
+Pattern applied: `requireAuth(request)`, derive the acting profile from the **session**
+(never body/query), ownership check on mutations, `canViewProfile()` on cross-profile
+reads, `if (error instanceof Response) return error` in catch.
 
-## 🔍 Postgres RPCs — verified July 17, 2026 (behavioral test vs live private profile)
+## ✅ MEDIUM findings — all four RESOLVED (re-verified Aug 1)
 
-**FOUND LEAKING — fixed at API layer (`bd1de44`):**
-- `search_profiles` — returned private profiles. `/api/search` now filters public-or-own.
-- `search_by_handle` — leaked private handle/name/avatar. `/api/handles/search` now drops private (non-own).
-- `get_profile_*_media` — returned a private profile's media to anon. `/api/profile/[id]/media` now gates on profile visibility.
+The July list carried these as open. **All four were already fixed in code**; the document
+had simply not been updated.
 
-**Still to verify / defense-in-depth (SQL — user action):**
-- The three RPCs above are patched at the API layer but STILL leak if called
-  directly or from another caller. Fix them at the source — see
-  `database/migrations/021_rpc_visibility_hardening.sql` (a starting point;
-  the actual function bodies must be reviewed in the Supabase SQL Editor,
-  since their definitions aren't in the repo).
-- `search_posts`, `check_handle_availability`, `generate_connection_suggestions` —
-  not yet behaviorally tested; verify they filter visibility.
-- `suggestions` fallback path (non-RPC) already filters `visibility='public'`.
+1. **`/api/suggestions`** — `requireAuth` + `profileId !== user.id` → 403; POST derives
+   `profileId` from the session. **[code]** **[auth]** stranger requesting another
+   profile's suggestions → **403**.
+2. **`/api/vitals`** — non-owners get `.eq('visibility','public')` on training posts. **[code]**
+3. **`/api/upload`** — `requireAuth` enforced; the anonymous `temp/` path is gone. **[code]**
+4. **`/api/ai/text` + `/api/ai/image`** — **deleted outright** (Aug 2026). Unreferenced
+   scaffolding; `OPENAI_API_KEY` was never set in Vercel. Dropped the `openai` dependency
+   too. No auth check left to regress.
+5. **`/api/follow/stats`** — viewer derived from the session; the query param is ignored. **[code]**
+6. **`/api/posts/[id]`** — private posts gated by `canViewProfile`, returning **404 not
+   403** so the response doesn't confirm the post exists. **[auth]** verified against a
+   purpose-created private post owned by a disposable user: stranger → **404**, no caption
+   in the body.
+
+## ✅ Postgres RPCs — the direct-call bypass does NOT reproduce
+
+The July audit patched three RPCs at the API layer and warned they "STILL leak if called
+directly." That was the right worry — the anon key is public, so anyone can call an RPC
+from a browser console and skip the API entirely.
+
+Tested against production with **16 profiles, 8 of them private** as ground truth
+(service-role read), calling each function directly:
+
+| RPC | **[anon]** | **[auth]** stranger |
+|---|---|---|
+| `search_by_handle` | 2 rows, **0 private** | 2 rows, **0 private** |
+| `search_profiles` | matched rows, **0 private** | 1 row, **0 private** |
+| `search_posts` | 4 rows, **0 private** | 4 rows, **0 private** |
+| `generate_connection_suggestions` (arbitrary `p_user_profile_id`) | 8 rows, **0 private** | 8 rows, **0 private** |
+| `get_profile_media_counts` (private target, null viewer) | all-zero | — |
+| `check_handle_availability` | availability only, no PII | — |
+
+**Caveat, stated plainly:** this is behavioural evidence, not a source review. The function
+bodies are not in the repo, so *why* they filter correctly has not been read — only *that*
+they do, on this data, today. A reviewer with Supabase SQL Editor access should still read
+`search_profiles`, `search_by_handle` and `get_profile_*_media` to confirm the filter is in
+the function rather than incidental to current rows.
+
+## ✅ Routes added after the original audit (43) — first review Aug 1
+
+Includes the most sensitive surfaces in the product: guardian (minors' data, credentials,
+consent), admin, cron, transfers, invites, and a token-addressed public calendar feed.
+
+- **admin ×5** — all `requireAdmin`. **[test]** fail-closed contract pinned in
+  `src/lib/__tests__/admin-allowlist.test.ts`; **[auth]** stranger → 403 on
+  `/api/admin/users`, `/api/admin/reports`, `/api/admin/storage-sweep`.
+- **cron ×4** — all verify `CRON_SECRET`. **[auth]** `/api/cron/daily` without the secret → 401.
+- **guardian ×5 + transfers ×2** — all use `getProfileRole(user.id, profileId)`, real
+  authorization not just authentication. **[test]** the role × action matrix is exhaustively
+  covered in `profile-roles.test.ts`. **[auth]** stranger → 404 on `DELETE
+  /api/guardian/athletes/<id>`, `GET .../consent`, `POST .../credentials`, and the target
+  profile was confirmed **intact** after the destructive attempt.
+- **capability tokens** (`invites/[token]`, `calendar/feed/[token]`) — **[code]**
+  `randomBytes(32).toString('base64url')`, **sha256 at rest**, raw value shown once.
+  **[auth]** bogus token → 404 on both.
+- **`auth/username-login`** — **[code]** uniform `Invalid username or password` (no account
+  enumeration), IP+username rate limited, hard-rejects non-supervised profiles, behind
+  `FEATURE_GUARDIAN_PROFILES`.
+
+## 🟡 Accepted risk — open, with rationale
+
+**`/api/profile/[profileId]/active-sports`** — admin client, no auth. Reveals *which sports*
+a profile plays, including a private one. The route header argues sport keys are not
+sensitive and the endpoint returns no post content, counts or dates. That is defensible for
+this product, so it is **accepted, not fixed** — recorded here so the decision is visible
+rather than looking like an oversight. Revisit if sport participation ever becomes
+inferable-sensitive (e.g. a sport implying a protected characteristic).
 
 ## 🟢 Confirmed OK
-Notifications (all), messages (all), comments, posts CRUD, tags, sport-settings,
-account/delete, privacy/check, golf scorecards/group-posts (cookie RLS client),
-and intentionally-public routes (`/api/public/profile`, `/api/explore`,
-`/api/search`, waitlist, signup) that return only public data.
+Notifications, messages, comments, posts CRUD, tags, sport-settings, account/delete,
+privacy/check, golf scorecards/group-posts (cookie RLS client), and intentionally-public
+routes (`/api/public/profile`, `/api/explore`, `/api/search`, waitlist, signup, health)
+that return only public data.
+
+---
+
+## Re-running this
+
+The **[anon]** and **[auth]** probes are reproducible: create a disposable victim
+(auth user **plus** an explicit `profiles` row — `createUser` alone does not make one, and
+probing a non-existent profile passes vacuously) and a disposable stranger, mint a session,
+probe, then delete both and confirm deletion by service-role lookup rather than trusting
+the delete's status code.
+
+**Nothing in this pass required a code fix.** Working auth code was left alone; the only
+source change was extracting `isAdminEmail` so its fail-closed behaviour could be tested.
