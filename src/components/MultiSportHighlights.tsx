@@ -6,6 +6,8 @@ import { PLACEHOLDERS } from '@/lib/config';
 import { COPY } from '@/lib/copy';
 import { getSportColorClasses, getNeutralColorClasses, cssClasses } from '@/lib/design-tokens';
 import YearSelect from './filters/YearSelect';
+import SportSettingsRow from './SportSettingsRow';
+import type { SettingsDisplayItem } from '@/lib/sports/settings-schemas';
 
 interface HighlightTile {
   label: string;
@@ -27,6 +29,8 @@ export default function MultiSportHighlights({ profileId, onSportClick }: MultiS
   const [selectedYear, setSelectedYear] = useState<number | null>(null);
   const [availableYears, setAvailableYears] = useState<number[]>([]);
   const [refetching, setRefetching] = useState(false);
+  // Declared per-sport details, keyed by sport key. Absent = nothing to show.
+  const [sportSettings, setSportSettings] = useState<Record<string, SettingsDisplayItem[]>>({});
   // Guard against out-of-order responses when the year toggles quickly
   const requestSeqRef = useRef(0);
   const lastFetchedYearRef = useRef<number | null>(null);
@@ -115,6 +119,35 @@ export default function MultiSportHighlights({ profileId, onSportClick }: MultiS
       loadHighlights();
     }
   }, [profileId, loadTiles]);
+
+  // The athlete's declared per-sport details, fetched INDEPENDENTLY of the
+  // tiles above. Deliberately not folded into that Promise.all and
+  // deliberately not gating `loading`: settings are decoration, so a slow or
+  // failed fetch here must never delay or blank the highlight cards. Not
+  // year-scoped either, so the year effect below leaves it alone.
+  useEffect(() => {
+    if (!profileId) return;
+    let cancelled = false;
+
+    const loadSportSettings = async () => {
+      try {
+        // credentials so an accepted follower's cookies reach the privacy gate.
+        const res = await fetch(`/api/profile/${profileId}/sport-settings`, {
+          credentials: 'include',
+        });
+        if (!res.ok) return; // 403 on a private profile is expected, not an error
+        const json = await res.json();
+        if (!cancelled) setSportSettings(json.sportSettings || {});
+      } catch {
+        // Leave the row absent; the cards stand on their own.
+      }
+    };
+
+    loadSportSettings();
+    return () => {
+      cancelled = true;
+    };
+  }, [profileId]);
 
   // Refetch tiles when the year selection changes (skips the initial
   // all-time load — lastFetchedYearRef starts at null)
@@ -205,6 +238,11 @@ export default function MultiSportHighlights({ profileId, onSportClick }: MultiS
             ))}
           </div>
         </div>
+
+        {/* Declared details. Rendered for disabled/"coming soon" sports too —
+            a stated position is exactly what makes an otherwise-empty card
+            worth reading. Renders nothing when the athlete declared nothing. */}
+        <SportSettingsRow items={sportSettings[sportKey] ?? []} />
 
         {/* Decorative Footer */}
         <div className={cssClasses.LAYOUT.CARD_FOOTER}>
