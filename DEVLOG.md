@@ -1,5 +1,57 @@
 # Development Log
 
+## August 1, 2026 — Maintenance sync: the equipment stack landed in production
+
+Merged the three stacked equipment PRs into `main` in order — **#13 → #14 → #15** — and
+deployed. Each had to have its base retargeted to `main` after its parent merged, since
+GitHub only auto-retargets when the base branch is deleted and these were kept.
+
+Before merging, `main`'s tree was compared against the exact commit the browser tests ran
+on: `git diff feat/equipment-catalog-multisport main` came back **empty**. What deployed
+is byte-for-byte what was verified, not a re-resolved approximation of it.
+
+**What went live**
+
+- `POST /api/upload/equipment` — equipment photo upload had been targeting `media`, a
+  bucket that does not exist, so it failed for **every** user since it was written.
+- The catalog's 124 dead external URLs are gone; the brand picker no longer renders 66
+  broken images or fires ~30 doomed requests per open.
+- Brand suggestions, per-category spec fields and free-text entry now work for **all six**
+  enabled sports rather than golf alone.
+
+**Housekeeping**
+
+`mediabunny` 1.52.1 → 1.52.2, the only in-range patch available. The other four drifting
+packages are majors and stay put: `@supabase/ssr` 0.7 → 0.12, `@types/node` 22 → 26, and
+`eslint` 9 → 10 / `typescript` 6 → 7, the last two already recorded here as blocked by the
+ecosystem. Nothing was forcing an upgrade — **0 advisories**, prod and full.
+
+Gate: **45 warnings / 0 errors, 619 tests, clean build (109 pages), 0 vulnerabilities.**
+The lint cap stays at 45: deleting ~16 golf branches removed one warning and `BrandLogo`'s
+deliberate `<img>` added one, so the ratchet could not be lowered this time.
+
+**Found by testing production, which local testing could not have shown**
+
+The oversized-upload case returns **413 `FUNCTION_PAYLOAD_TOO_LARGE`** from Vercel's edge,
+not the route's own friendly 400 — the platform rejects the body before the function runs,
+at a limit below the route's 5MB cap. Locally the route answers 400, so this only appears
+against the real deployment.
+
+Not user-reachable through the UI (the picker validates at 5MB *before* the editor, and the
+editor re-encodes to a ≤1200px JPEG, typically a few hundred KB). The real defect it
+exposed was in the client: `await response.json()` ran unconditionally, so **any** non-JSON
+failure body — the 413's plain text, or a gateway 502/504's HTML — threw a syntax error
+that was then displayed to the athlete as the upload message. Now parsed defensively with
+a specific message for 413. The unreachable path is left unreachable; the error handling
+that sat behind it is the thing that was actually wrong.
+
+**Still outstanding, and not a bug:** `NEXT_PUBLIC_LOGO_DEV_TOKEN` is unset in Vercel, so
+the brand picker shows initial-letter tiles. That is the designed fallback, verified
+against a dead logo host. Setting the token requires a **redeploy** — `NEXT_PUBLIC_*` is
+inlined at build time.
+
+---
+
 ## August 1, 2026 — The equipment tab serves six sports; its catalog served one
 
 The Equipment tab has accepted gear for seven options (General + golf, ice hockey,

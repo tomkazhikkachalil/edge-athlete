@@ -68,13 +68,23 @@ export default function EquipmentImageUpload({
         method: 'POST',
         body: formData,
       });
-      const payload = await response.json();
+      // Not every failure comes back as JSON. Vercel rejects an oversized body
+      // at the platform edge with plain-text "Request Entity Too Large" before
+      // the route runs at all (verified against production), and gateway
+      // errors arrive as HTML. Parsing unconditionally turned those into a
+      // JSON syntax error shown to the athlete as the upload message.
+      const payload = await response.json().catch(() => null);
       if (!response.ok) {
-        setUploadError(payload.error || 'Failed to upload image');
+        setUploadError(
+          payload?.error ||
+            (response.status === 413
+              ? 'That image is too large to upload. Please pick a smaller one.'
+              : 'Failed to upload image')
+        );
         return;
       }
 
-      onChange(payload.image_url);
+      onChange(payload?.image_url ?? '');
     } catch (err) {
       console.error('Upload error:', err);
       setUploadError(err instanceof Error ? err.message : 'Failed to upload image');
