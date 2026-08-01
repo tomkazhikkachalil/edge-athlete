@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import BrandBar from '@/components/BrandBar';
+import { LogoDevCredits } from '@/components/LogoDevAttribution';
 
 export const metadata = { title: 'Terms of Service — Edge Athlete' };
 
@@ -92,6 +93,13 @@ export default function TermsPage() {
               </p>
             </section>
           </div>
+
+          {/* Third-party credits. This page is a SERVER component and is
+              statically prerendered, so the Logo.dev link is present in the
+              HTML without JavaScript — the login-page footer carries the same
+              credit but only after hydration, which a verifier that does not
+              run JS would never see. Renders nothing without a token. */}
+          <LogoDevCredits />
 
           <div className="mt-10 pt-6 border-t border-gray-200 flex flex-wrap gap-4 text-sm">
             <Link href="/privacy" className="text-violet-600 hover:text-violet-700 font-medium">Privacy Policy</Link>

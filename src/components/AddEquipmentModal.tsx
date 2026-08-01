@@ -9,6 +9,8 @@ import { getBrandPlaceholder, getModelPlaceholder } from '@/lib/equipment-brands
 import { getSpecFields } from '@/lib/equipment-specs';
 import { getEquipmentCategories, getEquipmentSportOptions } from '@/lib/equipment-config';
 import BrandLogo from './BrandLogo';
+import LogoDevAttribution from './LogoDevAttribution';
+import { LOGO_DEV_ENABLED } from '@/lib/logo-dev';
 import EquipmentImageUpload from './EquipmentImageUpload';
 import { useBodyScrollLock } from '@/hooks/useBodyScrollLock';
 import { useDirtyClose } from '@/hooks/useDirtyClose';
@@ -405,6 +407,15 @@ export default function AddEquipmentModal({
                   {hasBrandCatalog
                     ? 'Pick a suggestion or type your own'
                     : 'Enter any brand name'}
+                  {/* Second required placement: "near logo displays". Gated on
+                      LOGO_DEV_ENABLED as well as the component's own guard, or
+                      the separator would dangle with no token configured. */}
+                  {hasBrandCatalog && LOGO_DEV_ENABLED && (
+                    <>
+                      {' · '}
+                      <LogoDevAttribution className="underline underline-offset-2" />
+                    </>
+                  )}
                 </p>
               </div>
 
