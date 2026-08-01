@@ -106,9 +106,17 @@ export default function AppHeader({ onCreatePost, onEditProfile }: AppHeaderProp
       : []),
     { path: '/live', label: 'Live', icon: 'fa-circle', accent: 'live' as const },
     { path: '/athlete', label: 'Profile', icon: 'fa-user' },
-    { path: '/messages', label: 'Messages', icon: 'fa-comment-alt' },
-    { path: '/app/followers', label: 'Connections', icon: 'fa-user-friends', hideOnMobile: true },
+    // `iconOnly` = reachable from the icon cluster on desktop, so the nav
+    // doesn't say it twice. They STAY in this array because the mobile drawer
+    // renders from it and, below `lg`, the drawer is the only route to them —
+    // dropping them here would make Connections unreachable on a phone.
+    // (This replaces a `hideOnMobile` flag that nothing ever read.)
+    { path: '/messages', label: 'Messages', icon: 'fa-comment-alt', iconOnly: true },
+    { path: '/app/followers', label: 'Connections', icon: 'fa-user-friends', iconOnly: true },
   ];
+
+  /** What the desktop nav shows: the places, not the tools. */
+  const desktopNavLinks = navLinks.filter(link => !link.iconOnly);
 
   // ── Sliding pill ──────────────────────────────────────────────────────────
   // One absolutely-positioned element whose transform/width come from the
@@ -125,13 +133,13 @@ export default function AppHeader({ onCreatePost, onEditProfile }: AppHeaderProp
   const [pillReady, setPillReady] = useState(lastPill !== null);
 
   const activeIndex = activeNavIndex(
-    navLinks.map(l => l.path),
+    desktopNavLinks.map(l => l.path),
     pathname,
     (path, current) => isActivePath(path) && current.length > 0
   );
 
   const measurePill = useCallback(() => {
-    const boxes: Array<ItemBox | null> = navLinks.map((_, i) => {
+    const boxes: Array<ItemBox | null> = desktopNavLinks.map((_, i) => {
       const el = itemRefs.current[i];
       return el ? { left: el.offsetLeft, width: el.offsetWidth } : null;
     });
@@ -139,7 +147,7 @@ export default function AppHeader({ onCreatePost, onEditProfile }: AppHeaderProp
     lastPill = next;
     setPill(next);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeIndex, navLinks.length]);
+  }, [activeIndex, desktopNavLinks.length]);
 
   useLayoutEffect(() => {
     measurePill();
@@ -262,7 +270,7 @@ export default function AppHeader({ onCreatePost, onEditProfile }: AppHeaderProp
                   } ${pill.visible ? 'opacity-100' : 'opacity-0'}`}
                   style={{ transform: `translateX(${pill.x}px)`, width: `${pill.width}px` }}
                 />
-                {navLinks.map((link, index) => {
+                {desktopNavLinks.map((link, index) => {
                   const active = isActivePath(link.path);
                   return (
                     <Link
@@ -301,12 +309,13 @@ export default function AppHeader({ onCreatePost, onEditProfile }: AppHeaderProp
               <MessagesBell />
               <NotificationBell />
 
-              {/* Connections lives in the nav on lg+. Below lg the nav is hidden,
-                  so it appears here — it used to render in BOTH places at once,
-                  and its `hideOnMobile` flag was never read. */}
+              {/* Connections sits with Messages and Notifications: three
+                  related destinations, one cluster. No longer breakpoint-clamped
+                  — the nav never renders it now, so this is its only home on
+                  desktop. */}
               <button
                 onClick={() => router.push('/app/followers')}
-                className="ea-icon-btn hidden sm:inline-flex items-center justify-center lg:hidden"
+                className="ea-icon-btn inline-flex items-center justify-center"
                 title="Fans & Connections"
                 aria-label="View connections"
               >

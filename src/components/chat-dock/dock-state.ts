@@ -6,6 +6,30 @@
 // where the user left it after navigation or a reload.
 
 export const DOCK_STORAGE_KEY = 'ea:chat-dock:v1';
+
+/**
+ * The height of a dock SURFACE — the expanded panel and a conversation window
+ * are the same, so their tops line up when both are open. They sit side by side
+ * (windows at right-[22rem], panel at right-4) and both are bottom-anchored, so
+ * equal totals is what "same level" means.
+ *
+ * 30rem is not arbitrary: the emoji/reaction pickers need ~350px inside the
+ * message scroller and were being clipped at 26rem. The min() keeps the whole
+ * surface on-screen on short viewports.
+ *
+ * ONE constant because these two were written independently and had drifted
+ * 51px apart.
+ */
+export const DOCK_SURFACE_HEIGHT = 'min(30rem, calc(100vh - 2rem))';
+
+/** The violet bar at the top of the panel (`h-11`). */
+export const DOCK_BAR_HEIGHT = '2.75rem';
+
+/**
+ * The panel's scrollable body: the shared surface height minus its own bar, so
+ * the panel's TOTAL matches a window exactly.
+ */
+export const DOCK_PANEL_BODY_HEIGHT = `calc(${DOCK_SURFACE_HEIGHT} - ${DOCK_BAR_HEIGHT})`;
 export const MAX_OPEN_WINDOWS = 3;
 /** px: reserved for the panel + margins; per-window footprint incl. gap. */
 const RESERVED_PX = 360;

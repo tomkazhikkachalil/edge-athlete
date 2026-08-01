@@ -8,6 +8,7 @@ import { formatDisplayName, getInitials } from '@/lib/formatters';
 import { useMessages } from '@/lib/messages';
 import { FEATURE_FLAGS } from '@/lib/features';
 import {
+  DOCK_PANEL_BODY_HEIGHT,
   dockReducer,
   initialDockState,
   isDockSuppressedPath,
@@ -319,7 +320,7 @@ export default function ChatDock() {
               the tab order and unclickable at zero height. */}
           <div
             className="overflow-hidden transition-[height,opacity] duration-200 ease-out"
-            style={{ height: open ? 'min(24rem, calc(100vh - 7rem))' : '0px', opacity: open ? 1 : 0 }}
+            style={{ height: open ? DOCK_PANEL_BODY_HEIGHT : '0px', opacity: open ? 1 : 0 }}
             inert={!open}
             aria-hidden={!open}
           >
@@ -330,10 +331,12 @@ export default function ChatDock() {
               windowIds={new Set([...state.open, ...state.minimized])}
               mode={mode}
               onModeChange={setMode}
-              onSelect={id => {
-                openWindow(id);
-                collapsePanel();
-              }}
+              // Opening a conversation deliberately LEAVES THE PANEL OPEN.
+              // It used to collapse, which meant picking a second person cost
+              // a re-open every time. The window appears beside the panel
+              // (windows are right-[22rem], the panel right-4), so there is no
+              // space conflict — the collapse was never a layout workaround.
+              onSelect={openWindow}
               onOpenWindow={openWindow}
               fetchConversations={fetchConversations}
             />

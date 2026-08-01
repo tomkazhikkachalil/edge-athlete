@@ -10,6 +10,7 @@ import { useMiniThread } from './useMiniThread';
 import { conversationIdentity, isConversationPartnerOnline } from './conversation-identity';
 import { loadDraft, saveDraft } from './drafts';
 import type { Conversation } from '@/types/messages';
+import { DOCK_SURFACE_HEIGHT } from './dock-state';
 
 // A fully working conversation in miniature: the same MessageBubble /
 // MessageInput / TypingIndicator the full page uses, the same endpoints,
@@ -56,10 +57,9 @@ export default function MiniChatWindow({
     <div
       data-testid="mini-chat-window"
       className="w-80 bg-white rounded-t-lg shadow-2xl border border-gray-200 border-b-0 flex flex-col"
-      /* 30rem gives the emoji/reaction pickers room inside the message
-         scroller (they need ~350px and were being clipped at 26rem); the
-         min() keeps the whole window on-screen on short viewports. */
-      style={{ height: 'min(30rem, calc(100vh - 2rem))' }}
+      /* Shared with the expanded panel so the two line up — see
+         DOCK_SURFACE_HEIGHT for why 30rem specifically. */
+      style={{ height: DOCK_SURFACE_HEIGHT }}
     >
       {/* Header */}
       <div className="flex items-center gap-2 px-3 py-2 bg-violet-600 text-white rounded-t-lg shrink-0">

@@ -77,16 +77,17 @@ export default function HeaderSearch() {
         onClick={() => setOpen(true)}
         aria-label="Search"
         aria-haspopup="dialog"
-        className="ea-interactive inline-flex items-center gap-2 rounded-lg border border-[color:var(--ea-hairline)] bg-white/60 py-2 pl-3 pr-2 text-sm text-gray-500 xl:w-56"
+        className="ea-interactive inline-flex items-center gap-2 rounded-lg border border-[color:var(--ea-hairline)] bg-white/60 py-2 pl-3 pr-2 text-sm text-gray-500 lg:w-64 xl:w-80"
       >
         <i className="fas fa-search text-xs" aria-hidden="true"></i>
-        {/* Label and hint appear at xl, not lg. At exactly 1024px the wide
-            field pushed the row 89px past the viewport — the same overflow the
-            nav's `lg` breakpoint comment records from last time. */}
-        <span className="hidden flex-1 text-left xl:inline">Search</span>
+        {/* Label and hint now appear at `lg`, which only became affordable
+            when Messages and Connections left the nav for the icon cluster.
+            Re-measured at exactly 1024px: that width overflowed the row by 89px
+            the last time it was widened, so it is checked, not assumed. */}
+        <span className="hidden flex-1 text-left lg:inline">Search</span>
         {/* The hint chip. Hidden below lg because there is no keyboard there
             and advertising a shortcut nobody can press is noise. */}
-        <kbd className="ml-auto hidden rounded border border-[color:var(--ea-hairline)] bg-white px-1.5 py-0.5 font-sans text-[10px] font-semibold text-gray-500 xl:inline">
+        <kbd className="ml-auto hidden rounded border border-[color:var(--ea-hairline)] bg-white px-1.5 py-0.5 font-sans text-[10px] font-semibold text-gray-500 lg:inline">
           ⌘K
         </kbd>
       </button>
