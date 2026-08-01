@@ -826,7 +826,7 @@ export default function CreatePostModal({
           showSuccess(
             sharedRoundParticipants.length > 0
               ? 'Round is LIVE! Scores stream to your group as you play. 🔴'
-              : 'Round is LIVE! Enter scores hole by hole from the card in your feed. 🔴'
+              : 'Round is LIVE! 🔴'
           );
         } else {
           showSuccess('Round posted! Participants will be notified. 🎉');
