@@ -2,7 +2,8 @@
 
 import { useMemo, useState } from 'react';
 import { formatDisplayName, getInitials } from '@/lib/formatters';
-import { classifyScore, SCORE_CELL_RING, holePar } from '@/lib/golf/scoring';
+import { classifyScore, SCORE_CELL_RING, holePar, bestHoleFor } from '@/lib/golf/scoring';
+import { pickOverviewMedia } from '@/lib/media/hero';
 import { isRoundLive, isActiveParticipant, effectiveRoundStatus } from '@/lib/golf/round-status';
 import { useBodyScrollLock } from '@/hooks/useBodyScrollLock';
 import { asGameFormat, calcStablefordTotal, calcMatchStatus, GAME_FORMAT_LABELS } from '@/lib/golf/formats';
@@ -56,19 +57,6 @@ export default function SharedRoundFullCard({
   // the round the way it was played, not the order rows happen to come back in.
   const roundMediaItems = useMemo(() => toCollageItems(scorecard.media), [scorecard.media]);
   const mediaBySegment = useMemo(() => groupMediaBySegment(roundMediaItems), [roundMediaItems]);
-  // Overview shows only the best one or two. Stage 5 replaces this slice with
-  // the highlight-aware picker; the call site does not change.
-  const overviewMedia = useMemo(() => roundMediaItems.slice(0, 2), [roundMediaItems]);
-  // Segment -> its media, for the scorecard's media band. Event-level items are
-  // excluded: they belong to no column.
-  const segmentsWithMedia = useMemo(() => {
-    const map = new Map<number, RoundCollageItem[]>();
-    for (const [segment, group] of mediaBySegment) {
-      if (segment !== null) map.set(segment, group);
-    }
-    return map;
-  }, [mediaBySegment]);
-
   const roundLive = isRoundLive(group_post);
   const isCreator = currentUserId === group_post.creator_id;
 
@@ -154,6 +142,29 @@ export default function SharedRoundFullCard({
   // Close button in a footer was half of the two-bar stack that squeezed the
   // scroll area, and duplicating an affordance already on screen adds nothing.
   const canScore = !!currentUserParticipant && !!onAddScores;
+
+  // Overview shows only the best one or two, chosen rather than sliced:
+  // video first, then anything from the best-scoring hole, then the earliest.
+  // (`is_highlight` — the athlete's explicit override — lands with migration
+  // 062; the picker already accepts it.)
+  const bestHole = useMemo(
+    () => bestHoleFor(currentUserParticipant?.scores.hole_scores, roundHoleData),
+    [currentUserParticipant, roundHoleData]
+  );
+  const overviewMedia = useMemo(
+    () => pickOverviewMedia(roundMediaItems.map(m => ({ ...m, segment: m.segment ?? null })), { bestSegment: bestHole }, 2),
+    [roundMediaItems, bestHole]
+  );
+  // Segment -> its media, for the scorecard's media band. Event-level items are
+  // excluded: they belong to no column.
+  const segmentsWithMedia = useMemo(() => {
+    const map = new Map<number, RoundCollageItem[]>();
+    for (const [segment, group] of mediaBySegment) {
+      if (segment !== null) map.set(segment, group);
+    }
+    return map;
+  }, [mediaBySegment]);
+
 
 
   const renderScorecardTable = (holeNumbers: number[], title: string) => {
