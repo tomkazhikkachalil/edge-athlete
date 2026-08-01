@@ -1,5 +1,31 @@
 # Development Log
 
+## August 1, 2026 — Brand logos are on
+
+Token set in Vercel (Production, Preview **and** Development so previews and local match),
+and a fresh production deploy cut, since `NEXT_PUBLIC_*` is inlined at build time and an
+env-var change alone would have done nothing.
+
+Validated the key against `img.logo.dev` **before** wiring it — real 96×96 PNGs for
+titleist.com, bauer.com and rawlings.com — rather than deploying and hoping.
+
+Verified live in the production picker with a disposable user: **24 logo requests, 24/24
+decoded at 96×96, zero broken images**, and the attribution rendering beside them with
+`rel="noopener"`. The credit is also in `/terms`' raw HTML, so verification can see it
+without executing JavaScript.
+
+One thing worth recording for whoever writes the next assertion: **Logo.dev answers 202,
+not just 200**, for marks it generates on demand, and those images decode perfectly well.
+A strict `every(status === 200)` check fails against a working feature.
+
+The mixed state is the designed one and is visible in production now: brands Logo.dev has a
+mark for (adidas, Bauer, Bladetech) show it; brands it doesn't (A&R Sports, Bishop) keep the
+initial-letter tile. No broken image either way.
+
+Nothing outstanding on the equipment work.
+
+---
+
 ## August 1, 2026 — Logo.dev attribution, and the two ways it silently fails verification
 
 Prerequisite for turning brand logos on. Logo.dev's free tier requires a visible credit for
