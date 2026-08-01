@@ -1,3 +1,5 @@
+import type { RoundMediaItem } from '@/types/group-posts';
+
 // ── Shared-round scorecard shape assembly ─────────────────────────────────────
 // One home for (a) the nested group_posts select and (b) the transform from
 // the raw PostgREST row to the CompleteGolfScorecard shape components expect:
@@ -35,10 +37,16 @@ export const GROUP_SCORECARD_SELECT = `
     id,
     media_url,
     media_type,
+    segment_number,
+    segment_kind,
     hole_number,
     uploaded_by,
     caption,
-    thumbnail_url
+    thumbnail_url,
+    duration_seconds,
+    is_highlight,
+    created_at,
+    position
   ),
   participants:group_post_participants (
     id,
@@ -66,7 +74,8 @@ export const GROUP_SCORECARD_SELECT = `
         strokes,
         putts,
         fairway_hit,
-        green_in_regulation
+        green_in_regulation,
+        created_at
       )
     )
   )
@@ -111,6 +120,14 @@ export function transformGroupPostToScorecard(groupData: any): any | null {
     group_post: { ...groupPostFields, last_score_activity_at: lastActivityAt },
     golf_data: golfData,
     participants: transformedParticipants,
-    media: round_media || [],
+    // Rows written before migration 061 have segment_number NULL but a real
+    // hole_number. The backfill covers existing rows; this covers the deploy
+    // window and anything written by a client that has not picked up the new
+    // field yet, so the view never silently loses a photo's hole.
+    media: (round_media || []).map((m: RoundMediaItem) => ({
+      ...m,
+      segment_number: m.segment_number ?? m.hole_number ?? null,
+      segment_kind: m.segment_kind ?? (m.hole_number != null ? 'hole' : null),
+    })),
   };
 }

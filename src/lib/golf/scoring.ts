@@ -140,3 +140,30 @@ export function calcPlayerTotals(
     eagles, birdies, pars, bogeys, doublePlus,
   };
 }
+
+/**
+ * The hole worth leading with: the best score relative to par. Golf-specific
+ * by nature, which is exactly why it lives here rather than in the hero picker
+ * — that picker takes a plain segment NUMBER, so it stays sport-agnostic and a
+ * baseball equivalent can feed it the same way.
+ *
+ * Returns null when nothing was scored, or when nothing beat par: an ordinary
+ * round has no standout hole, and picking the "least bad" one would dress up a
+ * bogey as a highlight.
+ */
+export function bestHoleFor(
+  holeScores: Array<{ hole_number: number; strokes?: number | null }> | null | undefined,
+  holeData: Parameters<typeof holePar>[1]
+): number | null {
+  if (!holeScores?.length) return null;
+
+  let best: { hole: number; diff: number } | null = null;
+  for (const h of holeScores) {
+    if (typeof h.strokes !== 'number' || h.strokes <= 0) continue;
+    const diff = h.strokes - holePar(h.hole_number, holeData);
+    // Strictly better, so ties keep the EARLIER hole and the answer is stable.
+    if (best === null || diff < best.diff) best = { hole: h.hole_number, diff };
+  }
+
+  return best && best.diff < 0 ? best.hole : null;
+}

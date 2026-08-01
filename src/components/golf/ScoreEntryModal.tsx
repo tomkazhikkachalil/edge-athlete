@@ -388,7 +388,9 @@ export default function ScoreEntryModal({
         body: JSON.stringify({
           media_url: uploadData.url,
           media_type: uploadData.type,
-          hole_number: holeNumber,
+          // Sport-agnostic since migration 061 — the server resolves what a
+          // segment means from the round's sport and writes segment_kind.
+          segment_number: holeNumber,
           thumbnail_url: thumbnailUrl,
         }),
       });

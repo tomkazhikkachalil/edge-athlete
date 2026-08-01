@@ -115,7 +115,11 @@ export default function MediaTile({
     <button
       type="button"
       onClick={onClick}
-      className={`${boxClass} block w-full`}
+      // `block` only — NOT `w-full`. A width baked in here fights any width the
+      // caller sets (the scorecard band wants a 36px tile in a table cell), and
+      // Tailwind precedence comes from stylesheet order, not class order, so
+      // the caller could not reliably win. Grid callers stretch by default.
+      className={`${boxClass} block`}
       aria-label={alt}
       {...marker}
     >

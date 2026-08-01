@@ -99,6 +99,14 @@ export interface GroupPostMedia {
   caption: string | null;
   position: number;
   created_at: string;
+  /** See RoundMediaItem — these two types describe the same table and had
+   *  already drifted apart; keep them in step. */
+  segment_number?: number | null;
+  segment_kind?: string | null;
+  /** @deprecated Superseded by `segment_number` (migration 061). */
+  hole_number?: number | null;
+  thumbnail_url?: string | null;
+  duration_seconds?: number | null;
 
   // Relations (when joined)
   uploader?: Profile;
@@ -286,11 +294,28 @@ export interface RoundMediaItem {
   id: string;
   media_url: string;
   media_type: 'image' | 'video';
+  /**
+   * Which slice of the event this belongs to — hole, inning, quarter, set,
+   * lap. NULL = event-level. See src/lib/sports/segment-schemas.ts.
+   */
+  segment_number: number | null;
+  /** What that slice is called, so a row is self-describing without a join. */
+  segment_kind?: string | null;
+  /**
+   * @deprecated Superseded by `segment_number` (migration 061). Still written
+   * for golf while both columns coexist; read `segment_number` instead.
+   */
   hole_number: number | null;
   uploaded_by: string;
   caption: string | null;
   /** Poster frame for videos (migration 060). NULL for images. */
   thumbnail_url?: string | null;
+  /** Video length in seconds (migration 061). NULL for images. */
+  duration_seconds?: number | null;
+  /** Athlete-chosen lead item for the round (migration 062). */
+  is_highlight?: boolean | null;
+  created_at?: string | null;
+  position?: number | null;
 }
 
 export interface CompleteGolfScorecard {
@@ -300,7 +325,7 @@ export interface CompleteGolfScorecard {
     participant: GroupPostParticipant & { profile: Profile };
     scores: GolfParticipantScores & { hole_scores: GolfHoleScore[] };
   }>;
-  /** Hole-tagged photos/videos taken during the round (migration 042). */
+  /** Segment-tagged photos/videos from the round (migrations 042, 061). */
   media?: RoundMediaItem[];
 }
 

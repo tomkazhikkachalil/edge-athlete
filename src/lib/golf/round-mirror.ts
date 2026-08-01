@@ -55,7 +55,8 @@ export function buildMirrorHoles(
 export interface RoundMediaInput {
   media_url: string;
   media_type: string;
-  hole_number: number | null;
+  /** Which slice of the event — hole/inning/quarter/set/lap. NULL = event-level. */
+  segment_number: number | null;
   created_at: string | null;
   thumbnail_url?: string | null;
 }
@@ -87,8 +88,11 @@ export function buildMirrorMedia(
 ): PostMediaRow[] {
   const seen = new Set(existingUrls);
   const ordered = [...roundMedia].sort((a, b) => {
-    const ah = a.hole_number ?? 0;
-    const bh = b.hole_number ?? 0;
+    // Event-level media (NULL) sorts to 0 so it LEADS the carousel — the round
+    // shot, then the round as it was played. Deliberately the opposite of the
+    // detail view's grouping, which puts "Round" last after the segments.
+    const ah = a.segment_number ?? 0;
+    const bh = b.segment_number ?? 0;
     if (ah !== bh) return ah - bh;
     return (a.created_at ?? '').localeCompare(b.created_at ?? '');
   });
@@ -131,7 +135,7 @@ export async function mirrorRoundMedia(admin: Admin, groupPostId: string): Promi
 
     const { data: roundMedia, error: mediaError } = await admin
       .from('group_post_media')
-      .select('media_url, media_type, hole_number, created_at, thumbnail_url')
+      .select('media_url, media_type, segment_number, hole_number, created_at, thumbnail_url')
       .eq('group_post_id', groupPostId);
     if (mediaError || !roundMedia || roundMedia.length === 0) return;
 
@@ -147,7 +151,12 @@ export async function mirrorRoundMedia(admin: Admin, groupPostId: string): Promi
     const startOrder =
       (existing ?? []).reduce((max, m) => Math.max(max, m.display_order ?? 0), 0) + 1;
     const rows = buildMirrorMedia(
-      roundMedia as RoundMediaInput[],
+      // Fall back to hole_number for rows written before migration 061 or by a
+      // client mid-deploy, so a photo never loses its place in the carousel.
+      (roundMedia as Array<RoundMediaInput & { hole_number?: number | null }>).map(m => ({
+        ...m,
+        segment_number: m.segment_number ?? m.hole_number ?? null,
+      })),
       (existing ?? []).map(m => m.media_url),
       startOrder
     );

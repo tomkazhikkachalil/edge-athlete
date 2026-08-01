@@ -62,7 +62,11 @@ export async function GET(
           caption,
           position,
           uploaded_by,
-          created_at
+          created_at,
+          segment_number,
+          segment_kind,
+          thumbnail_url,
+          duration_seconds
         )
       `)
       .eq('id', id)

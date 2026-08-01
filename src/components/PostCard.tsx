@@ -5,6 +5,9 @@ import { formatDistanceToNow } from 'date-fns';
 import { useRouter } from 'next/navigation';
 import { useSharedRound } from '@/hooks/useSharedRound';
 import LazyImage from './LazyImage';
+import MediaTile from './media/MediaTile';
+import MediaStatStrip from './media/MediaStatStrip';
+import { buildPostHeadline } from '@/lib/sports/post-headline';
 import ConfirmModal from './ConfirmModal';
 import CommentSection from './CommentSection';
 import SharePostModal from './SharePostModal';
@@ -156,6 +159,16 @@ function PostCard({
 
   // Resume-banner deep link: open the viewer's own score entry once, as soon
   const [showShareModal, setShowShareModal] = useState(false);
+
+  // The one number the post is "about", for the strip over the lead media.
+  // Null when there is nothing worth overlaying — an empty strip on someone's
+  // photo is worse than no strip.
+  const postHeadline = buildPostHeadline(post.sport_key, {
+    golfRound: post.golf_round,
+    statsData: post.stats_data,
+    groupScorecard: post.group_scorecard,
+    viewerId: currentUserId,
+  });
   const commentSectionRef = useRef<HTMLDivElement>(null);
 
   // Re-sync the optimistic local state when the post prop itself changes (a
@@ -472,23 +485,39 @@ function PostCard({
           onTouchStart={handleMediaTouchStart}
           onTouchEnd={handleMediaTouchEnd}
         >
-          <div className="relative w-full flex items-center justify-center">
+          {/* A FIXED 4:5 frame, with the media cropped to fill it.
+              LazyImage was handed width={600} height={600}, which it turns into
+              an inline style="width:600px;height:600px" — inline styles beat
+              the `w-full h-auto` classes beside them, so every image was forced
+              into a square box regardless of its shape. A 600x400 photo came
+              out stretched into a void, which is exactly why a round with
+              photos could read as "stats only, no media".
+
+              The frame also gives the stat strip something stable to sit on. */}
+          <div className="relative w-full aspect-[4/5] sm:aspect-square bg-gray-900">
             {post.media[currentMediaIndex].media_type === 'image' ? (
-              <LazyImage
+              <MediaTile
                 src={post.media[currentMediaIndex].media_url}
+                kind="image"
                 alt="Post media"
-                className="w-full h-auto object-cover mx-auto"
-                width={600}
-                height={600}
+                className="absolute inset-0 h-full w-full"
+                sizes="(max-width: 640px) 100vw, 600px"
               />
             ) : (
               <video
                 src={post.media[currentMediaIndex].media_url}
                 poster={post.media[currentMediaIndex].thumbnail_url ?? undefined}
-                className="w-full h-auto mx-auto"
-                style={{ maxHeight: '500px' }}
+                className="absolute inset-0 h-full w-full object-contain"
                 controls
+                playsInline
               />
+            )}
+
+            {/* Broadcast-style lower third. Only on the FIRST item — it labels
+                the post, not each photo — and only when there is a number worth
+                showing. */}
+            {postHeadline && currentMediaIndex === 0 && (
+              <MediaStatStrip headline={postHeadline} />
             )}
           </div>
 

@@ -1,14 +1,20 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerClient, getSupabaseAdmin } from '@/lib/auth-server';
 import { mirrorRoundMedia } from '@/lib/golf/round-mirror';
+import { isValidSegment, segmentSchemaFor } from '@/lib/sports/segment-schemas';
+import { resolveSportKey } from '@/lib/sports/resolve-sport-key';
 
 /**
  * POST /api/group-posts/[id]/media
  * Attach an already-uploaded photo/video to a round, optionally tagged to a
- * hole. The file itself is uploaded via /api/upload/post-media first; this
- * records the round linkage. User-scoped insert — RLS restricts to the
- * round's participants.
- * Body: { media_url, media_type: 'image'|'video', hole_number?, caption?, thumbnail_url? }
+ * SEGMENT of it (hole/inning/quarter/set/lap). The file itself is uploaded via
+ * /api/upload/post-media first; this records the linkage. User-scoped insert —
+ * RLS restricts to the round's participants.
+ *
+ * Body: { media_url, media_type: 'image'|'video', segment_number?, caption?,
+ *         thumbnail_url?, duration_seconds? }
+ * `hole_number` is still accepted as a legacy alias so a client mid-deploy
+ * keeps working.
  */
 export async function POST(
   request: NextRequest,
@@ -24,7 +30,18 @@ export async function POST(
   try {
     const { id: groupPostId } = await params;
     const body = await request.json();
-    const { media_url, media_type, hole_number, caption, thumbnail_url } = body;
+    const {
+      media_url,
+      media_type,
+      segment_number,
+      hole_number,
+      caption,
+      thumbnail_url,
+      duration_seconds,
+    } = body;
+
+    // `hole_number` is the legacy name for the same thing.
+    const rawSegment = segment_number ?? hole_number;
 
     if (!media_url || typeof media_url !== 'string') {
       return NextResponse.json({ error: 'media_url is required' }, { status: 400 });
@@ -32,13 +49,50 @@ export async function POST(
     if (media_type !== 'image' && media_type !== 'video') {
       return NextResponse.json({ error: "media_type must be 'image' or 'video'" }, { status: 400 });
     }
-    if (
-      hole_number !== undefined &&
-      hole_number !== null &&
-      (typeof hole_number !== 'number' || hole_number < 1 || hole_number > 18)
-    ) {
-      return NextResponse.json({ error: 'hole_number must be between 1 and 18' }, { status: 400 });
+    // Which sport this round is decides what a segment even means, so the
+    // lookup has to happen before validation. Merged into the status read
+    // below rather than adding a round trip.
+    const { data: round } = await supabase
+      .from('group_posts')
+      .select('status, type, post:posts!posts_group_post_id_fkey (sport_key)')
+      .eq('id', groupPostId)
+      .maybeSingle();
+
+    // group_posts.type is 'golf_round' | 'hockey_game' | …; the post's
+    // sport_key is the authoritative source when present.
+    const postSportKey = Array.isArray(round?.post)
+      ? round?.post[0]?.sport_key
+      : (round?.post as { sport_key?: string } | null | undefined)?.sport_key;
+    const sportKey =
+      resolveSportKey(postSportKey) ??
+      resolveSportKey((round?.type ?? '').replace(/_(round|game|match|session)$/, ''));
+
+    let segmentNumber: number | null = null;
+    if (rawSegment !== undefined && rawSegment !== null) {
+      if (typeof rawSegment !== 'number' || !isValidSegment(sportKey, rawSegment)) {
+        const schema = segmentSchemaFor(sportKey);
+        return NextResponse.json(
+          {
+            error: schema
+              ? `${schema.label} must be a whole number${schema.variable ? ` of at least ${schema.min}` : ` between ${schema.min} and ${schema.max}`}`
+              : 'segment_number must be a positive whole number',
+          },
+          { status: 400 }
+        );
+      }
+      segmentNumber = rawSegment;
     }
+
+    const segmentKind = segmentSchemaFor(sportKey)?.kind ?? null;
+
+    // DUAL-WRITE, conditionally. hole_number still carries its BETWEEN 1 AND 18
+    // constraint (migration 042), so writing a lap-24 there would fail the
+    // insert outright. Only golf-shaped values go to the legacy column; the
+    // contract migration drops it once no client reads it.
+    const legacyHoleNumber =
+      segmentKind === 'hole' && segmentNumber !== null && segmentNumber >= 1 && segmentNumber <= 18
+        ? segmentNumber
+        : null;
 
     const { data, error } = await supabase
       .from('group_post_media')
@@ -47,11 +101,17 @@ export async function POST(
         uploaded_by: user.id,
         media_url,
         media_type,
-        hole_number: hole_number ?? null,
+        segment_number: segmentNumber,
+        segment_kind: segmentNumber !== null ? segmentKind : null,
+        hole_number: legacyHoleNumber,
         caption: typeof caption === 'string' && caption.trim() ? caption.trim() : null,
         thumbnail_url: typeof thumbnail_url === 'string' && thumbnail_url ? thumbnail_url : null,
+        duration_seconds:
+          typeof duration_seconds === 'number' && Number.isFinite(duration_seconds) && duration_seconds > 0
+            ? Math.round(duration_seconds)
+            : null,
       })
-      .select('id, media_url, media_type, hole_number, thumbnail_url')
+      .select('id, media_url, media_type, segment_number, segment_kind, thumbnail_url, duration_seconds')
       .single();
 
     if (error) {
@@ -64,11 +124,6 @@ export async function POST(
     // already — mirror again so late-attached media still reaches the feed
     // card. mirrorRoundMedia dedupes on media_url, so this is safe to re-run.
     // Live rounds skip it: the mirror runs when they complete.
-    const { data: round } = await supabase
-      .from('group_posts')
-      .select('status')
-      .eq('id', groupPostId)
-      .maybeSingle();
     if (round?.status === 'completed') {
       await mirrorRoundMedia(getSupabaseAdmin(), groupPostId);
     }
