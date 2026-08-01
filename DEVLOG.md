@@ -1,5 +1,46 @@
 # Development Log
 
+## July 31, 2026 — Maintenance sync (live-round work shipped to production)
+
+PR #5 squash-merged to `main` (`422db29`) and deployed. The merged branch is
+deleted on both sides.
+
+**Gates, all on `main` after the merge:**
+
+| check | result |
+|---|---|
+| `tsc --noEmit` | clean |
+| `eslint .` | **45 warnings, 0 errors** — unchanged across the whole sprint |
+| `vitest run` | **559 tests / 51 files pass** (1.44s) |
+| `npm run build` | clean from a wiped `.next`; 110 static pages, **no warnings** |
+| `npm audit` | **0 vulnerabilities** — was 4 at the last sync |
+
+The advisory count reaching zero is the tail of the earlier dependency work
+(nodemailer 7→9, dropping `@supabase/auth-helpers-nextjs`, the in-range bumps)
+landing in the lockfile.
+
+**Production verified live**, not merely deployed: `/`, `/explore`, `/live` and
+`/api/health` all 200. The two new surfaces are up and behaving —
+`/live/<uuid>` renders its shell, and `GET /api/group-posts/<uuid>/scorecard`
+returns **401** unauthenticated rather than leaking a round.
+
+**Known major-version drift, deliberately not taken** — each is a breaking
+upgrade and the instruction was to break nothing:
+
+`typescript` 5.9→7.0, `eslint` 9→10, `zod` 3→4, `openai` 4→7,
+`lucide-react` 0.525→1.28, `@types/node` 22→26, `uuid` 13→14.
+
+Worth scheduling as its own sprint: zod 4 and openai 7 both touch runtime code
+paths, and eslint 10 would land on top of the flat-config migration that just
+settled.
+
+**Still outstanding, unchanged:** the browser walkthroughs for the live-round
+flow (mine to write, Tom's to run), Sentry alert rules scoped to
+`environment:production`, `.MOV`/HEVC transcoding (deferred), and the
+`auth-server.ts:42` cookie `split('=')` truncation (logged, unfixed).
+
+---
+
 ## July 31, 2026 — A live round is now a place you can go
 
 Tom: *"Going live still doesn't take me into the round. It boots me out of the
