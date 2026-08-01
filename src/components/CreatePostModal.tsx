@@ -1771,7 +1771,11 @@ export default function CreatePostModal({
               </div>
             )}
 
-            {/* Custom hashtag input */}
+            {/* Custom hashtag input.
+                The input carries min-w-0 because a flex item defaults to
+                min-width:auto and will not shrink below the input's intrinsic
+                width — without it the adjacent Add button was pushed past the
+                modal edge at 320px. */}
             <div className="flex gap-2 mb-3">
               <input
                 type="text"
@@ -1779,7 +1783,7 @@ export default function CreatePostModal({
                 onChange={(e) => setCustomHashtag(e.target.value)}
                 onKeyDown={handleCustomHashtagSubmit}
                 placeholder="Type a hashtag and press Enter"
-                className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-violet-500 focus:border-violet-500"
+                className="flex-1 min-w-0 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-violet-500 focus:border-violet-500"
                 disabled={hashtags.length >= MAX_HASHTAGS}
               />
               <button
@@ -1999,8 +2003,12 @@ export default function CreatePostModal({
           </div>
         </div>
 
-        {/* Footer */}
-        <div className="flex items-center justify-between p-6 border-t border-gray-200 bg-gray-50">
+        {/* Footer.
+            Stacks below `sm`: as a single non-wrapping row, the hint + Cancel +
+            Preview + Create Post overflowed the modal on every phone width and
+            clipped the primary submit button off the right edge (375px: the
+            "Create Post" button ran to 424px in a 375px viewport). */}
+        <div className="flex flex-col gap-3 p-4 border-t border-gray-200 bg-gray-50 sm:flex-row sm:items-center sm:justify-between sm:p-6">
           <div className="text-sm text-gray-600">
             {!isValidForSubmission() && (
               <span className="text-red-600">
@@ -2027,10 +2035,12 @@ export default function CreatePostModal({
             )}
           </div>
 
-          <div className="flex gap-3">
+          {/* Wraps on phones; each button claims an equal share of the row so
+              three actions still fit at 320px without clipping. */}
+          <div className="flex flex-wrap gap-3 w-full sm:w-auto sm:flex-nowrap">
             <button
               onClick={requestClose}
-              className="px-6 py-2 text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+              className="flex-1 min-w-[7.5rem] sm:flex-none whitespace-nowrap px-4 sm:px-6 py-2 text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
             >
               Cancel
             </button>
@@ -2038,7 +2048,7 @@ export default function CreatePostModal({
             <button
               onClick={() => setShowPreview(true)}
               disabled={!isValidForSubmission()}
-              className="px-6 py-2 text-gray-700 bg-gray-100 border border-gray-300 rounded-lg hover:bg-gray-200 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              className="flex-1 min-w-[7.5rem] sm:flex-none whitespace-nowrap px-4 sm:px-6 py-2 text-gray-700 bg-gray-100 border border-gray-300 rounded-lg hover:bg-gray-200 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
             >
               <i className="fas fa-eye mr-2"></i>
               Preview
@@ -2049,7 +2059,7 @@ export default function CreatePostModal({
                 handleSubmit();
               }}
               disabled={!isValidForSubmission() || isSubmitting}
-              className={`px-6 py-2 text-white rounded-lg disabled:opacity-50 disabled:cursor-not-allowed transition-colors ${
+              className={`flex-1 min-w-[7.5rem] sm:flex-none whitespace-nowrap px-4 sm:px-6 py-2 text-white rounded-lg disabled:opacity-50 disabled:cursor-not-allowed transition-colors ${
                 isLiveSetup ? 'bg-red-600 hover:bg-red-700' : 'bg-violet-600 hover:bg-violet-700'
               }`}
             >

@@ -1,5 +1,104 @@
 # Development Log
 
+## August 1, 2026 — Mobile responsiveness pass: the tablet had no account menu
+
+Drove the real app in system Chrome (playwright-core, localhost dev server so
+StrictMode is on) across 13 routes and a dense range of viewport widths, asserting
+geometry programmatically rather than eyeballing screenshots — then read the
+screenshots anyway, which is how two of these were confirmed.
+
+**Everything below 768px was already clean.** The responsive foundation is sound;
+what follows are the gaps it did not cover.
+
+### The one that mattered: every page overflowed 66px at exactly 768px
+
+The header switched to full desktop chrome at `md` (768px), but logo + 7 nav links +
+3 icon buttons + Post + the account menu need **~834px**. At 768px — iPad portrait,
+and the single most common tablet width — the account menu was pushed **completely
+off the right edge**, taking View Profile, Saved Posts, Settings and **Sign Out**
+with it, and the page scrolled sideways.
+
+This is the no-dead-ends rule failing on a whole device class. The breakpoint moved
+to `lg` (1024px), so 768–1023px now gets the drawer, which already carries every one
+of those destinations. Nothing was reachable at 768px before that isn't now.
+
+### The drawer itself was a dead end on short phones
+
+The drawer's list is ~840px tall and **had no scroll container**. On a 667px viewport
+— iPhone SE, the shortest phone we support — Saved Posts, Settings and **Sign Out**
+sat below the fold with nothing to scroll. A signed-in user on that device could not
+sign out.
+
+`flex-1 min-h-0 overflow-y-auto`. The `min-h-0` is load-bearing: a flex child will not
+shrink below its content height without it, so `overflow-y-auto` alone would have done
+nothing. Verified by asserting Sign Out is scrollable-to **and click-actionable** at
+320×568, 375×667 and 390×844 — not merely present in the DOM.
+
+### CreatePostModal's primary button was clipped on every phone
+
+The footer was one non-wrapping row (hint + Cancel + Preview + Create Post). At 375px
+the submit button ran to **424px in a 375px viewport**. Now stacks below `sm`, single
+row above; desktop untouched.
+
+### Two flexbox min-width traps
+
+Both the same root cause — a flex item defaults to `min-width:auto` and will not shrink
+below its content:
+
+- the hashtag input (`flex-1`, no `min-w-0`) pushed its Add button past the modal edge at 320px
+- the workout editor's date/duration inputs and the `shrink-0` Save Workout button could
+  not share a line, pushing the button ~19px past its container
+
+### Tap targets: two that were genuinely too small
+
+Most sub-40px controls measured 36–38px, which is fine. Two were not, and both were
+fixed by growing the **hit area with the visual unchanged**:
+
+- **Calendar day cells were 24×24px** — and tapping a day is *the* phone interaction for
+  the month view, since chips are hidden below `sm`. An `::after` overlay makes the whole
+  64px cell tappable below `sm` only; at `sm`+ it is removed so event chips stay clickable.
+  Proven with `elementFromPoint` at the bottom of a cell, not by reading CSS. The day
+  button also gained a real `aria-label` — it previously announced only a number.
+- **The feed composer's Photo/Video, Stats and Achievement buttons were 16px tall** (Stats
+  and Achievement are icon-only on phones, 20×16). `py-3.5 -my-3.5` takes them to 44px;
+  the negative margin cancels the padding so the row height (16px) and card height (107px)
+  are provably unchanged. Both icon-only buttons also gained accessible names.
+
+### Guardian switcher existed only on desktop
+
+`Your athletes` / Approval queue / Account transfers / Add an athlete lived **only** in the
+desktop dropdown, so they were desktop-only — and moving the nav to `lg` would have taken
+them from tablets too. Mirrored into the drawer, so the drawer is a genuine superset of the
+dropdown. Still dark in Vercel (flag unset); this is so enabling it doesn't ship desktop-only.
+
+### A testing lesson worth keeping
+
+**Mobile emulation hid a real overflow.** With `isMobile: true`, Chrome expands the layout
+viewport to fit content — `window.innerWidth` reported **323** for a requested 320px
+viewport, so `scrollWidth - innerWidth` came out to 0 and the page looked clean. The same
+page under `isMobile: false` reported the true +3px overflow and named the element. Measure
+overflow with mobile emulation **off**; use it for touch behaviour, not for layout geometry.
+
+### Scope, honestly
+
+CSS-class changes and comments only — **no logic touched**. Two things were found and
+deliberately left:
+
+- the composer's icon-only buttons are now 44px tall but still **20px wide**; widening them
+  needs the row's `gap-2` to grow first or adjacent hit areas would overlap, and that is a
+  spacing decision, not a bug fix
+- `/api/follow/stats` fires **once per suggested profile** on a repeating poll — an apparent
+  N+1 in the suggestions widget. Observed in the dev log only; not investigated.
+
+Verified: **364 route/width combinations** (13 routes × 28 widths, dense around every Tailwind
+breakpoint) with zero horizontal overflow; 15 drawer/modal scenarios across 5 viewports with
+no clipped controls; zero console, page or server errors. `npm run verify` green with every
+number unchanged — **45 warnings / 0 errors, 569 tests, clean build (108 pages)** — which is
+the point for a CSS-only change. Two disposable QA accounts created and deleted, each
+confirmed gone by service-role lookup; production back to exactly 16 profiles.
+
+---
+
 ## August 1, 2026 — Security re-verification: the audit was wrong in both directions
 
 Go-live pass over `docs/SECURITY_AUDIT_2026-07-17.md`. The document turned out to be
