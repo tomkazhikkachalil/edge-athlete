@@ -1,5 +1,87 @@
 # Development Log
 
+## July 31, 2026 — Dependency majors: four taken, two blocked by the ecosystem
+
+Seven major upgrades were outstanding. **Four landed, one was deleted rather than
+upgraded, and two are blocked by their own ecosystems** — not by risk appetite.
+
+### Taken
+
+**`uuid` 13 → removed.** One call site (the storage filename in `/api/upload`). Node 22,
+our pinned runtime, has `crypto.randomUUID()` built in and it is cryptographically random
+exactly as uuid v4 is. Removing a dependency beats upgrading one.
+
+**`zod` 3 → 4.** Small surface, but it hid a trap. `z.string().uuid()` → `z.uuid()` was
+verified against the UUID shapes Postgres and Supabase actually emit (v4, v7, nil, max,
+uppercase all still accept; a non-RFC variant still rejects) rather than assumed.
+
+`emailString` was the real hazard. The natural v4 rewrite —
+`z.email().trim().toLowerCase()` — validates the **raw** input, so it rejects
+`"  Tom@Example.COM  "`, which the zod-3 chain accepts because it normalised first. That
+is precisely the silent tightening `validation.ts`'s own header warns would 400 valid
+production traffic. The correct form keeps normalisation ahead of validation via
+`.pipe(z.email())`. The existing test caught it; a second test now pins the ordering,
+because the failure is invisible by reading. Both were proved to bite by reintroducing
+the naive form.
+
+**`lucide-react` 0.525 → 1.28.** v1 removed **all** brand icons for trademark reasons.
+Rather than guess which of 55 icons were also renamed, the upgrade went in first and
+`tsc` was asked: exactly three broke, all three brand icons, and the other 52 came
+through unrenamed.
+
+`Twitter`/`Instagram` on `/u/[username]` moved to FontAwesome `fab fa-*` — not a new
+convention, since `athlete/page.tsx` already renders those same two networks that way and
+FontAwesome is already a dependency. Both links also turned out to have **no accessible
+name** (a bare lucide `<svg>` announces nothing), so the icon is now `aria-hidden` and
+the anchor carries a real label. `Dribbble` (basketball) → `CircleDot`; volleyball had
+been pointing at `Trophy` as a placeholder and v1 ships a real `Volleyball` icon.
+
+Verified past `tsc`: no dynamic or string-keyed lucide access exists, and all 54 remaining
+icons resolve at runtime against the installed package.
+
+**`typescript` 5.9 → 6.0.3.** tsconfig needed no edits — all four headline TS 6 breaks
+were checked first and none applied (`strict` already true, `target` ES2017 not es5,
+`moduleResolution` bundler not node10, `paths` with no `baseUrl`). **Zero type errors on
+the first run.** Checked specifically because a silently-degraded linter is worse than
+none: typescript-eslint still resolves and `eslint .` still reports exactly 45 warnings
+rather than quietly finding fewer.
+
+### Blocked — and the evidence, so this isn't re-litigated
+
+**`typescript` 7.0.2.** `typescript-eslint@8.65.0` declares
+`typescript: ">=4.8.4 <6.1.0"`. TS 7 ships no stable programmatic API until 7.1, so npm
+refuses the install and forcing past the ERESOLVE crashes ESLint inside typescript-estree.
+Upgrading a compiler by switching off the linter is not an upgrade. **Revisit when 7.1
+ships.**
+
+**`eslint` 10.8.0.** Attempted, and it does not merely add findings — **it cannot run at
+all**:
+
+```
+TypeError: Error while loading rule 'react/display-name':
+contextOrFilename.getFilename is not a function
+  at eslint-plugin-react/lib/util/version.js:31
+```
+
+ESLint 10 removed the deprecated `context.getFilename()` that `eslint-plugin-react`'s
+React-version detection calls. **`eslint-plugin-react@7.37.5` is the latest release and
+its peer range ends at `^9.7`** — there is no fixed version to move to, and
+`eslint-config-next`, including its 16.3 canary, still depends on `^7.37.0`. Reverted
+cleanly; we stay on 9.39.5, which is still the `maintenance` dist-tag. **Revisit when
+eslint-plugin-react ships ESLint 10 support.**
+
+**`@types/node` 22 → 26**, unchanged and deliberate: `engines` and `.nvmrc` both say Node
+22. Types must match the runtime, or code compiles against APIs Vercel doesn't run. Bump
+alongside the runtime, never before it.
+
+**`openai` 4 → 7** is moot — the spring-clean deleted its only two consumers.
+
+Net: **six dependencies removed or upgraded, zero features lost.** `npm run verify` green
+— tsc clean, **45 warnings / 0 errors**, **561 tests** (+2), clean build (108 pages),
+**0 advisories**.
+
+---
+
 ## July 31, 2026 — Spring-clean: the map pointed at nothing
 
 Scoping the dependency sprint turned up something worse than stale dependencies.
