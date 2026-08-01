@@ -36,7 +36,7 @@
     "react-dom": "^19.0.0",
     "react-easy-crop": "^6.2.3",
     "tailwindcss": "^4",
-    "typescript": "^5",
+    "typescript": "^6.0.3",
     "zod": "^4.4.3"
   },
   "devDependencies": {
