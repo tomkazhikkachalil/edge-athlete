@@ -1,5 +1,115 @@
 # Development Log
 
+## August 1, 2026 — The top section: one interaction language, and 71px back
+
+The app worked but didn't feel *built*. Tom's diagnosis was the right one and worth
+recording because it generalises: **inconsistent hover behaviour reads as unfinished more
+than any individual element does.**
+
+### Two of the asks were already done
+
+Before writing anything: `:focus-visible` already set a 2px brand ring with a 2px offset
+globally, which is exactly what was asked for. So the focus work was *removing overrides*
+that fight it, not adding rules. And the `prefers-reduced-motion` block already zeroes
+every transition, so a transition-based pill snaps correctly for motion-sensitive users
+with no per-component code.
+
+**The radius ask needed the opposite of the obvious fix.** The `@theme` block redefines
+Tailwind's scale — `rounded-lg` is already 12px across all ~550 usages. The inconsistency
+was `rounded-md` (8px) mixed in beside it. Changing the scale would have silently
+restyled the entire app; the fix was to stop mixing. Same story on the background: pages
+already paint `bg-gray-50` and only `body` was white, so one line rather than 49.
+
+Worth stating plainly because both would have been easy to "fix" destructively.
+
+### Search collapsed into the bar
+
+Header went from ~136px to **65px**. It is also a net gain in *reach*: search previously
+existed on 5 routes, and `/explore` had **no input of its own** — it depended entirely on
+that band. It's now everywhere the header is.
+
+⌘K, Ctrl+K and `/` open it. The shortcut *rules* live in a pure tested module, because
+"does ⌘K fire while someone is typing a caption?" has a right answer worth pinning. It
+bails on text fields and while any dialog is open — `MediaLightbox` and `PostDetailModal`
+both listen on `window` for Escape and arrows without stopping propagation, so a new
+global listener has to be a careful neighbour.
+
+### The sliding pill needed a finding to work at all
+
+**Every page mounts its own `AppHeader`** — it is not in the layout — so the header
+*remounts* on navigation and component state is lost. The pill could never slide between
+routes, only be re-placed on a fresh mount, which is precisely the disappearing and
+reappearing it exists to replace.
+
+Keeping the last geometry at module level lets a new mount start where the old one ended,
+turning a remount into a slide. Verified by **polling for intermediate transform values** —
+the first check sampled once at 60ms, before the new page had even mounted, and wrongly
+reported no animation.
+
+Nav items became `<Link>` on the way through (middle-click, prefetch and `aria-current`,
+none of which existed), and `/live/[id]` finally lights up Live.
+
+### The Live dot was lying
+
+It pulsed permanently, driven by a static `accent:'live'` literal rather than data.
+Promoting it to a status chip would have made that worse, so it now reads from a shared
+`useLiveNow` over the endpoint `LiveNowStrip` already polls on `/feed`, `/explore` and
+`/live` — those pages make no extra request.
+
+### Then: nav shows places, not tools
+
+Messages already had an icon, so the nav said it twice; Connections joined it in the
+cluster. That freed room to more than double the search field (120px → 320px), and left
+the nav with the five entries that are actually *places*.
+
+**Both entries stay in `navLinks`, marked `iconOnly`** — that array also feeds the mobile
+drawer, and below `lg` the drawer is the only route to Connections. Deleting them would
+have made it unreachable on a phone, which is the failure the file already warns about
+("the drawer has to be a superset"). Live is then inserted at the computed midpoint rather
+than a fixed index, because Calendar is flag-gated: the nav is 4 items in production and 5
+locally, so a hard-coded position would centre it in one environment only.
+
+### Chat dock
+
+Selecting a conversation no longer collapses the pill. Checked first whether the collapse
+was defensive — nothing documented it, no test coupled `OPEN_WINDOW` to `CLOSE_PANEL`, and
+there was no space conflict (windows sit at `right-[22rem]`, the panel occupies 336px from
+the right, so the reserve already assumed the panel could be open).
+
+The panel and a conversation window are now one shared height constant instead of two
+numbers written independently 51px apart. The panel grew to the window, **not** the
+reverse: the window's `30rem` is a recorded regression fix — the emoji/reaction pickers
+need ~350px and were clipped at 26rem. Checked the cost at 1024×600, the shortest viewport
+the dock renders at: 119px of headroom remains, so nothing clips.
+
+### Three bugs caught by measuring rather than looking
+
+- **`.ea-icon-btn` set `display`**, which silently beat `lg:hidden` — Connections *and* the
+  hamburger stayed visible on desktop. Same class-precedence trap as `MediaTile`'s
+  `w-full` earlier the same day: precedence is stylesheet order, so a caller can never win.
+  Shared classes must not own layout properties.
+- **The search field at `lg:w-56` overflowed the row by 89px at exactly 1024px** — the same
+  failure the nav's `lg` breakpoint comment records from last time. Re-measured, not
+  assumed, when it was widened again later.
+- A reorder of the nav array could have desynced the pill, which indexes by position.
+
+### Housekeeping
+
+Deleted `SearchBar.tsx` (254 lines, zero imports) and stopped club results linking to
+`/club/[id]` — a route that does not exist, so every click was a 404, which this app's
+navigation rules forbid.
+
+Gate: **786 tests** (from 759), 45 warnings / 0 errors. Browser verification 18/18 then
+15/15 then 5/5, asserting rendered geometry rather than class names throughout.
+
+**Deferred deliberately:** the composer's inline-expand (it rewrites a 2,100-line modal),
+and `BrandBar` — the header on `/`, `/contact`, `/privacy` and the auth pages. The `ea-`
+classes cover its buttons for free but its layout is untouched, so the two bars will
+diverge slightly until it gets a pass. Also: `showSearch` is now accepted-and-ignored at
+24 call sites rather than removed, to keep the diff reviewable.
+
+---
+
 ## August 1, 2026 — Round media: attached to the moment, not piled at the bottom
 
 Shipped as **#22 → #23 → #24** (`bb31959`, `299d63d`, `3700b45`), with migrations **061**
