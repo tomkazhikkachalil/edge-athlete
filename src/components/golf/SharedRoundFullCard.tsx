@@ -13,8 +13,6 @@ import type { CompleteGolfScorecard } from '@/types/group-posts';
 interface SharedRoundFullCardProps {
   scorecard: CompleteGolfScorecard;
   currentUserId?: string;
-  /** True when the last live refresh failed — scores shown may be out of date. */
-  stale?: boolean;
   onClose: () => void;
   onAddScores?: (participantId: string) => void;
   /** Called after the creator ends the round so the parent refetches the scorecard. */
@@ -24,7 +22,6 @@ interface SharedRoundFullCardProps {
 export default function SharedRoundFullCard({
   scorecard,
   currentUserId,
-  stale = false,
   onClose,
   onAddScores,
   onStatusChange
@@ -314,8 +311,9 @@ export default function SharedRoundFullCard({
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
       <div className="bg-white rounded-lg shadow-2xl max-w-6xl w-full max-h-modal overflow-hidden flex flex-col">
-        {/* Header */}
-        <div className="bg-gradient-to-r from-green-600 to-green-700 text-white p-6">
+        {/* Header. `shrink-0` so it keeps its height and the SCROLL AREA absorbs
+            the overflow instead — without it a tall header squeezes `flex-1`. */}
+        <div className="shrink-0 bg-gradient-to-r from-green-600 to-green-700 text-white p-6">
           <div className="flex items-start justify-between">
             <div className="flex-1">
               <div className="flex items-center gap-3 mb-2 flex-wrap">
@@ -338,12 +336,11 @@ export default function SharedRoundFullCard({
                     {GAME_FORMAT_LABELS[gameFormat].toUpperCase()}
                   </span>
                 )}
-                {stale && (
-                  <span className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-amber-500 text-white text-xs font-bold rounded-full">
-                    <i className="fas fa-triangle-exclamation text-[10px]"></i>
-                    Updates paused — scores may be out of date
-                  </span>
-                )}
+                {/* The "Updates paused" chip used to live here, un-gated by
+                    status, so a FINAL round contradicted itself by claiming its
+                    scores might still change. It now renders once, on the
+                    persistent surface (QuickView / the /live page), never in
+                    this transient modal and never beside the FINAL badge. */}
               </div>
               <div className="flex items-center gap-4 text-sm font-semibold flex-wrap">
                 <span>{formattedDate}</span>
@@ -401,7 +398,7 @@ export default function SharedRoundFullCard({
         </div>
 
         {/* Tabs */}
-        <div className="border-b border-gray-300 bg-white">
+        <div className="shrink-0 border-b border-gray-300 bg-white">
           <div className="flex px-6">
             <button
               onClick={() => setActiveTab('overview')}
@@ -429,7 +426,12 @@ export default function SharedRoundFullCard({
         </div>
 
         {/* Scrollable Content */}
-        <div className="flex-1 overflow-y-auto p-6">
+        {/* `min-h-0` IS LOAD-BEARING, not tidying. A column flex item defaults to
+            `min-height: auto`, which refuses to shrink below its content — so this
+            pane grew past the panel's `max-h-modal`, and the panel's
+            `overflow-hidden` clipped the bottom rather than letting it scroll.
+            That is why "N of 18 holes" was cut in half. Do not remove. */}
+        <div className="flex-1 min-h-0 overflow-y-auto p-6">
           {/* Overview Tab */}
           {activeTab === 'overview' && (
             <div className="space-y-4">
@@ -720,41 +722,7 @@ export default function SharedRoundFullCard({
               </div>
             </>
           )}
-        </div>
 
-        {/* Actions for Current User */}
-        <div className="border-t border-gray-300 p-4 bg-gray-50">
-          {currentUserParticipant && (
-            <div className="bg-violet-50 border border-violet-200 rounded-lg p-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  {currentUserParticipant.scores.total_score ? (
-                    <div>
-                      <span className="font-bold text-gray-900">Your Score: </span>
-                      <span className="text-2xl font-black text-violet-900">{currentUserParticipant.scores.total_score}</span>
-                      {currentUserParticipant.scores.to_par !== null && (
-                        <span className={`ml-2 text-lg font-bold ${currentUserParticipant.scores.to_par < 0 ? 'text-green-600' : currentUserParticipant.scores.to_par > 0 ? 'text-red-600' : 'text-gray-600'}`}>
-                          ({currentUserParticipant.scores.to_par >= 0 ? '+' : ''}{currentUserParticipant.scores.to_par})
-                        </span>
-                      )}
-                    </div>
-                  ) : (
-                    <div>
-                      <span className="font-bold text-gray-900">You haven&apos;t added your scores yet</span>
-                    </div>
-                  )}
-                </div>
-                {onAddScores && (
-                  <button
-                    onClick={() => onAddScores(currentUserParticipant.participant.id)}
-                    className="bg-violet-600 hover:bg-violet-700 text-white font-bold py-2 px-4 rounded-lg transition-colors"
-                  >
-                    {currentUserParticipant.scores.total_score ? 'Edit Scores' : 'Add Scores'}
-                  </button>
-                )}
-              </div>
-            </div>
-          )}
           {/* Round media — hole-tagged photos/videos from the players */}
           {(scorecard.media?.length ?? 0) > 0 && (
             <div className="mt-4">
@@ -812,14 +780,39 @@ export default function SharedRoundFullCard({
           )}
         </div>
 
-        {/* Footer */}
-        <div className="bg-gray-100 border-t border-gray-300 p-4 flex justify-end">
-          <button
-            onClick={onClose}
-            className="bg-gray-600 hover:bg-gray-700 text-white font-bold py-2 px-6 rounded-lg transition-colors"
-          >
-            Close
-          </button>
+        {/* ONE footer, not two. This was a "Your Score" bar stacked above a
+            separate Close bar, together eating ~140px of a 90dvh modal — and
+            the round media gallery was rendered INSIDE it, so photos made the
+            footer tall enough to squeeze the scroll area. Media now lives in
+            the scrollable content; this is an action bar only.
+
+            The score itself is deliberately NOT repeated here: the leaderboard
+            above already shows it per player and highlights your own row, so
+            for a solo round this was the same number twice, inches apart. */}
+        <div className="shrink-0 border-t border-gray-300 p-4 bg-gray-50 safe-bottom">
+          <div className="flex items-center justify-between gap-3">
+            <div className="min-w-0 text-sm text-gray-700">
+              {currentUserParticipant && !currentUserParticipant.scores.total_score && (
+                <span className="font-bold text-gray-900">You haven&apos;t added your scores yet</span>
+              )}
+            </div>
+            <div className="flex items-center gap-2 shrink-0">
+              {currentUserParticipant && onAddScores && (
+                <button
+                  onClick={() => onAddScores(currentUserParticipant.participant.id)}
+                  className="bg-violet-600 hover:bg-violet-700 text-white font-bold py-2 px-4 rounded-lg transition-colors"
+                >
+                  {currentUserParticipant.scores.total_score ? 'Edit Scores' : 'Add Scores'}
+                </button>
+              )}
+              <button
+                onClick={onClose}
+                className="bg-white border border-gray-300 hover:bg-gray-100 text-gray-800 font-bold py-2 px-4 rounded-lg transition-colors"
+              >
+                Close
+              </button>
+            </div>
+          </div>
         </div>
       </div>
 

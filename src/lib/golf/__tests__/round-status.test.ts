@@ -5,6 +5,7 @@ import {
   isActiveParticipant,
   effectiveRoundStatus,
   initialRoundStatus,
+  shouldShowStaleNotice,
   AUTO_END_AFTER_MS,
 } from '../round-status';
 
@@ -231,5 +232,23 @@ describe('abandoned live round (the July 25 case)', () => {
         now,
       })
     ).toBeNull();
+  });
+});
+
+describe('shouldShowStaleNotice', () => {
+  it('shows only while the round is live', () => {
+    expect(shouldShowStaleNotice({ stale: true, live: true })).toBe(true);
+  });
+
+  it('NEVER shows on a finished round, however stale the flag', () => {
+    // The bug this fixes: a refresh that failed during play latched the flag on,
+    // and refreshing stops once a round is no longer live — so a FINAL round
+    // contradicted itself by claiming its scores might still be out of date.
+    expect(shouldShowStaleNotice({ stale: true, live: false })).toBe(false);
+  });
+
+  it('does not show on a live round that is refreshing fine', () => {
+    expect(shouldShowStaleNotice({ stale: false, live: true })).toBe(false);
+    expect(shouldShowStaleNotice({ stale: false, live: false })).toBe(false);
   });
 });

@@ -13,6 +13,9 @@ interface SharedRoundQuickViewProps {
   scorecard: CompleteGolfScorecard;
   onExpand: () => void;
   currentUserId?: string;
+  /** True when the last live refresh failed AND the round is still live —
+   *  already gated by `useSharedRound`, so this surface just renders it. */
+  stale?: boolean;
   /** Called after the creator ends the round from this card. */
   onStatusChange?: () => void;
 }
@@ -21,6 +24,7 @@ export default function SharedRoundQuickView({
   scorecard,
   onExpand,
   currentUserId,
+  stale = false,
   onStatusChange
 }: SharedRoundQuickViewProps) {
   const { group_post, golf_data, participants } = scorecard;
@@ -86,6 +90,18 @@ export default function SharedRoundQuickView({
 
   return (
     <div className="bg-gradient-to-br from-green-50 to-green-100 rounded-lg p-4 mt-3 border border-green-200">
+      {/* Connection notice. It lives on this PERSISTENT card rather than in the
+          scorecard modal: "we lost touch, scores may have moved on" is about
+          the round still running, so it belongs where the round is always
+          visible, not in a transient overlay — and never beside a FINAL badge.
+          `stale` arrives already gated on liveness by useSharedRound. */}
+      {stale && (
+        <div className="mb-3 flex items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-800">
+          <i className="fas fa-triangle-exclamation" aria-hidden="true"></i>
+          <span>Updates paused — showing the last scores we could load.</span>
+        </div>
+      )}
+
       {/* Header */}
       <div className="flex items-start justify-between mb-3">
         <div className="flex-1">
@@ -149,8 +165,11 @@ export default function SharedRoundQuickView({
           </div>
         </div>
 
-        {/* Leader Score Badge (if any) — match play uses the status banner instead */}
-        {leader && leader.scores.total_score !== null && gameFormat !== 'match' && (
+        {/* Leader Score Badge — only meaningful with someone to lead. In a solo
+            round this repeated the player's own row below it, which is half of
+            why the score appeared twice within a few inches. Match play uses
+            the status banner instead. */}
+        {leader && leader.scores.total_score !== null && gameFormat !== 'match' && statusCounts.confirmed > 1 && (
           <div className="ml-3 flex-shrink-0">
             <div className="bg-white rounded-lg px-3 py-1.5 shadow-md border-2 border-green-300 text-center">
               <div className="text-xs text-green-700 font-semibold">Leader</div>

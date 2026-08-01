@@ -127,6 +127,24 @@ export function isRoundLive(
 }
 
 /**
+ * Should the "Updates paused — scores may be out of date" notice show?
+ *
+ * ONLY while the round is live. The notice means "scores are still changing and
+ * we lost touch", which is meaningless once a round is FINAL — showing it there
+ * makes the card contradict itself.
+ *
+ * It also cannot be left to the raw flag: the flag is set when a refresh fails
+ * and cleared only by a later SUCCESSFUL refresh, but refreshing stops once a
+ * round is no longer live. So a failure during play latched the notice on
+ * forever. Deriving it here means it can't latch.
+ *
+ * Pure and shared so every surface provably agrees.
+ */
+export function shouldShowStaleNotice(input: { stale: boolean; live: boolean }): boolean {
+  return input.stale && input.live;
+}
+
+/**
  * Re-derive and persist a round's status after a score write. Best-effort:
  * callers fire this after a successful save and a failure here must never fail
  * the save itself (mirrors the notification side-effects in the same routes).

@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { supabase } from '@/lib/supabase';
+import { isRoundLive, shouldShowStaleNotice } from '@/lib/golf/round-status';
 import type { CompleteGolfScorecard } from '@/types/group-posts';
 
 // ── useSharedRound ────────────────────────────────────────────────────────────
@@ -181,5 +182,15 @@ export function useSharedRound({
     return () => clearInterval(interval);
   }, [enabled]);
 
-  return { scorecard, refresh, stale, connectionState };
+  // DERIVED, never raw. `stale` is set on a failed refresh and cleared only by a
+  // later successful one — but refreshing stops when a round is no longer live,
+  // so a failure during play used to latch it on forever and a FINAL round kept
+  // claiming its scores might be out of date. Gating on liveness here means the
+  // notice expires with the round no matter which surface reads it.
+  const staleNotice = shouldShowStaleNotice({
+    stale,
+    live: scorecard ? isRoundLive(scorecard.group_post) : false,
+  });
+
+  return { scorecard, refresh, stale: staleNotice, connectionState };
 }
