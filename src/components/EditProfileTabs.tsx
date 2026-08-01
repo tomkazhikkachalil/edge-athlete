@@ -6,8 +6,17 @@ import { useToast } from './Toast';
 import LazyImage from './LazyImage';
 import AvatarUploader from './AvatarUploader';
 import type { Profile, AthleteBadge, SeasonHighlight, Performance } from '@/lib/supabase';
-import { getSportDefinition, getEnabledSports, getAllSports, type SportKey } from '@/lib/sports';
+import { getSportDefinition, getAllSports, type SportKey } from '@/lib/sports';
 import { resolveSportKey } from '@/lib/sports/resolve-sport-key';
+import {
+  getSportSettingsSchema,
+  settingsToFormValues,
+  mergeSettingsForSave,
+  validateSettingsValues,
+  emptySettingsValues,
+  type SettingsFormValues,
+} from '@/lib/sports/settings-schemas';
+import SportSettingsForm from './SportSettingsForm';
 import SportMultiSelect from './SportMultiSelect';
 import { COPY, getComingSoonMessage } from '@/lib/copy';
 import ConfirmModal from './ConfirmModal';
@@ -29,7 +38,14 @@ interface EditProfileTabsProps {
   onSave: () => void;
 }
 
-type TabId = 'basic' | 'vitals' | 'socials' | 'golf' | 'equipment' | 'ice_hockey' | 'volleyball';
+/**
+ * Sport tabs are keyed by `SportKey` itself rather than a hand-listed union.
+ * The old union named only golf/ice_hockey/volleyball while `generateTabs`
+ * cast every registered sport into it, so a sport with no `case` compiled
+ * fine and rendered a blank tab. Widening the type is what makes the
+ * fallthrough visible to TypeScript instead of silent.
+ */
+type TabId = 'basic' | 'vitals' | 'socials' | SportKey;
 
 interface TabConfig {
   id: TabId;
@@ -52,7 +68,7 @@ const generateTabs = (): TabConfig[] => {
   allSports.forEach(adapter => {
     const sportDef = getSportDefinition(adapter.sportKey);
     baseTabs.push({
-      id: adapter.sportKey as TabId,
+      id: adapter.sportKey,
       label: sportDef.display_name,
       icon: sportDef.icon_id,
       enabled: adapter.isEnabled(),
@@ -60,19 +76,22 @@ const generateTabs = (): TabConfig[] => {
     });
   });
 
-  // Add equipment tab for golf only (when golf is enabled)
-  const golfEnabled = getEnabledSports().some(adapter => adapter.sportKey === 'golf');
-  if (golfEnabled) {
-    baseTabs.push({
-      id: 'equipment',
-      label: 'Equipment',
-      icon: 'fas fa-golf-club',
-      enabled: true
-    });
-  }
+  // NOTE: there is deliberately no Equipment tab here. Gear is a first-class
+  // sport-agnostic feature backed by `athlete_equipment` (profile Equipment
+  // tab, `AddEquipmentModal`). This modal used to carry a second, golf-only
+  // equipment form that wrote driver/irons/putter fields into
+  // `sport_settings` — values no surface ever read back. Removed August 2026.
 
   return baseTabs;
 };
+
+/** Sport tabs are exactly the tabs whose id is a registered sport key. */
+const SPORT_TAB_IDS = new Set<string>(getAllSports().map(adapter => adapter.sportKey));
+
+const isSportTab = (tabId: TabId): tabId is SportKey => SPORT_TAB_IDS.has(tabId);
+
+/** Snapshot key for one sport's dirty-close baseline. */
+const sportSnapKey = (sportKey: SportKey) => `settings:${sportKey}`;
 
 const TABS = generateTabs();
 
@@ -123,20 +142,23 @@ export default function EditProfileTabs({
     social_facebook: '',
   });
 
-  const [golfForm, setGolfForm] = useState({
-    handicap: '',
-    home_course: '',
-    tee_preference: 'white' as 'black' | 'blue' | 'white' | 'red' | 'gold',
-    dominant_hand: 'right' as 'right' | 'left',
-  });
+  // One entry per sport that has a settings schema, keyed by sport key.
+  // Replaces the old hand-written `golfForm`/`equipmentForm` pair — every
+  // sport's tab now reads and writes through this single map.
+  const [sportSettings, setSportSettings] = useState<Partial<Record<SportKey, SettingsFormValues>>>({});
 
-  const [equipmentForm, setEquipmentForm] = useState({
-    driver_brand: '',
-    driver_loft: '',
-    irons_brand: '',
-    putter_brand: '',
-    ball_brand: '',
-  });
+  // The settings objects exactly as stored, kept so a save can preserve keys
+  // no schema declares (see `mergeSettingsForSave`). Held in a ref because
+  // nothing renders from it.
+  const storedSportSettingsRef = useRef<Partial<Record<SportKey, Record<string, unknown>>>>({});
+
+  const setSportField = (sportKey: SportKey, fieldKey: string, value: string) => {
+    setSportSettings(prev => {
+      const schema = getSportSettingsSchema(sportKey);
+      const current = prev[sportKey] ?? (schema ? emptySettingsValues(schema) : {});
+      return { ...prev, [sportKey]: { ...current, [fieldKey]: value } };
+    });
+  };
 
   // Dirty-close support: per-group snapshots of the last loaded/saved
   // values (loads write them directly with local values; successful tab
@@ -148,53 +170,68 @@ export default function EditProfileTabs({
     sports: () => JSON.stringify(selectedSports),
     vitals: () => JSON.stringify(vitalsForm),
     socials: () => JSON.stringify(socialsForm),
-    golf: () => JSON.stringify(golfForm),
-    equipment: () => JSON.stringify(equipmentForm),
   } as const;
-  const isDirty = () =>
-    (Object.keys(serializeGroup) as (keyof typeof serializeGroup)[]).some(
+
+  // Sport settings are snapshotted PER SPORT, not as one blob: saving golf
+  // must not mark unsaved basketball edits as clean.
+  const serializeSportSettings = (sportKey: SportKey) =>
+    JSON.stringify(sportSettings[sportKey] ?? {});
+
+  const isDirty = () => {
+    const staticDirty = (Object.keys(serializeGroup) as (keyof typeof serializeGroup)[]).some(
       key => snapRef.current[key] !== undefined && snapRef.current[key] !== serializeGroup[key]()
     );
+    if (staticDirty) return true;
+
+    return (Object.keys(sportSettings) as SportKey[]).some(sportKey => {
+      const snapshot = snapRef.current[sportSnapKey(sportKey)];
+      return snapshot !== undefined && snapshot !== serializeSportSettings(sportKey);
+    });
+  };
   const { requestClose, confirmOpen, confirmDiscard, cancelDiscard } = useDirtyClose(isDirty, onClose);
 
-  // Load golf settings from sport_settings table
+  // Hydrate every sport's settings in ONE request. The list form of
+  // /api/sport-settings returns each row's settings alongside its key, so a
+  // per-sport fetch (what the old golf-only loader did) is unnecessary —
+  // this scales to any number of sports without adding round trips.
+  //
+  // Sports with no saved row still get seeded defaults, so their inputs are
+  // controlled from first paint and their dirty baseline is meaningful.
   useEffect(() => {
     if (!user?.id) return;
 
-    const loadGolfSettings = async () => {
+    const loadSportSettings = async () => {
       try {
-        const response = await fetch('/api/sport-settings?sport=golf');
-        if (response.ok) {
-          const data = await response.json();
-          const settings = data.settings || {};
+        const response = await fetch('/api/sport-settings');
+        if (!response.ok) return;
 
-          // Update golf form with settings from sport_settings table
-          const loadedGolf = {
-            handicap: settings.handicap?.toString() || '',
-            home_course: settings.home_course || '',
-            tee_preference: (settings.tee_preference as 'black' | 'blue' | 'white' | 'red' | 'gold') || 'white',
-            dominant_hand: (settings.dominant_hand as 'right' | 'left') || 'right',
-          };
-          setGolfForm(loadedGolf);
-          snapRef.current.golf = JSON.stringify(loadedGolf);
-
-          // Update equipment form with settings from sport_settings table
-          const loadedEquipment = {
-            driver_brand: settings.driver_brand || '',
-            driver_loft: settings.driver_loft?.toString() || '',
-            irons_brand: settings.irons_brand || '',
-            putter_brand: settings.putter_brand || '',
-            ball_brand: settings.ball_brand || '',
-          };
-          setEquipmentForm(loadedEquipment);
-          snapRef.current.equipment = JSON.stringify(loadedEquipment);
+        const data = await response.json();
+        const stored = new Map<SportKey, Record<string, unknown>>();
+        for (const row of data.sports || []) {
+          const key = resolveSportKey(row.sportKey);
+          if (key) stored.set(key, (row.settings || {}) as Record<string, unknown>);
         }
+
+        const loaded: Partial<Record<SportKey, SettingsFormValues>> = {};
+        const rawStored: Partial<Record<SportKey, Record<string, unknown>>> = {};
+        for (const adapter of getAllSports()) {
+          const schema = getSportSettingsSchema(adapter.sportKey);
+          if (!schema) continue;
+          const raw = stored.get(adapter.sportKey);
+          const values = settingsToFormValues(schema, raw);
+          loaded[adapter.sportKey] = values;
+          if (raw) rawStored[adapter.sportKey] = raw;
+          snapRef.current[sportSnapKey(adapter.sportKey)] = JSON.stringify(values);
+        }
+
+        storedSportSettingsRef.current = rawStored;
+        setSportSettings(loaded);
       } catch (error) {
-        console.error('Error loading golf settings:', error);
+        console.error('Error loading sport settings:', error);
       }
     };
 
-    loadGolfSettings();
+    loadSportSettings();
   }, [user?.id]);
 
   // Load the athlete's sports: declared primary (profiles.sport) leads, then
@@ -405,80 +442,62 @@ export default function EditProfileTabs({
           hasChanges = true;
           break;
 
-        case 'golf':
-          // Save golf settings to sport_settings table
+        default:
+          // Every remaining tab is a sport tab. Saving is driven entirely by
+          // the sport's schema, so a newly enabled sport saves correctly with
+          // no code change here. Previously this switch had a `case` per
+          // sport and anything unlisted fell through to the profiles PUT with
+          // `hasChanges` false — no request, no toast, a Save button that
+          // silently did nothing for basketball, soccer and baseball.
           {
-            const golfSettings = {
-              handicap: golfForm.handicap ? parseFloat(golfForm.handicap) : undefined,
-              home_course: golfForm.home_course.trim() || undefined,
-              tee_preference: golfForm.tee_preference,
-              dominant_hand: golfForm.dominant_hand,
-            };
+            if (!isSportTab(tabId)) {
+              // Unreachable: the union is exhausted above. Kept so a future
+              // non-sport tab cannot silently no-op the way sports did.
+              throw new Error(`No save handler for tab: ${tabId}`);
+            }
+
+            const sportName = TABS.find(t => t.id === tabId)?.label || 'Sport';
+            const schema = getSportSettingsSchema(tabId);
+
+            if (!schema) {
+              // Registered sport with no settings schema yet — the tab shows
+              // the same "coming soon" panel, so this matches what is on screen.
+              showInfo(`${sportName} Settings`, getComingSoonMessage(tabId, 'settings'));
+              return;
+            }
+
+            const values = sportSettings[tabId] ?? emptySettingsValues(schema);
+            const fieldErrors = validateSettingsValues(schema, values);
+            if (Object.keys(fieldErrors).length > 0) {
+              setErrors(fieldErrors);
+              showError('Save Failed', Object.values(fieldErrors)[0]);
+              return;
+            }
+
+            const merged = mergeSettingsForSave(
+              schema,
+              storedSportSettingsRef.current[tabId],
+              values
+            );
 
             const response = await fetch('/api/sport-settings', {
               method: 'PUT',
               headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                sport: 'golf',
-                settings: golfSettings
-              }),
+              body: JSON.stringify({ sport: tabId, settings: merged }),
             });
 
             if (!response.ok) {
-              throw new Error('Failed to save golf settings');
+              throw new Error(`Failed to save ${sportName.toLowerCase()} settings`);
             }
 
-            snapRef.current.golf = serializeGroup.golf();
-            showSuccess('Changes Saved', 'Golf settings updated successfully!');
+            // Saved state becomes the new baseline for both dirty-tracking
+            // and the next merge, so two saves in one session stay correct.
+            storedSportSettingsRef.current[tabId] = merged;
+            snapRef.current[sportSnapKey(tabId)] = serializeSportSettings(tabId);
+            showSuccess('Changes Saved', `${sportName} settings updated successfully!`);
             onSave(); // Refresh parent data
           }
-          setIsSubmitting(false);
           return; // Exit early - don't update profiles table
-
-        case 'equipment':
-          // Save equipment settings to sport_settings table (merged with golf settings)
-          {
-            // First, fetch existing golf settings
-            const existingResponse = await fetch('/api/sport-settings?sport=golf');
-            const existingData = await existingResponse.json();
-            const existingSettings = existingData.settings || {};
-
-            // Merge equipment data with existing golf settings
-            const updatedSettings = {
-              ...existingSettings,
-              driver_brand: equipmentForm.driver_brand.trim() || undefined,
-              driver_loft: equipmentForm.driver_loft ? parseFloat(equipmentForm.driver_loft) : undefined,
-              irons_brand: equipmentForm.irons_brand.trim() || undefined,
-              putter_brand: equipmentForm.putter_brand.trim() || undefined,
-              ball_brand: equipmentForm.ball_brand.trim() || undefined,
-            };
-
-            const response = await fetch('/api/sport-settings', {
-              method: 'PUT',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                sport: 'golf',
-                settings: updatedSettings
-              }),
-            });
-
-            if (!response.ok) {
-              throw new Error('Failed to save equipment settings');
-            }
-
-            snapRef.current.equipment = serializeGroup.equipment();
-            showSuccess('Changes Saved', 'Equipment updated successfully!');
-            onSave(); // Refresh parent data
-          }
-          setIsSubmitting(false);
-          return; // Exit early - don't update profiles table
-
-        case 'ice_hockey':
-        case 'volleyball':
-          // Future sports - show coming soon
-          const sportName = TABS.find(t => t.id === tabId)?.label || 'Sport';
-          showInfo(`${sportName} Settings`, getComingSoonMessage(tabId as SportKey, 'settings'));
-          return;
       }
 
       if (hasChanges) {
@@ -881,163 +900,41 @@ export default function EditProfileTabs({
     </div>
   );
 
-  const renderGolfTab = () => (
-    <div className="space-y-6">
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <div>
-          <label htmlFor="handicap" className="block text-sm font-medium text-gray-700 mb-1">
-            <i className="fas fa-golf-ball text-green-600 mr-2" aria-hidden="true"></i>
-            Handicap Index
-          </label>
-          <input
-            id="handicap"
-            type="number"
-            step="0.1"
-            value={golfForm.handicap || ''}
-            onChange={(e) => setGolfForm(prev => ({ ...prev, handicap: e.target.value }))}
-            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent"
-            placeholder="12.4"
-          />
-          <p className="mt-1 text-xs text-gray-500">
-            Official USGA Handicap Index
-          </p>
+  /**
+   * One sport tab, rendered from its schema. Sports without a schema get an
+   * explicit "coming soon" panel — never a blank one.
+   */
+  const renderSportTab = (sportKey: SportKey) => {
+    const schema = getSportSettingsSchema(sportKey);
+    const sportDef = getSportDefinition(sportKey);
+    const label = TABS.find(t => t.id === sportKey)?.label || sportDef.display_name;
+
+    if (!schema) {
+      return (
+        <div className="text-center py-12 text-gray-500">
+          <i className={`${sportDef.icon_id} text-4xl text-gray-300 mb-4`} aria-hidden="true"></i>
+          <h3 className="text-lg font-medium mb-2">{label} Settings</h3>
+          <p>{getComingSoonMessage(sportKey, 'settings')}</p>
+          <div className="mt-4 px-4 py-2 bg-amber-50 border border-amber-200 rounded-md inline-block">
+            <div className="flex items-center justify-center">
+              <i className="fas fa-clock text-amber-600 mr-2" aria-hidden="true"></i>
+              <span className="text-sm text-amber-800 font-medium">{COPY.TABS.COMING_SOON_INDICATOR}</span>
+            </div>
+          </div>
         </div>
+      );
+    }
 
-        <div>
-          <label htmlFor="dominant_hand" className="block text-sm font-medium text-gray-700 mb-1">
-            <i className="fas fa-hand-paper text-green-600 mr-2" aria-hidden="true"></i>
-            Dominant Hand
-          </label>
-          <select
-            id="dominant_hand"
-            value={golfForm.dominant_hand}
-            onChange={(e) => setGolfForm(prev => ({ ...prev, dominant_hand: e.target.value as 'right' | 'left' }))}
-            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent"
-          >
-            <option value="right">Right-handed</option>
-            <option value="left">Left-handed</option>
-          </select>
-        </div>
-      </div>
-
-      <div>
-        <label htmlFor="home_course" className="block text-sm font-medium text-gray-700 mb-1">
-          <i className="fas fa-flag text-green-600 mr-2" aria-hidden="true"></i>
-          Home Course
-        </label>
-        <input
-          id="home_course"
-          type="text"
-          value={golfForm.home_course || ''}
-          onChange={(e) => setGolfForm(prev => ({ ...prev, home_course: e.target.value }))}
-          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent"
-          placeholder="Pebble Beach Golf Links"
-        />
-      </div>
-
-      <div>
-        <label htmlFor="tee_preference" className="block text-sm font-medium text-gray-700 mb-1">
-          <i className="fas fa-golf-tee text-green-600 mr-2" aria-hidden="true"></i>
-          Preferred Tee
-        </label>
-        <select
-          id="tee_preference"
-          value={golfForm.tee_preference}
-          onChange={(e) => setGolfForm(prev => ({ ...prev, tee_preference: e.target.value as 'black' | 'blue' | 'white' | 'red' | 'gold' }))}
-          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent"
-        >
-          <option value="black">Black (Championship)</option>
-          <option value="blue">Blue (Back/Tips)</option>
-          <option value="white">White (Men&apos;s Regular)</option>
-          <option value="red">Red (Forward/Ladies)</option>
-          <option value="gold">Gold (Senior)</option>
-        </select>
-      </div>
-    </div>
-  );
-
-  const renderEquipmentTab = () => (
-    <div className="space-y-6">
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <div>
-          <label htmlFor="driver_brand" className="block text-sm font-medium text-gray-700 mb-1">
-            <i className="fas fa-golf-club text-green-600 mr-2" aria-hidden="true"></i>
-            Driver Brand
-          </label>
-          <input
-            id="driver_brand"
-            type="text"
-            value={equipmentForm.driver_brand || ''}
-            onChange={(e) => setEquipmentForm(prev => ({ ...prev, driver_brand: e.target.value }))}
-            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent"
-            placeholder="TaylorMade, Callaway, Titleist..."
-          />
-        </div>
-
-        <div>
-          <label htmlFor="driver_loft" className="block text-sm font-medium text-gray-700 mb-1">
-            Driver Loft
-          </label>
-          <input
-            id="driver_loft"
-            type="number"
-            step="0.5"
-            value={equipmentForm.driver_loft || ''}
-            onChange={(e) => setEquipmentForm(prev => ({ ...prev, driver_loft: e.target.value }))}
-            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent"
-            placeholder="10.5"
-          />
-        </div>
-      </div>
-
-      <div>
-        <label htmlFor="irons_brand" className="block text-sm font-medium text-gray-700 mb-1">
-          <i className="fas fa-golf-club text-green-600 mr-2" aria-hidden="true"></i>
-          Irons Brand
-        </label>
-        <input
-          id="irons_brand"
-          type="text"
-          value={equipmentForm.irons_brand || ''}
-          onChange={(e) => setEquipmentForm(prev => ({ ...prev, irons_brand: e.target.value }))}
-          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent"
-          placeholder="Titleist, Ping, Mizuno..."
-        />
-      </div>
-
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <div>
-          <label htmlFor="putter_brand" className="block text-sm font-medium text-gray-700 mb-1">
-            <i className="fas fa-golf-club text-green-600 mr-2" aria-hidden="true"></i>
-            Putter Brand
-          </label>
-          <input
-            id="putter_brand"
-            type="text"
-            value={equipmentForm.putter_brand || ''}
-            onChange={(e) => setEquipmentForm(prev => ({ ...prev, putter_brand: e.target.value }))}
-            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent"
-            placeholder="Scotty Cameron, Odyssey..."
-          />
-        </div>
-
-        <div>
-          <label htmlFor="ball_brand" className="block text-sm font-medium text-gray-700 mb-1">
-            <i className="fas fa-golf-ball text-green-600 mr-2" aria-hidden="true"></i>
-            Ball Brand
-          </label>
-          <input
-            id="ball_brand"
-            type="text"
-            value={equipmentForm.ball_brand || ''}
-            onChange={(e) => setEquipmentForm(prev => ({ ...prev, ball_brand: e.target.value }))}
-            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent"
-            placeholder="Pro V1, TP5, Chrome Soft..."
-          />
-        </div>
-      </div>
-    </div>
-  );
+    return (
+      <SportSettingsForm
+        schema={schema}
+        values={sportSettings[sportKey] ?? emptySettingsValues(schema)}
+        errors={errors}
+        onChange={(fieldKey, value) => setSportField(sportKey, fieldKey, value)}
+        disabled={isSubmitting}
+      />
+    );
+  };
 
   const renderSocialsTab = () => (
     <div className="space-y-6">
@@ -1105,29 +1002,11 @@ export default function EditProfileTabs({
         return renderVitalsTab();
       case 'socials':
         return renderSocialsTab();
-      case 'golf':
-        return renderGolfTab();
-      case 'equipment':
-        return renderEquipmentTab();
-      case 'ice_hockey':
-      case 'volleyball':
-        const currentTab = TABS.find(t => t.id === activeTab);
-        const sportDef = getSportDefinition(activeTab as SportKey);
-        return (
-          <div className="text-center py-12 text-gray-500">
-            <i className={`${sportDef.icon_id} text-4xl text-gray-300 mb-4`} aria-hidden="true"></i>
-            <h3 className="text-lg font-medium mb-2">{currentTab?.label} Settings</h3>
-            <p>Sport preferences and equipment settings coming soon!</p>
-            <div className="mt-4 px-4 py-2 bg-amber-50 border border-amber-200 rounded-md">
-              <div className="flex items-center justify-center">
-                <i className="fas fa-clock text-amber-600 mr-2" aria-hidden="true"></i>
-                <span className="text-sm text-amber-800 font-medium">Coming Soon</span>
-              </div>
-            </div>
-          </div>
-        );
       default:
-        return null;
+        // Every remaining tab is a sport tab, rendered from its schema.
+        // This used to be `return null`, which is exactly why basketball,
+        // soccer and baseball rendered an empty panel.
+        return isSportTab(activeTab) ? renderSportTab(activeTab) : null;
     }
   };
 
@@ -1153,7 +1032,22 @@ export default function EditProfileTabs({
         ></div>
 
         {/* Modal */}
-        <div className="inline-block align-bottom bg-white rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-4xl sm:w-full">
+        {/*
+          `relative z-10` is LOAD-BEARING, not styling. The backdrop above is
+          a `fixed` sibling, so it is painted in the positioned layer; this
+          panel was `position: static` and therefore painted UNDER it. Every
+          click inside the modal — tabs, inputs, Save — landed on the backdrop
+          and closed the modal instead.
+
+          It used to work by accident: Tailwind v3's `transform` utility always
+          emitted a transform, which creates a stacking context. Under
+          Tailwind v4 (see package.json) `transform` computes to `none`, so the
+          accident stopped happening and the modal became unusable. Verified in
+          production August 2026 via elementFromPoint at a tab's centre.
+
+          Do not remove without checking `document.elementFromPoint` over a tab.
+        */}
+        <div className="relative z-10 inline-block align-bottom bg-white rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-4xl sm:w-full">
           {/* Header */}
           <div className="bg-white px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
             <div className="flex items-center justify-between mb-6">

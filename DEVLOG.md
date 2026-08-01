@@ -1,5 +1,87 @@
 # Development Log
 
+## August 1, 2026 — Edit Profile: a modal nobody could click, and three blank sport tabs
+
+Started as roadmap item #5 (kill the hardcoded golf tab). Ended up finding that the
+**entire Edit Profile modal was unusable in production** — a bug that had nothing to do
+with the refactor and would have been missed by any amount of reading.
+
+### The modal ate every click
+
+`document.elementFromPoint` at a tab's centre returned the **backdrop**, not the tab. A
+real mouse click at those coordinates closed the dialog. Confirmed against
+**production**, not just localhost, before changing anything.
+
+The backdrop is a `fixed` sibling of the panel, so it paints in the positioned layer.
+The panel was `position: static`, so it painted *underneath*. Every click inside the
+modal — tabs, inputs, Save — hit the backdrop and dismissed it.
+
+It had worked **by accident**: Tailwind v3's `transform` utility always emitted a
+transform, and a non-`none` transform creates a stacking context. Under Tailwind v4
+`transform` computes to `none` (verified in the browser: `modalTransform: "none"`), so
+the accident stopped happening. The fix is `relative z-10` on the panel, with a comment
+saying it is load-bearing, because it looks exactly like a decorative class.
+
+Only this modal uses the separate-backdrop idiom — every other modal makes its own
+`fixed` container the overlay, which never had the problem. So: one file, not a sweep.
+
+### Three sports had a tab that rendered nothing
+
+`generateTabs` pushed a tab for every registered adapter and cast each key with
+`adapter.sportKey as TabId` — into a union that named only `golf | ice_hockey |
+volleyball`. That cast is why TypeScript never complained. `renderTabContent` ended in
+`default: return null`, so **basketball, soccer and baseball rendered a blank white
+panel**. Worse, `saveTab` had no `case` for them either, so `hasChanges` stayed false:
+no request, no toast, a Save button that silently did nothing. All three are in
+`FEATURE_SPORTS` and clickable in production.
+
+Fixed structurally rather than by adding three `case`s: `src/lib/sports/settings-schemas.ts`
+(the `stat-schemas.ts` shape the roadmap prescribed) + one generic `SportSettingsForm`.
+A sport either has a schema (real form) or does not (explicit "coming soon") — there is
+no third state, so the blank panel is no longer reachable. `TabId` is now
+`'basic' | 'vitals' | 'socials' | SportKey`, which removes the cast that hid it.
+
+Adding a sport's settings is now **1 edit**. A test fails the gate if any
+`FEATURE_SPORTS` key lacks a schema, so enabling a sport can't quietly ship an empty tab.
+
+### The second Equipment tab is gone
+
+The editor carried a golf-only equipment form (driver/irons/putter/ball) writing into
+`sport_settings`. Nothing read those fields back — grepped every consumer. It duplicated
+the real `athlete_equipment` feature, which went fully sport-agnostic on Aug 1 and is
+what actually shows on a profile. Two entry points, one of which was a dead end.
+
+**Care taken:** removing that UI must not delete data. The naive save writes a fresh
+object from schema fields, which would have dropped `driver_brand`/`ball_brand` from
+stored rows as a silent side effect of saving an unrelated field. `mergeSettingsForSave`
+preserves keys no schema declares, while still clearing schema fields the athlete
+emptied — both cases are tested.
+
+### Worth knowing: these settings are write-only
+
+Nothing reads `sport_settings` back onto a profile. The handicap the app *displays* is
+the WHS-style estimate computed from logged rounds in `/api/golf/trends`, which is the
+better source. So the golf tab has always been a form that saved into a void. Left as
+found — surfacing it is a product decision, not a refactor — but recorded in the roadmap
+so it isn't rediscovered as a bug.
+
+### Verification
+
+Node tests can't see any of this (no jsdom), so it was driven in real Chrome against
+the dev server with a disposable QA user: **12/12 passing** — all six enabled sports
+render schema-scoped controls, basketball's save fires `PUT 200`, the value round-trips
+from the database on reopen, jersey `150` is blocked before the request, no horizontal
+overflow at 375px, no page errors.
+
+**The negative control is the part that makes that mean anything.** The same script run
+against the old code (with only the stacking fix applied, so the modal was reachable at
+all) scored **0/8** — five blank panels, golf's unscoped ids, Equipment tab still there.
+A green suite that also passes on the broken code proves nothing.
+
+Gate: **653 tests** (was 628), 45 warnings / 0 errors — ratchet unchanged.
+
+---
+
 ## August 1, 2026 — Maintenance pass: the gate on merged main, and three stale doc claims
 
 Ran the checklist against `main` as actually merged, which is a state no branch ever had —

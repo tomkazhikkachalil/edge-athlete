@@ -187,40 +187,20 @@ export interface Comment {
   comment_likes?: { profile_id: string }[];
 }
 
-// Sport-specific settings interfaces
-export interface GolfSettings {
-  handicap?: number;
-  home_course?: string;
-  tee_preference?: string;
-  dominant_hand?: string;
-  driver_brand?: string;
-  driver_loft?: number;
-  irons_brand?: string;
-  putter_brand?: string;
-  ball_brand?: string;
-}
-
-export interface HockeySettings {
-  position?: string;
-  stick_flex?: number;
-  shot_preference?: 'left' | 'right';
-  blade_curve?: string;
-  // Add more hockey-specific settings as needed
-}
-
-export interface BasketballSettings {
-  position?: string;
-  shoe_size?: number;
-  jersey_number?: number;
-  // Add more basketball-specific settings as needed
-}
-
-// Generic sport settings (stored in database)
+// Generic sport settings (stored in database).
+//
+// The per-sport SHAPE of `settings` is not declared here. It used to be —
+// one hand-written interface per sport (GolfSettings/HockeySettings/
+// BasketballSettings) that nothing imported and that drifted from the form
+// actually writing the rows. The schemas in
+// `src/lib/sports/settings-schemas.ts` are now the single source of truth
+// for both the fields and their coercion; adding a sport touches only that
+// file. Keep this row type shape-agnostic so it never needs editing again.
 export interface SportSettings {
   id: string;
   profile_id: string;
   sport_key: string;
-  settings: GolfSettings | HockeySettings | BasketballSettings | Record<string, unknown>;
+  settings: Record<string, unknown>;
   created_at: string;
   updated_at: string;
 }
