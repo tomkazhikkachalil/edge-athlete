@@ -35,6 +35,14 @@ interface SharedRoundFullCardProps {
   onAddScores?: (participantId: string) => void;
   /** Called after the creator ends the round so the parent refetches the scorecard. */
   onStatusChange?: () => void;
+  /**
+   * Called after media is added, reassigned or removed — a plain refetch.
+   *
+   * Deliberately SEPARATE from onStatusChange: on /live that one navigates
+   * away to the finished post, which is right when a round ends and very wrong
+   * when someone just corrected a photo's hole.
+   */
+  onMediaChanged?: () => void;
 }
 
 export default function SharedRoundFullCard({
@@ -42,7 +50,8 @@ export default function SharedRoundFullCard({
   currentUserId,
   onClose,
   onAddScores,
-  onStatusChange
+  onStatusChange,
+  onMediaChanged
 }: SharedRoundFullCardProps) {
   const { group_post, golf_data, participants } = scorecard;
   // Mounted only while open — lock background scroll for the whole lifetime
@@ -147,7 +156,7 @@ export default function SharedRoundFullCard({
   // Curating media is for people IN the round (or its creator) — RLS enforces
   // the same rule server-side; this just avoids showing controls that would
   // 403. Not gated on liveness: adding after the round is the point.
-  const canManageMedia = (!!currentUserParticipant || isCreator) && !!onStatusChange;
+  const canManageMedia = (!!currentUserParticipant || isCreator) && !!onMediaChanged;
 
   // Overview shows only the best one or two, chosen rather than sliced:
   // video first, then anything from the best-scoring hole, then the earliest.
@@ -876,7 +885,7 @@ export default function SharedRoundFullCard({
                   groupPostId={group_post.id}
                   sportKey="golf"
                   holeScores={currentUserParticipant?.scores.hole_scores}
-                  onChanged={() => onStatusChange?.()}
+                  onChanged={() => onMediaChanged?.()}
                 />
               )}
 
@@ -913,7 +922,7 @@ export default function SharedRoundFullCard({
                             sportKey="golf"
                             segment={item.segment ?? null}
                             isHighlight={!!item.isHighlight}
-                            onChanged={() => onStatusChange?.()}
+                            onChanged={() => onMediaChanged?.()}
                           />
                         ))}
                       </div>

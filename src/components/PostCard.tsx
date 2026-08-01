@@ -740,6 +740,7 @@ function PostCard({
           scorecard={groupScorecard}
           currentUserId={currentUserId}
           onStatusChange={refreshScorecard}
+          onMediaChanged={refreshScorecard}
           onClose={() => setShowFullScorecard(false)}
           onAddScores={async (participantId) => {
             // Refetch BEFORE opening score entry so existingScores are
