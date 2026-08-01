@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerClient, getSupabaseAdmin } from '@/lib/auth-server';
 import { advanceRoundStatus } from '@/lib/golf/round-status';
-import { mirrorCompletedRound } from '@/lib/golf/round-mirror';
+import { mirrorCompletedRound, mirrorRoundMedia } from '@/lib/golf/round-mirror';
 
 export async function POST(request: NextRequest) {
   try {
@@ -163,6 +163,7 @@ export async function POST(request: NextRequest) {
       await advanceRoundStatus(getSupabaseAdmin(), group_post_id);
       // Keep the golf_rounds mirror in sync (no-op unless completed)
       await mirrorCompletedRound(getSupabaseAdmin(), group_post_id);
+      await mirrorRoundMedia(getSupabaseAdmin(), group_post_id);
     }
 
     return NextResponse.json({

@@ -52,6 +52,114 @@ export function buildMirrorHoles(
   });
 }
 
+export interface RoundMediaInput {
+  media_url: string;
+  media_type: string;
+  hole_number: number | null;
+  created_at: string | null;
+}
+
+export interface PostMediaRow {
+  media_url: string;
+  media_type: string;
+  display_order: number;
+}
+
+/**
+ * Pure: which hole media still needs a post_media row, in the order it should
+ * appear on the feed card. Exported for tests.
+ *
+ * Round media (hole_number null) leads, then holes in play order, then capture
+ * time — so the carousel reads like the round did.
+ *
+ * Deduped on media_url against what the post already has, which is what makes
+ * the mirror re-runnable: mirrorCompletedRound re-runs on late score edits, and
+ * a completed round can also gain media afterwards. Keying on the URL rather
+ * than deleting-and-reinserting also means media attached to the post by any
+ * OTHER path is never destroyed.
+ */
+export function buildMirrorMedia(
+  roundMedia: RoundMediaInput[],
+  existingUrls: string[],
+  startOrder: number
+): PostMediaRow[] {
+  const seen = new Set(existingUrls);
+  const ordered = [...roundMedia].sort((a, b) => {
+    const ah = a.hole_number ?? 0;
+    const bh = b.hole_number ?? 0;
+    if (ah !== bh) return ah - bh;
+    return (a.created_at ?? '').localeCompare(b.created_at ?? '');
+  });
+
+  const rows: PostMediaRow[] = [];
+  for (const m of ordered) {
+    if (!m.media_url || seen.has(m.media_url)) continue;
+    seen.add(m.media_url); // also dedupes within the input
+    rows.push({
+      media_url: m.media_url,
+      media_type: m.media_type,
+      display_order: startOrder + rows.length,
+    });
+  }
+  return rows;
+}
+
+/**
+ * Copy a round's hole media into its feed post's post_media.
+ *
+ * Hole photos/videos are written to group_post_media, but the feed renders
+ * post.media, which the posts API maps from post_media ONLY — so without this
+ * a finished round's post shows stats and no pictures, while the expanded
+ * scorecard (which reads group_post_media) shows them. Same media, two tables,
+ * nothing bridging them.
+ *
+ * Best-effort, like the rest of the mirror: a media failure must never fail the
+ * score save that triggered it.
+ */
+export async function mirrorRoundMedia(admin: Admin, groupPostId: string): Promise<void> {
+  try {
+    const { data: round, error: roundError } = await admin
+      .from('group_posts')
+      .select('id, post_id')
+      .eq('id', groupPostId)
+      .maybeSingle();
+    if (roundError || !round?.post_id) return;
+
+    const { data: roundMedia, error: mediaError } = await admin
+      .from('group_post_media')
+      .select('media_url, media_type, hole_number, created_at')
+      .eq('group_post_id', groupPostId);
+    if (mediaError || !roundMedia || roundMedia.length === 0) return;
+
+    const { data: existing, error: existingError } = await admin
+      .from('post_media')
+      .select('media_url, display_order')
+      .eq('post_id', round.post_id);
+    if (existingError) {
+      console.error('mirrorRoundMedia: existing post_media fetch failed:', existingError);
+      return;
+    }
+
+    const startOrder =
+      (existing ?? []).reduce((max, m) => Math.max(max, m.display_order ?? 0), 0) + 1;
+    const rows = buildMirrorMedia(
+      roundMedia as RoundMediaInput[],
+      (existing ?? []).map(m => m.media_url),
+      startOrder
+    );
+    if (rows.length === 0) return; // already mirrored
+
+    const { error: insertError } = await admin
+      .from('post_media')
+      .insert(rows.map(r => ({ ...r, post_id: round.post_id })));
+    if (insertError) {
+      console.error('mirrorRoundMedia: insert failed:', insertError);
+    }
+  } catch (e) {
+    console.error('mirrorRoundMedia: unexpected error:', e);
+  }
+}
+
 /**
  * Mirror a completed group round into golf_rounds for each scoring
  * participant. `admin` must be the service-role client (writes rounds for

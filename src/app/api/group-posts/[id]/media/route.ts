@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getServerClient } from '@/lib/auth-server';
+import { getServerClient, getSupabaseAdmin } from '@/lib/auth-server';
+import { mirrorRoundMedia } from '@/lib/golf/round-mirror';
 
 /**
  * POST /api/group-posts/[id]/media
@@ -56,6 +57,19 @@ export async function POST(
       // RLS denial surfaces here for non-participants
       console.error('group media insert failed:', error);
       return NextResponse.json({ error: 'Could not attach media to this round' }, { status: 403 });
+    }
+
+    // If the round is ALREADY completed, its feed post has been mirrored once
+    // already — mirror again so late-attached media still reaches the feed
+    // card. mirrorRoundMedia dedupes on media_url, so this is safe to re-run.
+    // Live rounds skip it: the mirror runs when they complete.
+    const { data: round } = await supabase
+      .from('group_posts')
+      .select('status')
+      .eq('id', groupPostId)
+      .maybeSingle();
+    if (round?.status === 'completed') {
+      await mirrorRoundMedia(getSupabaseAdmin(), groupPostId);
     }
 
     return NextResponse.json({ media: data }, { status: 201 });
