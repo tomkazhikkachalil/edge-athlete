@@ -1,10 +1,12 @@
 import { getSupabaseAdmin } from '@/lib/auth-server';
 import {
   GRACE_MS,
+  SWEEP_BUCKETS,
   type StorageFile,
+  type SweepBucket,
+  bucketPathFromUrl,
   collectSetMediaPaths,
   isSweepable,
-  uploadsPathFromUrl,
 } from '@/lib/storage-sweep';
 
 // Server-side sweep orchestration, shared by the admin route (manual trigger)
@@ -18,6 +20,17 @@ const MAX_DEPTH = 4;
 
 type Admin = ReturnType<typeof getSupabaseAdmin>;
 
+export interface SweepBucketSummary {
+  bucket: SweepBucket;
+  scannedFiles: number;
+  referencedPaths: number;
+  unreferencedInGrace: number;
+  orphans: number;
+  deleted: number;
+  failed: number;
+  orphanPaths: string[]; // bucket-relative
+}
+
 export interface SweepSummary {
   dryRun: boolean;
   scannedFiles: number;
@@ -27,11 +40,36 @@ export interface SweepSummary {
   orphans: number;
   deleted: number;
   failed: number;
+  /** Qualified as `<bucket>/<path>` — the sweep spans more than one bucket. */
   orphanPaths: string[];
+  byBucket: SweepBucketSummary[];
 }
 
-/** Every uploads-bucket path referenced anywhere in the DB. */
-async function collectReferencedPaths(supabase: Admin): Promise<Set<string>> {
+/**
+ * Which DB columns can hold a URL pointing into each bucket.
+ *
+ * A bucket MUST NOT be swept without an entry here: with no reference sources
+ * every file in it looks orphaned and the whole bucket would be deleted.
+ */
+const BUCKET_SOURCES: Record<SweepBucket, { table: string; columns: string[] }[]> = {
+  uploads: [
+    { table: 'post_media', columns: ['media_url', 'thumbnail_url'] },
+    { table: 'group_post_media', columns: ['media_url'] },
+    { table: 'messages', columns: ['media_url'] },
+    // Covers live in uploads (covers/{uid}/…); avatar_url normally points at
+    // the avatars bucket (extractor returns null then) but the avatar route
+    // has a bucket-fallback chain that can land in uploads — cheap insurance.
+    { table: 'profiles', columns: ['cover_url', 'avatar_url'] },
+  ],
+  avatars: [
+    // Avatars are referenced only from profiles. cover_url is included for the
+    // same bucket-fallback reason, in reverse.
+    { table: 'profiles', columns: ['avatar_url', 'cover_url'] },
+  ],
+};
+
+/** Every path in `bucket` referenced anywhere in the DB. */
+async function collectReferencedPaths(supabase: Admin, bucket: SweepBucket): Promise<Set<string>> {
   const referenced = new Set<string>();
 
   const addUrlColumn = async (table: string, columns: string[]) => {
@@ -43,7 +81,7 @@ async function collectReferencedPaths(supabase: Admin): Promise<Set<string>> {
       if (error) throw new Error(`${table} scan failed: ${error.message}`);
       for (const row of (data ?? []) as unknown as Record<string, unknown>[]) {
         for (const col of columns) {
-          const path = uploadsPathFromUrl(row[col]);
+          const path = bucketPathFromUrl(row[col], bucket);
           if (path) referenced.add(path);
         }
       }
@@ -51,45 +89,50 @@ async function collectReferencedPaths(supabase: Admin): Promise<Set<string>> {
     }
   };
 
-  await addUrlColumn('post_media', ['media_url', 'thumbnail_url']);
-  await addUrlColumn('group_post_media', ['media_url']);
-  await addUrlColumn('messages', ['media_url']);
-  // Covers live in uploads (covers/{uid}/…); avatar_url normally points at
-  // the avatars bucket (extractor returns null then) but the avatar route
-  // has a bucket-fallback chain that can land in uploads — cheap insurance.
-  try {
-    await addUrlColumn('profiles', ['cover_url', 'avatar_url']);
-  } catch {
-    // cover_url doesn't exist until migration 047 runs — don't fail the sweep
-    await addUrlColumn('profiles', ['avatar_url']);
+  for (const src of BUCKET_SOURCES[bucket]) {
+    try {
+      await addUrlColumn(src.table, src.columns);
+    } catch (e) {
+      // profiles.cover_url doesn't exist until migration 047 — degrade to the
+      // columns that do rather than failing the whole sweep. Any other table
+      // failing is real: rethrow, because a missed reference source means the
+      // sweep would treat live files as orphans.
+      if (src.table === 'profiles' && src.columns.includes('cover_url')) {
+        await addUrlColumn('profiles', src.columns.filter(c => c !== 'cover_url'));
+      } else {
+        throw e;
+      }
+    }
   }
 
-  for (let from = 0; ; from += PAGE) {
-    const { data, error } = await supabase
-      .from('workout_sets')
-      .select('media')
-      .neq('media', '[]')
-      .range(from, from + PAGE - 1);
-    if (error) throw new Error(`workout_sets scan failed: ${error.message}`);
-    for (const path of collectSetMediaPaths((data ?? []).map(r => r.media))) {
-      referenced.add(path);
+  if (bucket === 'uploads') {
+    for (let from = 0; ; from += PAGE) {
+      const { data, error } = await supabase
+        .from('workout_sets')
+        .select('media')
+        .neq('media', '[]')
+        .range(from, from + PAGE - 1);
+      if (error) throw new Error(`workout_sets scan failed: ${error.message}`);
+      for (const path of collectSetMediaPaths((data ?? []).map(r => r.media))) {
+        referenced.add(path);
+      }
+      if (!data || data.length < PAGE) break;
     }
-    if (!data || data.length < PAGE) break;
   }
 
   return referenced;
 }
 
-/** All files in the uploads bucket (folders recursed, pagination handled). */
-async function listAllFiles(supabase: Admin): Promise<StorageFile[]> {
+/** All files in `bucket` (folders recursed, pagination handled). */
+async function listAllFiles(supabase: Admin, bucket: SweepBucket): Promise<StorageFile[]> {
   const files: StorageFile[] = [];
   const walk = async (prefix: string, depth: number): Promise<void> => {
     if (depth > MAX_DEPTH) return;
     for (let offset = 0; ; offset += PAGE) {
       const { data, error } = await supabase.storage
-        .from('uploads')
+        .from(bucket)
         .list(prefix, { limit: PAGE, offset });
-      if (error) throw new Error(`storage list "${prefix}" failed: ${error.message}`);
+      if (error) throw new Error(`storage list "${bucket}/${prefix}" failed: ${error.message}`);
       for (const entry of data ?? []) {
         const path = prefix ? `${prefix}/${entry.name}` : entry.name;
         if (entry.id) {
@@ -105,13 +148,14 @@ async function listAllFiles(supabase: Admin): Promise<StorageFile[]> {
   return files;
 }
 
-/**
- * Find (and unless dryRun, delete) uploads-bucket files no DB row references
- * anymore. Files younger than GRACE_MS are never touched.
- */
-export async function runStorageSweep(supabase: Admin, dryRun: boolean): Promise<SweepSummary> {
-  const referenced = await collectReferencedPaths(supabase);
-  const files = await listAllFiles(supabase);
+/** Sweep one bucket. Files younger than GRACE_MS are never touched. */
+async function sweepBucket(
+  supabase: Admin,
+  bucket: SweepBucket,
+  dryRun: boolean
+): Promise<SweepBucketSummary> {
+  const referenced = await collectReferencedPaths(supabase, bucket);
+  const files = await listAllFiles(supabase, bucket);
 
   const now = Date.now();
   const orphans = files.filter(f => isSweepable(f, referenced, now));
@@ -124,9 +168,9 @@ export async function runStorageSweep(supabase: Admin, dryRun: boolean): Promise
   if (!dryRun && orphans.length > 0) {
     for (let i = 0; i < orphans.length; i += REMOVE_BATCH) {
       const batch = orphans.slice(i, i + REMOVE_BATCH).map(f => f.path);
-      const { error } = await supabase.storage.from('uploads').remove(batch);
+      const { error } = await supabase.storage.from(bucket).remove(batch);
       if (error) {
-        console.error('[SWEEP] batch remove failed:', error);
+        console.error(`[SWEEP] ${bucket} batch remove failed:`, error);
         failures.push(...batch);
       } else {
         deleted += batch.length;
@@ -135,15 +179,44 @@ export async function runStorageSweep(supabase: Admin, dryRun: boolean): Promise
   }
 
   return {
-    dryRun,
+    bucket,
     scannedFiles: files.length,
     referencedPaths: referenced.size,
-    graceHours: GRACE_MS / 3_600_000,
     unreferencedInGrace: inGrace,
     orphans: orphans.length,
     deleted,
     failed: failures.length,
     // Cap the listing so the response stays reasonable on big sweeps
     orphanPaths: orphans.slice(0, 200).map(f => f.path),
+  };
+}
+
+/**
+ * Find (and unless dryRun, delete) files no DB row references anymore, across
+ * every bucket in SWEEP_BUCKETS. Files younger than GRACE_MS are never touched.
+ *
+ * Previously uploads-only, which meant deleting a user left their avatar in the
+ * `avatars` bucket forever — nothing ever collected it.
+ */
+export async function runStorageSweep(supabase: Admin, dryRun: boolean): Promise<SweepSummary> {
+  const byBucket: SweepBucketSummary[] = [];
+  for (const bucket of SWEEP_BUCKETS) {
+    byBucket.push(await sweepBucket(supabase, bucket, dryRun));
+  }
+
+  const sum = (pick: (b: SweepBucketSummary) => number) =>
+    byBucket.reduce((total, b) => total + pick(b), 0);
+
+  return {
+    dryRun,
+    scannedFiles: sum(b => b.scannedFiles),
+    referencedPaths: sum(b => b.referencedPaths),
+    graceHours: GRACE_MS / 3_600_000,
+    unreferencedInGrace: sum(b => b.unreferencedInGrace),
+    orphans: sum(b => b.orphans),
+    deleted: sum(b => b.deleted),
+    failed: sum(b => b.failed),
+    orphanPaths: byBucket.flatMap(b => b.orphanPaths.map(p => `${b.bucket}/${p}`)),
+    byBucket,
   };
 }
