@@ -1,12 +1,15 @@
 'use client';
 
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { formatDisplayName, getInitials } from '@/lib/formatters';
 import { classifyScore, SCORE_CELL_RING, holePar } from '@/lib/golf/scoring';
 import { isRoundLive, isActiveParticipant, effectiveRoundStatus } from '@/lib/golf/round-status';
 import { useBodyScrollLock } from '@/hooks/useBodyScrollLock';
 import { asGameFormat, calcStablefordTotal, calcMatchStatus, GAME_FORMAT_LABELS } from '@/lib/golf/formats';
 import ConfirmModal from '../ConfirmModal';
+import MediaTile from '../media/MediaTile';
+import MediaLightbox from '../media/MediaLightbox';
+import { toCollageItems, groupMediaByHole } from '@/lib/golf/round-media';
 import LazyImage from '../LazyImage';
 import type { CompleteGolfScorecard } from '@/types/group-posts';
 
@@ -34,6 +37,12 @@ export default function SharedRoundFullCard({
   const [showEndConfirm, setShowEndConfirm] = useState(false);
   const [endingRound, setEndingRound] = useState(false);
   const [endRoundError, setEndRoundError] = useState<string | null>(null);
+  const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
+
+  // Flat, view-ready list — ordered by hole so the lightbox's prev/next walks
+  // the round the way it was played, not the order rows happen to come back in.
+  const roundMediaItems = useMemo(() => toCollageItems(scorecard.media), [scorecard.media]);
+  const mediaByHole = useMemo(() => groupMediaByHole(roundMediaItems), [roundMediaItems]);
 
   const roundLive = isRoundLive(group_post);
   const isCreator = currentUserId === group_post.creator_id;
@@ -723,59 +732,40 @@ export default function SharedRoundFullCard({
             </>
           )}
 
-          {/* Round media — hole-tagged photos/videos from the players */}
-          {(scorecard.media?.length ?? 0) > 0 && (
+          {/* Round media — hole-tagged photos/videos from the players.
+              Tiles CROP to a fixed square (MediaTile renders with `fill`, so no
+              image can size its own box — that was the letterboxing bug), and
+              videos show a poster + play glyph rather than an inline <video>.
+              Playback happens in the lightbox. */}
+          {roundMediaItems.length > 0 && (
             <div className="mt-4">
               <h3 className="text-lg font-black text-green-900 mb-3">
                 <i className="fas fa-camera mr-2"></i>
                 Round Media
               </h3>
-              {(() => {
-                const byHole = new Map<number | null, typeof scorecard.media>();
-                for (const m of scorecard.media || []) {
-                  const key = m.hole_number;
-                  if (!byHole.has(key)) byHole.set(key, []);
-                  byHole.get(key)!.push(m);
-                }
-                const holeKeys = [...byHole.keys()].sort((a, b) => (a ?? 99) - (b ?? 99));
-                return holeKeys.map(holeKey => (
-                  <div key={holeKey ?? 'round'} className="mb-3">
-                    <div className="text-xs font-bold text-gray-700 mb-1.5">
-                      {holeKey ? `Hole ${holeKey}` : 'Round'}
-                    </div>
-                    <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
-                      {(byHole.get(holeKey) || []).map(m => (
-                        <div key={m.id} className="relative aspect-square rounded-lg overflow-hidden bg-gray-100">
-                          {m.media_type === 'video' ? (
-                            <>
-                              {/* poster: without it a .mov/HEVC clip that the
-                                  browser cannot decode shows a black tile and
-                                  reads as broken. object-contain so a 4:3 or
-                                  16:9 capture is letterboxed rather than
-                                  hard-cropped to a square. */}
-                              <video
-                                src={m.media_url}
-                                poster={m.thumbnail_url ?? undefined}
-                                className="w-full h-full object-contain bg-black"
-                                preload="metadata"
-                                controls
-                              />
-                            </>
-                          ) : (
-                            <LazyImage
-                              src={m.media_url}
-                              alt={m.caption || `Hole ${holeKey ?? ''} media`}
-                              className="w-full h-full object-cover"
-                              width={200}
-                              height={200}
-                            />
-                          )}
-                        </div>
-                      ))}
-                    </div>
+              {mediaByHole.map(([holeKey, group]) => (
+                <div key={holeKey ?? 'round'} className="mb-3">
+                  <div className="text-xs font-bold text-gray-700 mb-1.5">
+                    {holeKey ? `Hole ${holeKey}` : 'Round'}
                   </div>
-                ));
-              })()}
+                  <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
+                    {group.map(item => (
+                      <MediaTile
+                        key={item.id}
+                        src={item.url}
+                        thumbnailUrl={item.thumbnailUrl}
+                        kind={item.kind}
+                        durationSeconds={item.durationSeconds}
+                        alt={item.alt || 'Round media'}
+                        className="aspect-square rounded-lg"
+                        onClick={() =>
+                          setLightboxIndex(roundMediaItems.findIndex(m => m.id === item.id))
+                        }
+                      />
+                    ))}
+                  </div>
+                </div>
+              ))}
             </div>
           )}
         </div>
@@ -815,6 +805,22 @@ export default function SharedRoundFullCard({
           </div>
         </div>
       </div>
+
+      {/* Full-screen viewer. Tiles crop to fill; this contains, because
+          cropping something a viewer opened in order to look at would be
+          wrong. Videos play here rather than in the grid. */}
+      {lightboxIndex !== null && (
+        <MediaLightbox
+          items={roundMediaItems}
+          index={lightboxIndex}
+          onIndexChange={setLightboxIndex}
+          onClose={() => setLightboxIndex(null)}
+          footerFor={item => {
+            const hole = (item as { hole?: number | null }).hole;
+            return hole ? `Hole ${hole}` : 'Round';
+          }}
+        />
+      )}
 
       {/* End Round confirmation */}
       <ConfirmModal
