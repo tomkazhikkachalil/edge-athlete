@@ -214,18 +214,19 @@ console.log(data); // Should be empty or error
 
 ## Automated Test Commands
 
+> **Note (August 2026):** the `scripts/*.mjs` QA helpers this section used to name
+> were deleted — they were orphaned, nothing ran them, and one read a `.env` file
+> this project does not use. Don't go looking for them. The checklist above is
+> still walked by hand; the automated gate is now:
+
 ```bash
-# Run frontend QA checklist
-node scripts/qa-frontend-tests.mjs
+npm run verify       # typecheck + lint + test + build — run this before committing
 
-# Run database tests (requires .env setup)
-node scripts/qa-tests.mjs
-
-# Check TypeScript
+# or the parts individually
+npm run typecheck    # tsc --noEmit
+npm run lint         # eslint . --max-warnings 45
+npm run test         # vitest run (node-only — no jsdom, so no DOM tests)
 npm run build
-
-# Lint check
-npm run lint
 ```
 
 ## Test Status Legend
