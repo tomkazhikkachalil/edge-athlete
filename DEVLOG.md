@@ -1,5 +1,106 @@
 # Development Log
 
+## August 1, 2026 — The equipment tab serves six sports; its catalog served one
+
+The Equipment tab has accepted gear for seven options (General + golf, ice hockey,
+volleyball, basketball, soccer, baseball) since July. Its **brand/model catalog was
+100% golf**, and `AddEquipmentModal` guarded every autocomplete path with
+`if (sportKey !== 'golf') return`. Picking Ice Hockey gave you two blank text boxes and
+no Specifications section at all.
+
+### There is no API to buy here — that was checked, not assumed
+
+Every "sports API" on the market (TheSportsDB, API-Sports, SportsDataIO, Sportmonks)
+serves scores, fixtures and player stats. **Nobody sells an equipment catalog**, for any
+sport. So the data is curated seed lists: ~20–40 brands per sport, which is an afternoon
+of work and covers the overwhelming majority of real gear.
+
+Brands and models have opposite economics, and the design follows that split. Brands are
+~30 per sport and essentially never change. Models are thousands per sport and turn over
+every season — a hand-typed model list is a treadmill nobody will run. So golf keeps its
+legacy 39 models and **no other sport gets one**; the long tail is covered by free text.
+
+### The dead seam, replaced by a live one
+
+`getCatalogService(sport)` was a switch with a golf case and an `async () => []` default
+— and that default was **dead code**, because the modal early-returned before ever
+calling it. The variation point that matters is the *source* of a suggestion (curated
+seed vs. what other athletes typed), not the sport.
+
+It is deliberately **not** replaced with another empty interface. The community layer
+plugs in as an argument — `rankSuggestions(seeds, community, query)` — so when the
+endpoint lands the caller fetches and passes it in and nothing here changes shape.
+Shipping a second placeholder abstraction ahead of its implementation is the exact
+mistake being undone.
+
+Also gone: an `await new Promise(r => setTimeout(r, 100))` that imitated an API call the
+catalog never made. Seeds are plain data, so suggestions are now **derived during render**
+instead of fetched in an effect, and the dropdown paints on the first keystroke.
+
+### Free text everywhere, including golf
+
+Golf used to reject any brand not in the list ("Please select a brand from the list").
+That blocked every custom builder, every brand we forgot to seed, and any golfer who
+typed "Ping Golf". The dropdown now suggests; it never constrains. This is a **behaviour
+change for existing golfers** and the intended one.
+
+### Specs became data
+
+Six hardcoded golf inputs (loft/shaft/flex/length/lie/grip) rendered only for golf, held
+in six `useState`s cleared in four separate places. Now one `Record<sport, SpecFieldDef[]>`
+scoped per **category**: a hockey stick asks for blade curve, flex, lie and hand; skates
+ask for size and holder; a bat asks for length, weight drop and certification; keeper
+gloves ask for cut. Golf's keys are byte-identical so equipment saved before this change
+renders exactly as before.
+
+Declaration order is load-bearing — cards show only the first three specs and JSONB
+preserves insertion order — so the most identifying spec comes first per category. Specs
+are built from the *visible* fields at submit, which also drops values stranded by a
+category switch: a stick's blade curve never rides along on a pair of skates.
+
+### Logos: Clearbit's actual successor, with the lesson applied
+
+Clearbit's Logo API shut down 8 Dec 2025; **Logo.dev** is the drop-in successor Clearbit
+itself points to. Wired up behind `NEXT_PUBLIC_LOGO_DEV_TOKEN`, guarded like the SMTP
+sites — unset means initial-letter tiles, a supported state rather than a degraded one.
+The golf brand domains were **recovered from the deleted `logo.clearbit.com/<domain>`
+URLs** in the previous commit rather than retyped: 66 of 73.
+
+The important part is `BrandLogo` falling back on **`onError`**, not merely on a missing
+URL. The old code chose on presence alone, which is why a dead host produced 66 broken
+images instead of nothing. A plain `<img>` is deliberate: `next/image` proxies the fetch,
+so an upstream 404 arrives as an error from our own origin rather than the clean `onError`
+the fallback depends on.
+
+Two traps written down in `.env.example`: `NEXT_PUBLIC_*` is inlined **at build time**, so
+setting it in Vercel needs a redeploy; and Logo.dev's free-tier attribution requirement
+should be checked before relying on it.
+
+### Verified in the running app, every sport
+
+Production build, disposable user, system Chrome — **40/40**. For each of the seven
+options: the category list is sport-specific, the brand dropdown populates (golf 60,
+hockey 25, soccer 24, baseball 22, basketball 20, volleyball 19; General correctly has
+none), the expected brand is present, spec fields match sport **and** category, and no
+visible `<img>` fails to decode. Then the long tail end-to-end: `Totally Custom
+Stickworks` — in no seed list — saves, survives a reload, and shows its curve `P28`.
+**Zero failed external requests across all seven sports.**
+
+Separately, the clearbit scenario re-run on purpose: built **with** a token, then aborted
+every `img.logo.dev` request with `namenotresolved`. 24 requests attempted (proving the
+token inlined), **zero broken images**, letter tiles throughout. If Logo.dev ever goes the
+way of Clearbit, the picker degrades to today's clean state.
+
+Net **−649/+306** lines across the touched files, plus three new modules. Gate:
+**45 warnings / 0 errors, 619 tests (+36), clean build (109 pages).**
+
+Deferred on purpose: community-ranked suggestions (needs a Postgres RPC, functional
+indexes, `count(DISTINCT profile_id)` so one golfer with 14 Titleist clubs can't dominate,
+and a privacy floor of public profiles only with k ≥ 2 — a `count: 1` suggestion is a
+one-to-one leak).
+
+---
+
 ## August 1, 2026 — The equipment catalog was 98% dead links
 
 Follow-up to the upload fix below. `src/lib/equipment-catalog.ts` carried 126 external

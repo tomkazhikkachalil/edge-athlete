@@ -510,7 +510,10 @@ function EquipmentCard({ item, isOwnProfile, showSportChip = false, onEdit, onDe
               .slice(0, 3) // Show only first 3 specs
               .map(([key, value]) => (
                 <div key={key} className="flex items-center justify-between text-xs">
-                  <span className="text-gray-500 capitalize">{key.replace('_', ' ')}</span>
+                  {/* /_/g, not '_': replace() with a string swaps only the
+                      FIRST underscore, so a three-word spec key such as
+                      batting_glove_size rendered as "Batting glove_size". */}
+                  <span className="text-gray-500 capitalize">{key.replace(/_/g, ' ')}</span>
                   <span className="text-gray-900 font-semibold">{value}</span>
                 </div>
               ))}
