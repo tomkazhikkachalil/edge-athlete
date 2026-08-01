@@ -68,11 +68,29 @@ Ordered by size. Each item = a seam the adapter interface needs before "drop in 
     `sport_key: 'golf'`. That was fixed in July; the route validates `sportKey` against
     `getEquipmentSportOptions()` and 400s on unknown sports. Line 70 is unrelated code.
     Re-verified August 1, 2026 — don't go looking for it.
-- **STILL OPEN — profile editing only:** `src/components/EditProfileTabs.tsx` has a
-  hardcoded golf tab, and its golf form (handicap/home course/tee/hand) is the only writer
-  of `sport_settings` (`?sport=golf`).
-- **Needed seam (remaining):** settings-schema-per-sport, adapter- or registry-driven.
-  `stat-schemas.ts` is the shape to copy — a schema per sport driving one generic form.
+- ~~**STILL OPEN — profile editing:** `EditProfileTabs.tsx` has a hardcoded golf tab~~
+  ✅ **DONE (August 1, 2026).** The seam landed as `src/lib/sports/settings-schemas.ts`
+  (the `stat-schemas.ts` shape, as prescribed) plus one generic `SportSettingsForm`.
+  Every sport's tab now renders from its schema; `EditProfileTabs` carries **no sport
+  knowledge at all**. Adding a sport's settings is **1 edit** — a schema entry — with no
+  component, API, type or migration change.
+  - This fixed a live bug, not just the architecture: `generateTabs` cast every
+    registered sport into a `TabId` union that named only golf/ice_hockey/volleyball,
+    so `renderTabContent`'s `default: return null` gave **basketball, soccer and
+    baseball a completely blank tab**, and `saveTab` had no `case` for them, so Save
+    fired no request and showed no toast. A test now fails the gate if any
+    `FEATURE_SPORTS` key lacks a schema.
+  - The editor's second, golf-only **Equipment tab was removed**. It wrote
+    driver/irons/putter/ball fields into `sport_settings` that no surface ever read,
+    duplicating the real sport-agnostic `athlete_equipment` feature. Saves now preserve
+    unknown stored keys (`mergeSettingsForSave`) so removing that UI does not delete
+    data anyone had entered.
+- **Note on what these settings are:** intake-declared preferences (position, jersey
+  number, handedness), *not* performance stats. The handicap the app displays is still
+  derived from logged rounds in `/api/golf/trends`.
+- **Still not surfaced:** nothing *reads* `sport_settings` back onto a profile yet — the
+  values are write-only today. A generic schema-driven display block is the natural next
+  step now that the shape is declared in one place.
 
 ### 6. Consolidations / small fixes (can do anytime, low risk)
 - **Two parallel sport registries:** `src/lib/sports/SportRegistry.ts` vs `src/lib/config/sports-config.ts` (icons/colors/names duplicated). Merge to one source of truth. (Still open.)
