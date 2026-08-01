@@ -1,5 +1,68 @@
 # Development Log
 
+## July 31, 2026 — Spring-clean: the map pointed at nothing
+
+Scoping the dependency sprint turned up something worse than stale dependencies.
+**CLAUDE.md — the file every session loads first — named 16 documents, and 15 of them
+did not exist.** Commit `790aa7b` removed 120 legacy docs; the index was never updated,
+so for months the project's primary orientation file was a map to nowhere.
+
+Everything below was verified against the repo rather than trusted:
+
+| claim in CLAUDE.md | reality |
+|---|---|
+| 16 documents in "Detailed Documentation" | 15 gone — repo-wide search, not moved, deliberately deleted in `790aa7b` |
+| "Check `/api/debug/counts`" | never a route |
+| "See `implement-privacy-system.sql` for examples" | it lives in `database/archive/**failed-attempts**/` |
+| "Next.js 15 App Router" | 16.2.12 since three commits ago |
+| "Defines all sports (golf, ice_hockey, volleyball)" | the registry defines **11** |
+| `design-tokens.ts` | `src/lib/design-tokens.ts` |
+
+The index now lists only what exists, and says outright that adding an entry is a
+promise to keep it true.
+
+### Dead code, and the dependencies it was holding hostage
+
+**`/api/ai/text` + `/api/ai/image`** — template scaffolding. No UI, no test, no route
+referenced either. They proxy a **paid** OpenAI call behind nothing but an auth check,
+and `OPENAI_API_KEY` is not set in Vercel production (checked, not assumed) — so the only
+thing they could do in prod was 500. Deleting them removed `openai` and took the
+**openai 4 → 7 upgrade off the board entirely**.
+
+**`scripts/`** — 7 one-off diagnostics, orphaned. Nothing in `package.json`, README,
+CLAUDE.md or CI ran them, and they had rotted: `qa-tests.mjs` reads a `.env` this project
+doesn't use, `qa-frontend-tests.mjs` only prints prose. Sole importers of `dotenv`.
+
+**`@types/uuid`** — `uuid` has shipped its own types since v7; the stub was shadowing the
+real ones.
+
+Three dependencies gone, no feature lost.
+
+### The lint gate that wasn't
+
+`eslint.config.mjs` asserted that *"`npm run lint` passes `--max-warnings 0`, so these
+are gated, not advisory."* The script was a bare `eslint .`. **Nothing was gated** — all
+45 warnings were advisory and warning 46 would have landed silently.
+
+Rather than correct the comment down to the truth, the ratchet it described is now
+installed: `eslint . --max-warnings 45`. Verified in both directions — at 45 lint exits
+0; at 44, standing in for one new warning, it exits non-zero. The cap is 45 rather than 0
+because the remainder is a known documented list, and a number that can only go down
+beats a zero that isn't true.
+
+### Flagged, not fixed
+
+**Outbound email is off in production.** Ten route files gate their sends behind
+`if (SMTP_USER && SMTP_PASS)`, and neither variable is set in Vercel — so calendar
+invites, transfer and guardian notices, the notification digest, waitlist and contact
+mail all silently no-op. Not a crash, not a regression, and out of scope here, but it is
+a shipped feature that does nothing in prod. CLAUDE.md now documents the behaviour.
+
+`npm run verify` green end to end: tsc clean, **45 warnings / 0 errors**, **559 tests**,
+clean build, **0 advisories**.
+
+---
+
 ## July 31, 2026 — Maintenance sync (live-round work shipped to production)
 
 PR #5 squash-merged to `main` (`422db29`) and deployed. The merged branch is

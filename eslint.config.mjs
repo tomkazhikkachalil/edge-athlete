@@ -17,7 +17,18 @@ export default defineConfig([
   ...nextTs,
 
   // Rule overrides come AFTER the spreads — flat config is last-wins.
-  // `npm run lint` passes --max-warnings 0, so these are gated, not advisory.
+  //
+  // `npm run lint` passes `--max-warnings 45`, so these are a RATCHET, not a
+  // gate: the 45 known warnings below are tolerated, and warning number 46
+  // fails `npm run verify`. The cap is not 0 because the remaining 45 are a
+  // known, documented list (see the set-state-in-effect note below) and
+  // demanding 0 today would mean either a rushed sweep or a blanket disable —
+  // both worse than a number that can only go down.
+  //
+  // When you legitimately remove warnings, LOWER this cap in package.json in
+  // the same commit. Raising it requires saying why in the DEVLOG.
+  // (Until July 2026 this comment claimed `--max-warnings 0` while the script
+  // was a bare `eslint .` — it described a guarantee the repo did not have.)
   {
     rules: {
       '@typescript-eslint/no-unused-vars': 'warn',
