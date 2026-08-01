@@ -4,7 +4,7 @@
 
 ## 🎯 Project Overview
 
-**Multi-Sport Athlete Social Network** (Next.js 15 App Router + Supabase — see `package.json` for the full stack).
+**Multi-Sport Athlete Social Network** (Next.js 16 App Router + Supabase — see `package.json` for the full stack).
 
 **Platform Features:**
 - Athlete profiles with performance stats
@@ -26,10 +26,10 @@ NEXT_PUBLIC_SUPABASE_URL=https://your-project.supabase.co
 NEXT_PUBLIC_SUPABASE_ANON_KEY=your-anon-key
 SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
 
-# Optional: AI features
-OPENAI_API_KEY=your-key
-
-# Optional: Email (contact forms)
+# Optional: Email. Every send site is guarded by
+# `if (SMTP_USER && SMTP_PASS)`, so leaving these unset disables outbound
+# email rather than erroring — including calendar invites, transfer and
+# guardian notices, and the notification digest.
 SMTP_HOST=smtp.gmail.com
 SMTP_PORT=587
 SMTP_USER=your@email.com
@@ -65,13 +65,15 @@ SMTP_PASS=your-app-password
 **Location:** `src/lib/sports/`
 
 Platform uses adapters for sport-specific logic:
-- **SportRegistry.ts** - Defines all sports (golf, ice_hockey, volleyball)
+- **SportRegistry.ts** - Defines all 11 sports (baseball, basketball, football, golf,
+  ice_hockey, soccer, swimming, tennis, track_field, training, volleyball)
 - **SportAdapter.ts** - Base interface for sport implementations
 - **adapters/GolfAdapter.ts** - Reference implementation
 
 **Status:**
 - ✅ **Golf** - Fully implemented (rounds, scorecards, stats)
-- 🚧 **Ice Hockey, Volleyball** - Registered but not implemented
+- 🚧 **The other ten** - Registered in the sport registry but with no adapter;
+  see `src/lib/features.ts` for which are actually exposed
 
 ---
 
@@ -171,7 +173,7 @@ const { canView } = await response.json();
 2. **RLS handles security** - No manual permission checks needed in API routes
 3. **Privacy-aware queries** - Check `canViewProfile()` before showing private data
 4. **Sport-agnostic UI** - Never hardcode sport names, use `SportRegistry`
-5. **Design tokens** - Import from `design-tokens.ts`, never hardcode sizes/colors
+5. **Design tokens** - Import from `src/lib/design-tokens.ts`, never hardcode sizes/colors
 6. **Optimistic updates** - Update UI immediately, sync with server after
 7. **Path alias** - `@/*` maps to `src/*`
 
@@ -186,48 +188,41 @@ const { canView } = await response.json();
 4. Add to `FEATURE_FLAGS.FEATURE_SPORTS` in `src/lib/features.ts`
 
 ### Debug Like/Comment Counts
-1. Check `/api/debug/counts` endpoint
-2. Run `diagnose-likes-comments.sql` in Supabase
-3. Re-run fix: `fix-likes-comments-issues.sql`
+1. Run `database/tests/diagnostics/diagnose-likes-comments.sql` in Supabase
+2. The fix is `database/archive/old-migrations/fix-likes-comments-issues.sql` —
+   archived, so read it before running it rather than assuming it still matches
+   the current schema
+
+(There is no `/api/debug/counts` route — this step used to name one that was
+never built or has since been removed. Don't go looking for it.)
 
 ### Add Privacy to New Table
 1. Add RLS policy checking `profiles.visibility`
 2. Join with profiles table in policy
 3. Check: user is owner OR profile is public OR user follows profile
-4. See `implement-privacy-system.sql` for examples
+4. For examples, read the live policies in `database/migrations/` — **not**
+   `database/archive/failed-attempts/implement-privacy-system.sql`, which this
+   step used to recommend without saying it lives under `failed-attempts/`
 
 ---
 
 ## 📚 Detailed Documentation
 
-This project has extensive documentation for specific features:
+Everything listed here has been verified to exist. Commit `790aa7b` removed 120
+legacy documents; this index went on naming 15 of them for months, so treat any
+addition below as a promise to keep it true.
 
-### Setup & Configuration
-- `README.md` - Quick start for students
-- `DATABASE_SETUP.md` - Database initialization
-- `DEPLOYMENT_GUIDE.md` - Production deployment
-
-### Architecture & Design
-- `PRIVACY_ARCHITECTURE.md` - Privacy system design
-- `SECURITY_ARCHITECTURE.md` - RLS and auth patterns
-- `BILLION_USER_SCALE_DEPLOYMENT.md` - Scalability
-
-### Feature Guides
-- `NOTIFICATIONS_SYSTEM_GUIDE.md` - Notification implementation
-- `TAGGING_SYSTEM_GUIDE.md` - User tagging features
-- `SHARED_SCORECARD_IMPLEMENTATION.md` - Multi-player golf
-- `SPORT_SETTINGS_IMPLEMENTATION_GUIDE.md` - Sport-specific settings
-
-### Debugging & Testing
-- `DEBUGGING_GUIDE.md` - Common issues and fixes
-- `END_TO_END_TESTING_GUIDE.md` - Testing procedures
-- `TROUBLESHOOTING.md` - Problem resolution
-
-### Database
-- `RLS_OPTIMIZATION_GUIDE.md` - Performance optimization
-- `FIX_COUNTS_GUIDE.md` - Like/comment count fixes
-- `COMPLETE-RLS-FIX-GUIDE.md` - RLS comprehensive fixes
+- `README.md` — quick start
+- `DEVLOG.md` — the running record of what changed and *why*. The most useful
+  file in the repo for context on a past decision; read it before assuming
+  something is arbitrary.
+- `AGENTS.md` — agent-facing conventions
+- `src/app/api/CLAUDE.md` — **required** API route patterns (cookie auth, admin client)
+- `database/MIGRATIONS.md` and `database/docs/` — migration ordering and the
+  guardian reconciliation notes. SQL lives under `database/`, sorted into
+  `migrations/`, `fixes/`, `features/`, `tests/` and `archive/`.
 
 ---
 
-**Last Updated:** July 2026 (doctor cleanup — API patterns moved to `src/app/api/CLAUDE.md`)
+**Last Updated:** July 2026 (spring-clean — dead doc index rewritten, `/api/ai/*`
+and `scripts/` deleted)
