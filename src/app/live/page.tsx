@@ -41,7 +41,7 @@ export default function LivePage() {
           </p>
         </div>
 
-        <LiveNowStrip currentUserId={user.id} variant="grid" showEmptyState hideHeading />
+        <LiveNowStrip variant="grid" showEmptyState hideHeading />
       </main>
     </div>
   );

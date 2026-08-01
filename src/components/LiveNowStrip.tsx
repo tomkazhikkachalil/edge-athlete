@@ -1,9 +1,10 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import LazyImage from './LazyImage';
-import PostDetailModal from './PostDetailModal';
 import { formatDisplayName, getInitials } from '@/lib/formatters';
+import { liveRoundPath } from '@/lib/golf/round-route';
 
 interface LivePlayer {
   profile_id: string;
@@ -26,11 +27,9 @@ interface LiveRound {
 }
 
 interface LiveNowStripProps {
-  currentUserId?: string;
   /** 'strip' = horizontal scroll (feed); 'grid' = stacked cards (Explore). */
   variant?: 'strip' | 'grid';
   /** Custom open handler; when absent the component hosts its own modal. */
-  onOpenPost?: (postId: string) => void;
   /** Render a friendly empty state instead of nothing (the /live page). */
   showEmptyState?: boolean;
   /** Hide the internal "Live Now" heading (the /live page has its own). */
@@ -43,9 +42,9 @@ const REFRESH_MS = 60_000;
  * "Live Now" — live rounds from people you follow (and you). Renders nothing
  * when nobody's live. Same surface will later carry tournament leaderboards.
  */
-export default function LiveNowStrip({ currentUserId, variant = 'strip', onOpenPost, showEmptyState = false, hideHeading = false }: LiveNowStripProps) {
+export default function LiveNowStrip({ variant = 'strip', showEmptyState = false, hideHeading = false }: LiveNowStripProps) {
+  const router = useRouter();
   const [rounds, setRounds] = useState<LiveRound[]>([]);
-  const [openPostId, setOpenPostId] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     try {
@@ -77,10 +76,11 @@ export default function LiveNowStrip({ currentUserId, variant = 'strip', onOpenP
     );
   }
 
-  const open = (postId: string | null) => {
-    if (!postId) return;
-    if (onOpenPost) onOpenPost(postId);
-    else setOpenPostId(postId);
+  // A live round is a place now — cards go to the round, not to its post.
+  // Participants land in the scorer, everyone else on the watch view, and it
+  // works even when post_id is null.
+  const open = (groupPostId: string) => {
+    router.push(liveRoundPath(groupPostId));
   };
 
   const card = (round: LiveRound) => {
@@ -90,7 +90,7 @@ export default function LiveNowStrip({ currentUserId, variant = 'strip', onOpenP
     return (
       <button
         key={round.group_post_id}
-        onClick={() => open(round.post_id)}
+        onClick={() => open(round.group_post_id)}
         className={`text-left bg-white border-2 border-red-200 hover:border-red-400 rounded-lg p-3 transition-all hover:shadow-md ${
           variant === 'strip' ? 'min-w-[220px] flex-shrink-0' : 'w-full'
         }`}
@@ -147,14 +147,6 @@ export default function LiveNowStrip({ currentUserId, variant = 'strip', onOpenP
         {rounds.map(card)}
       </div>
 
-      {!onOpenPost && (
-        <PostDetailModal
-          postId={openPostId}
-          isOpen={!!openPostId}
-          onClose={() => setOpenPostId(null)}
-          currentUserId={currentUserId}
-        />
-      )}
     </div>
   );
 }

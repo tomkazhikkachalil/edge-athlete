@@ -365,12 +365,22 @@ export async function POST(request: NextRequest) {
 
     // Reverse link (round → its feed post): the resume banner and an RLS
     // clause read it. Best-effort — posts.group_post_id is the primary link.
-    const { error: linkError } = await supabase
+    let { error: linkError } = await supabase
       .from('group_posts')
       .update({ post_id: feedPost.id })
       .eq('id', groupPost.id);
     if (linkError) {
-      console.error('Failed to backfill group_posts.post_id:', linkError);
+      // One retry: this is a single-row update by primary key, so the realistic
+      // failure is a transient connection blip rather than anything a second
+      // attempt would repeat.
+      console.error('Failed to backfill group_posts.post_id, retrying:', linkError);
+      ({ error: linkError } = await supabase
+        .from('group_posts')
+        .update({ post_id: feedPost.id })
+        .eq('id', groupPost.id));
+      if (linkError) {
+        console.error('Backfill of group_posts.post_id failed twice:', linkError);
+      }
     }
 
     // Notify invited participants (best-effort — the round exists regardless)
@@ -388,7 +398,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Fetch complete group post with participants
-    const { data: completeGroupPost } = await supabase
+    const { data: completeGroupPost, error: completeError } = await supabase
       .from('group_posts')
       .select(`
         *,
@@ -423,8 +433,19 @@ export async function POST(request: NextRequest) {
       .eq('id', groupPost.id)
       .single();
 
+    if (completeError) {
+      // Not fatal — the round and its feed post both exist, and `groupPost`
+      // below is a real row. But it used to be discarded entirely, which made
+      // a degraded response indistinguishable from a healthy one.
+      console.error('Failed to re-fetch the created group post:', completeError);
+    }
+
+    // post_id is stamped from the value this request already knows rather than
+    // read back out of the re-fetch. `groupPost` was selected BEFORE the
+    // backfill above, so its post_id is structurally null; when the re-fetch
+    // fails, that null used to reach the client as if it were the truth.
     return NextResponse.json({
-      group_post: completeGroupPost || groupPost,
+      group_post: { ...(completeGroupPost || groupPost), post_id: feedPost.id },
       message: 'Group post created successfully',
     }, { status: 201 });
   } catch (error) {

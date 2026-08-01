@@ -14,7 +14,6 @@ import Link from 'next/link';
 import AppHeader from '@/components/AppHeader';
 import LazyImage from '@/components/LazyImage';
 import LiveNowStrip from '@/components/LiveNowStrip';
-import { useAuth } from '@/lib/auth';
 import { formatDistanceToNow } from 'date-fns';
 import { getAllSports, getEnabledSports, type SportKey } from '@/lib/sports/SportRegistry';
 import { formatDisplayName } from '@/lib/formatters';
@@ -59,7 +58,6 @@ const postProfile = (p: ExplorePost): ExplorePostProfile | null =>
   Array.isArray(p.profile) ? (p.profile[0] ?? null) : p.profile;
 
 export default function ExplorePage() {
-  const { user } = useAuth();
   const [selectedSport, setSelectedSport] = useState<SportKey | null>(null);
   const [athletes, setAthletes] = useState<ExploreAthlete[]>([]);
   const [posts, setPosts] = useState<ExplorePost[]>([]);
@@ -113,7 +111,7 @@ export default function ExplorePage() {
         </div>
 
         {/* Live Now — fuller grid than the feed strip */}
-        <LiveNowStrip currentUserId={user?.id} variant="grid" />
+        <LiveNowStrip variant="grid" />
 
         {/* Sport filter chips */}
         <div className="flex gap-2 overflow-x-auto pb-2 mb-6 -mx-1 px-1" role="tablist" aria-label="Filter by sport">
