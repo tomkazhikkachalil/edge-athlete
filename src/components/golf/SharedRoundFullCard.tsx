@@ -139,35 +139,35 @@ export default function SharedRoundFullCard({
 
     return (
       <div className="mb-4">
-        <div className="bg-white rounded-lg border-2 border-green-300 overflow-hidden">
+        <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
           {/* Table Header */}
           <div className="overflow-x-auto">
             <table className="w-full text-xs">
               <thead>
-                <tr className="bg-green-100 border-b-2 border-green-300">
-                  <th className="text-left py-2 px-3 font-bold text-green-900 sticky left-0 bg-green-100 z-10 min-w-[120px]">
+                <tr className="bg-gray-50 border-b border-gray-200">
+                  <th className="text-left py-2 px-3 font-bold text-gray-700 sticky left-0 bg-gray-50 z-10 min-w-[120px]">
                     {title}
                   </th>
                   {holeNumbers.map(holeNum => (
-                    <th key={holeNum} className="text-center py-2 px-2 font-black text-green-900 min-w-[40px]">
+                    <th key={holeNum} className="text-center py-2 px-2 font-black text-gray-700 min-w-[40px]">
                       {holeNum}
                     </th>
                   ))}
-                  <th className="text-center py-2 px-3 font-black text-green-900 bg-green-200 min-w-[50px]">
+                  <th className="text-center py-2 px-3 font-black text-gray-800 bg-gray-100 min-w-[50px]">
                     {title === 'Front 9' ? 'OUT' : title === 'Back 9' ? 'IN' : 'TOTAL'}
                   </th>
                 </tr>
               </thead>
               <tbody>
                 {/* Par Row */}
-                <tr className="border-b border-gray-300 bg-yellow-50">
-                  <td className="py-2 px-3 font-bold text-gray-900 sticky left-0 bg-yellow-50 z-10">PAR</td>
+                <tr className="border-b border-gray-200 bg-gray-50">
+                  <td className="py-2 px-3 font-bold text-gray-700 sticky left-0 bg-gray-50 z-10">PAR</td>
                   {holeNumbers.map(holeNum => (
                     <td key={holeNum} className="text-center py-2 px-2 font-bold text-gray-900">
                       {parFor(holeNum)}
                     </td>
                   ))}
-                  <td className="text-center py-2 px-3 font-black text-gray-900 bg-yellow-100">
+                  <td className="text-center py-2 px-3 font-black text-gray-800 bg-gray-100">
                     {holeNumbers.reduce((sum, h) => sum + parFor(h), 0)}
                   </td>
                 </tr>
@@ -198,8 +198,8 @@ export default function SharedRoundFullCard({
                     const isCurrentUser = participant.profile_id === currentUserId;
 
                     return (
-                      <tr key={participant.id} className="border-b border-gray-200 hover:bg-green-50">
-                        <td className="py-2 px-3 sticky left-0 bg-white z-10 hover:bg-green-50">
+                      <tr key={participant.id} className="border-b border-gray-200 hover:bg-gray-50">
+                        <td className="py-2 px-3 sticky left-0 bg-white z-10 hover:bg-gray-50">
                           <div className="flex items-center gap-2">
                             {profile.avatar_url ? (
                               <LazyImage
@@ -240,7 +240,10 @@ export default function SharedRoundFullCard({
 
                           return (
                             <td key={holeNum} className="text-center py-2 px-1">
-                              <div className={`${textColor} ${border} bg-white rounded mx-auto w-7 h-7 flex items-center justify-center text-sm`}>
+                              {/* SEMANTIC COLOUR — DO NOT NEUTRALISE. SCORE_CELL_RING
+                            encodes eagle/birdie/bogey/double against par; this is
+                            the scorecard's at-a-glance read, not decoration. */}
+                        <div className={`${textColor} ${border} bg-white rounded mx-auto w-7 h-7 flex items-center justify-center text-sm`}>
                                 {hole.strokes}
                               </div>
                             </td>
@@ -329,7 +332,7 @@ export default function SharedRoundFullCard({
       <div className="bg-white rounded-lg shadow-2xl max-w-6xl w-full max-h-modal overflow-hidden flex flex-col">
         {/* Header. `shrink-0` so it keeps its height and the SCROLL AREA absorbs
             the overflow instead — without it a tall header squeezes `flex-1`. */}
-        <div className="shrink-0 bg-gradient-to-r from-green-600 to-green-700 text-white p-6">
+        <div className="shrink-0 bg-gray-900 text-white p-6">
           <div className="flex items-start justify-between">
             <div className="flex-1">
               <div className="flex items-center gap-3 mb-2 flex-wrap">
@@ -341,13 +344,13 @@ export default function SharedRoundFullCard({
                   </span>
                 )}
                 {effectiveRoundStatus(group_post) === 'completed' && (
-                  <span className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-green-900 text-white text-xs font-bold rounded-full">
+                  <span className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-white/15 text-white text-xs font-bold rounded-full">
                     <i className="fas fa-flag-checkered text-[10px]"></i>
                     FINAL
                   </span>
                 )}
                 {gameFormat !== 'stroke' && (
-                  <span className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-purple-700 text-white text-xs font-bold rounded-full">
+                  <span className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-white/15 text-white text-xs font-bold rounded-full">
                     <i className={`fas ${gameFormat === 'stableford' ? 'fa-star' : 'fa-people-arrows'} text-[10px]`}></i>
                     {GAME_FORMAT_LABELS[gameFormat].toUpperCase()}
                   </span>
@@ -370,12 +373,12 @@ export default function SharedRoundFullCard({
                 )}
                 <span>
                   {golf_data.round_type === 'indoor' ? (
-                    <span className="inline-flex items-center gap-1 px-2 py-1 bg-violet-600 rounded-full text-xs">
+                    <span className="inline-flex items-center gap-1 px-2 py-1 bg-white/15 rounded-full text-xs">
                       <i className="fas fa-warehouse"></i>
                       INDOOR
                     </span>
                   ) : (
-                    <span className="inline-flex items-center gap-1 px-2 py-1 bg-green-800 rounded-full text-xs">
+                    <span className="inline-flex items-center gap-1 px-2 py-1 bg-white/15 rounded-full text-xs">
                       <i className="fas fa-tree"></i>
                       OUTDOOR
                     </span>
@@ -420,7 +423,7 @@ export default function SharedRoundFullCard({
               onClick={() => setActiveTab('overview')}
               className={`px-6 py-3 font-bold text-sm border-b-2 transition-colors ${
                 activeTab === 'overview'
-                  ? 'border-green-600 text-green-700'
+                  ? 'border-violet-600 text-violet-700'
                   : 'border-transparent text-gray-600 hover:text-gray-900'
               }`}
             >
@@ -431,7 +434,7 @@ export default function SharedRoundFullCard({
               onClick={() => setActiveTab('scorecard')}
               className={`px-6 py-3 font-bold text-sm border-b-2 transition-colors ${
                 activeTab === 'scorecard'
-                  ? 'border-green-600 text-green-700'
+                  ? 'border-violet-600 text-violet-700'
                   : 'border-transparent text-gray-600 hover:text-gray-900'
               }`}
             >
@@ -453,16 +456,16 @@ export default function SharedRoundFullCard({
             <div className="space-y-4">
               {/* Match play status banner */}
               {matchStatus && matchStatus.thru > 0 && (
-                <div className="flex items-center gap-3 bg-purple-50 border-2 border-purple-300 rounded-lg px-4 py-3">
-                  <i className="fas fa-people-arrows text-purple-600 text-lg"></i>
+                <div className="flex items-center gap-3 bg-gray-50 border border-gray-200 rounded-lg px-4 py-3">
+                  <i className="fas fa-people-arrows text-gray-500 text-lg"></i>
                   <div>
-                    <div className="text-base font-black text-purple-900">
+                    <div className="text-base font-black text-gray-900">
                       {matchStatus.leaderIndex === null
                         ? matchStatus.summary
                         : `${matchLeaderName} ${matchStatus.final ? 'wins' : ''} ${matchStatus.summary}`.replace(/\s+/g, ' ')}
                     </div>
                     {!matchStatus.final && (
-                      <div className="text-xs font-semibold text-purple-700">
+                      <div className="text-xs font-semibold text-gray-600">
                         {matchStatus.remaining} hole{matchStatus.remaining === 1 ? '' : 's'} remaining
                       </div>
                     )}
@@ -471,13 +474,13 @@ export default function SharedRoundFullCard({
               )}
 
               {/* Leaderboard */}
-              <div className="bg-white rounded-lg border-2 border-green-300 overflow-hidden">
-                <div className="bg-green-100 px-4 py-3 border-b-2 border-green-300">
-                  <h3 className="text-lg font-black text-green-900">
+              <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
+                <div className="bg-gray-50 px-4 py-3 border-b border-gray-200">
+                  <h3 className="text-lg font-black text-gray-900">
                     <i className={`fas ${participants.filter(p => isActiveParticipant(p.participant.status)).length > 1 ? 'fa-trophy' : 'fa-golf-ball'} mr-2`}></i>
                     {participants.filter(p => isActiveParticipant(p.participant.status)).length > 1 ? 'Leaderboard' : 'Your Round'}
                     {gameFormat === 'stableford' && (
-                      <span className="ml-2 text-sm font-bold text-green-700">(points — highest wins)</span>
+                      <span className="ml-2 text-sm font-bold text-gray-500">(points — highest wins)</span>
                     )}
                   </h3>
                 </div>
@@ -504,8 +507,8 @@ export default function SharedRoundFullCard({
                           {/* Position */}
                           <div className="w-10 h-10 flex-shrink-0 flex items-center justify-center">
                             {index === 0 ? (
-                              <div className="w-10 h-10 bg-yellow-400 rounded-full flex items-center justify-center">
-                                <i className="fas fa-trophy text-yellow-900 text-lg"></i>
+                              <div className="w-10 h-10 bg-gray-900 rounded-full flex items-center justify-center">
+                                <i className="fas fa-trophy text-white text-sm"></i>
                               </div>
                             ) : (
                               <span className="text-2xl font-black text-gray-400">{index + 1}</span>
@@ -561,7 +564,7 @@ export default function SharedRoundFullCard({
                           <div className="text-right">
                             {gameFormat === 'stableford' ? (
                               <>
-                                <div className="text-3xl font-black text-green-900">
+                                <div className="text-3xl font-black text-gray-900">
                                   {stablefordPointsFor(scores.hole_scores)}
                                   <span className="text-sm font-bold text-gray-500 ml-1">pts</span>
                                 </div>
@@ -569,7 +572,8 @@ export default function SharedRoundFullCard({
                               </>
                             ) : (
                               <>
-                                <div className="text-3xl font-black text-green-900">{scores.total_score}</div>
+                                <div className="text-3xl font-black text-gray-900">{scores.total_score}</div>
+                                {/* SEMANTIC COLOUR — DO NOT NEUTRALISE: under/over par. */}
                                 {scores.to_par !== null && (
                                   <div className={`text-sm font-bold ${scores.to_par < 0 ? 'text-green-600' : scores.to_par > 0 ? 'text-red-600' : 'text-gray-600'}`}>
                                     {scores.to_par >= 0 ? '+' : ''}{scores.to_par}
@@ -746,7 +750,7 @@ export default function SharedRoundFullCard({
               Playback happens in the lightbox. */}
           {roundMediaItems.length > 0 && (
             <div className="mt-4">
-              <h3 className="text-lg font-black text-green-900 mb-3">
+              <h3 className="text-lg font-black text-gray-900 mb-3">
                 <i className="fas fa-camera mr-2"></i>
                 Round Media
               </h3>
@@ -828,7 +832,7 @@ export default function SharedRoundFullCard({
         message="Mark this round as final? The live leaderboard stops updating as LIVE, but players can still add or fix scores afterward."
         confirmText="End Round"
         cancelText="Keep Playing"
-        confirmButtonClass="bg-green-700 hover:bg-green-800"
+        confirmButtonClass="bg-violet-600 hover:bg-violet-700"
         onConfirm={handleEndRound}
         onCancel={() => setShowEndConfirm(false)}
       />

@@ -89,7 +89,7 @@ export default function SharedRoundQuickView({
   const mediaCount = scorecard.media?.length ?? 0;
 
   return (
-    <div className="bg-gradient-to-br from-green-50 to-green-100 rounded-lg p-4 mt-3 border border-green-200">
+    <div className="bg-white rounded-lg p-4 mt-3 border border-gray-200">
       {/* Connection notice. It lives on this PERSISTENT card rather than in the
           scorecard modal: "we lost touch, scores may have moved on" is about
           the round still running, so it belongs where the round is always
@@ -106,8 +106,8 @@ export default function SharedRoundQuickView({
       <div className="flex items-start justify-between mb-3">
         <div className="flex-1">
           <div className="flex items-center gap-2 mb-1 flex-wrap">
-            <i className="fas fa-users text-green-600 text-base"></i>
-            <span className="font-bold text-green-900 text-base">{golf_data.course_name}</span>
+            <i className="fas fa-users text-gray-400 text-base"></i>
+            <span className="font-bold text-gray-900 text-base">{golf_data.course_name}</span>
 
             {/* Round lifecycle badge: LIVE while scores are streaming in,
                 FINAL once everyone who scored has finished */}
@@ -126,7 +126,7 @@ export default function SharedRoundQuickView({
 
             {/* Game Format Badge (stroke play is the default — no badge) */}
             {gameFormat !== 'stroke' && (
-              <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-purple-600 text-white text-xs font-bold rounded-full">
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-gray-700 text-white text-xs font-bold rounded-full">
                 <i className={`fas ${gameFormat === 'stableford' ? 'fa-star' : 'fa-people-arrows'} text-[10px]`}></i>
                 {GAME_FORMAT_LABELS[gameFormat].toUpperCase()}
               </span>
@@ -134,19 +134,19 @@ export default function SharedRoundQuickView({
 
             {/* Round Type Badge */}
             {golf_data.round_type === 'indoor' ? (
-              <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-violet-600 text-white text-xs font-bold rounded-full">
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-gray-700 text-white text-xs font-bold rounded-full">
                 <i className="fas fa-warehouse text-[10px]"></i>
                 INDOOR
               </span>
             ) : (
-              <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-green-600 text-white text-xs font-bold rounded-full">
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-gray-700 text-white text-xs font-bold rounded-full">
                 <i className="fas fa-tree text-[10px]"></i>
                 OUTDOOR
               </span>
             )}
           </div>
 
-          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-green-800 font-semibold">
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-gray-600 font-semibold">
             <span>{formattedDate}</span>
             <span>•</span>
             <span>{golf_data.holes_played} Holes</span>
@@ -171,20 +171,20 @@ export default function SharedRoundQuickView({
             the status banner instead. */}
         {leader && leader.scores.total_score !== null && gameFormat !== 'match' && statusCounts.confirmed > 1 && (
           <div className="ml-3 flex-shrink-0">
-            <div className="bg-white rounded-lg px-3 py-1.5 shadow-md border-2 border-green-300 text-center">
-              <div className="text-xs text-green-700 font-semibold">Leader</div>
+            <div className="bg-gray-50 rounded-lg px-3 py-1.5 border border-gray-200 text-center">
+              <div className="text-xs text-gray-500 font-semibold">Leader</div>
               {gameFormat === 'stableford' ? (
                 <>
-                  <div className="text-2xl font-black text-green-900 leading-none">
+                  <div className="text-2xl font-black text-gray-900 leading-none">
                     {stablefordPointsFor(leader.scores.hole_scores)}
                   </div>
                   <div className="text-xs font-bold text-gray-600">pts</div>
                 </>
               ) : (
                 <>
-                  <div className="text-2xl font-black text-green-900 leading-none">{leader.scores.total_score}</div>
+                  <div className="text-2xl font-black text-gray-900 leading-none">{leader.scores.total_score}</div>
                   {leader.scores.to_par !== null && (
-                    <div className={`text-xs font-bold ${leader.scores.to_par < 0 ? 'text-violet-600' : leader.scores.to_par > 0 ? 'text-red-600' : 'text-gray-600'}`}>
+                    <div className={`text-xs font-bold ${leader.scores.to_par < 0 ? 'text-green-600' : leader.scores.to_par > 0 ? 'text-red-600' : 'text-gray-600'}`}>
                       {leader.scores.to_par >= 0 ? '+' : ''}{leader.scores.to_par}
                     </div>
                   )}
@@ -197,9 +197,9 @@ export default function SharedRoundQuickView({
 
       {/* Match play status banner */}
       {matchStatus && matchStatus.thru > 0 && (
-        <div className="flex items-center gap-2 bg-white/70 border border-purple-300 rounded-lg px-3 py-2 mb-3">
-          <i className="fas fa-people-arrows text-purple-600"></i>
-          <span className="text-sm font-bold text-purple-900">
+        <div className="flex items-center gap-2 bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 mb-3">
+          <i className="fas fa-people-arrows text-gray-500"></i>
+          <span className="text-sm font-bold text-gray-900">
             {matchStatus.leaderIndex === null
               ? matchStatus.summary
               : `${matchLeaderName} ${matchStatus.final ? 'wins' : ''} ${matchStatus.summary}`.replace(/\s+/g, ' ')}
@@ -231,7 +231,7 @@ export default function SharedRoundQuickView({
             );
           } else if (scores.total_score !== null) {
             statusBadge = (
-              <span className="flex items-center gap-1 text-xs font-semibold text-green-700">
+              <span className="flex items-center gap-1 text-xs font-semibold text-gray-500">
                 <i className="fas fa-check-circle"></i>
                 Confirmed
               </span>
@@ -283,7 +283,7 @@ export default function SharedRoundQuickView({
                 <div className="ml-2 flex items-baseline gap-1 flex-shrink-0">
                   {gameFormat === 'stableford' ? (
                     <>
-                      <span className="text-lg font-black text-green-900">
+                      <span className="text-lg font-black text-gray-900">
                         {stablefordPointsFor(scores.hole_scores)}
                       </span>
                       <span className="text-xs font-bold text-gray-600">pts</span>
@@ -291,7 +291,8 @@ export default function SharedRoundQuickView({
                     </>
                   ) : (
                     <>
-                      <span className="text-lg font-black text-green-900">{scores.total_score}</span>
+                      <span className="text-lg font-black text-gray-900">{scores.total_score}</span>
+                      {/* SEMANTIC COLOUR — DO NOT NEUTRALISE: under/over par. */}
                       {scores.to_par !== null && (
                         <span className={`text-sm font-bold ${scores.to_par < 0 ? 'text-green-600' : scores.to_par > 0 ? 'text-red-600' : 'text-gray-600'}`}>
                           ({scores.to_par >= 0 ? '+' : ''}{scores.to_par})
@@ -316,13 +317,13 @@ export default function SharedRoundQuickView({
       <div className="flex items-center justify-between bg-white/40 rounded px-3 py-2 mb-3 text-xs">
         <div className="flex items-center gap-4">
           <div>
-            <span className="font-semibold text-green-800">Participants: </span>
-            <span className="font-bold text-green-900">{participants.length}</span>
+            <span className="font-semibold text-gray-500">Participants: </span>
+            <span className="font-bold text-gray-900">{participants.length}</span>
           </div>
           {statusCounts.confirmed > 0 && (
             <div>
-              <span className="font-semibold text-green-800">Confirmed: </span>
-              <span className="font-bold text-green-900">{statusCounts.confirmed}</span>
+              <span className="font-semibold text-gray-500">Confirmed: </span>
+              <span className="font-bold text-gray-900">{statusCounts.confirmed}</span>
             </div>
           )}
           {statusCounts.declined > 0 && (
@@ -339,7 +340,7 @@ export default function SharedRoundQuickView({
       <div className="flex items-center justify-between gap-2">
         <button
           onClick={onExpand}
-          className="flex-1 flex items-center justify-center gap-2 bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded-lg transition-colors text-sm"
+          className="flex-1 flex items-center justify-center gap-2 bg-violet-600 hover:bg-violet-700 text-white font-bold py-2 px-4 rounded-lg transition-colors text-sm"
         >
           <i className="fas fa-table"></i>
           View Full Scorecard
