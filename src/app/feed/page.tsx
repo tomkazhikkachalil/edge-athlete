@@ -498,17 +498,22 @@ export default function FeedPage() {
                   What&apos;s on your mind, {profile?.first_name || 'Athlete'}?
                 </button>
               </div>
+              {/* `py-3.5 -my-3.5` grows these from 16px tall to a 44px touch
+                  target (Stats and Achievement are icon-only on phones, so they
+                  were 20x16). The negative margin cancels the padding for
+                  layout, so the row's height and spacing are unchanged — this
+                  buys hit area, not visual weight. */}
               <div className="flex items-center justify-between mt-3 pt-3 border-t border-gray-100">
                 <div className="flex items-center gap-2 sm:gap-4">
-                  <button onClick={() => setIsCreatePostModalOpen(true)} className="flex items-center gap-1 sm:gap-2 text-gray-600 hover:text-violet-600 transition-colors">
+                  <button onClick={() => setIsCreatePostModalOpen(true)} className="flex items-center gap-1 sm:gap-2 py-3.5 -my-3.5 text-gray-600 hover:text-violet-600 transition-colors">
                     <i className="fas fa-image text-green-500"></i>
                     <span className="text-xs sm:text-sm">Photo/Video</span>
                   </button>
-                  <button onClick={() => setIsCreatePostModalOpen(true)} className="flex items-center gap-1 sm:gap-2 text-gray-600 hover:text-violet-600 transition-colors">
+                  <button onClick={() => setIsCreatePostModalOpen(true)} aria-label="Add stats to a post" className="flex items-center gap-1 sm:gap-2 py-3.5 -my-3.5 text-gray-600 hover:text-violet-600 transition-colors">
                     <i className="fas fa-chart-line text-violet-500"></i>
                     <span className="text-xs sm:text-sm hidden sm:inline">Stats</span>
                   </button>
-                  <button onClick={() => setIsCreatePostModalOpen(true)} className="flex items-center gap-1 sm:gap-2 text-gray-600 hover:text-violet-600 transition-colors">
+                  <button onClick={() => setIsCreatePostModalOpen(true)} aria-label="Add an achievement to a post" className="flex items-center gap-1 sm:gap-2 py-3.5 -my-3.5 text-gray-600 hover:text-violet-600 transition-colors">
                     <i className="fas fa-trophy text-yellow-500"></i>
                     <span className="text-xs sm:text-sm hidden sm:inline">Achievement</span>
                   </button>

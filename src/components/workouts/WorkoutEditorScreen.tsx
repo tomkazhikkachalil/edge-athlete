@@ -502,7 +502,11 @@ export default function WorkoutEditorScreen({ mode, session, currentUserId }: Wo
           </div>
         </div>
 
-        <div className="flex items-center justify-between gap-3">
+        {/* flex-wrap: at 320px the date + duration inputs and the shrink-0
+            Save Workout button cannot share one line, and without wrapping the
+            button was pushed ~19px past the container (3px past the viewport,
+            producing a horizontally scrolling page). */}
+        <div className="flex flex-wrap items-center justify-between gap-3">
           {mode === 'live' ? (
             <div className="flex items-center gap-3 min-w-0">
               <div className="flex items-center gap-1.5 text-violet-700">

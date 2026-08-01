@@ -52,14 +52,23 @@ export default function MonthView({
             return (
               <div
                 key={day.toISOString()}
-                className={`min-h-16 sm:min-h-24 border-r border-gray-100 last:border-r-0 p-1 ${
+                className={`relative min-h-16 sm:min-h-24 border-r border-gray-100 last:border-r-0 p-1 ${
                   inMonth ? 'bg-white' : 'bg-gray-50'
                 }`}
               >
+                {/* The visible target is a 24px circle, well under the 44px
+                    touch minimum, and tapping a day is THE phone interaction
+                    for this view. Below `sm` an invisible ::after overlay makes
+                    the whole 64px cell tappable — the visual is unchanged, and
+                    it is safe here only because the event chips are hidden
+                    below `sm` (dots are not interactive), so nothing else in
+                    the cell competes for the tap. At `sm`+ the overlay is
+                    removed so the chips stay individually clickable. */}
                 <button
                   type="button"
                   onClick={() => onSelectDay(day)}
-                  className={`w-6 h-6 sm:w-7 sm:h-7 flex items-center justify-center rounded-full text-xs sm:text-sm mb-0.5 hover:bg-violet-50 ${
+                  aria-label={day.toDateString()}
+                  className={`w-6 h-6 sm:w-7 sm:h-7 flex items-center justify-center rounded-full text-xs sm:text-sm mb-0.5 hover:bg-violet-50 after:absolute after:inset-0 after:content-[''] sm:after:content-none ${
                     isToday
                       ? 'bg-violet-600 text-white font-bold hover:bg-violet-700'
                       : inMonth

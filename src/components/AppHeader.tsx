@@ -150,8 +150,14 @@ export default function AppHeader({ showSearch = true, onCreatePost, onEditProfi
                 />
               </button>
 
-              {/* Desktop Navigation */}
-              <nav className="hidden md:flex items-center gap-4 lg:gap-6">
+              {/* Desktop Navigation.
+                  Breakpoint is `lg` (1024px), NOT `md`: the full header — logo +
+                  7 nav links + 3 icon buttons + Post + the account menu — needs
+                  ~834px. At md (768px, iPad portrait) it overflowed the viewport
+                  by 66px and pushed the account menu off-screen entirely, which
+                  also made Sign Out unreachable. 768–1023px uses the drawer,
+                  which carries every one of these destinations. */}
+              <nav className="hidden lg:flex items-center gap-4 lg:gap-6">
                 {navLinks.map((link) => (
                   <button
                     key={link.path}
@@ -199,8 +205,8 @@ export default function AppHeader({ showSearch = true, onCreatePost, onEditProfi
                 <span className="hidden sm:inline">Post</span>
               </button>
 
-              {/* Desktop Profile Dropdown */}
-              <div className="hidden md:block relative">
+              {/* Desktop Profile Dropdown — `lg` to match the nav above. */}
+              <div className="hidden lg:block relative">
                 <button
                   onClick={() => setIsProfileDropdownOpen(!isProfileDropdownOpen)}
                   className="flex items-center gap-2 hover:bg-gray-100 rounded-lg p-1.5 transition-colors"
@@ -365,7 +371,7 @@ export default function AppHeader({ showSearch = true, onCreatePost, onEditProfi
               {/* Mobile Menu Button */}
               <button
                 onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-                className="md:hidden text-gray-700 hover:text-gray-900 p-2"
+                className="lg:hidden text-gray-700 hover:text-gray-900 p-2"
                 aria-label="Toggle mobile menu"
                 aria-expanded={isMobileMenuOpen}
               >
@@ -388,14 +394,14 @@ export default function AppHeader({ showSearch = true, onCreatePost, onEditProfi
       {/* Mobile Menu Overlay */}
       {isMobileMenuOpen && (
         <div
-          className="fixed inset-0 bg-black/50 z-40 md:hidden"
+          className="fixed inset-0 bg-black/50 z-40 lg:hidden"
           onClick={() => setIsMobileMenuOpen(false)}
         />
       )}
 
       {/* Mobile Menu Drawer */}
       <div
-        className={`fixed top-0 right-0 h-full w-72 max-w-[85vw] bg-white shadow-lg z-50 transform transition-transform duration-300 ease-in-out md:hidden safe-top safe-bottom ${
+        className={`fixed top-0 right-0 h-full w-72 max-w-[85vw] bg-white shadow-lg z-50 transform transition-transform duration-300 ease-in-out lg:hidden safe-top safe-bottom ${
           isMobileMenuOpen ? 'translate-x-0' : 'translate-x-full'
         }`}
       >
@@ -443,8 +449,15 @@ export default function AppHeader({ showSearch = true, onCreatePost, onEditProfi
             </button>
           </div>
 
-          {/* Navigation Links */}
-          <nav className="flex-1 p-4 space-y-2">
+          {/* Navigation Links.
+              `min-h-0 overflow-y-auto` is load-bearing, not decoration: this list
+              (7 nav links + Create Post + Edit Profile + Saved Posts + Settings +
+              Sign Out) is ~840px tall. On a 667px-tall viewport — iPhone SE, the
+              shortest phone we support — Saved Posts, Settings and **Sign Out**
+              fell below the fold with nothing to scroll, so a signed-in user on
+              that device could not sign out. `min-h-0` is required for a flex
+              child to shrink below its content height and actually scroll. */}
+          <nav className="flex-1 min-h-0 overflow-y-auto p-4 space-y-2">
             {navLinks.map((link) => (
               <button
                 key={link.path}
@@ -464,6 +477,72 @@ export default function AppHeader({ showSearch = true, onCreatePost, onEditProfi
                 <span className="font-medium">{link.label}</span>
               </button>
             ))}
+
+            {/* Guardian-profiles, mirroring the desktop dropdown above. This
+                block previously existed ONLY in that dropdown, so profile
+                switching, the approval queue and Add an athlete were desktop-
+                only — and after the nav moved to `lg`, tablets lost them too.
+                The drawer has to be a superset of the dropdown, or raising the
+                breakpoint silently removes features. */}
+            {FEATURE_FLAGS.FEATURE_GUARDIAN_PROFILES && (
+              <div className="pt-2 mt-2 border-t border-gray-200">
+                <p className="px-4 pb-1 text-[10px] font-semibold text-gray-400 uppercase tracking-wide">
+                  Your athletes
+                </p>
+                {managedProfiles.map(mp => (
+                  <button
+                    key={mp.id}
+                    onClick={() => {
+                      setActiveProfile(activeProfile?.id === mp.id ? null : mp);
+                      setIsMobileMenuOpen(false);
+                    }}
+                    className="flex items-center gap-3 w-full px-4 py-3 text-left text-gray-700 hover:bg-gray-50 rounded-lg transition-colors"
+                  >
+                    <i className={`fas ${activeProfile?.id === mp.id ? 'fa-circle-check text-violet-600' : 'fa-child-reaching'} w-5 text-center`}></i>
+                    <span className="font-medium">
+                      {formatDisplayName(mp.first_name, null, mp.last_name, mp.full_name)}
+                      {activeProfile?.id === mp.id && (
+                        <span className="ml-1 text-xs text-violet-600">(active)</span>
+                      )}
+                    </span>
+                  </button>
+                ))}
+                {managedProfiles.length > 0 && (
+                  <>
+                    <button
+                      onClick={() => {
+                        router.push('/app/guardian/approvals');
+                        setIsMobileMenuOpen(false);
+                      }}
+                      className="flex items-center gap-3 w-full px-4 py-3 text-left text-violet-700 hover:bg-violet-50 rounded-lg transition-colors"
+                    >
+                      <i className="fas fa-list-check w-5 text-center"></i>
+                      <span className="font-medium">Approval queue</span>
+                    </button>
+                    <button
+                      onClick={() => {
+                        router.push('/app/guardian/transfers');
+                        setIsMobileMenuOpen(false);
+                      }}
+                      className="flex items-center gap-3 w-full px-4 py-3 text-left text-violet-700 hover:bg-violet-50 rounded-lg transition-colors"
+                    >
+                      <i className="fas fa-right-left w-5 text-center"></i>
+                      <span className="font-medium">Account transfers</span>
+                    </button>
+                  </>
+                )}
+                <button
+                  onClick={() => {
+                    router.push('/app/guardian/add-athlete');
+                    setIsMobileMenuOpen(false);
+                  }}
+                  className="flex items-center gap-3 w-full px-4 py-3 text-left text-violet-700 hover:bg-violet-50 rounded-lg transition-colors"
+                >
+                  <i className="fas fa-plus w-5 text-center"></i>
+                  <span className="font-medium">Add an athlete</span>
+                </button>
+              </div>
+            )}
 
             <button
               onClick={handleCreatePost}
