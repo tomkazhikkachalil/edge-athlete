@@ -9,8 +9,10 @@ import { isRoundLive, isActiveParticipant } from '@/lib/golf/round-status';
  * the feed's "Live Now" strip and the Explore section. Sports-app "follow
  * live" surface; the same shape will later serve tournament leaderboards.
  *
- * Follow-scoped by construction (like /api/golf/live-round): starts from the
- * followed users' participant rows, never from the public rounds listing.
+ * Scope: PUBLIC live rounds are visible to any signed-in viewer — that is what
+ * makes /live and Explore discovery surfaces rather than a second feed. Private
+ * rounds stay follow-scoped (or visible to their own participants), matching
+ * what the posts API allows on tap-through.
  */
 export async function GET(request: NextRequest) {
   try {
@@ -39,27 +41,43 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Failed to load live rounds' }, { status: 500 });
     }
 
-    const roundIds = [
+    const followedRoundIds = [
       ...new Set(
         (participantRows || [])
           .filter(r => isActiveParticipant(r.status))
           .map(r => r.group_post_id)
       ),
     ];
-    if (roundIds.length === 0) return NextResponse.json({ rounds: [] });
 
-    const { data: groupRows, error: roundsError } = await supabase
-      .from('group_posts')
-      .select(GROUP_SCORECARD_SELECT)
-      .in('id', roundIds)
-      .eq('type', 'golf_round')
-      .eq('status', 'active')
-      .limit(20);
+    // Two scopes, merged by id: every public live round, plus the non-public
+    // ones the viewer follows or plays in. Two queries rather than a PostgREST
+    // .or() string because the id list can be empty, and `id.in.()` is a
+    // syntax error rather than an empty match.
+    const activeGolf = () =>
+      supabase
+        .from('group_posts')
+        .select(GROUP_SCORECARD_SELECT)
+        .eq('type', 'golf_round')
+        .eq('status', 'active');
 
-    if (roundsError) {
-      console.error('live-now: rounds fetch failed:', roundsError);
+    const [publicRes, followedRes] = await Promise.all([
+      activeGolf().eq('visibility', 'public').limit(40),
+      followedRoundIds.length > 0
+        ? activeGolf().in('id', followedRoundIds).limit(40)
+        : Promise.resolve({ data: [], error: null }),
+    ]);
+
+    if (publicRes.error || followedRes.error) {
+      console.error('live-now: rounds fetch failed:', publicRes.error || followedRes.error);
       return NextResponse.json({ error: 'Failed to load live rounds' }, { status: 500 });
     }
+
+    const byId = new Map<string, unknown>();
+    for (const row of [...(publicRes.data || []), ...(followedRes.data || [])]) {
+      const id = (row as { id: string }).id;
+      if (!byId.has(id)) byId.set(id, row);
+    }
+    const groupRows = [...byId.values()];
 
     // Privacy: only surface rounds the viewer could open — public rounds, or
     // rounds the viewer plays in. (Followed users' private rounds stay

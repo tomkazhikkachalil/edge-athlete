@@ -18,6 +18,7 @@ export const GROUP_SCORECARD_SELECT = `
   visibility,
   status,
   created_at,
+  post_id,
   golf_data:golf_scorecard_data (
     id,
     course_name,
