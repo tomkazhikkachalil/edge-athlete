@@ -15,6 +15,22 @@ describe('primitives', () => {
     expect(uuid.safeParse('not-a-uuid').success).toBe(false);
   });
 
+  it('uuid accepts every variant the zod-3 form accepted', () => {
+    // Pinned during the zod 3 -> 4 upgrade: z.string().uuid() became z.uuid(),
+    // and v4 tightened RFC conformance. These are the shapes Supabase and
+    // Postgres actually hand us, so a stricter validator here would 404 real
+    // rows rather than catch bad input.
+    for (const v of [
+      '2132330f-e125-43e9-99c1-20bd09e6113f',        // v4
+      '01890a5d-ac96-774b-bcce-b302099a8057',        // v7
+      '00000000-0000-0000-0000-000000000000',        // nil
+      'ffffffff-ffff-ffff-ffff-ffffffffffff',        // max
+      '2132330F-E125-43E9-99C1-20BD09E6113F',        // uppercase
+    ]) {
+      expect(uuid.safeParse(v).success, v).toBe(true);
+    }
+  });
+
   it('boundedText trims, requires non-empty, enforces max', () => {
     expect(boundedText(10).parse('  hi  ')).toBe('hi');
     expect(boundedText(10).safeParse('   ').success).toBe(false);        // empty after trim
@@ -24,6 +40,18 @@ describe('primitives', () => {
   it('emailString normalizes case + trims and validates', () => {
     expect(emailString.parse('  Tom@Example.COM ')).toBe('tom@example.com');
     expect(emailString.safeParse('nope').success).toBe(false);
+  });
+
+  it('emailString normalizes BEFORE validating, not after', () => {
+    // The ordering is the whole point, and zod 4 makes it easy to get wrong:
+    // the natural-looking `z.email().trim().toLowerCase()` validates the raw
+    // input and rejects padded addresses. Every one of these arrives from a
+    // real form where the user pasted with whitespace or typed in caps.
+    for (const v of ['  tom@example.com', 'tom@example.com  ', '\tTOM@EXAMPLE.COM\n']) {
+      const r = emailString.safeParse(v);
+      expect(r.success, JSON.stringify(v)).toBe(true);
+      if (r.success) expect(r.data).toBe('tom@example.com');
+    }
   });
 });
 
