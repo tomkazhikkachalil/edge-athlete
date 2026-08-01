@@ -147,19 +147,42 @@ export async function requireProfileRole(
   return { user, role };
 }
 
-export async function requireAdmin(request: NextRequest) {
-  const user = await requireAuth(request);
-
-  // Admin = email on the ADMIN_EMAILS allowlist (comma-separated env var,
-  // server-only). The old implementation checked a profiles.role column
-  // that does not exist — it 403'd for everyone. An env allowlist is the
-  // right size for the MVP; a real roles system can replace it later.
-  const adminEmails = (process.env.ADMIN_EMAILS || '')
+/**
+ * Is this email on the admin allowlist?
+ *
+ * Pure and exported ONLY so the fail-closed property is testable — it is the
+ * whole of the admin gate, and until Aug 2026 it had no test at all. The
+ * contract, pinned in `__tests__/admin-allowlist.test.ts`:
+ *
+ *   - an empty / whitespace / unset allowlist denies EVERYONE (fail closed —
+ *     a missing env var must never open the door)
+ *   - a missing email denies
+ *   - case and surrounding whitespace are ignored on both sides
+ *   - matching is exact per entry, never substring
+ *
+ * Admin = email on ADMIN_EMAILS (comma-separated, server-only). The original
+ * implementation checked a `profiles.role` column that does not exist, so it
+ * 403'd for everyone. An env allowlist is the right size for the MVP; a real
+ * roles system can replace it later.
+ */
+export function isAdminEmail(
+  email: string | null | undefined,
+  allowlist: string | undefined
+): boolean {
+  const admins = (allowlist || '')
     .split(',')
     .map(e => e.trim().toLowerCase())
     .filter(Boolean);
 
-  if (!user.email || !adminEmails.includes(user.email.toLowerCase())) {
+  if (admins.length === 0) return false;
+  if (!email) return false;
+  return admins.includes(email.trim().toLowerCase());
+}
+
+export async function requireAdmin(request: NextRequest) {
+  const user = await requireAuth(request);
+
+  if (!isAdminEmail(user.email, process.env.ADMIN_EMAILS)) {
     throw new Response(
       JSON.stringify({ error: 'Admin access required' }),
       { status: 403, headers: { 'Content-Type': 'application/json' } }

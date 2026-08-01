@@ -1,5 +1,84 @@
 # Development Log
 
+## August 1, 2026 — Security re-verification: the audit was wrong in both directions
+
+Go-live pass over `docs/SECURITY_AUDIT_2026-07-17.md`. The document turned out to be
+**stale in both directions at once** — reporting four fixed findings as open, while saying
+nothing at all about the 43 routes added since it was written.
+
+### Nothing needed fixing
+
+All four open MEDIUM findings were already resolved in code: `/api/suggestions` gates
+`profileId !== user.id`, `/api/upload` enforces `requireAuth` with the anonymous `temp/`
+path gone, `/api/follow/stats` derives the viewer from the session, and `/api/posts/[id]`
+gates private posts via `canViewProfile` returning **404 not 403** so it doesn't confirm
+the post exists.
+
+**No route logic was changed.** Touching working auth code to satisfy a stale document is
+how live systems break.
+
+### The bypass the audit worried about does not reproduce
+
+The July audit patched three RPCs at the API layer and warned they "STILL leak if called
+directly" — a legitimate fear, since the anon key is public and anyone can call an RPC from
+a browser console.
+
+Tested against production with ground truth of **16 profiles, 8 private**, calling each
+function directly with the public key **and** as a signed-in stranger:
+`search_by_handle`, `search_profiles`, `search_posts`,
+`generate_connection_suggestions` (with an arbitrary `p_user_profile_id`),
+`get_profile_media_counts`, `check_handle_availability` — **zero private profiles in every
+result, both roles.**
+
+Stated honestly in the doc: this is *behavioural* evidence. The function bodies aren't in
+the repo, so we know **that** they filter, not **why**.
+
+### The gap that mattered: 43 unaudited routes
+
+The audit covered 67 routes. There are now **107** — and the 43 added since include the
+most sensitive surfaces in the product: guardian (minors' data, credentials, consent),
+admin, cron, transfers, invites, a token-addressed calendar feed.
+
+All held under live probing as a signed-in stranger: admin → 403, cron without secret →
+401, guardian → 404, bogus capability tokens → 404. The **destructive** probe
+(`DELETE /api/guardian/athletes/<id>`) was aimed at a disposable victim so a gate failure
+couldn't damage real data — it was rejected, and the target profile was confirmed intact
+afterwards.
+
+### Two testing lessons worth keeping
+
+**Anonymous-clean does not imply authenticated-clean.** Supabase RLS for the
+`authenticated` role is routinely broader than for `anon`, and a signed-in stranger is the
+realistic attacker for a social app. Everything was re-run under a real session.
+
+**`admin.auth.admin.createUser` does not create a `profiles` row.** The first probe run
+"passed" its private-profile checks against a profile that never existed — a vacuous pass
+that looked identical to a real one. Caught by an FK violation on the post insert, not by
+the assertions. The profiles row must be inserted explicitly, or the whole probe is
+theatre.
+
+### One real gap closed
+
+The admin gate — one string comparison guarding all of `/api/admin/*` — **had no test**.
+Extracted `isAdminEmail` from `requireAdmin` (pure, ~5 lines moved, behaviour identical)
+and pinned its contract: unset/empty/whitespace `ADMIN_EMAILS` denies **everyone**, and
+entries match whole rather than substring, so `om@example.com` can't ride in on
+`tom@example.com`. Proved to bite — flipping the empty-allowlist branch to `true` fails 2
+of 8.
+
+`resolveProfileAction` needed nothing; `profile-roles.test.ts` already covers the full
+role × action matrix.
+
+### Cleanup
+
+Three disposable accounts across three probe runs, all deleted and **verified gone by
+service-role lookup** rather than trusting the delete's status code. Production is back to
+exactly 16 profiles with zero leftover probe posts.
+
+`npm run verify` green: **45 warnings / 0 errors**, **569 tests** (+8), **0 advisories**.
+
+---
+
 ## August 1, 2026 — Auditing the spring-clean: it fixed one of two twin files
 
 Tom asked for a double-check before securing the work. Nothing needed pushing — tree
