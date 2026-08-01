@@ -1,7 +1,12 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
+  /* The page canvas. Was #ffffff, which only ever showed during load and on
+   * overscroll, because all 49 app pages paint `bg-gray-50` over it — so the
+   * white flashed and then vanished. Matching the canvas to what pages
+   * actually use is what lets white cards read as ELEVATED rather than as
+   * "the same colour with a border". */
+  --background: #f9fafb;
   --foreground: #171717;
   
   /* Vertical Rhythm System - Base 24px
@@ -133,6 +138,128 @@ body {
   outline: 2px solid var(--color-brand);
   outline-offset: 2px;
   border-radius: 4px;
+}
+
+/* ── THE INTERACTION LANGUAGE ────────────────────────────────────────────────
+ * One rule for how things respond to a pointer, applied everywhere, because
+ * inconsistent hover behaviour is what reads as "unfinished" more than any
+ * single element does.
+ *
+ *   hover  → background tint + a barely-there lift, 150ms ease-out
+ *   press  → scale(0.97), 100ms, springing back
+ *   focus  → handled GLOBALLY by :focus-visible below. Do NOT add focus styles
+ *            to individual controls; the job is removing overrides that fight
+ *            it, not adding more rules.
+ *
+ * All of it is transition-based, so the prefers-reduced-motion block further
+ * down neutralises it automatically — no per-component guards needed.
+ *
+ * `ea-` prefix matches the convention already established in this file.
+ */
+
+:root {
+  /* Motion constants — one source so timings cannot drift apart. */
+  --ea-hover-ms: 150ms;
+  --ea-press-ms: 100ms;
+  --ea-ease: cubic-bezier(0.22, 0.61, 0.36, 1); /* gentle ease-out */
+
+  /* EXACTLY TWO elevation levels. A third is how a design starts to feel
+   * arbitrary — if something needs to stand out more, it should be the only
+   * saturated thing, not the third shadow. */
+  --ea-shadow-rest: 0 1px 2px rgb(0 0 0 / 0.04), 0 1px 3px rgb(0 0 0 / 0.03);
+  --ea-shadow-raised: 0 2px 4px rgb(0 0 0 / 0.05), 0 4px 12px rgb(0 0 0 / 0.06);
+
+  /* Hairline border at ~6% black — reads as a defined edge without the
+   * grey-box look a solid gray-200 gives at this scale. */
+  --ea-hairline: rgb(0 0 0 / 0.06);
+
+  /* Neutral hover wash for quiet controls. */
+  --ea-tint: rgb(0 0 0 / 0.04);
+}
+
+/* Any control that should respond to a pointer. */
+.ea-interactive {
+  transition:
+    background-color var(--ea-hover-ms) var(--ea-ease),
+    color var(--ea-hover-ms) var(--ea-ease),
+    box-shadow var(--ea-hover-ms) var(--ea-ease),
+    transform var(--ea-press-ms) var(--ea-ease);
+}
+.ea-interactive:hover {
+  background-color: var(--ea-tint);
+}
+.ea-interactive:active {
+  transform: scale(0.97);
+}
+
+/* Resting surface: hairline + soft shadow. One step up on hover. */
+.ea-surface {
+  background-color: #ffffff;
+  border: 1px solid var(--ea-hairline);
+  box-shadow: var(--ea-shadow-rest);
+  transition:
+    box-shadow var(--ea-hover-ms) var(--ea-ease),
+    border-color var(--ea-hover-ms) var(--ea-ease);
+}
+.ea-surface-raised:hover {
+  box-shadow: var(--ea-shadow-raised);
+}
+
+/* 40px circular hit area for bare icons. The bells were ~36px — under the
+ * 44px guidance and, more to the point, with no visible target at all.
+ *
+ * Deliberately does NOT set `display`. It used to, and that silently beat
+ * Tailwind's `lg:hidden` on the call sites that need to hide at a breakpoint —
+ * both Connections and the hamburger stayed visible on desktop. Class
+ * precedence comes from stylesheet order, not from the order classes appear in
+ * the attribute, so the caller could never win. Callers supply their own
+ * display (`inline-flex items-center justify-center`). */
+.ea-icon-btn {
+  position: relative;
+  width: 40px;
+  height: 40px;
+  border-radius: 9999px;
+  color: #4b5563; /* gray-600 */
+  transition:
+    background-color var(--ea-hover-ms) var(--ea-ease),
+    color var(--ea-hover-ms) var(--ea-ease),
+    transform var(--ea-press-ms) var(--ea-ease);
+}
+.ea-icon-btn:hover {
+  background-color: var(--ea-tint);
+  color: var(--color-brand);
+}
+.ea-icon-btn:active {
+  transform: scale(0.97);
+}
+
+/* The ONE loud control. Gradient is deliberately shallow — it should read as
+ * depth, not as a 2010 button. */
+.ea-cta {
+  background-image: linear-gradient(180deg, #8b5cf6 0%, var(--color-brand) 100%);
+  box-shadow: var(--ea-shadow-rest);
+  transition:
+    background-image var(--ea-hover-ms) var(--ea-ease),
+    box-shadow var(--ea-hover-ms) var(--ea-ease),
+    transform var(--ea-press-ms) var(--ea-ease);
+}
+.ea-cta:hover {
+  background-image: linear-gradient(180deg, var(--color-brand) 0%, var(--color-brand-hover) 100%);
+  box-shadow: var(--ea-shadow-raised);
+}
+.ea-cta:active {
+  transform: scale(0.97);
+}
+
+/* Slow pulse ring for a genuinely-live status dot. Slower and softer than
+ * Tailwind's animate-pulse, which reads as urgency rather than presence. */
+@keyframes ea-live-ring {
+  0%   { box-shadow: 0 0 0 0 rgb(220 38 38 / 0.45); }
+  70%  { box-shadow: 0 0 0 6px rgb(220 38 38 / 0); }
+  100% { box-shadow: 0 0 0 0 rgb(220 38 38 / 0); }
+}
+.ea-live-dot {
+  animation: ea-live-ring 2.4s ease-out infinite;
 }
 
 /* ── Messaging microinteractions ────────────────────────────────────────────

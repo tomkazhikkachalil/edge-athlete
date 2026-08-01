@@ -152,16 +152,20 @@ export default function NotificationBell() {
       {/* Bell Icon Button */}
       <button
         onClick={() => setShowDropdown(!showDropdown)}
-        className="relative p-2 text-gray-600 hover:text-gray-900 transition-colors"
-        aria-label="Notifications"
+        className="ea-icon-btn inline-flex items-center justify-center"
+        aria-label={unreadCount > 0 ? `Notifications, ${unreadCount} unread` : 'Notifications'}
+        aria-expanded={showDropdown}
       >
-        <i className="fas fa-bell text-xl"></i>
+        <i className="fas fa-bell text-xl" aria-hidden="true"></i>
 
-        {/* Unread Badge */}
+        {/* A DOT, not a number — matching MessagesBell. The count is announced
+            to screen readers via aria-label instead, which is where it is
+            actually useful. The ring separates it from the blurred header. */}
         {unreadCount > 0 && (
-          <span className="absolute top-0 right-0 inline-flex items-center justify-center w-5 h-5 text-xs font-bold text-white bg-red-600 rounded-full">
-            {unreadCount > 99 ? '99+' : unreadCount}
-          </span>
+          <span
+            className="absolute right-1.5 top-1.5 h-2.5 w-2.5 rounded-full bg-red-600 ring-2 ring-white"
+            aria-hidden="true"
+          />
         )}
       </button>
 

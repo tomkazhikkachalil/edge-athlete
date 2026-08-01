@@ -363,15 +363,14 @@ export default function AdvancedSearchBar() {
                   <div className="px-4 py-2 bg-gray-50 border-b border-gray-100">
                     <h3 className="text-sm font-semibold text-gray-700">Clubs</h3>
                   </div>
+                  {/* Club rows are NOT clickable: they used to push to
+                      /club/[id], a route that does not exist, so every club
+                      result was a 404 — a dead end, which this app's navigation
+                      rules forbid. Restore the handler when the route ships. */}
                   {results.clubs.map((club: SearchClubResult) => (
                     <div
                       key={club.id}
-                      onClick={() => {
-                        router.push(`/club/${club.id}`);
-                        setShowResults(false);
-                        setQuery('');
-                      }}
-                      className="px-4 py-3 hover:bg-gray-50 cursor-pointer transition-colors"
+                      className="px-4 py-3"
                     >
                       <p className="font-medium text-gray-900">{club.name}</p>
                       <p className="text-sm text-gray-500 line-clamp-1">
