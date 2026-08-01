@@ -38,10 +38,10 @@ describe('buildMirrorHoles', () => {
 describe('buildMirrorMedia', () => {
   const m = (
     media_url: string,
-    hole_number: number | null,
+    segment_number: number | null,
     created_at = '2026-07-29T10:00:00Z',
     media_type = 'image'
-  ) => ({ media_url, media_type, hole_number, created_at });
+  ) => ({ media_url, media_type, segment_number, created_at });
 
   it('orders round media first, then by hole, then by capture time', () => {
     const rows = buildMirrorMedia(

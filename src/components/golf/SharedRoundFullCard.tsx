@@ -9,7 +9,8 @@ import { asGameFormat, calcStablefordTotal, calcMatchStatus, GAME_FORMAT_LABELS 
 import ConfirmModal from '../ConfirmModal';
 import MediaTile from '../media/MediaTile';
 import MediaLightbox from '../media/MediaLightbox';
-import { toCollageItems, groupMediaByHole } from '@/lib/golf/round-media';
+import { toCollageItems, groupMediaBySegment, type RoundCollageItem } from '@/lib/golf/round-media';
+import { segmentLabel } from '@/lib/sports/segment-schemas';
 import LazyImage from '../LazyImage';
 import type { CompleteGolfScorecard } from '@/types/group-posts';
 
@@ -42,7 +43,7 @@ export default function SharedRoundFullCard({
   // Flat, view-ready list — ordered by hole so the lightbox's prev/next walks
   // the round the way it was played, not the order rows happen to come back in.
   const roundMediaItems = useMemo(() => toCollageItems(scorecard.media), [scorecard.media]);
-  const mediaByHole = useMemo(() => groupMediaByHole(roundMediaItems), [roundMediaItems]);
+  const mediaBySegment = useMemo(() => groupMediaBySegment(roundMediaItems), [roundMediaItems]);
 
   const roundLive = isRoundLive(group_post);
   const isCreator = currentUserId === group_post.creator_id;
@@ -749,10 +750,13 @@ export default function SharedRoundFullCard({
                 <i className="fas fa-camera mr-2"></i>
                 Round Media
               </h3>
-              {mediaByHole.map(([holeKey, group]) => (
-                <div key={holeKey ?? 'round'} className="mb-3">
+              {mediaBySegment.map(([segment, group]) => (
+                <div key={segment ?? 'round'} className="mb-3">
+                  {/* The ONLY sport-specific thing here is the word, and it
+                      comes from the schema — an innings heading is this same
+                      code with a different label. */}
                   <div className="text-xs font-bold text-gray-700 mb-1.5">
-                    {holeKey ? `Hole ${holeKey}` : 'Round'}
+                    {segmentLabel('golf', segment)}
                   </div>
                   <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
                     {group.map(item => (
@@ -813,10 +817,7 @@ export default function SharedRoundFullCard({
           index={lightboxIndex}
           onIndexChange={setLightboxIndex}
           onClose={() => setLightboxIndex(null)}
-          footerFor={item => {
-            const hole = (item as { hole?: number | null }).hole;
-            return hole ? `Hole ${hole}` : 'Round';
-          }}
+          footerFor={item => segmentLabel('golf', (item as RoundCollageItem).segment)}
         />
       )}
 
