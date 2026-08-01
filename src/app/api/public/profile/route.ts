@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getSportDefinition } from '@/lib/sports/SportRegistry';
+import { getSportDefinition, type SportKey } from '@/lib/sports/SportRegistry';
 import { getStatSchema, isStatLineData } from '@/lib/sports/stat-schemas';
+import { getSportSettingsDisplay } from '@/lib/sports/settings-schemas';
 import { resolveSportKey } from '@/lib/sports/resolve-sport-key';
 import { getSupabaseAdmin } from '@/lib/auth-server';
 
@@ -180,6 +181,26 @@ export async function GET(request: NextRequest) {
       }
     }
 
+    // Declared per-sport details (position, jersey, handedness, handicap...).
+    // No extra privacy gate is needed: this route already 403s anything that
+    // is not `visibility === 'public'`, which is exactly the agreed rule.
+    // Shaped here rather than on the client so legacy keys no schema declares
+    // and the empty rows onboarding writes never cross the wire.
+    const { data: settingsRows } = await supabase
+      .from('sport_settings')
+      .select('sport_key, settings')
+      .eq('profile_id', profile.id);
+
+    const sportSettings = (settingsRows || [])
+      .map(row => {
+        const sportKey = row.sport_key as SportKey;
+        const items = getSportSettingsDisplay(sportKey, row.settings);
+        if (items.length === 0) return null;
+        // Only resolve the label once the schema lookup has succeeded.
+        return { sportKey, sportLabel: getSportDefinition(sportKey).display_name, items };
+      })
+      .filter((entry): entry is NonNullable<typeof entry> => entry !== null);
+
     return NextResponse.json({
       profile: {
         ...profile,
@@ -190,6 +211,7 @@ export async function GET(request: NextRequest) {
       recentPosts: recentPosts || [],
       badges: badges || [],
       sportStats,
+      sportSettings,
       // Deprecated alias — kept one release so cached clients keep working
       golfStats: null
     });

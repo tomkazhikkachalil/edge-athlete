@@ -43,6 +43,12 @@ interface SettingsFieldBase {
   label: string;
   /** Short helper rendered under the input. */
   hint?: string;
+  /**
+   * Label used on the PROFILE (read-only), falling back to `label`.
+   * A form label reads in context, under a hint and beside its input; a
+   * profile chip has to read alone.
+   */
+  displayLabel?: string;
 }
 
 export type SettingsFieldDef =
@@ -74,6 +80,22 @@ export interface SportSettingsSchema {
 /** Every form value is held as a string; the schema drives coercion on save. */
 export type SettingsFormValues = Record<string, string>;
 
+/**
+ * The first option of EVERY select, and every select's default.
+ *
+ * Selects used to default to a real value (`right`, `white`, `PG`), which
+ * `formValuesToSettings` then persisted whether or not the athlete had chosen
+ * it — so merely opening a sport tab and pressing Save recorded preferences
+ * nobody stated. That was invisible while these values were write-only. Now
+ * that they render on a public profile, it would present a guess as a declared
+ * fact, so "not specified" has to be a real, selectable state.
+ *
+ * Blank values are dropped by `formValuesToSettings` and skipped by
+ * `settingsToDisplayItems`, so an untouched form saves nothing and shows
+ * nothing. A test pins exactly that.
+ */
+const NOT_SPECIFIED: SettingsSelectOption = { value: '', label: '— Not specified' };
+
 // Reused across team sports so the numbering rule stays consistent.
 const jerseyNumberField = (): SettingsFieldDef => ({
   key: 'jersey_number',
@@ -89,8 +111,9 @@ const dominantHandField = (label = 'Dominant Hand'): SettingsFieldDef => ({
   key: 'dominant_hand',
   label,
   kind: 'select',
-  defaultValue: 'right',
+  defaultValue: NOT_SPECIFIED.value,
   options: [
+    NOT_SPECIFIED,
     { value: 'right', label: 'Right-handed' },
     { value: 'left', label: 'Left-handed' },
   ],
@@ -107,6 +130,11 @@ export const SPORT_SETTINGS_SCHEMAS: Partial<Record<SportKey, SportSettingsSchem
       {
         key: 'handicap',
         label: 'Handicap Index',
+        // The profile also shows a WHS-style estimate derived from logged
+        // rounds (`/api/golf/trends`), labelled there as "Handicap est." and
+        // "not an official index". "Official" is the symmetric word, so the
+        // two numbers can never be read as the same measurement.
+        displayLabel: 'Official Handicap',
         kind: 'number',
         placeholder: '12.4',
         step: 0.1,
@@ -126,8 +154,9 @@ export const SPORT_SETTINGS_SCHEMAS: Partial<Record<SportKey, SportSettingsSchem
         key: 'tee_preference',
         label: 'Preferred Tee',
         kind: 'select',
-        defaultValue: 'white',
+        defaultValue: NOT_SPECIFIED.value,
         options: [
+          NOT_SPECIFIED,
           { value: 'black', label: 'Black (Championship)' },
           { value: 'blue', label: 'Blue (Back/Tips)' },
           { value: 'white', label: "White (Men's Regular)" },
@@ -146,8 +175,9 @@ export const SPORT_SETTINGS_SCHEMAS: Partial<Record<SportKey, SportSettingsSchem
         key: 'position',
         label: 'Position',
         kind: 'select',
-        defaultValue: 'C',
+        defaultValue: NOT_SPECIFIED.value,
         options: [
+          NOT_SPECIFIED,
           { value: 'C', label: 'Centre' },
           { value: 'LW', label: 'Left Wing' },
           { value: 'RW', label: 'Right Wing' },
@@ -160,8 +190,9 @@ export const SPORT_SETTINGS_SCHEMAS: Partial<Record<SportKey, SportSettingsSchem
         key: 'shoots',
         label: 'Shoots',
         kind: 'select',
-        defaultValue: 'left',
+        defaultValue: NOT_SPECIFIED.value,
         options: [
+          NOT_SPECIFIED,
           { value: 'left', label: 'Left' },
           { value: 'right', label: 'Right' },
         ],
@@ -176,8 +207,9 @@ export const SPORT_SETTINGS_SCHEMAS: Partial<Record<SportKey, SportSettingsSchem
         key: 'position',
         label: 'Position',
         kind: 'select',
-        defaultValue: 'PG',
+        defaultValue: NOT_SPECIFIED.value,
         options: [
+          NOT_SPECIFIED,
           { value: 'PG', label: 'Point Guard' },
           { value: 'SG', label: 'Shooting Guard' },
           { value: 'SF', label: 'Small Forward' },
@@ -197,8 +229,9 @@ export const SPORT_SETTINGS_SCHEMAS: Partial<Record<SportKey, SportSettingsSchem
         key: 'position',
         label: 'Position',
         kind: 'select',
-        defaultValue: 'MF',
+        defaultValue: NOT_SPECIFIED.value,
         options: [
+          NOT_SPECIFIED,
           { value: 'GK', label: 'Goalkeeper' },
           { value: 'DF', label: 'Defender' },
           { value: 'MF', label: 'Midfielder' },
@@ -210,8 +243,9 @@ export const SPORT_SETTINGS_SCHEMAS: Partial<Record<SportKey, SportSettingsSchem
         key: 'preferred_foot',
         label: 'Preferred Foot',
         kind: 'select',
-        defaultValue: 'right',
+        defaultValue: NOT_SPECIFIED.value,
         options: [
+          NOT_SPECIFIED,
           { value: 'right', label: 'Right' },
           { value: 'left', label: 'Left' },
           { value: 'both', label: 'Both' },
@@ -227,8 +261,9 @@ export const SPORT_SETTINGS_SCHEMAS: Partial<Record<SportKey, SportSettingsSchem
         key: 'position',
         label: 'Primary Position',
         kind: 'select',
-        defaultValue: 'P',
+        defaultValue: NOT_SPECIFIED.value,
         options: [
+          NOT_SPECIFIED,
           { value: 'P', label: 'Pitcher' },
           { value: 'C', label: 'Catcher' },
           { value: '1B', label: 'First Base' },
@@ -246,8 +281,9 @@ export const SPORT_SETTINGS_SCHEMAS: Partial<Record<SportKey, SportSettingsSchem
         key: 'bats',
         label: 'Bats',
         kind: 'select',
-        defaultValue: 'right',
+        defaultValue: NOT_SPECIFIED.value,
         options: [
+          NOT_SPECIFIED,
           { value: 'right', label: 'Right' },
           { value: 'left', label: 'Left' },
           { value: 'switch', label: 'Switch' },
@@ -257,8 +293,9 @@ export const SPORT_SETTINGS_SCHEMAS: Partial<Record<SportKey, SportSettingsSchem
         key: 'throws',
         label: 'Throws',
         kind: 'select',
-        defaultValue: 'right',
+        defaultValue: NOT_SPECIFIED.value,
         options: [
+          NOT_SPECIFIED,
           { value: 'right', label: 'Right' },
           { value: 'left', label: 'Left' },
         ],
@@ -273,8 +310,9 @@ export const SPORT_SETTINGS_SCHEMAS: Partial<Record<SportKey, SportSettingsSchem
         key: 'position',
         label: 'Position',
         kind: 'select',
-        defaultValue: 'OH',
+        defaultValue: NOT_SPECIFIED.value,
         options: [
+          NOT_SPECIFIED,
           { value: 'OH', label: 'Outside Hitter' },
           { value: 'OPP', label: 'Opposite' },
           { value: 'MB', label: 'Middle Blocker' },
@@ -339,6 +377,80 @@ export function settingsToFormValues(
   }
 
   return values;
+}
+
+/** One label/value pair ready to render on a profile. */
+export interface SettingsDisplayItem {
+  key: string;
+  /** `field.displayLabel ?? field.label`. */
+  label: string;
+  /** Already human-readable: selects resolve to their option label. */
+  value: string;
+}
+
+/**
+ * Turn a stored settings object into display pairs for a profile.
+ *
+ * Iterates the SCHEMA's fields, never `Object.entries(settings)`. Rows can
+ * hold keys no schema declares — `mergeSettingsForSave` deliberately
+ * preserves them, and rows written by the retired golf-equipment tab still
+ * carry `driver_brand`/`ball_brand`. Walking the stored object would leak
+ * those dead keys onto public profiles.
+ *
+ * Returns `[]` for an empty/absent settings object, which matters more than
+ * it looks: onboarding writes an empty `{}` row for every sport an athlete
+ * declares, so most rows have nothing in them and must render nothing at all
+ * — not an empty labelled block.
+ */
+export function settingsToDisplayItems(
+  schema: SportSettingsSchema,
+  settings: Record<string, unknown> | null | undefined
+): SettingsDisplayItem[] {
+  if (!settings) return [];
+
+  const items: SettingsDisplayItem[] = [];
+
+  for (const field of schema.fields) {
+    const stored = settings[field.key];
+    if (stored === null || stored === undefined) continue;
+
+    let value: string;
+
+    if (field.kind === 'select') {
+      // Only render an option the schema still offers. A retired option is
+      // dropped from the edit form too, so showing its raw value would
+      // display something the athlete can no longer see or confirm.
+      const option = field.options.find(o => o.value !== '' && o.value === String(stored));
+      if (!option) continue;
+      value = option.label;
+    } else if (typeof stored === 'number') {
+      // Number.isFinite, not truthiness — jersey number 0 is legal.
+      if (!Number.isFinite(stored)) continue;
+      value = String(stored);
+    } else if (typeof stored === 'string') {
+      value = stored.trim();
+      if (value === '') continue;
+    } else {
+      // The JSONB column is not shape-enforced; ignore anything else.
+      continue;
+    }
+
+    items.push({ key: field.key, label: field.displayLabel ?? field.label, value });
+  }
+
+  return items;
+}
+
+/**
+ * Display pairs for a sport key, or `[]` when that sport has no schema.
+ * Convenience wrapper for callers iterating rows straight out of the table.
+ */
+export function getSportSettingsDisplay(
+  sportKey: SportKey,
+  settings: Record<string, unknown> | null | undefined
+): SettingsDisplayItem[] {
+  const schema = getSportSettingsSchema(sportKey);
+  return schema ? settingsToDisplayItems(schema, settings) : [];
 }
 
 /**

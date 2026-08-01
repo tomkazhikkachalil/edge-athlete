@@ -6,6 +6,8 @@ import Link from 'next/link';
 import { useAuth } from '@/lib/auth';
 import AppHeader from '@/components/AppHeader';
 import LazyImage from '@/components/LazyImage';
+import SportSettingsRow from '@/components/SportSettingsRow';
+import type { SettingsDisplayItem } from '@/lib/sports/settings-schemas';
 import {
   formatHeight,
   formatWeightWithUnit,
@@ -73,6 +75,14 @@ interface ProfileData {
     color_token: string;
   }>;
   sportStats: SportStats | null;
+  /** Declared per-sport details. Already filtered server-side, so a sport
+   *  with nothing to show is simply absent. Optional so a cached client
+   *  response from before this field existed still parses. */
+  sportSettings?: Array<{
+    sportKey: string;
+    sportLabel: string;
+    items: SettingsDisplayItem[];
+  }>;
 }
 
 export default function PublicProfilePage() {
@@ -211,6 +221,8 @@ export default function PublicProfilePage() {
   if (!profileData) return null;
 
   const { profile, recentPosts, badges, sportStats } = profileData;
+  // Default so a response predating this field renders normally.
+  const sportSettings = profileData.sportSettings ?? [];
   const displayName = formatDisplayName(profile.first_name, profile.middle_name, profile.last_name, profile.full_name);
 
   return (
@@ -394,6 +406,19 @@ export default function PublicProfilePage() {
                 </div>
               ))}
             </div>
+          </div>
+        )}
+
+        {/* Declared per-sport details. Same card shell as Sport Stats above so
+            the two surfaces cannot drift apart. */}
+        {sportSettings.length > 0 && (
+          <div className="mt-4 bg-white rounded-xl shadow-sm border border-gray-200 p-4 space-y-4">
+            {sportSettings.map(group => (
+              <div key={group.sportKey}>
+                <h2 className="text-sm font-semibold text-gray-700 mb-1">{group.sportLabel}</h2>
+                <SportSettingsRow items={group.items} className="border-t-0 px-0 py-0" />
+              </div>
+            ))}
           </div>
         )}
 

@@ -123,6 +123,97 @@ invisible locally because the fixture drove the feed card, which does pass it.
 
 ---
 
+## August 1, 2026 — Sport settings reach the profile, and stop inventing preferences
+
+`sport_settings` had been write-only since it was created: athletes could enter a
+position, jersey number, handedness, handicap and home course, save successfully, and see
+it **nowhere**. Roadmap item §5 called a display block "the natural next step". This is it
+— and it is the first real piece of the recruiting story, since position and jersey number
+are precisely what a coach looks for.
+
+### The read path did not exist
+
+`/api/sport-settings` hard-filters `.eq('profile_id', user.id)` in every handler, and RLS
+on the table is owner-only SELECT. So this was never "call the existing route with a
+different id" — it needed a new gated route,
+`GET /api/profile/[profileId]/sport-settings`, modelled on `/api/vitals`.
+
+The load-bearing detail is **optional auth rather than `canViewProfile`**. That helper
+returns false for a null viewer *even on a public profile* (the trap is already documented
+at `profile/[profileId]/media/route.ts:102-125`), so using it would have silently broken
+`/u/[username]` for exactly the logged-out visitor the public profile exists to serve.
+Equally, `/api/equipment`'s shape was wrong here — it 401s anonymous callers.
+
+Not bolted onto `active-sports` either, even though that route already reads this table:
+its ungated design is justified *because* it exposes only `sport_key` and never `settings`.
+Widening it would have quietly invalidated its own reasoning.
+
+### The route shapes for display, not the component
+
+Two guarantees are properties of the API surface rather than of one view a future consumer
+might forget to copy:
+
+- **Legacy keys never cross the wire.** `mergeSettingsForSave` deliberately preserves keys
+  no schema declares, so rows still carry `driver_brand`/`ball_brand` from the golf
+  equipment tab removed earlier today. Walking `Object.entries(settings)` would have
+  published dead gear fields on public profiles. The helper iterates the **schema**.
+- **Empty rows are omitted entirely.** Onboarding writes a `{}` row for every sport an
+  athlete declares, so most rows have nothing in them. A sport with nothing to show is
+  absent from the response, not present-and-empty.
+
+Verified by asserting on the **JSON**, not the DOM — a seeded `driver_brand` is absent
+from the response body, which is the only check that actually proves it.
+
+### The part that mattered most: the form was inventing preferences
+
+Selects preselected a real value (`Right-handed`, `White tees`, `Point Guard`) and
+`formValuesToSettings` persisted it, so merely opening a sport tab and pressing Save
+recorded preferences nobody had stated. Harmless while the data was invisible. The moment
+it renders on a public profile, it is the app putting words in an athlete's mouth.
+
+Every select now starts at **`— Not specified`**, which is a real, selectable state. Blank
+values were already dropped on save and are skipped on display, so no new logic was
+needed — but the guarantee is pinned by a test over *every* schema:
+`settingsToDisplayItems(schema, formValuesToSettings(schema, emptySettingsValues(schema)))`
+must be `[]`. And confirmed in the real app: an untouched Save sends `settings: {}`, and
+the profile API then returns nothing for that sport.
+
+This is why the ordering was fixed — the change had to land *before* anything displayed.
+
+### Golf: two handicaps that measure different things
+
+The declared index shows as **"Official Handicap"**, symmetric with the trends page's
+existing "Handicap est." and "not an official index". No rename was needed there. The
+sport cards carry no handicap of their own (`GolfAdapter.ts:80-85`), so the two numbers
+never sit side by side — the labels just have to make the distinction unmissable.
+
+### Verification
+
+Node tests cover the pure helper (`{}`/null → nothing; legacy keys ignored; retired select
+options skipped rather than shown raw; **jersey number `0` renders**, since it is legal and
+falsy and a truthiness check would silently drop it; schema field order; every option in
+every schema round-tripping to its label).
+
+Browser + API, against real Chrome with disposable fixtures: **26/26**. The privacy matrix
+is the important half — public profile readable logged-out (200), private profile 403 for
+both a logged-out viewer *and* a logged-in non-follower, 200 for the owner. Plus the
+public `/u` page rendering anonymously at 375px and 1280px with no overflow.
+
+Fixtures deleted afterwards and confirmed gone by service-role lookup; Tom's 3 profiles
+untouched.
+
+Gate: **666 tests** (was 653), 45 warnings / 0 errors — ratchet unchanged.
+
+### Noted, not fixed
+
+Cards in the 3-across grid now have slightly different stat-tile baselines, because a
+sport with three declared details pushes its tiles up more than one with none. Checked in
+the screenshot: the rows bottom-align above the footer and it reads as intentional. The
+fix would be a `min-h` that reintroduces a blank strip on settings-less sports, which is
+worse. Left alone deliberately.
+
+---
+
 ## August 1, 2026 — Edit Profile: a modal nobody could click, and three blank sport tabs
 
 Started as roadmap item #5 (kill the hardcoded golf tab). Ended up finding that the

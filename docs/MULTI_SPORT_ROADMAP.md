@@ -109,9 +109,26 @@ Ordered by size. Each item = a seam the adapter interface needs before "drop in 
 - **Note on what these settings are:** intake-declared preferences (position, jersey
   number, handedness), *not* performance stats. The handicap the app displays is still
   derived from logged rounds in `/api/golf/trends`.
-- **Still not surfaced:** nothing *reads* `sport_settings` back onto a profile yet — the
-  values are write-only today. A generic schema-driven display block is the natural next
-  step now that the shape is declared in one place.
+- ~~**Still not surfaced:** nothing *reads* `sport_settings` back onto a profile~~
+  ✅ **DONE (August 1, 2026).** `settingsToDisplayItems` (same file) turns a stored row
+  into label/value pairs, rendered by `src/components/SportSettingsRow.tsx` on the
+  per-sport cards in `MultiSportHighlights` (covers `/athlete` and `/athlete/[id]`) and on
+  the public `/u/[username]` page. The table is no longer decorative.
+  - **New read path:** `GET /api/profile/[profileId]/sport-settings`, modelled on
+    `/api/vitals` — optional auth, so a logged-out visitor can read a public profile
+    (`canViewProfile` returns false for a null viewer and would have broken `/u`).
+    `/api/sport-settings` stays owner-only; it is not a cross-profile route.
+  - **The route shapes for display**, so two guarantees belong to the API rather than to
+    one component: keys no schema declares (legacy `driver_brand` from the retired golf
+    equipment tab) never cross the wire, and the empty `{}` rows onboarding writes are
+    omitted entirely.
+  - **Selects became optional in the same change.** They used to preselect a real value
+    that saving then persisted, so an untouched form published "Right-handed"/"White tees"
+    as declared facts. Every select now starts at `— Not specified`, and a test pins the
+    round trip: empty form → empty saved object → nothing displayed.
+  - Golf's declared index displays as **"Official Handicap"**, deliberately symmetric with
+    the trends page's "Handicap est." / "not an official index". The two numbers measure
+    different things and must never read as the same one.
 
 ### 6. Consolidations / small fixes (can do anytime, low risk)
 - **Two parallel sport registries:** `src/lib/sports/SportRegistry.ts` vs `src/lib/config/sports-config.ts` (icons/colors/names duplicated). Merge to one source of truth. (Still open.)
