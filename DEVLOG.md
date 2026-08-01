@@ -1,5 +1,135 @@
 # Development Log
 
+## July 31, 2026 — A live round is now a place you can go
+
+Tom: *"Going live still doesn't take me into the round. It boots me out of the
+window and the live score input screen never appears. Instead it posts to the
+feed, and I have to go find the post that says 'awaiting scores' and click edit
+score."*
+
+### The previous fix was mine, and it was wrong
+
+Not in what it did — in where it lived. It set `resumePostId` in `feed/page.tsx`'s
+`handlePostCreated`, so `PostDetailModal` opened the scorer via an
+`autoOpenScoreEntry` flag. That works. It landed in **one of three**
+`CreatePostModal` render sites:
+
+| site | had the fix |
+|---|---|
+| `src/app/feed/page.tsx` | yes |
+| `src/app/athlete/page.tsx` | **no** — its handler is `onPostCreated={() => {…}}`, it ignores the argument entirely |
+| `src/components/VitalsTab.tsx` | no |
+
+And `AppHeader` does `router.push('/athlete')` whenever a page doesn't pass
+`onCreatePost` — only `/feed` and `/athlete` do. **So the header "+" funnelled
+the user from everywhere else into the one unfixed site.** That is the reported
+path, exactly.
+
+Explicitly refuted along the way: nothing clears `resumePostId` except the
+modal's own `onClose`, and there is no `router.push`/`refresh`/`revalidate` in
+the create chain. The "it opens and then gets replaced by a redirect" theory is
+wrong — the scorer simply never opened.
+
+### The structural gap
+
+There was **no route that opens a group-round scorer**. The only way in was a
+React state flag on one page. That cannot survive a reload or the back button,
+cannot be linked, and lets every new render site drift — which is precisely what
+happened. Since "leaving the screen and coming back should return me to the live
+round where I left off" is a hard requirement, modal state was never going to be
+enough.
+
+### `/live/[groupPostId]`
+
+Deliberately **not** under `/app/sport/golf/` — that namespace already has
+`rounds/[roundId]`, which takes a *different primary key for the same-sounding
+noun* (`golf_rounds.id`, the post-completion mirror). Putting a second one beside
+it is the exact drift trap that caused this bug. `/live` already declares itself
+the sport-agnostic live seam, so `/live` → `/live/<id>` needs no explanation and
+a hockey period lands there later. The param is named `groupPostId` so it stays
+grep-distinguishable.
+
+The page mounts `ScoreEntryModal` **unchanged** over a `SharedRoundQuickView`
+shell. That modal is 806 lines carrying draft merge, per-hole persistence, hole
+media upload and player switching; with no jsdom in the test harness, extracting
+a body from it would be an unverifiable refactor on the exact path being
+complained about. On mobile `fixed inset-0` already *is* the full-screen scorer.
+
+Two small pieces of new surface:
+
+- **`GET /api/group-posts/[id]/scorecard`** — the existing `GET
+  /api/group-posts/[id]` carries participants and media but no
+  `golf_scorecard_data` and no `golf_participant_scores`, so it has neither the
+  hole data nor the scores. ~50 lines reusing `GROUP_SCORECARD_SELECT` and
+  `transformGroupPostToScorecard`, RLS-scoped via the user client. Keying on the
+  group-post id means it works even when `post_id` is null.
+- **`resolveRoundEntry`** (`src/lib/golf/round-viewer.ts`) — one pure function
+  deciding `not-found` / `final` / `watch` / `score`, so the page has no
+  branching logic of its own and the rules are unit-testable without a DOM. It
+  defers to `effectiveRoundStatus`, so the 6h auto-end rule is honoured for
+  free. A non-participant on a public round gets **watch, not 403** — watchable
+  public rounds are the promise `/live` and Live Now already make.
+
+### Navigation moved into the composer
+
+The old fix failed because navigation lived in a *parent callback*. It now lives
+in the single place a round is created — `CreatePostModal`'s shared-golf branch —
+gated by `shouldEnterScorerAfterCreate` in `src/lib/golf/round-route.ts`. **This
+fixes all three render sites at once**, because `router.push` doesn't care which
+page mounted the composer, and a fourth site cannot drift because it no longer
+participates in the decision.
+
+That gate keys on **`group_post.id`**, never `post_id`. `post_id` reaches the
+client through a re-fetch that can silently fail, and the old guard tripped over
+it with no toast and no error.
+
+### One door, not two
+
+Every entrance was repointed and the old one deleted:
+
+| surface | now |
+|---|---|
+| resume banner | `router.push(liveRoundPath(group_post_id))` — the banner state already carried it |
+| Live Now cards | same; participants get the scorer, everyone else the watch view |
+| `/api/golf/live-now` | dropped `.filter(r => r.post_id !== null)` — a round whose backfill failed is still watchable |
+| `autoOpenScoreEntry`, `resumePostId`, the second `PostDetailModal` | deleted |
+
+Two ways in is how this drifted in the first place.
+
+**Coming back where you left off** is mostly free once the round has a URL:
+`/live/<id>` re-resolves from the server, and `ScoreEntryModal` already resumes
+at `firstUnscoredHole` and re-merges its localStorage draft. Auto-open is guarded
+by **state, not a ref** — a ref read during render is what `react-hooks/refs`
+forbids, and state is the better fit anyway: it resets on unmount, so closing the
+scorer to check the leaderboard sticks while leaving and returning re-arms it.
+
+**End Round** does `router.replace('/feed?post=<post_id>')` — `replace`, not
+`push`, so the back button can't return to a scorer for a finished round. Ending
+already re-timestamps the post, so it sits at the top of the feed.
+
+### The silent failure underneath
+
+`POST /api/group-posts` ended with `const { data: completeGroupPost } = …` — no
+error binding, no log — then fell back to `groupPost`, selected **before** the
+`post_id` backfill and therefore structurally null. A failed re-fetch returned a
+201 that looked perfectly healthy while handing back a round with no feed post:
+indistinguishable from the reported bug, and invisible in the logs. Now the error
+is bound and logged, `post_id` is stamped from the value the request already
+knows, and the backfill retries once.
+
+### Verification
+
+`resolveRoundEntry` and `shouldEnterScorerAfterCreate` are covered across every
+state — including the regression test for the actual report: *"keys on the group
+post id, never `post_id`"*. No migration; latest stays **060**. tsc clean, eslint
+**45 warnings / 0 errors** (unchanged), **559 tests pass**, production build
+clean.
+
+Browser walkthroughs still owed, first one being the exact reproduction: header
+"+" from `/explore` → `/athlete` → Create Post → **Go Live**.
+
+---
+
 ## July 31, 2026 — Golf live rounds: five reported bugs, seven fixes
 
 Tom ran a live round and hit five problems. All were traced end to end and
