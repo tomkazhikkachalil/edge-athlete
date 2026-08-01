@@ -473,7 +473,7 @@ export default function FeedPage() {
           {/* Main Content */}
           <div className="lg:col-span-8">
             {/* Post Creation Form */}
-            <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-3 sm:p-4 mb-4 sm:mb-6">
+            <div className="ea-surface rounded-xl p-3 sm:p-4 mb-4 sm:mb-6">
               <div className="flex items-center gap-2 sm:gap-3">
                 {/* User Avatar */}
                 {profile?.avatar_url ? (
@@ -493,7 +493,7 @@ export default function FeedPage() {
                 )}
                 <button
                   onClick={() => setIsCreatePostModalOpen(true)}
-                  className="flex-1 bg-gray-100 rounded-full px-3 sm:px-4 py-2 text-left text-gray-500 hover:bg-gray-200 transition-colors text-sm sm:text-base"
+                  className="ea-interactive flex-1 bg-gray-100 rounded-lg px-3 sm:px-4 py-2.5 text-left text-gray-500 text-sm sm:text-base"
                 >
                   What&apos;s on your mind, {profile?.first_name || 'Athlete'}?
                 </button>
@@ -505,16 +505,16 @@ export default function FeedPage() {
                   buys hit area, not visual weight. */}
               <div className="flex items-center justify-between mt-3 pt-3 border-t border-gray-100">
                 <div className="flex items-center gap-2 sm:gap-4">
-                  <button onClick={() => setIsCreatePostModalOpen(true)} className="flex items-center gap-1 sm:gap-2 py-3.5 -my-3.5 text-gray-600 hover:text-violet-600 transition-colors">
-                    <i className="fas fa-image text-green-500"></i>
+                  <button onClick={() => setIsCreatePostModalOpen(true)} className="ea-interactive group flex items-center gap-1.5 sm:gap-2 rounded-lg px-2.5 py-3.5 -my-1 text-gray-600 hover:text-gray-900">
+                    <i className="fas fa-image text-gray-400 transition-colors duration-[150ms] group-hover:text-green-600"></i>
                     <span className="text-xs sm:text-sm">Photo/Video</span>
                   </button>
-                  <button onClick={() => setIsCreatePostModalOpen(true)} aria-label="Add stats to a post" className="flex items-center gap-1 sm:gap-2 py-3.5 -my-3.5 text-gray-600 hover:text-violet-600 transition-colors">
-                    <i className="fas fa-chart-line text-violet-500"></i>
+                  <button onClick={() => setIsCreatePostModalOpen(true)} aria-label="Add stats to a post" className="ea-interactive group flex items-center gap-1.5 sm:gap-2 rounded-lg px-2.5 py-3.5 -my-1 text-gray-600 hover:text-gray-900">
+                    <i className="fas fa-chart-line text-gray-400 transition-colors duration-[150ms] group-hover:text-violet-600"></i>
                     <span className="text-xs sm:text-sm hidden sm:inline">Stats</span>
                   </button>
-                  <button onClick={() => setIsCreatePostModalOpen(true)} aria-label="Add an achievement to a post" className="flex items-center gap-1 sm:gap-2 py-3.5 -my-3.5 text-gray-600 hover:text-violet-600 transition-colors">
-                    <i className="fas fa-trophy text-yellow-500"></i>
+                  <button onClick={() => setIsCreatePostModalOpen(true)} aria-label="Add an achievement to a post" className="ea-interactive group flex items-center gap-1.5 sm:gap-2 rounded-lg px-2.5 py-3.5 -my-1 text-gray-600 hover:text-gray-900">
+                    <i className="fas fa-trophy text-gray-400 transition-colors duration-[150ms] group-hover:text-amber-500"></i>
                     <span className="text-xs sm:text-sm hidden sm:inline">Achievement</span>
                   </button>
                 </div>

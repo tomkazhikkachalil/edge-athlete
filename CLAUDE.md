@@ -212,6 +212,36 @@ Available in `src/app/globals.css`:
 .season-card, .season-card-header, etc.    /* component classes */
 ```
 
+### Interaction language — use it, don't reinvent it
+
+One rule for how things respond to a pointer. Inconsistent hover behaviour is what
+reads as "unfinished" more than any individual element, so these are shared classes
+in `globals.css`, not per-component styling:
+
+```css
+.ea-interactive   /* hover: bg tint; press: scale(.97). 150ms / 100ms */
+.ea-surface       /* resting card: hairline border + soft shadow */
+.ea-surface-raised/* one step up on hover — there are exactly TWO levels */
+.ea-icon-btn      /* 40px circular hit area for a bare icon */
+.ea-cta           /* the one loud control: gradient, deepens on hover */
+```
+
+**Focus is global — never add focus styles to a control.** `:focus-visible` already
+sets a 2px brand ring with a 2px offset for the whole app. Adding `focus:ring-*`
+overrides it inconsistently; if focus looks wrong somewhere, remove the override.
+
+**Motion needs no per-component guard.** Everything above is transition-based, and
+the `prefers-reduced-motion` block neutralises transitions globally.
+
+**Two traps, both hit in practice:**
+- **Don't set `display` (or width) in a shared class.** `.ea-icon-btn` used to set
+  `display`, which silently beat `lg:hidden` on its callers. Tailwind precedence
+  comes from stylesheet order, not class order, so the caller can never win. Same
+  bug bit `MediaTile` via `w-full`. Let callers own layout properties.
+- **`@theme` in `globals.css` REDEFINES Tailwind's radius scale** — `rounded-lg` is
+  12px here, not 8px. Don't "fix" a radius by changing the scale; that restyles
+  ~550 usages app-wide. Use `rounded-lg` consistently instead.
+
 ---
 
 ## 🔒 Privacy & Security

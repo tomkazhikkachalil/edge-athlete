@@ -5,18 +5,24 @@ import { useMessages } from '@/lib/messages';
 
 export default function MessagesBell() {
   const { totalUnreadCount } = useMessages();
+  const hasUnread = totalUnreadCount > 0;
 
   return (
     <Link
       href="/messages"
-      className="relative p-2 text-gray-600 hover:text-gray-900 transition-colors"
-      aria-label="Messages"
+      className="ea-icon-btn inline-flex items-center justify-center"
+      aria-label={hasUnread ? `Messages, ${totalUnreadCount} unread` : 'Messages'}
     >
-      <i className="fas fa-comment-alt text-xl"></i>
-      {totalUnreadCount > 0 && (
-        <span className="absolute top-0 right-0 inline-flex items-center justify-center w-5 h-5 text-xs font-bold text-white bg-red-600 rounded-full">
-          {totalUnreadCount > 99 ? '99+' : totalUnreadCount}
-        </span>
+      <i className="fas fa-comment-alt text-xl" aria-hidden="true"></i>
+      {hasUnread && (
+        // A DOT, not a number. The exact count is not actionable from here —
+        // you open messages either way — and the old 20px circle could not fit
+        // "99+" without overflowing. The ring separates it from the header,
+        // which now has a translucent blurred background.
+        <span
+          className="absolute right-1.5 top-1.5 h-2.5 w-2.5 rounded-full bg-red-600 ring-2 ring-white"
+          aria-hidden="true"
+        />
       )}
     </Link>
   );

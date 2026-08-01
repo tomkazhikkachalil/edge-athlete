@@ -169,3 +169,28 @@ describe('isDockSuppressedPath', () => {
     expect(isDockSuppressedPath('')).toBe(true);
   });
 });
+
+describe('opening a conversation leaves the panel alone', () => {
+  it('OPEN_WINDOW does not close the panel', () => {
+    // The pill used to collapse the moment you picked a name, so opening a
+    // second conversation meant re-opening the panel every time. The collapse
+    // lived in the component, not here — this pins the reducer half so a
+    // future refactor cannot quietly reintroduce it.
+    const open = { ...initialDockState, panelOpen: true };
+    expect(dockReducer(open, { type: 'OPEN_WINDOW', id: 'a' }).panelOpen).toBe(true);
+  });
+
+  it('keeps the panel open across several selections', () => {
+    let s = { ...initialDockState, panelOpen: true };
+    for (const id of ['a', 'b', 'c']) {
+      s = dockReducer(s, { type: 'OPEN_WINDOW', id });
+      expect(s.panelOpen).toBe(true);
+    }
+  });
+
+  it('still lets the panel be closed deliberately', () => {
+    // Removing the automatic collapse must not disable the minimize control.
+    const s = dockReducer({ ...initialDockState, panelOpen: true }, { type: 'CLOSE_PANEL' });
+    expect(s.panelOpen).toBe(false);
+  });
+});

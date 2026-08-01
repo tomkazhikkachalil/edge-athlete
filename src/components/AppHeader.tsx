@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { useRouter, usePathname } from 'next/navigation';
@@ -10,21 +10,78 @@ import { getHandle } from '@/lib/profile-display';
 import { AvatarImage } from '@/components/OptimizedImage';
 import NotificationBell from '@/components/NotificationBell';
 import MessagesBell from '@/components/messages/MessagesBell';
-import AdvancedSearchBar from '@/components/AdvancedSearchBar';
+import HeaderSearch from '@/components/HeaderSearch';
 import { FEATURE_FLAGS } from '@/lib/features';
+import { useLiveNow } from '@/hooks/useLiveNow';
+import { pillGeometry, activeNavIndex, type ItemBox } from '@/lib/nav-pill';
+
+/**
+ * Last known pill geometry, kept at MODULE level on purpose.
+ *
+ * Every page mounts its own AppHeader (it is not in the root layout), so the
+ * header REMOUNTS on every navigation and component state is lost. Without
+ * this, the pill could never slide between routes — it would simply be
+ * re-placed at the new position on a fresh mount, which is precisely the
+ * "disappearing and reappearing" the pill exists to replace.
+ *
+ * Seeding the new mount with the previous position, then measuring the new one
+ * a frame later, turns a remount into a slide.
+ */
+let lastPill: { x: number; width: number; visible: boolean } | null = null;
+
+/**
+ * The header shell, in ONE place. It was previously the same long class string
+ * written out in all three auth branches, which meant a change to any of them
+ * silently made the auth-booting shell a different height and the chrome
+ * jumped as auth resolved.
+ *
+ * `scrolled` drives the bottom border: at the very top the header should read
+ * as part of the page, and the edge only earns its keep once content is
+ * passing underneath it.
+ */
+const headerShell = (scrolled: boolean) =>
+  `sticky top-0 z-40 safe-top safe-x bg-white/80 backdrop-blur-md transition-[border-color,box-shadow] duration-200 border-b ${
+    scrolled ? 'border-[color:var(--ea-hairline)] shadow-[var(--ea-shadow-rest)]' : 'border-transparent shadow-none'
+  }`;
+
+interface NavLink {
+  path: string;
+  label: string;
+  icon: string;
+  /** Live gets its own treatment (the status dot). */
+  accent?: 'live';
+  /** Reachable from the icon cluster on desktop; drawer-only in the nav list. */
+  iconOnly?: boolean;
+}
 
 interface AppHeaderProps {
+  /**
+   * @deprecated Search now lives IN the bar (see HeaderSearch), so there is no
+   * band to show or hide. Accepted and ignored so the 24 existing call sites
+   * keep compiling; remove them in a follow-up sweep.
+   */
   showSearch?: boolean;
   onCreatePost?: () => void;
   onEditProfile?: () => void;
 }
 
-export default function AppHeader({ showSearch = true, onCreatePost, onEditProfile }: AppHeaderProps) {
+export default function AppHeader({ onCreatePost, onEditProfile }: AppHeaderProps) {
   const router = useRouter();
   const pathname = usePathname();
   const { user, initialAuthCheckComplete, profile, signOut, managedProfiles, activeProfile, setActiveProfile } = useAuth();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isProfileDropdownOpen, setIsProfileDropdownOpen] = useState(false);
+  const [scrolled, setScrolled] = useState(false);
+
+  // Passive listener reading only scrollY — no getBoundingClientRect, so this
+  // never forces a layout during scroll. One boolean, so React bails on the
+  // vast majority of scroll events rather than re-rendering the header.
+  useEffect(() => {
+    const onScroll = () => setScrolled(window.scrollY > 4);
+    onScroll();
+    window.addEventListener('scroll', onScroll, { passive: true });
+    return () => window.removeEventListener('scroll', onScroll);
+  }, []);
 
   const handleSignOut = async () => {
     await signOut();
@@ -45,26 +102,100 @@ export default function AppHeader({ showSearch = true, onCreatePost, onEditProfi
     if (path === '/athlete') return pathname === '/athlete' || pathname?.startsWith('/athlete/');
     if (path === '/messages') return pathname === '/messages' || pathname?.startsWith('/messages/');
     if (path === '/notifications') return pathname === '/notifications';
+    // A round page IS the Live section; exact-match left the tab dark while
+    // you were literally watching a live round.
+    if (path === '/live') return pathname === '/live' || pathname?.startsWith('/live/');
     return pathname === path;
   };
 
-  const navLinks = [
+  // The destinations, without Live — it gets inserted at the midpoint below.
+  const placeLinks: NavLink[] = [
     { path: '/feed', label: 'Feed', icon: 'fa-home' },
     { path: '/explore', label: 'Explore', icon: 'fa-compass' },
     ...(FEATURE_FLAGS.FEATURE_CALENDAR
       ? [{ path: '/calendar', label: 'Calendar', icon: 'fa-calendar-alt' }]
       : []),
-    { path: '/live', label: 'Live', icon: 'fa-circle', accent: 'live' as const },
     { path: '/athlete', label: 'Profile', icon: 'fa-user' },
-    { path: '/messages', label: 'Messages', icon: 'fa-comment-alt' },
-    { path: '/app/followers', label: 'Connections', icon: 'fa-user-friends', hideOnMobile: true },
   ];
+
+  // Live sits in the MIDDLE of the nav. Computed rather than hard-coded because
+  // Calendar is flag-gated — the nav is 4 items in production and 5 with the
+  // flag on, so a fixed index would centre Live in one environment and not the
+  // other. `ceil` keeps Feed and Explore together on the 4-item nav.
+  const navLinks: NavLink[] = [
+    ...placeLinks.toSpliced(Math.ceil(placeLinks.length / 2), 0, {
+      path: '/live',
+      label: 'Live',
+      icon: 'fa-circle',
+      accent: 'live' as const,
+    }),
+    // `iconOnly` = reachable from the icon cluster on desktop, so the nav
+    // doesn't say it twice. They STAY in this array because the mobile drawer
+    // renders from it and, below `lg`, the drawer is the only route to them —
+    // dropping them here would make Connections unreachable on a phone.
+    // (This replaces a `hideOnMobile` flag that nothing ever read.)
+    { path: '/messages', label: 'Messages', icon: 'fa-comment-alt', iconOnly: true },
+    { path: '/app/followers', label: 'Connections', icon: 'fa-user-friends', iconOnly: true },
+  ];
+
+  /** What the desktop nav shows: the places, not the tools. */
+  const desktopNavLinks = navLinks.filter(link => !link.iconOnly);
+
+  // ── Sliding pill ──────────────────────────────────────────────────────────
+  // One absolutely-positioned element whose transform/width come from the
+  // MEASURED box of the active item. No animation library: a CSS transition
+  // does the sliding, which also means the global prefers-reduced-motion rule
+  // neutralises it for free.
+  const liveCount = useLiveNow();
+  const navRef = useRef<HTMLElement | null>(null);
+  const itemRefs = useRef<Array<HTMLAnchorElement | null>>([]);
+  const [pill, setPill] = useState(lastPill ?? { x: 0, width: 0, visible: false });
+  // Transitions are OFF for the first placement. Without this the pill would
+  // animate in from x=0/width=0 on every page load, which reads as a glitch
+  // rather than as motion.
+  const [pillReady, setPillReady] = useState(lastPill !== null);
+
+  const activeIndex = activeNavIndex(
+    desktopNavLinks.map(l => l.path),
+    pathname,
+    (path, current) => isActivePath(path) && current.length > 0
+  );
+
+  const measurePill = useCallback(() => {
+    const boxes: Array<ItemBox | null> = desktopNavLinks.map((_, i) => {
+      const el = itemRefs.current[i];
+      return el ? { left: el.offsetLeft, width: el.offsetWidth } : null;
+    });
+    const next = pillGeometry(boxes, activeIndex);
+    lastPill = next;
+    setPill(next);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeIndex, desktopNavLinks.length]);
+
+  useLayoutEffect(() => {
+    measurePill();
+  }, [measurePill]);
+
+  useEffect(() => {
+    // Enable sliding only AFTER the first placement has painted.
+    const id = requestAnimationFrame(() => setPillReady(true));
+    return () => cancelAnimationFrame(id);
+  }, []);
+
+  useEffect(() => {
+    const onResize = () => measurePill();
+    window.addEventListener('resize', onResize);
+    // Label widths shift when Inter finishes loading, which would otherwise
+    // leave the pill measured against fallback-font metrics.
+    document.fonts?.ready.then(measurePill).catch(() => {});
+    return () => window.removeEventListener('resize', onResize);
+  }, [measurePill]);
 
   // While auth state resolves: a logo-only shell with the same height, so
   // public pages (/explore, /u/[username]) don't flash the wrong chrome.
   if (!initialAuthCheckComplete) {
     return (
-      <header className="bg-white shadow-sm border-b border-gray-200 sticky top-0 z-40 safe-top safe-x">
+      <header className={headerShell(scrolled)}>
         <div className="max-w-7xl mx-auto px-4 sm:px-6">
           <div className="flex items-center h-16">
             <Image
@@ -86,7 +217,7 @@ export default function AppHeader({ showSearch = true, onCreatePost, onEditProfi
   // button, no empty avatar or Sign Out — just the way in.
   if (!user) {
     return (
-      <header className="bg-white shadow-sm border-b border-gray-200 sticky top-0 z-40 safe-top safe-x">
+      <header className={headerShell(scrolled)}>
         <div className="max-w-7xl mx-auto px-4 sm:px-6">
           <div className="flex items-center justify-between h-16 gap-4">
             <Link
@@ -104,25 +235,19 @@ export default function AppHeader({ showSearch = true, onCreatePost, onEditProfi
               />
             </Link>
             <div className="flex items-center gap-2 sm:gap-3">
-              <Link href="/" className="text-sm font-medium text-gray-700 hover:text-gray-900 px-2 py-2">
+              <HeaderSearch />
+              <Link href="/" className="ea-interactive text-sm font-medium text-gray-700 rounded-lg px-3 py-2">
                 Log in
               </Link>
               <Link
                 href="/"
-                className="bg-violet-600 text-white px-3 sm:px-4 py-2 rounded-lg hover:bg-violet-700 transition-colors text-sm font-medium"
+                className="ea-cta text-white px-3 sm:px-4 py-2 rounded-lg text-sm font-medium"
               >
                 Sign up
               </Link>
             </div>
           </div>
         </div>
-        {showSearch && (
-          <div className="border-t border-gray-100">
-            <div className="max-w-7xl mx-auto px-4 sm:px-6 py-3">
-              <AdvancedSearchBar />
-            </div>
-          </div>
-        )}
       </header>
     );
   }
@@ -130,7 +255,7 @@ export default function AppHeader({ showSearch = true, onCreatePost, onEditProfi
   return (
     <>
       {/* Desktop & Tablet Header */}
-      <header className="bg-white shadow-sm border-b border-gray-200 sticky top-0 z-40 safe-top safe-x">
+      <header className={headerShell(scrolled)}>
         <div className="max-w-7xl mx-auto px-4 sm:px-6">
           <div className="flex items-center justify-between h-16">
             {/* Left - Logo & Navigation */}
@@ -157,39 +282,63 @@ export default function AppHeader({ showSearch = true, onCreatePost, onEditProfi
                   by 66px and pushed the account menu off-screen entirely, which
                   also made Sign Out unreachable. 768–1023px uses the drawer,
                   which carries every one of these destinations. */}
-              <nav className="hidden lg:flex items-center gap-4 lg:gap-6">
-                {navLinks.map((link) => (
-                  <button
-                    key={link.path}
-                    onClick={() => {
-                      router.push(link.path);
-                      setIsProfileDropdownOpen(false);
-                    }}
-                    className={`text-sm font-medium transition-colors pb-0.5 ${
-                      isActivePath(link.path)
-                        ? link.accent === 'live'
-                          ? 'text-red-600 border-b-2 border-red-600'
-                          : 'text-violet-600 border-b-2 border-violet-600'
-                        : 'text-gray-700 hover:text-gray-900'
-                    }`}
-                  >
-                    {link.accent === 'live' && (
-                      <span className="inline-block w-1.5 h-1.5 bg-red-600 rounded-full mr-1.5 animate-pulse align-middle"></span>
-                    )}
-                    {link.label}
-                  </button>
-                ))}
+              <nav ref={navRef} className="hidden lg:flex relative items-center gap-1">
+                {/* The pill sits BEHIND the labels and slides between them.
+                    aria-hidden: it is decoration — aria-current on the active
+                    link is what actually conveys "you are here". */}
+                <span
+                  aria-hidden="true"
+                  className={`pointer-events-none absolute left-0 top-1/2 h-9 -translate-y-1/2 rounded-lg bg-[color:var(--color-brand-soft)] ${
+                    pillReady ? 'transition-[transform,width,opacity] duration-[250ms] ease-[cubic-bezier(0.22,0.61,0.36,1)]' : ''
+                  } ${pill.visible ? 'opacity-100' : 'opacity-0'}`}
+                  style={{ transform: `translateX(${pill.x}px)`, width: `${pill.width}px` }}
+                />
+                {desktopNavLinks.map((link, index) => {
+                  const active = isActivePath(link.path);
+                  return (
+                    <Link
+                      key={link.path}
+                      href={link.path}
+                      ref={(el: HTMLAnchorElement | null) => { itemRefs.current[index] = el; }}
+                      onClick={() => setIsProfileDropdownOpen(false)}
+                      aria-current={active ? 'page' : undefined}
+                      className={`relative z-10 rounded-lg px-3 py-2 text-sm font-medium transition-colors duration-[150ms] ${
+                        active
+                          ? 'text-violet-700'
+                          : 'text-gray-700 hover:text-gray-900 hover:bg-[color:var(--ea-tint)]'
+                      }`}
+                    >
+                      {link.accent === 'live' && (
+                        // Truthful now: the dot only pulses when something is
+                        // genuinely live. It used to pulse permanently from a
+                        // static literal, which made it decoration pretending
+                        // to be status.
+                        <span
+                          className={`mr-1.5 inline-block h-1.5 w-1.5 rounded-full align-middle ${
+                            liveCount > 0 ? 'bg-red-600 ea-live-dot' : 'bg-gray-400'
+                          }`}
+                        />
+                      )}
+                      {link.label}
+                    </Link>
+                  );
+                })}
               </nav>
             </div>
 
             {/* Right - Actions */}
             <div className="flex items-center gap-2 sm:gap-3">
+              <HeaderSearch />
               <MessagesBell />
               <NotificationBell />
 
+              {/* Connections sits with Messages and Notifications: three
+                  related destinations, one cluster. No longer breakpoint-clamped
+                  — the nav never renders it now, so this is its only home on
+                  desktop. */}
               <button
                 onClick={() => router.push('/app/followers')}
-                className="hidden sm:block text-gray-600 hover:text-gray-900 p-2"
+                className="ea-icon-btn inline-flex items-center justify-center"
                 title="Fans & Connections"
                 aria-label="View connections"
               >
@@ -198,7 +347,7 @@ export default function AppHeader({ showSearch = true, onCreatePost, onEditProfi
 
               <button
                 onClick={handleCreatePost}
-                className="bg-violet-600 text-white px-3 sm:px-4 py-2 rounded-lg hover:bg-violet-700 transition-colors flex items-center gap-2 text-sm font-medium"
+                className="ea-cta text-white px-3 sm:px-4 py-2 rounded-lg flex items-center gap-2 text-sm font-medium"
                 aria-label="Create new post"
               >
                 <i className="fas fa-plus"></i>
@@ -371,7 +520,7 @@ export default function AppHeader({ showSearch = true, onCreatePost, onEditProfi
               {/* Mobile Menu Button */}
               <button
                 onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-                className="lg:hidden text-gray-700 hover:text-gray-900 p-2"
+                className="ea-icon-btn inline-flex items-center justify-center lg:hidden"
                 aria-label="Toggle mobile menu"
                 aria-expanded={isMobileMenuOpen}
               >
@@ -380,15 +529,6 @@ export default function AppHeader({ showSearch = true, onCreatePost, onEditProfi
             </div>
           </div>
         </div>
-
-        {/* Search Bar - Below header on certain pages */}
-        {showSearch && (
-          <div className="border-t border-gray-100">
-            <div className="max-w-7xl mx-auto px-4 sm:px-6 py-3">
-              <AdvancedSearchBar />
-            </div>
-          </div>
-        )}
       </header>
 
       {/* Mobile Menu Overlay */}
