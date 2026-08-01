@@ -826,6 +826,35 @@ export default function CreatePostModal({
           showError('Round created, but some scores could not be saved. You can re-enter them from the post.');
         }
 
+        // Attach any composer media to the ROUND. This branch used to return
+        // before the media upload further down, so photos added to an
+        // already-played shared round were silently discarded — no error, no
+        // upload, just gone. Routing them through the round's media endpoint
+        // also means the round->post mirror carries them onto the feed card,
+        // and that endpoint re-mirrors when the round is already 'completed'
+        // (which every already-played round is).
+        if (mediaFiles.length > 0) {
+          const attached = await Promise.allSettled(
+            mediaFiles.map(async file => {
+              const { url, thumbnailUrl } = await uploadMediaWithPoster(file);
+              const res = await fetch(`/api/group-posts/${groupPostId}/media`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                credentials: 'include',
+                body: JSON.stringify({
+                  media_url: url,
+                  media_type: file.type === 'video' ? 'video' : 'image',
+                  thumbnail_url: thumbnailUrl,
+                }),
+              });
+              if (!res.ok) throw new Error('attach failed');
+            })
+          );
+          if (attached.some(r => r.status === 'rejected')) {
+            showError('Round posted, but some photos could not be attached.');
+          }
+        }
+
         if (!sharedRoundDetails.alreadyPlayed) {
           showSuccess(
             sharedRoundParticipants.length > 0
