@@ -44,6 +44,16 @@ const headerShell = (scrolled: boolean) =>
     scrolled ? 'border-[color:var(--ea-hairline)] shadow-[var(--ea-shadow-rest)]' : 'border-transparent shadow-none'
   }`;
 
+interface NavLink {
+  path: string;
+  label: string;
+  icon: string;
+  /** Live gets its own treatment (the status dot). */
+  accent?: 'live';
+  /** Reachable from the icon cluster on desktop; drawer-only in the nav list. */
+  iconOnly?: boolean;
+}
+
 interface AppHeaderProps {
   /**
    * @deprecated Search now lives IN the bar (see HeaderSearch), so there is no
@@ -98,14 +108,27 @@ export default function AppHeader({ onCreatePost, onEditProfile }: AppHeaderProp
     return pathname === path;
   };
 
-  const navLinks = [
+  // The destinations, without Live — it gets inserted at the midpoint below.
+  const placeLinks: NavLink[] = [
     { path: '/feed', label: 'Feed', icon: 'fa-home' },
     { path: '/explore', label: 'Explore', icon: 'fa-compass' },
     ...(FEATURE_FLAGS.FEATURE_CALENDAR
       ? [{ path: '/calendar', label: 'Calendar', icon: 'fa-calendar-alt' }]
       : []),
-    { path: '/live', label: 'Live', icon: 'fa-circle', accent: 'live' as const },
     { path: '/athlete', label: 'Profile', icon: 'fa-user' },
+  ];
+
+  // Live sits in the MIDDLE of the nav. Computed rather than hard-coded because
+  // Calendar is flag-gated — the nav is 4 items in production and 5 with the
+  // flag on, so a fixed index would centre Live in one environment and not the
+  // other. `ceil` keeps Feed and Explore together on the 4-item nav.
+  const navLinks: NavLink[] = [
+    ...placeLinks.toSpliced(Math.ceil(placeLinks.length / 2), 0, {
+      path: '/live',
+      label: 'Live',
+      icon: 'fa-circle',
+      accent: 'live' as const,
+    }),
     // `iconOnly` = reachable from the icon cluster on desktop, so the nav
     // doesn't say it twice. They STAY in this array because the mobile drawer
     // renders from it and, below `lg`, the drawer is the only route to them —
