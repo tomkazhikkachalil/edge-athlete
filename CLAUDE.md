@@ -125,13 +125,22 @@ and revisit triggers are in the file header.
 Platform uses adapters for sport-specific logic:
 - **SportRegistry.ts** - Defines all 11 sports (baseball, basketball, football, golf,
   ice_hockey, soccer, swimming, tennis, track_field, training, volleyball)
-- **SportAdapter.ts** - Base interface for sport implementations
-- **adapters/GolfAdapter.ts** - Reference implementation
+- **SportAdapter.ts** - Base interface, plus `BaseSportAdapter` and `DisabledSportAdapter`
+- **adapters/GolfAdapter.ts** - Reference implementation (deep tables)
+- **adapters/StatLinePostAdapter.ts** - One adapter parameterised by `sport_key`, serving
+  every stat-line sport over `posts.stats_data`
 
-**Status:**
-- ✅ **Golf** - Fully implemented (rounds, scorecards, stats)
-- 🚧 **The other ten** - Registered in the sport registry but with no adapter;
-  see `src/lib/features.ts` for which are actually exposed
+**Status** — every registered sport has an adapter; `AdapterRegistry.getAdapter()` throws
+rather than falling back, so the fallback is applied at *registration* time:
+- ✅ **Golf** — fully implemented (rounds, scorecards, stats), its own deep tables
+- ✅ **Ice hockey, volleyball, basketball, soccer, baseball** — `StatLinePostAdapter`.
+  Adding another is 2 edits; see `src/lib/sports/stat-schemas.ts`
+- 🚧 **Track & field, tennis, swimming, football** — `DisabledSportAdapter` (registered,
+  not exposed)
+- ⚠️ **`training`** — deliberately has **no** adapter; `getSportAdapter('training')` throws.
+  It is an MVP shortcut that should become a post category rather than a sport
+
+`src/lib/features.ts` (`FEATURE_SPORTS`) is what decides which are exposed to users.
 
 ---
 
@@ -249,9 +258,24 @@ const { canView } = await response.json();
 
 ### Add a New Sport
 1. Register in `src/lib/sports/SportRegistry.ts`
-2. Create adapter in `src/lib/sports/adapters/NewSportAdapter.ts`
+2. Create adapter in `src/lib/sports/adapters/NewSportAdapter.ts` — or, for a
+   stat-line sport, add a schema to `src/lib/sports/stat-schemas.ts` and register a
+   `StatLinePostAdapter` (that file's header documents the 2-edit recipe)
 3. Register in `src/lib/sports/AdapterRegistry.ts`
 4. Add to `FEATURE_FLAGS.FEATURE_SPORTS` in `src/lib/features.ts`
+
+**The sport is then live everywhere except its gear.** The Equipment tab offers every
+enabled sport immediately, but with no categories, brand suggestions or spec fields until
+you add them — three sibling files, each a `Record<sport_key, …>` with a safe empty
+fallback, so a missing entry degrades to free text rather than breaking:
+
+5. Categories → `src/lib/equipment-config.ts`
+6. Brand seeds → `src/lib/equipment-brands.ts` (brands only; models are per-season churn,
+   see that file's header)
+7. Spec fields per category → `src/lib/equipment-specs.ts`
+
+A test asserts every `FEATURE_SPORTS` key has brand seeds, so skipping step 6 fails the
+gate rather than shipping an empty dropdown.
 
 ### Debug Like/Comment Counts
 1. Run `database/tests/diagnostics/diagnose-likes-comments.sql` in Supabase
