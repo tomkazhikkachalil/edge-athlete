@@ -9,7 +9,8 @@ import {
   Activity,
   Zap,
   Shield,
-  Dribbble,
+  CircleDot,
+  Volleyball,
   Circle,
   Heart,
   Star,
@@ -32,12 +33,14 @@ export const SPORT_ICONS: Record<string, LucideIcon> = {
   cross_country: Activity,
   
   // Ball Sports
-  basketball: Dribbble,
+  // Dribbble was a BRAND icon; lucide v1 removed all of them for trademark
+  // reasons. CircleDot is the nearest non-brand ball shape.
+  basketball: CircleDot,
   football: Shield,
   soccer: Circle,
   baseball: Target,
   softball: Circle,
-  volleyball: Trophy,
+  volleyball: Volleyball,   // a real Volleyball icon exists in lucide v1; Trophy was a placeholder
   tennis: Target,
   golf: Trophy,
   

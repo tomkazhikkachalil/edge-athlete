@@ -13,7 +13,7 @@ import {
   formatDisplayName,
   getInitials
 } from '@/lib/formatters';
-import { MapPin, School, Users, Calendar, Trophy, Instagram, Twitter, Lock } from 'lucide-react';
+import { MapPin, School, Users, Calendar, Trophy, Lock } from 'lucide-react';
 
 interface PublicProfile {
   id: string;
@@ -307,8 +307,9 @@ export default function PublicProfilePage() {
                       target="_blank"
                       rel="noopener noreferrer"
                       className="text-gray-500 hover:text-pink-500 transition-colors"
+                      aria-label={`${displayName} on Instagram`}
                     >
-                      <Instagram className="w-5 h-5" />
+                      <i className="fab fa-instagram text-xl" aria-hidden="true"></i>
                     </a>
                   )}
                   {profile.social_twitter && (
@@ -317,8 +318,9 @@ export default function PublicProfilePage() {
                       target="_blank"
                       rel="noopener noreferrer"
                       className="text-gray-500 hover:text-violet-400 transition-colors"
+                      aria-label={`${displayName} on Twitter`}
                     >
-                      <Twitter className="w-5 h-5" />
+                      <i className="fab fa-twitter text-xl" aria-hidden="true"></i>
                     </a>
                   )}
                 </div>
