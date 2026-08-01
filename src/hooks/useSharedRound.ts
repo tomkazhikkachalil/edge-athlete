@@ -38,7 +38,10 @@ export function useSharedRound({
   enabled,
 }: {
   groupPostId: string | null;
-  postId: string;
+  /** Feed post id. Optional: the live-round screen keys on the group post and
+   *  may not have one (post_id's backfill is best-effort), so refresh() falls
+   *  back to the group-post scorecard endpoint. */
+  postId?: string | null;
   initialScorecard: CompleteGolfScorecard | null;
   enabled: boolean;
 }) {
@@ -67,14 +70,18 @@ export function useSharedRound({
    *  whether to proceed with cached data). Never throws. */
   const refresh = useCallback(async (): Promise<boolean> => {
     try {
-      const res = await fetch(`/api/posts?postId=${postId}`);
+      const url = postId
+        ? `/api/posts?postId=${postId}`
+        : `/api/group-posts/${groupPostId}/scorecard`;
+      const res = await fetch(url);
       if (!res.ok) {
         setStale(true);
         return false;
       }
       const data = await res.json();
-      if (data.post?.group_scorecard) {
-        setScorecard(data.post.group_scorecard as CompleteGolfScorecard);
+      const next = data.post?.group_scorecard ?? data.scorecard;
+      if (next) {
+        setScorecard(next as CompleteGolfScorecard);
       }
       setStale(false);
       return true;
@@ -83,7 +90,7 @@ export function useSharedRound({
       setStale(true);
       return false;
     }
-  }, [postId]);
+  }, [postId, groupPostId]);
 
   // The seeded scorecard can be minutes old — sync once when going live.
   useEffect(() => {
