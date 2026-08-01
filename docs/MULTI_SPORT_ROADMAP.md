@@ -57,9 +57,22 @@ Ordered by size. Each item = a seam the adapter interface needs before "drop in 
 - **Needed seam:** adapter-provided "activity summary" fetch, or a generic `activities` view per sport keyed by `sport_key` + `activity_id`.
 
 ### 5. Profile editing & equipment
-- `src/components/EditProfileTabs.tsx` — hardcoded golf tab + golf-only equipment tab; golf form (handicap/home course/tee/hand) → the only writer of `sport_settings` (`?sport=golf`).
-- `src/components/AddEquipmentModal.tsx` + `src/app/api/equipment/route.ts:70` (hardcodes `sport_key: 'golf'`) + `EquipmentSection.tsx`.
-- **Needed seam:** settings-schema-per-sport (adapter or registry driven), equipment categories per sport.
+- ~~Equipment is golf-hardcoded~~ ✅ **DONE.** Categories per sport (July 26, 2026), then
+  brand seeds, per-category spec fields and free-text entry for every enabled sport
+  (August 1, 2026). The seam landed as three sibling `Record<sport_key, …>` files —
+  `equipment-config.ts` (categories), `equipment-brands.ts` (brands), `equipment-specs.ts`
+  (spec fields) — each with a safe empty fallback, plus `equipment-catalog.ts` for
+  matching/ranking. `AddEquipmentModal` and `EquipmentSection` now carry **no sport
+  knowledge at all**.
+  - This entry used to cite `src/app/api/equipment/route.ts:70` as hardcoding
+    `sport_key: 'golf'`. That was fixed in July; the route validates `sportKey` against
+    `getEquipmentSportOptions()` and 400s on unknown sports. Line 70 is unrelated code.
+    Re-verified August 1, 2026 — don't go looking for it.
+- **STILL OPEN — profile editing only:** `src/components/EditProfileTabs.tsx` has a
+  hardcoded golf tab, and its golf form (handicap/home course/tee/hand) is the only writer
+  of `sport_settings` (`?sport=golf`).
+- **Needed seam (remaining):** settings-schema-per-sport, adapter- or registry-driven.
+  `stat-schemas.ts` is the shape to copy — a schema per sport driving one generic form.
 
 ### 6. Consolidations / small fixes (can do anytime, low risk)
 - **Two parallel sport registries:** `src/lib/sports/SportRegistry.ts` vs `src/lib/config/sports-config.ts` (icons/colors/names duplicated). Merge to one source of truth. (Still open.)

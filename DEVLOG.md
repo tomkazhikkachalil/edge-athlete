@@ -1,6 +1,49 @@
 # Development Log
 
-## August 1, 2026 — Brand logos are on
+## August 1, 2026 — Maintenance pass: the gate on merged main, and three stale doc claims
+
+Ran the checklist against `main` as actually merged, which is a state no branch ever had —
+each PR was verified on its own branch, and merge commits can produce something none of
+them saw. It passes: **45 warnings / 0 errors, 628 tests, clean build, 0 advisories.**
+Production confirmed serving `main`'s HEAD with the Logo.dev token inlined (checked via the
+attribution appearing in `/terms`' raw HTML, which only renders when the token is present).
+
+Nothing was outstanding to commit — so the useful work was documentation drift, which is
+where this repo's rot actually accumulates.
+
+### `docs/MULTI_SPORT_ROADMAP.md` §5 described finished work as pending
+
+It listed equipment as golf-hardcoded and cited **`src/app/api/equipment/route.ts:70` as
+hardcoding `sport_key: 'golf'`**. Checked before rewriting: line 70 is unrelated code and
+no such hardcode exists — the route validates against `getEquipmentSportOptions()` and 400s
+on unknown sports. That was fixed in July; the doc never caught up, and would have sent the
+next person hunting for a line that isn't there.
+
+Split into what's done (equipment, now fully sport-agnostic) and what genuinely remains
+(`EditProfileTabs.tsx`'s golf tab and `sport_settings`, still the only writer at
+`?sport=golf`).
+
+### CLAUDE.md claimed ten sports have no adapter
+
+It said "🚧 **The other ten** — Registered in the sport registry but with no adapter."
+Verified against `AdapterRegistry.ts`: five (ice hockey, volleyball, basketball, soccer,
+baseball) run `StatLinePostAdapter`, four run `DisabledSportAdapter`, and exactly one —
+`training` — has none and throws. The fallback is applied at *registration* time, which is
+why `getAdapter()` can throw without anything breaking. Corrected, with `training`'s
+deliberate absence called out since it is the one that will surprise someone.
+
+### "Add a New Sport" stopped short of the gear
+
+The 4-step recipe left a new sport appearing in the Equipment tab with no categories, no
+brand suggestions and no spec fields. Extended to 7 steps naming the three
+`Record<sport_key, …>` files, and noting the test that fails the gate if brand seeds are
+skipped — so the omission cannot ship quietly.
+
+### Left alone on purpose
+
+Six fully-merged branches are still on origin. They are harmless (their commits are in
+`main`), and older squash-merged branches from PRs #10–#12 are still there too, so deleting
+only today's would make the remote *less* consistent, not more. Flagged rather than tidied.
 
 Token set in Vercel (Production, Preview **and** Development so previews and local match),
 and a fresh production deploy cut, since `NEXT_PUBLIC_*` is inlined at build time and an
