@@ -62,7 +62,9 @@ describe('buildMirrorMedia', () => {
     // mirrorCompletedRound re-runs on late score edits; a second pass must not
     // duplicate the carousel.
     const rows = buildMirrorMedia([m('a', 1), m('b', 2)], ['a'], 4);
-    expect(rows).toEqual([{ media_url: 'b', media_type: 'image', display_order: 4 }]);
+    expect(rows).toEqual([
+      { media_url: 'b', media_type: 'image', display_order: 4, thumbnail_url: null },
+    ]);
   });
 
   it('returns nothing when everything is already mirrored', () => {
@@ -83,6 +85,20 @@ describe('buildMirrorMedia', () => {
   it('carries media_type through', () => {
     const rows = buildMirrorMedia([m('clip', 18, '2026-07-29T10:00:00Z', 'video')], [], 1);
     expect(rows[0].media_type).toBe('video');
+  });
+
+  it('carries a video poster across to post_media', () => {
+    // Without this the mirrored feed video has no poster and renders black.
+    const rows = buildMirrorMedia(
+      [{ ...m('clip', 18, '2026-07-29T10:00:00Z', 'video'), thumbnail_url: 'poster.jpg' }],
+      [],
+      1
+    );
+    expect(rows[0].thumbnail_url).toBe('poster.jpg');
+  });
+
+  it('defaults the poster to null for images', () => {
+    expect(buildMirrorMedia([m('photo', 4)], [], 1)[0].thumbnail_url).toBeNull();
   });
 
   it('ignores rows with no url', () => {

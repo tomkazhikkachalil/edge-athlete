@@ -780,7 +780,18 @@ export default function SharedRoundFullCard({
                         <div key={m.id} className="relative aspect-square rounded-lg overflow-hidden bg-gray-100">
                           {m.media_type === 'video' ? (
                             <>
-                              <video src={m.media_url} className="w-full h-full object-cover" preload="metadata" controls />
+                              {/* poster: without it a .mov/HEVC clip that the
+                                  browser cannot decode shows a black tile and
+                                  reads as broken. object-contain so a 4:3 or
+                                  16:9 capture is letterboxed rather than
+                                  hard-cropped to a square. */}
+                              <video
+                                src={m.media_url}
+                                poster={m.thumbnail_url ?? undefined}
+                                className="w-full h-full object-contain bg-black"
+                                preload="metadata"
+                                controls
+                              />
                             </>
                           ) : (
                             <LazyImage

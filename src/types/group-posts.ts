@@ -289,6 +289,8 @@ export interface RoundMediaItem {
   hole_number: number | null;
   uploaded_by: string;
   caption: string | null;
+  /** Poster frame for videos (migration 060). NULL for images. */
+  thumbnail_url?: string | null;
 }
 
 export interface CompleteGolfScorecard {

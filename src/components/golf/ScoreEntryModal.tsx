@@ -367,6 +367,20 @@ export default function ScoreEntryModal({
       const uploadData = await uploadPostMedia(result.file);
       URL.revokeObjectURL(result.previewUrl);
 
+      // The editor already captured a poster frame for videos; without
+      // uploading it, <video preload="metadata"> renders a black tile on the
+      // scorecard and on the mirrored feed post. Never fail the capture over
+      // a poster — the clip itself is the point.
+      let thumbnailUrl: string | undefined;
+      if (result.posterBlob) {
+        try {
+          const poster = new File([result.posterBlob], 'poster.jpg', { type: 'image/jpeg' });
+          thumbnailUrl = (await uploadPostMedia(poster)).url;
+        } catch (err) {
+          console.warn('Hole poster upload failed:', err);
+        }
+      }
+
       const attachRes = await fetch(`/api/group-posts/${groupPostId}/media`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -375,6 +389,7 @@ export default function ScoreEntryModal({
           media_url: uploadData.url,
           media_type: uploadData.type,
           hole_number: holeNumber,
+          thumbnail_url: thumbnailUrl,
         }),
       });
       if (!attachRes.ok) {

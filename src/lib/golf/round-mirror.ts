@@ -57,12 +57,14 @@ export interface RoundMediaInput {
   media_type: string;
   hole_number: number | null;
   created_at: string | null;
+  thumbnail_url?: string | null;
 }
 
 export interface PostMediaRow {
   media_url: string;
   media_type: string;
   display_order: number;
+  thumbnail_url: string | null;
 }
 
 /**
@@ -99,6 +101,8 @@ export function buildMirrorMedia(
       media_url: m.media_url,
       media_type: m.media_type,
       display_order: startOrder + rows.length,
+      // Carried across so a hole video keeps its poster on the feed card.
+      thumbnail_url: m.thumbnail_url ?? null,
     });
   }
   return rows;
@@ -127,7 +131,7 @@ export async function mirrorRoundMedia(admin: Admin, groupPostId: string): Promi
 
     const { data: roundMedia, error: mediaError } = await admin
       .from('group_post_media')
-      .select('media_url, media_type, hole_number, created_at')
+      .select('media_url, media_type, hole_number, created_at, thumbnail_url')
       .eq('group_post_id', groupPostId);
     if (mediaError || !roundMedia || roundMedia.length === 0) return;
 

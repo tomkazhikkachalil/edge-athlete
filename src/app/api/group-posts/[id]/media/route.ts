@@ -8,7 +8,7 @@ import { mirrorRoundMedia } from '@/lib/golf/round-mirror';
  * hole. The file itself is uploaded via /api/upload/post-media first; this
  * records the round linkage. User-scoped insert — RLS restricts to the
  * round's participants.
- * Body: { media_url, media_type: 'image'|'video', hole_number?, caption? }
+ * Body: { media_url, media_type: 'image'|'video', hole_number?, caption?, thumbnail_url? }
  */
 export async function POST(
   request: NextRequest,
@@ -24,7 +24,7 @@ export async function POST(
   try {
     const { id: groupPostId } = await params;
     const body = await request.json();
-    const { media_url, media_type, hole_number, caption } = body;
+    const { media_url, media_type, hole_number, caption, thumbnail_url } = body;
 
     if (!media_url || typeof media_url !== 'string') {
       return NextResponse.json({ error: 'media_url is required' }, { status: 400 });
@@ -49,8 +49,9 @@ export async function POST(
         media_type,
         hole_number: hole_number ?? null,
         caption: typeof caption === 'string' && caption.trim() ? caption.trim() : null,
+        thumbnail_url: typeof thumbnail_url === 'string' && thumbnail_url ? thumbnail_url : null,
       })
-      .select('id, media_url, media_type, hole_number')
+      .select('id, media_url, media_type, hole_number, thumbnail_url')
       .single();
 
     if (error) {
