@@ -1,5 +1,87 @@
 # Development Log
 
+## August 1, 2026 — The storage sweep never looked at the avatars bucket
+
+Purged the July guardian-E2E fixtures from production, which surfaced a gap in the
+sweep that had been there since it was built.
+
+### Purging the QA fixtures — and the account that nearly went with them
+
+13 fixtures deleted (5 supervised `@minors.invalid` children, 8 `@example.com`
+guardians), children first so no supervised profile was stranded mid-purge. Zero posts
+between them; all 11 production posts survived. Profiles 16 → 3.
+
+**The near-miss worth recording:** the session's earlier notes claimed *14* QA profiles
+and that only `tom.kazhikkachalil` and `testpartner` were real. The 14th was
+`tom.kazhikkachalil@calian.com` — no handle, display name "John Parent", which is
+exactly what test residue looks like. It is Tom's **work-email account**, it had signed
+in that day, and it owns **2 of the 11 posts**. Classifying on "no handle" would have
+destroyed real content.
+
+What prevented it: classify strictly by **email pattern**, and refuse to delete any
+profile that owns a post. Dry run printing both the delete list and the keep list, then
+apply. Both belts, because either alone would have been enough to be wrong.
+
+`consent_records` behaved exactly as migration 056 intends — **14 rows preserved with
+their FKs NULLed**, 0 dangling. Two other tables looked like they had dangling
+references until checked against the right target table (`pending_profile_id` points at
+`pending_profiles`, and `guardian_email_snapshot` is a string, not an id). Verified
+before reporting, not after.
+
+Left deliberately: one `pending_profiles` row (`testkid@gmail.com`, handle `kidztest`,
+`awaiting_guardian`) with its `guardian_invites` row — Tom's own manual test, the invite
+went to his real gmail. Self-expires Aug 26.
+
+### The gap: a bucket nothing ever swept
+
+Deleting those profiles left **orphaned avatars**, and pointing the storage sweep at
+them did nothing — it was hard-coded to the `uploads` bucket in all three places
+(`uploadsPathFromUrl` matched only `/public/uploads/`, the walker listed `from('uploads')`,
+the delete targeted `from('uploads')`). Confirmed by running it rather than by reading it:
+a dry run scanned **13 files, all uploads**; the avatars bucket was never opened.
+
+So **every deleted user with an avatar left a permanent orphan** that nothing collected.
+
+The sweep is now bucket-aware, driven by `SWEEP_BUCKETS` (`uploads`, `avatars`) with a
+`BUCKET_SOURCES` map of which DB columns can reference each. Two invariants are written
+down because getting either wrong deletes live data:
+
+- **A bucket must never be swept without reference sources.** With none, every file in it
+  looks unreferenced and the whole bucket goes. Enforced by pairing the two maps.
+- **`consent-evidence` is denylisted** — it is the legal audit trail for minors' consent,
+  and the account-deletion engine excludes it for the same reason. Pinned by a test, so
+  adding it takes a deliberate act.
+
+Also tightened while in there: the `cover_url`-missing fallback used to swallow **any**
+scan failure, which would silently shrink the referenced set and turn live files into
+"orphans". It now degrades only for that specific known-missing column and rethrows
+otherwise.
+
+### Result
+
+Dry run first, and it was worth it: of the 3 orphaned avatars only **1** was eligible —
+the other two were **26.5h and 26.7h old, inside the 48h grace window**. That guard is
+the only thing standing between the sweep and an in-flight upload (files are uploaded
+before the row referencing them is written), so it was left alone rather than overridden.
+
+Applied: **2 files deleted, 0 failed** — one genuine uploads orphan (an old post image
+predating delete-time cleanup) and one avatar. Verified afterwards that every live image
+still resolves: profile avatar 200, cover 200, **11/11 post_media 200, zero broken**.
+
+**The remaining 2 avatars will not self-clean:** `vercel.json` runs the weekly cron as
+`/api/cron/storage-sweep?dryRun=1`, so it reports and never deletes. Dropping that param
+is a deliberate decision, and the route comment asks for a reviewed run first — now that
+there is one, it's Tom's call.
+
+Admin access for the run used a **disposable QA account via an `ADMIN_EMAILS` shell
+override at dev-server launch** (shell env beats `.env.local`), never Tom's account; the
+401-without-cookie control was checked first, and the account was deleted and confirmed
+gone afterwards.
+
+Gate: **45 warnings / 0 errors, 575 tests (+6), clean build (108 pages), 0 advisories.**
+
+---
+
 ## August 1, 2026 — Mobile responsiveness pass: the tablet had no account menu
 
 Drove the real app in system Chrome (playwright-core, localhost dev server so

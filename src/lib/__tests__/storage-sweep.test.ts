@@ -1,6 +1,8 @@
 import { describe, it, expect } from 'vitest';
 import {
   GRACE_MS,
+  SWEEP_BUCKETS,
+  bucketPathFromUrl,
   collectSetMediaPaths,
   isSweepable,
   uploadsPathFromUrl,
@@ -25,6 +27,42 @@ describe('uploadsPathFromUrl', () => {
     expect(uploadsPathFromUrl(null)).toBeNull();
     expect(uploadsPathFromUrl('')).toBeNull();
     expect(uploadsPathFromUrl(42)).toBeNull();
+  });
+});
+
+describe('bucketPathFromUrl', () => {
+  it('extracts paths per bucket and ignores other buckets', () => {
+    expect(bucketPathFromUrl(`${SB}/avatars/avatars/a-1.png`, 'avatars')).toBe('avatars/a-1.png');
+    expect(bucketPathFromUrl(`${SB}/uploads/posts/u1/a.png`, 'avatars')).toBeNull();
+    expect(bucketPathFromUrl(`${SB}/avatars/avatars/a-1.png`, 'uploads')).toBeNull();
+  });
+
+  it('strips query/hash and decodes, same as the uploads shorthand', () => {
+    expect(bucketPathFromUrl(`${SB}/avatars/a%20b.png?v=2`, 'avatars')).toBe('a b.png');
+    expect(uploadsPathFromUrl(`${SB}/uploads/posts/u1/a.png`)).toBe('posts/u1/a.png');
+  });
+
+  it('does not let one bucket name prefix-match another', () => {
+    // The trailing slash in the marker is what prevents this.
+    expect(bucketPathFromUrl(`${SB}/uploads2/x.png`, 'uploads')).toBeNull();
+    expect(bucketPathFromUrl(`${SB}/avatars-old/x.png`, 'avatars')).toBeNull();
+  });
+
+  it('returns null for junk and for a bucket URL with no path after it', () => {
+    expect(bucketPathFromUrl(`${SB}/avatars/`, 'avatars')).toBeNull();
+    expect(bucketPathFromUrl(null, 'avatars')).toBeNull();
+    expect(bucketPathFromUrl(42, 'uploads')).toBeNull();
+  });
+});
+
+describe('SWEEP_BUCKETS', () => {
+  it('never includes consent-evidence — it is the legal audit trail for minors', () => {
+    expect(SWEEP_BUCKETS).not.toContain('consent-evidence');
+  });
+
+  it('covers avatars, or deleting a user orphans their avatar forever', () => {
+    expect(SWEEP_BUCKETS).toContain('avatars');
+    expect(SWEEP_BUCKETS).toContain('uploads');
   });
 });
 
