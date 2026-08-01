@@ -1,5 +1,78 @@
 # Development Log
 
+## August 1, 2026 — Turning the sweep cron loose, and the column that would have made it destructive
+
+Dropped `?dryRun=1` from the `vercel.json` storage-sweep cron so the weekly run actually
+deletes. Checking coverage first turned up the reason that was not yet safe.
+
+### The reference scan had a hole, and it was invisible
+
+Enabling automatic deletion makes the reference scan load-bearing: any column holding a
+storage URL that the scan misses makes those files look unreferenced, and the cron
+deletes them. So the schema was introspected for every URL-bearing column rather than
+trusting the existing list.
+
+**`group_post_media.thumbnail_url` was missing** — the hole-video poster-frame column
+added by migration 060. It is currently empty in production, which is exactly why it was
+invisible: the sweep looked correct, and would have stayed correct right up until the
+first golfer captured a hole video with a poster frame, whose poster would then be
+deleted 48 hours later.
+
+Also absent: `conversations.avatar_url`, `athlete_equipment.image_url`,
+`athlete_badges.icon_url` — all empty today, all the same shape of latent trap.
+
+### The asymmetry that decides the design
+
+`BUCKET_SOURCES` (per-bucket column lists) became a single `URL_SOURCE_COLUMNS` scanned
+for **every** bucket, because `bucketPathFromUrl` already discards URLs belonging to
+another bucket. Listing a column for a bucket it doesn't apply to is harmless; omitting
+one is data loss. Adding a source can only ever **grow** the referenced set, so it can
+only ever prevent a deletion, never cause one. When in doubt, add the column.
+
+Pinned by tests: seven specific table/column pairs must stay covered, `group_post_media.thumbnail_url`
+named explicitly with a comment saying why it was missed.
+
+### Failure mode, stated on purpose
+
+If any part of the reference scan fails, the sweep **throws and deletes nothing**. That is
+deliberate and now documented at the cron route: completing a sweep against an incomplete
+reference set is worse than not sweeping at all. The only exception remains
+`profiles.cover_url` (absent before migration 047), which degrades to the columns that
+exist; everything else rethrows.
+
+### Verified through the exact production path
+
+Not just the admin endpoint — the **cron route**, which has its own auth and its own
+`dryRun` parsing:
+
+- no `Authorization` → **401**; wrong secret → **401**
+- real `CRON_SECRET`, no `dryRun` param (the new config) → `ok=true, dryRun=false`,
+  scanned 15, referenced 16, **orphans 0, deleted 0, failed 0** — a real run that was a
+  safe no-op, because there was nothing left to collect
+- `?dryRun=1` still forces report-only, so the rollback lever works
+
+The expanded scan hit all seven tables without error against the live schema (200 in 2.0s).
+
+### What happens next, concretely
+
+The two remaining orphaned avatars are still inside the 48h grace (~28h at the time of
+writing). They age out ~03:45 UTC Aug 2, and the first real cron run — **Monday Aug 3,
+06:00 UTC** — will collect them. No further manual action.
+
+To revert to report-only: put `?dryRun=1` back on the `vercel.json` cron path. Nothing
+else changes.
+
+Gate: **45 warnings / 0 errors, 583 tests (+8), clean build (108 pages), 0 advisories.**
+
+### Unrelated bug found while tracing upload targets
+
+`EquipmentImageUpload.tsx` uploads to a bucket named **`media`**, which does not exist in
+this project (buckets are `avatars`, `badges`, `uploads`, `consent-evidence`). Equipment
+image upload is therefore broken. Not touched here — it is outside this change and wants
+its own fix. It is *not* a sweep risk, since `media` is not in `SWEEP_BUCKETS`.
+
+---
+
 ## August 1, 2026 — The storage sweep never looked at the avatars bucket
 
 Purged the July guardian-E2E fixtures from production, which surfaced a gap in the

@@ -73,7 +73,7 @@
       "schedule": "0 14 * * *"
     },
     {
-      "path": "/api/cron/storage-sweep?dryRun=1",
+      "path": "/api/cron/storage-sweep",
       "schedule": "0 6 * * 1"
     }
   ]
