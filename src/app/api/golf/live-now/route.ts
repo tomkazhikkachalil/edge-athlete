@@ -114,8 +114,9 @@ export async function GET(request: NextRequest) {
             thru: p.scores.holes_completed,
           })),
       }))
-      // Rounds with a feed post only (tap target); newest first
-      .filter(r => r.post_id !== null)
+      // No post_id filter: the tap target is the round itself (/live/<id>) now,
+      // so a round whose feed-post backfill failed is still watchable. post_id
+      // stays in the payload for the "View the post" link.
       .sort((a, b) => Date.parse(b.date) - Date.parse(a.date));
 
     return NextResponse.json({ rounds });

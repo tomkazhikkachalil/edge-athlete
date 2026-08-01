@@ -3,6 +3,7 @@
 import { useEffect, useState, useRef, Suspense } from 'react';
 import dynamic from 'next/dynamic';
 import { useAuth } from '@/lib/auth';
+import { liveRoundPath } from '@/lib/golf/round-route';
 import { useRouter, useSearchParams } from 'next/navigation';
 import PostCard from '@/components/PostCard';
 import AppHeader from '@/components/AppHeader';
@@ -114,10 +115,7 @@ export default function FeedPage() {
     course_name: string | null;
   } | null>(null);
   const [liveBannerDismissed, setLiveBannerDismissed] = useState(false);
-  // When set, PostDetailModal opens this post with score entry auto-opening
-  const [resumePostId, setResumePostId] = useState<string | null>(null);
-  // Search-result deep link (/feed?post=) — separate from resumePostId
-  // because that one hard-codes autoOpenScoreEntry
+  // Search-result deep link (/feed?post=)
   const [deepLinkPostId, setDeepLinkPostId] = useState<string | null>(null);
   const loadInFlightRef = useRef(false);
   const [page, setPage] = useState(0);
@@ -529,7 +527,7 @@ export default function FeedPage() {
                   <div className="text-sm text-green-100">Pick up right where you left off</div>
                 </div>
                 <button
-                  onClick={() => setResumePostId(liveRound.post_id)}
+                  onClick={() => router.push(liveRoundPath(liveRound.group_post_id))}
                   className="bg-white text-green-700 font-bold px-4 py-2 rounded-lg hover:bg-green-50 transition-colors flex-shrink-0 min-h-[44px]"
                 >
                   Continue scoring
@@ -546,7 +544,7 @@ export default function FeedPage() {
 
             {/* Live Now — live rounds from people you follow (sports-app
                 ticker; opens the round via the existing deep-link modal) */}
-            <LiveNowStrip currentUserId={user.id} onOpenPost={setDeepLinkPostId} />
+            <LiveNowStrip />
 
             {/* Posts Feed */}
             <div className="space-y-4 sm:space-y-6 bg-white rounded-lg border-2 border-gray-300 p-3 sm:p-6">
@@ -718,18 +716,6 @@ export default function FeedPage() {
             window.history.replaceState(null, '', '/feed');
           }}
           currentUserId={user?.id}
-        />
-      )}
-
-      {/* Live-round resume: opens the round's post with score entry
-          auto-opening at the first unscored hole */}
-      {resumePostId && (
-        <PostDetailModal
-          postId={resumePostId}
-          isOpen={true}
-          onClose={() => setResumePostId(null)}
-          currentUserId={user?.id}
-          autoOpenScoreEntry={true}
         />
       )}
 

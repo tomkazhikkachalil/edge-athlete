@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef, memo, createElement } from 'react';
+import { useState, useRef, memo, createElement } from 'react';
 import { formatDistanceToNow } from 'date-fns';
 import { useRouter } from 'next/navigation';
 import { useSharedRound } from '@/hooks/useSharedRound';
@@ -94,7 +94,6 @@ interface PostCardProps {
   showActions?: boolean;
   /** One-shot: open the viewer's own score entry once the shared-round
    *  scorecard is available (resume-banner deep link). */
-  autoOpenScoreEntry?: boolean;
 }
 
 function PostCard({
@@ -106,7 +105,6 @@ function PostCard({
   onEdit,
   onCommentCountChange,
   showActions = true,
-  autoOpenScoreEntry = false
 }: PostCardProps) {
   const router = useRouter();
   const [currentMediaIndex, setCurrentMediaIndex] = useState(0);
@@ -157,23 +155,6 @@ function PostCard({
   const [commentSectionOpen, setCommentSectionOpen] = useState(false);
 
   // Resume-banner deep link: open the viewer's own score entry once, as soon
-  // as the scorecard is present. Ref-guarded so later scorecard refreshes
-  // don't reopen a modal the user closed.
-  const autoOpenedScoreEntry = useRef(false);
-  useEffect(() => {
-    if (!autoOpenScoreEntry || autoOpenedScoreEntry.current || !groupScorecard || !currentUserId) return;
-    const own = groupScorecard.participants.find(
-      p => p.participant.profile_id === currentUserId && isActiveParticipant(p.participant.status)
-    );
-    if (!own) return;
-    autoOpenedScoreEntry.current = true;
-    (async () => {
-      // Same refresh-first path as the manual Add Scores flow
-      await refreshScorecard();
-      setScoreEntryParticipantId(own.participant.id);
-      setShowScoreEntry(true);
-    })();
-  }, [autoOpenScoreEntry, groupScorecard, currentUserId, refreshScorecard]);
   const [showShareModal, setShowShareModal] = useState(false);
   const commentSectionRef = useRef<HTMLDivElement>(null);
 
