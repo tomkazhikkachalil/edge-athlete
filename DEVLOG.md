@@ -1,5 +1,52 @@
 # Development Log
 
+## August 1, 2026 — The equipment catalog was 98% dead links
+
+Follow-up to the upload fix below. `src/lib/equipment-catalog.ts` carried 126 external
+image URLs. **Two of them load.**
+
+### Decided in a browser, not with curl
+
+curl alone would have been misleading: titleist and scottycameron answered **403** and
+callaway/odyssey **429**, which look like bot-blocking rather than missing files. So every
+URL was loaded as a real `<img>` in system Chrome and judged on `naturalWidth > 1`. Same
+verdict — **2 of 126 decode**. The 403/429 hosts fail for a browser too.
+
+- All 66 `logo.clearbit.com` brand logos: DNS does not resolve (that API was decommissioned).
+- All ~110 manufacturer product shots: 403/404/429, with fabricated-looking path hashes
+  (`dw1a2b3c4d`, `dw5e6f7g8h`, `dw9i0j1k2l` — sequential alphabet runs). They most likely
+  never worked.
+- Survivors: two Unsplash stock photos. A third was a 404.
+
+### Deleted, not patched
+
+An `onError` fallback would have hidden the breakage while still firing ~30 doomed requests
+every time the picker opened. And a preset that cannot load is worse than no preset:
+selecting one writes a permanently dead URL into `athlete_equipment.image_url`, which is
+then stuck on the athlete's tile.
+
+Both fallbacks already existed and now actually get used — the initial-letter brand tile in
+`AddEquipmentModal`, and "No preset images available" in `EquipmentImageUpload`. The
+optional `logo` field stays on `EquipmentBrand` as the extension point for self-hosted
+marks. `iron_set`, `wedge` and `bag` lost their generic preset because it was the dead
+photo; that is left honest rather than re-pointed at an unrelated stock image.
+
+Worth saying: hotlinking manufacturer CDNs was a licensing problem even when the URLs
+worked. Real product imagery needs to be hosted by us.
+
+### Verified in the running app
+
+Production build, disposable user, 5/5: no broken images anywhere in the open brand picker
+(`naturalWidth === 0` on any visible `<img>`), brands render initial-letter tiles, **zero
+failed external requests with the picker open** (was ~30), the Presets button still appears
+for driver, and its thumbnail decodes at 400px. Saved preset URLs still render because
+`OptimizedImage` marks non-Supabase sources `unoptimized`, so no `remotePatterns` change is
+needed.
+
+Net: −169 lines, +93. Gate: **45 warnings / 0 errors, 583 tests, clean build (109 pages).**
+
+---
+
 ## August 1, 2026 — Equipment photo upload targeted a bucket that does not exist
 
 `EquipmentImageUpload` uploaded straight from the browser to `supabase.storage.from('media')`.
@@ -54,9 +101,7 @@ and every manufacturer preset image returns 403/404/429 with fabricated-looking 
 
 User-visible today: 66 broken image slots in the brand picker, ~30 failed requests per open,
 and a "Presets" feature that can never show a preset — worse, picking one would persist a
-permanently dead URL into `athlete_equipment.image_url`. Not touched here; it is a separate
-change and needs a product call on whether to re-source logos or drop them and let the
-existing fallbacks (initial-letter tile, "No preset images available") do the work.
+permanently dead URL into `athlete_equipment.image_url`. Stripped in the entry above.
 
 ---
 
