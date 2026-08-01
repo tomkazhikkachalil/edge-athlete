@@ -13,7 +13,10 @@ import { NextResponse } from 'next/server';
 // never to tighten it silently (that would 400 valid production traffic).
 
 // ── Reusable primitives ───────────────────────────────────────────────────────
-export const uuid = z.string().uuid();
+// z.uuid() rather than the zod-3 z.string().uuid(), which v4 deprecates.
+// Verified identical on the cases that matter — v4, v7, nil, max, uppercase all
+// still accept; a non-RFC variant still rejects.
+export const uuid = z.uuid();
 
 /** Trimmed, non-empty string with a max length. */
 export const boundedText = (max: number) =>
@@ -28,12 +31,17 @@ export const optionalText = (max: number) =>
     .optional()
     .or(z.literal('').transform(() => undefined));
 
+// NOTE the .pipe() — the normalisation must run BEFORE the email check, which
+// is what the zod-3 chain did. Writing this the obvious v4 way,
+// `z.email().trim().toLowerCase()`, validates the RAW input first and so
+// rejects "  Tom@Example.COM  ", which this schema accepts today. That would
+// have 400'd valid production traffic; see the header note above.
 export const emailString = z
   .string()
   .trim()
   .toLowerCase()
   .max(320)
-  .email();
+  .pipe(z.email());
 
 type ParseResult<T> =
   | { success: true; data: T }
