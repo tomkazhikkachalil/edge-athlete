@@ -1,5 +1,128 @@
 # Development Log
 
+## August 1, 2026 — Round media: attached to the moment, not piled at the bottom
+
+Shipped as **#22 → #23 → #24** (`bb31959`, `299d63d`, `3700b45`), with migrations **061**
+and **062** run and verified. Confirmed working in production, 10/10.
+
+Tom's report was that media "breaks the layout" and the page "just gets longer and messier
+the more someone posts". Three symptoms, three *different* causes, and two of them turned
+out not to be layout problems at all.
+
+### The bar that wasn't sticky
+
+Nothing in that modal was ever `position: sticky`. The scroll pane was `flex-1
+overflow-y-auto` with **no `min-h-0`** — a column flex item defaults to `min-height: auto`
+and refuses to shrink below its content, so the pane grew past `max-h-modal` and the
+panel's `overflow-hidden` clipped the bottom instead of letting it scroll. That is
+literally why "7 of 18 holes" was cut in half.
+
+Compounding it: the round media gallery was rendered **inside the footer container**, so a
+round with photos turned the "bar" into a tall block. Moving media out *was* the layout
+fix. The two stacked footers collapsed into one action bar — Close already existed as the
+header X, and duplicating an affordance already on screen is what made the modal feel
+cluttered.
+
+### The letterboxing, which bit twice
+
+`LazyImage` turns `width={200}` into an inline `style="width:200px"`, and **inline styles
+beat the `w-full h-full` classes beside them**. The image was sizing its own container: a
+grid row track at 200px inside a ~90-150px column, so one photo sat in a box twice its
+width with an empty cell beside it.
+
+The same bug was in `PostCard` at `width={600} height={600}`, where a 600×400 photo became
+a stretched dark slab — which is almost certainly why a round *with* photos read as "stats
+only, no media" in the feed.
+
+`MediaTile` renders `next/image` with **`fill`** and has no width/height in its API at all,
+which makes the bug unreintroducible rather than merely fixed. `LazyImage` itself was left
+alone deliberately — its inline style is load-bearing at nearly every avatar call site.
+
+### Media belongs to a segment, not a hole
+
+The architectural half. `group_posts`, `group_post_participants` and `group_post_media` are
+already documented in their own DDL as generic — "any sport or activity type" —
+and `hole_number` was the single golf-specific thing in the table. Building
+media-per-moment on it would have meant rebuilding it for sport #2.
+
+`segment-schemas.ts` gives hole / inning / quarter / period / set / lap. Only the **label**
+is sport-specific; the grouping, the scorecard band and the lightbox footer are the same
+code for every sport.
+
+Two decisions worth defending later:
+
+- **No CHECK constraint on `segment_number`.** The old `BETWEEN 1 AND 18` meant a migration
+  per sport, and a fixed ceiling would reject an 11th inning or an overtime period — which
+  is ordinary play, not corrupt data. Bounds live in the schema file with a `variable`
+  flag. Only `> 0` is universally true, so only that is in the database.
+- **`segment_kind` is stored, not derived.** The table carries no sport key, so deriving it
+  would mean a join on every read, including inside the mirror.
+
+Dual-write to `hole_number` is **conditional** — it keeps its old 1..18 constraint, so a
+future lap-24 row would fail the insert outright if written blindly.
+
+### The scorecard thumbnail needed a real decision
+
+That table is players-as-rows × holes-as-**columns**. There is no hole row to hang a
+thumbnail on and a 40px column cannot host one. A dedicated MEDIA band beneath PAR reuses
+the existing column grid, so hole 3's photo sits in hole 3's column with a "+N" badge.
+Restructuring to hole-per-row was the alternative and was rejected: it would destroy the
+multi-player comparison that layout exists for.
+
+### Auto-tagging is a suggestion, deliberately
+
+Media captured during scoring is tagged exactly. Media added afterwards has only its
+capture time, and two things make that untrustworthy: `File.lastModified` is not reliably
+capture time (some Android pickers report the copy time), and a retrospectively entered
+card stamps every hole within seconds of the others, so proximity carries **no positional
+information at all**. The span guard detects that and declines for the whole batch rather
+than producing confident nonsense — and it scales to round length, so a genuine 3-hole
+round is not judged by 18-hole standards.
+
+That is exactly why the reassignment UI is mandatory rather than a nicety. Migration 062's
+UPDATE policy is what made it possible at all: `group_post_media` had SELECT, INSERT and
+DELETE policies and **no UPDATE**, so with RLS on, every reassignment was silently denied.
+
+### Colour
+
+Chrome neutralised — green header, table chrome, yellow PAR row, trophy, and the
+purple-vs-violet badge collision. Violet survives as the single **action** accent, so the
+one remaining colour still means "you can press this". The score badges keep their colour
+and now carry a `SEMANTIC COLOUR — DO NOT NEUTRALISE` comment at each site: greyscaling
+them would make a birdie and a double look identical. LIVE stays red.
+
+### A claim I got wrong, recorded so nobody re-fixes it
+
+I reported the feed bug as a missing mirror call — that `advanceRoundStatus` bumps a round
+into the feed without carrying its media. The function indeed does not mirror, but **all
+three of its callers mirror immediately afterwards**, so the gap does not exist. I built
+the fix, tested it against the real code path, found it redundant, and reverted it rather
+than shipping a no-op and calling it a bug fix. The real cause was the `PostCard`
+letterboxing above.
+
+### Verification, and four assertions that were wrong first
+
+746 tests (from 656). Browser verification at each stage, plus a production sweep after
+deploy. Four checks failed against *correct* code before being fixed, each worth knowing:
+
+- `next/image` `fill` legitimately sets inline `width:100%` — only **pixels** are the
+  regression signature. The first version would have failed forever.
+- A collage tile **is** the grid item, so `parentElement` is the grid, not a cell.
+- `MediaTile`'s clickable variant emitted `w-full`, silently overriding the 36px the
+  scorecard band asked for. Tailwind precedence is stylesheet order, so the caller could
+  never have won.
+- `body.segment_number ?? body.hole_number` — `??` treats an explicit `null` as absent,
+  which is exactly what "move back to the whole round" sends.
+
+**The production sweep earned its keep.** It came back 9/10: the add-media and per-item
+controls were absent on `/live/[groupPostId]`, because that page never passes
+`onStatusChange`. Passing it would have been wrong — on `/live` that prop navigates away to
+the finished post, which is right when a round ends and actively harmful when someone has
+just corrected a photo's hole. A separate `onMediaChanged` prop shipped as #24. The bug was
+invisible locally because the fixture drove the feed card, which does pass it.
+
+---
+
 ## August 1, 2026 — Edit Profile: a modal nobody could click, and three blank sport tabs
 
 Started as roadmap item #5 (kill the hardcoded golf tab). Ended up finding that the

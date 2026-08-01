@@ -36,6 +36,27 @@ Guiding principle: *build for today, architect for tomorrow.* We deliberately di
 - **Surfaces the adapter actually governs today:** profile highlight tiles (`MultiSportHighlights`) and profile activity table (`MultiSportActivity`).
 - **Generic settings API:** `/api/sport-settings` (GET/PUT/DELETE) is fully sport-agnostic.
 - **Cleaned in migration 020:** dead per-sport FK columns (`posts.game_id/match_id/race_id`), 5 dead tables, `golf_mode` → `activity_mode`.
+- **Media segments (August 1, 2026 — migrations 061/062).** Media attaches to a SEGMENT of
+  an event, not a golf hole: `group_post_media.segment_number` + `segment_kind`, driven by
+  `src/lib/sports/segment-schemas.ts` (hole / inning / quarter / period / set / lap).
+  Adding a sport is **1 edit** to that file. Only the *label* is sport-specific — the
+  grouping, the scorecard media band and the lightbox footer are the same code everywhere.
+  - `hole_number` is **deprecated but still dual-written** for golf while both columns
+    coexist; a contract migration drops it once no client sends it. The dual-write is
+    conditional because `hole_number` keeps its old `BETWEEN 1 AND 18` constraint.
+  - **There is deliberately no CHECK on `segment_number`** — bounds are per-sport in the
+    schema file, with a `variable` flag for sports that legitimately run past their max
+    (extra innings, overtime). A DB ceiling would need a migration per sport.
+  - Migration 062 also added the **UPDATE policy `group_post_media` never had** — 004
+    created SELECT/INSERT/DELETE only, so every UPDATE was denied and media could not be
+    reassigned at all.
+- **Media primitives:** `src/components/media/` (`MediaTile`, `MediaCollage`, `MediaGrid`,
+  `MediaLightbox`, `MediaStatStrip`) are sport-agnostic. **Tiles crop, viewers contain.**
+  `MediaTile` renders `next/image` with `fill` and exposes NO width/height — that is what
+  prevents the "image sizes its own container" letterboxing bug from returning.
+- **Feed headline:** `src/lib/sports/post-headline.ts` builds the overlaid stat strip and
+  is dispatched by sport there rather than inside `SportPostBody`, whose contract stays
+  "adding a sport = a case + a body component, zero PostCard edits".
 
 ## Where golf is still hardcoded (the sport-#2 work list)
 
