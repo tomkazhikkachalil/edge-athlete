@@ -36,6 +36,29 @@ SMTP_USER=your@email.com
 SMTP_PASS=your-app-password
 ```
 
+### Development Commands
+```bash
+npm run dev          # Dev server → http://localhost:3000 (Turbopack)
+npm run build        # Production build
+npm run start        # Serve the production build
+npm run typecheck    # tsc --noEmit
+npm run lint         # eslint . --max-warnings 45   ← see below
+npm run test         # vitest run (node-only; there is NO jsdom)
+npm run verify       # typecheck + lint + test + build — THE GATE
+```
+
+**`npm run verify` is the gate.** Run it before every commit; nothing lands red.
+
+**`lint` carries a ratchet, not a threshold.** The `--max-warnings 45` cap tolerates
+45 known, documented warnings and fails on the 46th. When you legitimately remove
+warnings, *lower the cap in `package.json` in the same commit*. Raising it needs a
+reason in `DEVLOG.md`. The rationale for each remaining warning is in
+`eslint.config.mjs` — read it before trying to "fix" them.
+
+**Tests are node-only.** There is no jsdom and no testing-library, so only pure
+functions are unit-testable. Anything needing a DOM is verified in a browser, by
+hand — don't add a test that pretends otherwise.
+
 ### Production Deployment (Vercel)
 
 **Status:** ✅ Deployed to Vercel
@@ -60,6 +83,35 @@ SMTP_PASS=your-app-password
 
 ## 📁 Architecture Overview
 
+### App Router Structure
+```
+src/app/
+├── feed/                    # Main feed (posts from followed athletes)
+├── athlete/[id]/            # Profile pages by user ID
+├── u/[username]/            # Public profile pages by username
+├── live/[groupPostId]/      # A live round as a PLACE (see Navigation Conventions)
+├── app/
+│   ├── profile/             # Logged-in user's profile editor
+│   ├── followers/           # Followers/following management
+│   ├── notifications/       # Notifications page
+│   └── sport/[sport_key]/   # Sport-specific pages
+├── dashboard/               # Admin dashboard
+└── api/                     # API routes — see src/app/api/CLAUDE.md
+```
+
+### Key Libraries & Utilities
+
+**`src/lib/supabase.ts`** — Supabase client setup
+- `supabase` — browser client (SSR-compatible, cookie-based)
+- `supabaseAdmin` — server client that **bypasses RLS**; use sparingly
+
+**`src/lib/auth.tsx`** — authentication context
+- `useAuth()` — the only sanctioned way to read user/profile (see Key Conventions)
+
+**`src/middleware.ts`** — refreshes the Supabase session per request; required for SSR
+auth. Deliberately still the `middleware` convention rather than `proxy` — the reason
+and revisit triggers are in the file header.
+
 ### Sport Adapter Pattern
 
 **Location:** `src/lib/sports/`
@@ -78,6 +130,14 @@ Platform uses adapters for sport-specific logic:
 ---
 
 ## 🗄️ Database Structure
+
+**`database/migrations/` is the source of truth for the schema — there is no table
+list here on purpose.** It defines 40+ tables and grows most weeks. AGENTS.md used to
+carry a hand-written "Core Tables" list of 14, which had silently gone stale: it was
+missing `group_posts`, `group_post_participants`, `golf_scorecard_data` and
+`golf_participant_scores` — the tables the golf feature actually runs on — plus every
+messaging, calendar and guardian table. A partial list presented as the core set is
+worse than no list. Read the migrations, or introspect the live schema.
 
 ### Important Patterns
 - **RLS Enabled** - All tables have Row Level Security
@@ -216,13 +276,19 @@ addition below as a promise to keep it true.
 - `DEVLOG.md` — the running record of what changed and *why*. The most useful
   file in the repo for context on a past decision; read it before assuming
   something is arbitrary.
-- `AGENTS.md` — agent-facing conventions
+- `AGENTS.md` — a pointer back to this file. Deliberately thin; see the note in it.
 - `src/app/api/CLAUDE.md` — **required** API route patterns (cookie auth, admin client)
 - `database/MIGRATIONS.md` and `database/docs/` — migration ordering and the
   guardian reconciliation notes. SQL lives under `database/`, sorted into
   `migrations/`, `fixes/`, `features/`, `tests/` and `archive/`.
+- `docs/` — roadmaps (`docs/ROADMAP_2026-07.md`, `docs/MULTI_SPORT_ROADMAP.md`), a
+  security audit, and feature write-ups. **`docs/devlog/` is the OLD devlog** (entries
+  001–010, superseded by `DEVLOG.md` at the repo root) — history, not current
+  state. Several files here predate late 2025; check `git log` before trusting
+  a detail.
 
 ---
 
-**Last Updated:** July 2026 (spring-clean — dead doc index rewritten, `/api/ai/*`
-and `scripts/` deleted)
+**Last Updated:** August 2026 — this file is the single source of truth for project
+conventions. `AGENTS.md` is a pointer to it, deliberately; don't re-expand it into a
+second copy. Every file path named above was swept and resolves.

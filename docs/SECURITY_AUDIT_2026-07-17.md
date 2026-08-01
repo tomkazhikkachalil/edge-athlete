@@ -21,6 +21,11 @@ Pattern applied everywhere: `requireAuth(request)`, derive the acting profile
 from the **session** (never body/query), ownership check on mutations,
 `canViewProfile()` on cross-profile reads, `if (error instanceof Response) return error` in catch.
 
+> **Staleness note (Aug 2026):** this list has not been re-verified since
+> 17 Jul 2026 and at least one open item below has since been fixed in code
+> without being struck through here. Treat unresolved entries as *needs
+> checking*, not as confirmed-live vulnerabilities.
+
 ## 🟡 MEDIUM findings
 
 1. **`/api/suggestions` GET+POST** — takes `profileId`, returns connection
@@ -30,9 +35,13 @@ from the **session** (never body/query), ownership check on mutations,
    ✅ FIXED — non-owners get `.eq('visibility','public')` on training posts.
 3. **`/api/upload` POST** — explicitly allows unauthenticated uploads to
    `temp/` (storage/cost abuse). Enforce `requireAuth`.
+   *(Aug 2026: appears already fixed — the route now calls `requireAuth` and
+   the `temp/` fallback is gone. Left listed pending a proper re-audit.)*
 4. ~~**`/api/ai/text` + `/api/ai/image` POST** — unauthenticated paid OpenAI
-   proxy (spend/abuse vector)~~ ✅ FIXED — both now `requireAuth` (no callers
-   in the app; starter scaffolding).
+   proxy (spend/abuse vector)~~ ✅ **RESOLVED PERMANENTLY (Aug 2026)** — both
+   routes were deleted outright. They were unreferenced scaffolding and
+   `OPENAI_API_KEY` was never set in Vercel; removing them also dropped the
+   `openai` dependency. No auth check to regress.
 5. **`/api/follow/stats` GET** — `currentUserId` caller-supplied/spoofable;
    data mostly public. Derive viewer from session.
 6. **`/api/posts/[id]` GET** — returns a single post by id with no post/author

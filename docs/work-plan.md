@@ -213,7 +213,7 @@ SELECT: true (public read)
 ## Phase 6: Testing & QA ✅
 
 ### 6.1 Test Scenarios
-**File:** `/scripts/qa-frontend-tests.mjs`
+**Scenarios** (the `/scripts/qa-frontend-tests.mjs` checklist that recorded these was deleted in August 2026; the scenarios themselves still stand):
 1. **Empty State** - New user, no data
 2. **Partial Data** - Some fields filled
 3. **Full Data** - Complete profile

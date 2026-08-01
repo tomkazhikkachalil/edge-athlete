@@ -1,5 +1,81 @@
 # Development Log
 
+## August 1, 2026 — Auditing the spring-clean: it fixed one of two twin files
+
+Tom asked for a double-check before securing the work. Nothing needed pushing — tree
+clean, `main` in sync, prod verified. The audit found three problems, **two of them
+caused by the spring-clean itself.**
+
+### The fix landed in one of two identical files
+
+**`AGENTS.md` was a 408-line near-duplicate of CLAUDE.md — 60 of CLAUDE.md's 98
+substantive lines byte-identical.** The July 31 cleanup corrected CLAUDE.md and never
+touched AGENTS.md, so **within a single session the twins diverged**, and AGENTS.md was
+left asserting every single thing that had just been fixed:
+
+the same 15 dead documentation links · `OPENAI_API_KEY` (routes deleted, never set in
+Vercel) · "Next.js 15" ×3 · three sports instead of eleven · the `/api/debug/counts` task
+· 7 unqualified `.sql` paths, three resolving into `archive/failed-attempts/` · a re-copy
+of the API auth pattern CLAUDE.md had deliberately extracted to `src/app/api/CLAUDE.md` ·
+a "Recent Critical Fixes (**January 2025**)" section
+
+This is the **two-doors failure in documentation form** — the same shape as the live-round
+bug, where Go Live was wired on one of three composer sites. Duplicating a file guarantees
+the fix lands in one copy.
+
+AGENTS.md is now **31 lines**: a pointer to CLAUDE.md, and an explanation of why it's a
+pointer so nobody helpfully re-expands it. Everything unique *and verified* moved into
+CLAUDE.md first — Development Commands (which CLAUDE.md lacked entirely, and which
+AGENTS.md had stale: no `typecheck`, no `test`, no **`verify`**), App Router Structure
+(all 9 paths confirmed), Key Libraries (all 3 confirmed).
+
+**"Core Tables" was deliberately not moved.** It listed 14 tables; `database/migrations/`
+defines 40+. It was missing `group_posts`, `group_post_participants`,
+`golf_scorecard_data`, `golf_participant_scores` — the tables golf actually runs on — plus
+all messaging, calendar and guardian tables. A partial list labelled "Core Tables" is
+worse than none, so the migrations are now named as the source of truth.
+
+### The cleanup broke two documents
+
+Deleting `scripts/` left **`docs/qa-test-guide.md`** instructing readers to run
+`node scripts/qa-tests.mjs`, and **`docs/work-plan.md`** naming
+`/scripts/qa-frontend-tests.mjs`. Removing code and leaving docs pointing at it is exactly
+the rot that PR set out to remove — missed because nothing sweeps docs for dead paths.
+Both repaired; the QA guide now points at `npm run verify`.
+
+### The new index was itself incomplete
+
+The rewritten CLAUDE.md index omitted **`docs/` entirely** — 20 tracked files including
+`docs/devlog/`, the *old* devlog superseded by this file. Now indexed, with that
+distinction stated.
+
+### Also found, while in there
+
+`docs/SECURITY_AUDIT_2026-07-17.md` item 4 (the `/api/ai` paid-OpenAI spend vector) is now
+resolved permanently — the routes are deleted, so there's no auth check left to regress.
+Item 3 (`/api/upload` unauthenticated uploads) **is already fixed in code** —
+`requireAuth` is called and the `temp/` fallback is gone — but the doc still listed it as
+open. Rather than half-update a security document, it's marked apparently-fixed-pending-
+re-audit and the file now carries a staleness note. **The remaining open items were not
+re-verified and are not claimed to be.**
+
+### The check that would have caught all of this
+
+```bash
+grep -ohE '`[A-Za-z0-9_./-]+\.(md|ts|tsx|sql|css|json|mjs)`' CLAUDE.md AGENTS.md \
+  | tr -d '`' | sort -u | while read p; do [ -e "$p" ] || echo "MISSING $p"; done
+```
+
+It now returns only `NewSportAdapter.ts`, which is a create-this-file placeholder. Worth
+running whenever a doc names a path — it caught two unqualified paths I introduced *in the
+commit that fixes unqualified paths*.
+
+Docs only. `npm run verify` green with every number unchanged — **45 warnings / 0 errors,
+561 tests, 0 advisories** — which is the point: a docs-only change that moves those
+numbers touched something it shouldn't have.
+
+---
+
 ## July 31, 2026 — Dependency majors: four taken, two blocked by the ecosystem
 
 Seven major upgrades were outstanding. **Four landed, one was deleted rather than
