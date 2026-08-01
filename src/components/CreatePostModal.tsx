@@ -1,7 +1,9 @@
 'use client';
 
 import { useState, useCallback, useRef, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth';
+import { shouldEnterScorerAfterCreate } from '@/lib/golf/round-route';
 import { calcPlayerTotals } from '@/lib/golf/scoring';
 import { useToast } from '@/components/Toast';
 import LazyImage from '@/components/LazyImage';
@@ -134,6 +136,7 @@ export default function CreatePostModal({
   defaultSportKey = 'general'
 }: CreatePostModalProps) {
   const { showSuccess, showError } = useToast();
+  const router = useRouter();
   const { activeProfile } = useAuth();
   const captionRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -865,12 +868,22 @@ export default function CreatePostModal({
           showSuccess('Round posted! Participants will be notified. 🎉');
         }
 
-        // Call callback to refresh posts
+        // Parents still do their refresh work — the user comes back to that
+        // page later, and an abandoned refetch is harmless.
         if (onPostCreated) {
           onPostCreated(groupPostResult.group_post);
         }
 
         closeAndReset();
+
+        // Going live goes INTO the round. This decision lives HERE, at the one
+        // point a round is created, rather than in a parent's onPostCreated —
+        // which is why it previously worked on /feed and nowhere else: three
+        // pages mount this composer and the app header funnels most routes to
+        // /athlete, whose handler never got it. router.push does not care which
+        // page mounted us, so all three are fixed and a fourth cannot drift.
+        const scorerPath = shouldEnterScorerAfterCreate(groupPostResult.group_post);
+        if (scorerPath) router.push(scorerPath);
         return;
       }
 

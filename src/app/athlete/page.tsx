@@ -1125,7 +1125,7 @@ export default function AthleteProfilePage() {
           const key = resolveSportKey(profile?.sport);
           return isComposerSport(key) ? key : 'general';
         })()}
-        onPostCreated={() => {
+        onPostCreated={(newPost) => {
           // Refresh athlete data
           if (user?.id) {
             loadAthleteData(user.id, true);
@@ -1133,7 +1133,14 @@ export default function AthleteProfilePage() {
           // Trigger media refresh by changing the key
           setMediaRefreshKey(prev => prev + 1);
           setIsCreatePostModalOpen(false);
-          showSuccess('Success', 'Post created successfully!');
+          // A golf round already showed its own "Round is LIVE!" toast, and
+          // the composer is navigating into the round — a generic "Post
+          // created successfully!" stacked on top of that is wrong.
+          const isRound =
+            !!newPost &&
+            typeof newPost === 'object' &&
+            (newPost as { type?: string }).type === 'golf_round';
+          if (!isRound) showSuccess('Success', 'Post created successfully!');
         }}
       />
 
