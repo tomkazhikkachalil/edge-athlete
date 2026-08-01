@@ -289,5 +289,6 @@ addition below as a promise to keep it true.
 
 ---
 
-**Last Updated:** July 2026 (spring-clean — dead doc index rewritten, `/api/ai/*`
-and `scripts/` deleted)
+**Last Updated:** August 2026 — this file is the single source of truth for project
+conventions. `AGENTS.md` is a pointer to it, deliberately; don't re-expand it into a
+second copy. Every file path named above was swept and resolves.
