@@ -8,11 +8,23 @@ import { useBodyScrollLock } from '@/hooks/useBodyScrollLock';
 import { asGameFormat, calcStablefordTotal, calcMatchStatus, GAME_FORMAT_LABELS } from '@/lib/golf/formats';
 import ConfirmModal from '../ConfirmModal';
 import MediaTile from '../media/MediaTile';
+import MediaGrid from '../media/MediaGrid';
+import MediaCollage from '../media/MediaCollage';
 import MediaLightbox from '../media/MediaLightbox';
 import { toCollageItems, groupMediaBySegment, type RoundCollageItem } from '@/lib/golf/round-media';
 import { segmentLabel } from '@/lib/sports/segment-schemas';
 import LazyImage from '../LazyImage';
 import type { CompleteGolfScorecard } from '@/types/group-posts';
+
+type RoundTabId = 'overview' | 'scorecard' | 'media';
+
+const TABS: Array<{ id: RoundTabId; label: string; icon: string }> = [
+  { id: 'overview', label: 'Overview', icon: 'fas fa-trophy' },
+  { id: 'scorecard', label: 'Full Scorecard', icon: 'fas fa-table' },
+  // Always present, even with no media: post-round uploads are legal, so the
+  // tab is where you go to ADD photos as well as to see them.
+  { id: 'media', label: 'Media', icon: 'fas fa-images' },
+];
 
 interface SharedRoundFullCardProps {
   scorecard: CompleteGolfScorecard;
@@ -34,7 +46,7 @@ export default function SharedRoundFullCard({
   // Mounted only while open — lock background scroll for the whole lifetime
   useBodyScrollLock();
 
-  const [activeTab, setActiveTab] = useState<'overview' | 'scorecard'>('overview');
+  const [activeTab, setActiveTab] = useState<RoundTabId>('overview');
   const [showEndConfirm, setShowEndConfirm] = useState(false);
   const [endingRound, setEndingRound] = useState(false);
   const [endRoundError, setEndRoundError] = useState<string | null>(null);
@@ -44,6 +56,18 @@ export default function SharedRoundFullCard({
   // the round the way it was played, not the order rows happen to come back in.
   const roundMediaItems = useMemo(() => toCollageItems(scorecard.media), [scorecard.media]);
   const mediaBySegment = useMemo(() => groupMediaBySegment(roundMediaItems), [roundMediaItems]);
+  // Overview shows only the best one or two. Stage 5 replaces this slice with
+  // the highlight-aware picker; the call site does not change.
+  const overviewMedia = useMemo(() => roundMediaItems.slice(0, 2), [roundMediaItems]);
+  // Segment -> its media, for the scorecard's media band. Event-level items are
+  // excluded: they belong to no column.
+  const segmentsWithMedia = useMemo(() => {
+    const map = new Map<number, RoundCollageItem[]>();
+    for (const [segment, group] of mediaBySegment) {
+      if (segment !== null) map.set(segment, group);
+    }
+    return map;
+  }, [mediaBySegment]);
 
   const roundLive = isRoundLive(group_post);
   const isCreator = currentUserId === group_post.creator_id;
@@ -171,6 +195,57 @@ export default function SharedRoundFullCard({
                     {holeNumbers.reduce((sum, h) => sum + parFor(h), 0)}
                   </td>
                 </tr>
+
+                {/*
+                  MEDIA ROW — a photo from hole 3 appears ON hole 3.
+
+                  This table is players-as-ROWS x holes-as-COLUMNS, so there is
+                  no "hole row" to hang a thumbnail on, and a 40px hole column
+                  cannot host one. A dedicated band beneath PAR reuses the
+                  existing column grid instead, which is why the same code
+                  works for an innings or lap band — only segmentLabel changes.
+
+                  Restructuring to hole-per-row was the alternative and was
+                  rejected: it would destroy the multi-player comparison this
+                  layout exists for.
+                */}
+                {segmentsWithMedia.size > 0 && (
+                  <tr className="border-b border-gray-200">
+                    <td className="py-1.5 px-3 font-bold text-gray-500 text-[11px] uppercase tracking-wide sticky left-0 bg-white z-10">
+                      Media
+                    </td>
+                    {holeNumbers.map(holeNum => {
+                      const group = segmentsWithMedia.get(holeNum);
+                      return (
+                        <td key={holeNum} className="py-1.5 px-1 align-middle">
+                          {group && group.length > 0 ? (
+                            <MediaTile
+                              src={group[0].url}
+                              thumbnailUrl={group[0].thumbnailUrl}
+                              kind={group[0].kind}
+                              alt={`${segmentLabel('golf', holeNum)} media`}
+                              className="aspect-square w-9 rounded mx-auto"
+                              sizes="36px"
+                              onClick={() =>
+                                setLightboxIndex(
+                                  roundMediaItems.findIndex(m => m.id === group[0].id)
+                                )
+                              }
+                              overlay={
+                                group.length > 1 ? (
+                                  <span className="absolute bottom-0 right-0 rounded-tl bg-black/70 px-1 text-[9px] font-bold text-white">
+                                    +{group.length - 1}
+                                  </span>
+                                ) : undefined
+                              }
+                            />
+                          ) : null}
+                        </td>
+                      );
+                    })}
+                    <td className="bg-gray-100"></td>
+                  </tr>
+                )}
 
                 {/* Player Rows */}
                 {participants
@@ -416,35 +491,40 @@ export default function SharedRoundFullCard({
           )}
         </div>
 
-        {/* Tabs */}
+        {/* Tabs. Given ARIA here — these were hand-rolled <button>s with no
+            tablist/tab/tabpanel roles at all, so a screen reader had no way to
+            know they were tabs. */}
         <div className="shrink-0 border-b border-gray-300 bg-white">
-          <div className="flex px-6">
-            <button
-              onClick={() => setActiveTab('overview')}
-              className={`px-6 py-3 font-bold text-sm border-b-2 transition-colors ${
-                activeTab === 'overview'
-                  ? 'border-violet-600 text-violet-700'
-                  : 'border-transparent text-gray-600 hover:text-gray-900'
-              }`}
-            >
-              <i className="fas fa-trophy mr-2"></i>
-              Overview
-            </button>
-            <button
-              onClick={() => setActiveTab('scorecard')}
-              className={`px-6 py-3 font-bold text-sm border-b-2 transition-colors ${
-                activeTab === 'scorecard'
-                  ? 'border-violet-600 text-violet-700'
-                  : 'border-transparent text-gray-600 hover:text-gray-900'
-              }`}
-            >
-              <i className="fas fa-table mr-2"></i>
-              Full Scorecard
-            </button>
+          <div className="flex px-6" role="tablist" aria-label="Round detail sections">
+            {TABS.map(tab => {
+              const selected = activeTab === tab.id;
+              return (
+                <button
+                  key={tab.id}
+                  id={`round-tab-${tab.id}`}
+                  role="tab"
+                  aria-selected={selected}
+                  aria-controls={`round-panel-${tab.id}`}
+                  onClick={() => setActiveTab(tab.id)}
+                  className={`px-6 py-3 font-bold text-sm border-b-2 transition-colors ${
+                    selected
+                      ? 'border-violet-600 text-violet-700'
+                      : 'border-transparent text-gray-600 hover:text-gray-900'
+                  }`}
+                >
+                  <i className={`${tab.icon} mr-2`}></i>
+                  {tab.label}
+                  {tab.id === 'media' && roundMediaItems.length > 0 && (
+                    <span className="ml-1.5 text-xs font-semibold text-gray-500">
+                      {roundMediaItems.length}
+                    </span>
+                  )}
+                </button>
+              );
+            })}
           </div>
         </div>
 
-        {/* Scrollable Content */}
         {/* `min-h-0` IS LOAD-BEARING, not tidying. A column flex item defaults to
             `min-height: auto`, which refuses to shrink below its content — so this
             pane grew past the panel's `max-h-modal`, and the panel's
@@ -453,7 +533,31 @@ export default function SharedRoundFullCard({
         <div className="flex-1 min-h-0 overflow-y-auto p-6">
           {/* Overview Tab */}
           {activeTab === 'overview' && (
-            <div className="space-y-4">
+            <div className="space-y-4" id="round-panel-overview" role="tabpanel" aria-labelledby="round-tab-overview">
+              {/* A TEASER, not the gallery. The page used to get longer and
+                  messier the more someone posted; the rest lives in Media. */}
+              {roundMediaItems.length > 0 && (
+                <div>
+                  <MediaCollage
+                    items={overviewMedia}
+                    max={2}
+                    onSelect={i =>
+                      setLightboxIndex(
+                        roundMediaItems.findIndex(m => m.id === overviewMedia[i].id)
+                      )
+                    }
+                  />
+                  {roundMediaItems.length > overviewMedia.length && (
+                    <button
+                      type="button"
+                      onClick={() => setActiveTab('media')}
+                      className="mt-2 text-sm font-semibold text-violet-600 hover:text-violet-700"
+                    >
+                      See all {roundMediaItems.length} photos and videos
+                    </button>
+                  )}
+                </div>
+              )}
               {/* Match play status banner */}
               {matchStatus && matchStatus.thru > 0 && (
                 <div className="flex items-center gap-3 bg-gray-50 border border-gray-200 rounded-lg px-4 py-3">
@@ -686,7 +790,7 @@ export default function SharedRoundFullCard({
 
           {/* Scorecard Tab */}
           {activeTab === 'scorecard' && (
-            <>
+            <div id="round-panel-scorecard" role="tabpanel" aria-labelledby="round-tab-scorecard">
               {front9.length > 0 && renderScorecardTable(front9, front9.length === 9 ? 'Front 9' : 'Holes')}
               {back9.length > 0 && renderScorecardTable(back9, 'Back 9')}
 
@@ -740,46 +844,38 @@ export default function SharedRoundFullCard({
                   <span>Double+ (+2)</span>
                 </div>
               </div>
-            </>
+            </div>
           )}
 
-          {/* Round media — hole-tagged photos/videos from the players.
-              Tiles CROP to a fixed square (MediaTile renders with `fill`, so no
-              image can size its own box — that was the letterboxing bug), and
-              videos show a poster + play glyph rather than an inline <video>.
-              Playback happens in the lightbox. */}
-          {roundMediaItems.length > 0 && (
-            <div className="mt-4">
-              <h3 className="text-lg font-black text-gray-900 mb-3">
-                <i className="fas fa-camera mr-2"></i>
-                Round Media
-              </h3>
-              {mediaBySegment.map(([segment, group]) => (
-                <div key={segment ?? 'round'} className="mb-3">
-                  {/* The ONLY sport-specific thing here is the word, and it
-                      comes from the schema — an innings heading is this same
-                      code with a different label. */}
-                  <div className="text-xs font-bold text-gray-700 mb-1.5">
-                    {segmentLabel('golf', segment)}
-                  </div>
-                  <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
-                    {group.map(item => (
-                      <MediaTile
-                        key={item.id}
-                        src={item.url}
-                        thumbnailUrl={item.thumbnailUrl}
-                        kind={item.kind}
-                        durationSeconds={item.durationSeconds}
-                        alt={item.alt || 'Round media'}
-                        className="aspect-square rounded-lg"
-                        onClick={() =>
-                          setLightboxIndex(roundMediaItems.findIndex(m => m.id === item.id))
-                        }
-                      />
-                    ))}
-                  </div>
+          {/* Media Tab — everything, grouped by the moment it happened in. */}
+          {activeTab === 'media' && (
+            <div id="round-panel-media" role="tabpanel" aria-labelledby="round-tab-media">
+              {roundMediaItems.length === 0 ? (
+                <div className="py-12 text-center text-gray-500">
+                  <i className="fas fa-images text-4xl text-gray-300 mb-3 block" aria-hidden="true"></i>
+                  <p className="font-semibold text-gray-700">No photos or videos yet</p>
+                  <p className="mt-1 text-sm">
+                    Photos added while scoring are tagged to the hole automatically.
+                  </p>
                 </div>
-              ))}
+              ) : (
+                mediaBySegment.map(([segment, group]) => (
+                  <div key={segment ?? 'round'} className="mb-5">
+                    {/* The ONLY sport-specific thing here is the word, and it
+                        comes from the schema — an innings heading is this same
+                        code with a different label. */}
+                    <div className="mb-2 text-xs font-bold uppercase tracking-wide text-gray-500">
+                      {segmentLabel('golf', segment)}
+                    </div>
+                    <MediaGrid
+                      items={group}
+                      onSelect={i =>
+                        setLightboxIndex(roundMediaItems.findIndex(m => m.id === group[i].id))
+                      }
+                    />
+                  </div>
+                ))
+              )}
             </div>
           )}
         </div>
