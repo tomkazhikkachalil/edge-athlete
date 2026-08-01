@@ -4,6 +4,7 @@ import { runNotificationDigest } from '@/lib/digest-server';
 import { runTransferSweep } from '@/lib/transfers';
 import { extendRecurringSeries } from '@/lib/calendar/series-server';
 import { runReminderSweep } from '@/lib/calendar/reminders-server';
+import { runRoundSweep } from '@/lib/golf/round-sweep';
 import { FEATURE_FLAGS } from '@/lib/features';
 
 export const maxDuration = 60;
@@ -20,6 +21,10 @@ export const maxDuration = 60;
 //   3. Calendar recurrence horizon: extend never-ending series whose
 //      materialized window has fallen inside ~6 months. No-op while the
 //      calendar flag is off.
+//   4. Quiet golf rounds: advanceRoundStatus only fires on a score write, so
+//      an abandoned live round stays 'active' forever and never mirrors into
+//      golf_rounds — its scores silently miss trends and handicap. This
+//      re-evaluates them.
 export async function GET(request: NextRequest) {
   const cronSecret = process.env.CRON_SECRET;
   const authHeader = request.headers.get('authorization');
@@ -65,6 +70,13 @@ export async function GET(request: NextRequest) {
   } catch (e) {
     console.error('[DAILY] reminders phase failed:', e);
     summary.reminders = { ok: false };
+  }
+
+  try {
+    summary.rounds = await runRoundSweep(admin);
+  } catch (e) {
+    console.error('[DAILY] round sweep phase failed:', e);
+    summary.rounds = { ok: false };
   }
 
   console.log('[DAILY]', JSON.stringify(summary));

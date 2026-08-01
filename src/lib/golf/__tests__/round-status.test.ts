@@ -196,3 +196,40 @@ describe('isRoundLive', () => {
     expect(isRoundLive({}, NOW)).toBe(false);
   });
 });
+
+describe('abandoned live round (the July 25 case)', () => {
+  it('resolves an abandoned round to completed so it can mirror into stats', () => {
+    // Real production shape: two players scored one hole each, then stopped.
+    // advanceRoundStatus only fires on a score write, so the row sat 'active'
+    // for six days and mirrorCompletedRound — which requires 'completed' —
+    // never ran, leaving both players' scores out of trends and handicap.
+    // The daily round sweep exists to give this rule a reason to run.
+    const lastActivity = Date.parse('2026-07-25T19:30:00Z');
+    const now = Date.parse('2026-07-31T18:00:00Z');
+    expect(
+      resolveRoundStatus({
+        status: 'active',
+        holesPlayed: 18,
+        participants: [
+          { confirmed: true, holesCompleted: 1 },
+          { confirmed: true, holesCompleted: 1 },
+        ],
+        lastActivityAt: lastActivity,
+        now,
+      })
+    ).toBe('completed');
+  });
+
+  it('leaves a genuinely live round alone', () => {
+    const now = Date.parse('2026-07-31T18:00:00Z');
+    expect(
+      resolveRoundStatus({
+        status: 'active',
+        holesPlayed: 18,
+        participants: [{ confirmed: true, holesCompleted: 4 }],
+        lastActivityAt: now - 10 * 60 * 1000, // 10 minutes ago
+        now,
+      })
+    ).toBeNull();
+  });
+});
