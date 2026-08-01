@@ -34,6 +34,12 @@ SMTP_HOST=smtp.gmail.com
 SMTP_PORT=587
 SMTP_USER=your@email.com
 SMTP_PASS=your-app-password
+
+# Optional: brand logos in the equipment picker (https://logo.dev). Unset →
+# initial-letter tiles, which is a supported state rather than a degraded one.
+# NEXT_PUBLIC_* is inlined AT BUILD TIME, so setting this in Vercel requires a
+# redeploy before it takes effect.
+NEXT_PUBLIC_LOGO_DEV_TOKEN=pk_your_publishable_token
 ```
 
 ### Development Commands

@@ -1,12 +1,14 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { X, Loader2, ChevronDown } from 'lucide-react';
-import Image from 'next/image';
 import { useToast } from './Toast';
 import type { EquipmentCategory, EquipmentSpecs } from './EquipmentSection';
-import { getCatalogService, getPresetImages, type EquipmentBrand, type EquipmentModel } from '@/lib/equipment-catalog';
+import { getBrandSuggestions, getModelSuggestions } from '@/lib/equipment-catalog';
+import { getBrandPlaceholder, getModelPlaceholder } from '@/lib/equipment-brands';
+import { getSpecFields } from '@/lib/equipment-specs';
 import { getEquipmentCategories, getEquipmentSportOptions } from '@/lib/equipment-config';
+import BrandLogo from './BrandLogo';
 import EquipmentImageUpload from './EquipmentImageUpload';
 import { useBodyScrollLock } from '@/hooks/useBodyScrollLock';
 import { useDirtyClose } from '@/hooks/useDirtyClose';
@@ -67,12 +69,8 @@ export default function AddEquipmentModal({
   const [retiredOn, setRetiredOn] = useState('');
 
   // Autocomplete state
-  const [brandSuggestions, setBrandSuggestions] = useState<EquipmentBrand[]>([]);
-  const [modelSuggestions, setModelSuggestions] = useState<EquipmentModel[]>([]);
   const [showBrandDropdown, setShowBrandDropdown] = useState(false);
   const [showModelDropdown, setShowModelDropdown] = useState(false);
-  const [brandLoading, setBrandLoading] = useState(false);
-  const [modelLoading, setModelLoading] = useState(false);
 
   // Refs for autocomplete
   const brandInputRef = useRef<HTMLInputElement>(null);
@@ -80,78 +78,24 @@ export default function AddEquipmentModal({
   const brandDropdownRef = useRef<HTMLDivElement>(null);
   const modelDropdownRef = useRef<HTMLDivElement>(null);
 
-  // Specs state (golf-specific)
-  const [loft, setLoft] = useState('');
-  const [shaft, setShaft] = useState('');
-  const [flex, setFlex] = useState('');
-  const [length, setLength] = useState('');
-  const [lie, setLie] = useState('');
-  const [grip, setGrip] = useState('');
+  // Specs: one map keyed by spec field, driven by equipment-specs.ts. Was six
+  // named useStates for golf's loft/shaft/flex/length/lie/grip, cleared in
+  // four separate places and rendered only when sportKey === 'golf'.
+  const [specValues, setSpecValues] = useState<Record<string, string>>({});
+  const specFields = useMemo(() => getSpecFields(sportKey, category), [sportKey, category]);
 
-  // Clearing for a non-golf sport is synchronisation (render phase); the
-  // brand fetch stays an effect.
-  const [syncedSport, setSyncedSport] = useState(sportKey);
-  if (syncedSport !== sportKey) {
-    setSyncedSport(sportKey);
-    if (sportKey !== 'golf') setBrandSuggestions([]);
-  }
-
-  // Load all brands on mount or when sport changes (for golf)
-  useEffect(() => {
-    if (sportKey !== 'golf') return;
-
-    // Load all brands immediately for dropdown
-    const loadBrands = async () => {
-      setBrandLoading(true);
-      try {
-        const catalogService = getCatalogService(sportKey);
-        const results = await catalogService.searchBrands('');
-        setBrandSuggestions(results);
-      } catch (error) {
-        console.error('Error fetching brand suggestions:', error);
-      } finally {
-        setBrandLoading(false);
-      }
-    };
-
-    loadBrands();
-  }, [sportKey]);
-
-  // Filter brands based on search input
-  const filteredBrands = brandSuggestions.filter(b =>
-    b.name.toLowerCase().includes(brand.toLowerCase())
+  // Suggestions are DERIVED, not fetched. The seed lists are plain data, so
+  // there is nothing to await — the old code awaited a fake setTimeout(100)
+  // that imitated an API call, which just delayed the dropdown by 100ms.
+  const brandSuggestions = useMemo(
+    () => getBrandSuggestions(sportKey, brand),
+    [sportKey, brand]
   );
-
-  // Same split for the model search.
-  const [syncedModel, setSyncedModel] = useState({ sportKey, model });
-  if (syncedModel.sportKey !== sportKey || syncedModel.model !== model) {
-    setSyncedModel({ sportKey, model });
-    if (sportKey !== 'golf' || model.length < 1) setModelSuggestions([]);
-  }
-
-  // Debounced model search
-  useEffect(() => {
-    if (sportKey !== 'golf' || model.length < 1) return;
-
-    const timer = setTimeout(async () => {
-      setModelLoading(true);
-      try {
-        const catalogService = getCatalogService(sportKey);
-        const results = await catalogService.searchModels({
-          brand: brand || undefined,
-          category: category || undefined,
-          query: model,
-        });
-        setModelSuggestions(results);
-      } catch (error) {
-        console.error('Error fetching model suggestions:', error);
-      } finally {
-        setModelLoading(false);
-      }
-    }, 300);
-
-    return () => clearTimeout(timer);
-  }, [model, brand, category, sportKey]);
+  const hasBrandCatalog = useMemo(() => getBrandSuggestions(sportKey).length > 0, [sportKey]);
+  const modelSuggestions = useMemo(
+    () => (model.length > 0 ? getModelSuggestions(sportKey, { brand, category, query: model }) : []),
+    [sportKey, brand, category, model]
+  );
 
   // Close dropdowns on click/tap outside (touchstart too — waiting for the
   // synthesized mouse event is laggy and scroll-consumed taps never fire it)
@@ -207,14 +151,7 @@ export default function AddEquipmentModal({
     setNotes('');
     setAcquiredOn(todayStr());
     setRetiredOn('');
-    setLoft('');
-    setShaft('');
-    setFlex('');
-    setLength('');
-    setLie('');
-    setGrip('');
-    setBrandSuggestions([]);
-    setModelSuggestions([]);
+    setSpecValues({});
     setShowBrandDropdown(false);
     setShowModelDropdown(false);
   }
@@ -231,12 +168,7 @@ export default function AddEquipmentModal({
     model.trim() !== '' ||
     imageUrl.trim() !== '' ||
     notes.trim() !== '' ||
-    loft.trim() !== '' ||
-    shaft.trim() !== '' ||
-    flex.trim() !== '' ||
-    length.trim() !== '' ||
-    lie.trim() !== '' ||
-    grip.trim() !== '' ||
+    Object.values(specValues).some(v => v.trim() !== '') ||
     retiredOn.trim() !== '' ||
     status !== 'active';
 
@@ -259,29 +191,22 @@ export default function AddEquipmentModal({
       return;
     }
 
-    // For golf, validate that brand is from the catalog
-    if (sportKey === 'golf') {
-      const validBrand = brandSuggestions.find(
-        b => b.name.toLowerCase() === brand.toLowerCase()
-      );
-      if (!validBrand) {
-        showError('Error', 'Please select a brand from the list');
-        return;
-      }
-    }
+    // Brand is deliberately NOT required to come from the suggestion list.
+    // Golf used to enforce that, which blocked every custom builder, every
+    // brand we forgot to seed, and any golfer who typed "Ping Golf".
 
     setLoading(true);
 
     try {
-      // Build specs object (only include non-empty values for golf)
+      // Build specs from the fields VISIBLE for this sport+category, in
+      // declared order — equipment cards show the first three, and JSONB
+      // preserves insertion order. Iterating specFields (rather than every
+      // key ever typed) also drops values left behind by a category switch,
+      // so a stick's blade curve never rides along on a pair of skates.
       const specs: EquipmentSpecs = {};
-      if (sportKey === 'golf') {
-        if (loft.trim()) specs.loft = loft.trim();
-        if (shaft.trim()) specs.shaft = shaft.trim();
-        if (flex.trim()) specs.flex = flex.trim();
-        if (length.trim()) specs.length = length.trim();
-        if (lie.trim()) specs.lie = lie.trim();
-        if (grip.trim()) specs.grip = grip.trim();
+      for (const field of specFields) {
+        const value = specValues[field.key]?.trim();
+        if (value) specs[field.key] = value;
       }
 
       const response = await fetch('/api/equipment', {
@@ -380,12 +305,9 @@ export default function AddEquipmentModal({
                   // Reset category and specs when changing sports
                   setCategory(getEquipmentCategories(nextSport)[0]?.value || 'other');
                   setEquipmentType('');
-                  setLoft('');
-                  setShaft('');
-                  setFlex('');
-                  setLength('');
-                  setLie('');
-                  setGrip('');
+                  setSpecValues({});
+                  setShowBrandDropdown(false);
+                  setShowModelDropdown(false);
                 }}
                 className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-500 bg-white"
                 required
@@ -436,7 +358,8 @@ export default function AddEquipmentModal({
 
             {/* Brand & Model with Autocomplete */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              {/* Brand Selector (Golf: Dropdown only, General: Free text) */}
+              {/* Brand — suggestions for every sport that has a seed list,
+                  free text always. General has no list and so no dropdown. */}
               <div className="relative">
                 <label className="block text-sm font-semibold text-gray-900 mb-2">
                   Brand *
@@ -448,75 +371,41 @@ export default function AddEquipmentModal({
                     value={brand}
                     onChange={(e) => {
                       setBrand(e.target.value);
-                      if (sportKey === 'golf') {
-                        setShowBrandDropdown(true);
-                      }
+                      setShowBrandDropdown(true);
                     }}
-                    onFocus={() => {
-                      if (sportKey === 'golf') {
-                        setShowBrandDropdown(true);
-                      }
-                    }}
-                    placeholder={sportKey === 'golf' ? 'Search brands...' : 'e.g., Nike, Adidas, Under Armour'}
+                    onFocus={() => setShowBrandDropdown(true)}
+                    placeholder={hasBrandCatalog ? 'Search brands...' : getBrandPlaceholder(sportKey)}
                     className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-500"
                     required
                     autoComplete="off"
                   />
-                  {sportKey === 'golf' && (
+                  {hasBrandCatalog && (
                     <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400 pointer-events-none" />
                   )}
                 </div>
-                {sportKey === 'golf' && showBrandDropdown && (
+                {showBrandDropdown && brandSuggestions.length > 0 && (
                   <div
                     ref={brandDropdownRef}
                     className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-lg shadow-lg max-h-[min(15rem,40vh)] overflow-y-auto"
                   >
-                    {brandLoading ? (
-                      <div className="px-4 py-3 text-sm text-gray-500 flex items-center gap-2">
-                        <Loader2 className="w-4 h-4 animate-spin" />
-                        Loading brands...
-                      </div>
-                    ) : filteredBrands.length > 0 ? (
-                      filteredBrands.map((suggestion) => (
-                        <button
-                          key={suggestion.id}
-                          type="button"
-                          onClick={() => handleBrandSelect(suggestion.name)}
-                          className="w-full px-4 py-2.5 text-left text-sm text-gray-900 hover:bg-violet-50 hover:text-violet-700 transition-colors border-b border-gray-100 last:border-b-0 flex items-center gap-3"
-                        >
-                          {suggestion.logo ? (
-                            <Image
-                              src={suggestion.logo}
-                              alt={suggestion.name}
-                              width={24}
-                              height={24}
-                              className="w-6 h-6 object-contain flex-shrink-0"
-                              unoptimized
-                            />
-                          ) : (
-                            <div className="w-6 h-6 flex-shrink-0 bg-gray-200 rounded flex items-center justify-center text-xs font-bold text-gray-600">
-                              {suggestion.name.charAt(0)}
-                            </div>
-                          )}
-                          <span className="flex-1">{suggestion.name}</span>
-                        </button>
-                      ))
-                    ) : (
-                      <div className="px-4 py-3 text-sm text-gray-500">
-                        No brands found. Try searching differently.
-                      </div>
-                    )}
+                    {brandSuggestions.map((suggestion) => (
+                      <button
+                        key={suggestion.value}
+                        type="button"
+                        onClick={() => handleBrandSelect(suggestion.value)}
+                        className="w-full px-4 py-2.5 text-left text-sm text-gray-900 hover:bg-violet-50 hover:text-violet-700 transition-colors border-b border-gray-100 last:border-b-0 flex items-center gap-3"
+                      >
+                        <BrandLogo domain={suggestion.domain} name={suggestion.value} />
+                        <span className="flex-1">{suggestion.value}</span>
+                      </button>
+                    ))}
                   </div>
                 )}
-                {sportKey === 'golf' ? (
-                  <p className="mt-1 text-xs text-gray-500">
-                    Select from {brandSuggestions.length}+ golf brands
-                  </p>
-                ) : (
-                  <p className="mt-1 text-xs text-gray-500">
-                    Enter any brand name
-                  </p>
-                )}
+                <p className="mt-1 text-xs text-gray-500">
+                  {hasBrandCatalog
+                    ? 'Pick a suggestion or type your own'
+                    : 'Enter any brand name'}
+                </p>
               </div>
 
               {/* Model Input with Autocomplete */}
@@ -533,42 +422,31 @@ export default function AddEquipmentModal({
                     setShowModelDropdown(true);
                   }}
                   onFocus={() => setShowModelDropdown(true)}
-                  placeholder={sportKey === 'golf' ? 'e.g., Stealth 2, Pro V1' : 'e.g., Air Max, UltraBoost'}
+                  placeholder={getModelPlaceholder(sportKey)}
                   className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-500"
                   required
                 />
-                {sportKey === 'golf' && showModelDropdown && (modelSuggestions.length > 0 || modelLoading) && (
+                {showModelDropdown && modelSuggestions.length > 0 && (
                   <div
                     ref={modelDropdownRef}
                     className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-lg shadow-lg max-h-[min(15rem,40vh)] overflow-y-auto"
                   >
-                    {modelLoading ? (
-                      <div className="px-4 py-3 text-sm text-gray-500 flex items-center gap-2">
-                        <Loader2 className="w-4 h-4 animate-spin" />
-                        Loading models...
-                      </div>
-                    ) : (
-                      modelSuggestions.map((suggestion) => (
-                        <button
-                          key={suggestion.id}
-                          type="button"
-                          onClick={() => handleModelSelect(suggestion.name)}
-                          className="w-full px-4 py-2.5 text-left hover:bg-violet-50 transition-colors"
-                        >
-                          <div className="text-sm font-medium text-gray-900">{suggestion.name}</div>
-                          {suggestion.year && (
-                            <div className="text-xs text-gray-500">Year: {suggestion.year}</div>
-                          )}
-                        </button>
-                      ))
-                    )}
+                    {modelSuggestions.map((suggestion) => (
+                      <button
+                        key={suggestion.value}
+                        type="button"
+                        onClick={() => handleModelSelect(suggestion.value)}
+                        className="w-full px-4 py-2.5 text-left hover:bg-violet-50 transition-colors"
+                      >
+                        <div className="text-sm font-medium text-gray-900">{suggestion.value}</div>
+                        {suggestion.year && (
+                          <div className="text-xs text-gray-500">Year: {suggestion.year}</div>
+                        )}
+                      </button>
+                    ))}
                   </div>
                 )}
-                {sportKey === 'golf' && (
-                  <p className="mt-1 text-xs text-gray-500">
-                    {brand ? 'Filtered by selected brand' : 'Select a brand for better suggestions'}
-                  </p>
-                )}
+                <p className="mt-1 text-xs text-gray-500">Type any model name</p>
               </div>
             </div>
 
@@ -577,16 +455,7 @@ export default function AddEquipmentModal({
               <label className="block text-sm font-semibold text-gray-900 mb-2">
                 Equipment Image (Optional)
               </label>
-              <EquipmentImageUpload
-                value={imageUrl}
-                onChange={setImageUrl}
-                presetImages={sportKey === 'golf' ? getPresetImages(brand, model, category) : []}
-              />
-              {sportKey === 'golf' && brand && model && (
-                <p className="mt-1 text-xs text-gray-500">
-                  Presets update automatically based on selected brand and model
-                </p>
-              )}
+              <EquipmentImageUpload value={imageUrl} onChange={setImageUrl} />
             </div>
 
             {/* Status */}
@@ -655,73 +524,44 @@ export default function AddEquipmentModal({
               )}
             </div>
 
-            {/* Golf-Specific Specs Section */}
-            {sportKey === 'golf' && (
+            {/* Specifications — driven by equipment-specs.ts for the chosen
+                sport AND category, so a hockey stick asks for blade curve and
+                a bat asks for weight drop. Absent for General. */}
+            {specFields.length > 0 && (
               <div className="pt-4 border-t border-gray-200">
                 <h3 className="text-lg font-bold text-gray-900 mb-4">
                   Specifications (Optional)
                 </h3>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Loft</label>
-                    <input
-                      type="text"
-                      value={loft}
-                      onChange={(e) => setLoft(e.target.value)}
-                      placeholder="e.g., 10.5°"
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-500 text-sm"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Shaft</label>
-                    <input
-                      type="text"
-                      value={shaft}
-                      onChange={(e) => setShaft(e.target.value)}
-                      placeholder="e.g., Project X 6.0"
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-500 text-sm"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Flex</label>
-                    <input
-                      type="text"
-                      value={flex}
-                      onChange={(e) => setFlex(e.target.value)}
-                      placeholder="e.g., Stiff, Regular"
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-500 text-sm"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Length</label>
-                    <input
-                      type="text"
-                      value={length}
-                      onChange={(e) => setLength(e.target.value)}
-                      placeholder='e.g., 45.5"'
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-500 text-sm"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Lie</label>
-                    <input
-                      type="text"
-                      value={lie}
-                      onChange={(e) => setLie(e.target.value)}
-                      placeholder="e.g., 59°"
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-500 text-sm"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Grip</label>
-                    <input
-                      type="text"
-                      value={grip}
-                      onChange={(e) => setGrip(e.target.value)}
-                      placeholder="e.g., Golf Pride Tour Velvet"
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-500 text-sm"
-                    />
-                  </div>
+                  {specFields.map((field) => (
+                    <div key={field.key}>
+                      <label
+                        htmlFor={`spec-${field.key}`}
+                        className="block text-sm font-medium text-gray-700 mb-1"
+                      >
+                        {field.label}
+                      </label>
+                      <input
+                        id={`spec-${field.key}`}
+                        type="text"
+                        value={specValues[field.key] ?? ''}
+                        onChange={(e) =>
+                          setSpecValues((prev) => ({ ...prev, [field.key]: e.target.value }))
+                        }
+                        placeholder={field.placeholder}
+                        list={field.options ? `spec-options-${field.key}` : undefined}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-500 text-sm"
+                      />
+                      {/* Suggestions only — the input stays free text */}
+                      {field.options && (
+                        <datalist id={`spec-options-${field.key}`}>
+                          {field.options.map((option) => (
+                            <option key={option} value={option} />
+                          ))}
+                        </datalist>
+                      )}
+                    </div>
+                  ))}
                 </div>
               </div>
             )}
