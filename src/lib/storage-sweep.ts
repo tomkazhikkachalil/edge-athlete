@@ -32,6 +32,31 @@ export const GRACE_MS = 48 * 60 * 60 * 1000;
 export const SWEEP_BUCKETS = ['uploads', 'avatars'] as const;
 export type SweepBucket = (typeof SWEEP_BUCKETS)[number];
 
+/**
+ * Every (table, columns) pair that can hold a public storage URL.
+ *
+ * Scanned for EVERY swept bucket — `bucketPathFromUrl` discards URLs belonging
+ * to another bucket, so listing a column here is never wrong for a bucket it
+ * doesn't apply to. That asymmetry is the point: adding a source can only ever
+ * GROW the referenced set, so it can only ever prevent a deletion, never cause
+ * one. When in doubt, add the column.
+ *
+ * The reverse is what bites. A column that holds a live URL and is missing here
+ * makes its files look unreferenced, and once the cron deletes for real that is
+ * silent data loss. `group_post_media.thumbnail_url` (migration 060, hole-video
+ * poster frames) was exactly that: absent here, empty in the database, and so
+ * invisible until the first poster frame was written.
+ */
+export const URL_SOURCE_COLUMNS: readonly { table: string; columns: string[] }[] = [
+  { table: 'post_media', columns: ['media_url', 'thumbnail_url'] },
+  { table: 'group_post_media', columns: ['media_url', 'thumbnail_url'] },
+  { table: 'messages', columns: ['media_url'] },
+  { table: 'profiles', columns: ['avatar_url', 'cover_url'] },
+  { table: 'conversations', columns: ['avatar_url'] },
+  { table: 'athlete_equipment', columns: ['image_url'] },
+  { table: 'athlete_badges', columns: ['icon_url'] },
+];
+
 export interface StorageFile {
   path: string; // full path within the bucket, e.g. "posts/<uid>/<file>.png"
   createdAt: string | null;

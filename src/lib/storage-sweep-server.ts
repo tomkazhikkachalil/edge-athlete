@@ -2,6 +2,7 @@ import { getSupabaseAdmin } from '@/lib/auth-server';
 import {
   GRACE_MS,
   SWEEP_BUCKETS,
+  URL_SOURCE_COLUMNS,
   type StorageFile,
   type SweepBucket,
   bucketPathFromUrl,
@@ -45,29 +46,6 @@ export interface SweepSummary {
   byBucket: SweepBucketSummary[];
 }
 
-/**
- * Which DB columns can hold a URL pointing into each bucket.
- *
- * A bucket MUST NOT be swept without an entry here: with no reference sources
- * every file in it looks orphaned and the whole bucket would be deleted.
- */
-const BUCKET_SOURCES: Record<SweepBucket, { table: string; columns: string[] }[]> = {
-  uploads: [
-    { table: 'post_media', columns: ['media_url', 'thumbnail_url'] },
-    { table: 'group_post_media', columns: ['media_url'] },
-    { table: 'messages', columns: ['media_url'] },
-    // Covers live in uploads (covers/{uid}/…); avatar_url normally points at
-    // the avatars bucket (extractor returns null then) but the avatar route
-    // has a bucket-fallback chain that can land in uploads — cheap insurance.
-    { table: 'profiles', columns: ['cover_url', 'avatar_url'] },
-  ],
-  avatars: [
-    // Avatars are referenced only from profiles. cover_url is included for the
-    // same bucket-fallback reason, in reverse.
-    { table: 'profiles', columns: ['avatar_url', 'cover_url'] },
-  ],
-};
-
 /** Every path in `bucket` referenced anywhere in the DB. */
 async function collectReferencedPaths(supabase: Admin, bucket: SweepBucket): Promise<Set<string>> {
   const referenced = new Set<string>();
@@ -89,14 +67,15 @@ async function collectReferencedPaths(supabase: Admin, bucket: SweepBucket): Pro
     }
   };
 
-  for (const src of BUCKET_SOURCES[bucket]) {
+  for (const src of URL_SOURCE_COLUMNS) {
     try {
       await addUrlColumn(src.table, src.columns);
     } catch (e) {
       // profiles.cover_url doesn't exist until migration 047 — degrade to the
-      // columns that do rather than failing the whole sweep. Any other table
-      // failing is real: rethrow, because a missed reference source means the
-      // sweep would treat live files as orphans.
+      // columns that do rather than failing the whole sweep. Any other failure
+      // is rethrown ON PURPOSE: a missed reference source makes live files look
+      // unreferenced, so failing the sweep (and deleting nothing) is always
+      // safer than completing it against an incomplete reference set.
       if (src.table === 'profiles' && src.columns.includes('cover_url')) {
         await addUrlColumn('profiles', src.columns.filter(c => c !== 'cover_url'));
       } else {

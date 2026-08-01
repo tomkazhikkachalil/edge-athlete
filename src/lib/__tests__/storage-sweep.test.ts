@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
   GRACE_MS,
   SWEEP_BUCKETS,
+  URL_SOURCE_COLUMNS,
   bucketPathFromUrl,
   collectSetMediaPaths,
   isSweepable,
@@ -63,6 +64,32 @@ describe('SWEEP_BUCKETS', () => {
   it('covers avatars, or deleting a user orphans their avatar forever', () => {
     expect(SWEEP_BUCKETS).toContain('avatars');
     expect(SWEEP_BUCKETS).toContain('uploads');
+  });
+});
+
+describe('URL_SOURCE_COLUMNS', () => {
+  const covered = (table: string, column: string) =>
+    URL_SOURCE_COLUMNS.some(s => s.table === table && s.columns.includes(column));
+
+  // The cron deletes for real. A live URL column missing from this list makes
+  // its files look unreferenced, which is silent data loss on the next sweep.
+  it.each([
+    ['post_media', 'media_url'],
+    ['post_media', 'thumbnail_url'],
+    ['group_post_media', 'media_url'],
+    // Migration 060 — hole-video poster frames. Was missing, and was invisible
+    // because the column was still empty in production.
+    ['group_post_media', 'thumbnail_url'],
+    ['messages', 'media_url'],
+    ['profiles', 'avatar_url'],
+    ['profiles', 'cover_url'],
+  ])('covers %s.%s', (table, column) => {
+    expect(covered(table, column)).toBe(true);
+  });
+
+  it('lists no table twice, so a column added to the wrong entry is not silently lost', () => {
+    const tables = URL_SOURCE_COLUMNS.map(s => s.table);
+    expect(new Set(tables).size).toBe(tables.length);
   });
 });
 
