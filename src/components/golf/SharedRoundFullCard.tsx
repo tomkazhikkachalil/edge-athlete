@@ -1,20 +1,21 @@
 'use client';
 
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { formatDisplayName, getInitials } from '@/lib/formatters';
 import { classifyScore, SCORE_CELL_RING, holePar } from '@/lib/golf/scoring';
 import { isRoundLive, isActiveParticipant, effectiveRoundStatus } from '@/lib/golf/round-status';
 import { useBodyScrollLock } from '@/hooks/useBodyScrollLock';
 import { asGameFormat, calcStablefordTotal, calcMatchStatus, GAME_FORMAT_LABELS } from '@/lib/golf/formats';
 import ConfirmModal from '../ConfirmModal';
+import MediaTile from '../media/MediaTile';
+import MediaLightbox from '../media/MediaLightbox';
+import { toCollageItems, groupMediaByHole } from '@/lib/golf/round-media';
 import LazyImage from '../LazyImage';
 import type { CompleteGolfScorecard } from '@/types/group-posts';
 
 interface SharedRoundFullCardProps {
   scorecard: CompleteGolfScorecard;
   currentUserId?: string;
-  /** True when the last live refresh failed — scores shown may be out of date. */
-  stale?: boolean;
   onClose: () => void;
   onAddScores?: (participantId: string) => void;
   /** Called after the creator ends the round so the parent refetches the scorecard. */
@@ -24,7 +25,6 @@ interface SharedRoundFullCardProps {
 export default function SharedRoundFullCard({
   scorecard,
   currentUserId,
-  stale = false,
   onClose,
   onAddScores,
   onStatusChange
@@ -37,6 +37,12 @@ export default function SharedRoundFullCard({
   const [showEndConfirm, setShowEndConfirm] = useState(false);
   const [endingRound, setEndingRound] = useState(false);
   const [endRoundError, setEndRoundError] = useState<string | null>(null);
+  const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
+
+  // Flat, view-ready list — ordered by hole so the lightbox's prev/next walks
+  // the round the way it was played, not the order rows happen to come back in.
+  const roundMediaItems = useMemo(() => toCollageItems(scorecard.media), [scorecard.media]);
+  const mediaByHole = useMemo(() => groupMediaByHole(roundMediaItems), [roundMediaItems]);
 
   const roundLive = isRoundLive(group_post);
   const isCreator = currentUserId === group_post.creator_id;
@@ -118,6 +124,12 @@ export default function SharedRoundFullCard({
   const currentUserParticipant = participants.find(
     p => p.participant.profile_id === currentUserId
   );
+
+  // The footer exists ONLY to offer scoring. Close is the header X — a second
+  // Close button in a footer was half of the two-bar stack that squeezed the
+  // scroll area, and duplicating an affordance already on screen adds nothing.
+  const canScore = !!currentUserParticipant && !!onAddScores;
+
 
   const renderScorecardTable = (holeNumbers: number[], title: string) => {
     if (holeNumbers.length === 0) return null;
@@ -314,8 +326,9 @@ export default function SharedRoundFullCard({
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
       <div className="bg-white rounded-lg shadow-2xl max-w-6xl w-full max-h-modal overflow-hidden flex flex-col">
-        {/* Header */}
-        <div className="bg-gradient-to-r from-green-600 to-green-700 text-white p-6">
+        {/* Header. `shrink-0` so it keeps its height and the SCROLL AREA absorbs
+            the overflow instead — without it a tall header squeezes `flex-1`. */}
+        <div className="shrink-0 bg-gradient-to-r from-green-600 to-green-700 text-white p-6">
           <div className="flex items-start justify-between">
             <div className="flex-1">
               <div className="flex items-center gap-3 mb-2 flex-wrap">
@@ -338,12 +351,11 @@ export default function SharedRoundFullCard({
                     {GAME_FORMAT_LABELS[gameFormat].toUpperCase()}
                   </span>
                 )}
-                {stale && (
-                  <span className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-amber-500 text-white text-xs font-bold rounded-full">
-                    <i className="fas fa-triangle-exclamation text-[10px]"></i>
-                    Updates paused — scores may be out of date
-                  </span>
-                )}
+                {/* The "Updates paused" chip used to live here, un-gated by
+                    status, so a FINAL round contradicted itself by claiming its
+                    scores might still change. It now renders once, on the
+                    persistent surface (QuickView / the /live page), never in
+                    this transient modal and never beside the FINAL badge. */}
               </div>
               <div className="flex items-center gap-4 text-sm font-semibold flex-wrap">
                 <span>{formattedDate}</span>
@@ -401,7 +413,7 @@ export default function SharedRoundFullCard({
         </div>
 
         {/* Tabs */}
-        <div className="border-b border-gray-300 bg-white">
+        <div className="shrink-0 border-b border-gray-300 bg-white">
           <div className="flex px-6">
             <button
               onClick={() => setActiveTab('overview')}
@@ -429,7 +441,12 @@ export default function SharedRoundFullCard({
         </div>
 
         {/* Scrollable Content */}
-        <div className="flex-1 overflow-y-auto p-6">
+        {/* `min-h-0` IS LOAD-BEARING, not tidying. A column flex item defaults to
+            `min-height: auto`, which refuses to shrink below its content — so this
+            pane grew past the panel's `max-h-modal`, and the panel's
+            `overflow-hidden` clipped the bottom rather than letting it scroll.
+            That is why "N of 18 holes" was cut in half. Do not remove. */}
+        <div className="flex-1 min-h-0 overflow-y-auto p-6">
           {/* Overview Tab */}
           {activeTab === 'overview' && (
             <div className="space-y-4">
@@ -720,108 +737,88 @@ export default function SharedRoundFullCard({
               </div>
             </>
           )}
-        </div>
 
-        {/* Actions for Current User */}
-        <div className="border-t border-gray-300 p-4 bg-gray-50">
-          {currentUserParticipant && (
-            <div className="bg-violet-50 border border-violet-200 rounded-lg p-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  {currentUserParticipant.scores.total_score ? (
-                    <div>
-                      <span className="font-bold text-gray-900">Your Score: </span>
-                      <span className="text-2xl font-black text-violet-900">{currentUserParticipant.scores.total_score}</span>
-                      {currentUserParticipant.scores.to_par !== null && (
-                        <span className={`ml-2 text-lg font-bold ${currentUserParticipant.scores.to_par < 0 ? 'text-green-600' : currentUserParticipant.scores.to_par > 0 ? 'text-red-600' : 'text-gray-600'}`}>
-                          ({currentUserParticipant.scores.to_par >= 0 ? '+' : ''}{currentUserParticipant.scores.to_par})
-                        </span>
-                      )}
-                    </div>
-                  ) : (
-                    <div>
-                      <span className="font-bold text-gray-900">You haven&apos;t added your scores yet</span>
-                    </div>
-                  )}
-                </div>
-                {onAddScores && (
-                  <button
-                    onClick={() => onAddScores(currentUserParticipant.participant.id)}
-                    className="bg-violet-600 hover:bg-violet-700 text-white font-bold py-2 px-4 rounded-lg transition-colors"
-                  >
-                    {currentUserParticipant.scores.total_score ? 'Edit Scores' : 'Add Scores'}
-                  </button>
-                )}
-              </div>
-            </div>
-          )}
-          {/* Round media — hole-tagged photos/videos from the players */}
-          {(scorecard.media?.length ?? 0) > 0 && (
+          {/* Round media — hole-tagged photos/videos from the players.
+              Tiles CROP to a fixed square (MediaTile renders with `fill`, so no
+              image can size its own box — that was the letterboxing bug), and
+              videos show a poster + play glyph rather than an inline <video>.
+              Playback happens in the lightbox. */}
+          {roundMediaItems.length > 0 && (
             <div className="mt-4">
               <h3 className="text-lg font-black text-green-900 mb-3">
                 <i className="fas fa-camera mr-2"></i>
                 Round Media
               </h3>
-              {(() => {
-                const byHole = new Map<number | null, typeof scorecard.media>();
-                for (const m of scorecard.media || []) {
-                  const key = m.hole_number;
-                  if (!byHole.has(key)) byHole.set(key, []);
-                  byHole.get(key)!.push(m);
-                }
-                const holeKeys = [...byHole.keys()].sort((a, b) => (a ?? 99) - (b ?? 99));
-                return holeKeys.map(holeKey => (
-                  <div key={holeKey ?? 'round'} className="mb-3">
-                    <div className="text-xs font-bold text-gray-700 mb-1.5">
-                      {holeKey ? `Hole ${holeKey}` : 'Round'}
-                    </div>
-                    <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
-                      {(byHole.get(holeKey) || []).map(m => (
-                        <div key={m.id} className="relative aspect-square rounded-lg overflow-hidden bg-gray-100">
-                          {m.media_type === 'video' ? (
-                            <>
-                              {/* poster: without it a .mov/HEVC clip that the
-                                  browser cannot decode shows a black tile and
-                                  reads as broken. object-contain so a 4:3 or
-                                  16:9 capture is letterboxed rather than
-                                  hard-cropped to a square. */}
-                              <video
-                                src={m.media_url}
-                                poster={m.thumbnail_url ?? undefined}
-                                className="w-full h-full object-contain bg-black"
-                                preload="metadata"
-                                controls
-                              />
-                            </>
-                          ) : (
-                            <LazyImage
-                              src={m.media_url}
-                              alt={m.caption || `Hole ${holeKey ?? ''} media`}
-                              className="w-full h-full object-cover"
-                              width={200}
-                              height={200}
-                            />
-                          )}
-                        </div>
-                      ))}
-                    </div>
+              {mediaByHole.map(([holeKey, group]) => (
+                <div key={holeKey ?? 'round'} className="mb-3">
+                  <div className="text-xs font-bold text-gray-700 mb-1.5">
+                    {holeKey ? `Hole ${holeKey}` : 'Round'}
                   </div>
-                ));
-              })()}
+                  <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
+                    {group.map(item => (
+                      <MediaTile
+                        key={item.id}
+                        src={item.url}
+                        thumbnailUrl={item.thumbnailUrl}
+                        kind={item.kind}
+                        durationSeconds={item.durationSeconds}
+                        alt={item.alt || 'Round media'}
+                        className="aspect-square rounded-lg"
+                        onClick={() =>
+                          setLightboxIndex(roundMediaItems.findIndex(m => m.id === item.id))
+                        }
+                      />
+                    ))}
+                  </div>
+                </div>
+              ))}
             </div>
           )}
         </div>
 
-        {/* Footer */}
-        <div className="bg-gray-100 border-t border-gray-300 p-4 flex justify-end">
-          <button
-            onClick={onClose}
-            className="bg-gray-600 hover:bg-gray-700 text-white font-bold py-2 px-6 rounded-lg transition-colors"
-          >
-            Close
-          </button>
-        </div>
+        {/* ONE footer, not two. This was a "Your Score" bar stacked above a
+            separate Close bar, together eating ~140px of a 90dvh modal — and
+            the round media gallery was rendered INSIDE it, so photos made the
+            footer tall enough to squeeze the scroll area. Media now lives in
+            the scrollable content; this is an action bar only.
+
+            The score itself is deliberately NOT repeated here: the leaderboard
+            above already shows it per player and highlights your own row, so
+            for a solo round this was the same number twice, inches apart. */}
+        {canScore && (
+          <div className="shrink-0 border-t border-gray-300 p-4 bg-gray-50 safe-bottom">
+            <div className="flex items-center justify-between gap-3">
+              <div className="min-w-0 text-sm text-gray-700">
+                {!currentUserParticipant!.scores.total_score && (
+                  <span className="font-bold text-gray-900">You haven&apos;t added your scores yet</span>
+                )}
+              </div>
+              <button
+                onClick={() => onAddScores!(currentUserParticipant!.participant.id)}
+                className="shrink-0 bg-violet-600 hover:bg-violet-700 text-white font-bold py-2 px-4 rounded-lg transition-colors"
+              >
+                {currentUserParticipant!.scores.total_score ? 'Edit Scores' : 'Add Scores'}
+              </button>
+            </div>
+          </div>
+        )}
       </div>
+
+      {/* Full-screen viewer. Tiles crop to fill; this contains, because
+          cropping something a viewer opened in order to look at would be
+          wrong. Videos play here rather than in the grid. */}
+      {lightboxIndex !== null && (
+        <MediaLightbox
+          items={roundMediaItems}
+          index={lightboxIndex}
+          onIndexChange={setLightboxIndex}
+          onClose={() => setLightboxIndex(null)}
+          footerFor={item => {
+            const hole = (item as { hole?: number | null }).hole;
+            return hole ? `Hole ${hole}` : 'Round';
+          }}
+        />
+      )}
 
       {/* End Round confirmation */}
       <ConfirmModal

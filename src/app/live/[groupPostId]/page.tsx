@@ -172,15 +172,14 @@ export default function LiveRoundPage() {
         </div>
       )}
 
-      {stale && (
-        <p className="mb-3 text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
-          Showing the last scores we could load.
-        </p>
-      )}
-
+      {/* The stale notice used to be a second, separately-worded banner here
+          AND a chip in the modal, each gated differently. It now renders once,
+          inside QuickView, from the same liveness-gated flag — so this page and
+          the feed card can no longer disagree about whether a round is stale. */}
       <SharedRoundQuickView
         scorecard={scorecard}
         currentUserId={user.id}
+        stale={stale}
         onExpand={() => setShowFullCard(true)}
         // Ending the round re-timestamps the feed post to now, so the finished
         // scorecard is at the top of the feed. replace(), not push() — the back

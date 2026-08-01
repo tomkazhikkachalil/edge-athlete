@@ -656,6 +656,7 @@ function PostCard({
             scorecard={groupScorecard}
             onExpand={() => setShowFullScorecard(true)}
             currentUserId={currentUserId}
+            stale={scorecardStale}
             onStatusChange={refreshScorecard}
           />
         )}
@@ -709,7 +710,6 @@ function PostCard({
         <SharedRoundFullCard
           scorecard={groupScorecard}
           currentUserId={currentUserId}
-          stale={scorecardStale}
           onStatusChange={refreshScorecard}
           onClose={() => setShowFullScorecard(false)}
           onAddScores={async (participantId) => {
