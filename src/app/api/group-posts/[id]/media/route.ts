@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getServerClient } from '@/lib/auth-server';
+import { getServerClient, getSupabaseAdmin } from '@/lib/auth-server';
+import { mirrorRoundMedia } from '@/lib/golf/round-mirror';
 
 /**
  * POST /api/group-posts/[id]/media
@@ -7,7 +8,7 @@ import { getServerClient } from '@/lib/auth-server';
  * hole. The file itself is uploaded via /api/upload/post-media first; this
  * records the round linkage. User-scoped insert — RLS restricts to the
  * round's participants.
- * Body: { media_url, media_type: 'image'|'video', hole_number?, caption? }
+ * Body: { media_url, media_type: 'image'|'video', hole_number?, caption?, thumbnail_url? }
  */
 export async function POST(
   request: NextRequest,
@@ -23,7 +24,7 @@ export async function POST(
   try {
     const { id: groupPostId } = await params;
     const body = await request.json();
-    const { media_url, media_type, hole_number, caption } = body;
+    const { media_url, media_type, hole_number, caption, thumbnail_url } = body;
 
     if (!media_url || typeof media_url !== 'string') {
       return NextResponse.json({ error: 'media_url is required' }, { status: 400 });
@@ -48,14 +49,28 @@ export async function POST(
         media_type,
         hole_number: hole_number ?? null,
         caption: typeof caption === 'string' && caption.trim() ? caption.trim() : null,
+        thumbnail_url: typeof thumbnail_url === 'string' && thumbnail_url ? thumbnail_url : null,
       })
-      .select('id, media_url, media_type, hole_number')
+      .select('id, media_url, media_type, hole_number, thumbnail_url')
       .single();
 
     if (error) {
       // RLS denial surfaces here for non-participants
       console.error('group media insert failed:', error);
       return NextResponse.json({ error: 'Could not attach media to this round' }, { status: 403 });
+    }
+
+    // If the round is ALREADY completed, its feed post has been mirrored once
+    // already — mirror again so late-attached media still reaches the feed
+    // card. mirrorRoundMedia dedupes on media_url, so this is safe to re-run.
+    // Live rounds skip it: the mirror runs when they complete.
+    const { data: round } = await supabase
+      .from('group_posts')
+      .select('status')
+      .eq('id', groupPostId)
+      .maybeSingle();
+    if (round?.status === 'completed') {
+      await mirrorRoundMedia(getSupabaseAdmin(), groupPostId);
     }
 
     return NextResponse.json({ media: data }, { status: 201 });

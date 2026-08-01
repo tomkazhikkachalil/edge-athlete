@@ -411,11 +411,15 @@ export async function POST(request: NextRequest) {
       },
       media: (completePost.post_media || [])
         .sort((a: { display_order: number }, b: { display_order: number }) => a.display_order - b.display_order)
-        .map((media: { id: string; media_url: string; media_type: string; display_order: number }) => ({
+        .map((media: { id: string; media_url: string; media_type: string; display_order: number; thumbnail_url: string | null }) => ({
           id: media.id,
           media_url: media.media_url,
           media_type: media.media_type,
-          display_order: media.display_order
+          display_order: media.display_order,
+          // Selected above and then dropped here, so PostCard's
+          // poster={media.thumbnail_url} was ALWAYS undefined and every video
+          // in the app rendered a black first frame.
+          thumbnail_url: media.thumbnail_url ?? null
         })),
       likes: completePost.post_likes || [],
       golf_round: golfRound,
@@ -677,11 +681,15 @@ export async function GET(request: NextRequest) {
         },
         media: (post.post_media || [])
           .sort((a: { display_order: number }, b: { display_order: number }) => a.display_order - b.display_order)
-          .map((media: { id: string; media_url: string; media_type: string; display_order: number }) => ({
+          .map((media: { id: string; media_url: string; media_type: string; display_order: number; thumbnail_url: string | null }) => ({
             id: media.id,
             media_url: media.media_url,
             media_type: media.media_type,
-            display_order: media.display_order
+            display_order: media.display_order,
+            // Selected above and then dropped here, so PostCard's
+            // poster={media.thumbnail_url} was ALWAYS undefined and every video
+            // in the app rendered a black first frame.
+            thumbnail_url: media.thumbnail_url ?? null
           })),
         likes: post.post_likes || [],
         golf_round: golfRound,
@@ -921,11 +929,15 @@ export async function GET(request: NextRequest) {
         },
         media: (post.post_media || [])
           .sort((a: { display_order: number }, b: { display_order: number }) => a.display_order - b.display_order)
-          .map((media: { id: string; media_url: string; media_type: string; display_order: number }) => ({
+          .map((media: { id: string; media_url: string; media_type: string; display_order: number; thumbnail_url: string | null }) => ({
             id: media.id,
             media_url: media.media_url,
             media_type: media.media_type,
-            display_order: media.display_order
+            display_order: media.display_order,
+            // Selected above and then dropped here, so PostCard's
+            // poster={media.thumbnail_url} was ALWAYS undefined and every video
+            // in the app rendered a black first frame.
+            thumbnail_url: media.thumbnail_url ?? null
           })),
           likes: post.post_likes || [],
           golf_round: post.golf_round || null,

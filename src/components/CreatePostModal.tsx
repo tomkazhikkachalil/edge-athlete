@@ -412,7 +412,11 @@ export default function CreatePostModal({
     taggedProfiles.length > 0 ||
     golfRoundData !== null ||
     statLineData !== null ||
-    roundType !== 'individual' ||
+    // NOT roundType: a live golf round pins it to 'shared' during render
+    // (solo is a shared round with zero invitees), so counting it here made
+    // the composer dirty the instant it opened and every close prompted to
+    // discard work the user had not started. The fields below are the real
+    // signal that something was entered.
     sharedRoundParticipants.length > 0 ||
     selectedCourse !== null ||
     sharedRoundDetails.courseName.trim() !== '' ||
@@ -822,11 +826,40 @@ export default function CreatePostModal({
           showError('Round created, but some scores could not be saved. You can re-enter them from the post.');
         }
 
+        // Attach any composer media to the ROUND. This branch used to return
+        // before the media upload further down, so photos added to an
+        // already-played shared round were silently discarded — no error, no
+        // upload, just gone. Routing them through the round's media endpoint
+        // also means the round->post mirror carries them onto the feed card,
+        // and that endpoint re-mirrors when the round is already 'completed'
+        // (which every already-played round is).
+        if (mediaFiles.length > 0) {
+          const attached = await Promise.allSettled(
+            mediaFiles.map(async file => {
+              const { url, thumbnailUrl } = await uploadMediaWithPoster(file);
+              const res = await fetch(`/api/group-posts/${groupPostId}/media`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                credentials: 'include',
+                body: JSON.stringify({
+                  media_url: url,
+                  media_type: file.type === 'video' ? 'video' : 'image',
+                  thumbnail_url: thumbnailUrl,
+                }),
+              });
+              if (!res.ok) throw new Error('attach failed');
+            })
+          );
+          if (attached.some(r => r.status === 'rejected')) {
+            showError('Round posted, but some photos could not be attached.');
+          }
+        }
+
         if (!sharedRoundDetails.alreadyPlayed) {
           showSuccess(
             sharedRoundParticipants.length > 0
               ? 'Round is LIVE! Scores stream to your group as you play. 🔴'
-              : 'Round is LIVE! Enter scores hole by hole from the card in your feed. 🔴'
+              : 'Round is LIVE! 🔴'
           );
         } else {
           showSuccess('Round posted! Participants will be notified. 🎉');
@@ -1469,7 +1502,7 @@ export default function CreatePostModal({
               <div className="bg-white rounded-lg border border-gray-200 p-4">
                 <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
                   <i className="fas fa-users mr-2 text-green-600"></i>
-                  Round Participants
+                  {sharedRoundDetails.alreadyPlayed ? 'Round Participants' : 'Playing partners'}
                 </h3>
                 <div>
                   <div className="flex items-center justify-between mb-3">
@@ -1479,6 +1512,12 @@ export default function CreatePostModal({
                         : `Playing with anyone? Optional (${sharedRoundParticipants.length})`}
                     </label>
                     <div className="flex items-center gap-2">
+                      {/* Only meaningful for an already-played round, where it
+                          adds you to the in-composer score grid. On a live
+                          round the server inserts the creator regardless, so
+                          the button did nothing except imply partners are
+                          expected. */}
+                      {sharedRoundDetails.alreadyPlayed && (
                       <button
                         onClick={async () => {
                           // Check if user already added
@@ -1527,6 +1566,7 @@ export default function CreatePostModal({
                           </>
                         )}
                       </button>
+                      )}
                       <button
                         onClick={() => setShowParticipantModal(true)}
                         className="flex items-center gap-2 px-3 py-1.5 text-sm text-green-700 hover:text-green-800 hover:bg-green-100 rounded-lg transition-colors font-semibold"
@@ -1557,10 +1597,19 @@ export default function CreatePostModal({
                         </span>
                       ))}
                     </div>
-                  ) : (
+                  ) : sharedRoundDetails.alreadyPlayed ? (
                     <div className="text-sm text-gray-600 bg-white rounded-lg p-3 border border-gray-300">
                       <i className="fas fa-info-circle mr-1"></i>
                       Add at least one participant to create a shared round
+                    </div>
+                  ) : (
+                    // Live rounds are solo by default — nothing here is
+                    // required. The old copy said a participant was needed and
+                    // read as a hard block even though Go Live was enabled.
+                    <div className="text-sm text-gray-600 bg-white rounded-lg p-3 border border-gray-300">
+                      <i className="fas fa-golf-ball-tee mr-1"></i>
+                      Playing solo — just hit Go Live. Add partners any time if
+                      someone joins you.
                     </div>
                   )}
                 </div>

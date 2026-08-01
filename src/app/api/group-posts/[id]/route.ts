@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerClient, getSupabaseAdmin } from '@/lib/auth-server';
-import { mirrorCompletedRound } from '@/lib/golf/round-mirror';
+import { mirrorCompletedRound, mirrorRoundMedia } from '@/lib/golf/round-mirror';
 
 /**
  * GET /api/group-posts/[id]
@@ -190,6 +190,9 @@ export async function PATCH(
     if (status === 'completed') {
       const admin = getSupabaseAdmin();
       await mirrorCompletedRound(admin, id);
+      // Hole photos/videos land in the feed post too — without this the
+      // finished post shows stats and no pictures.
+      await mirrorRoundMedia(admin, id);
 
       // One-time transition: the round's hidden-while-live feed post arrives
       // in the feed now, timestamped at completion

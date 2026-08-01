@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { transformGroupPostToScorecard } from '../scorecard-transform';
+import { GROUP_SCORECARD_SELECT, transformGroupPostToScorecard } from '../scorecard-transform';
 
 const raw = (participants: unknown[]) => ({
   id: 'gp1',
@@ -40,5 +40,27 @@ describe('transformGroupPostToScorecard — last_score_activity_at', () => {
 
   it('still returns null for rows without golf data', () => {
     expect(transformGroupPostToScorecard({ id: 'x', golf_data: [], participants: [] })).toBeNull();
+  });
+});
+
+describe('GROUP_SCORECARD_SELECT', () => {
+  it('selects post_id — the Live Now strip filters on it', () => {
+    // REGRESSION: post_id was missing from this select while
+    // /api/golf/live-now did `.filter(r => r.post_id !== null)`. The field was
+    // therefore always undefined, every round was filtered out, and the strip
+    // rendered nothing on the feed, on Explore, or on /live — for everyone,
+    // permanently. TypeScript could not catch it: the transform returns `any`.
+    expect(GROUP_SCORECARD_SELECT).toMatch(/(^|[\s,])post_id\s*,/);
+  });
+
+  it('carries post_id through the transform onto group_post', () => {
+    const out = transformGroupPostToScorecard({
+      id: 'gp1',
+      post_id: 'feed-post-1',
+      status: 'active',
+      golf_data: [{ id: 'gd1', course_name: 'Test CC', holes_played: 18 }],
+      participants: [],
+    });
+    expect(out?.group_post.post_id).toBe('feed-post-1');
   });
 });

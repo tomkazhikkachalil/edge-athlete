@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseAdmin, getServerClient } from '@/lib/auth-server';
 import { notifyScoresPosted, groupPostActionUrl } from '@/lib/golf/group-notifications';
 import { advanceRoundStatus } from '@/lib/golf/round-status';
-import { mirrorCompletedRound } from '@/lib/golf/round-mirror';
+import { mirrorCompletedRound, mirrorRoundMedia } from '@/lib/golf/round-mirror';
 
 /**
  * POST /api/golf/scorecards/[id]/scores
@@ -206,6 +206,7 @@ export async function POST(
       await advanceRoundStatus(admin, groupPostId);
       // Keep the golf_rounds mirror in sync (no-op unless completed)
       await mirrorCompletedRound(admin, groupPostId);
+      await mirrorRoundMedia(admin, groupPostId);
       const { data: groupMeta } = await admin
         .from('group_posts')
         .select('title')

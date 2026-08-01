@@ -1,5 +1,93 @@
 # Development Log
 
+## July 31, 2026 — Golf live rounds: five reported bugs, seven fixes
+
+Tom ran a live round and hit five problems. All were traced end to end and
+**verified against production data** before anything was changed — which mattered,
+because the leading hypothesis was wrong.
+
+### The hypothesis that was wrong
+
+The theory was that the round saves before uploads finish, persisting a `blob:`
+reference instead of the real file. **It doesn't.** `ScoreEntryModal` awaits
+`uploadPostMedia` and stores the returned URL, exactly like the workout path.
+Production confirms it: all three `group_post_media` rows hold real storage URLs
+and every one returns **200** (jpeg 237KB, jpeg 340KB, quicktime 2.09MB).
+Nothing was corrupted and nothing was lost.
+
+### What was actually wrong
+
+**The feed-media split (reported issues 4 + 5, one cause).** Hole media is
+written to `group_post_media`; the feed renders `post.media`, mapped from
+`post_media` — a different table, with nothing bridging them. Confirmed: all
+three golf posts had **0 rows in `post_media`**. That is the whole "post shows
+stats but no media, click in and it's there" symptom. Fixed by extending the
+existing round→post mirror, deduped on `media_url` so it is re-runnable, media
+attached *after* completion still lands, and media put on the post by any other
+path is never destroyed. **Backfilled production** — the existing post has its
+photos and video back.
+
+**`post_id` was never selected (issue 3).** `/api/golf/live-now` maps
+`post_id: sc.group_post.post_id ?? null` and then filters `post_id !== null`,
+but `GROUP_SCORECARD_SELECT` never selected the column. Always `undefined` →
+every round filtered out → the endpoint returned an empty list
+**unconditionally**. LiveNowStrip on the feed and Explore, and the entire `/live`
+page, had never shown anything to anyone. TypeScript could not catch it: the
+transform returns `any`. Pinned by a test on the select string, verified to fail
+when the field is removed again. Scoping also relaxed so **public** live rounds
+reach any signed-in viewer, not just followers.
+
+**Go Live didn't enter the round (issue 2).** The handler ended with
+`closeAndReset()` — no navigation. The path that opens the scorer already
+existed (`PostDetailModal` + `autoOpenScoreEntry`) but was wired only to the
+resume banner, which requires `status='active'`; a new round is `pending`, so
+the one door in could never open for the round you just started. Creation now
+reuses it. Creation stays `pending` deliberately — flipping to `active` would
+make the feed's live filter hide the post immediately.
+
+**Solo rounds were never blocked (issue 1)** — client, API and DB all accept
+zero participants. It was copy: an ungated "Add at least one participant to
+create a shared round", a "Round Participants" heading, and a "+ Add Myself"
+button that does nothing on a live round (the server inserts the creator
+regardless). Also dropped `roundType` from `isDirty`, which made the golf
+composer dirty the instant it opened so every close prompted to discard work
+that hadn't started.
+
+**Video (the other half of issue 4).** The stored clip is `video/quicktime`. Two
+separate poster drops made it *look* broken on top of that: `thumbnail_url` was
+selected in all three posts queries and then omitted from all three mappings, so
+`poster=` was always undefined and **every video in the app** rendered black;
+and `ScoreEntryModal` threw away the poster the editor already produced because
+`group_post_media` had no column for it (**migration 060**). Both fixed, plus
+`object-contain` so a 4:3 capture is letterboxed rather than cropped square.
+Actually decoding HEVC outside Safari still needs transcoding — deliberately its
+own project.
+
+### Two bugs found that were not reported
+
+**Composer media silently discarded.** The shared-golf branch returned *before*
+the media upload block, so photos on an already-played shared round vanished
+with no error — the only place a `previewUrl` was held and never exchanged.
+
+**Abandoned rounds never reach your stats.** `advanceRoundStatus` runs only on a
+score write, so a round abandoned mid-way stays `active` forever. The display
+layer copes (the 6h quiet rule applies at read time), but the row never reaches
+`completed`, and `mirrorCompletedRound` requires it. Production has a round from
+2026-07-25 with **two players' real scores and zero `golf_rounds` rows** —
+missing from trends and handicap, permanently, with no job that would ever have
+fixed it. `runRoundSweep` now re-evaluates quiet rounds on the daily cron.
+
+### Verification
+
+541 tests (+9), tsc + lint clean, lint total still 45 warnings.
+
+⚠️ **Migration 060 must run before deploy** — the mirror and the media POST both
+write `group_post_media.thumbnail_url`.
+
+Browser work still outstanding, in Tom's own scenarios: solo and partner starts,
+switching between them, going live → scoring a full round, a second account
+seeing it mid-round, and media playback after finishing.
+
 ## July 31, 2026 (sync) — Maintenance checklist
 
 Run against the composer branch before merging it.

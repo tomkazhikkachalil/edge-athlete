@@ -388,15 +388,26 @@ export default function FeedPage() {
     // For regular posts, add immediately to feed
     if (newPost && typeof newPost === 'object' && 'id' in newPost) {
       // Check if it's a group post
-      const postData = newPost as { id: string; type?: string };
+      const postData = newPost as { id: string; type?: string; status?: string; post_id?: string | null };
 
       if (postData.type === 'golf_round') {
         // Group post - refetch to get complete scorecard data
         await loadFeed();
-      } else {
-        // Regular post - add immediately to top of feed
-        setPosts(prevPosts => [newPost as Post, ...prevPosts]);
+        setIsCreatePostModalOpen(false);
+        // Going live takes you INTO the round. Reuses the resume banner's
+        // path — PostDetailModal + autoOpenScoreEntry — which already opens
+        // the scorer at the first unscored hole; it was simply never wired to
+        // creation, so a new round dumped you on the feed with three taps
+        // still to go. Already-played rounds ('completed') are a post, not a
+        // round to play, so they skip it.
+        const live = postData.status !== 'completed';
+        if (live && postData.post_id) setResumePostId(postData.post_id);
+        // The composer already showed a round-specific toast; a second
+        // generic one on top of it was just noise.
+        return;
       }
+      // Regular post - add immediately to top of feed
+      setPosts(prevPosts => [newPost as Post, ...prevPosts]);
     } else {
       // Fallback: refetch feed
       await loadFeed();
