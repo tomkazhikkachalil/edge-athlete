@@ -210,7 +210,7 @@ export default function ChatDock() {
           viewport height so the column can never grow off the top edge.
           z-[45] is deliberate: above the sticky header (z-40), below the
           dropdown/modal bands (50+) so modals correctly cover the dock. */}
-      <div className="fixed bottom-0 right-4 z-[45] flex flex-col items-end gap-2 pb-0 max-h-[calc(100vh-0.5rem)]">
+      <div className="fixed bottom-0 right-4 z-[45] flex flex-col items-end gap-2 pb-0 max-h-[calc(100dvh-0.5rem)]">
         <MinimizedStack
           ids={state.minimized}
           conversationById={conversationById}

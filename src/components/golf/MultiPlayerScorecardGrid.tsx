@@ -133,8 +133,10 @@ function MultiPlayerScorecardGrid({
         </div>
       </div>
 
-      {/* Scorecard Table — only the table scrolls horizontally */}
-      <div className="border border-gray-300 rounded-lg overflow-hidden overflow-x-auto">
+      {/* Scorecard Table — only the table scrolls horizontally. Just
+          overflow-x-auto: the old `overflow-hidden overflow-x-auto` pair left
+          overflow-y hidden, silently clipping the stats rows when they grow. */}
+      <div className="border border-gray-300 rounded-lg overflow-x-auto">
         <table className="min-w-full divide-y divide-gray-300">
           <thead className="bg-green-50">
             <tr>

@@ -6,6 +6,7 @@ import Image from 'next/image';
 import { useAuth } from '@/lib/auth';
 import { formatDisplayName, getInitials } from '@/lib/formatters';
 import { getHandle } from '@/lib/profile-display';
+import { useBodyScrollLock } from '@/hooks/useBodyScrollLock';
 
 interface Profile {
   id: string;
@@ -238,15 +239,17 @@ export default function FollowersModal({ isOpen, onClose, profileId, initialTab 
     }
   }, [isOpen, onClose]);
 
+  // Refcounted lock, not a hand-rolled body.style.overflow: the manual
+  // version fights any other open overlay's cleanup when modals stack.
+  useBodyScrollLock(isOpen);
+
   useEffect(() => {
     if (isOpen) {
       window.addEventListener('keydown', handleEscKey);
-      document.body.style.overflow = 'hidden';
     }
 
     return () => {
       window.removeEventListener('keydown', handleEscKey);
-      document.body.style.overflow = 'unset';
     };
   }, [isOpen, handleEscKey]);
 
@@ -262,16 +265,18 @@ export default function FollowersModal({ isOpen, onClose, profileId, initialTab 
         onClick={onClose}
       />
 
-      {/* Modal Content */}
-      <div className="relative w-full max-w-lg max-h-[80vh] bg-white rounded-lg shadow-xl overflow-hidden mx-4">
+      {/* Modal Content. flex-col + max-h-modal (dvh-aware): the old
+          max-h-[80vh] panel with a max-h-[calc(80vh-140px)] list relied on a
+          magic 140px header estimate that broke as soon as the header grew. */}
+      <div className="relative w-full max-w-lg max-h-modal bg-white rounded-lg shadow-xl overflow-hidden mx-4 flex flex-col">
         {/* Header */}
-        <div className="flex items-center justify-between p-4 border-b border-gray-200">
+        <div className="shrink-0 flex items-center justify-between p-4 border-b border-gray-200">
           <h2 className="text-xl font-bold text-gray-900">
             {activeTab === 'followers' ? 'Fans' : 'Fan Of'}
           </h2>
           <button
             onClick={onClose}
-            className="text-gray-800 hover:text-black transition-colors"
+            className="ea-icon-btn inline-flex items-center justify-center text-gray-800 hover:text-black"
             aria-label="Close"
           >
             <i className="fas fa-times text-xl"></i>
@@ -279,7 +284,7 @@ export default function FollowersModal({ isOpen, onClose, profileId, initialTab 
         </div>
 
         {/* Tabs */}
-        <div className="flex border-b border-gray-200">
+        <div className="shrink-0 flex border-b border-gray-200">
           <button
             onClick={() => setActiveTab('followers')}
             className={`flex-1 py-3 text-sm font-medium transition-colors ${
@@ -302,8 +307,9 @@ export default function FollowersModal({ isOpen, onClose, profileId, initialTab 
           </button>
         </div>
 
-        {/* Content */}
-        <div className="overflow-y-auto max-h-[calc(80vh-140px)] p-4">
+        {/* Content — the panel's only scroll area; min-h-0 lets it shrink
+            below its content height so it actually scrolls. */}
+        <div className="flex-1 min-h-0 overflow-y-auto p-4">
           {loading && (
             <div className="flex items-center justify-center py-12">
               <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-violet-600"></div>
@@ -356,12 +362,16 @@ export default function FollowersModal({ isOpen, onClose, profileId, initialTab 
                 return (
                   <div
                     key={profile.id}
-                    className="flex items-center gap-3 p-3 rounded-lg hover:bg-gray-50 transition-colors"
+                    className="flex flex-wrap items-center gap-3 p-3 rounded-lg hover:bg-gray-50 transition-colors"
                   >
-                    {/* Clickable profile section */}
+                    {/* Clickable profile section. basis-40 sets the wrap
+                        threshold: on your own Fans tab the row carries TWO
+                        pill buttons (~200px) — below ~360px they drop to
+                        their own line instead of squeezing the name to
+                        nothing. */}
                     <button
                       onClick={() => handleProfileClick(profile.id)}
-                      className="flex items-center gap-3 flex-1 min-w-0 text-left"
+                      className="flex items-center gap-3 flex-1 basis-40 min-w-0 text-left"
                     >
                       {/* Avatar */}
                       {profile.avatar_url ? (

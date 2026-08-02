@@ -6,7 +6,7 @@ import { useAuth } from '@/lib/auth';
 import { shouldEnterScorerAfterCreate } from '@/lib/golf/round-route';
 import { calcPlayerTotals } from '@/lib/golf/scoring';
 import { useToast } from '@/components/Toast';
-import LazyImage from '@/components/LazyImage';
+import MediaTile from '@/components/media/MediaTile';
 import GolfScorecardForm from '@/components/GolfScorecardForm';
 import TagPeopleModal from '@/components/TagPeopleModal';
 import SportSelector from '@/components/SportSelector';
@@ -991,11 +991,11 @@ export default function CreatePostModal({
       />
       <div className="bg-white rounded-lg shadow-xl max-w-4xl w-full max-h-modal flex flex-col">
         {/* Header */}
-        <div className="flex items-center justify-between p-6 border-b border-gray-200">
+        <div className="flex items-center justify-between p-4 sm:p-6 border-b border-gray-200">
           <h2 className="text-2xl font-bold text-gray-900">Create Post</h2>
           <button
             onClick={requestClose}
-            className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+            className="ea-icon-btn inline-flex items-center justify-center"
             aria-label="Close modal"
           >
             <i className="fas fa-times text-gray-500 text-lg"></i>
@@ -1003,7 +1003,7 @@ export default function CreatePostModal({
         </div>
 
         {/* Content - Scrollable */}
-        <div className="flex-1 overflow-y-auto p-6">
+        <div className="flex-1 overflow-y-auto p-4 sm:p-6">
           {/* Sport/Post Type Selection */}
           <div className="mb-6">
             <label className="block text-sm font-semibold text-gray-700 mb-3">Post Type</label>
@@ -1156,7 +1156,7 @@ export default function CreatePostModal({
 
           {/* Shared Round Details Form */}
           {postType === 'golf' && roundType === 'shared' && (
-            <div className="mb-6 bg-green-50 rounded-lg p-6">
+            <div className="mb-6 bg-green-50 rounded-lg p-4 sm:p-6">
               <div className="space-y-6">
                 {/* Course Details - White Box */}
               <div className="bg-white rounded-lg border border-gray-200 p-4">
@@ -1762,7 +1762,8 @@ export default function CreatePostModal({
                     {hashtag}
                     <button
                       onClick={() => removeHashtag(hashtag)}
-                      className="ml-1 hover:text-violet-900"
+                      aria-label={`Remove ${hashtag}`}
+                      className="ml-0.5 -my-2 -mr-2 p-2 hover:text-violet-900 inline-flex items-center justify-center"
                     >
                       <i className="fas fa-times text-xs"></i>
                     </button>
@@ -1931,25 +1932,34 @@ export default function CreatePostModal({
                       {index + 1}
                     </div>
 
-                    {/* Media content */}
+                    {/* Media content. MediaTile (fill-in-frame), not LazyImage
+                        with pixel dimensions: LazyImage bakes its width/height
+                        into an inline style that beats Tailwind, so a 200px
+                        image was clipped to the top-left corner of the ~114px
+                        grid cell on phones. MediaTile also handles the
+                        isOptimizableImageSrc opt-out for blob: preview URLs. */}
                     {file.type === 'image' ? (
-                      <LazyImage
+                      <MediaTile
                         src={file.url}
+                        kind="image"
                         alt=""
-                        className="w-full h-full object-cover"
-                        width={200}
-                        height={200}
+                        className="h-full w-full"
+                        sizes="(max-width: 640px) 45vw, (max-width: 768px) 30vw, 200px"
                       />
                     ) : (
                       <video src={file.url} className="w-full h-full object-cover" />
                     )}
 
-                    {/* Remove button */}
+                    {/* Remove button. Padding grows the 24px circle to a 40px
+                        hit area; the visual circle lives on the inner span. */}
                     <button
                       onClick={() => removeMediaFile(file.id)}
-                      className="absolute top-2 right-2 bg-red-500 text-white rounded-full w-6 h-6 flex items-center justify-center hover:bg-red-600 transition-colors"
+                      aria-label="Remove media"
+                      className="absolute top-0 right-0 p-2 group"
                     >
-                      <i className="fas fa-times text-xs"></i>
+                      <span className="bg-red-500 text-white rounded-full w-6 h-6 flex items-center justify-center group-hover:bg-red-600 transition-colors">
+                        <i className="fas fa-times text-xs"></i>
+                      </span>
                     </button>
 
                     {/* Edit (re-opens the editor rehydrated with this asset's recipe) */}
@@ -1957,9 +1967,11 @@ export default function CreatePostModal({
                       <button
                         onClick={() => openEditorFor(file)}
                         aria-label="Edit media"
-                        className="absolute bottom-2 right-2 bg-black/60 text-white rounded-full w-6 h-6 flex items-center justify-center hover:bg-black/80 transition-colors"
+                        className="absolute bottom-0 right-0 p-2 group"
                       >
-                        <i className="fas fa-pen text-xs"></i>
+                        <span className="bg-black/60 text-white rounded-full w-6 h-6 flex items-center justify-center group-hover:bg-black/80 transition-colors">
+                          <i className="fas fa-pen text-xs"></i>
+                        </span>
                       </button>
                     )}
                   </div>
@@ -2438,13 +2450,15 @@ function PostPreview({
                 <div className={`grid ${mediaFiles.length === 1 ? 'grid-cols-1' : 'grid-cols-2'} gap-2 rounded-lg overflow-hidden`}>
                   {mediaFiles.slice(0, 4).map((file: MediaFile, index: number) => (
                     <div key={file.id} className="relative aspect-square bg-gray-100 p-1.5">
+                      {/* Same fix as the upload grid above: fill the cell,
+                          don't bake pixel dimensions into an inline style. */}
                       {file.type === 'image' ? (
-                        <LazyImage
+                        <MediaTile
                           src={file.url}
+                          kind="image"
                           alt=""
-                          className="w-full h-full object-cover"
-                          width={300}
-                          height={300}
+                          className="h-full w-full"
+                          sizes="(max-width: 640px) 45vw, (max-width: 768px) 30vw, 300px"
                         />
                       ) : (
                         <video src={file.url} className="w-full h-full object-cover" />

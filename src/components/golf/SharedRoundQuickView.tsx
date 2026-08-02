@@ -336,8 +336,10 @@ export default function SharedRoundQuickView({
       </div>
       )}
 
-      {/* Actions */}
-      <div className="flex items-center justify-between gap-2">
+      {/* Actions. flex-wrap: for an owner of a live round this row holds three
+          buttons (~300px intrinsic) — inside a 320px feed card they wrap to a
+          second line instead of overflowing sideways. */}
+      <div className="flex items-center justify-between gap-2 flex-wrap">
         <button
           onClick={onExpand}
           className="flex-1 flex items-center justify-center gap-2 bg-violet-600 hover:bg-violet-700 text-white font-bold py-2 px-4 rounded-lg transition-colors text-sm"

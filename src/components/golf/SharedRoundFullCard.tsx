@@ -433,7 +433,7 @@ export default function SharedRoundFullCard({
       <div className="bg-white rounded-lg shadow-2xl max-w-6xl w-full max-h-modal overflow-hidden flex flex-col">
         {/* Header. `shrink-0` so it keeps its height and the SCROLL AREA absorbs
             the overflow instead — without it a tall header squeezes `flex-1`. */}
-        <div className="shrink-0 bg-gray-900 text-white p-6">
+        <div className="shrink-0 bg-gray-900 text-white p-4 sm:p-6">
           <div className="flex items-start justify-between">
             <div className="flex-1">
               <div className="flex items-center gap-3 mb-2 flex-wrap">
@@ -519,9 +519,16 @@ export default function SharedRoundFullCard({
 
         {/* Tabs. Given ARIA here — these were hand-rolled <button>s with no
             tablist/tab/tabpanel roles at all, so a screen reader had no way to
-            know they were tabs. */}
-        <div className="shrink-0 border-b border-gray-300 bg-white">
-          <div className="flex px-6" role="tablist" aria-label="Round detail sections">
+            know they were tabs.
+
+            The strip scrolls sideways below md instead of wrapping: three
+            icon+label tabs are ~380px of intrinsic width, which wrapped the
+            labels mid-word on every phone. Same pattern as ProfileMediaTabs —
+            edge fades signal the off-screen tab, scrollbar stays hidden. */}
+        <div className="shrink-0 border-b border-gray-300 bg-white relative">
+          <div className="absolute left-0 top-0 bottom-0 w-8 bg-gradient-to-r from-white to-transparent z-10 pointer-events-none md:hidden" />
+          <div className="absolute right-0 top-0 bottom-0 w-8 bg-gradient-to-l from-white to-transparent z-10 pointer-events-none md:hidden" />
+          <div className="flex overflow-x-auto scrollbar-hide px-4 sm:px-6" role="tablist" aria-label="Round detail sections">
             {TABS.map(tab => {
               const selected = activeTab === tab.id;
               return (
@@ -532,7 +539,7 @@ export default function SharedRoundFullCard({
                   aria-selected={selected}
                   aria-controls={`round-panel-${tab.id}`}
                   onClick={() => setActiveTab(tab.id)}
-                  className={`px-6 py-3 font-bold text-sm border-b-2 transition-colors ${
+                  className={`px-4 sm:px-6 py-3 font-bold text-sm border-b-2 transition-colors whitespace-nowrap shrink-0 ${
                     selected
                       ? 'border-violet-600 text-violet-700'
                       : 'border-transparent text-gray-600 hover:text-gray-900'
@@ -556,7 +563,7 @@ export default function SharedRoundFullCard({
             pane grew past the panel's `max-h-modal`, and the panel's
             `overflow-hidden` clipped the bottom rather than letting it scroll.
             That is why "N of 18 holes" was cut in half. Do not remove. */}
-        <div className="flex-1 min-h-0 overflow-y-auto p-6">
+        <div className="flex-1 min-h-0 overflow-y-auto p-4 sm:p-6">
           {/* Overview Tab */}
           {activeTab === 'overview' && (
             <div className="space-y-4" id="round-panel-overview" role="tabpanel" aria-labelledby="round-tab-overview">
