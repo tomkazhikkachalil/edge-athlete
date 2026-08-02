@@ -1061,7 +1061,9 @@ export default function CreatePostModal({
           {postType === 'golf' && (
             <div className="mb-6">
               <label className="block text-sm font-semibold text-gray-700 mb-3">When is this round?</label>
-              <div className="grid grid-cols-2 gap-3">
+              {/* Stacks below sm — "Already played" + icon wraps in a ~90px
+                  half-column at 320px (same pattern as the holes row below) */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <button
                   onClick={() => {
                     roundTimingTouchedRef.current = true;
@@ -1104,7 +1106,9 @@ export default function CreatePostModal({
           {postType === 'golf' && sharedRoundDetails.alreadyPlayed && (
             <div className="mb-6">
               <label className="block text-sm font-semibold text-gray-700 mb-3">Round Type</label>
-              <div className="grid grid-cols-2 gap-4">
+              {/* Stacks below sm — the icon + two-line copy had ~36px of text
+                  width in a 320px half-column */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
                 <button
                   onClick={() => setRoundType('individual')}
                   className={`p-4 border-2 rounded-lg text-left transition-all ${

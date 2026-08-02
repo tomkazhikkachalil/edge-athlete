@@ -224,15 +224,18 @@ export default function MediaEditorModal({ assets: initialAssets, config, onDone
         </div>
       )}
 
-      {/* Tool tabs (GIFs have no tools) */}
+      {/* Tool tabs (GIFs have no tools). Scrolls, not clips: the video path
+          renders four tabs (~321px) in a 288px shell at 320px — same recipe
+          as FilterStrip below. sm:justify-center restores the centered look
+          where everything fits. */}
       {activeUrl && !isGif && (
-        <div className="flex justify-center gap-2 px-4 py-2 flex-shrink-0">
+        <div className="flex sm:justify-center gap-2 px-4 py-2 flex-shrink-0 overflow-x-auto scrollbar-hide">
           {tools.map(t => (
             <button
               key={t.id}
               type="button"
               onClick={() => setTool(t.id)}
-              className={`px-4 min-h-[44px] rounded-full text-label transition-colors ${
+              className={`px-4 min-h-[44px] rounded-full text-label transition-colors shrink-0 whitespace-nowrap ${
                 activeTool === t.id ? 'bg-white/20 text-white font-semibold' : 'text-white/60 hover:text-white'
               }`}
             >

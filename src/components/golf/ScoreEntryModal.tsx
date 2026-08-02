@@ -505,7 +505,9 @@ export default function ScoreEntryModal({
         {/* Player switcher (creator view) — tap a chip to enter that
             player's scores; the current hole saves first */}
         {players && players.length > 1 && onSwitchPlayer && (
-          <div className="bg-gray-50 border-b border-gray-200 px-3 py-2 flex gap-2 overflow-x-auto">
+          // shrink-0 on chips AND avatars: without it the flex row squashed
+          // the 20px avatars into ovals before it started scrolling.
+          <div className="bg-gray-50 border-b border-gray-200 px-3 py-2 flex gap-2 overflow-x-auto scrollbar-hide">
             {players.map(p => {
               const active = p.participantId === participantId;
               return (
@@ -513,7 +515,7 @@ export default function ScoreEntryModal({
                   key={p.participantId}
                   onClick={() => handleSwitchPlayer(p.participantId)}
                   disabled={savingHole !== null}
-                  className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-full text-xs font-bold whitespace-nowrap transition-all border-2 disabled:opacity-60 ${
+                  className={`flex shrink-0 items-center gap-1.5 px-2.5 py-1.5 min-h-[40px] rounded-full text-xs font-bold whitespace-nowrap transition-all border-2 disabled:opacity-60 ${
                     active
                       ? 'bg-green-600 text-white border-green-700 shadow'
                       : 'bg-white text-gray-700 border-gray-300 hover:border-green-400'
@@ -525,11 +527,11 @@ export default function ScoreEntryModal({
                       alt=""
                       width={20}
                       height={20}
-                      className="w-5 h-5 rounded-full object-cover"
+                      className="w-5 h-5 shrink-0 rounded-full object-cover"
                       unoptimized={!isOptimizableImageSrc(p.avatarUrl)}
                     />
                   ) : (
-                    <span className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] ${active ? 'bg-white/25' : 'bg-gray-200'}`}>
+                    <span className={`w-5 h-5 shrink-0 rounded-full flex items-center justify-center text-[10px] ${active ? 'bg-white/25' : 'bg-gray-200'}`}>
                       {p.name.charAt(0)}
                     </span>
                   )}

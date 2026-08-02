@@ -163,20 +163,26 @@ export default function TagPeopleModal({
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[60] p-4">
-      <div className="bg-white rounded-lg max-w-md w-full max-h-[80vh] overflow-hidden shadow-xl">
+      {/* max-h-modal + flex-col: the old 80vh + overflow-hidden panel with a
+          fixed 300px list CLIPPED the bottom of the results on short phones —
+          header + search + a grown selected-chips block + 300px exceeded 80vh
+          on an iPhone SE, and overflow-hidden ate the remainder. Now the list
+          is the only scroll area and takes whatever height is left. */}
+      <div className="bg-white rounded-lg max-w-md w-full max-h-modal overflow-hidden shadow-xl flex flex-col">
         {/* Header */}
-        <div className="p-4 border-b border-gray-200 flex items-center justify-between">
+        <div className="shrink-0 p-4 border-b border-gray-200 flex items-center justify-between">
           <h2 className="text-lg font-bold text-gray-900">Tag People</h2>
           <button
             onClick={onClose}
-            className="text-gray-400 hover:text-gray-600 transition-colors"
+            className="ea-icon-btn inline-flex items-center justify-center text-gray-400 hover:text-gray-600"
+            aria-label="Close"
           >
             <i className="fas fa-times text-xl"></i>
           </button>
         </div>
 
         {/* Search */}
-        <div className="p-4 border-b border-gray-200">
+        <div className="shrink-0 p-4 border-b border-gray-200">
           <div className="relative">
             <input
               type="text"
@@ -189,9 +195,10 @@ export default function TagPeopleModal({
           </div>
         </div>
 
-        {/* Selected People */}
+        {/* Selected People. Capped: with many selections this block would
+            otherwise grow unbounded and starve the results list below. */}
         {selectedProfiles.length > 0 && (
-          <div className="p-4 border-b border-gray-200 bg-violet-50">
+          <div className="shrink-0 max-h-32 overflow-y-auto overscroll-contain p-4 border-b border-gray-200 bg-violet-50">
             <p className="text-sm font-semibold text-gray-700 mb-2">
               Selected ({selectedProfiles.length})
             </p>
@@ -216,8 +223,8 @@ export default function TagPeopleModal({
           </div>
         )}
 
-        {/* Search Results */}
-        <div className="overflow-y-auto" style={{ maxHeight: '300px' }}>
+        {/* Search Results — the panel's only scroll area */}
+        <div className="flex-1 min-h-0 overflow-y-auto">
           {loading && (
             <div className="p-8 text-center">
               <i className="fas fa-spinner fa-spin text-2xl text-gray-400"></i>

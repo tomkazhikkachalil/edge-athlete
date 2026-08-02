@@ -189,7 +189,11 @@ export function RoundMediaItemControls({
   const options = segmentOptions(sportKey);
 
   return (
-    <div className="mt-1 flex items-center gap-1">
+    // Stacked below sm: in a phone grid column (~80-120px) the select shared a
+    // single row with two buttons and collapsed to ~16px — while the global
+    // iOS rule (correctly) forces select text to 16px. Give the select its own
+    // full-width row instead of shrinking it.
+    <div className="mt-1 flex flex-col gap-1 sm:flex-row sm:items-center">
       <label className="sr-only" htmlFor={`seg-${mediaId}`}>
         Which {segmentLabel(sportKey, 1).split(' ')[0].toLowerCase()} this belongs to
       </label>
@@ -200,7 +204,7 @@ export function RoundMediaItemControls({
         onChange={e =>
           patch({ segment_number: e.target.value === '' ? null : Number(e.target.value) })
         }
-        className="min-w-0 flex-1 rounded border border-gray-300 px-1 py-0.5 text-[11px] focus:outline-none focus:ring-1 focus:ring-violet-500"
+        className="min-w-0 w-full sm:flex-1 rounded border border-gray-300 px-1 py-0.5 text-[11px] focus:outline-none focus:ring-1 focus:ring-violet-500"
       >
         <option value="">Whole round</option>
         {options.map(n => (
@@ -210,28 +214,30 @@ export function RoundMediaItemControls({
         ))}
       </select>
 
-      <button
-        type="button"
-        onClick={() => patch({ is_highlight: !isHighlight })}
-        disabled={busy}
-        aria-pressed={isHighlight}
-        title={isHighlight ? 'Remove as highlight' : 'Set as highlight'}
-        className={`flex h-7 w-7 shrink-0 items-center justify-center rounded ${
-          isHighlight ? 'text-violet-600' : 'text-gray-400 hover:text-gray-700'
-        }`}
-      >
-        <i className={`${isHighlight ? 'fas' : 'far'} fa-star text-xs`} aria-hidden="true"></i>
-      </button>
+      <div className="flex items-center justify-end gap-1">
+        <button
+          type="button"
+          onClick={() => patch({ is_highlight: !isHighlight })}
+          disabled={busy}
+          aria-pressed={isHighlight}
+          title={isHighlight ? 'Remove as highlight' : 'Set as highlight'}
+          className={`flex h-10 w-10 sm:h-7 sm:w-7 shrink-0 items-center justify-center rounded ${
+            isHighlight ? 'text-violet-600' : 'text-gray-400 hover:text-gray-700'
+          }`}
+        >
+          <i className={`${isHighlight ? 'fas' : 'far'} fa-star text-xs`} aria-hidden="true"></i>
+        </button>
 
-      <button
-        type="button"
-        onClick={remove}
-        disabled={busy}
-        title="Remove"
-        className="flex h-7 w-7 shrink-0 items-center justify-center rounded text-gray-400 hover:text-red-600"
-      >
-        <i className="fas fa-trash text-xs" aria-hidden="true"></i>
-      </button>
+        <button
+          type="button"
+          onClick={remove}
+          disabled={busy}
+          title="Remove"
+          className="flex h-10 w-10 sm:h-7 sm:w-7 shrink-0 items-center justify-center rounded text-gray-400 hover:text-red-600"
+        >
+          <i className="fas fa-trash text-xs" aria-hidden="true"></i>
+        </button>
+      </div>
     </div>
   );
 }
