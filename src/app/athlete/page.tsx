@@ -831,7 +831,7 @@ export default function AthleteProfilePage() {
               {/* Profile Information */}
               <div className="flex-1 min-w-0">
                 <div className="mb-6">
-                  <h1 className="text-3xl sm:text-4xl font-bold text-gray-900 mb-2">
+                  <h1 className="text-3xl sm:text-4xl font-bold text-gray-900 mb-2 break-words">
                     {formatDisplayName(profile?.first_name, null, profile?.last_name, profile?.full_name) || 'Add your name in Edit Profile'}
                   </h1>
                   {profile && getHandle(profile) && (
@@ -873,8 +873,10 @@ export default function AthleteProfilePage() {
                     )}
                   </div>
 
-                  {/* Sport and Team Info */}
-                  <div className="grid grid-cols-2 gap-4 text-sm text-gray-600 mb-4">
+                  {/* Sport and Team Info. Single column below sm — two ~110px
+                      columns truncated nothing and just collided; truncate on
+                      each cell keeps "school • team" to one tidy line. */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-4 text-sm text-gray-600 mb-4">
                     {profile?.sport && (
                       <div>
                         <span className="font-medium text-gray-900">Sport:</span>
@@ -882,7 +884,7 @@ export default function AthleteProfilePage() {
                       </div>
                     )}
                     {(profile?.school || profile?.team) && (
-                      <div>
+                      <div className="min-w-0 truncate">
                         <span className="font-medium text-gray-900">Team:</span>
                         <span className="ml-1">{[profile?.school, profile?.team].filter(Boolean).join(' • ')}</span>
                       </div>
@@ -943,7 +945,7 @@ export default function AthleteProfilePage() {
           {/* Vitals Section */}
           <div className="border-t border-gray-200 bg-gray-50 px-4 sm:px-8 py-6">
             <h3 className="text-lg font-semibold text-gray-900 mb-4">Vitals</h3>
-            <div className="grid grid-cols-2 md:grid-cols-5 gap-6">
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-4 sm:gap-6">
               <div className="text-center bg-white rounded-lg border border-gray-200 p-4">
                 <InlineEdit
                   field="height_cm"
@@ -1046,8 +1048,9 @@ export default function AthleteProfilePage() {
           <MultiSportHighlights profileId={user?.id || ''} onSportClick={handleSportClick} />
 
           {/* Media Tabs (scroll-mt clears the sticky AppHeader) */}
-          <div id="media-section" className="bg-white rounded-lg shadow-md p-6 scroll-mt-20">
-            <div className="flex justify-between items-center mb-6">
+          <div id="media-section" className="bg-white rounded-lg shadow-md p-4 sm:p-6 scroll-mt-20">
+            {/* flex-wrap: title + Create Post is ~340px, over a 320px screen */}
+            <div className="flex flex-wrap justify-between items-center gap-3 mb-6">
               <h2 className="text-2xl font-bold text-black">My Media</h2>
               <button
                 onClick={() => setIsCreatePostModalOpen(true)}

@@ -223,7 +223,7 @@ export default function NotificationsPage() {
           </div>
 
           {/* Tabs */}
-          <div className="flex items-center gap-1 mt-6 border-b border-gray-200 overflow-x-auto">
+          <div className="flex items-center gap-1 mt-6 border-b border-gray-200 overflow-x-auto scrollbar-hide">
             {[
               { id: 'all' as Tab, label: 'All', count: notifications.length },
               { id: 'unread' as Tab, label: 'Unread', count: unreadCount },

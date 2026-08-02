@@ -192,7 +192,10 @@ function FollowersContent() {
   const renderProfileCard = (profile: FollowerProfile, showRemoveButton = false, showUnfollowButton = false) => {
     return (
       <div className="bg-white rounded-lg border border-gray-200 p-4 hover:shadow-md transition-shadow">
-        <div className="flex items-center gap-4">
+        {/* flex-wrap + basis-40 on the name column: at 320px the Remove
+            button wraps below instead of squeezing the name to a few
+            characters (same pattern as FollowersModal). */}
+        <div className="flex flex-wrap items-center gap-4">
           <button onClick={() => {
             // Navigate to own profile if clicking own profile
             if (user?.id === profile.id) {
@@ -218,7 +221,7 @@ function FollowersContent() {
             )}
           </button>
 
-          <div className="flex-1 min-w-0">
+          <div className="flex-1 basis-40 min-w-0">
             <button
               onClick={() => {
                 // Navigate to own profile if clicking own profile
@@ -228,7 +231,7 @@ function FollowersContent() {
                   router.push(`/athlete/${profile.id}`);
                 }
               }}
-              className="font-bold text-gray-900 hover:text-violet-600 truncate block"
+              className="font-bold text-gray-900 hover:text-violet-600 truncate block max-w-full"
             >
               {formatDisplayName(profile.first_name, null, profile.last_name, profile.full_name)}
             </button>
@@ -244,7 +247,7 @@ function FollowersContent() {
           {showRemoveButton && (
             <button
               onClick={() => handleRemoveFollower(profile.id)}
-              className="px-4 py-2 text-sm font-medium text-red-600 bg-red-50 rounded-lg hover:bg-red-100 transition-colors"
+              className="px-4 py-2 min-h-[40px] text-sm font-medium text-red-600 bg-red-50 rounded-lg hover:bg-red-100 transition-colors shrink-0"
             >
               Remove
             </button>
@@ -253,7 +256,7 @@ function FollowersContent() {
           {showUnfollowButton && (
             <button
               onClick={() => handleUnfollow(profile.id)}
-              className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
+              className="px-4 py-2 min-h-[40px] text-sm font-medium text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors shrink-0"
             >
               Remove
             </button>
@@ -272,21 +275,23 @@ function FollowersContent() {
       {/* Page Header with Tabs */}
       <div className="bg-white border-b border-gray-200">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 py-6">
-          <div className="flex items-center gap-4 mb-4">
+          <div className="flex items-center gap-2 mb-4">
             <button
               onClick={() => router.back()}
-              className="text-gray-600 hover:text-gray-900"
+              className="ea-icon-btn inline-flex items-center justify-center -ml-2 text-gray-600 hover:text-gray-900"
+              aria-label="Go back"
             >
               <i className="fas fa-arrow-left text-xl"></i>
             </button>
             <h1 className="text-2xl font-bold text-gray-900">Connections</h1>
           </div>
 
-          {/* Tabs */}
-          <div className="flex gap-6">
+          {/* Tabs — scrollable, not clipped: three tabs plus the count badge
+              already brush 320px, and one more tab would silently vanish. */}
+          <div className="flex gap-4 sm:gap-6 overflow-x-auto scrollbar-hide">
             <button
               onClick={() => setActiveTab('followers')}
-              className={`px-2 py-2 text-sm font-medium border-b-2 transition-colors ${
+              className={`shrink-0 whitespace-nowrap px-2 py-2 text-sm font-medium border-b-2 transition-colors ${
                 activeTab === 'followers'
                   ? 'border-violet-600 text-violet-600'
                   : 'border-transparent text-gray-600 hover:text-gray-900'
@@ -296,7 +301,7 @@ function FollowersContent() {
             </button>
             <button
               onClick={() => setActiveTab('following')}
-              className={`px-2 py-2 text-sm font-medium border-b-2 transition-colors ${
+              className={`shrink-0 whitespace-nowrap px-2 py-2 text-sm font-medium border-b-2 transition-colors ${
                 activeTab === 'following'
                   ? 'border-violet-600 text-violet-600'
                   : 'border-transparent text-gray-600 hover:text-gray-900'
@@ -306,7 +311,7 @@ function FollowersContent() {
             </button>
             <button
               onClick={() => setActiveTab('requests')}
-              className={`px-2 py-2 text-sm font-medium border-b-2 transition-colors relative ${
+              className={`shrink-0 whitespace-nowrap px-2 py-2 text-sm font-medium border-b-2 transition-colors relative ${
                 activeTab === 'requests'
                   ? 'border-violet-600 text-violet-600'
                   : 'border-transparent text-gray-600 hover:text-gray-900'
@@ -445,17 +450,19 @@ function FollowersContent() {
                               </p>
                             )}
 
-                            {/* Action Buttons */}
+                            {/* Action Buttons — equal halves so both stay
+                                comfortably tappable in the narrow column the
+                                request card leaves at 320px. */}
                             <div className="flex gap-2 mt-3">
                               <button
                                 onClick={() => handleAcceptRequest(request.id)}
-                                className="px-4 py-2 bg-violet-600 text-white text-sm font-medium rounded-lg hover:bg-violet-700 transition-colors"
+                                className="flex-1 sm:flex-none px-4 py-2 min-h-[40px] bg-violet-600 text-white text-sm font-medium rounded-lg hover:bg-violet-700 transition-colors"
                               >
                                 Accept
                               </button>
                               <button
                                 onClick={() => handleRejectRequest(request.id)}
-                                className="px-4 py-2 bg-gray-200 text-gray-700 text-sm font-medium rounded-lg hover:bg-gray-300 transition-colors"
+                                className="flex-1 sm:flex-none px-4 py-2 min-h-[40px] bg-gray-200 text-gray-700 text-sm font-medium rounded-lg hover:bg-gray-300 transition-colors"
                               >
                                 Decline
                               </button>

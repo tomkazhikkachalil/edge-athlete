@@ -143,7 +143,16 @@ export default function LiveNowStrip({ variant = 'strip', showEmptyState = false
           <h3 className="text-sm font-bold text-gray-900">Live Now</h3>
         </div>
       )}
-      <div className={variant === 'strip' ? 'flex gap-3 overflow-x-auto pb-1' : 'grid gap-3 sm:grid-cols-2'}>
+      {/* Strip variant: hidden scrollbar + edge bleed below sm, so a cut-off
+          card at the screen edge is the "more here" affordance instead of a
+          card cropped mid-avatar at the container's padding line. */}
+      <div
+        className={
+          variant === 'strip'
+            ? 'flex gap-3 overflow-x-auto pb-1 scrollbar-hide -mx-4 px-4 sm:mx-0 sm:px-0'
+            : 'grid gap-3 sm:grid-cols-2'
+        }
+      >
         {rounds.map(card)}
       </div>
 

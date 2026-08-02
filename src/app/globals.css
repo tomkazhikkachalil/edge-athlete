@@ -365,7 +365,7 @@ select {
 }
 
 .season-card-header {
-  height: 88px; /* Fixed header height: icon + title + chips with more padding */
+  min-height: 88px; /* min-, not fixed: a wrapped title or second chip row must grow the header, not clip inside it */
   flex-shrink: 0;
   padding: 16px; /* Increased from 12px for better spacing */
   border-bottom: 1px solid rgba(229, 231, 235, 0.5);
@@ -411,7 +411,7 @@ select {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  max-width: 80px;
+  max-width: 120px; /* 80px truncated the standard "Coming Soon" chip on every disabled sport card */
 }
 
 /* Stat grid consistency */

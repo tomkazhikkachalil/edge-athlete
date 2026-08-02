@@ -290,11 +290,13 @@ export default function AthleteProfilePage() {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 py-6">
         {/* Page Header with Back Button and Actions */}
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 sm:p-6 mb-6">
-          <div className="flex items-center justify-between mb-4">
-            <div className="flex items-center gap-4">
+          {/* flex-wrap: back + title + FollowButton is wider than a 320px
+              screen; the button drops to its own line instead of overflowing. */}
+          <div className="flex flex-wrap items-center justify-between gap-y-2 mb-4">
+            <div className="flex items-center gap-2 min-w-0">
               <button
                 onClick={() => router.back()}
-                className="text-gray-700 hover:text-gray-900 transition-colors"
+                className="ea-icon-btn inline-flex items-center justify-center -ml-2 text-gray-700 hover:text-gray-900"
                 aria-label="Go back"
               >
                 <i className="fas fa-arrow-left text-xl"></i>
@@ -362,7 +364,7 @@ export default function AthleteProfilePage() {
           <div className="flex-1 min-w-0 w-full">
             <div className="mb-3">
               <div className="flex flex-wrap items-center gap-2 mb-1">
-                <h1 className="text-2xl sm:text-3xl font-bold text-black">
+                <h1 className="text-2xl sm:text-3xl font-bold text-black break-words min-w-0">
                   {formatDisplayName(profile.first_name, null, profile.last_name, profile.full_name)}
                 </h1>
                 {getHandle(profile) && (
@@ -401,7 +403,7 @@ export default function AthleteProfilePage() {
             )}
 
             {/* Stats Grid */}
-            <div className="grid grid-cols-2 md:grid-cols-5 gap-4 sm:gap-6 p-4 bg-gray-50 rounded-xl mb-6">
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-4 sm:gap-6 p-4 bg-gray-50 rounded-xl mb-6">
               <div className="text-center">
                 <p className="font-bold text-gray-900">Height</p>
                 <p className="font-bold text-xl text-black mt-1">
@@ -425,9 +427,11 @@ export default function AthleteProfilePage() {
                   {profile.dob ? formatAge(profile.dob) : '--'}
                 </p>
               </div>
-              <div className="text-center md:border-l">
+              <div className="text-center md:border-l min-w-0">
                 <p className="font-bold text-gray-900">Location</p>
-                <p className="font-bold text-xl text-black mt-1">
+                {/* truncate: "San Francisco, California" at text-xl blew the
+                    row out to three lines on phones */}
+                <p className="font-bold text-xl text-black mt-1 truncate" title={profile.location || undefined}>
                   {profile.location || '--'}
                 </p>
               </div>
@@ -493,7 +497,7 @@ export default function AthleteProfilePage() {
       </div>
 
       {/* Media Section with Segmented Tabs (scroll-mt clears sticky header) */}
-      <div id="media-section" className="bg-white rounded-lg shadow-md p-6 scroll-mt-20">
+      <div id="media-section" className="bg-white rounded-lg shadow-md p-4 sm:p-6 scroll-mt-20">
         <div className="flex justify-between items-center mb-6">
           <h2 className="text-2xl font-bold text-black">Athletic Profile & Media</h2>
         </div>

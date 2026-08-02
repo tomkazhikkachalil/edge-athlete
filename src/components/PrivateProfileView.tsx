@@ -20,7 +20,7 @@ interface PrivateProfileViewProps {
 
 export default function PrivateProfileView({ profile, onFollow }: PrivateProfileViewProps) {
   return (
-    <div className="max-w-2xl mx-auto mt-12 px-6">
+    <div className="max-w-2xl mx-auto mt-12 px-4 sm:px-6">
       <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 sm:p-12 text-center">
         {/* Lock Icon */}
         <div className="w-20 h-20 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-6">
@@ -54,12 +54,12 @@ export default function PrivateProfileView({ profile, onFollow }: PrivateProfile
             </div>
           )}
 
-          <div className="text-left">
-            <div className="font-bold text-lg text-gray-900">
+          <div className="text-left min-w-0">
+            <div className="font-bold text-lg text-gray-900 truncate">
               {formatDisplayName(profile.first_name, null, profile.last_name, profile.full_name)}
             </div>
             {profile.sport && (
-              <div className="text-gray-600 text-sm">
+              <div className="text-gray-600 text-sm truncate">
                 {profile.sport}
                 {profile.school && ` • ${profile.school}`}
               </div>

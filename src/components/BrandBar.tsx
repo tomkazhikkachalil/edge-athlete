@@ -22,7 +22,15 @@ export default function BrandBar({ hideEscape = false }: { hideEscape?: boolean 
   const showEscape = !hideEscape && pathname !== '/' && initialAuthCheckComplete;
 
   return (
-    <div className="relative w-full bg-white border-b border-violet-100 py-3 px-4 flex justify-center">
+    // Below sm the logo left-aligns whenever the escape link is present: the
+    // centered 138px wordmark and an absolutely-positioned link overlapped at
+    // 320px. At sm+ the link goes back to being absolute so the logo stays
+    // perfectly centered.
+    <div
+      className={`relative w-full bg-white border-b border-violet-100 py-3 px-4 flex items-center ${
+        showEscape ? 'justify-between sm:justify-center' : 'justify-center'
+      }`}
+    >
       <h1 className="sr-only">Edge Athlete</h1>
       <Image
         src="/logo.png"
@@ -30,12 +38,12 @@ export default function BrandBar({ hideEscape = false }: { hideEscape?: boolean 
         width={180}
         height={45}
         preload
-        className="h-8 sm:h-9 w-auto"
+        className="h-8 sm:h-9 w-auto shrink-0"
       />
       {showEscape && (
         <Link
           href={user ? '/feed' : '/'}
-          className="absolute right-4 top-1/2 -translate-y-1/2 text-sm text-violet-600 hover:text-violet-700 hover:underline"
+          className="shrink-0 min-h-[44px] -my-2 inline-flex items-center px-2 -mr-2 sm:m-0 sm:px-2 sm:absolute sm:right-4 sm:top-1/2 sm:-translate-y-1/2 text-sm text-violet-600 hover:text-violet-700 hover:underline"
         >
           {user ? (
             <>

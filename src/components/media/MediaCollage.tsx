@@ -32,6 +32,12 @@ interface MediaCollageProps {
   onSelect?: (index: number) => void;
   className?: string;
   priorityFirst?: boolean;
+  /**
+   * Forwarded to every tile. Without it MediaTile falls back to its grid
+   * default ('33vw / 200px'), which told the browser to fetch a 200px image
+   * for the round-overview HERO in a max-w-6xl modal — visibly soft.
+   */
+  sizes?: string;
 }
 
 export default function MediaCollage({
@@ -40,6 +46,7 @@ export default function MediaCollage({
   onSelect,
   className = '',
   priorityFirst = false,
+  sizes,
 }: MediaCollageProps) {
   const layout = collageLayout(items.length, max);
   if (layout.visibleCount === 0) return null;
@@ -58,6 +65,7 @@ export default function MediaCollage({
             kind={item.kind}
             durationSeconds={item.durationSeconds}
             alt={item.alt || 'Round media'}
+            sizes={sizes}
             priority={priorityFirst && index === 0}
             onClick={onSelect ? () => onSelect(index) : undefined}
             className={layout.itemClasses[index]}

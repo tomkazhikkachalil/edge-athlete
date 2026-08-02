@@ -469,9 +469,12 @@ export default function FeedPage() {
 
       {/* Main Layout */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 py-4 sm:py-6">
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 sm:gap-6">
+        {/* md: two columns from 768px — the whole tablet band used to stack
+            the sidebar (suggestions, calendar, club) BELOW the entire
+            paginated feed, where nobody ever saw it. */}
+        <div className="grid grid-cols-1 md:grid-cols-12 gap-4 sm:gap-6">
           {/* Main Content */}
-          <div className="lg:col-span-8">
+          <div className="md:col-span-7 lg:col-span-8">
             {/* Post Creation Form */}
             <div className="ea-surface rounded-xl p-3 sm:p-4 mb-4 sm:mb-6">
               <div className="flex items-center gap-2 sm:gap-3">
@@ -632,7 +635,7 @@ export default function FeedPage() {
                     <div className="text-center py-4">
                       <button
                         onClick={() => loadFeed(true)}
-                        className="bg-white text-violet-600 border border-violet-600 px-6 py-2 rounded-lg hover:bg-violet-50 transition-colors font-medium"
+                        className="bg-white text-violet-600 border border-violet-600 px-6 py-2 min-h-[44px] rounded-lg hover:bg-violet-50 transition-colors font-medium"
                       >
                         Load More
                       </button>
@@ -644,7 +647,7 @@ export default function FeedPage() {
           </div>
 
           {/* Sidebar */}
-          <div className="lg:col-span-4 space-y-6">
+          <div className="md:col-span-5 lg:col-span-4 space-y-6">
             {/* Connection Suggestions */}
             {user && (
               <ConnectionSuggestions profileId={user.id} limit={5} compact={true} />
