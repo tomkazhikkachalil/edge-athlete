@@ -574,6 +574,9 @@ export default function SharedRoundFullCard({
                   <MediaCollage
                     items={overviewMedia}
                     max={2}
+                    // Hero-sized tiles in a max-w-6xl modal: full-bleed on
+                    // phones, up to ~550px each when two share the row.
+                    sizes="(max-width: 640px) 100vw, 552px"
                     onSelect={i =>
                       setLightboxIndex(
                         roundMediaItems.findIndex(m => m.id === overviewMedia[i].id)

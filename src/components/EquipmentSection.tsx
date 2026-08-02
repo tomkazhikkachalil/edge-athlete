@@ -532,14 +532,14 @@ function EquipmentCard({ item, isOwnProfile, showSportChip = false, onEdit, onDe
             <div className="flex items-center gap-2">
               <button
                 onClick={onEdit}
-                className="flex-1 flex items-center justify-center gap-1 px-3 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg text-xs font-semibold transition-colors"
+                className="flex-1 flex items-center justify-center gap-1 px-3 py-2 min-h-[40px] bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg text-xs font-semibold transition-colors"
               >
                 <Edit2 className="w-3 h-3" />
                 Edit Dates
               </button>
               <button
                 onClick={() => onToggleStatus(item.id)}
-                className={`flex-1 flex items-center justify-center gap-1 px-3 py-2 rounded-lg text-xs font-semibold transition-colors ${
+                className={`flex-1 flex items-center justify-center gap-1 px-3 py-2 min-h-[40px] rounded-lg text-xs font-semibold transition-colors ${
                   isActive
                     ? 'bg-gray-100 hover:bg-gray-200 text-gray-700'
                     : 'bg-green-100 hover:bg-green-200 text-green-700'
@@ -559,7 +559,8 @@ function EquipmentCard({ item, isOwnProfile, showSportChip = false, onEdit, onDe
               </button>
               <button
                 onClick={() => onDelete(item.id)}
-                className="px-3 py-2 bg-red-50 hover:bg-red-100 text-red-600 rounded-lg text-xs font-semibold transition-colors"
+                aria-label="Delete equipment"
+                className="px-3 py-2 min-h-[40px] min-w-[40px] flex items-center justify-center bg-red-50 hover:bg-red-100 text-red-600 rounded-lg text-xs font-semibold transition-colors"
               >
                 <Trash2 className="w-3 h-3" />
               </button>
@@ -569,7 +570,7 @@ function EquipmentCard({ item, isOwnProfile, showSportChip = false, onEdit, onDe
             {isActive && (
               <button
                 onClick={onReplace}
-                className="w-full flex items-center justify-center gap-1 px-3 py-2 bg-violet-50 hover:bg-violet-100 text-violet-700 rounded-lg text-xs font-semibold transition-colors border border-violet-200"
+                className="w-full flex items-center justify-center gap-1 px-3 py-2 min-h-[40px] bg-violet-50 hover:bg-violet-100 text-violet-700 rounded-lg text-xs font-semibold transition-colors border border-violet-200"
               >
                 <RefreshCw className="w-3 h-3" />
                 Replace / Upgrade

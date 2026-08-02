@@ -259,7 +259,7 @@ export default function PublicProfilePage() {
             {/* Name and Handle */}
             <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
               <div>
-                <h1 className="text-2xl font-bold text-gray-900">{displayName}</h1>
+                <h1 className="text-2xl font-bold text-gray-900 break-words">{displayName}</h1>
                 <p className="text-gray-500">@{profile.handle}</p>
 
                 {/* Bio */}
@@ -398,7 +398,9 @@ export default function PublicProfilePage() {
         {sportStats && (
           <div className="mt-4 bg-white rounded-xl shadow-sm border border-gray-200 p-4">
             <h2 className="text-sm font-semibold text-gray-700 mb-3">{sportStats.label}</h2>
-            <div className="grid grid-cols-3 gap-4">
+            {/* 2-up below sm: three ~85px columns wrapped labels like
+                "Greens in Reg" to three lines and collided the values. */}
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
               {sportStats.tiles.map(tile => (
                 <div key={tile.label} className="text-center">
                   <span className="block text-2xl font-bold text-gray-900">{tile.value}</span>

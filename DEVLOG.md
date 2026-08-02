@@ -1,6 +1,84 @@
 # Development Log
 
-## August 1, 2026 — The top section: one interaction language, and 71px back
+## August 2, 2026 — The mobile pass: three PRs, one flex trap, everywhere
+
+A responsiveness sweep over the core flows (PRs #27 → #28 → #29, stacked), after
+three parallel audits of the header/nav, the feed/media/live flows, and the
+profile/modal surfaces. The single most repeated defect across all three audits
+was one CSS fact: **a flex item's `min-width` defaults to `auto`**, so text
+inputs (~177px intrinsic), long names and fixed-width icon buttons refuse to
+shrink — the row either overflows the viewport or silently crushes its
+neighbours. Roughly half the diff is `min-w-0` + `truncate` + `shrink-0` placed
+where that trap had already fired.
+
+### The headline was a regression, not legacy debt
+
+PR #26 added HeaderSearch and the Connections icon to the header's right
+cluster without a phone re-measure. At 320px the cluster overflowed outright;
+between ~330 and 414px it *looked* fine while the `.ea-icon-btn` circles
+quietly squashed below touch size — it fit on a Pro Max and failed on every
+mainstream phone, which is why it survived review. Below `sm` the wordmark now
+yields to `logo-mark.png` and Connections yields its slot; it stays in
+`navLinks` because the drawer must remain a superset (that invariant is why
+Connections is still reachable on a phone at all). Anti-squash `shrink-0` went
+on every call site and **never on `.ea-icon-btn` itself** — the class owning
+layout is the documented `lg:hidden` precedence bug.
+
+### Two stickies can't share top:0
+
+The guardian/transfer banners (`z-[60]`) and the header (`z-40`) were both
+`sticky top-0`, so once the page scrolled the banner simply buried the header.
+The fix is a shared `StickyBanner` shell that publishes its **measured** height
+as `--ea-banner-h` on `<html>`; the header's `top` reads the variable and docks
+underneath. Measured (ResizeObserver), not hard-coded, because the banner wraps
+on narrow screens with long athlete names. No banner → variable unset → top:0.
+
+### Modals: the footer must never live in the scroll area
+
+Every modal defect reduced to the same shape: bound the panel
+(`.max-h-modal`, dvh-aware), make the body the only scroll area
+(`flex-1 min-h-0 overflow-y-auto`), pin header/footer (`shrink-0`).
+EditProfileTabs was the worst offender — no width below `sm` at all
+(`w-full` was `sm:`-gated on an `inline-block`), a 15-tab strip that wrapped
+into ~240px of chrome, a hard `max-h-96` that pushed Save below the fold on an
+SE, and the only `useDirtyClose` consumer with no scroll lock. Its restructure
+preserves the Tailwind-v4 `relative z-10` landmine comment — verified again by
+`elementFromPoint` over a tab in the sweep. AddEquipmentModal had the inverted
+version: the submit button *inside* the scroll container, reachable only after
+ten fields. FollowersModal's `max-h-[calc(80vh-140px)]` magic-number header
+offset is gone for the same flex layout.
+
+### Things learned worth keeping
+
+- **The lint ratchet did its job.** The first MultiSelectDropdown viewport-flip
+  used `setState` in a `useLayoutEffect` and became warning #46 — the gate
+  failed, and the rewrite (measure, then set `style.left/right` directly on the
+  panel, which remounts per open) is genuinely better: no extra render at all.
+- **LazyImage bakes width/height into an inline style that beats Tailwind.**
+  The composer's media previews passed `width={200}` into ~114px grid cells and
+  every preview rendered as its own top-left corner. Call sites that want
+  fill-a-frame use MediaTile (which also owns the `isOptimizableImageSrc`
+  opt-out for `blob:` previews); LazyImage itself was left alone — other
+  consumers rely on the pixel behaviour.
+- **MediaCollage never forwarded `sizes`**, so the round-overview hero in a
+  max-w-6xl modal told the browser to fetch a 200px image. One optional prop.
+- **The tablet band was dead space by construction**: `lg:grid-cols-12` meant
+  every width from 640–1023 stacked the feed sidebar below the entire
+  paginated feed. `md:` starts the two-column layout at 768px now.
+- `EditProfileModal.tsx` was dead code (every call site imports
+  EditProfileTabs) — deleted, 640 lines.
+
+### Verification
+
+`npm run verify` green on each PR (0 errors, 45 warnings — exactly at the cap,
+no new ones). Headless system-Chrome sweep (playwright-core, disposable QA
+user, `isMobile: false` per the recorded emulation trap): 8 routes × 10 widths
+(320→1280) asserting `scrollWidth ≤ innerWidth`, plus interaction checks —
+drawer scroll lock + Escape + Sign Out reachability at 320, HeaderSearch panel
+bounded, Edit Profile tab strip one-row/scrollable with Save visible and
+clickable. Still owed to a real device: `env(safe-area-inset-*)` and
+keyboard-up dvh behaviour (ScoreEntryModal footer, drawer, banners) — iOS
+Safari only.
 
 The app worked but didn't feel *built*. Tom's diagnosis was the right one and worth
 recording because it generalises: **inconsistent hover behaviour reads as unfinished more

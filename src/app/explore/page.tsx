@@ -114,12 +114,12 @@ export default function ExplorePage() {
         <LiveNowStrip variant="grid" />
 
         {/* Sport filter chips */}
-        <div className="flex gap-2 overflow-x-auto pb-2 mb-6 -mx-1 px-1" role="tablist" aria-label="Filter by sport">
+        <div className="flex gap-2 overflow-x-auto scrollbar-hide pb-2 mb-6 -mx-4 px-4 sm:mx-0 sm:px-0" role="tablist" aria-label="Filter by sport">
           <button
             role="tab"
             aria-selected={selectedSport === null}
             onClick={() => setSelectedSport(null)}
-            className={`shrink-0 px-4 py-2 rounded-full text-sm font-semibold border transition-colors ${
+            className={`shrink-0 min-h-[40px] px-4 py-2 rounded-full text-sm font-semibold border transition-colors ${
               selectedSport === null
                 ? 'bg-violet-600 text-white border-violet-600'
                 : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-100'
@@ -137,7 +137,7 @@ export default function ExplorePage() {
                   selectedSport === sport.sport_key ? null : sport.sport_key
                 )
               }
-              className={`shrink-0 inline-flex items-center gap-2 px-4 py-2 rounded-full text-sm font-semibold border transition-colors ${
+              className={`shrink-0 min-h-[40px] inline-flex items-center gap-2 px-4 py-2 rounded-full text-sm font-semibold border transition-colors ${
                 selectedSport === sport.sport_key
                   ? 'bg-violet-600 text-white border-violet-600'
                   : enabledKeys.has(sport.sport_key)
