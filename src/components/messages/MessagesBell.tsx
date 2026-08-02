@@ -10,7 +10,7 @@ export default function MessagesBell() {
   return (
     <Link
       href="/messages"
-      className="ea-icon-btn inline-flex items-center justify-center"
+      className="ea-icon-btn inline-flex items-center justify-center shrink-0"
       aria-label={hasUnread ? `Messages, ${totalUnreadCount} unread` : 'Messages'}
     >
       <i className="fas fa-comment-alt text-xl" aria-hidden="true"></i>

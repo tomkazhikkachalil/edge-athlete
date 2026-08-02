@@ -13,6 +13,7 @@ import MessagesBell from '@/components/messages/MessagesBell';
 import HeaderSearch from '@/components/HeaderSearch';
 import { FEATURE_FLAGS } from '@/lib/features';
 import { useLiveNow } from '@/hooks/useLiveNow';
+import { useBodyScrollLock } from '@/hooks/useBodyScrollLock';
 import { pillGeometry, activeNavIndex, type ItemBox } from '@/lib/nav-pill';
 
 /**
@@ -38,9 +39,16 @@ let lastPill: { x: number; width: number; visible: boolean } | null = null;
  * `scrolled` drives the bottom border: at the very top the header should read
  * as part of the page, and the edge only earns its keep once content is
  * passing underneath it.
+ *
+ * `top` is a CSS variable, not 0: the guardian/transfer banners (StickyBanner)
+ * publish their measured height as `--ea-banner-h` on <html>. Both the banner
+ * and the header are sticky, and when both pinned at top:0 the banner's higher
+ * z-index buried the header — logo, search, bells and hamburger all vanished
+ * behind a 40px strip once the page scrolled. With the offset the header docks
+ * *below* the banner instead. No banner → the variable is unset → top:0.
  */
 const headerShell = (scrolled: boolean) =>
-  `sticky top-0 z-40 safe-top safe-x bg-white/80 backdrop-blur-md transition-[border-color,box-shadow] duration-200 border-b ${
+  `sticky top-[var(--ea-banner-h,0px)] z-40 safe-top safe-x bg-white/80 backdrop-blur-md transition-[border-color,box-shadow] duration-200 border-b ${
     scrolled ? 'border-[color:var(--ea-hairline)] shadow-[var(--ea-shadow-rest)]' : 'border-transparent shadow-none'
   }`;
 
@@ -82,6 +90,23 @@ export default function AppHeader({ onCreatePost, onEditProfile }: AppHeaderProp
     window.addEventListener('scroll', onScroll, { passive: true });
     return () => window.removeEventListener('scroll', onScroll);
   }, []);
+
+  // The drawer is a full-height overlay: lock the page behind it (iOS
+  // otherwise scrolls/rubber-bands the page under the backdrop) and close on
+  // Escape, scoped to the drawer's lifetime like HeaderSearch does.
+  useBodyScrollLock(isMobileMenuOpen);
+
+  useEffect(() => {
+    if (!isMobileMenuOpen) return;
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        e.stopPropagation();
+        setIsMobileMenuOpen(false);
+      }
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [isMobileMenuOpen]);
 
   const handleSignOut = async () => {
     await signOut();
@@ -259,19 +284,30 @@ export default function AppHeader({ onCreatePost, onEditProfile }: AppHeaderProp
         <div className="max-w-7xl mx-auto px-4 sm:px-6">
           <div className="flex items-center justify-between h-16">
             {/* Left - Logo & Navigation */}
-            <div className="flex items-center gap-6 flex-1">
+            <div className="flex items-center gap-6 flex-1 min-w-0">
               <button
                 onClick={() => router.push('/feed')}
-                className="flex items-center hover:opacity-80 transition-opacity whitespace-nowrap"
+                className="flex items-center shrink-0 hover:opacity-80 transition-opacity whitespace-nowrap"
                 aria-label="Edge Athlete — go to feed"
               >
+                {/* The wordmark is a hard 112px at h-7 — over a third of a
+                    320px screen. Below `sm` the square mark carries the
+                    identity in 32px so the icon cluster on the right actually
+                    fits (see the width budget on that cluster below). */}
+                <Image
+                  src="/logo-mark.png"
+                  alt="Edge Athlete"
+                  width={64}
+                  height={64}
+                  className="h-8 w-8 sm:hidden"
+                />
                 <Image
                   src="/logo.png"
                   alt="Edge Athlete"
                   width={140}
                   height={35}
                   preload
-                  className="h-7 w-auto"
+                  className="hidden h-7 w-auto sm:block"
                 />
               </button>
 
@@ -326,19 +362,27 @@ export default function AppHeader({ onCreatePost, onEditProfile }: AppHeaderProp
               </nav>
             </div>
 
-            {/* Right - Actions */}
-            <div className="flex items-center gap-2 sm:gap-3">
+            {/* Right - Actions.
+                Width budget at 320px (288px inside px-4): logo mark 32 +
+                search trigger ~44 + two bells at 40 + Post ~36 + hamburger 40
+                + five gap-1.5 ≈ 260px. Every flex item carries `shrink-0` at
+                the call site — never on `.ea-icon-btn` itself (see the
+                globals.css note on why that class must not own layout) —
+                because `min-width:auto` otherwise lets the 40px circles
+                silently squash into sub-target ellipses on 375–414px phones. */}
+            <div className="flex items-center gap-1.5 sm:gap-3">
               <HeaderSearch />
               <MessagesBell />
               <NotificationBell />
 
               {/* Connections sits with Messages and Notifications: three
-                  related destinations, one cluster. No longer breakpoint-clamped
-                  — the nav never renders it now, so this is its only home on
-                  desktop. */}
+                  related destinations, one cluster. On desktop this is its
+                  only home — the nav never renders it. Below `sm` it yields
+                  its slot to the controls that carry unread badges; the
+                  drawer (fed by navLinks) remains the phone route to it. */}
               <button
                 onClick={() => router.push('/app/followers')}
-                className="ea-icon-btn inline-flex items-center justify-center"
+                className="ea-icon-btn hidden sm:inline-flex items-center justify-center shrink-0"
                 title="Fans & Connections"
                 aria-label="View connections"
               >
@@ -347,7 +391,7 @@ export default function AppHeader({ onCreatePost, onEditProfile }: AppHeaderProp
 
               <button
                 onClick={handleCreatePost}
-                className="ea-cta text-white px-3 sm:px-4 py-2 rounded-lg flex items-center gap-2 text-sm font-medium"
+                className="ea-cta text-white px-3 sm:px-4 py-2 rounded-lg flex shrink-0 items-center gap-2 text-sm font-medium"
                 aria-label="Create new post"
               >
                 <i className="fas fa-plus"></i>
@@ -520,7 +564,7 @@ export default function AppHeader({ onCreatePost, onEditProfile }: AppHeaderProp
               {/* Mobile Menu Button */}
               <button
                 onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-                className="ea-icon-btn inline-flex items-center justify-center lg:hidden"
+                className="ea-icon-btn inline-flex items-center justify-center shrink-0 lg:hidden"
                 aria-label="Toggle mobile menu"
                 aria-expanded={isMobileMenuOpen}
               >
@@ -555,7 +599,7 @@ export default function AppHeader({ onCreatePost, onEditProfile }: AppHeaderProp
               </h2>
               <button
                 onClick={() => setIsMobileMenuOpen(false)}
-                className="text-gray-500 hover:text-gray-700 p-2 -m-2 rounded-lg"
+                className="ea-icon-btn inline-flex items-center justify-center text-gray-500 hover:text-gray-700"
                 aria-label="Close menu"
               >
                 <i className="fas fa-times text-xl"></i>
@@ -580,8 +624,11 @@ export default function AppHeader({ onCreatePost, onEditProfile }: AppHeaderProp
                   formatDisplayName(profile?.first_name, null, profile?.last_name, profile?.full_name)
                 )}
               />
-              <div className="flex-1 text-left">
-                <p className="font-semibold text-gray-900">
+              {/* min-w-0 + truncate: a long full_name must shorten, not push
+                  the row past the 272px drawer (the classic min-width:auto
+                  flex trap). */}
+              <div className="flex-1 min-w-0 text-left">
+                <p className="font-semibold text-gray-900 truncate">
                   {formatDisplayName(profile?.first_name, null, profile?.last_name, profile?.full_name)}
                 </p>
                 <p className="text-sm text-gray-500">View Profile</p>
@@ -638,8 +685,8 @@ export default function AppHeader({ onCreatePost, onEditProfile }: AppHeaderProp
                     }}
                     className="flex items-center gap-3 w-full px-4 py-3 text-left text-gray-700 hover:bg-gray-50 rounded-lg transition-colors"
                   >
-                    <i className={`fas ${activeProfile?.id === mp.id ? 'fa-circle-check text-violet-600' : 'fa-child-reaching'} w-5 text-center`}></i>
-                    <span className="font-medium">
+                    <i className={`fas ${activeProfile?.id === mp.id ? 'fa-circle-check text-violet-600' : 'fa-child-reaching'} w-5 text-center shrink-0`}></i>
+                    <span className="font-medium flex-1 min-w-0 truncate">
                       {formatDisplayName(mp.first_name, null, mp.last_name, mp.full_name)}
                       {activeProfile?.id === mp.id && (
                         <span className="ml-1 text-xs text-violet-600">(active)</span>
@@ -745,12 +792,14 @@ export default function AppHeader({ onCreatePost, onEditProfile }: AppHeaderProp
 
           {/* Footer */}
           <div className="p-4 border-t border-gray-200">
-            <div className="flex items-center justify-center gap-3 text-xs mb-2">
-              <Link href="/terms" className="text-gray-500 hover:text-gray-700">Terms</Link>
+            {/* min-h grows the ~16px text rows to real touch targets without
+                changing the visual size of the links themselves. */}
+            <div className="flex items-center justify-center gap-1 text-xs mb-2">
+              <Link href="/terms" className="text-gray-500 hover:text-gray-700 min-h-[44px] inline-flex items-center px-2">Terms</Link>
               <span className="text-gray-300">·</span>
-              <Link href="/privacy" className="text-gray-500 hover:text-gray-700">Privacy</Link>
+              <Link href="/privacy" className="text-gray-500 hover:text-gray-700 min-h-[44px] inline-flex items-center px-2">Privacy</Link>
               <span className="text-gray-300">·</span>
-              <Link href="/contact" className="text-gray-500 hover:text-gray-700">Contact</Link>
+              <Link href="/contact" className="text-gray-500 hover:text-gray-700 min-h-[44px] inline-flex items-center px-2">Contact</Link>
             </div>
             <p className="text-xs text-gray-500 text-center">
               Edge Athlete &copy; {new Date().getFullYear()}

@@ -6,6 +6,7 @@ import { usePathname } from 'next/navigation';
 import { useAuth } from '@/lib/auth';
 import { FEATURE_FLAGS } from '@/lib/features';
 import { bannerCopy, type ClientTransfer } from '@/lib/transfer-ui';
+import StickyBanner from '@/components/StickyBanner';
 
 // Supervised-athlete banner (guardian-profiles): when an account handover is
 // in flight for the signed-in supervised athlete, surface it on every screen
@@ -48,12 +49,19 @@ export default function TransferBanner() {
   if (!eligible || !transfer || pathname?.startsWith('/app/transfer')) return null;
 
   return (
-    <div className="sticky top-0 z-[60] w-full bg-violet-100 border-b border-violet-300 px-4 py-2 flex items-center justify-center gap-3 text-sm safe-x">
-      <i className="fas fa-key text-violet-700"></i>
-      <span className="text-violet-900 font-medium">{bannerCopy(transfer.state)}</span>
-      <Link href={`/app/transfer/${user!.id}`} className="text-violet-800 underline hover:text-violet-950 font-medium">
-        See details
-      </Link>
-    </div>
+    <StickyBanner className="bg-violet-100 border-b border-violet-300 px-4 py-2">
+      {/* flex-wrap + truncate: long transfer copy wraps the action onto its
+          own line instead of pushing the row past a 320px screen. */}
+      <div className="flex flex-wrap items-center justify-center gap-x-3 gap-y-1 text-sm">
+        <i className="fas fa-key text-violet-700 shrink-0"></i>
+        <span className="text-violet-900 font-medium min-w-0 truncate">{bannerCopy(transfer.state)}</span>
+        <Link
+          href={`/app/transfer/${user!.id}`}
+          className="text-violet-800 underline hover:text-violet-950 font-medium min-h-[44px] -my-2.5 inline-flex items-center whitespace-nowrap"
+        >
+          See details
+        </Link>
+      </div>
+    </StickyBanner>
   );
 }
