@@ -256,8 +256,10 @@ export default function PostDetailModal({
           </>
         )}
 
-        {/* Content */}
-        <div className="overflow-y-auto max-h-modal p-6">
+        {/* Content. pt-14 clears the floating close button — it used to sit
+            directly on top of the PostCard's own pin/edit/delete cluster, so
+            closing the modal could delete a post instead. */}
+        <div className="overflow-y-auto max-h-modal p-4 pt-14 sm:p-6 sm:pt-14">
           {loading && (
             <div className="flex items-center justify-center py-12">
               <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-violet-600"></div>

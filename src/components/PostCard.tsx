@@ -603,7 +603,7 @@ function PostCard({
       )}
 
       {/* Content */}
-      <div className="px-6 py-4">
+      <div className="px-4 sm:px-6 py-4">
         {/* Caption */}
         {post.caption && (
           <p className="text-gray-900 text-base font-medium leading-relaxed mb-3 break-words">{post.caption}</p>

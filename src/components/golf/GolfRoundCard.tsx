@@ -10,10 +10,12 @@ export default function GolfRoundCard({ round }: { round: GolfRound }) {
     <div className="bg-gradient-to-br from-green-50 to-green-100 rounded-lg p-3 mt-2 border border-green-200">
       {/* Compact Header with Score */}
       <div className="flex items-center justify-between mb-2">
-        <div className="flex-1">
+        {/* min-w-0 + truncate: a long course name shortens instead of pushing
+            the score badge out of the card. */}
+        <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 mb-1 flex-wrap">
-            <i className="fas fa-golf-ball text-green-600 text-base"></i>
-            <span className="font-bold text-green-900 text-base">{round.course}</span>
+            <i className="fas fa-golf-ball text-green-600 text-base shrink-0"></i>
+            <span className="font-bold text-green-900 text-base min-w-0 truncate">{round.course}</span>
             {/* Round Type Badge - Indoor or Outdoor */}
             {round.round_type === 'indoor' ? (
               <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-violet-600 text-white text-xs font-bold rounded-full">
@@ -27,7 +29,7 @@ export default function GolfRoundCard({ round }: { round: GolfRound }) {
               </span>
             )}
           </div>
-          <div className="flex items-center gap-3 text-sm text-green-800 font-semibold">
+          <div className="flex items-center gap-3 text-sm text-green-800 font-semibold flex-wrap">
             {round.date && (
               <span>{new Date(round.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</span>
             )}
@@ -65,7 +67,7 @@ export default function GolfRoundCard({ round }: { round: GolfRound }) {
 
       {/* Inline Stats Bar */}
       {(round.total_putts || round.fir_percentage !== null || round.gir_percentage !== null) && (
-        <div className="flex items-center gap-5 text-sm bg-white/60 rounded px-3 py-2 mb-2">
+        <div className="flex items-center gap-x-5 gap-y-1 text-sm bg-white/60 rounded px-3 py-2 mb-2 flex-wrap">
           {round.total_putts && (
             <div className="flex items-center gap-1.5">
               <span className="text-green-800 font-semibold">Putts:</span>

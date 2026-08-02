@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { ChevronDown, Search } from 'lucide-react';
 
 export interface MultiSelectDropdownProps<T extends string | number> {
@@ -32,6 +32,26 @@ export default function MultiSelectDropdown<T extends string | number>({
   const [searchQuery, setSearchQuery] = useState('');
   const containerRef = useRef<HTMLDivElement>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
+  const panelRef = useRef<HTMLDivElement>(null);
+
+  // Left-anchored by default, but flip to right-anchored when the open panel
+  // would run past the viewport's right edge (the Year filter sits far enough
+  // into the row that its w-max panel horizontally scrolled the whole page on
+  // phones). Measured after paint and applied straight to the DOM — the panel
+  // remounts on every open, so the inline style resets itself; no state, no
+  // extra render. Only flips when the flipped position actually fits.
+  useLayoutEffect(() => {
+    if (!isOpen) return;
+    const panel = panelRef.current;
+    const container = containerRef.current;
+    if (!panel || !container) return;
+    const rect = panel.getBoundingClientRect();
+    const containerRect = container.getBoundingClientRect();
+    if (rect.right > window.innerWidth - 8 && containerRect.right - rect.width >= 8) {
+      panel.style.left = 'auto';
+      panel.style.right = '0';
+    }
+  }, [isOpen]);
 
   // Filter options by search query (case-insensitive substring on label).
   // Selected values not matching the query stay selected in parent state —
@@ -126,9 +146,10 @@ export default function MultiSelectDropdown<T extends string | number>({
 
       {isOpen && (
         <div
+          ref={panelRef}
           role="listbox"
           aria-multiselectable="true"
-          className="absolute left-0 top-full mt-1 min-w-full w-max max-w-[80vw] bg-white border border-gray-200 rounded-lg shadow-lg z-20 flex flex-col"
+          className="absolute left-0 top-full mt-1 min-w-full w-max max-w-[calc(100vw-2rem)] bg-white border border-gray-200 rounded-lg shadow-lg z-20 flex flex-col"
         >
           {/* Search input — auto-focused on open */}
           <div className="relative border-b border-gray-100">

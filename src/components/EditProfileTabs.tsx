@@ -21,6 +21,7 @@ import SportMultiSelect from './SportMultiSelect';
 import { COPY, getComingSoonMessage } from '@/lib/copy';
 import ConfirmModal from './ConfirmModal';
 import { useDirtyClose } from '@/hooks/useDirtyClose';
+import { useBodyScrollLock } from '@/hooks/useBodyScrollLock';
 import {
   formatHeight,
   getInitials,
@@ -189,6 +190,10 @@ export default function EditProfileTabs({
     });
   };
   const { requestClose, confirmOpen, confirmDiscard, cancelDiscard } = useDirtyClose(isDirty, onClose);
+
+  // Every other useDirtyClose consumer pairs it with the scroll lock; this
+  // one didn't, so on iOS the page scrolled and rubber-banded under the modal.
+  useBodyScrollLock(isOpen);
 
   // Hydrate every sport's settings in ONE request. The list form of
   // /api/sport-settings returns each row's settings alongside its key, so a
@@ -1013,7 +1018,7 @@ export default function EditProfileTabs({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 overflow-y-auto" aria-labelledby="edit-profile-title" role="dialog" aria-modal="true">
+    <div className="fixed inset-0 z-50" aria-labelledby="edit-profile-title" role="dialog" aria-modal="true">
       <ConfirmModal
         isOpen={confirmOpen}
         title={COPY.FORMS.DISCARD_TITLE}
@@ -1023,7 +1028,7 @@ export default function EditProfileTabs({
         onConfirm={confirmDiscard}
         onCancel={cancelDiscard}
       />
-      <div className="flex items-center justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
+      <div className="flex items-center justify-center h-full p-4">
         {/* Backdrop */}
         <div 
           className="fixed inset-0 bg-gray-500/75 transition-opacity" 
@@ -1047,35 +1052,42 @@ export default function EditProfileTabs({
 
           Do not remove without checking `document.elementFromPoint` over a tab.
         */}
-        <div className="relative z-10 inline-block align-bottom bg-white rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-4xl sm:w-full">
+        <div className="relative z-10 flex w-full max-h-modal flex-col bg-white rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:max-w-4xl">
           {/* Header */}
-          <div className="bg-white px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
-            <div className="flex items-center justify-between mb-6">
+          <div className="shrink-0 bg-white px-4 pt-5 pb-4 sm:px-6 sm:pt-6">
+            <div className="flex items-center justify-between mb-4">
               <h2 id="edit-profile-title" className="text-lg font-medium text-gray-900">
                 Edit Profile
               </h2>
+              {/* No focus:ring override — the global :focus-visible ring owns
+                  focus styling. */}
               <button
                 onClick={requestClose}
-                className="text-gray-400 hover:text-gray-500 focus:outline-none focus:ring-2 focus:ring-violet-500 rounded-md p-1"
+                className="ea-icon-btn inline-flex items-center justify-center text-gray-400 hover:text-gray-500"
                 aria-label="Close modal"
               >
                 <i className="fas fa-times text-lg" aria-hidden="true"></i>
               </button>
             </div>
 
-            {/* Tabs */}
-            <div className="border-b border-gray-200">
-              <nav className="-mb-px flex flex-wrap gap-x-8 gap-y-2" aria-label="Profile sections">
+            {/* Tabs. One scrollable row (ProfileMediaTabs pattern), not
+                flex-wrap: 15 tabs wrapped to ~6 rows of chrome at 320px and
+                pushed the form below the fold. Edge fades signal the
+                off-screen tabs below md. */}
+            <div className="border-b border-gray-200 relative">
+              <div className="absolute left-0 top-0 bottom-0 w-8 bg-gradient-to-r from-white to-transparent z-10 pointer-events-none md:hidden" />
+              <div className="absolute right-0 top-0 bottom-0 w-8 bg-gradient-to-l from-white to-transparent z-10 pointer-events-none md:hidden" />
+              <nav className="-mb-px flex gap-x-5 overflow-x-auto scrollbar-hide" aria-label="Profile sections">
                 {TABS.map((tab) => (
                   <button
                     key={tab.id}
                     onClick={() => tab.enabled && setActiveTab(tab.id)}
-                    className={`py-2 px-1 border-b-2 font-medium text-sm whitespace-nowrap focus:outline-none transition-colors ${
+                    className={`py-2 px-1 border-b-2 font-medium text-sm whitespace-nowrap shrink-0 transition-colors ${
                       !tab.enabled
                         ? 'border-transparent text-gray-400 cursor-not-allowed'
                         : activeTab === tab.id
                         ? 'border-violet-500 text-violet-600'
-                        : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 focus:ring-2 focus:ring-violet-500 focus:ring-offset-2'
+                        : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
                     }`}
                     aria-current={activeTab === tab.id ? 'page' : undefined}
                     disabled={!tab.enabled}
@@ -1092,15 +1104,15 @@ export default function EditProfileTabs({
             </div>
           </div>
 
-          {/* Tab Content */}
-          <div className="bg-gray-50 px-4 py-6 sm:px-6">
-            <div className="max-h-96 overflow-y-auto">
-              {renderTabContent()}
-            </div>
+          {/* Tab Content — the panel's ONLY scroll area. It used to be a hard
+              max-h-96 box, which pushed the footer below the fold on short
+              phones; now the bounded panel keeps Save/Cancel always visible. */}
+          <div className="flex-1 min-h-0 overflow-y-auto bg-gray-50 px-4 py-6 sm:px-6">
+            {renderTabContent()}
           </div>
 
           {/* Footer */}
-          <div className="bg-gray-50 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse">
+          <div className="shrink-0 bg-gray-50 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse">
             <button
               onClick={() => saveTab(activeTab)}
               disabled={isSubmitting}

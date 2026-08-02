@@ -732,8 +732,10 @@ export default function ScoreEntryModal({
           </div>
         </div>
 
-        {/* Footer Navigation */}
-        <div className="bg-gray-100 border-t border-gray-300 p-4">
+        {/* Footer Navigation. safe-bottom: this is the primary live-scoring
+            control, used one-handed on a course — without it Previous/Next/
+            Done sit under the iOS home indicator. */}
+        <div className="bg-gray-100 border-t border-gray-300 p-4 safe-bottom">
           <div className="flex items-center justify-between gap-3">
             <button
               onClick={handlePrevious}

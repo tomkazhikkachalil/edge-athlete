@@ -117,7 +117,7 @@ export default function ConnectionSuggestions({
         {visibleSuggestions.map(suggestion => (
           <div
             key={suggestion.suggested_id}
-            className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors min-h-[72px]"
+            className="flex flex-wrap items-center gap-3 p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors min-h-[72px]"
           >
             {/* Avatar */}
             <button
@@ -148,8 +148,11 @@ export default function ConnectionSuggestions({
               )}
             </button>
 
-            {/* Info - with explicit width constraint */}
-            <div className="flex-1 min-w-0 max-w-[calc(100%-200px)]">
+            {/* Info. flex-1 + min-w-0 and nothing else: the old
+                max-w-[calc(100%-200px)] clamp assumed a wide card — inside
+                onboarding's compact card at 320px it squeezed the name column
+                to ~16px, one ellipsis wide. */}
+            <div className="flex-1 min-w-0">
               <button
                 onClick={() => {
                   // Navigate to own profile if clicking own profile
@@ -178,8 +181,11 @@ export default function ConnectionSuggestions({
               </p>
             </div>
 
-            {/* Actions - fixed width to prevent compression */}
-            <div className="flex items-center gap-2 flex-shrink-0 ml-auto w-[120px] justify-end">
+            {/* Actions. No fixed width: "Become a Fan" + the 44px dismiss are
+                ~150px, which overflowed the old w-[120px] box. shrink-0 keeps
+                the buttons whole; the row's flex-wrap drops them to their own
+                line when the card is too narrow to share one. */}
+            <div className="flex items-center gap-1 flex-shrink-0 ml-auto">
               <FollowButton
                 profileId={suggestion.suggested_id}
                 currentUserId={profileId}

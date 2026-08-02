@@ -36,19 +36,21 @@ export default function ConfirmModal({
   // SharedRoundFullCard) — same layer would rely on DOM order alone.
   return (
     <div className={`fixed inset-0 bg-black/50 ${overlayZClass} flex items-center justify-center p-4`}>
-      <div className="bg-white rounded-lg shadow-xl max-w-md w-full max-h-[85vh] overflow-y-auto">
+      <div className="bg-white rounded-lg shadow-xl max-w-md w-full max-h-modal overflow-y-auto">
         {/* Header */}
-        <div className="p-6 border-b border-gray-200">
+        <div className="p-4 sm:p-6 border-b border-gray-200">
           <h2 className="text-xl font-bold text-gray-900">{title}</h2>
         </div>
 
         {/* Body */}
-        <div className="p-6">
+        <div className="p-4 sm:p-6">
           <p className="text-gray-700">{message}</p>
         </div>
 
-        {/* Footer */}
-        <div className="p-6 border-t border-gray-200 flex justify-end gap-3">
+        {/* Footer. Stacked full-width below sm — the long copy pairs
+            ("Discard changes" / "Keep editing") overflowed a 320px row. The
+            confirm action stays first in the stack (col-reverse). */}
+        <div className="p-4 sm:p-6 border-t border-gray-200 flex flex-col-reverse sm:flex-row sm:justify-end gap-3">
           <button
             onClick={onCancel}
             className="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition-colors font-medium"

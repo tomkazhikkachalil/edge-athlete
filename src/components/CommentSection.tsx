@@ -381,7 +381,7 @@ export default function CommentSection({
                 {isPostOwner && !isReply && (
                   <button
                     onClick={() => handlePinComment(comment.id, !!comment.is_pinned)}
-                    className={`text-xs transition-colors p-2.5 -m-1.5 ${
+                    className={`text-xs transition-colors min-w-[40px] min-h-[40px] -m-2 inline-flex items-center justify-center ${
                       comment.is_pinned
                         ? 'text-amber-600 hover:text-amber-700'
                         : 'text-gray-400 hover:text-amber-600'
@@ -395,7 +395,7 @@ export default function CommentSection({
                 {user?.id === comment.profile_id && (
                   <button
                     onClick={() => handleDeleteComment(comment.id)}
-                    className="text-xs text-red-600 hover:text-red-700 p-2.5 -m-1.5"
+                    className="text-xs text-red-600 hover:text-red-700 min-w-[40px] min-h-[40px] -m-2 inline-flex items-center justify-center"
                     title="Delete comment"
                   >
                     <i className="fas fa-trash" />
@@ -466,9 +466,10 @@ export default function CommentSection({
     );
   };
 
-  // Render the reply input form
+  // Render the reply input form. The indent steps down below `sm`: 40px of
+  // indent plus five row controls overflowed a 320px card.
   const renderReplyForm = (parentCommentId: string) => (
-    <div className="ml-10 mt-2">
+    <div className="ml-6 sm:ml-10 mt-2">
       {/* Reply GIF preview */}
       {replyGifUrl && (
         <div className="relative inline-block mb-2">
@@ -476,12 +477,17 @@ export default function CommentSection({
               honest intrinsic dimensions to hand <Image>. */}
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src={replyGifUrl} alt="GIF" className="h-16 rounded-lg border border-gray-200 object-cover" />
+          {/* Padding grows the 20px circle to a ~40px hit area; the visual
+              circle lives on the inner span so the design doesn't change. */}
           <button
             type="button"
             onClick={() => setReplyGifUrl(null)}
-            className="absolute -top-1.5 -right-1.5 w-5 h-5 bg-red-500 text-white rounded-full flex items-center justify-center hover:bg-red-600"
+            aria-label="Remove GIF"
+            className="absolute -top-4 -right-4 p-2.5 group"
           >
-            <i className="fas fa-times text-xs"></i>
+            <span className="w-5 h-5 bg-red-500 text-white rounded-full flex items-center justify-center group-hover:bg-red-600">
+              <i className="fas fa-times text-xs"></i>
+            </span>
           </button>
         </div>
       )}
@@ -517,7 +523,7 @@ export default function CommentSection({
             }
           }}
           placeholder="Write a reply..."
-          className="flex-1 px-3 py-1.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-500 text-sm"
+          className="flex-1 min-w-0 px-3 py-1.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-500 text-sm"
           disabled={isSubmitting}
         />
         <button
@@ -564,12 +570,16 @@ export default function CommentSection({
                       — same reasoning as the reply composer above. */}
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img src={gifUrl} alt="GIF" className="h-20 rounded-lg border border-gray-200 object-cover" />
+                  {/* Same hit-area trick as the reply GIF preview above. */}
                   <button
                     type="button"
                     onClick={() => setGifUrl(null)}
-                    className="absolute -top-1.5 -right-1.5 w-5 h-5 bg-red-500 text-white rounded-full flex items-center justify-center hover:bg-red-600"
+                    aria-label="Remove GIF"
+                    className="absolute -top-4 -right-4 p-2.5 group"
                   >
-                    <i className="fas fa-times text-xs"></i>
+                    <span className="w-5 h-5 bg-red-500 text-white rounded-full flex items-center justify-center group-hover:bg-red-600">
+                      <i className="fas fa-times text-xs"></i>
+                    </span>
                   </button>
                 </div>
               )}
@@ -595,13 +605,17 @@ export default function CommentSection({
                     onClose={() => setShowGifPicker(false)}
                   />
                 )}
+                {/* min-w-0: a text input's intrinsic min-width is ~177px, so
+                    without this the flex row refuses to shrink and overflows
+                    the card sideways on phones (same trap as the hashtag
+                    composer in CreatePostModal). */}
                 <input
                   ref={commentInputRef}
                   type="text"
                   value={newComment}
                   onChange={(e) => setNewComment(e.target.value)}
                   placeholder="Write a comment..."
-                  className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-500 text-sm"
+                  className="flex-1 min-w-0 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-500 text-sm"
                   disabled={isSubmitting}
                 />
                 <button

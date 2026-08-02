@@ -523,7 +523,7 @@ export default function FeedPage() {
 
             {/* Live round resume banner */}
             {liveRound && !liveBannerDismissed && (
-              <div className="mb-4 sm:mb-6 bg-gradient-to-r from-green-600 to-green-700 text-white rounded-lg border-2 border-green-800 p-4 flex items-center gap-3">
+              <div className="mb-4 sm:mb-6 bg-gradient-to-r from-green-600 to-green-700 text-white rounded-lg border-2 border-green-800 p-4 flex items-center gap-3 flex-wrap">
                 <span className="w-2.5 h-2.5 bg-red-400 rounded-full animate-pulse flex-shrink-0" aria-hidden="true"></span>
                 <div className="flex-1 min-w-0">
                   <div className="font-bold truncate">

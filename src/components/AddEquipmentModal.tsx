@@ -291,9 +291,11 @@ export default function AddEquipmentModal({
           </button>
         </div>
 
-        {/* Form */}
-        <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto">
-          <div className="px-6 py-6 space-y-6">
+        {/* Form. The fields scroll; the footer does NOT — it used to live
+            inside the scroll container, so "Add Equipment" was only reachable
+            after scrolling past ~10 fields. */}
+        <form onSubmit={handleSubmit} className="flex-1 min-h-0 flex flex-col">
+          <div className="flex-1 min-h-0 overflow-y-auto px-4 sm:px-6 py-6 space-y-6">
             {/* Sport Selector */}
             <div>
               <label className="block text-sm font-semibold text-gray-900 mb-2">
@@ -593,7 +595,7 @@ export default function AddEquipmentModal({
           </div>
 
           {/* Footer */}
-          <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-gray-200 bg-gray-50">
+          <div className="shrink-0 flex items-center justify-end gap-3 px-4 sm:px-6 py-4 border-t border-gray-200 bg-gray-50">
             <button
               type="button"
               onClick={requestClose}
