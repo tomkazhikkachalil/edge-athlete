@@ -3,6 +3,7 @@ import { requireAuth, getSupabaseAdmin } from '@/lib/auth-server';
 import { canViewProfile } from '@/lib/privacy';
 import { isValidDateString, isNotFutureDate } from '@/lib/date-validation';
 import { getEquipmentSportOptions } from '@/lib/equipment-config';
+import { EQUIPMENT_FIELD_CAPS } from '@/lib/equipment-validation';
 
 // GET - Fetch equipment for a profile
 export async function GET(request: NextRequest) {
@@ -72,6 +73,20 @@ export async function POST(request: NextRequest) {
     if (!profileId || !category || !brand || !model) {
       return NextResponse.json(
         { error: 'Profile ID, category, brand, and model are required' },
+        { status: 400 }
+      );
+    }
+
+    // TEXT columns have no DB limit — the API is the length guard (shared
+    // caps with PATCH, see lib/equipment-validation).
+    if (
+      String(brand).length > EQUIPMENT_FIELD_CAPS.brand ||
+      String(model).length > EQUIPMENT_FIELD_CAPS.model ||
+      String(category).length > EQUIPMENT_FIELD_CAPS.category ||
+      (notes && String(notes).length > EQUIPMENT_FIELD_CAPS.notes)
+    ) {
+      return NextResponse.json(
+        { error: 'Brand, model, category or notes exceed the allowed length' },
         { status: 400 }
       );
     }

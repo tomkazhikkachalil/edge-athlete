@@ -5,7 +5,7 @@ import { Plus, Edit2, Trash2, CheckCircle2, Archive, RefreshCw, Dumbbell } from 
 import OptimizedImage from './OptimizedImage';
 import AddEquipmentModal from './AddEquipmentModal';
 import ReplaceEquipmentModal from './ReplaceEquipmentModal';
-import EditEquipmentDatesModal from './EditEquipmentDatesModal';
+import ConfirmModal from './ConfirmModal';
 import FilterBar from './filters/FilterBar';
 import MultiSelectDropdown from './filters/MultiSelectDropdown';
 import { deriveInBagYearOptions, isInBagDuringYear, formatMonthYear, yearOf, matchesSportFilter } from '@/lib/profile-filters';
@@ -13,41 +13,14 @@ import { getCategoryConfig, getEquipmentCategories } from '@/lib/equipment-confi
 import { SPORT_NAMES } from '@/lib/config/sports-config';
 import { useToast } from './Toast';
 
-// Categories are per-sport (see lib/equipment-config) and free text for
-// General items — plain string, with display config resolved at render time.
-export type EquipmentCategory = string;
+// Types moved to src/types/equipment.ts (importable from server code);
+// re-exported here so existing importers keep compiling.
+import type { EquipmentItem } from '@/types/equipment';
+export type { EquipmentItem, EquipmentSpecs, EquipmentCategory } from '@/types/equipment';
 
 function sportLabel(sportKey: string): string {
   if (sportKey === 'general') return 'General';
   return SPORT_NAMES[sportKey] ?? sportKey;
-}
-
-export interface EquipmentSpecs {
-  loft?: string;
-  shaft?: string;
-  flex?: string;
-  length?: string;
-  lie?: string;
-  grip?: string;
-  [key: string]: string | undefined; // Allow custom specs
-}
-
-export interface EquipmentItem {
-  id: string;
-  sport_key: string;
-  category: EquipmentCategory;
-  brand: string;
-  model: string;
-  image_url?: string;
-  specs?: EquipmentSpecs;
-  status: 'active' | 'retired';
-  added_at: string;
-  retired_at?: string;
-  acquired_on?: string | null;
-  retired_on?: string | null;
-  notes?: string;
-  created_at: string;
-  updated_at: string;
 }
 
 interface EquipmentSectionProps {
@@ -66,6 +39,7 @@ export default function EquipmentSection({ profileId, isOwnProfile = false }: Eq
   const [isReplaceModalOpen, setIsReplaceModalOpen] = useState(false);
   const [equipmentToReplace, setEquipmentToReplace] = useState<EquipmentItem | null>(null);
   const [equipmentToEdit, setEquipmentToEdit] = useState<EquipmentItem | null>(null);
+  const [pendingDelete, setPendingDelete] = useState<EquipmentItem | null>(null);
   const [loading, setLoading] = useState(true);
 
   const fetchEquipment = useCallback(async () => {
@@ -130,9 +104,9 @@ export default function EquipmentSection({ profileId, isOwnProfile = false }: Eq
     }
   };
 
+  // The confirm step is ConfirmModal (see render), not the native confirm()
+  // dialog — this was the only unstyled confirm left on the profile.
   const handleDelete = async (id: string) => {
-    if (!confirm('Are you sure you want to delete this equipment?')) return;
-
     try {
       const response = await fetch(`/api/equipment/${id}`, {
         method: 'DELETE',
@@ -348,7 +322,7 @@ export default function EquipmentSection({ profileId, isOwnProfile = false }: Eq
                         </div>
 
                         {/* Equipment cards grid */}
-                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-3 xl:grid-cols-4 gap-4">
                           {items.map((item) => (
                             <EquipmentCard
                               key={item.id}
@@ -356,7 +330,7 @@ export default function EquipmentSection({ profileId, isOwnProfile = false }: Eq
                               isOwnProfile={isOwnProfile}
                               showSportChip={multiSport}
                               onEdit={() => setEquipmentToEdit(item)}
-                              onDelete={handleDelete}
+                              onDelete={id => setPendingDelete(equipment.find(e => e.id === id) ?? null)}
                               onToggleStatus={handleToggleStatus}
                               onReplace={() => handleReplace(item)}
                             />
@@ -394,12 +368,39 @@ export default function EquipmentSection({ profileId, isOwnProfile = false }: Eq
         />
       )}
 
-      {/* Edit Dates Modal */}
-      <EditEquipmentDatesModal
-        isOpen={equipmentToEdit !== null}
-        onClose={() => setEquipmentToEdit(null)}
-        onSaved={fetchEquipment}
-        item={equipmentToEdit}
+      {/* Edit Equipment Modal — a SECOND, conditional AddEquipmentModal
+          instance in edit mode. Conditional mount + key: all of the form's
+          state seeds via useState initializers, so a fresh mount per item is
+          what guarantees correct seeding (the permanent add instance above
+          seeds blanks, which is equally correct for it). This replaced
+          EditEquipmentDatesModal — the full editor covers dates too. */}
+      {equipmentToEdit && (
+        <AddEquipmentModal
+          key={equipmentToEdit.id}
+          isOpen
+          editingItem={equipmentToEdit}
+          onClose={() => setEquipmentToEdit(null)}
+          onSuccess={fetchEquipment}
+          profileId={profileId}
+        />
+      )}
+
+      {/* Delete confirm */}
+      <ConfirmModal
+        isOpen={pendingDelete !== null}
+        title="Delete this equipment?"
+        message={
+          pendingDelete
+            ? `${pendingDelete.brand} ${pendingDelete.model} will be removed from your gear, including its dates and specs. This can't be undone.`
+            : ''
+        }
+        confirmText="Delete"
+        cancelText="Keep it"
+        onConfirm={() => {
+          if (pendingDelete) handleDelete(pendingDelete.id);
+          setPendingDelete(null);
+        }}
+        onCancel={() => setPendingDelete(null)}
       />
     </div>
   );
@@ -535,7 +536,7 @@ function EquipmentCard({ item, isOwnProfile, showSportChip = false, onEdit, onDe
                 className="flex-1 flex items-center justify-center gap-1 px-3 py-2 min-h-[40px] bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg text-xs font-semibold transition-colors"
               >
                 <Edit2 className="w-3 h-3" />
-                Edit Dates
+                Edit
               </button>
               <button
                 onClick={() => onToggleStatus(item.id)}
