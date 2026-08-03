@@ -1,5 +1,73 @@
 # Development Log
 
+## August 2, 2026 — Mobile round 2, and equipment stops being write-once
+
+Round 1 (PRs #27-29) covered the surfaces you look at; round 2 (PRs #30 → #31 →
+#32, stacked) covered the surfaces you *do things* in — and shipped the first
+real feature to come out of a polish pass.
+
+### The P0s were all "the important control is somewhere you can't reach"
+
+TagPeopleModal clipped the bottom of its results unreachably (80vh +
+overflow-hidden + a fixed 300px list); EventFormModal buried Create/Save below
+the entire scrolling form; AddEquipmentModal's submit had the same disease
+until round 1. The modal shape from round 1 (`.max-h-modal flex flex-col`,
+body `flex-1 min-h-0 overflow-y-auto`, pinned `shrink-0` footer) fixed all of
+them — it is now the only acceptable shape for a modal with a primary action.
+
+The composer's shared-round scorecard was the starkest number of the audit:
+its ~212px sticky player column was wider than the whole scroll window at
+320px, so **zero** hole columns were visible — the score inputs the modal
+exists for. Sticky columns now step down below `sm` (72-90px, avatars hidden,
+names truncating); the round-detail scorecard went from ~1.75 visible hole
+columns to ~4.5.
+
+### TrendLineChart: HTML labels beat clever measurement
+
+The 600×220 viewBox scales uniformly, so at 320px its 10px axis text rendered
+at 4.3px ×4 charts on /trends. The fix moves every `<text>` into absolutely-
+positioned HTML spans using the same percent mapping the tooltip always used —
+true pixel size at every width, zero effects, zero state, nothing for the
+`set-state-in-effect` rule to reject (the ResizeObserver alternatives all
+fight it). `vectorEffect: non-scaling-stroke` keeps the lines 2px.
+
+### Equipment: editable at last
+
+Items were write-once outside status/dates — fixing a typo meant
+delete-and-recreate or corrupting the gear timeline via Replace. Now:
+
+- **PATCH accepts everything** (brand/model/category/sportKey/specs/imageUrl/
+  notes), every field optional, `undefined` = unchanged. That contract is what
+  keeps the three pre-existing sparse-body callers untouched, and it is pinned
+  by node tests (`lib/equipment-validation.ts` — pure, 10 cases, including
+  each compat body). A sport change requires `category` in the same request,
+  because it invalidates the specs schema.
+- **AddEquipmentModal gained an `editingItem` prop instead of a fork.** The
+  seeding mechanism is the part worth remembering: a SECOND, conditional
+  instance with `key={item.id}` — a fresh mount per item means plain
+  `useState` initializers seed all ~12 form atoms from one snapshot, with no
+  effects and no render-phase sync to audit. The snapshot also drives
+  `resetForm` and `isDirty`, so add mode and edit mode are one code path and
+  an untouched editor closes without the discard prompt (sweep-verified).
+- **Sport is locked in edit mode** — flipping it silently wipes specs, and
+  Replace exists for genuine re-gearing.
+- EditEquipmentDatesModal is deleted (the full editor covers dates); the
+  card's native `confirm()` — the last unstyled confirm on the profile —
+  became ConfirmModal.
+
+### Verification
+
+Each PR verify-green at exactly the 45-warning cap; 796 tests (+10). Headless
+sweep: 8 routes × 7 widths, zero overflows; probes for settings tabs
+(scrolls, last tab clickable), EventFormModal (Save visible + clickable at
+320×568), TagPeopleModal (bounded flex panel, scrollable list), and the
+equipment edit round-trip (seed via API → Edit → change model → Save → card
+updates → re-open re-seeds from saved values → clean close, no discard
+prompt). Two probe failures on the first run were the *recorded* locator
+traps firing again — `/new/i` matching the header's "Create new post", and a
+button labeled by its dynamic text ("Add Tags"), not its section heading.
+The traps continue to earn their place in the testing notes.
+
 ## August 2, 2026 — The mobile pass: three PRs, one flex trap, everywhere
 
 A responsiveness sweep over the core flows (PRs #27 → #28 → #29, stacked), after
