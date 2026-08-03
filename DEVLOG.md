@@ -1,5 +1,52 @@
 # Development Log
 
+## August 3, 2026 — Live rounds were invisible to the audience (PR #33 + migration 063)
+
+The first real two-account test of live following found it broken: a signed-in
+non-participant watching a public live round saw the media and nothing else —
+no players, no scores, no updates, even on hard refresh. Two independent
+defects, each masking the other's absence of errors:
+
+**1. A 200 with empty embeds is what an RLS gap looks like.** The scorecard
+endpoint read through the RLS client. `group_posts`, `golf_scorecard_data` and
+`group_post_media` all carry a `visibility='public'` SELECT branch —
+`group_post_participants` lost its branch in migration 035 (whose header
+claims "semantics preserved exactly"; add-shared-golf-rounds.sql had the
+branch, 035's rewrite dropped it), and the two score tables never had one.
+PostgREST filters every embed independently, so strangers got a perfectly
+"successful" response with full media and `participants: []`. No error fired
+anywhere; the hook even cleared its stale flag. The route now reads via the
+admin client behind `canViewSharedRound()` (`src/lib/golf/round-access.ts`) —
+an exact, node-tested copy of the group_posts RLS three-branch rule, with a
+sync obligation comment on both sides. Deny is 404, so existence isn't
+confirmed.
+
+**2. SUBSCRIBED must never switch off the safety net.** Realtime delivers
+`postgres_changes` through the SUBSCRIBER's SELECT policies, so those same
+viewers received zero score events — but the channel still reported
+`SUBSCRIBED`, and `connectionState === 'live'` disabled the 30s poll fallback.
+A total freeze with the net down. `useSharedRound` now polls always (30s
+degraded, 60s even while "live"), refetches on visibilitychange, fetches
+no-store, and treats a score event with an unknown participant id as a
+stale-roster signal (throttled refresh) instead of discarding it. The scores
+route also bumps `group_posts.updated_at` per hole save — every viewer holds a
+server-filtered subscription on that row and its RLS has had the public branch
+since 035, so each hole becomes a realtime tick that worked even before the
+migration ran (measured: 3 seconds, scorer's save → stranger's open page).
+
+**Migration 063** restored the public branches on all three tables via
+SECURITY DEFINER helpers (035's recursion-safe pattern; both historical
+policy-name variants dropped per table) and re-asserted the 031/038 realtime
+publication — which had no verified-run record until now. Verified live with a
+disposable stranger account: direct reads return rows for a public round and
+zero for a private one, and a `golf_participant_scores` UPDATE event reached
+the stranger's realtime subscription in seconds. That's the first positive
+proof the score publication works in production.
+
+Worth remembering: the feed and Live Now strip read through the admin client,
+so every surface Tom had tested before showed correct scores — the one surface
+that used RLS reads was the one built specifically for the audience.
+
 ## August 2, 2026 — Mobile round 2, and equipment stops being write-once
 
 Round 1 (PRs #27-29) covered the surfaces you look at; round 2 (PRs #30 → #31 →
