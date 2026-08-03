@@ -140,7 +140,7 @@ function MultiPlayerScorecardGrid({
         <table className="min-w-full divide-y divide-gray-300">
           <thead className="bg-green-50">
             <tr>
-              <th className="sticky left-0 z-10 bg-green-50 px-4 py-3 text-left text-xs font-semibold text-gray-900 uppercase tracking-wider border-r border-gray-300">
+              <th className="sticky left-0 z-10 bg-green-50 px-2 sm:px-4 py-3 text-left text-xs font-semibold text-gray-900 uppercase tracking-wider border-r border-gray-300">
                 Player
               </th>
               {displayHoles.map(holeNum => (
@@ -167,7 +167,7 @@ function MultiPlayerScorecardGrid({
             {/* Par Row */}
             {holeData && holeData.length > 0 && (
               <tr className="bg-violet-50 border-t border-gray-300">
-                <th className="sticky left-0 z-10 bg-violet-50 px-4 py-2 text-left text-xs font-semibold text-gray-900 uppercase tracking-wider border-r border-gray-300">
+                <th className="sticky left-0 z-10 bg-violet-50 px-2 sm:px-4 py-2 text-left text-xs font-semibold text-gray-900 uppercase tracking-wider border-r border-gray-300">
                   Par
                 </th>
                 {displayHoles.map(holeNum => (
@@ -193,7 +193,7 @@ function MultiPlayerScorecardGrid({
             {/* Yardage Row */}
             {holeData && holeData.some(h => h.yardage) && (
               <tr className="bg-gray-100 border-t border-gray-300">
-                <th className="sticky left-0 z-10 bg-gray-100 px-4 py-2 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider border-r border-gray-300">
+                <th className="sticky left-0 z-10 bg-gray-100 px-2 sm:px-4 py-2 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider border-r border-gray-300">
                   Yardage
                 </th>
                 {displayHoles.map(holeNum => {
@@ -229,25 +229,31 @@ function MultiPlayerScorecardGrid({
               return (
                 <tr key={player.participant_id} className="hover:bg-gray-50">
                   {/* Player Name Column */}
-                  <td className="sticky left-0 z-10 bg-white px-4 py-3 whitespace-nowrap border-r border-gray-300">
+                  {/* Narrow sticky column below sm: avatar + px-4 + a 140px
+                      name was ~212px — wider than the whole scroll window
+                      inside CreatePostModal at 320px, so ZERO hole columns
+                      were visible. ~90px keeps ~4 hole columns on screen. */}
+                  <td className="sticky left-0 z-10 bg-white px-2 sm:px-4 py-3 whitespace-nowrap border-r border-gray-300">
                     <div className="flex items-center gap-2">
-                      {player.profile.avatar_url ? (
-                        <LazyImage
-                          src={player.profile.avatar_url}
-                          alt={formatDisplayName(player.profile.first_name, null, player.profile.last_name, player.profile.full_name)}
-                          className="w-8 h-8 rounded-full object-cover flex-shrink-0"
-                          width={32}
-                          height={32}
-                        />
-                      ) : (
-                        <div className="w-8 h-8 bg-gradient-to-br from-violet-500 to-purple-600 rounded-full flex items-center justify-center flex-shrink-0">
-                          <span className="text-white text-xs font-semibold">
-                            {getInitials(formatDisplayName(player.profile.first_name, null, player.profile.last_name, player.profile.full_name))}
-                          </span>
-                        </div>
-                      )}
+                      <span className="hidden sm:block shrink-0">
+                        {player.profile.avatar_url ? (
+                          <LazyImage
+                            src={player.profile.avatar_url}
+                            alt={formatDisplayName(player.profile.first_name, null, player.profile.last_name, player.profile.full_name)}
+                            className="w-8 h-8 rounded-full object-cover flex-shrink-0"
+                            width={32}
+                            height={32}
+                          />
+                        ) : (
+                          <div className="w-8 h-8 bg-gradient-to-br from-violet-500 to-purple-600 rounded-full flex items-center justify-center flex-shrink-0">
+                            <span className="text-white text-xs font-semibold">
+                              {getInitials(formatDisplayName(player.profile.first_name, null, player.profile.last_name, player.profile.full_name))}
+                            </span>
+                          </div>
+                        )}
+                      </span>
                       <span
-                        className="text-sm font-medium text-gray-900 max-w-[140px] truncate"
+                        className="text-sm font-medium text-gray-900 max-w-[72px] sm:max-w-[140px] truncate"
                         title={formatDisplayName(player.profile.first_name, null, player.profile.last_name, player.profile.full_name)}
                       >
                         {formatShortName(player.profile.first_name, player.profile.last_name, player.profile.full_name, 18)}

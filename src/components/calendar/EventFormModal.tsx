@@ -316,8 +316,11 @@ export default function EventFormModal({
         onConfirm={confirmDiscard}
         onCancel={cancelDiscard}
       />
-      <div className="bg-white rounded-lg shadow-xl max-w-lg w-full max-h-[85vh] overflow-y-auto">
-        <div className="flex items-center justify-between p-6 border-b border-gray-200">
+      {/* max-h-modal + flex-col: the whole panel used to scroll, so the
+          submit button sat below title/date/repeat/guests/category — off
+          screen on every phone. The fields scroll; header and footer don't. */}
+      <div className="bg-white rounded-lg shadow-xl max-w-lg w-full max-h-modal flex flex-col">
+        <div className="shrink-0 flex items-center justify-between p-4 sm:p-6 border-b border-gray-200">
           <div className="flex items-center gap-3">
             <span className="w-9 h-9 rounded-full bg-violet-100 flex items-center justify-center">
               <CalendarPlus className="w-5 h-5 text-violet-600" />
@@ -326,12 +329,13 @@ export default function EventFormModal({
               {editing ? 'Edit event' : 'New event'}
             </h2>
           </div>
-          <button type="button" onClick={requestClose} aria-label="Close" className="text-gray-400 hover:text-gray-600">
+          <button type="button" onClick={requestClose} aria-label="Close" className="ea-icon-btn inline-flex items-center justify-center text-gray-400 hover:text-gray-600">
             <X className="w-5 h-5" />
           </button>
         </div>
 
-        <form onSubmit={handleSubmit} className="p-6 space-y-4">
+        <form onSubmit={handleSubmit} className="flex-1 min-h-0 flex flex-col">
+          <div className="flex-1 min-h-0 overflow-y-auto p-4 sm:p-6 space-y-4">
           {error && (
             <div role="alert" className="bg-red-50 border border-red-200 text-red-600 px-4 py-3 rounded-md text-sm">
               {error}
@@ -463,7 +467,9 @@ export default function EventFormModal({
                   </div>
 
                   {repeat.freq === 'weekly' && (
-                    <div className="flex gap-1.5">
+                    // flex-wrap: 7 chips + gaps brush the 320px body width;
+                    // wrapping beats clipping if the fit ever changes.
+                    <div className="flex flex-wrap gap-1.5">
                       {DOW_CHIP_LABELS.map((label, dow) => {
                         const active = repeat.byweekday.includes(dow);
                         const locked = dow === startDow;
@@ -481,7 +487,7 @@ export default function EventFormModal({
                                   : [...prev.byweekday, dow].sort((a, b) => a - b),
                               }))
                             }
-                            className={`w-8 h-8 rounded-full text-xs font-semibold transition ${
+                            className={`w-8 h-8 sm:w-10 sm:h-10 rounded-full text-xs font-semibold transition ${
                               active
                                 ? 'bg-violet-600 text-white'
                                 : 'bg-white border border-gray-300 text-gray-600 hover:border-violet-400'
@@ -612,16 +618,20 @@ export default function EventFormModal({
               </div>
             </>
           )}
+          </div>
 
-          <button
-            type="submit"
-            disabled={saving}
-            className="w-full bg-violet-600 text-white py-3 px-4 rounded-lg hover:bg-violet-700 transition flex items-center justify-center text-sm font-medium disabled:opacity-50 min-h-[44px]"
-          >
-            {saving ? (
-              <><i className="fas fa-spinner fa-spin mr-2"></i> Saving…</>
-            ) : editing ? 'Save changes' : 'Create event'}
-          </button>
+          {/* Non-scrolling footer: the primary action is always reachable */}
+          <div className="shrink-0 p-4 sm:p-6 pt-3 sm:pt-3 border-t border-gray-200 safe-bottom">
+            <button
+              type="submit"
+              disabled={saving}
+              className="w-full bg-violet-600 text-white py-3 px-4 rounded-lg hover:bg-violet-700 transition flex items-center justify-center text-sm font-medium disabled:opacity-50 min-h-[44px]"
+            >
+              {saving ? (
+                <><i className="fas fa-spinner fa-spin mr-2"></i> Saving…</>
+              ) : editing ? 'Save changes' : 'Create event'}
+            </button>
+          </div>
         </form>
       </div>
 

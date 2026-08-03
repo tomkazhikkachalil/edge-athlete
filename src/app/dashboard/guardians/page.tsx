@@ -110,10 +110,10 @@ export default function GuardianSupportPage() {
         ) : (
           items.map(item => (
             <div key={item.id} className="bg-white border border-gray-200 rounded-lg p-5 mb-4">
-              <div className="flex items-center justify-between gap-4 mb-3">
-                <div>
-                  <p className="text-sm font-semibold text-gray-900">{item.name}</p>
-                  <p className="text-xs text-gray-500">
+              <div className="flex items-center justify-between gap-4 mb-3 flex-wrap">
+                <div className="min-w-0">
+                  <p className="text-sm font-semibold text-gray-900 truncate">{item.name}</p>
+                  <p className="text-xs text-gray-500 truncate">
                     {item.handle ? `@${item.handle} · ` : ''}created {new Date(item.createdAt).toLocaleDateString()}
                   </p>
                 </div>
@@ -135,13 +135,15 @@ export default function GuardianSupportPage() {
                   <code className="block text-xs text-gray-800 break-all select-all">{inviteResult[item.id].inviteUrl}</code>
                 </div>
               ) : (
-                <div className="flex gap-2 mb-3">
+                // Stacks below sm — the input shared one row with the button
+                // and shrank to ~110px at 320px
+                <div className="flex flex-col sm:flex-row gap-2 mb-3">
                   <input
                     type="email"
                     placeholder="new-guardian@email.com"
                     value={inviteEmail[item.id] ?? ''}
                     onChange={e => setInviteEmail(prev => ({ ...prev, [item.id]: e.target.value }))}
-                    className="flex-grow border border-gray-300 rounded-md px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-1 focus:ring-violet-500"
+                    className="w-full sm:flex-grow min-w-0 border border-gray-300 rounded-md px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-1 focus:ring-violet-500"
                   />
                   <button
                     type="button"
@@ -159,13 +161,15 @@ export default function GuardianSupportPage() {
                   <p className="text-sm text-gray-700 mb-2">
                     Type <span className="font-mono text-red-700">{item.handle ?? item.name}</span> to permanently delete this profile.
                   </p>
-                  <div className="flex gap-2">
+                  {/* Stacks below sm — typing an exact handle into a ~76px
+                      input to confirm a destructive action was unusable */}
+                  <div className="flex flex-col sm:flex-row gap-2">
                     <input
                       type="text"
                       value={deleteText}
                       onChange={e => setDeleteText(e.target.value)}
                       autoComplete="off"
-                      className="flex-grow border border-gray-300 rounded-md px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-1 focus:ring-red-500"
+                      className="w-full sm:flex-grow min-w-0 border border-gray-300 rounded-md px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-1 focus:ring-red-500"
                     />
                     <button
                       type="button"
@@ -188,7 +192,7 @@ export default function GuardianSupportPage() {
                 <button
                   type="button"
                   onClick={() => { setConfirmingDelete(item.id); setDeleteText(''); }}
-                  className="text-xs text-red-600 hover:underline"
+                  className="text-xs text-red-600 hover:underline min-h-[44px] inline-flex items-center -my-2"
                 >
                   Delete profile…
                 </button>

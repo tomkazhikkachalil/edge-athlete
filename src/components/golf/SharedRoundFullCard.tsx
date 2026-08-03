@@ -195,7 +195,10 @@ export default function SharedRoundFullCard({
             <table className="w-full text-xs">
               <thead>
                 <tr className="bg-gray-50 border-b border-gray-200">
-                  <th className="text-left py-2 px-3 font-bold text-gray-700 sticky left-0 bg-gray-50 z-10 min-w-[120px]">
+                  {/* Narrower sticky column below sm: at 320px the 120px
+                      column + the TOTAL column left ~1.75 hole columns
+                      visible; 72px shows ~4.5. Names truncate in their cells. */}
+                  <th className="text-left py-2 px-2 sm:px-3 font-bold text-gray-700 sticky left-0 bg-gray-50 z-10 min-w-[72px] sm:min-w-[120px] max-w-[96px] sm:max-w-none">
                     {title}
                   </th>
                   {holeNumbers.map(holeNum => (
@@ -211,7 +214,7 @@ export default function SharedRoundFullCard({
               <tbody>
                 {/* Par Row */}
                 <tr className="border-b border-gray-200 bg-gray-50">
-                  <td className="py-2 px-3 font-bold text-gray-700 sticky left-0 bg-gray-50 z-10">PAR</td>
+                  <td className="py-2 px-2 sm:px-3 font-bold text-gray-700 sticky left-0 bg-gray-50 z-10">PAR</td>
                   {holeNumbers.map(holeNum => (
                     <td key={holeNum} className="text-center py-2 px-2 font-bold text-gray-900">
                       {parFor(holeNum)}
@@ -237,7 +240,7 @@ export default function SharedRoundFullCard({
                 */}
                 {segmentsWithMedia.size > 0 && (
                   <tr className="border-b border-gray-200">
-                    <td className="py-1.5 px-3 font-bold text-gray-500 text-[11px] uppercase tracking-wide sticky left-0 bg-white z-10">
+                    <td className="py-1.5 px-2 sm:px-3 font-bold text-gray-500 text-[11px] uppercase tracking-wide sticky left-0 bg-white z-10">
                       Media
                     </td>
                     {holeNumbers.map(holeNum => {
@@ -300,24 +303,28 @@ export default function SharedRoundFullCard({
 
                     return (
                       <tr key={participant.id} className="border-b border-gray-200 hover:bg-gray-50">
-                        <td className="py-2 px-3 sticky left-0 bg-white z-10 hover:bg-gray-50">
+                        <td className="py-2 px-2 sm:px-3 sticky left-0 bg-white z-10 hover:bg-gray-50">
                           <div className="flex items-center gap-2">
-                            {profile.avatar_url ? (
-                              <LazyImage
-                                src={profile.avatar_url}
-                                alt={displayName}
-                                className="w-6 h-6 rounded-full object-cover flex-shrink-0"
-                                width={24}
-                                height={24}
-                              />
-                            ) : (
-                              <div className="w-6 h-6 rounded-full bg-gray-200 flex items-center justify-center flex-shrink-0">
-                                <span className="text-[10px] font-medium text-gray-600">
-                                  {getInitials(displayName)}
-                                </span>
-                              </div>
-                            )}
-                            <span className={`font-bold text-gray-900 text-xs truncate ${isCurrentUser ? 'text-violet-600' : ''}`}>
+                            {/* Avatar hides below sm — in the 72px phone
+                                column the name is the information */}
+                            <span className="hidden sm:block shrink-0">
+                              {profile.avatar_url ? (
+                                <LazyImage
+                                  src={profile.avatar_url}
+                                  alt={displayName}
+                                  className="w-6 h-6 rounded-full object-cover flex-shrink-0"
+                                  width={24}
+                                  height={24}
+                                />
+                              ) : (
+                                <div className="w-6 h-6 rounded-full bg-gray-200 flex items-center justify-center flex-shrink-0">
+                                  <span className="text-[10px] font-medium text-gray-600">
+                                    {getInitials(displayName)}
+                                  </span>
+                                </div>
+                              )}
+                            </span>
+                            <span className={`font-bold text-gray-900 text-xs min-w-0 truncate ${isCurrentUser ? 'text-violet-600' : ''}`} title={displayName}>
                               {displayName}
                               {isCurrentUser && <span className="ml-1">(You)</span>}
                             </span>
@@ -375,7 +382,7 @@ export default function SharedRoundFullCard({
 
                     return (
                       <tr key={participant.id} className="border-b border-gray-200 bg-gray-50">
-                        <td className="py-2 px-3 sticky left-0 bg-gray-50 z-10">
+                        <td className="py-2 px-2 sm:px-3 sticky left-0 bg-gray-50 z-10">
                           <div className="flex items-center gap-2">
                             {profile.avatar_url ? (
                               <LazyImage
@@ -923,7 +930,9 @@ export default function SharedRoundFullCard({
                       }
                     />
                     {canManageMedia && (
-                      <div className="mt-1 grid grid-cols-3 gap-2 sm:grid-cols-4">
+                      // 2-up below sm: three ~80px columns left the segment
+                      // select ~16px wide next to its two buttons
+                      <div className="mt-1 grid grid-cols-2 gap-2 sm:grid-cols-4">
                         {group.map(item => (
                           <RoundMediaItemControls
                             key={item.id}
