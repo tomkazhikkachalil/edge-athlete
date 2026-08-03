@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getServerClient } from '@/lib/auth-server';
+import { getServerClient, getSupabaseAdmin } from '@/lib/auth-server';
 import { GROUP_SCORECARD_SELECT, transformGroupPostToScorecard } from '@/lib/golf/scorecard-transform';
+import { canViewSharedRound } from '@/lib/golf/round-access';
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -19,9 +20,15 @@ const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
  * point of the round screen is that it works from the group post id even when
  * post_id is null (the backfill is best-effort).
  *
- * Access control is RLS via the user-scoped client — the same select the feed
- * branch already runs. A stranger reading a public round gets it; a private
- * round they are not in returns nothing.
+ * Access control is the APP-LAYER gate (canViewSharedRound), and the read runs
+ * on the ADMIN client. This route used to read through the RLS client, which
+ * looked correct but silently broke live rounds for every non-participant:
+ * PostgREST filters each embed independently, and the participants/scores
+ * tables lacked the public-visibility branch that group_posts and
+ * group_post_media have — so a stranger got a 200 with full media and
+ * participants: []. Media visible, leaderboard empty, no error anywhere.
+ * The gate mirrors the group_posts RLS rule exactly (creator OR public OR
+ * participant) — see round-access.ts for the sync obligation with 063.
  */
 export async function GET(
   request: NextRequest,
@@ -40,15 +47,28 @@ export async function GET(
       return NextResponse.json({ error: 'Round not found' }, { status: 404 });
     }
 
-    const { data, error } = await supabase
+    const { data, error } = await getSupabaseAdmin()
       .from('group_posts')
       .select(GROUP_SCORECARD_SELECT)
       .eq('id', id)
       .maybeSingle();
 
-    // RLS denial and a genuinely missing row are indistinguishable here, and
-    // that is deliberate — neither should confirm the round exists.
     if (error || !data) {
+      return NextResponse.json({ error: 'Round not found' }, { status: 404 });
+    }
+
+    // Denied and missing are indistinguishable on purpose — a 404 must not
+    // confirm the round exists (same semantics as GET /api/posts).
+    const participants = Array.isArray(data.participants) ? data.participants : [];
+    const allowed = canViewSharedRound({
+      viewerId: user.id,
+      creatorId: (data as { creator_id?: string }).creator_id ?? null,
+      visibility: (data as { visibility?: string }).visibility ?? null,
+      participantProfileIds: participants
+        .map((p: { profile_id?: string }) => p.profile_id)
+        .filter((v: string | undefined): v is string => !!v),
+    });
+    if (!allowed) {
       return NextResponse.json({ error: 'Round not found' }, { status: 404 });
     }
 

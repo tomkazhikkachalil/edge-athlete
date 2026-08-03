@@ -51,7 +51,7 @@ export default function LiveRoundPage() {
     let cancelled = false;
     (async () => {
       try {
-        const res = await fetch(`/api/group-posts/${groupPostId}/scorecard`);
+        const res = await fetch(`/api/group-posts/${groupPostId}/scorecard`, { cache: 'no-store' });
         if (cancelled) return;
         if (!res.ok) {
           setNotFound(true);

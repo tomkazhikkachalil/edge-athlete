@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { isRoundLive, shouldShowStaleNotice } from '@/lib/golf/round-status';
+import { classifyScoreEvent } from '@/lib/golf/round-access';
 import type { CompleteGolfScorecard } from '@/types/group-posts';
 
 // ── useSharedRound ────────────────────────────────────────────────────────────
@@ -15,8 +16,13 @@ import type { CompleteGolfScorecard } from '@/types/group-posts';
 //     ANY player) and on this round's group_posts row (status flips: LIVE →
 //     FINAL streams to viewers, e.g. End Round),
 //   • retries failed subscriptions with backoff and reports connectionState,
-//   • falls back to a 30s poll whenever enabled but not live (real-world
-//     conditions: flaky networks, blocked websockets — mirrors messages' poll),
+//   • polls ALWAYS while enabled — 30s when the channel is degraded, 60s even
+//     when it reports 'live'. SUBSCRIBED only means the channel joined; it
+//     proves nothing about the publication containing our tables or the
+//     subscriber's RLS letting events through. Both failed silently in
+//     production once, with the poll switched off because the channel looked
+//     healthy — a total freeze with the safety net disabled. The relaxed poll
+//     caps worst-case staleness at 60s no matter what realtime is doing,
 //   • ticks a re-render each minute so time-based badge rules (6h auto-end,
 //     48h live window) expire without any server event,
 //   • exposes refresh() for imperative updates (e.g. right after you save).
@@ -28,6 +34,8 @@ import type { CompleteGolfScorecard } from '@/types/group-posts';
 export type LiveConnectionState = 'idle' | 'connecting' | 'live' | 'degraded';
 
 const POLL_FALLBACK_MS = 30_000;
+// Relaxed cadence while the channel claims to be live — see header comment.
+const POLL_LIVE_MS = 60_000;
 const CLOCK_TICK_MS = 60_000;
 const RETRY_BASE_MS = 2_000;
 const RETRY_MAX_MS = 30_000;
@@ -74,7 +82,9 @@ export function useSharedRound({
       const url = postId
         ? `/api/posts?postId=${postId}`
         : `/api/group-posts/${groupPostId}/scorecard`;
-      const res = await fetch(url);
+      // no-store: vercel.json no-stores /api/* in prod, but dev and any
+      // future host must not serve a cached leaderboard either.
+      const res = await fetch(url, { cache: 'no-store' });
       if (!res.ok) {
         setStale(true);
         return false;
@@ -111,6 +121,10 @@ export function useSharedRound({
   }, [participantIds]);
 
   const attemptRef = useRef(0);
+  // Throttle marker for refreshes triggered by score events whose participant
+  // id is NOT in the roster (see classifyScoreEvent) — the subscription is
+  // table-wide, so that branch also fires for other rounds' scores.
+  const unknownEventRefreshAtRef = useRef(0);
 
   useEffect(() => {
     if (!enabled || !groupPostId) {
@@ -128,8 +142,21 @@ export function useSharedRound({
         { event: '*', schema: 'public', table: 'golf_participant_scores' },
         (payload: { new?: unknown; old?: unknown }) => {
           const row = (payload.new ?? payload.old) as { participant_id?: string } | undefined;
-          // Only refetch when the change belongs to THIS round's participants.
-          if (row?.participant_id && participantIdsRef.current.has(row.participant_id)) {
+          // Known participant → this round's score, refetch. UNKNOWN id is
+          // ambiguous: another round's noise, or OUR roster is stale (a
+          // participant joined mid-round, or it loaded empty) — the old code
+          // silently discarded those, which froze the page for exactly the
+          // viewers whose roster failed to load. Refresh, throttled.
+          const action = classifyScoreEvent(
+            participantIdsRef.current,
+            row?.participant_id,
+            unknownEventRefreshAtRef.current,
+            Date.now()
+          );
+          if (action === 'refresh') {
+            refresh();
+          } else if (action === 'refresh-unknown') {
+            unknownEventRefreshAtRef.current = Date.now();
             refresh();
           }
         }
@@ -166,13 +193,30 @@ export function useSharedRound({
     };
   }, [enabled, groupPostId, refresh, retryNonce]);
 
-  // Poll fallback: while enabled but the channel isn't healthy, keep the
-  // leaderboard moving anyway.
+  // Poll ALWAYS while enabled — fast when degraded, relaxed when the channel
+  // reports 'live'. SUBSCRIBED is not proof events are flowing (publication
+  // membership and subscriber RLS both fail silently), so 'live' must never
+  // switch the safety net fully off.
   useEffect(() => {
-    if (!enabled || connectionState === 'live') return;
-    const interval = setInterval(refresh, POLL_FALLBACK_MS);
+    if (!enabled) return;
+    const interval = setInterval(
+      refresh,
+      connectionState === 'live' ? POLL_LIVE_MS : POLL_FALLBACK_MS
+    );
     return () => clearInterval(interval);
   }, [enabled, connectionState, refresh]);
+
+  // Refetch when the tab comes back to the foreground — mobile browsers
+  // throttle background intervals, so a viewer returning mid-round would
+  // otherwise stare at pre-background scores until the next tick.
+  useEffect(() => {
+    if (!enabled) return;
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') refresh();
+    };
+    document.addEventListener('visibilitychange', onVisible);
+    return () => document.removeEventListener('visibilitychange', onVisible);
+  }, [enabled, refresh]);
 
   // Minute tick: re-render so isRoundLive/effectiveRoundStatus re-evaluate
   // with fresh Date.now() — LIVE badges expire on time even with no events.

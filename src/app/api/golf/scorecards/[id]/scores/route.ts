@@ -204,6 +204,19 @@ export async function POST(
       // them so the DB trigger's Realtime event → client refresh picks up the
       // new status in the same round-trip.
       await advanceRoundStatus(admin, groupPostId);
+      // Cross-viewer liveness tick: every open viewer subscribes to THIS
+      // round's group_posts row (server-filtered `id=eq.`), and group_posts
+      // SELECT RLS has the public branch — so bumping updated_at turns each
+      // hole save into a realtime event that reaches non-participant viewers
+      // even where score-table events can't (subscriber RLS / publication
+      // gaps). advanceRoundStatus only writes on a status TRANSITION, so
+      // without this the row goes silent for the whole middle of the round.
+      // No trigger loop: the 039 totals trigger touches participant tables
+      // only, and nothing orders feeds by group_posts.updated_at.
+      await admin
+        .from('group_posts')
+        .update({ updated_at: new Date().toISOString() })
+        .eq('id', groupPostId);
       // Keep the golf_rounds mirror in sync (no-op unless completed)
       await mirrorCompletedRound(admin, groupPostId);
       await mirrorRoundMedia(admin, groupPostId);
