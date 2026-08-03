@@ -208,7 +208,7 @@ export default function EventDetailModal({
 
   return (
     <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-      <div className="bg-white rounded-lg shadow-xl max-w-lg w-full max-h-[85vh] overflow-y-auto">
+      <div className="bg-white rounded-lg shadow-xl max-w-lg w-full max-h-modal overflow-y-auto">
         <div className="flex items-center justify-between p-6 border-b border-gray-200">
           <div className="flex items-center gap-3 min-w-0">
             <span className={`w-9 h-9 rounded-full flex items-center justify-center shrink-0 ${color ? color.bg : 'bg-violet-600'}`}>
@@ -218,7 +218,7 @@ export default function EventDetailModal({
               {event?.title ?? 'Event'}
             </h2>
           </div>
-          <button type="button" onClick={onClose} aria-label="Close" className="text-gray-400 hover:text-gray-600 shrink-0">
+          <button type="button" onClick={onClose} aria-label="Close" className="ea-icon-btn inline-flex items-center justify-center text-gray-400 hover:text-gray-600 shrink-0">
             <X className="w-5 h-5" />
           </button>
         </div>

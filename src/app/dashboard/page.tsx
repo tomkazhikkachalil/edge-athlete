@@ -203,7 +203,7 @@ export default function AdminDashboardPage() {
                 <button
                   key={f}
                   onClick={() => setStatusFilter(f)}
-                  className={`px-3 py-1.5 min-h-[36px] rounded-md text-xs font-medium capitalize transition-colors ${
+                  className={`px-3 py-1.5 min-h-[40px] rounded-md text-xs font-medium capitalize transition-colors ${
                     statusFilter === f ? 'bg-violet-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                   }`}
                 >
@@ -251,26 +251,26 @@ export default function AdminDashboardPage() {
                     {report.reported && (
                       <button
                         onClick={() => router.push(`/athlete/${report.reported!.id}`)}
-                        className="px-3 py-1.5 min-h-[36px] text-xs font-medium bg-gray-100 text-gray-700 rounded-md hover:bg-gray-200"
+                        className="px-3 py-1.5 min-h-[40px] text-xs font-medium bg-gray-100 text-gray-700 rounded-md hover:bg-gray-200"
                       >
                         View profile
                       </button>
                     )}
                     {report.status !== 'reviewing' && (
                       <button onClick={() => updateReport(report.id, 'reviewing')}
-                        className="px-3 py-1.5 min-h-[36px] text-xs font-medium bg-yellow-50 text-yellow-700 rounded-md hover:bg-yellow-100">
+                        className="px-3 py-1.5 min-h-[40px] text-xs font-medium bg-yellow-50 text-yellow-700 rounded-md hover:bg-yellow-100">
                         Mark reviewing
                       </button>
                     )}
                     {report.status !== 'resolved' && (
                       <button onClick={() => updateReport(report.id, 'resolved')}
-                        className="px-3 py-1.5 min-h-[36px] text-xs font-medium bg-green-50 text-green-700 rounded-md hover:bg-green-100">
+                        className="px-3 py-1.5 min-h-[40px] text-xs font-medium bg-green-50 text-green-700 rounded-md hover:bg-green-100">
                         Resolve
                       </button>
                     )}
                     {report.status !== 'dismissed' && (
                       <button onClick={() => updateReport(report.id, 'dismissed')}
-                        className="px-3 py-1.5 min-h-[36px] text-xs font-medium bg-gray-50 text-gray-600 rounded-md hover:bg-gray-100">
+                        className="px-3 py-1.5 min-h-[40px] text-xs font-medium bg-gray-50 text-gray-600 rounded-md hover:bg-gray-100">
                         Dismiss
                       </button>
                     )}

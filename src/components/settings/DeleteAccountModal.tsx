@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/lib/auth';
 import { useToast } from '@/components/Toast';
+import { useBodyScrollLock } from '@/hooks/useBodyScrollLock';
 
 interface DeleteAccountModalProps {
   isOpen: boolean;
@@ -20,6 +21,8 @@ export default function DeleteAccountModal({ isOpen, onClose }: DeleteAccountMod
   const [needsReauth, setNeedsReauth] = useState(false);
   const [reauthPassword, setReauthPassword] = useState('');
   const [isReauthenticating, setIsReauthenticating] = useState(false);
+
+  useBodyScrollLock(isOpen);
 
   // Reset the form the moment the modal opens. Done during render rather than
   // in an effect: the fields are visibly stale for one paint otherwise, and it
@@ -183,7 +186,8 @@ export default function DeleteAccountModal({ isOpen, onClose }: DeleteAccountMod
           <button
             onClick={handleClose}
             disabled={isDeleting}
-            className="text-gray-400 hover:text-gray-600 transition-colors disabled:opacity-50"
+            aria-label="Close"
+            className="ea-icon-btn inline-flex items-center justify-center text-gray-400 hover:text-gray-600 disabled:opacity-50"
           >
             <i className="fas fa-times text-xl"></i>
           </button>

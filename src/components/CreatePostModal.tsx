@@ -1219,7 +1219,7 @@ export default function CreatePostModal({
                         }}
                       />
                       {/* Dropdown */}
-                      <div className="absolute z-20 w-full mt-1 bg-white border border-gray-300 rounded-lg shadow-lg max-h-60 overflow-y-auto">
+                      <div className="absolute z-20 w-full mt-1 bg-white border border-gray-300 rounded-lg shadow-lg max-h-60 overflow-y-auto overscroll-contain">
                         {availableCourses.map((course) => (
                           <button
                             key={course.id}
@@ -1390,7 +1390,7 @@ export default function CreatePostModal({
                       <span className="text-xs text-gray-600">Optional - adds Par & Yardage to scorecard</span>
                     </div>
 
-                    <div className="max-h-64 overflow-y-auto">
+                    <div className="max-h-64 overflow-y-auto overscroll-contain">
                       <div className="grid grid-cols-1 gap-3">
                         {Array.from({ length: sharedRoundDetails.holesPlayed }, (_, i) => {
                           const holeNum = i + 1;

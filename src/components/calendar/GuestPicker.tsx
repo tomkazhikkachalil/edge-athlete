@@ -128,7 +128,7 @@ export default function GuestPicker({
       {error && <p className="text-xs text-red-600 mt-1" role="alert">{error}</p>}
 
       {open && (results.length > 0 || emailCandidate) && (
-        <div className="absolute left-0 right-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg z-30 max-h-56 overflow-y-auto">
+        <div className="absolute left-0 right-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg z-30 max-h-56 overflow-y-auto overscroll-contain">
           {results.map(p => {
             const name = formatDisplayName(p.first_name, null, p.last_name, p.full_name);
             return (
