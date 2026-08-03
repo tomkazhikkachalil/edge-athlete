@@ -120,7 +120,7 @@ export default function CalendarPage({
             type="button"
             onClick={() => navigate(-1)}
             aria-label="Previous"
-            className="w-9 h-9 rounded-lg border border-gray-300 text-gray-600 hover:border-violet-400 hover:text-violet-600 flex items-center justify-center"
+            className="w-10 h-10 rounded-lg border border-gray-300 text-gray-600 hover:border-violet-400 hover:text-violet-600 flex items-center justify-center"
           >
             <i className="fas fa-chevron-left text-sm"></i>
           </button>
@@ -128,14 +128,14 @@ export default function CalendarPage({
             type="button"
             onClick={() => navigate(1)}
             aria-label="Next"
-            className="w-9 h-9 rounded-lg border border-gray-300 text-gray-600 hover:border-violet-400 hover:text-violet-600 flex items-center justify-center"
+            className="w-10 h-10 rounded-lg border border-gray-300 text-gray-600 hover:border-violet-400 hover:text-violet-600 flex items-center justify-center"
           >
             <i className="fas fa-chevron-right text-sm"></i>
           </button>
           <button
             type="button"
             onClick={() => setFocusDate(new Date())}
-            className="px-3 h-9 rounded-lg border border-gray-300 text-sm text-gray-700 hover:border-violet-400 hover:text-violet-600"
+            className="px-3 h-10 rounded-lg border border-gray-300 text-sm text-gray-700 hover:border-violet-400 hover:text-violet-600"
           >
             Today
           </button>
@@ -150,7 +150,7 @@ export default function CalendarPage({
           type="date"
           aria-label="Jump to date"
           onChange={e => e.target.value && handleDateJump(e.target.value)}
-          className="h-9 px-2 border border-gray-300 rounded-lg text-sm text-gray-700 hidden sm:block"
+          className="h-10 px-2 border border-gray-300 rounded-lg text-sm text-gray-700 hidden sm:block"
         />
 
         <div className="flex rounded-lg border border-gray-300 overflow-hidden">
@@ -160,7 +160,7 @@ export default function CalendarPage({
               type="button"
               onClick={() => setView(v.key)}
               aria-label={v.label}
-              className={`h-9 px-2.5 sm:px-3 text-sm font-medium transition ${
+              className={`h-10 px-2.5 sm:px-3 text-sm font-medium transition ${
                 view === v.key ? 'bg-violet-600 text-white' : 'bg-white text-gray-600 hover:text-violet-600'
               }`}
             >
@@ -175,7 +175,7 @@ export default function CalendarPage({
           onClick={() => setSyncOpen(true)}
           aria-label="Sync to another calendar"
           title="Sync to another calendar"
-          className="h-9 px-2.5 rounded-lg border border-gray-300 text-gray-600 hover:border-violet-400 hover:text-violet-600 text-sm"
+          className="h-10 px-2.5 rounded-lg border border-gray-300 text-gray-600 hover:border-violet-400 hover:text-violet-600 text-sm"
         >
           <i className="fas fa-rotate"></i>
         </button>
@@ -183,7 +183,7 @@ export default function CalendarPage({
         <button
           type="button"
           onClick={() => { setEditingEvent(null); setFormOpen(true); }}
-          className="h-9 px-3 sm:px-4 bg-violet-600 text-white rounded-lg text-sm font-medium hover:bg-violet-700 transition flex items-center gap-1.5"
+          className="h-10 px-3 sm:px-4 bg-violet-600 text-white rounded-lg text-sm font-medium hover:bg-violet-700 transition flex items-center gap-1.5"
         >
           <i className="fas fa-plus text-xs"></i>
           <span className="hidden sm:inline">New event</span>

@@ -1,6 +1,7 @@
 'use client';
 
 import GifPicker from '@/components/GifPicker';
+import { useBodyScrollLock } from '@/hooks/useBodyScrollLock';
 
 interface Props {
   onGifSelect: (gifUrl: string) => void;
@@ -9,6 +10,10 @@ interface Props {
 }
 
 export default function GifPickerModal({ onGifSelect, onClose, title = 'Choose a GIF' }: Props) {
+  // Mounted only while open; without the lock the page scrolls under the
+  // sheet on touch (iOS scroll chaining).
+  useBodyScrollLock(true);
+
   return (
     <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center">
       <div className="absolute inset-0 bg-black/40" onClick={onClose} />
@@ -20,7 +25,8 @@ export default function GifPickerModal({ onGifSelect, onClose, title = 'Choose a
           <h3 className="text-sm font-bold text-gray-900">{title}</h3>
           <button
             onClick={onClose}
-            className="p-1 text-gray-400 hover:text-gray-600"
+            aria-label="Close"
+            className="ea-icon-btn inline-flex items-center justify-center text-gray-400 hover:text-gray-600"
           >
             <i className="fas fa-times"></i>
           </button>

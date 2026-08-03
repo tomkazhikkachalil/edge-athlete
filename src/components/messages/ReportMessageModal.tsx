@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { useBodyScrollLock } from '@/hooks/useBodyScrollLock';
 
 const REASONS: { value: string; label: string; hint: string }[] = [
   { value: 'spam', label: 'Spam', hint: 'Unwanted promotional content or repeated messages' },
@@ -32,14 +33,9 @@ export default function ReportMessageModal({
   const [error, setError] = useState('');
   const [done, setDone] = useState(false);
 
-  // Lock body scroll while open
-  useEffect(() => {
-    const original = document.body.style.overflow;
-    document.body.style.overflow = 'hidden';
-    return () => {
-      document.body.style.overflow = original;
-    };
-  }, []);
+  // Refcounted lock, not a hand-rolled body.style.overflow — the manual
+  // version fights other overlays' cleanup when modals stack.
+  useBodyScrollLock(true);
 
   useEffect(() => {
     function handleKey(e: KeyboardEvent) {

@@ -222,25 +222,28 @@ export default function SharedRoundQuickView({
           // declined is the only non-playing state; every other participant
           // is in the round (auto-confirm) and just may not have scores yet.
           let statusBadge = null;
+          // Badge text hides below sm (icon + title attribute carry the
+          // meaning): "Awaiting scores" as shrink-0 text left ~6px for the
+          // player's name in a 320px feed card.
           if (participant.status === 'declined') {
             statusBadge = (
-              <span className="flex items-center gap-1 text-xs font-semibold text-gray-500">
+              <span className="flex items-center gap-1 text-xs font-semibold text-gray-500" title="Declined">
                 <i className="fas fa-times-circle"></i>
-                Declined
+                <span className="hidden sm:inline">Declined</span>
               </span>
             );
           } else if (scores.total_score !== null) {
             statusBadge = (
-              <span className="flex items-center gap-1 text-xs font-semibold text-gray-500">
+              <span className="flex items-center gap-1 text-xs font-semibold text-gray-500" title="Confirmed">
                 <i className="fas fa-check-circle"></i>
-                Confirmed
+                <span className="hidden sm:inline">Confirmed</span>
               </span>
             );
           } else {
             statusBadge = (
-              <span className="flex items-center gap-1 text-xs font-semibold text-violet-600">
+              <span className="flex items-center gap-1 text-xs font-semibold text-violet-600" title="Awaiting scores">
                 <i className="fas fa-clock"></i>
-                Awaiting scores
+                <span className="hidden sm:inline">Awaiting scores</span>
               </span>
             );
           }
@@ -342,7 +345,7 @@ export default function SharedRoundQuickView({
       <div className="flex items-center justify-between gap-2 flex-wrap">
         <button
           onClick={onExpand}
-          className="flex-1 flex items-center justify-center gap-2 bg-violet-600 hover:bg-violet-700 text-white font-bold py-2 px-4 rounded-lg transition-colors text-sm"
+          className="flex-1 flex items-center justify-center gap-2 bg-violet-600 hover:bg-violet-700 text-white font-bold py-2 px-4 rounded-lg transition-colors text-sm min-h-[44px]"
         >
           <i className="fas fa-table"></i>
           View Full Scorecard

@@ -91,7 +91,10 @@ export default function StatLineForm({ sportKey, value, onChange }: StatLineForm
         </div>
         <div>
           <label className="block text-xs font-semibold text-gray-700 mb-1">Result</label>
-          <div className="flex gap-1">
+          {/* flex-wrap + min widths: at the sm grid boundary this row's
+              column is ~173px, which squeezed three W/L/T buttons to ~32px
+              beside the fixed score input — now the input wraps instead. */}
+          <div className="flex flex-wrap gap-1">
             {(['W', 'L', 'T'] as const).map(r => (
               <button
                 key={r}
@@ -100,7 +103,7 @@ export default function StatLineForm({ sportKey, value, onChange }: StatLineForm
                 onClick={() =>
                   onChange({ ...value, result: value.result === r ? undefined : r })
                 }
-                className={`flex-1 py-2 rounded-lg text-sm font-bold border transition-colors ${
+                className={`flex-1 min-w-[2.5rem] py-2 min-h-[40px] rounded-lg text-sm font-bold border transition-colors ${
                   value.result === r
                     ? r === 'W'
                       ? 'bg-green-600 text-white border-green-600'
@@ -120,7 +123,7 @@ export default function StatLineForm({ sportKey, value, onChange }: StatLineForm
               aria-label="Score"
               value={value.result_score ?? ''}
               onChange={e => onChange({ ...value, result_score: e.target.value })}
-              className="w-16 px-2 py-2 border border-gray-300 rounded-lg text-sm text-center text-gray-900 placeholder-gray-400 focus:ring-2 focus:ring-violet-500 focus:border-violet-500"
+              className="w-16 shrink-0 px-2 py-2 min-h-[40px] border border-gray-300 rounded-lg text-sm text-center text-gray-900 placeholder-gray-400 focus:ring-2 focus:ring-violet-500 focus:border-violet-500"
             />
           </div>
         </div>
@@ -130,9 +133,12 @@ export default function StatLineForm({ sportKey, value, onChange }: StatLineForm
       <div className="grid grid-cols-3 sm:grid-cols-6 gap-3">
         {schema.fields.map(field => (
           <div key={field.key}>
+            {/* min-h: labels like "Shots on Goal" wrap to different line
+                counts across the grid, so without a shared label height the
+                input row zig-zags. */}
             <label
               htmlFor={`${sportKey}-${field.key}`}
-              className="block text-xs font-semibold text-gray-700 mb-1"
+              className="block text-xs font-semibold text-gray-700 mb-1 min-h-[2rem]"
               title={field.label}
             >
               {field.label}

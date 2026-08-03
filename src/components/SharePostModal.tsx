@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback, useMemo } from 'react';
 import Image from 'next/image';
 import { formatDisplayName, getInitials } from '@/lib/formatters';
 import type { Conversation, ConversationParticipant } from '@/types/messages';
+import { useBodyScrollLock } from '@/hooks/useBodyScrollLock';
 
 interface SharePostModalProps {
   isOpen: boolean;
@@ -27,6 +28,8 @@ export default function SharePostModal({
   const [sent, setSent] = useState<Set<string>>(new Set()); // conversation IDs already sent
   const [search, setSearch] = useState('');
   const [copySuccess, setCopySuccess] = useState(false);
+
+  useBodyScrollLock(isOpen);
 
   const fetchConversations = useCallback(async () => {
     try {
@@ -171,7 +174,7 @@ export default function SharePostModal({
   return (
     <div className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center z-50" onClick={onClose}>
       <div
-        className="bg-white rounded-t-2xl sm:rounded-2xl w-full sm:max-w-md max-h-[85vh] flex flex-col overflow-hidden modal-sheet-bottom"
+        className="bg-white rounded-t-2xl sm:rounded-2xl w-full sm:max-w-md max-h-modal flex flex-col overflow-hidden modal-sheet-bottom"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}

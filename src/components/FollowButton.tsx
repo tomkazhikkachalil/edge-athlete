@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '@/lib/auth';
 import { useToast } from './Toast';
+import { useBodyScrollLock } from '@/hooks/useBodyScrollLock';
 
 interface FollowButtonProps {
   profileId: string;
@@ -32,6 +33,9 @@ export default function FollowButton({
   const [showMessageModal, setShowMessageModal] = useState(false);
   const [followMessage, setFollowMessage] = useState('');
   const { showError, showSuccess } = useToast();
+
+  // The fan-request modal is an overlay; lock the page behind it.
+  useBodyScrollLock(showMessageModal);
 
   // Size classes. min-heights lift the touch targets toward the 40-44px
   // floor without changing horizontal density in the rows that use them.

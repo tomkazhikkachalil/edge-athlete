@@ -471,13 +471,16 @@ export default function ScoreEntryModal({
                   </span>
                 )
               )}
-              <h2 className="text-xl font-black truncate">
+              {/* min-w-0 on the h2 itself — the row's min-w-0 doesn't reach
+                  it, so "Entering for <long name>" refused to shrink and
+                  squeezed the LIVE badge. */}
+              <h2 className="text-xl font-black truncate min-w-0">
                 {activePlayer
                   ? activePlayer.isSelf ? 'Your Scores' : `Entering for ${activePlayer.name}`
                   : playerName ? `Entering for ${playerName}` : 'Enter Scores'}
               </h2>
               {isLive && (
-                <span className="inline-flex items-center gap-1 bg-white/20 px-2 py-0.5 rounded-full text-xs font-bold">
+                <span className="inline-flex shrink-0 items-center gap-1 bg-white/20 px-2 py-0.5 rounded-full text-xs font-bold">
                   <span className="w-1.5 h-1.5 rounded-full bg-red-400 animate-pulse"></span>
                   LIVE
                 </span>
@@ -552,7 +555,7 @@ export default function ScoreEntryModal({
         </div>
 
         {/* Content */}
-        <div className="flex-1 overflow-y-auto p-6">
+        <div className="flex-1 min-h-0 overflow-y-auto p-4 sm:p-6">
           {/* Current Hole Display */}
           <div className="text-center mb-6">
             <div className="text-5xl font-black text-green-900 mb-2">
@@ -616,7 +619,7 @@ export default function ScoreEntryModal({
             <div className="flex gap-2">
               <button
                 onClick={() => updateCurrentHole('fairway_hit', !currentHoleData.fairway_hit)}
-                className={`flex-1 py-2 px-3 rounded-lg text-sm font-semibold transition-colors ${
+                className={`flex-1 py-2 px-3 min-h-[40px] rounded-lg text-sm font-semibold transition-colors ${
                   currentHoleData.fairway_hit
                     ? 'bg-green-600 text-white'
                     : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
@@ -627,7 +630,7 @@ export default function ScoreEntryModal({
               </button>
               <button
                 onClick={() => updateCurrentHole('green_in_regulation', !currentHoleData.green_in_regulation)}
-                className={`flex-1 py-2 px-3 rounded-lg text-sm font-semibold transition-colors ${
+                className={`flex-1 py-2 px-3 min-h-[40px] rounded-lg text-sm font-semibold transition-colors ${
                   currentHoleData.green_in_regulation
                     ? 'bg-green-600 text-white'
                     : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
@@ -652,7 +655,7 @@ export default function ScoreEntryModal({
               <button
                 onClick={() => mediaInputRef.current?.click()}
                 disabled={uploadingMedia}
-                className="w-full py-2.5 px-3 rounded-lg text-sm font-semibold bg-gray-100 text-gray-700 hover:bg-gray-200 transition-colors disabled:opacity-60"
+                className="w-full py-2.5 px-3 min-h-[40px] rounded-lg text-sm font-semibold bg-gray-100 text-gray-700 hover:bg-gray-200 transition-colors disabled:opacity-60"
               >
                 {uploadingMedia ? (
                   <><i className="fas fa-spinner fa-spin mr-2"></i>Uploading…</>

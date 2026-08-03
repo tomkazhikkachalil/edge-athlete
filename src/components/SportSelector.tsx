@@ -48,13 +48,13 @@ export default function SportSelector({ selectedSport, onSelectSport, onClose }:
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[60] p-4">
-      <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full max-h-[80vh] flex flex-col">
+      <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full max-h-modal flex flex-col">
         {/* Header */}
         <div className="flex items-center justify-between p-4 border-b border-gray-200">
           <h3 className="text-lg font-bold text-gray-900">Select Sport</h3>
           <button
             onClick={onClose}
-            className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+            className="ea-icon-btn inline-flex items-center justify-center"
             aria-label="Close"
           >
             <i className="fas fa-times text-gray-500"></i>
@@ -113,7 +113,7 @@ export default function SportSelector({ selectedSport, onSelectSport, onClose }:
                 <i className="fas fa-star mr-1"></i>
                 Favorites
               </h4>
-              <div className="grid grid-cols-2 gap-2">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                 {favoriteSports.map(sportKey => {
                   const sport = allSports.find(s => s.sport_key === sportKey);
                   if (!sport) return null;
@@ -137,7 +137,7 @@ export default function SportSelector({ selectedSport, onSelectSport, onClose }:
                 <i className="fas fa-clock mr-1"></i>
                 Recently Used
               </h4>
-              <div className="grid grid-cols-2 gap-2">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                 {recentSports.map(sportKey => {
                   const sport = allSports.find(s => s.sport_key === sportKey);
                   if (!sport) return null;
@@ -165,7 +165,7 @@ export default function SportSelector({ selectedSport, onSelectSport, onClose }:
                 <p>No sports found</p>
               </div>
             ) : (
-              <div className="grid grid-cols-2 gap-2">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                 {filteredSports.map(sport => (
                   <SportCard
                     key={sport.sport_key}

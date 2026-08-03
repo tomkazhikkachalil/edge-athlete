@@ -67,7 +67,7 @@ export default function TimeGridView({
           </div>
 
           {/* Scrollable hour grid */}
-          <div ref={scrollRef} className="overflow-y-auto" style={{ maxHeight: '60vh' }}>
+          <div ref={scrollRef} className="overflow-y-auto" style={{ maxHeight: '60dvh' }}>
             <div className="flex" style={{ height: 24 * HOUR_PX }}>
               {/* Hour gutter */}
               <div className="w-14 shrink-0 relative">
