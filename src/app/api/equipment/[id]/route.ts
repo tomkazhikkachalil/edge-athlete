@@ -1,8 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAuth, getSupabaseAdmin } from '@/lib/auth-server';
 import { isValidDateString, isNotFutureDate } from '@/lib/date-validation';
+import { validateEquipmentPatch } from '@/lib/equipment-validation';
 
-// PATCH - Update equipment (status and/or user-editable dates)
+// PATCH - Update equipment. Status and the user-editable dates were always
+// PATCHable; the item fields (brand/model/category/sport/specs/image/notes)
+// became editable with the Edit Equipment feature. Every field is optional
+// and `undefined` means "unchanged", so the three sparse-body callers
+// (status toggle, retire-on-replace, dates-only) are unaffected.
 export async function PATCH(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -13,10 +18,11 @@ export async function PATCH(
     const { id } = await params;
     const body = await request.json();
 
-    // Verify ownership (status/dates fetched for date validation below)
+    // Verify ownership (status/dates for date validation, sport_key for the
+    // sport-change rule below)
     const { data: equipment, error: fetchError } = await supabase
       .from('athlete_equipment')
-      .select('profile_id, status, acquired_on, retired_on')
+      .select('profile_id, status, acquired_on, retired_on, sport_key')
       .eq('id', id)
       .single();
 
@@ -28,8 +34,14 @@ export async function PATCH(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 403 });
     }
 
-    // Update equipment
-    const updates: Record<string, unknown> = {};
+    // Editable item fields (brand/model/category/sport/specs/image/notes) —
+    // validated in a pure, node-tested helper.
+    const fieldResult = validateEquipmentPatch(body, { sport_key: equipment.sport_key });
+    if (!fieldResult.ok) {
+      return NextResponse.json({ error: fieldResult.error }, { status: 400 });
+    }
+    const updates: Record<string, unknown> = fieldResult.updates;
+
     if (body.status) {
       updates.status = body.status;
       if (body.status === 'retired') {

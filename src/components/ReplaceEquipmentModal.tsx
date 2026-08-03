@@ -1,10 +1,10 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { X, RefreshCw, Archive } from 'lucide-react';
 import Image from 'next/image';
 import AddEquipmentModal from './AddEquipmentModal';
-import { type EquipmentItem } from './EquipmentSection';
+import type { EquipmentItem } from '@/types/equipment';
 import { getCategoryConfig } from '@/lib/equipment-config';
 import { useBodyScrollLock } from '@/hooks/useBodyScrollLock';
 import { useToast } from './Toast';
@@ -74,6 +74,22 @@ export default function ReplaceEquipmentModal({
   // Lock background scroll while open (iOS scroll-chaining behind overlays)
   useBodyScrollLock(isOpen);
 
+  // Escape closes the CONFIRM step only — in the add step the inner
+  // AddEquipmentModal owns Escape (with its dirty guard).
+  useEffect(() => {
+    if (!isOpen || step !== 'confirm') return;
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        e.stopPropagation();
+        setStep('confirm');
+        setError(null);
+        onClose();
+      }
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [isOpen, step, onClose]);
+
   if (!isOpen) return null;
 
   return (
@@ -95,9 +111,10 @@ export default function ReplaceEquipmentModal({
               </div>
               <button
                 onClick={handleClose}
+                aria-label="Close"
                 className="p-2 hover:bg-gray-100 rounded-full transition-colors"
               >
-                <X className="w-5 h-5 text-gray-500" />
+                <X className="w-6 h-6 text-gray-500" />
               </button>
             </div>
 
@@ -130,7 +147,7 @@ export default function ReplaceEquipmentModal({
                     {/* Details */}
                     <div className="flex-1 min-w-0">
                       <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
-                        {oldEquipment.category.replace('_', ' ')}
+                        {oldEquipment.category.replace(/_/g, ' ')}
                       </p>
                       <h3 className="text-lg font-bold text-gray-900 mt-1">
                         {oldEquipment.brand}
@@ -146,7 +163,7 @@ export default function ReplaceEquipmentModal({
                             .map(([key, value]) => (
                               <div key={key} className="flex items-center gap-2 text-xs">
                                 <span className="text-gray-500 capitalize">
-                                  {key.replace('_', ' ')}:
+                                  {key.replace(/_/g, ' ')}:
                                 </span>
                                 <span className="text-gray-900 font-semibold">{value}</span>
                               </div>
@@ -184,8 +201,10 @@ export default function ReplaceEquipmentModal({
               )}
             </div>
 
-            {/* Footer */}
-            <div className="sticky bottom-0 bg-gray-50 border-t border-gray-200 px-6 py-4 flex items-center justify-end gap-3 rounded-b-2xl">
+            {/* Footer. Stacked below sm (ConfirmModal pattern): "Cancel" +
+                "Continue to Add New" is ~260px of buttons in a 240px row at
+                320px — it overflowed or wrapped mid-phrase. */}
+            <div className="sticky bottom-0 bg-gray-50 border-t border-gray-200 px-4 sm:px-6 py-4 flex flex-col-reverse sm:flex-row sm:items-center sm:justify-end gap-3 rounded-b-2xl">
               <button
                 onClick={handleClose}
                 className="px-6 py-2.5 border border-gray-300 rounded-lg font-semibold text-gray-700 hover:bg-gray-100 transition-colors"
@@ -196,7 +215,7 @@ export default function ReplaceEquipmentModal({
               <button
                 onClick={handleConfirmReplace}
                 disabled={retiring}
-                className="px-6 py-2.5 bg-violet-600 text-white rounded-lg font-semibold hover:bg-violet-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                className="px-6 py-2.5 bg-violet-600 text-white rounded-lg font-semibold hover:bg-violet-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
               >
                 <RefreshCw className="w-4 h-4" />
                 Continue to Add New
