@@ -225,7 +225,7 @@ export default function OnboardingPage() {
                   </button>
                 )}
               />
-              <div className="flex items-center justify-center gap-4">
+              <div className="flex flex-wrap items-center justify-center gap-x-4 gap-y-1">
                 {profile?.avatar_url && (
                   <button
                     onClick={() => setStep(3)}

@@ -6,6 +6,7 @@ import LazyImage from '@/components/LazyImage';
 import { formatDisplayName, getInitials } from '@/lib/formatters';
 import { useMessages } from '@/lib/messages';
 import { useDirtyClose } from '@/hooks/useDirtyClose';
+import { useBodyScrollLock } from '@/hooks/useBodyScrollLock';
 import ConfirmModal from '@/components/ConfirmModal';
 import { COPY } from '@/lib/copy';
 import {
@@ -32,6 +33,9 @@ interface Props {
 type Tab = 'dm' | 'group';
 
 export default function NewConversationModal({ onClose }: Props) {
+  // Mounted only while open — lock the page behind the overlay.
+  useBodyScrollLock(true);
+
   const router = useRouter();
   const { fetchConversations } = useMessages();
   const [tab, setTab] = useState<Tab>('dm');

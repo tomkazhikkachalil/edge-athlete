@@ -4,6 +4,7 @@ import { useState, useEffect, useMemo } from 'react';
 import LazyImage from '@/components/LazyImage';
 import { formatDisplayName, getInitials } from '@/lib/formatters';
 import type { Conversation, ConversationParticipant } from '@/types/messages';
+import { useBodyScrollLock } from '@/hooks/useBodyScrollLock';
 
 interface Props {
   conversation: Conversation;
@@ -14,6 +15,9 @@ interface Props {
 }
 
 export default function GroupSettingsModal({ conversation, currentUserId, onClose, onUpdated, onLeft }: Props) {
+  // Mounted only while open — lock the page behind the overlay.
+  useBodyScrollLock(true);
+
   const [name, setName] = useState(conversation.name || '');
   const [saving, setSaving] = useState(false);
   const [savingName, setSavingName] = useState(false);

@@ -24,9 +24,15 @@ interface TrendLineChartProps {
 // surface ring, recessive grid, crosshair + tooltip, and an optional dashed
 // NEUTRAL rolling-average overlay (derived reference line — deliberately
 // gray, dashed and direct-labeled so identity never rests on color alone).
+// Labels are rendered in HTML, not SVG <text>: the SVG scales uniformly to
+// the container (0.43× at a 320px phone), which rendered 10px axis text at an
+// unreadable ~4.3px. HTML spans keep true pixel size at every width — their
+// positions map through the same percent transform the tooltip already uses.
+// With no SVG text to make room for, the pads shrink and the plot itself gets
+// ~100px wider on phones.
 const CHART_W = 600;
 const CHART_H = 220;
-const PAD = { top: 14, right: 76, bottom: 26, left: 40 };
+const PAD = { top: 14, right: 12, bottom: 8, left: 8 };
 
 export default function TrendLineChart({
   title,
@@ -145,7 +151,8 @@ export default function TrendLineChart({
         )}
       </div>
 
-      <div className="relative">
+      {/* pb-4 makes room for the HTML date labels below the plot */}
+      <div className="relative pb-4">
         <svg
           ref={svgRef}
           viewBox={`0 0 ${CHART_W} ${CHART_H}`}
@@ -158,56 +165,39 @@ export default function TrendLineChart({
           onTouchMove={e => handleMove(e.touches[0].clientX)}
           onTouchEnd={() => setHoverIndex(null)}
         >
-          {/* Recessive grid + y labels */}
+          {/* Recessive grid (labels are HTML overlays below).
+              vectorEffect keeps every stroke at its true pixel width instead
+              of hairline-izing at the phone's 0.43× scale. */}
           {ticks.map((t, i) => (
-            <g key={i}>
-              <line x1={PAD.left} x2={CHART_W - PAD.right} y1={t.y} y2={t.y} stroke="#f3f4f6" strokeWidth="1" />
-              <text x={PAD.left - 6} y={t.y + 3} textAnchor="end" fontSize="10" fill="#9ca3af">
-                {Math.abs(maxY - minY) > 20 ? Math.round(t.v) : Math.round(t.v * 10) / 10}
-              </text>
-            </g>
+            <line
+              key={i}
+              x1={PAD.left}
+              x2={CHART_W - PAD.right}
+              y1={t.y}
+              y2={t.y}
+              stroke="#f3f4f6"
+              strokeWidth="1"
+              vectorEffect="non-scaling-stroke"
+            />
           ))}
-
-          {/* x labels: first and last date */}
-          <text x={xs[0]} y={CHART_H - 8} textAnchor="start" fontSize="10" fill="#9ca3af">
-            {points[0].label}
-          </text>
-          <text x={xs[xs.length - 1]} y={CHART_H - 8} textAnchor="end" fontSize="10" fill="#9ca3af">
-            {points[points.length - 1].label}
-          </text>
 
           {/* Rolling average overlay (neutral, dashed, direct-labeled) */}
           {avgSegments.map((d, i) => (
-            <path key={i} d={d} fill="none" stroke="#6b7280" strokeWidth="2" strokeDasharray="4 3" />
+            <path key={i} d={d} fill="none" stroke="#6b7280" strokeWidth="2" strokeDasharray="4 3" vectorEffect="non-scaling-stroke" />
           ))}
-          {hasAvg && lastAvgY !== null && (
-            <text
-              x={xs[lastAvgIndex] + 6}
-              y={lastAvgY + 3}
-              fontSize="10"
-              fill="#6b7280"
-              fontWeight="600"
-            >
-              avg {fmt(
-                points
-                  .slice(Math.max(0, lastAvgIndex - (rollingWindow - 1)), lastAvgIndex + 1)
-                  .reduce((s, p) => s + p.value, 0) /
-                  Math.min(rollingWindow, lastAvgIndex + 1)
-              )}
-            </text>
-          )}
 
           {/* Series line + markers (surface ring) */}
-          <path d={linePath} fill="none" stroke={color} strokeWidth="2" strokeLinejoin="round" />
+          <path d={linePath} fill="none" stroke={color} strokeWidth="2" strokeLinejoin="round" vectorEffect="non-scaling-stroke" />
           {xs.map((x, i) => (
             <circle
               key={i}
               cx={x}
               cy={ys[i]}
-              r={hoverIndex === i ? 5 : 3.5}
+              r={hoverIndex === i ? 6 : 4.5}
               fill={color}
               stroke="#ffffff"
               strokeWidth="2"
+              vectorEffect="non-scaling-stroke"
             />
           ))}
 
@@ -220,9 +210,42 @@ export default function TrendLineChart({
               y2={CHART_H - PAD.bottom}
               stroke="#d1d5db"
               strokeWidth="1"
+              vectorEffect="non-scaling-stroke"
             />
           )}
         </svg>
+
+        {/* Axis labels — HTML so they stay readable at every width. Y ticks
+            sit just above their gridline inside the plot (standard mobile
+            chart treatment); the percent mapping matches the tooltip's. */}
+        {ticks.map((t, i) => (
+          <span
+            key={i}
+            className="absolute left-1 text-[10px] leading-none text-gray-400 pointer-events-none"
+            style={{ top: `${(t.y / CHART_H) * 100}%`, transform: 'translateY(-120%)' }}
+          >
+            {Math.abs(maxY - minY) > 20 ? Math.round(t.v) : Math.round(t.v * 10) / 10}
+          </span>
+        ))}
+        {hasAvg && lastAvgY !== null && (
+          <span
+            className="absolute right-1 rounded bg-white/85 px-1 text-[10px] font-semibold leading-tight text-gray-500 pointer-events-none"
+            style={{ top: `${(lastAvgY / CHART_H) * 100}%`, transform: 'translateY(-50%)' }}
+          >
+            avg {fmt(
+              points
+                .slice(Math.max(0, lastAvgIndex - (rollingWindow - 1)), lastAvgIndex + 1)
+                .reduce((s, p) => s + p.value, 0) /
+                Math.min(rollingWindow, lastAvgIndex + 1)
+            )}
+          </span>
+        )}
+        <span className="absolute bottom-0 left-0 text-[10px] leading-none text-gray-400 pointer-events-none">
+          {points[0].label}
+        </span>
+        <span className="absolute bottom-0 right-0 text-[10px] leading-none text-gray-400 pointer-events-none">
+          {points[points.length - 1].label}
+        </span>
 
         {/* Tooltip (HTML, positioned over the SVG) */}
         {hover && hoverIndex !== null && (

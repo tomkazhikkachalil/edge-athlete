@@ -82,7 +82,7 @@ export default function SettingsPage() {
         <div className="mb-6">
           <button
             onClick={() => router.back()}
-            className="text-gray-600 hover:text-gray-900 mb-4 flex items-center gap-2 transition-colors"
+            className="text-gray-600 hover:text-gray-900 mb-4 inline-flex items-center gap-2 transition-colors min-h-[44px] -my-2"
           >
             <i className="fas fa-arrow-left"></i>
             <span>Back</span>
@@ -94,13 +94,16 @@ export default function SettingsPage() {
         {/* Tabs Navigation */}
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
           <div className="border-b border-gray-200">
-            <nav className="flex overflow-x-auto" aria-label="Settings tabs">
+            {/* scrollbar-hide + shrink-0: five tabs are ~560px of intrinsic
+                width — they scroll cleanly instead of showing a scrollbar
+                band with no affordance. */}
+            <nav className="flex overflow-x-auto scrollbar-hide" aria-label="Settings tabs">
               {tabs.map((tab) => (
                 <button
                   key={tab.id}
                   onClick={() => !tab.disabled && setActiveTab(tab.id)}
                   disabled={tab.disabled}
-                  className={`flex items-center gap-2 px-6 py-4 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
+                  className={`flex shrink-0 items-center gap-2 px-4 sm:px-6 py-4 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
                     activeTab === tab.id
                       ? 'border-violet-600 text-violet-600'
                       : tab.disabled
@@ -121,7 +124,7 @@ export default function SettingsPage() {
           </div>
 
           {/* Tab Content */}
-          <div className="p-6">
+          <div className="p-4 sm:p-6">
             {activeTab === 'account' && (
               <AccountSettings onEditProfile={() => setIsEditProfileModalOpen(true)} />
             )}
