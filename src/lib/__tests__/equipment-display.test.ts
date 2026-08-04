@@ -1,5 +1,8 @@
 import { describe, it, expect } from 'vitest';
-import { groupRetiredByYear, countByStatus, EARLIER_BUCKET } from '../equipment-display';
+import {
+  groupRetiredByYear, countByStatus, EARLIER_BUCKET,
+  filterEquipmentBySearch, sortEquipment,
+} from '../equipment-display';
 
 type Item = {
   id: string;
@@ -67,5 +70,61 @@ describe('countByStatus', () => {
 
   it('handles empty input', () => {
     expect(countByStatus([])).toEqual({ active: 0, retired: 0 });
+  });
+});
+
+describe('filterEquipmentBySearch', () => {
+  const label = () => 'Driver';
+  const items = [
+    { id: 'a', status: 'active' as const, brand: 'Titleist', model: 'TSR3', category: 'driver', notes: 'gamer' },
+    { id: 'b', status: 'active' as const, brand: 'PING', model: 'G430', category: 'driver', notes: null },
+  ];
+
+  it('passes everything through on an empty/whitespace query', () => {
+    expect(filterEquipmentBySearch(items, '', label)).toHaveLength(2);
+    expect(filterEquipmentBySearch(items, '   ', label)).toHaveLength(2);
+  });
+
+  it('matches brand, model, notes and the humanized category label, case-insensitively', () => {
+    expect(filterEquipmentBySearch(items, 'titleist', label).map(i => i.id)).toEqual(['a']);
+    expect(filterEquipmentBySearch(items, 'g43', label).map(i => i.id)).toEqual(['b']);
+    expect(filterEquipmentBySearch(items, 'GAMER', label).map(i => i.id)).toEqual(['a']);
+    expect(filterEquipmentBySearch(items, 'Driver', label)).toHaveLength(2);
+  });
+
+  it('returns [] when nothing matches', () => {
+    expect(filterEquipmentBySearch(items, 'zebra', label)).toEqual([]);
+  });
+});
+
+describe('sortEquipment', () => {
+  const items = [
+    { id: 'old', status: 'active' as const, brand: 'PING', model: 'G430', category: 'driver', acquired_on: '2022-01-01' },
+    { id: 'new', status: 'active' as const, brand: 'Titleist', model: 'TSR3', category: 'driver', acquired_on: '2025-06-01' },
+    { id: 'undated', status: 'active' as const, brand: 'Cobra', model: 'Aerojet', category: 'driver' },
+  ];
+
+  it('newest: acquisition date desc, undated last', () => {
+    expect(sortEquipment(items, 'newest', () => 0).map(i => i.id)).toEqual(['new', 'old', 'undated']);
+  });
+
+  it('newest: falls back to added_at when acquired_on missing', () => {
+    const withAudit = [
+      { id: 'x', status: 'active' as const, brand: 'A', model: 'M', category: 'c', added_at: '2024-01-01' },
+      { id: 'y', status: 'active' as const, brand: 'B', model: 'M', category: 'c', acquired_on: '2023-01-01' },
+    ];
+    expect(sortEquipment(withAudit, 'newest', () => 0).map(i => i.id)).toEqual(['x', 'y']);
+  });
+
+  it('brand: A-Z by brand, then model', () => {
+    expect(sortEquipment(items, 'brand', () => 0).map(i => i.brand)).toEqual(['Cobra', 'PING', 'Titleist']);
+  });
+
+  it('category: caller-supplied rank, brand as tiebreak, and does not mutate input', () => {
+    const rank = (i: { category: string }) => (i.category === 'driver' ? 0 : 1);
+    const mixed = [...items, { id: 'p', status: 'active' as const, brand: 'Odyssey', model: 'White Hot', category: 'putter' }];
+    const before = mixed.map(i => i.id);
+    expect(sortEquipment(mixed, 'category', rank).map(i => i.id)).toEqual(['undated', 'old', 'new', 'p']);
+    expect(mixed.map(i => i.id)).toEqual(before);
   });
 });

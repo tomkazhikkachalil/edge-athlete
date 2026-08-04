@@ -48,7 +48,12 @@ test('direct message: A sends via API, B reads and replies in UI, A sees reply',
     await ctxB.close();
   }
 
-  // A sees B's reply in the UI.
+  // A sees B's reply in the UI. B's send renders optimistically, so B's
+  // assertion can pass before the server write lands — poll with reloads
+  // instead of trusting a single page load.
   await page.goto(`/messages?c=${conversationId}`);
-  await expect(page.getByText(`qa-reply-${stamp}`).first()).toBeVisible({ timeout: 15_000 });
+  await expect(async () => {
+    await page.reload();
+    await expect(page.getByText(`qa-reply-${stamp}`).first()).toBeVisible({ timeout: 3_000 });
+  }).toPass({ timeout: 30_000 });
 });

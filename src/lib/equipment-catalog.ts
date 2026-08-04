@@ -27,6 +27,7 @@
 import {
   getSeedBrands,
   getSeedModels,
+  BRAND_SEEDS,
   type EquipmentBrand,
   type EquipmentModel,
 } from '@/lib/equipment-brands';
@@ -214,4 +215,32 @@ export function getModelSuggestions(
   }
 
   return rankSuggestions(seeds, opts.community ?? [], params.query ?? '', opts.limit);
+}
+
+/**
+ * Resolve a free-text brand string to a seed brand's domain (for logos).
+ * Brand is free text everywhere by design, so this must tolerate case,
+ * punctuation and typed shorthands — but never guess: exact canonical match
+ * first, then an exact alias hit, then the same two passes across every
+ * sport's seeds (a golf brand typed on a General item still resolves).
+ * Undefined when nothing matches exactly — a wrong logo is worse than none.
+ */
+export function resolveBrandDomain(sportKey: string, brand: string): string | undefined {
+  const key = canonicalKey(brand);
+  if (!key) return undefined;
+
+  const findIn = (brands: EquipmentBrand[]): string | undefined => {
+    const byName = brands.find(b => canonicalKey(b.name) === key);
+    if (byName) return byName.domain;
+    const byAlias = brands.find(b => (b.aliases ?? []).some(a => canonicalKey(a) === key));
+    return byAlias?.domain;
+  };
+
+  const sportHit = findIn(getSeedBrands(sportKey));
+  if (sportHit) return sportHit;
+  for (const brands of Object.values(BRAND_SEEDS)) {
+    const hit = findIn(brands);
+    if (hit) return hit;
+  }
+  return undefined;
 }
