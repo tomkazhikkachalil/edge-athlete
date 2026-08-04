@@ -74,9 +74,22 @@ test('equipment: seed → In the Bag → search → retire → History', async (
     .getByRole('button', { name: 'Retire', exact: true })
     .click();
   await expect(page.getByText(model)).toBeHidden({ timeout: 15_000 });
-  await page.getByRole('button', { name: /history/i }).first().click();
+  await page.locator('section').getByRole('button', { name: /history/i }).first().click();
   await expect(page.getByText(model).first()).toBeVisible();
   await expect(
     page.getByRole('heading', { name: String(new Date().getFullYear()), exact: true })
   ).toBeVisible();
+
+  // Seasons time machine: the current-year chip shows the retired item again
+  // (in-bag-during-year includes retired-since gear); "Now" hides it back
+  // into History. Collapse History first — otherwise the item stays visible
+  // in Now view through the still-open History section.
+  await page.locator('section').getByRole('button', { name: /history/i }).first().click();
+  await expect(page.getByText(model)).toBeHidden();
+  const year = String(new Date().getFullYear());
+  await page.getByRole('tab', { name: year, exact: true }).click();
+  await expect(page.getByText(`In the Bag — ${year}`).first()).toBeVisible();
+  await expect(page.getByText(model).first()).toBeVisible();
+  await page.getByRole('tab', { name: 'Now', exact: true }).click();
+  await expect(page.getByText(model)).toBeHidden({ timeout: 10_000 });
 });

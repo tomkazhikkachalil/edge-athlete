@@ -3,6 +3,7 @@ import {
   groupRetiredByYear, countByStatus, EARLIER_BUCKET,
   filterEquipmentBySearch, sortEquipment,
   buildEquipmentNav, equipmentAnchorId,
+  filterEquipmentForView,
 } from '../equipment-display';
 
 type Item = {
@@ -186,5 +187,47 @@ describe('buildEquipmentNav', () => {
     ], opts);
     expect(nav.map(s => s.sportKey)).toEqual(['golf', 'soccer']);
     expect(nav.map(s => s.label)).toEqual(['GOLF', 'SOCCER']);
+  });
+});
+
+describe('filterEquipmentForView', () => {
+  const item = (over: Partial<Item> & { id: string }): Item => ({
+    status: 'active', ...over,
+  });
+
+  it("'now' is the identity", () => {
+    const items = [item({ id: 'a' }), item({ id: 'b', status: 'retired' })];
+    expect(filterEquipmentForView(items, 'now')).toBe(items);
+  });
+
+  it('a year keeps gear in the bag that season, INCLUDING retired-since', () => {
+    const items = [
+      item({ id: 'kept', acquired_on: '2023-02-01' }),                                   // still active
+      item({ id: 'retired-later', status: 'retired', acquired_on: '2022-01-01', retired_on: '2025-01-01' }),
+      item({ id: 'after', acquired_on: '2025-03-01' }),                                  // acquired after
+      item({ id: 'before', status: 'retired', acquired_on: '2020-01-01', retired_on: '2022-06-01' }),
+    ];
+    expect(filterEquipmentForView(items, 2024).map(i => i.id)).toEqual(['kept', 'retired-later']);
+  });
+
+  it('boundary years count (acquired or retired mid-year)', () => {
+    const items = [
+      item({ id: 'x', status: 'retired', acquired_on: '2024-06-15', retired_on: '2024-08-01' }),
+    ];
+    expect(filterEquipmentForView(items, 2024).map(i => i.id)).toEqual(['x']);
+    expect(filterEquipmentForView(items, 2023)).toEqual([]);
+    expect(filterEquipmentForView(items, 2025)).toEqual([]);
+  });
+
+  it('undated retired items match NO year (History "Earlier" is their only home)', () => {
+    const items = [item({ id: 'ghost', status: 'retired' })];
+    expect(filterEquipmentForView(items, 2024)).toEqual([]);
+    expect(filterEquipmentForView(items, 2026)).toEqual([]);
+  });
+
+  it('falls back to audit timestamps when user dates are missing', () => {
+    const items = [item({ id: 'legacy', status: 'retired', added_at: '2023-05-01', retired_at: '2024-02-01' })];
+    expect(filterEquipmentForView(items, 2023).map(i => i.id)).toEqual(['legacy']);
+    expect(filterEquipmentForView(items, 2024).map(i => i.id)).toEqual(['legacy']);
   });
 });

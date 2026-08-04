@@ -1,5 +1,34 @@
 # Development Log
 
+## August 4, 2026 — Equipment seasons: the time machine strip
+
+Second store-browse pass: "you can also go back in time and see all the
+legacy equipment, what they used season over season." A chip strip —
+**Now · 2026 · 2025 · …** — above the shelves (explore-page chip-rail
+pattern, ARIA tablist, edge-bleed below sm). Picking a year re-renders every
+sport section as **that season's bag**: everything in-bag-during-Y via the
+existing `isInBagDuringYear`, INCLUDING gear retired since — which is
+exactly what "what did they play with in 2024" means. Headings carry the
+year ("In the Bag — 2024"), the rail gets a Seasons entry, and each card's
+ownership span ("2021 – 2023") does the storytelling.
+
+**It replaces the year multi-select filter** (single-select timeline was
+the chosen model; multi-year cross-sections are gone deliberately).
+**History is NOT replaced** — a season view renders no History section (the
+view is itself historical), but the 'now' view keeps it, because its
+"Earlier" bucket is the only home for undated retired gear. That constraint
+became a real bug during testing: `isInBagDuringYear` reads a null
+retirement date as "still in the bag", so an undated RETIRED item would
+have ghosted into every season. `filterEquipmentForView` (pure, 5 new node
+tests) excludes date-less retired rows from year views explicitly.
+
+**Two spec traps recorded:** the rail ALSO has a "History" button, and
+`getByRole(...).first()` resolves to it (DOM order: rail before sections) —
+its handler always opens, never toggles, so a "collapse" click silently
+re-opened; scope History toggles to `section`. And a season assertion after
+opening History must collapse it first — the retired card is legitimately
+visible in Now view through the open History.
+
 ## August 4, 2026 — Equipment goes store-browse: category rail + shelves on desktop
 
 Tom's verdict on the morning's redesign: nice, but stacked boxes don't FLOW

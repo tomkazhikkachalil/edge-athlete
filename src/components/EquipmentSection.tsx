@@ -10,12 +10,14 @@ import MultiSelectDropdown from './filters/MultiSelectDropdown';
 import EquipmentCard from './equipment/EquipmentCard';
 import EquipmentShelf, { ShelfCard, SHELF_VISIBLE_COUNT } from './equipment/EquipmentShelf';
 import EquipmentRail from './equipment/EquipmentRail';
-import { deriveInBagYearOptions, isInBagDuringYear, matchesSportFilter } from '@/lib/profile-filters';
+import SeasonSwitcher from './equipment/SeasonSwitcher';
+import { deriveInBagYearOptions, matchesSportFilter } from '@/lib/profile-filters';
 import { getCategoryConfig, getEquipmentCategories, getSetupLabel } from '@/lib/equipment-config';
 import {
   groupRetiredByYear, countByStatus, EARLIER_BUCKET,
   filterEquipmentBySearch, sortEquipment, type EquipmentSort,
   buildEquipmentNav, equipmentAnchorId,
+  filterEquipmentForView, type EquipmentView,
 } from '@/lib/equipment-display';
 import { SPORT_NAMES } from '@/lib/config/sports-config';
 import { useToast } from './Toast';
@@ -40,7 +42,9 @@ export default function EquipmentSection({ profileId, isOwnProfile = false }: Eq
   const { showSuccess, showError } = useToast();
   const [equipment, setEquipment] = useState<EquipmentItem[]>([]);
   const [selectedSports, setSelectedSports] = useState<string[]>([]);
-  const [selectedYears, setSelectedYears] = useState<number[]>([]);
+  // 'now' or a season year — the store's time machine (replaces the old
+  // year multi-select filter; single-select is the chosen model).
+  const [view, setView] = useState<EquipmentView>('now');
   const [search, setSearch] = useState('');
   const [sort, setSort] = useState<EquipmentSort>('newest');
   // Sports whose History group is expanded (collapsed by default).
@@ -164,21 +168,14 @@ export default function EquipmentSection({ profileId, isOwnProfile = false }: Eq
     [equipment]
   );
 
-  // Filter equipment: sport AND "in bag during any selected year". There is
-  // deliberately NO status filter anymore — active vs retired is structural
-  // (Current Setup vs History per sport), so a select for it was redundant
-  // and one more control in a row that wrapped to four lines at 320px.
-  const filteredEquipment = equipment.filter(item => {
-    if (!matchesSportFilter(item.sport_key || 'general', selectedSports)) return false;
-    if (selectedYears.length === 0) return true;
-    return selectedYears.some(year =>
-      isInBagDuringYear(
-        item.acquired_on ?? item.added_at,
-        item.retired_on ?? item.retired_at ?? null,
-        year
-      )
-    );
-  });
+  // Filter pipeline: sport → season view → search. There is deliberately NO
+  // status filter — active vs retired is structural (Current Setup vs
+  // History in the 'now' view; a season year shows everything in the bag
+  // that year, retired-since included).
+  const filteredEquipment = filterEquipmentForView(
+    equipment.filter(item => matchesSportFilter(item.sport_key || 'general', selectedSports)),
+    view
+  );
 
   // Text search applies after the structured filters; a sport section with
   // zero matches disappears entirely.
@@ -215,9 +212,16 @@ export default function EquipmentSection({ profileId, isOwnProfile = false }: Eq
     });
   };
 
+  const inSeasonView = view !== 'now';
+
   // Rail model — built from the same filtered set the sections render, so
-  // rail counts always agree with what's on screen.
-  const railNav = buildEquipmentNav(searchedEquipment, {
+  // rail counts always agree with what's on screen. In a season view every
+  // in-bag item counts (status is irrelevant to "what did they play with"),
+  // so items are presented to the nav as active and History entries vanish.
+  const navItems = inSeasonView
+    ? searchedEquipment.map(i => ({ ...i, status: 'active' as const }))
+    : searchedEquipment;
+  const railNav = buildEquipmentNav(navItems, {
     sortedSportKeys: sportGroups,
     sportLabel,
     categoryLabel: (sport, category) => getCategoryConfig(sport, category).label,
@@ -243,10 +247,10 @@ export default function EquipmentSection({ profileId, isOwnProfile = false }: Eq
       <FilterBar
         resultCount={loading ? undefined : searchedEquipment.length}
         resultNoun="item"
-        activeCount={selectedSports.length + selectedYears.length}
+        activeCount={selectedSports.length + (view !== 'now' ? 1 : 0)}
         onClearAll={() => {
           setSelectedSports([]);
-          setSelectedYears([]);
+          setView('now');
         }}
         actions={
           isOwnProfile ? (
@@ -271,17 +275,15 @@ export default function EquipmentSection({ profileId, isOwnProfile = false }: Eq
           disabled={sportOptions.length < 2}
         />
 
-        {/* Year filter — "in bag during year" */}
-        <MultiSelectDropdown<number>
-          allLabel="All Years"
-          itemNounPlural="years"
-          searchPlaceholder="Search years..."
-          options={yearOptions.map(year => ({ value: year, label: String(year) }))}
-          selected={selectedYears}
-          onChange={setSelectedYears}
-          disabled={yearOptions.length === 0}
-        />
       </FilterBar>
+
+      {/* Season strip — the store's time machine. Single-select: a year
+          shows that season's in-bag setup (retired-since included); "Now"
+          is the live Current Setup / History split. Replaces the old year
+          multi-select filter. */}
+      {!loading && yearOptions.length > 0 && (
+        <SeasonSwitcher years={yearOptions} view={view} onChange={setView} />
+      )}
 
       {/* Search + sort — their own row so the pair always fits one line at
           320px (the input yields via flex-1 min-w-0, the select stays fixed) */}
@@ -323,9 +325,11 @@ export default function EquipmentSection({ profileId, isOwnProfile = false }: Eq
           <h3 className="text-xl font-bold text-gray-900 mb-2">
             {search.trim()
               ? 'No gear matches'
-              : selectedYears.length > 0 || selectedSports.length > 0
-                ? 'No equipment matches your filters'
-                : 'No equipment added'}
+              : view !== 'now'
+                ? `Nothing in the bag in ${view}`
+                : selectedSports.length > 0
+                  ? 'No equipment matches your filters'
+                  : 'No equipment added'}
           </h3>
           <p className="text-gray-600 mb-6 max-w-md mx-auto">
             {isOwnProfile
@@ -349,12 +353,28 @@ export default function EquipmentSection({ profileId, isOwnProfile = false }: Eq
           mobile flow. */}
       {!loading && searchedEquipment.length > 0 && (
         <div className="lg:flex lg:gap-6 lg:items-start">
-          <EquipmentRail nav={railNav} onJump={jumpTo} onJumpHistory={jumpToHistory} />
+          <EquipmentRail
+            nav={railNav}
+            onJump={jumpTo}
+            onJumpHistory={jumpToHistory}
+            topSlot={
+              yearOptions.length > 0 ? (
+                <button
+                  onClick={() => jumpTo('equip-seasons')}
+                  className="ea-interactive w-full text-left rounded-lg px-2 py-1.5 text-xs font-bold uppercase tracking-wide text-violet-600"
+                >
+                  🕒 Seasons
+                </button>
+              ) : undefined
+            }
+          />
           <div className="min-w-0 flex-1 space-y-12">
           {sportGroups.map(sport => {
             const items = bySport[sport];
             const counts = countByStatus(items);
-            const activeItems = items.filter(i => i.status === 'active');
+            // Season view shows EVERYTHING in that year's bag; 'now' splits
+            // active (setup) from retired (History).
+            const activeItems = inSeasonView ? items : items.filter(i => i.status === 'active');
             const activeByCategory = activeItems.reduce((acc, item) => {
               (acc[item.category] ??= []).push(item);
               return acc;
@@ -382,13 +402,16 @@ export default function EquipmentSection({ profileId, isOwnProfile = false }: Eq
                 <div className="flex items-baseline gap-3 mb-4 pb-2 border-b border-gray-200">
                   <h3 className="text-xl font-bold text-gray-900">{sportLabel(sport)}</h3>
                   <span className="text-sm text-gray-500">
-                    {counts.active} active{counts.retired > 0 ? ` · ${counts.retired} retired` : ''}
+                    {inSeasonView
+                      ? `${items.length} in the bag in ${view}`
+                      : `${counts.active} active${counts.retired > 0 ? ` · ${counts.retired} retired` : ''}`}
                   </span>
                 </div>
 
-                {/* Current setup — sport-appropriate label (golf: "In the Bag") */}
+                {/* Current setup — sport-appropriate label (golf: "In the Bag");
+                    in a season view the label carries the year. */}
                 <h4 className="text-sm font-semibold uppercase tracking-wide text-gray-500 mb-4">
-                  {getSetupLabel(sport)}
+                  {inSeasonView ? `${getSetupLabel(sport)} — ${view}` : getSetupLabel(sport)}
                 </h4>
                 {activeItems.length === 0 ? (
                   <p className="text-sm text-gray-500 mb-2">
@@ -439,8 +462,10 @@ export default function EquipmentSection({ profileId, isOwnProfile = false }: Eq
                   </div>
                 )}
 
-                {/* History — retired gear, year over year, collapsed by default */}
-                {historyBuckets.length > 0 && (
+                {/* History — retired gear, year over year, collapsed by
+                    default. 'now' view only: a season view IS historical,
+                    and the "Earlier" bucket for undated gear lives here. */}
+                {!inSeasonView && historyBuckets.length > 0 && (
                   <div className="mt-8 scroll-mt-24" id={`${equipmentAnchorId(sport)}-history`}>
                     <button
                       onClick={() => setOpenHistories(prev => ({ ...prev, [sport]: !historyOpen }))}
