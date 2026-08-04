@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getSupabaseAdmin, getServerClient } from '@/lib/auth-server';
+import { getSupabaseAdmin, getServerAuth } from '@/lib/auth-server';
 import { notifyScoresPosted, groupPostActionUrl } from '@/lib/golf/group-notifications';
 import { advanceRoundStatus } from '@/lib/golf/round-status';
 import { mirrorCompletedRound, mirrorRoundMedia } from '@/lib/golf/round-mirror';
@@ -16,12 +16,10 @@ export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const supabase = getServerClient(request);
-
   // Verify authentication
-  const { data: { user }, error: authError } = await supabase.auth.getUser();
+  const { supabase, user, error: authError } = await getServerAuth(request);
   if (authError || !user) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
   }
 
   try {
@@ -262,12 +260,10 @@ export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const supabase = getServerClient(request);
-
   // Verify authentication
-  const { data: { user }, error: authError } = await supabase.auth.getUser();
+  const { supabase, user, error: authError } = await getServerAuth(request);
   if (authError || !user) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
   }
 
   try {
@@ -334,12 +330,10 @@ export async function PATCH(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const supabase = getServerClient(request);
-
   // Verify authentication
-  const { data: { user }, error: authError } = await supabase.auth.getUser();
+  const { supabase, user, error: authError } = await getServerAuth(request);
   if (authError || !user) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
   }
 
   try {

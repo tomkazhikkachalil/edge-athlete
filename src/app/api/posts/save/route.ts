@@ -1,15 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getServerClient } from '@/lib/auth-server';
+import { getServerAuth } from '@/lib/auth-server';
 
 export async function POST(request: NextRequest) {
   try {
-    const supabase = getServerClient(request);
-
     // Get authenticated user
-    const { data: { user }, error: authError } = await supabase.auth.getUser();
+    const { supabase, user, error: authError } = await getServerAuth(request);
 
     if (authError || !user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+      return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
     }
 
     const body = await request.json();

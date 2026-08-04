@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getServerClient, getSupabaseAdmin } from '@/lib/auth-server';
+import { getServerAuth, getSupabaseAdmin } from '@/lib/auth-server';
 import { GROUP_SCORECARD_SELECT, transformGroupPostToScorecard } from '@/lib/golf/scorecard-transform';
 import { canViewSharedRound } from '@/lib/golf/round-access';
 
@@ -34,11 +34,9 @@ export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const supabase = getServerClient(request);
-
-  const { data: { user }, error: authError } = await supabase.auth.getUser();
+  const { user, error: authError } = await getServerAuth(request);
   if (authError || !user) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
   }
 
   try {

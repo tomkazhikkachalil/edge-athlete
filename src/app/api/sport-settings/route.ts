@@ -10,7 +10,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { getServerClient } from '@/lib/auth-server';
+import { getServerAuth } from '@/lib/auth-server';
 
 /**
  * GET /api/sport-settings?sport=golf
@@ -19,13 +19,11 @@ import { getServerClient } from '@/lib/auth-server';
  */
 export async function GET(request: NextRequest) {
   try {
-    const supabase = getServerClient(request);
-
     // Verify authentication
-    const { data: { user }, error: authError } = await supabase.auth.getUser();
+    const { supabase, user, error: authError } = await getServerAuth(request);
     if (authError || !user) {
       return NextResponse.json(
-        { error: 'Unauthorized' },
+        { error: 'Authentication required' },
         { status: 401 }
       );
     }
@@ -93,13 +91,11 @@ export async function GET(request: NextRequest) {
  */
 export async function PUT(request: NextRequest) {
   try {
-    const supabase = getServerClient(request);
-
     // Verify authentication
-    const { data: { user }, error: authError } = await supabase.auth.getUser();
+    const { supabase, user, error: authError } = await getServerAuth(request);
     if (authError || !user) {
       return NextResponse.json(
-        { error: 'Unauthorized' },
+        { error: 'Authentication required' },
         { status: 401 }
       );
     }
@@ -169,13 +165,11 @@ export async function PUT(request: NextRequest) {
  */
 export async function DELETE(request: NextRequest) {
   try {
-    const supabase = getServerClient(request);
-
     // Verify authentication
-    const { data: { user }, error: authError } = await supabase.auth.getUser();
+    const { supabase, user, error: authError } = await getServerAuth(request);
     if (authError || !user) {
       return NextResponse.json(
-        { error: 'Unauthorized' },
+        { error: 'Authentication required' },
         { status: 401 }
       );
     }

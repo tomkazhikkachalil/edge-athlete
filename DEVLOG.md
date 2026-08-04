@@ -1,5 +1,52 @@
 # Development Log
 
+## August 4, 2026 — Auth residual: the cookie parser stops truncating, and the last 21 hand-rolled gates
+
+Sprint 6's July 23 consolidation (`6f652cd`) collapsed ~19 hand-rolled cookie
+parsers into one shared client — but deliberately left each route's own
+`getUser()` + 401 block, kept the known-buggy parser, and never updated the
+doc that teaches the pattern. This pass finishes the job. Three changes:
+
+**1. `cookie.split('=')` is fixed — as a pure, tested function.** The shared
+parser truncated any cookie value containing `=` (base64 padding is the
+canonical case) and `decodeURIComponent` threw on a malformed `%` sequence,
+turning one bad cookie from any source into a 500 on every request. Logged
+since July, unfixed; consolidation made it a one-line whole-app fix. The
+parsing now lives in `src/lib/cookies.ts` (`parseCookieHeader`) — no
+`next/server` import, so it's testable under the node-only vitest setup —
+with 9 cases pinning first-`=` splitting, decode fallback, and the Supabase
+cookie shape. Every API route now parses cookies through it.
+
+**2. The 21 residual hand-rolled gates landed on `getServerAuth`, not
+`requireAuth`.** The choice matters: these routes wrap their handlers in
+catch-alls, and `requireAuth` **throws** a Response — which a catch-all
+swallows into a 500 unless every route adds the rethrow boilerplate (the
+exact bug this log already records once). `getServerAuth` is non-throwing
+and returns the RLS client the routes need anyway, so the diff is strictly
+smaller: 17 routes / 21 call sites (comments ×3, sport-settings ×3, the
+group-posts and golf families, handles/update, posts/save, check-session),
+plus the two optional-auth routes (`privacy/check`, profile media) which now
+read the nullable user through the same helper. The 401 body is standardized
+on `'Authentication required'` (requireAuth's body; grep confirmed no client
+matches the old `'Unauthorized'` string). Left alone on purpose:
+`account/delete` and `auth/reauthenticate` (password re-verify, destructive),
+and the cookie-WRITER routes (`auth/activate`, `auth/username-login`), which
+must stay on `await cookies()` + inline client because the shared helper's
+`set`/`remove` are deliberate no-ops. `requireProfileRole` still has zero
+call sites — kept, it's the feature-flagged guardian gate, not dead weight.
+
+**3. `src/app/api/CLAUDE.md` stops teaching the deleted anti-pattern.** Since
+July 23 the doc has instructed every new route to define a local
+`createSupabaseClient` with the buggy inline cookie-split — the exact
+boilerplate the consolidation removed. Rewritten around the real helpers
+(`getServerAuth` standard gate, throwing variants with the MUST-rethrow rule,
+optional auth, lazy `getSupabaseAdmin()` inside handlers), with the
+deliberate exceptions listed so nobody "fixes" them.
+
+Roadmap risk #10 / Sprint 6 item 2 annotated as shipped. Verify green; lint
+stays at exactly the 45 cap (the 4 auth-only handlers that no longer need the
+client had their `supabase` destructure dropped to keep it there).
+
 ## August 4, 2026 — Migration-dir hygiene: the last unnumbered strays, and docs that stop lying
 
 Sprint 6 (July 23) unified the three migration dirs and fenced `archive/` with

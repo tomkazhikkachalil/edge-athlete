@@ -1,6 +1,7 @@
 import { NextRequest } from 'next/server';
 import { createServerClient } from '@supabase/ssr';
 import { createClient, type User } from '@supabase/supabase-js';
+import { parseCookieHeader } from './cookies';
 import { FEATURE_FLAGS } from './features';
 import {
   resolveProfileAction,
@@ -37,13 +38,7 @@ export function getServerClient(request: NextRequest) {
         get(name: string) {
           const cookieHeader = request.headers.get('cookie');
           if (!cookieHeader) return undefined;
-          const cookies = Object.fromEntries(
-            cookieHeader.split('; ').map(cookie => {
-              const [key, value] = cookie.split('=');
-              return [key, decodeURIComponent(value)];
-            })
-          );
-          return cookies[name];
+          return parseCookieHeader(cookieHeader)[name];
         },
         set() {
           // Not used in API routes - cookies are set client-side

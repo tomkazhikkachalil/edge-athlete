@@ -1,14 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getServerClient } from '@/lib/auth-server';
+import { getServerAuth } from '@/lib/auth-server';
 
 export async function GET(request: NextRequest) {
   try {
-    const supabase = getServerClient(request);
-
-    const { data: { user }, error } = await supabase.auth.getUser();
+    const { supabase, user, error } = await getServerAuth(request);
 
     if (error || !user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+      return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
     }
 
     // Get the session to check its age
