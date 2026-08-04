@@ -1,5 +1,42 @@
 # Development Log
 
+## August 4, 2026 — The empty scorecard: a manual course now gets its grid on mount
+
+The bug the smoke suite surfaced yesterday, fixed the day after — with the
+suite's workaround deleted so the spec now pins the repaired path.
+
+**Root cause was a regression from the react-hooks cleanup (`01c40d4`).** The
+grid-building `useEffect([holeCount, startingHole])` in GolfScorecardForm ran
+on mount; its render-phase-sync replacement fires only when the count/start
+CHANGE, and `syncedHoles` seeds from the current values — so at the default
+(18, front) it never fired at all. A manually-typed course rendered a
+scorecard with zero score cells and Create Post stayed disabled. Worse,
+quick-entry LOOKED fine (ScoreEntryModal builds its own grid from
+`holesPlayed`) while silently wrecking data twice over: every par fell back
+to 4 (`holePar` guard on empty hole data), and its `onSave` merge maps over
+the form's `holesData` — `[].map` — so every entered score was discarded
+without an error.
+
+**Fix:** the grid loop is now `buildDefaultHoles(holeCount, startingHole)` in
+`src/lib/golf/scoring.ts` (the file that owns par knowledge), and `holesData`
+seeds from it in a lazy `useState` initializer — no effect, no new
+`set-state-in-effect` warning, and the change-guard stays exactly as it was,
+now owning transitions only (it's deliberately false on mount because the
+initializer used the same defaults). Six node tests pin the helper: standard
+pars sum 72, 9-front = holes 1-9, 9-back = holes 10-18 (sum 36), par-3s get
+`fairway: 'na'`, yardages exactly 150/380/520 (deterministic on purpose).
+
+Also removed: the **dead `initialData` prop** — declared, passed by
+CreatePostModal, and never destructured. Wiring it would only help a
+same-modal-session remount and would create a second initialization path;
+two init paths is precisely how this bug was born.
+
+**Still deferred, recorded here on purpose:** `selectCourse` after typing
+scores and toggling 18→9→18 both wholesale-replace `holesData`, destroying
+entered scores. Real but lower-stakes (both require entering scores FIRST,
+then changing the course setup); candidates for a merge-instead-of-replace
+pass.
+
 ## August 4, 2026 — A smoke suite that gates CI (Playwright, disposable prod users)
 
 The last Sprint 6 item with real substance: `npm run test:e2e` now drives the

@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback, useMemo } from 'react';
 import ScoreEntryModal from '@/components/golf/ScoreEntryModal';
 import { useToast } from '@/components/Toast';
 import type { GolfCourse } from '@/lib/golf-courses-db';
+import { buildDefaultHoles } from '@/lib/golf/scoring';
 import type { HoleData } from '@/types/golf';
 
 // Tee box options
@@ -36,7 +37,6 @@ interface GolfRoundData {
 
 interface GolfScorecardFormProps {
   onDataChange: (data: GolfRoundData) => void;
-  initialData?: Partial<GolfRoundData>;
 }
 
 export default function GolfScorecardForm({ onDataChange }: GolfScorecardFormProps) {
@@ -61,8 +61,11 @@ export default function GolfScorecardForm({ onDataChange }: GolfScorecardFormPro
   const [playingPartners, setPlayingPartners] = useState('');
   const [handicap, setHandicap] = useState<number | undefined>();
 
-  // Scorecard data
-  const [holesData, setHolesData] = useState<HoleData[]>([]);
+  // Scorecard data — seeded with the default grid ON MOUNT. Starting empty
+  // and relying on the change-guarded sync below left a manually-typed course
+  // at the default 18 holes with zero score cells (and quick-entry silently
+  // discarding scores into the empty array).
+  const [holesData, setHolesData] = useState<HoleData[]>(() => buildDefaultHoles(18, 'front'));
   const [activeTab, setActiveTab] = useState<'front' | 'back'>('front');
   const [showQuickEntry, setShowQuickEntry] = useState(false);
 
@@ -95,42 +98,14 @@ export default function GolfScorecardForm({ onDataChange }: GolfScorecardFormPro
     if (holeCount === 9) setActiveTab(start);
   };
 
-  // Initialize holes data
-  // The hole grid is a function of holeCount/startingHole. Building it during
-  // render means the previous grid never paints after the count changes.
+  // Rebuild the hole grid when holeCount/startingHole CHANGE (render-phase
+  // sync, not an effect — the previous grid never paints for a frame). The
+  // guard is deliberately false on mount: the useState initializer above
+  // already built the same default grid, so this owns transitions only.
   const [syncedHoles, setSyncedHoles] = useState({ holeCount, startingHole });
   if (syncedHoles.holeCount !== holeCount || syncedHoles.startingHole !== startingHole) {
     setSyncedHoles({ holeCount, startingHole });
-    const numHoles = holeCount;
-    const startHole = holeCount === 9 && startingHole === 'back' ? 10 : 1;
-
-    const newHolesData: HoleData[] = [];
-
-    // Standard par distribution for 18 holes
-    const standardPars18 = [4, 4, 3, 5, 4, 4, 4, 3, 5, 4, 4, 3, 5, 4, 4, 4, 3, 5];
-
-    for (let i = 0; i < numHoles; i++) {
-      const holeNumber = startHole + i;
-
-      // Use standard par distribution if within 18, otherwise default to par 4
-      let par: number;
-      if (holeNumber <= 18) {
-        par = standardPars18[holeNumber - 1] || 4;
-      } else {
-        // For holes beyond 18 (unusual but supported), cycle through pattern
-        par = standardPars18[i % 18] || 4;
-      }
-      const baseYardage = par === 3 ? 150 : par === 4 ? 380 : 520;
-
-      newHolesData.push({
-        hole: holeNumber,
-        par: par,
-        yardage: baseYardage,
-        fairway: par === 3 ? 'na' : undefined
-      });
-    }
-
-    setHolesData(newHolesData);
+    setHolesData(buildDefaultHoles(holeCount, startingHole));
   }
 
 

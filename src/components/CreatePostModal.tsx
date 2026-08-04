@@ -1679,7 +1679,6 @@ export default function CreatePostModal({
               <div className="bg-green-50 rounded-lg border border-green-200 p-4">
                 <GolfScorecardForm
                   onDataChange={(data) => setGolfRoundData(data)}
-                  initialData={golfRoundData || undefined}
                 />
               </div>
 

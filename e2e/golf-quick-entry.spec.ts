@@ -26,15 +26,20 @@ test('log an individual golf round and see the scorecard post', async ({ page })
   const courseInput = page.getByPlaceholder(/search famous courses/i);
   await courseInput.fill(courseName);
 
-  // The hole grid initializes only when the hole COUNT changes (default 18
-  // starts with an empty grid for a manual course) — picking "9 holes" is
-  // the deterministic way to materialize editable score cells, and the click
-  // also blurs the course-suggestions dropdown shut.
-  await page.getByRole('button', { name: '9 holes', exact: true }).click();
+  // Blur the course-suggestions dropdown shut by clicking the already-selected
+  // "18 holes" button — a state no-op (the change guard doesn't fire), in the
+  // same control row this spec has always proven clickable. Do NOT use Escape
+  // (closes the whole composer). Staying on the DEFAULT 18 holes is the point:
+  // the hole grid must exist on mount for a manually-typed course — the exact
+  // regression this spec now pins (holesData used to start empty until the
+  // hole count changed).
+  await page.getByRole('button', { name: '18 holes', exact: true }).click();
   await page.waitForTimeout(300);
 
-  // Hole scores: the score row and putts row share placeholder "−"; DOM is
-  // row-major so the first nine matches are the SCORE cells.
+  // Hole scores: the front-9 tab renders 9 hole columns; the score row and
+  // putts row share placeholder "−" and the DOM is row-major, so the first
+  // nine matches are the SCORE cells (OUT/IN totals are computed cells, not
+  // inputs). Filling the front nine alone satisfies the submit gate.
   const holeInputs = page.getByPlaceholder('−');
   await expect(holeInputs.first()).toBeVisible({ timeout: 10_000 });
   for (let i = 0; i < 9; i++) {
