@@ -127,3 +127,77 @@ export function sortEquipment<T extends EquipmentSearchable>(
   }
   return sorted;
 }
+
+// ── Rail navigation model ─────────────────────────────────────────────────────
+
+export interface EquipmentNavCategory {
+  value: string;
+  label: string;
+  /** Active-item count (the rail navigates the current setup). */
+  count: number;
+  anchorId: string;
+}
+
+export interface EquipmentNavSport {
+  sportKey: string;
+  label: string;
+  anchorId: string;
+  categories: EquipmentNavCategory[];
+  retiredCount: number;
+  historyAnchorId: string;
+}
+
+/**
+ * Stable DOM anchor for a sport (or sport+category) section. Shared by the
+ * rail and the section renderer so the two can never drift.
+ */
+export function equipmentAnchorId(sport: string, category?: string): string {
+  const slug = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+  return category ? `equip-${slug(sport)}-${slug(category)}` : `equip-${slug(sport)}`;
+}
+
+/**
+ * The rail's data model: sports (caller-ordered via sortedSportKeys) with
+ * their active categories (config order via categoryRank, unknown free-text
+ * categories after, alphabetical) and retired counts. Config lookups are
+ * injected so this stays pure and node-testable.
+ */
+export function buildEquipmentNav<T extends EquipmentSearchable & { sport_key?: string | null }>(
+  items: T[],
+  opts: {
+    sortedSportKeys: string[];
+    sportLabel: (sportKey: string) => string;
+    categoryLabel: (sportKey: string, category: string) => string;
+    categoryRank: (sportKey: string, category: string) => number;
+  }
+): EquipmentNavSport[] {
+  return opts.sortedSportKeys.map(sportKey => {
+    const sportItems = items.filter(i => (i.sport_key || 'general') === sportKey);
+    const active = sportItems.filter(i => i.status === 'active');
+    const byCategory = new Map<string, number>();
+    for (const item of active) {
+      byCategory.set(item.category, (byCategory.get(item.category) ?? 0) + 1);
+    }
+    const categories: EquipmentNavCategory[] = [...byCategory.entries()]
+      .sort((a, b) => {
+        const rankDiff = opts.categoryRank(sportKey, a[0]) - opts.categoryRank(sportKey, b[0]);
+        return rankDiff !== 0
+          ? rankDiff
+          : opts.categoryLabel(sportKey, a[0]).localeCompare(opts.categoryLabel(sportKey, b[0]));
+      })
+      .map(([value, count]) => ({
+        value,
+        count,
+        label: opts.categoryLabel(sportKey, value),
+        anchorId: equipmentAnchorId(sportKey, value),
+      }));
+    return {
+      sportKey,
+      label: opts.sportLabel(sportKey),
+      anchorId: equipmentAnchorId(sportKey),
+      categories,
+      retiredCount: sportItems.length - active.length,
+      historyAnchorId: `${equipmentAnchorId(sportKey)}-history`,
+    };
+  });
+}
