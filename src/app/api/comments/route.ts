@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getSupabaseAdmin, getServerClient } from '@/lib/auth-server';
+import { getSupabaseAdmin, getServerClient, getServerAuth } from '@/lib/auth-server';
 
 // GET - Fetch comments for a post
 export async function GET(request: NextRequest) {
@@ -84,14 +84,11 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const supabase = getServerClient(request);
-
-    // Get current user
-    const { data: { user }, error: userError } = await supabase.auth.getUser();
+    const { supabase, user, error: userError } = await getServerAuth(request);
 
     if (userError || !user) {
       return NextResponse.json(
-        { error: 'Unauthorized' },
+        { error: 'Authentication required' },
         { status: 401 }
       );
     }
@@ -190,14 +187,11 @@ export async function DELETE(request: NextRequest) {
       );
     }
 
-    const supabase = getServerClient(request);
-
-    // Get current user to verify authentication
-    const { data: { user }, error: userError } = await supabase.auth.getUser();
+    const { supabase, user, error: userError } = await getServerAuth(request);
 
     if (userError || !user) {
       return NextResponse.json(
-        { error: 'Unauthorized' },
+        { error: 'Authentication required' },
         { status: 401 }
       );
     }
@@ -267,12 +261,9 @@ export async function PATCH(request: NextRequest) {
       );
     }
 
-    const supabase = getServerClient(request);
-
-    // Verify authentication
-    const { data: { user }, error: userError } = await supabase.auth.getUser();
+    const { user, error: userError } = await getServerAuth(request);
     if (userError || !user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+      return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
     }
 
     // Verify caller is the post owner

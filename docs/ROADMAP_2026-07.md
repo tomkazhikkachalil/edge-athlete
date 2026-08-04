@@ -17,7 +17,7 @@ Baseline going in: all major surfaces just had deep bug hunts (~80 fixes, July 2
 7. **Trust surfaces missing** — no ToS/Privacy pages, contact API has no form page, notification-preferences UI unreachable (Settings tab is a stub), message reports written to a table nobody reads, no admin tooling.
 8. **Shared rounds' social loop is silent** — full invite/attest/score/leaderboard machinery exists but creates **zero notifications**; invitees never learn they were invited.
 9. **Data-layer landmines** — 86 runnable SQL scripts in `database/archive/` (one already broke prod tagging), 3 migration dirs, no way to know what's applied.
-10. **Dual auth pattern** — 19 routes hand-roll cookie parsing instead of `requireAuth`; this pattern is what kept producing IDOR bugs.
+10. **Dual auth pattern** — 19 routes hand-roll cookie parsing instead of `requireAuth`; this pattern is what kept producing IDOR bugs. *(Shipped July 23, commit `6f652cd` — one shared cookie client; residual 21 hand-rolled 401 checks consolidated onto `getServerAuth` Aug 4.)*
 
 **Strengths to preserve:** strict TS (only 8 `any`s), numbered migrations 001–026, next/image discipline, correct feed pagination, account-deletion flow, messaging/notifications stacks (post-hunts), per-post golf scorecards.
 
@@ -66,7 +66,7 @@ Sized for part-time capacity: each sprint ≈ 2 weeks of sessions, independently
 ### Sprint 6 — "Hardening & housekeeping" (pre-launch)
 *Goal: launch-ready engineering hygiene.*
 1. **Smoke-test suite**: Playwright covering signup→login→post round→view round→message→notification; wire into CI. (L, highest-value test investment)
-2. **Auth consolidation**: migrate the 19 inline `createServerClient` cookie-split routes to `requireAuth` (the pattern that kept producing IDOR bugs). (M)
+2. **Auth consolidation**: migrate the 19 inline `createServerClient` cookie-split routes to `requireAuth` (the pattern that kept producing IDOR bugs). (M) *(Done — July 23 `6f652cd` + Aug 4 residual pass; landed on `getServerAuth` rather than `requireAuth`, see DEVLOG.)*
 3. **Input validation**: zod schemas on mutation routes, incremental. (M)
 4. **Migration hygiene**: move `database/archive/` (86 scripts) out of repo or into a clearly-fenced `attic/` with a DO-NOT-RUN readme; unify the 3 migration dirs; adopt Supabase CLI migration tracking. (S/M)
 5. **Dead-code sweep**: delete `/dashboard` orphan (if not reused by admin), `EnhancedGolfForm`/`CreatePostModalSteps` parallel path (verify unused first), root cruft (`clear-cache.html`, `run-sql-fix.html`); rename `"ai-starter"` package + `AI Demo App` name; rewrite README (currently Codespaces boilerplate). (S)
