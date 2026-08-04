@@ -15,6 +15,14 @@ test('equipment: seed → In the Bag → search → retire → History', async (
       data: { profileId: userA.id, sportKey: 'golf', category: 'driver', brand: 'Titleist', model },
     });
     expect(res.ok(), await readErrorBody(res)).toBe(true);
+    // Four more drivers so the category overflows the desktop shelf
+    // (SHELF_VISIBLE_COUNT = 4) and "See all 5" appears.
+    for (let i = 1; i <= 4; i++) {
+      const extra = await api.post('/api/equipment', {
+        data: { profileId: userA.id, sportKey: 'golf', category: 'driver', brand: 'PING', model: `QA Filler ${stamp}-${i}` },
+      });
+      expect(extra.ok(), await readErrorBody(extra)).toBe(true);
+    }
   } finally {
     await api.dispose();
   }
@@ -36,6 +44,19 @@ test('equipment: seed → In the Bag → search → retire → History', async (
   await expect(page.locator('.aspect-video').first().locator('img, span').first())
     .toBeVisible();
 
+  // Store-browse chrome at the default 1280 viewport: the category rail is
+  // visible; its Driver entry jumps to the category block; the overflowing
+  // shelf offers "See all 5" which expands to a grid in place.
+  const rail = page.getByRole('navigation', { name: 'Equipment sections' });
+  await expect(rail).toBeVisible();
+  await rail.getByRole('button', { name: /^Driver/ }).click();
+  await expect(page.locator('#equip-golf-driver')).toBeInViewport({ timeout: 10_000 });
+  const seeAll = page.getByRole('button', { name: 'See all 5' });
+  await expect(seeAll).toBeVisible();
+  await seeAll.click();
+  await expect(page.getByRole('button', { name: 'Collapse' })).toBeVisible();
+  await page.getByRole('button', { name: 'Collapse' }).click();
+
   // Search narrows; garbage empties.
   const searchBox = page.getByLabel('Search equipment');
   await searchBox.fill(model);
@@ -44,8 +65,14 @@ test('equipment: seed → In the Bag → search → retire → History', async (
   await expect(page.getByText('No gear matches')).toBeVisible();
   await searchBox.fill('');
 
-  // Retire via the card action → History, current year bucket.
-  await page.getByRole('button', { name: 'Retire', exact: true }).first().click();
+  // Retire via the card action → History, current year bucket. Five cards
+  // exist, so scope the Retire click to the card holding OUR model (the card
+  // root is the rounded, overflow-hidden div).
+  await page
+    .locator('div.relative.rounded-lg.overflow-hidden')
+    .filter({ hasText: model })
+    .getByRole('button', { name: 'Retire', exact: true })
+    .click();
   await expect(page.getByText(model)).toBeHidden({ timeout: 15_000 });
   await page.getByRole('button', { name: /history/i }).first().click();
   await expect(page.getByText(model).first()).toBeVisible();

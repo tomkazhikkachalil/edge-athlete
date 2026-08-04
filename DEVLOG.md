@@ -1,5 +1,48 @@
 # Development Log
 
+## August 4, 2026 — Equipment goes store-browse: category rail + shelves on desktop
+
+Tom's verdict on the morning's redesign: nice, but stacked boxes don't FLOW
+on web — it should navigate like a sports store, and survive a sponsored
+athlete listing hundreds of items. First of three passes (rail+shelves,
+then a seasons timeline, then custom sets).
+
+**The layout.** At lg+ the Equipment tab becomes rail + shelves inside the
+existing ~1184px content box (deliberately NOT widening `max-w-7xl` — that
+would restyle the whole profile): a ~210px sticky category rail (docked
+under the app header via the `--ea-banner-h` contract at z-30, the first
+sticky sidebar in the app) listing each sport's categories with active
+counts plus a History entry, and each category rendering as a **horizontal
+shelf** — the canonical LiveNowStrip pattern (`overflow-x-auto
+scrollbar-hide` + `shrink-0` cards at 240-260px), where the partially
+cut-off card is the "more here" affordance. No scroll-snap, no arrow
+buttons (none exist in the app; consistency beats novelty). "**See all N ›**"
+in the category header swaps the shelf to a grid in place. Below lg nothing
+changes — the stacked flow the phones already verified.
+
+**One DOM, CSS-switched.** `EquipmentShelf` renders a single child list
+whose container classes flip grid↔strip by breakpoint; card width lives on
+a `ShelfCard` wrapper, not in any shared class (the `.ea-icon-btn` lesson:
+shared classes never own display/width). Rail jumps are plain
+`scrollIntoView` + `scroll-mt-24` anchors — no scrollspy in v1 (a whole new
+observer pattern the lint ratchet doesn't need today); History jumps also
+expand the target section first via one rAF hop.
+
+**Decomposition.** The 677-line EquipmentSection shed its card
+(`equipment/EquipmentCard.tsx`, moved verbatim) and gained
+`equipment/EquipmentShelf.tsx` + `equipment/EquipmentRail.tsx`. The rail's
+data model is a pure `buildEquipmentNav` in equipment-display.ts (config
+lookups injected; anchor ids from a shared `equipmentAnchorId` slugifier so
+rail and sections cannot drift) — node-tested like the rest of the module.
+
+**Verification.** The equipment e2e spec now seeds 5 drivers and drives the
+chrome: rail visible at 1280, rail entry jump lands the category block in
+the viewport, "See all 5" expands and collapses, and the retire step is
+scoped to the card under test (five Retire buttons exist now). Screenshot
+pass at 320/768/1280/1536: zero horizontal overflow everywhere, rail stays
+docked under the header while scrolling. Zero new effects; lint stays at
+the 45 cap.
+
 ## August 4, 2026 — Equipment: search, sort, and gear that illustrates itself
 
 The second half of the equipment pass (the IA landed separately): finding

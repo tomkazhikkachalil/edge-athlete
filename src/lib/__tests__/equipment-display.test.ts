@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
   groupRetiredByYear, countByStatus, EARLIER_BUCKET,
   filterEquipmentBySearch, sortEquipment,
+  buildEquipmentNav, equipmentAnchorId,
 } from '../equipment-display';
 
 type Item = {
@@ -126,5 +127,64 @@ describe('sortEquipment', () => {
     const before = mixed.map(i => i.id);
     expect(sortEquipment(mixed, 'category', rank).map(i => i.id)).toEqual(['undated', 'old', 'new', 'p']);
     expect(mixed.map(i => i.id)).toEqual(before);
+  });
+});
+
+describe('equipmentAnchorId', () => {
+  it('slugs sport and category into stable ids', () => {
+    expect(equipmentAnchorId('golf')).toBe('equip-golf');
+    expect(equipmentAnchorId('golf', 'iron_set')).toBe('equip-golf-iron-set');
+    expect(equipmentAnchorId('ice_hockey', 'Shin Guards!')).toBe('equip-ice-hockey-shin-guards');
+  });
+});
+
+describe('buildEquipmentNav', () => {
+  const opts = {
+    sortedSportKeys: ['golf', 'soccer'],
+    sportLabel: (s: string) => s.toUpperCase(),
+    categoryLabel: (_s: string, c: string) => c.toUpperCase(),
+    categoryRank: (_s: string, c: string) => ({ driver: 0, putter: 1 }[c] ?? Number.MAX_SAFE_INTEGER),
+  };
+  const item = (sport: string, category: string, status: 'active' | 'retired') => ({
+    sport_key: sport, category, status,
+    brand: 'B', model: 'M',
+  });
+
+  it('orders categories by injected rank, unknown free-text last alphabetically', () => {
+    const nav = buildEquipmentNav([
+      item('golf', 'putter', 'active'),
+      item('golf', 'zzz_custom', 'active'),
+      item('golf', 'aaa_custom', 'active'),
+      item('golf', 'driver', 'active'),
+    ], opts);
+    expect(nav[0].categories.map(c => c.value)).toEqual(['driver', 'putter', 'aaa_custom', 'zzz_custom']);
+  });
+
+  it('counts only ACTIVE items per category and totals retired separately', () => {
+    const nav = buildEquipmentNav([
+      item('golf', 'driver', 'active'),
+      item('golf', 'driver', 'active'),
+      item('golf', 'driver', 'retired'),
+      item('golf', 'putter', 'retired'),
+    ], opts);
+    expect(nav[0].categories).toHaveLength(1); // putter has no active items
+    expect(nav[0].categories[0]).toMatchObject({ value: 'driver', count: 2 });
+    expect(nav[0].retiredCount).toBe(2);
+  });
+
+  it('emits stable anchor ids that match equipmentAnchorId', () => {
+    const nav = buildEquipmentNav([item('golf', 'driver', 'active')], opts);
+    expect(nav[0].anchorId).toBe(equipmentAnchorId('golf'));
+    expect(nav[0].categories[0].anchorId).toBe(equipmentAnchorId('golf', 'driver'));
+    expect(nav[0].historyAnchorId).toBe('equip-golf-history');
+  });
+
+  it('follows the caller-provided sport order', () => {
+    const nav = buildEquipmentNav([
+      item('soccer', 'cleats', 'active'),
+      item('golf', 'driver', 'active'),
+    ], opts);
+    expect(nav.map(s => s.sportKey)).toEqual(['golf', 'soccer']);
+    expect(nav.map(s => s.label)).toEqual(['GOLF', 'SOCCER']);
   });
 });
