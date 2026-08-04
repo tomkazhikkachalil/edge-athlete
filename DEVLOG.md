@@ -7,7 +7,10 @@ with the athlete able to custom-assign — "most kids would just have
 equipment with small changes year over year," so the custom layer must cost
 nothing to ignore. It does: one nullable column.
 
-**Migration 064** adds `athlete_equipment.group_label TEXT`. A column, not a
+**Migration 064** adds `athlete_equipment.group_label TEXT`. **Run by Tom
+in the Supabase SQL editor Aug 4, 2026** — verified live by service-role
+select of the column, then the full 11-spec e2e suite (including the new
+set-shelf assertions) green against production with zero residual QA users. A column, not a
 groups table — no ordering, no empty sets, no per-set metadata needed in v1,
 so a label avoids a join, new RLS policies and a second CRUD surface. NULL
 is exactly today's behavior. ⚠️ **Order of operations: 064 must run BEFORE
