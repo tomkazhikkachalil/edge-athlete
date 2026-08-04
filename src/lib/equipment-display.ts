@@ -5,7 +5,7 @@
  * the node-only vitest setup can pin the date edge cases.
  */
 
-import { yearOf } from '@/lib/profile-filters';
+import { yearOf, isInBagDuringYear } from '@/lib/profile-filters';
 
 export interface EquipmentDatesLike {
   status: 'active' | 'retired';
@@ -199,5 +199,36 @@ export function buildEquipmentNav<T extends EquipmentSearchable & { sport_key?: 
       retiredCount: sportItems.length - active.length,
       historyAnchorId: `${equipmentAnchorId(sportKey)}-history`,
     };
+  });
+}
+
+// ── Seasons view ─────────────────────────────────────────────────────────────
+
+/** 'now' = the current setup + History; a year = that season's in-bag gear. */
+export type EquipmentView = 'now' | number;
+
+/**
+ * Season filter. 'now' is the identity — the layout itself splits
+ * active/retired there. A year keeps every item that was IN THE BAG during
+ * that year (active during it, INCLUDING gear retired since), which is what
+ * "what did they play with in 2024" means. Undated retired items can never
+ * match a year — they remain reachable only via History's "Earlier" bucket
+ * in the 'now' view, which is why History is not replaced by this switcher.
+ */
+export function filterEquipmentForView<T extends EquipmentDatesLike>(
+  items: T[],
+  view: EquipmentView
+): T[] {
+  if (view === 'now') return items;
+  return items.filter(item => {
+    // isInBagDuringYear reads a null retirement date as "still in the bag" —
+    // right for ACTIVE gear, but an undated RETIRED item would ghost into
+    // every season. Those stay History-only.
+    if (item.status === 'retired' && !(item.retired_on ?? item.retired_at)) return false;
+    return isInBagDuringYear(
+      item.acquired_on ?? item.added_at,
+      item.retired_on ?? item.retired_at ?? null,
+      view
+    );
   });
 }
