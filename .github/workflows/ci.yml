@@ -37,3 +37,55 @@ jobs:
           NEXT_PUBLIC_SUPABASE_URL: https://placeholder.supabase.co
           NEXT_PUBLIC_SUPABASE_ANON_KEY: placeholder-anon-key
           SUPABASE_SERVICE_ROLE_KEY: placeholder-service-role-key
+
+  # Playwright smoke suite against the real Supabase project (no staging
+  # exists): global setup creates a disposable private-visibility edgeqa-*
+  # user, teardown always deletes it, and a 24h sweep drains orphans from
+  # killed runs. Skips green until the three secrets are configured in the
+  # repo settings (job-level `if:` cannot read the secrets context, hence
+  # the gate step).
+  smoke:
+    runs-on: ubuntu-latest
+    env:
+      NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+      NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
+      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+    steps:
+      - name: Gate on secrets
+        id: gate
+        run: |
+          if [ -z "$NEXT_PUBLIC_SUPABASE_URL" ]; then
+            echo "run=false" >> "$GITHUB_OUTPUT"
+            echo "Supabase secrets not configured — skipping smoke suite."
+          else
+            echo "run=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: actions/checkout@v4
+        if: steps.gate.outputs.run == 'true'
+
+      - uses: actions/setup-node@v4
+        if: steps.gate.outputs.run == 'true'
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        if: steps.gate.outputs.run == 'true'
+        run: npm ci
+
+      - name: Install Playwright Chromium
+        if: steps.gate.outputs.run == 'true'
+        run: npx playwright install chromium --with-deps
+
+      - name: Run smoke suite
+        if: steps.gate.outputs.run == 'true'
+        run: npx playwright test
+
+      - name: Upload report on failure
+        if: failure() && steps.gate.outputs.run == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: playwright-report/
+          retention-days: 7

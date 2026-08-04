@@ -73,5 +73,5 @@ export default defineConfig([
   // Stated explicitly rather than inherited from the package default: this is
   // the single line standing between us and a ~34,800-problem lint run, and it
   // should not live in a transitive default nobody can see.
-  globalIgnores(['.next/**', 'out/**', 'build/**', 'next-env.d.ts']),
+  globalIgnores(['.next/**', 'out/**', 'build/**', 'next-env.d.ts', 'playwright-report/**', 'test-results/**']),
 ]);

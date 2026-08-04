@@ -219,6 +219,13 @@ console.log(data); // Should be empty or error
 > this project does not use. Don't go looking for them. The checklist above is
 > still walked by hand; the automated gate is now:
 
+> **Smoke suite (added August 2026):** `npm run test:e2e` runs the Playwright
+> smoke suite in `e2e/` — health, landing, real UI login, feed post round-trip,
+> a 9-hole golf round through the composer, and messages/notifications renders.
+> It needs the three Supabase vars (`.env.local` locally; repo secrets in CI's
+> `smoke` job), creates a disposable private `edgeqa-*` user per run and always
+> deletes it. Unlike the old orphaned scripts, this suite is wired into CI.
+
 ```bash
 npm run verify       # typecheck + lint + test + build — run this before committing
 
