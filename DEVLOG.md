@@ -1,5 +1,50 @@
 # Development Log
 
+## August 4, 2026 — A smoke suite that gates CI (Playwright, disposable prod users)
+
+The last Sprint 6 item with real substance: `npm run test:e2e` now drives the
+built app through Chromium — 7 specs covering health, the anonymous landing
+page, a real UI login, a text post's full round-trip (compose → feed → survive
+reload), a 9-hole golf round through the composer, and the messages/
+notifications surfaces. A `smoke` job in CI runs it on every PR and push to
+main, against a `next build` + `next start` server for prod parity.
+
+**Why a new tooling directory is justified** (the repo deliberately deleted
+its orphaned `scripts/*.mjs` QA helpers in July): this suite is wired into CI
+and gates merges — it cannot rot unnoticed, because rot = red check. The
+architecture is the proven session-recipe made permanent: global setup
+creates a disposable `edgeqa-<rand>@example.com` user via the admin API
+(admin-created users get NO profiles row from the signup trigger — inserted
+manually with `email`, which is NOT NULL, and `visibility: 'private'` so
+nothing leaks into public surfaces; the row is re-read after insert because a
+probe against a missing fixture passes vacuously). Specs run authenticated
+via a minted `sb-<ref>-auth-token` cookie (base64url, no padding); one spec
+drives the real login UI instead. Teardown always deletes the user walking
+the golf chain child-first (the auth cascade 500s while a round exists) and
+sweeps `edgeqa-*` orphans older than 24h from killed runs. There is no
+staging Supabase — the suite runs against prod by design (Tom's call), which
+is also why teardown failure throws loudly instead of logging.
+
+**CI mechanics:** the job gates on a first step checking the secrets (the
+`secrets` context is unreadable from job-level `if:`), so forks and
+pre-secret runs skip green. Tom's action: add `NEXT_PUBLIC_SUPABASE_URL`,
+`NEXT_PUBLIC_SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY` as repo secrets
+to arm it. Playwright's Chromium adds ~1–2 min; the report uploads as an
+artifact on failure. `vitest.config.ts` now pins discovery to
+`src/**/*.test.ts` so `npm run test` can never wander into `e2e/`; `verify`
+itself is unchanged (fast, env-free).
+
+**The locator traps earned their keep again** — both recorded ones fired on
+the first run: `getByText('Edge QA').first()` resolved to the hidden
+off-canvas drawer copy, and an unscoped `/golf/i` clicked a covered element
+under the sport-selector overlay. Two new ones for the file: **Escape closes
+the whole composer**, not the course-suggestions dropdown; and the scorecard
+hole grid **only initializes when the hole count changes** — with a manual
+course and the default 18 holes, `holesData` stays `[]` and there are no
+score cells until you toggle the count (the spec picks "9 holes"
+deliberately). That second one is arguably a product bug for real users
+logging a manual course — filed here rather than fixed, it's out of scope.
+
 ## August 4, 2026 — Auth residual: the cookie parser stops truncating, and the last 21 hand-rolled gates
 
 Sprint 6's July 23 consolidation (`6f652cd`) collapsed ~19 hand-rolled cookie

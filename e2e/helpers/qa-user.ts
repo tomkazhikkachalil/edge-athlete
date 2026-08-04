@@ -1,0 +1,241 @@
+import { createClient, type SupabaseClient } from '@supabase/supabase-js';
+import { readFileSync, existsSync } from 'fs';
+import { join } from 'path';
+
+/**
+ * Disposable QA user machinery for the smoke suite.
+ *
+ * The suite runs against the real Supabase project (no staging exists), so
+ * every run creates a unique `edgeqa-<rand>@example.com` user with a PRIVATE
+ * profile and deletes it in teardown. Golf fixtures block the auth-user
+ * cascade (deleting the user 500s while a group_posts round exists), so
+ * deletion walks the chain child-first — the order is load-bearing.
+ */
+
+const ENV_KEYS = [
+  'NEXT_PUBLIC_SUPABASE_URL',
+  'NEXT_PUBLIC_SUPABASE_ANON_KEY',
+  'SUPABASE_SERVICE_ROLE_KEY',
+] as const;
+
+/** Load .env.local into process.env for keys not already set (CI sets them). */
+export function loadEnv(): void {
+  const envPath = join(process.cwd(), '.env.local');
+  if (!existsSync(envPath)) return;
+  for (const line of readFileSync(envPath, 'utf8').split('\n')) {
+    const m = line.match(/^\s*([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*)\s*$/);
+    if (!m) continue;
+    const [, key, raw] = m;
+    if (process.env[key] !== undefined) continue;
+    process.env[key] = raw.replace(/^["']|["']$/g, '');
+  }
+}
+
+export function requireEnv(): { url: string; anonKey: string; serviceKey: string } {
+  loadEnv();
+  for (const key of ENV_KEYS) {
+    if (!process.env[key]) {
+      throw new Error(`Smoke suite needs ${key} (set it in .env.local or CI secrets)`);
+    }
+  }
+  return {
+    url: process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    anonKey: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    serviceKey: process.env.SUPABASE_SERVICE_ROLE_KEY!,
+  };
+}
+
+export function adminClient(): SupabaseClient {
+  const { url, serviceKey } = requireEnv();
+  return createClient(url, serviceKey, {
+    auth: { autoRefreshToken: false, persistSession: false },
+  });
+}
+
+export interface QaUser {
+  id: string;
+  email: string;
+  password: string;
+}
+
+export async function createQaUser(): Promise<QaUser> {
+  const admin = adminClient();
+  const rand = Math.random().toString(36).slice(2, 10);
+  const email = `edgeqa-${rand}@example.com`;
+  const password = `Qa!${Math.random().toString(36).slice(2, 12)}9`;
+
+  const { data, error } = await admin.auth.admin.createUser({
+    email,
+    password,
+    email_confirm: true,
+  });
+  if (error || !data.user) throw new Error(`createUser failed: ${error?.message}`);
+  const id = data.user.id;
+
+  // Admin-created users get NO profiles row from the signup trigger — insert
+  // one by hand. visibility 'private' keeps the QA user out of public
+  // surfaces; onboarded_at set so login lands on /athlete, not /onboarding.
+  const { error: profileError } = await admin.from('profiles').insert({
+    id,
+    email,
+    display_name: 'Edge QA',
+    full_name: 'Edge QA',
+    first_name: 'Edge',
+    last_name: 'QA',
+    visibility: 'private',
+    onboarded_at: new Date().toISOString(),
+  });
+  if (profileError) {
+    await admin.auth.admin.deleteUser(id).catch(() => {});
+    throw new Error(`profile insert failed: ${profileError.message}`);
+  }
+
+  // Vacuous-pass trap: a probe against a fixture that silently doesn't exist
+  // looks identical to a real pass. Assert the row is really there.
+  const { data: check } = await admin
+    .from('profiles')
+    .select('id, visibility')
+    .eq('id', id)
+    .maybeSingle();
+  if (!check || check.visibility !== 'private') {
+    throw new Error('QA profile row missing or not private after insert');
+  }
+
+  return { id, email, password };
+}
+
+/**
+ * Mint the @supabase/ssr cookie for a password session so specs can start
+ * authenticated without driving the login UI every time (auth-login.spec.ts
+ * covers the real UI path once).
+ */
+export async function mintStorageState(user: QaUser): Promise<{
+  cookies: Array<{
+    name: string; value: string; domain: string; path: string;
+    expires: number; httpOnly: boolean; secure: boolean; sameSite: 'Lax';
+  }>;
+  origins: never[];
+}> {
+  const { url, anonKey } = requireEnv();
+  const anon = createClient(url, anonKey, {
+    auth: { autoRefreshToken: false, persistSession: false },
+  });
+  const { data, error } = await anon.auth.signInWithPassword({
+    email: user.email,
+    password: user.password,
+  });
+  if (error || !data.session) throw new Error(`password sign-in failed: ${error?.message}`);
+
+  const projectRef = new URL(url).hostname.split('.')[0];
+  // @supabase/ssr format: "base64-" + base64url(session JSON), no padding —
+  // and no '=' anywhere, which the API's cookie parser historically required.
+  const value =
+    'base64-' +
+    Buffer.from(JSON.stringify(data.session)).toString('base64url');
+
+  const cookie = {
+    name: `sb-${projectRef}-auth-token`,
+    value,
+    domain: 'localhost',
+    path: '/',
+    expires: -1,
+    httpOnly: false,
+    secure: false,
+    sameSite: 'Lax' as const,
+  };
+  if (value.length > 3180) {
+    // Chunked format (.0/.1) — sessions are ~2.5k so this is rare; split
+    // conservatively rather than failing mysteriously at request time.
+    const half = Math.ceil(value.length / 2);
+    return {
+      cookies: [
+        { ...cookie, name: `${cookie.name}.0`, value: value.slice(0, half) },
+        { ...cookie, name: `${cookie.name}.1`, value: value.slice(half) },
+      ],
+      origins: [],
+    };
+  }
+  return { cookies: [cookie], origins: [] };
+}
+
+/**
+ * Delete a QA user and everything it created. Golf tables first — their
+ * chain blocks the auth-user cascade. Every step is idempotent so teardown
+ * can run against a user that created nothing.
+ */
+export async function deleteQaUser(userId: string): Promise<void> {
+  const admin = adminClient();
+
+  const { data: rounds } = await admin
+    .from('group_posts').select('id').eq('creator_id', userId);
+  const roundIds = (rounds ?? []).map(r => r.id);
+
+  const partsQuery = admin.from('group_post_participants').select('id');
+  const { data: parts } = roundIds.length
+    ? await partsQuery.or(`group_post_id.in.(${roundIds.join(',')}),profile_id.eq.${userId}`)
+    : await partsQuery.eq('profile_id', userId);
+  const partIds = (parts ?? []).map(p => p.id);
+
+  if (partIds.length) {
+    const { data: scores } = await admin
+      .from('golf_participant_scores').select('id').in('participant_id', partIds);
+    const scoreIds = (scores ?? []).map(s => s.id);
+    if (scoreIds.length) {
+      await admin.from('golf_hole_scores').delete().in('golf_participant_id', scoreIds);
+      await admin.from('golf_participant_scores').delete().in('id', scoreIds);
+    }
+  }
+  if (roundIds.length) {
+    await admin.from('group_post_media').delete().in('group_post_id', roundIds);
+  }
+  if (partIds.length) {
+    await admin.from('group_post_participants').delete().in('id', partIds);
+  }
+  if (roundIds.length) {
+    await admin.from('golf_scorecard_data').delete().in('group_post_id', roundIds);
+    await admin.from('posts').delete().in('group_post_id', roundIds);
+  }
+  await admin.from('posts').delete().eq('profile_id', userId);
+  if (roundIds.length) {
+    await admin.from('group_posts').delete().in('id', roundIds);
+  }
+
+  const { error } = await admin.auth.admin.deleteUser(userId);
+  if (error) throw new Error(`deleteUser(${userId}) failed: ${error.message}`);
+}
+
+/**
+ * Best-effort sweep of edgeqa-* users older than 24h — orphans from runs
+ * that were killed before teardown. Unique emails per run make collisions
+ * impossible, so orphans only accumulate; this drains them.
+ */
+export async function sweepStaleQaUsers(): Promise<void> {
+  try {
+    const admin = adminClient();
+    const cutoff = Date.now() - 24 * 60 * 60 * 1000;
+    const { data } = await admin.auth.admin.listUsers({ page: 1, perPage: 200 });
+    for (const u of data?.users ?? []) {
+      if (!u.email?.startsWith('edgeqa-')) continue;
+      if (new Date(u.created_at).getTime() > cutoff) continue;
+      await deleteQaUser(u.id).catch(err =>
+        console.warn(`[e2e sweep] could not delete stale ${u.email}:`, err.message)
+      );
+    }
+  } catch (err) {
+    console.warn('[e2e sweep] skipped:', (err as Error).message);
+  }
+}
+
+/**
+ * Read an error body defensively: the platform answers some failures itself
+ * (Vercel 413s are plain text, gateways send HTML), so unconditional
+ * response.json() turns an infrastructure error into a SyntaxError.
+ */
+export async function readErrorBody(response: { text(): Promise<string> }): Promise<string> {
+  const text = await response.text();
+  try {
+    return JSON.stringify(JSON.parse(text));
+  } catch {
+    return text.slice(0, 500);
+  }
+}
