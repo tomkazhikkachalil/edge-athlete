@@ -27,6 +27,22 @@ test('equipment: seed → In the Bag → search → retire → History', async (
     await api.dispose();
   }
 
+  // A labeled item: renders as its own ★ set shelf above the categories,
+  // with a rail entry. (Requires migration 064 — group_label column.)
+  const api2 = await apiAs('state.json');
+  try {
+    const res = await api2.post('/api/equipment', {
+      data: {
+        profileId: userA.id, sportKey: 'golf', category: 'putter',
+        brand: 'Scotty Cameron', model: `QA Set Putter ${stamp}`,
+        groupLabel: 'Tournament bag',
+      },
+    });
+    expect(res.ok(), await readErrorBody(res)).toBe(true);
+  } finally {
+    await api2.dispose();
+  }
+
   await page.goto('/athlete');
   await page.getByRole('button', { name: /equipment/i }).first().click();
 
@@ -49,6 +65,13 @@ test('equipment: seed → In the Bag → search → retire → History', async (
   // shelf offers "See all 5" which expands to a grid in place.
   const rail = page.getByRole('navigation', { name: 'Equipment sections' });
   await expect(rail).toBeVisible();
+
+  // Custom set: ★ shelf above the categories + violet rail entry; the
+  // labeled putter is re-filed OUT of a Putter category (set replaces it).
+  await expect(page.getByRole('heading', { name: 'Tournament bag' })).toBeVisible();
+  await expect(page.getByText(`QA Set Putter ${stamp}`).first()).toBeVisible();
+  await expect(rail.getByRole('button', { name: /Tournament bag/ })).toBeVisible();
+  await expect(rail.getByRole('button', { name: /^Putter/ })).toHaveCount(0);
   await rail.getByRole('button', { name: /^Driver/ }).click();
   await expect(page.locator('#equip-golf-driver')).toBeInViewport({ timeout: 10_000 });
   const seeAll = page.getByRole('button', { name: 'See all 5' });

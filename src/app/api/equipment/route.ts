@@ -67,6 +67,7 @@ export async function POST(request: NextRequest) {
       sportKey,
       acquiredOn,
       retiredOn,
+      groupLabel,
     } = body;
 
     // Validate required fields
@@ -83,7 +84,8 @@ export async function POST(request: NextRequest) {
       String(brand).length > EQUIPMENT_FIELD_CAPS.brand ||
       String(model).length > EQUIPMENT_FIELD_CAPS.model ||
       String(category).length > EQUIPMENT_FIELD_CAPS.category ||
-      (notes && String(notes).length > EQUIPMENT_FIELD_CAPS.notes)
+      (notes && String(notes).length > EQUIPMENT_FIELD_CAPS.notes) ||
+      (groupLabel && String(groupLabel).length > EQUIPMENT_FIELD_CAPS.groupLabel)
     ) {
       return NextResponse.json(
         { error: 'Brand, model, category or notes exceed the allowed length' },
@@ -150,6 +152,7 @@ export async function POST(request: NextRequest) {
         specs: specs || null,
         status,
         notes: notes || null,
+        group_label: (groupLabel && String(groupLabel).trim()) || null,
         added_at: new Date().toISOString(), // Server audit timestamp
         retired_at: status === 'retired' ? new Date().toISOString() : null,
         acquired_on: acquired,

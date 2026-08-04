@@ -142,6 +142,8 @@ export interface EquipmentNavSport {
   sportKey: string;
   label: string;
   anchorId: string;
+  /** Custom sets (labeled items) — listed above categories. */
+  sets: EquipmentNavCategory[];
   categories: EquipmentNavCategory[];
   retiredCount: number;
   historyAnchorId: string;
@@ -162,7 +164,7 @@ export function equipmentAnchorId(sport: string, category?: string): string {
  * categories after, alphabetical) and retired counts. Config lookups are
  * injected so this stays pure and node-testable.
  */
-export function buildEquipmentNav<T extends EquipmentSearchable & { sport_key?: string | null }>(
+export function buildEquipmentNav<T extends EquipmentSearchable & { sport_key?: string | null; group_label?: string | null }>(
   items: T[],
   opts: {
     sortedSportKeys: string[];
@@ -174,8 +176,29 @@ export function buildEquipmentNav<T extends EquipmentSearchable & { sport_key?: 
   return opts.sortedSportKeys.map(sportKey => {
     const sportItems = items.filter(i => (i.sport_key || 'general') === sportKey);
     const active = sportItems.filter(i => i.status === 'active');
+    // Custom sets: labeled ACTIVE items are RE-FILED out of their category
+    // and into their set (matching partitionByGroupLabel) — rail entries for
+    // sets sit above the categories.
+    const setsByKey = new Map<string, { label: string; count: number }>();
+    for (const item of active) {
+      const label = item.group_label?.trim();
+      if (!label) continue;
+      const key = label.toLowerCase();
+      const existing = setsByKey.get(key);
+      if (existing) existing.count += 1;
+      else setsByKey.set(key, { label, count: 1 });
+    }
+    const sets: EquipmentNavCategory[] = [...setsByKey.values()]
+      .sort((a, b) => a.label.localeCompare(b.label))
+      .map(set => ({
+        value: set.label,
+        label: set.label,
+        count: set.count,
+        anchorId: equipmentAnchorId(sportKey, `set-${set.label}`),
+      }));
     const byCategory = new Map<string, number>();
     for (const item of active) {
+      if (item.group_label?.trim()) continue; // re-filed into its set
       byCategory.set(item.category, (byCategory.get(item.category) ?? 0) + 1);
     }
     const categories: EquipmentNavCategory[] = [...byCategory.entries()]
@@ -195,6 +218,7 @@ export function buildEquipmentNav<T extends EquipmentSearchable & { sport_key?: 
       sportKey,
       label: opts.sportLabel(sportKey),
       anchorId: equipmentAnchorId(sportKey),
+      sets,
       categories,
       retiredCount: sportItems.length - active.length,
       historyAnchorId: `${equipmentAnchorId(sportKey)}-history`,
@@ -231,4 +255,44 @@ export function filterEquipmentForView<T extends EquipmentDatesLike>(
       view
     );
   });
+}
+
+// ── Custom sets ──────────────────────────────────────────────────────────────
+
+export interface EquipmentSet<T> {
+  label: string;
+  anchorId: string;
+  items: T[];
+}
+
+/**
+ * Split a sport's items into custom sets (labeled, ordered by label,
+ * trim-matched, first-seen casing preserved) and the unlabeled rest, which
+ * falls through to the automatic category shelves. Applied AFTER the season
+ * view filter, so a set shelf in a year view holds only that year's members
+ * and disappears when empty — one rule, no special cases.
+ */
+export function partitionByGroupLabel<T extends { group_label?: string | null }>(
+  sportKey: string,
+  items: T[]
+): { sets: EquipmentSet<T>[]; rest: T[] } {
+  const byLabel = new Map<string, { label: string; items: T[] }>();
+  const rest: T[] = [];
+  for (const item of items) {
+    const label = item.group_label?.trim();
+    if (!label) {
+      rest.push(item);
+      continue;
+    }
+    const key = label.toLowerCase();
+    if (!byLabel.has(key)) byLabel.set(key, { label, items: [] });
+    byLabel.get(key)!.items.push(item);
+  }
+  const sets = [...byLabel.values()]
+    .sort((a, b) => a.label.localeCompare(b.label))
+    .map(set => ({
+      ...set,
+      anchorId: equipmentAnchorId(sportKey, `set-${set.label}`),
+    }));
+  return { sets, rest };
 }

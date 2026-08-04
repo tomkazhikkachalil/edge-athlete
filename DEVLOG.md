@@ -1,5 +1,39 @@
 # Development Log
 
+## August 4, 2026 — Custom equipment sets: "Tournament bag" as a first-class shelf
+
+Third store-browse pass. Tom's grouping rule: smart auto-groups by default,
+with the athlete able to custom-assign — "most kids would just have
+equipment with small changes year over year," so the custom layer must cost
+nothing to ignore. It does: one nullable column.
+
+**Migration 064** adds `athlete_equipment.group_label TEXT`. **Run by Tom
+in the Supabase SQL editor Aug 4, 2026** — verified live by service-role
+select of the column, then the full 11-spec e2e suite (including the new
+set-shelf assertions) green against production with zero residual QA users. A column, not a
+groups table — no ordering, no empty sets, no per-set metadata needed in v1,
+so a label avoids a join, new RLS policies and a second CRUD surface. NULL
+is exactly today's behavior. ⚠️ **Order of operations: 064 must run BEFORE
+this deploys** — POST and validateEquipmentPatch write the column
+explicitly (42703 otherwise); the GET is `select('*')`, so the column
+landing early breaks nothing.
+
+**Semantics: sets RE-FILE, they don't duplicate.** A labeled item moves out
+of its category shelf and into its ★ set shelf (rendered above the
+categories, violet rail entries above the category entries). Partition
+happens AFTER the season filter, so a set shelf in a year view holds only
+that year's members and disappears when empty — one rule. Labels are
+trim-matched case-insensitively with first-seen casing preserved
+(`partitionByGroupLabel`, node-tested), and the modal's new "Set /
+Collection" field carries a datalist of the athlete's existing labels so
+typos don't fragment sets. Cap 60 chars via `EQUIPMENT_FIELD_CAPS`; PATCH
+flows through `validateEquipmentPatch` (empty/null clears); no distinct-
+label count cap (an athlete can only clutter their own profile — accepted).
+
+E2E extended: seed a labeled putter → ★ "Tournament bag" shelf above the
+categories, rail entry present, and NO Putter category entry (re-filing
+proven). `deleteQaUser` already clears `athlete_equipment`.
+
 ## August 4, 2026 — Equipment seasons: the time machine strip
 
 Second store-browse pass: "you can also go back in time and see all the
