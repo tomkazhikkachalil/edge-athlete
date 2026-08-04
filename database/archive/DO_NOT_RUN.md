@@ -9,7 +9,11 @@ schema and running them against a live database can break production.
 `notify_profile_tagged()` for the wrong table, which broke tagging in
 production until migration `025` fixed it.
 
-## The canonical schema history is `database/migrations/` (001–030).
+## The canonical schema history is the numbered files in `database/migrations/`.
+
+`loose-legacy/` also holds the unnumbered stray SQL relocated out of
+`database/migrations/` (Aug 2026) and, earlier, out of the old
+`database-migrations/`, `supabase/migrations/` and the repo root.
 
 See [`database/MIGRATIONS.md`](../MIGRATIONS.md). If you need logic from a file
 in here, **port it into a new numbered migration** — never run the archived

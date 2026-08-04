@@ -10,7 +10,8 @@
 -- policies all have a `visibility = 'public'` branch, but
 --   • group_post_participants LOST its public branch in migration 035 (the
 --     recursion rewrite claimed "semantics preserved exactly" — they weren't:
---     add-shared-golf-rounds.sql:280-295 had the branch, 035 dropped it), and
+--     add-shared-golf-rounds.sql:280-295 — now in database/archive/loose-legacy/
+--     — had the branch, 035 dropped it), and
 --   • golf_participant_scores / golf_hole_scores NEVER had one.
 -- PostgREST filters every embed independently, so the scorecard endpoint
 -- returned 200 with full media and participants: [] for exactly the audience
