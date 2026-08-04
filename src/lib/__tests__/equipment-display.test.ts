@@ -3,7 +3,7 @@ import {
   groupRetiredByYear, countByStatus, EARLIER_BUCKET,
   filterEquipmentBySearch, sortEquipment,
   buildEquipmentNav, equipmentAnchorId,
-  filterEquipmentForView,
+  filterEquipmentForView, partitionByGroupLabel,
 } from '../equipment-display';
 
 type Item = {
@@ -229,5 +229,62 @@ describe('filterEquipmentForView', () => {
     const items = [item({ id: 'legacy', status: 'retired', added_at: '2023-05-01', retired_at: '2024-02-01' })];
     expect(filterEquipmentForView(items, 2023).map(i => i.id)).toEqual(['legacy']);
     expect(filterEquipmentForView(items, 2024).map(i => i.id)).toEqual(['legacy']);
+  });
+});
+
+describe('partitionByGroupLabel', () => {
+  const gear = (id: string, group_label?: string | null) => ({
+    id, status: 'active' as const, brand: 'B', model: 'M', category: 'driver', group_label,
+  });
+
+  it('splits labeled items into label-ordered sets; unlabeled fall through', () => {
+    const { sets, rest } = partitionByGroupLabel('golf', [
+      gear('a', 'Winter setup'),
+      gear('b'),
+      gear('c', 'Tournament bag'),
+      gear('d', 'Tournament bag'),
+      gear('e', null),
+    ]);
+    expect(sets.map(s => s.label)).toEqual(['Tournament bag', 'Winter setup']);
+    expect(sets[0].items.map(i => i.id)).toEqual(['c', 'd']);
+    expect(rest.map(i => i.id)).toEqual(['b', 'e']);
+  });
+
+  it('trim-matches labels case-insensitively, preserving first-seen casing', () => {
+    const { sets } = partitionByGroupLabel('golf', [
+      gear('a', 'Tournament Bag '),
+      gear('b', ' tournament bag'),
+    ]);
+    expect(sets).toHaveLength(1);
+    expect(sets[0].label).toBe('Tournament Bag');
+    expect(sets[0].items).toHaveLength(2);
+  });
+
+  it('emits stable set anchors', () => {
+    const { sets } = partitionByGroupLabel('golf', [gear('a', 'Tournament bag')]);
+    expect(sets[0].anchorId).toBe('equip-golf-set-tournament-bag');
+  });
+});
+
+describe('buildEquipmentNav custom sets', () => {
+  const opts = {
+    sortedSportKeys: ['golf'],
+    sportLabel: (s: string) => s,
+    categoryLabel: (_s: string, c: string) => c,
+    categoryRank: () => 0,
+  };
+
+  it('labeled active items become set entries and leave their category counts', () => {
+    const nav = buildEquipmentNav([
+      { sport_key: 'golf', category: 'driver', status: 'active' as const, brand: 'B', model: 'M', group_label: 'Tournament bag' },
+      { sport_key: 'golf', category: 'driver', status: 'active' as const, brand: 'B', model: 'M2' },
+      { sport_key: 'golf', category: 'putter', status: 'retired' as const, brand: 'B', model: 'M3', group_label: 'Tournament bag' },
+    ], opts);
+    expect(nav[0].sets).toEqual([
+      { value: 'Tournament bag', label: 'Tournament bag', count: 1, anchorId: 'equip-golf-set-tournament-bag' },
+    ]);
+    expect(nav[0].categories).toEqual([
+      { value: 'driver', label: 'driver', count: 1, anchorId: 'equip-golf-driver' },
+    ]);
   });
 });

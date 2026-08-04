@@ -36,6 +36,19 @@ export default function EquipmentRail({ nav, onJump, onJumpHistory, topSlot }: E
               {sport.label}
             </button>
             <ul className="mt-1 space-y-0.5">
+              {sport.sets.map(set => (
+                <li key={`set-${set.value}`}>
+                  <button
+                    onClick={() => onJump(set.anchorId)}
+                    className="ea-interactive w-full flex items-center justify-between gap-2 rounded-lg px-2 py-1.5 text-sm font-semibold text-violet-700"
+                  >
+                    <span className="truncate">★ {set.label}</span>
+                    <span className="inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 rounded-full text-xs font-bold bg-violet-100 text-violet-700">
+                      {set.count > 99 ? '99+' : set.count}
+                    </span>
+                  </button>
+                </li>
+              ))}
               {sport.categories.map(category => (
                 <li key={category.value}>
                   <button

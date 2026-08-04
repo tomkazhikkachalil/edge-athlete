@@ -9,6 +9,7 @@ export const EQUIPMENT_FIELD_CAPS = {
   model: 120,
   category: 120,
   notes: 2000,
+  groupLabel: 60,
 } as const;
 
 export interface EquipmentPatchBody {
@@ -19,6 +20,7 @@ export interface EquipmentPatchBody {
   specs?: unknown;
   imageUrl?: unknown;
   notes?: unknown;
+  groupLabel?: unknown;
 }
 
 export interface EquipmentPatchCurrent {
@@ -97,6 +99,16 @@ export function validateEquipmentPatch(
       return { ok: false, error: `Notes are too long (max ${EQUIPMENT_FIELD_CAPS.notes} characters)` };
     }
     updates.notes = notes || null;
+  }
+
+  // Custom set label ("Tournament bag", "Sponsor: Titleist"). Optional layer
+  // over the automatic sport→category grouping; empty/null clears it.
+  if (body.groupLabel !== undefined) {
+    const label = body.groupLabel === null ? '' : String(body.groupLabel).trim();
+    if (label.length > EQUIPMENT_FIELD_CAPS.groupLabel) {
+      return { ok: false, error: `Set name is too long (max ${EQUIPMENT_FIELD_CAPS.groupLabel} characters)` };
+    }
+    updates.group_label = label || null;
   }
 
   return { ok: true, updates };

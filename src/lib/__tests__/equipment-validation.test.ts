@@ -95,3 +95,29 @@ describe('validateEquipmentPatch', () => {
     ).toBe(true);
   });
 });
+
+describe('groupLabel (custom sets)', () => {
+  const current = { sport_key: 'golf' };
+
+  it('undefined means unchanged', () => {
+    const r = validateEquipmentPatch({}, current);
+    expect(r.ok && 'group_label' in r.updates).toBe(false);
+  });
+
+  it('trims and stores the label', () => {
+    const r = validateEquipmentPatch({ groupLabel: '  Tournament bag  ' }, current);
+    expect(r.ok && r.updates.group_label).toBe('Tournament bag');
+  });
+
+  it('empty string and null both clear to null', () => {
+    for (const v of ['', '   ', null]) {
+      const r = validateEquipmentPatch({ groupLabel: v }, current);
+      expect(r.ok && r.updates.group_label).toBeNull();
+    }
+  });
+
+  it('rejects labels over the 60-char cap', () => {
+    const r = validateEquipmentPatch({ groupLabel: 'x'.repeat(61) }, current);
+    expect(r.ok).toBe(false);
+  });
+});

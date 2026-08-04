@@ -28,6 +28,8 @@ interface AddEquipmentModalProps {
     brand: string;
     model: string;
   };
+  /** The athlete's existing set labels, for the Set/Collection datalist. */
+  existingGroupLabels?: string[];
   /**
    * Presence switches the form to EDIT mode: fields seed from the item and
    * submit PATCHes it instead of creating a new row. Callers must mount a
@@ -79,6 +81,7 @@ function seedFrom(
     imageUrl: editingItem?.image_url ?? '',
     status: editingItem?.status ?? ('active' as const),
     notes: editingItem?.notes ?? '',
+    groupLabel: editingItem?.group_label ?? '',
     acquiredOn: editingItem?.acquired_on ?? todayStr(),
     retiredOn: editingItem?.retired_on ?? '',
     specValues,
@@ -94,6 +97,7 @@ export default function AddEquipmentModal({
   defaultSport,
   replacingEquipment,
   editingItem,
+  existingGroupLabels = [],
 }: AddEquipmentModalProps) {
   const { showSuccess, showError } = useToast();
   const [loading, setLoading] = useState(false);
@@ -113,6 +117,7 @@ export default function AddEquipmentModal({
   const [imageUrl, setImageUrl] = useState(initial.imageUrl);
   const [status, setStatus] = useState<'active' | 'retired'>(initial.status);
   const [notes, setNotes] = useState(initial.notes);
+  const [groupLabel, setGroupLabel] = useState(initial.groupLabel);
 
   // User-editable dates ('in bag since' + optional retirement date)
   const [acquiredOn, setAcquiredOn] = useState(initial.acquiredOn);
@@ -215,6 +220,7 @@ export default function AddEquipmentModal({
     setImageUrl(initial.imageUrl);
     setStatus(initial.status);
     setNotes(initial.notes);
+    setGroupLabel(initial.groupLabel);
     setAcquiredOn(initial.acquiredOn);
     setRetiredOn(initial.retiredOn);
     setSpecValues(initial.specValues);
@@ -238,6 +244,7 @@ export default function AddEquipmentModal({
     model.trim() !== initial.model.trim() ||
     imageUrl.trim() !== initial.imageUrl.trim() ||
     notes.trim() !== initial.notes.trim() ||
+    groupLabel.trim() !== initial.groupLabel.trim() ||
     acquiredOn !== initial.acquiredOn ||
     retiredOn.trim() !== initial.retiredOn.trim() ||
     status !== initial.status ||
@@ -305,6 +312,8 @@ export default function AddEquipmentModal({
               specs,
               status,
               notes: notes.trim(),
+              // '' clears the set server-side (maps to null)
+              groupLabel: groupLabel.trim(),
               acquiredOn: acquiredOn || undefined,
               retiredOn: status === 'retired' && retiredOn ? retiredOn : undefined,
             }),
@@ -323,6 +332,7 @@ export default function AddEquipmentModal({
               specs: Object.keys(specs).length > 0 ? specs : undefined,
               status,
               notes: notes.trim() || undefined,
+              groupLabel: groupLabel.trim() || undefined,
               acquiredOn: acquiredOn || undefined,
               retiredOn: status === 'retired' && retiredOn ? retiredOn : undefined,
             }),
@@ -701,6 +711,30 @@ export default function AddEquipmentModal({
                 rows={3}
                 className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-500 resize-none"
               />
+            </div>
+
+            {/* Set / Collection — optional custom grouping ("Tournament
+                bag"). Datalist steers toward existing labels so typos don't
+                fragment sets. */}
+            <div>
+              <label htmlFor="equipment-group-label" className="block text-sm font-semibold text-gray-900 mb-2">
+                Set / Collection (Optional)
+              </label>
+              <input
+                id="equipment-group-label"
+                type="text"
+                value={groupLabel}
+                onChange={(e) => setGroupLabel(e.target.value)}
+                maxLength={60}
+                list="equipment-group-labels"
+                placeholder='Group gear into a named set — e.g. "Tournament bag"'
+                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-500"
+              />
+              <datalist id="equipment-group-labels">
+                {existingGroupLabels.map(label => (
+                  <option key={label} value={label} />
+                ))}
+              </datalist>
             </div>
           </div>
 

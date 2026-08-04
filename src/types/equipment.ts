@@ -30,6 +30,8 @@ export interface EquipmentItem {
   acquired_on?: string | null;
   retired_on?: string | null;
   notes?: string;
+  /** Optional custom set ("Tournament bag"); null = automatic grouping. */
+  group_label?: string | null;
   created_at: string;
   updated_at: string;
 }

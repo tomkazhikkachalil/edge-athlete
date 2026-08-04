@@ -18,6 +18,7 @@ import {
   filterEquipmentBySearch, sortEquipment, type EquipmentSort,
   buildEquipmentNav, equipmentAnchorId,
   filterEquipmentForView, type EquipmentView,
+  partitionByGroupLabel,
 } from '@/lib/equipment-display';
 import { SPORT_NAMES } from '@/lib/config/sports-config';
 import { useToast } from './Toast';
@@ -153,6 +154,17 @@ export default function EquipmentSection({ profileId, isOwnProfile = false }: Eq
     return keys
       .sort((a, b) => sportLabel(a).localeCompare(sportLabel(b)))
       .map(key => ({ value: key, label: sportLabel(key) }));
+  }, [equipment]);
+
+  // Existing set labels (dedup case-insensitively, first-seen casing) for
+  // the modal's Set/Collection datalist.
+  const existingGroupLabels = useMemo(() => {
+    const byKey = new Map<string, string>();
+    for (const item of equipment) {
+      const label = item.group_label?.trim();
+      if (label && !byKey.has(label.toLowerCase())) byKey.set(label.toLowerCase(), label);
+    }
+    return [...byKey.values()].sort((a, b) => a.localeCompare(b));
   }, [equipment]);
 
   // Year options: every year each item spent in the bag (user dates, with
@@ -375,7 +387,11 @@ export default function EquipmentSection({ profileId, isOwnProfile = false }: Eq
             // Season view shows EVERYTHING in that year's bag; 'now' splits
             // active (setup) from retired (History).
             const activeItems = inSeasonView ? items : items.filter(i => i.status === 'active');
-            const activeByCategory = activeItems.reduce((acc, item) => {
+            // Custom sets re-file labeled items out of their category and
+            // into their own shelf, rendered first; unlabeled gear falls
+            // through to the automatic category shelves.
+            const { sets, rest } = partitionByGroupLabel(sport, activeItems);
+            const activeByCategory = rest.reduce((acc, item) => {
               (acc[item.category] ??= []).push(item);
               return acc;
             }, {} as Record<string, EquipmentItem[]>);
@@ -421,6 +437,41 @@ export default function EquipmentSection({ profileId, isOwnProfile = false }: Eq
                   </p>
                 ) : (
                   <div className="space-y-8">
+                    {/* Custom sets first — an athlete's named groupings
+                        ("Tournament bag") outrank the automatic categories. */}
+                    {sets.map(set => {
+                      const expanded = expandedShelves[set.anchorId] ?? false;
+                      const overflows = set.items.length > SHELF_VISIBLE_COUNT;
+                      return (
+                        <div key={set.anchorId} id={set.anchorId} className="scroll-mt-24">
+                          <div className="flex items-center gap-3 mb-4">
+                            <span className="text-2xl">★</span>
+                            <h5 className="text-lg font-bold text-gray-900">{set.label}</h5>
+                            <span className="text-sm text-gray-500">({set.items.length})</span>
+                            {overflows && (
+                              <button
+                                onClick={() =>
+                                  setExpandedShelves(prev => ({ ...prev, [set.anchorId]: !expanded }))
+                                }
+                                className="ea-interactive hidden lg:inline-flex items-center gap-1 ml-auto rounded-lg px-2 py-1 text-sm font-semibold text-violet-600"
+                              >
+                                {expanded ? 'Collapse' : `See all ${set.items.length}`}
+                                <ChevronRight
+                                  className={`w-4 h-4 transition-transform ${expanded ? 'rotate-90' : ''}`}
+                                />
+                              </button>
+                            )}
+                          </div>
+                          <EquipmentShelf expanded={expanded}>
+                            {sortEquipment(set.items, sort, () => 0).map(item => (
+                              <ShelfCard key={item.id} expanded={expanded}>
+                                {renderCard(item)}
+                              </ShelfCard>
+                            ))}
+                          </EquipmentShelf>
+                        </div>
+                      );
+                    })}
                     {categories.map(category => {
                       const config = getCategoryConfig(sport, category);
                       const categoryItems = activeByCategory[category];
@@ -532,6 +583,7 @@ export default function EquipmentSection({ profileId, isOwnProfile = false }: Eq
         onClose={() => setIsAddModalOpen(false)}
         onSuccess={fetchEquipment}
         profileId={profileId}
+        existingGroupLabels={existingGroupLabels}
       />
 
       {/* Replace Equipment Modal */}
@@ -562,6 +614,7 @@ export default function EquipmentSection({ profileId, isOwnProfile = false }: Eq
           onClose={() => setEquipmentToEdit(null)}
           onSuccess={fetchEquipment}
           profileId={profileId}
+          existingGroupLabels={existingGroupLabels}
         />
       )}
 
