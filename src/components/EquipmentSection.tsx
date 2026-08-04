@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { Plus, Dumbbell, ChevronDown, ChevronRight } from 'lucide-react';
 import AddEquipmentModal from './AddEquipmentModal';
 import ReplaceEquipmentModal from './ReplaceEquipmentModal';
@@ -18,6 +18,8 @@ import {
   filterEquipmentForView, type EquipmentView,
   partitionByGroupLabel, packCategoryShelves, combinedShelfAnchorId,
 } from '@/lib/equipment-display';
+import { orderSportKeys, type EquipmentPrefs } from '@/lib/equipment-prefs';
+import EquipmentSettingsModal from './equipment/EquipmentSettingsModal';
 import { SPORT_NAMES } from '@/lib/config/sports-config';
 import { useToast } from './Toast';
 
@@ -58,6 +60,11 @@ export default function EquipmentSection({ profileId, isOwnProfile = false }: Eq
   const [equipmentToReplace, setEquipmentToReplace] = useState<EquipmentItem | null>(null);
   const [equipmentToEdit, setEquipmentToEdit] = useState<EquipmentItem | null>(null);
   const [pendingDelete, setPendingDelete] = useState<EquipmentItem | null>(null);
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [prefs, setPrefs] = useState<EquipmentPrefs>({});
+  // First-load-only guard for seeding sort/view from the athlete's defaults —
+  // a ref, because it's bookkeeping for the fetch callback, not render state.
+  const prefsSeededRef = useRef(false);
   const [loading, setLoading] = useState(true);
 
   const fetchEquipment = useCallback(async () => {
@@ -73,6 +80,15 @@ export default function EquipmentSection({ profileId, isOwnProfile = false }: Eq
 
       const data = await response.json();
       setEquipment(data.equipment || []);
+      const nextPrefs: EquipmentPrefs = data.prefs ?? {};
+      setPrefs(nextPrefs);
+      // Seed sort/view from the athlete's defaults on the FIRST load only —
+      // refetches after edits must not stomp the viewer's current filters.
+      if (!prefsSeededRef.current) {
+        prefsSeededRef.current = true;
+        if (nextPrefs.defaultSort) setSort(nextPrefs.defaultSort);
+        if (nextPrefs.defaultView !== undefined) setView(nextPrefs.defaultView);
+      }
     } catch (err) {
       // Silently handle fetch errors - empty state will be shown
       void err;
@@ -225,8 +241,9 @@ export default function EquipmentSection({ profileId, isOwnProfile = false }: Eq
     return acc;
   }, {} as Record<string, EquipmentItem[]>);
 
-  const sportGroups = Object.keys(bySport).sort((a, b) =>
-    sportLabel(a).localeCompare(sportLabel(b))
+  const sportGroups = orderSportKeys(
+    Object.keys(bySport).sort((a, b) => sportLabel(a).localeCompare(sportLabel(b))),
+    prefs
   );
 
   // Category order within a sport: the sport's config order, unknown/free-
@@ -256,14 +273,18 @@ export default function EquipmentSection({ profileId, isOwnProfile = false }: Eq
     search,
     item => getCategoryConfig(item.sport_key || 'general', item.category).label
   );
+  const historyVisible = showHistory && !(prefs.hideHistory && !isOwnProfile);
   const railItems = inSeasonView
     ? railSource.map(i => ({ ...i, status: 'active' as const }))
-    : showHistory
+    : historyVisible
       ? railSource
       : railSource.filter(i => i.status === 'active');
-  const railSportKeys = Array.from(
-    new Set(railItems.map(i => i.sport_key || 'general'))
-  ).sort((a, b) => sportLabel(a).localeCompare(sportLabel(b)));
+  const railSportKeys = orderSportKeys(
+    Array.from(new Set(railItems.map(i => i.sport_key || 'general'))).sort((a, b) =>
+      sportLabel(a).localeCompare(sportLabel(b))
+    ),
+    prefs
+  );
   const railNav = buildEquipmentNav(railItems, {
     sortedSportKeys: railSportKeys,
     sportLabel,
@@ -309,6 +330,7 @@ export default function EquipmentSection({ profileId, isOwnProfile = false }: Eq
           onSelectedSports={setSelectedSports}
           isOwnProfile={isOwnProfile}
           onAdd={() => setIsAddModalOpen(true)}
+          onOpenSettings={() => setSettingsOpen(true)}
         />
       )}
 
@@ -387,6 +409,7 @@ export default function EquipmentSection({ profileId, isOwnProfile = false }: Eq
                 key={item.id}
                 item={item}
                 isOwnProfile={isOwnProfile}
+                compact={prefs.cardDetail === 'compact'}
                 onEdit={() => setEquipmentToEdit(item)}
                 onDelete={id => setPendingDelete(equipment.find(e => e.id === id) ?? null)}
                 onToggleStatus={handleToggleStatus}
@@ -516,7 +539,7 @@ export default function EquipmentSection({ profileId, isOwnProfile = false }: Eq
                 {/* History — retired gear, year over year, collapsed by
                     default. 'now' view only: a season view IS historical,
                     and the "Earlier" bucket for undated gear lives here. */}
-                {!inSeasonView && showHistory && historyBuckets.length > 0 && (
+                {!inSeasonView && historyVisible && historyBuckets.length > 0 && (
                   <div className="mt-8 scroll-mt-24" id={`${equipmentAnchorId(sport)}-history`}>
                     <button
                       onClick={() => setOpenHistories(prev => ({ ...prev, [sport]: !historyOpen }))}
@@ -575,6 +598,18 @@ export default function EquipmentSection({ profileId, isOwnProfile = false }: Eq
           })}
           </div>
         </div>
+      )}
+
+      {/* Equipment display settings — fresh mount per open so all state
+          seeds from current prefs via initializers */}
+      {settingsOpen && (
+        <EquipmentSettingsModal
+          currentPrefs={prefs}
+          sports={sportOptions.map(o => ({ key: o.value, label: o.label }))}
+          years={yearOptions}
+          onClose={() => setSettingsOpen(false)}
+          onSaved={() => fetchEquipment()}
+        />
       )}
 
       {/* Add Equipment Modal */}

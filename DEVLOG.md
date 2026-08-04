@@ -1,5 +1,47 @@
 # Development Log
 
+## August 4, 2026 — Equipment round 3b: the settings gear (equipment_prefs)
+
+The Equipment tab gets its own settings — organization without a trip to
+main Settings, per Tom: "how it's organized, what shows up where."
+
+**Migration 065** adds `profiles.equipment_prefs JSONB`. **Run by Tom in
+the Supabase SQL editor Aug 4, 2026** — verified live by service-role
+select, then the full 12-step equipment e2e (settings save, reorder,
+compact, and the two-user visibility check) green against production.
+That check surfaced a fixture subtlety worth keeping: QA user A is created
+PRIVATE, so a visitor spec must flip A public first (B is no approved
+follower; the private-profile view has no tabs at all — an assertion
+against it times out rather than failing loudly). It is NOT cosmetic
+state: `hiddenSports` is enforced SERVER-SIDE in GET /api/equipment
+(non-owners never receive those rows), which is why this lives on the
+profile row and not in localStorage. Shape is app-enforced by
+`sanitizeEquipmentPrefs` (pure, never throws — one malformed pref must
+never break a profile render; unknown keys dropped, enums validated, sport
+lists trimmed/deduped/capped). ⚠️ Run 065 BEFORE deploying — GET selects
+and PATCH writes the column explicitly. The GET tolerates the pre-065
+window by ignoring the profile-read error (prefs degrade to {}), so only
+SAVING settings requires the column.
+
+**The contract:** sportOrder (display order; first = rail's default-expanded
+group), defaultSort + defaultView (what the tab opens on — seeded on FIRST
+load only via a ref guard, so refetches after edits never stomp the
+viewer's current filters), hideHistory + hiddenSports (visitors only — the
+owner always sees everything, and the settings copy says so), cardDetail
+(compact drops specs + notes for everyone; it's a presentation choice).
+
+**The UI:** a gear button in the toolbar (owner only) opens
+EquipmentSettingsModal — fresh mount per open so all state seeds via
+useState initializers (the AddEquipmentModal pattern), house modal shape,
+useDirtyClose on every close path, save-then-close never prompts. Sport
+order moves via up/down buttons (no dnd dependency for five rows).
+
+E2E: owner reorders (Soccer first), goes compact (spec line disappears),
+hides History from visitors — then a second-user context verifies the
+visitor sees the new order but NO History, while the owner still sees it.
+The suite cannot pass until 065 runs (the save PATCH 42703s) — the PR
+ships as a draft gated on the migration, like 064 before it.
+
 ## August 4, 2026 — Equipment round 3a: the Filters popover and the rail as a true navigator
 
 Tom's next notes on the live tab. Three changes, all presentation:

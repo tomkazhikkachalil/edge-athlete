@@ -4,6 +4,7 @@ import { canViewProfile } from '@/lib/privacy';
 import { isValidDateString, isNotFutureDate } from '@/lib/date-validation';
 import { getEquipmentSportOptions } from '@/lib/equipment-config';
 import { EQUIPMENT_FIELD_CAPS } from '@/lib/equipment-validation';
+import { sanitizeEquipmentPrefs } from '@/lib/equipment-prefs';
 
 // GET - Fetch equipment for a profile
 export async function GET(request: NextRequest) {
@@ -40,7 +41,24 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Failed to fetch equipment' }, { status: 500 });
     }
 
-    return NextResponse.json({ equipment: equipment || [] });
+    // Owner's display settings ride along so every viewer renders the tab
+    // the way the athlete organized it. (Column from migration 065.)
+    const { data: profileRow } = await supabase
+      .from('profiles')
+      .select('equipment_prefs')
+      .eq('id', profileId)
+      .maybeSingle();
+    const prefs = sanitizeEquipmentPrefs(profileRow?.equipment_prefs);
+
+    // hiddenSports is a VISIBILITY rule, so it is enforced here — a visitor
+    // never receives those rows at all. The owner always sees everything.
+    const rows = equipment || [];
+    const visibleRows =
+      viewer.id === profileId || !prefs.hiddenSports?.length
+        ? rows
+        : rows.filter(item => !prefs.hiddenSports!.includes(item.sport_key || 'general'));
+
+    return NextResponse.json({ equipment: visibleRows, prefs });
   } catch (error) {
     if (error instanceof Response) return error;
     console.error('Equipment GET error:', error);

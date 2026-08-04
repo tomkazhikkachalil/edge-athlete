@@ -1,6 +1,6 @@
 'use client';
 
-import { Plus } from 'lucide-react';
+import { Plus, Settings } from 'lucide-react';
 import MultiSelectDropdown from '../filters/MultiSelectDropdown';
 import EquipmentFilters from './EquipmentFilters';
 import type { EquipmentSort, EquipmentView } from '@/lib/equipment-display';
@@ -34,6 +34,7 @@ interface EquipmentToolbarProps {
   onSelectedSports: (sports: string[]) => void;
   isOwnProfile: boolean;
   onAdd: () => void;
+  onOpenSettings: () => void;
 }
 
 export default function EquipmentToolbar({
@@ -42,7 +43,7 @@ export default function EquipmentToolbar({
   categoryOptions, selectedCategories, onSelectedCategories,
   showHistory, onShowHistory,
   sportOptions, selectedSports, onSelectedSports,
-  isOwnProfile, onAdd,
+  isOwnProfile, onAdd, onOpenSettings,
 }: EquipmentToolbarProps) {
   return (
     <div className="flex flex-wrap items-center gap-2 sm:gap-3">
@@ -85,6 +86,16 @@ export default function EquipmentToolbar({
           disabled={sportOptions.length < 2}
         />
       </div>
+      {isOwnProfile && (
+        <button
+          onClick={onOpenSettings}
+          aria-label="Equipment display settings"
+          title="Equipment display settings"
+          className="order-6 shrink-0 flex h-9 w-9 items-center justify-center rounded-lg border border-gray-300 bg-white text-gray-600 hover:bg-gray-50 transition-colors"
+        >
+          <Settings className="w-4 h-4" />
+        </button>
+      )}
       {/* Filters — season, category, retired-gear parameters in one place */}
       <div className="order-5 lg:order-4 shrink-0">
         <EquipmentFilters
