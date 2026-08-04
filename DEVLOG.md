@@ -1,5 +1,48 @@
 # Development Log
 
+## August 4, 2026 — Equipment refinement: one toolbar, the rail as selector, and the sparse-inventory fix
+
+Tom's pass over the live store-browse tab, plus the bug that made him ask
+"did the design even get processed?": with one item per category — his real
+inventory — every category still rendered a full-width block, so three lone
+cards stacked vertically, visually identical to the pre-redesign layout.
+The shelf design only ever condensed WITHIN a category. Three changes:
+
+**Sparse packing.** `packCategoryShelves`: a category earns its own shelf at
+≥3 items; everything smaller merges into ONE combined shelf per sport
+("More gear" — headerless when it is the whole setup, since the setup label
+already titles it). Cards keep their category chips, so identity survives
+the merge. Rail entries for merged categories jump to the combined shelf's
+anchor (`buildEquipmentNav` routes by the same threshold, so rail and
+sections cannot drift). Tom's golf gear now reads driver-beside-irons on
+one shelf; a 14-club bag still gets proper per-category shelves.
+
+**One control banner.** `EquipmentToolbar` replaces FilterBar + the separate
+search/sort row + the floating season strip: search, sort, the Now·year
+chips, the sport dropdown (mobile only) and Add Equipment in a single
+flex-wrap container. No duplicated controls — duplicating the season
+tablist would break ARIA and strict-mode locators — just order classes:
+one row at lg (`search | sort | seasons | add`), and below lg the seasons
+strip drops to its own row via `basis-full` while Add collapses to an icon
+below sm. The count pill and clear-all strip are gone (deliberate
+de-clutter; counts live in the sport headers).
+
+**The rail is now the sport selector.** "All Sports" at the top; sport
+titles are dark-violet (`text-violet-800`) filter buttons — click GOLF and
+the view filters to golf, click again or All Sports to clear — clearly
+distinct from the gray category jump entries, answering the hierarchy
+complaint. Each sport group collapses via its own chevron (separate hit
+area, so collapsing never fights filtering). The rail's data source is
+deliberately NOT sport-filtered (or you couldn't switch back) but honors
+season view and search. The 🕒 Seasons rail entry is gone — seasons live in
+the toolbar.
+
+E2E grew the matching coverage: combined-shelf membership + anchor jump,
+rail sport filtering round-trip, rail group collapse/expand, and the
+"Collapse" shelf toggle pinned with `exact: true` (the rail chevrons'
+aria-labels now also start with "Collapse"). Sparse mirror verified
+side-by-side rendering programmatically (bounding-box y-delta < 5px).
+
 ## August 4, 2026 — Custom equipment sets: "Tournament bag" as a first-class shelf
 
 Third store-browse pass. Tom's grouping rule: smart auto-groups by default,
