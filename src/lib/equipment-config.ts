@@ -123,3 +123,17 @@ export function getEquipmentSportOptions(): Array<{ value: string; label: string
       .map(s => ({ value: s.sport_key, label: s.display_name })),
   ];
 }
+
+/**
+ * Per-sport display meta for the Equipment tab's sectioned layout. The
+ * current-setup section label is sport-appropriate ("bag" makes sense for
+ * golf; it wouldn't for running shoes) with a neutral default, so adding a
+ * sport without an entry degrades to "Current Setup" rather than breaking.
+ */
+export const EQUIPMENT_SPORT_META: Record<string, { setupLabel?: string }> = {
+  golf: { setupLabel: 'In the Bag' },
+};
+
+export function getSetupLabel(sportKey: string): string {
+  return EQUIPMENT_SPORT_META[sportKey]?.setupLabel ?? 'Current Setup';
+}

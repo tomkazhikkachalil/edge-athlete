@@ -3,6 +3,7 @@ import {
   getEquipmentCategories,
   getCategoryConfig,
   getEquipmentSportOptions,
+  getSetupLabel,
 } from '../equipment-config';
 
 describe('getEquipmentCategories', () => {
@@ -50,5 +51,14 @@ describe('getEquipmentSportOptions', () => {
     const values = getEquipmentSportOptions().map(o => o.value);
     expect(values).not.toContain('tennis'); // disabled in the registry
     expect(values).not.toContain('football'); // disabled in the registry
+  });
+});
+
+describe('getSetupLabel', () => {
+  it('is sport-appropriate for golf and neutral otherwise', () => {
+    expect(getSetupLabel('golf')).toBe('In the Bag');
+    expect(getSetupLabel('soccer')).toBe('Current Setup');
+    expect(getSetupLabel('general')).toBe('Current Setup');
+    expect(getSetupLabel('not-a-sport')).toBe('Current Setup');
   });
 });

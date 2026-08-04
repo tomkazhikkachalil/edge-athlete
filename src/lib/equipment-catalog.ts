@@ -53,8 +53,10 @@ export interface CommunityEntry {
   count: number;
 }
 
-/** Default dropdown size. Generous: an empty query means "browse them all". */
-const DEFAULT_LIMIT = 60;
+/** Default dropdown size. Generous: an empty query means "browse them all" —
+ *  and it must exceed the largest seed list (golf: 73 brands), or browse-all
+ *  silently truncates. */
+const DEFAULT_LIMIT = 100;
 
 /**
  * Comparison key for a brand or model name. Collapses the ways the same brand

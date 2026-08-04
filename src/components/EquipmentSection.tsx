@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback, useMemo } from 'react';
-import { Plus, Edit2, Trash2, CheckCircle2, Archive, RefreshCw, Dumbbell } from 'lucide-react';
+import { Plus, Edit2, Trash2, CheckCircle2, Archive, RefreshCw, Dumbbell, ChevronDown } from 'lucide-react';
 import OptimizedImage from './OptimizedImage';
 import AddEquipmentModal from './AddEquipmentModal';
 import ReplaceEquipmentModal from './ReplaceEquipmentModal';
@@ -9,7 +9,8 @@ import ConfirmModal from './ConfirmModal';
 import FilterBar from './filters/FilterBar';
 import MultiSelectDropdown from './filters/MultiSelectDropdown';
 import { deriveInBagYearOptions, isInBagDuringYear, formatMonthYear, yearOf, matchesSportFilter } from '@/lib/profile-filters';
-import { getCategoryConfig, getEquipmentCategories } from '@/lib/equipment-config';
+import { getCategoryConfig, getEquipmentCategories, getSetupLabel } from '@/lib/equipment-config';
+import { groupRetiredByYear, countByStatus, EARLIER_BUCKET } from '@/lib/equipment-display';
 import { SPORT_NAMES } from '@/lib/config/sports-config';
 import { useToast } from './Toast';
 
@@ -32,9 +33,10 @@ interface EquipmentSectionProps {
 export default function EquipmentSection({ profileId, isOwnProfile = false }: EquipmentSectionProps) {
   const { showSuccess, showError } = useToast();
   const [equipment, setEquipment] = useState<EquipmentItem[]>([]);
-  const [filter, setFilter] = useState<'all' | 'active' | 'retired'>('active');
   const [selectedSports, setSelectedSports] = useState<string[]>([]);
   const [selectedYears, setSelectedYears] = useState<number[]>([]);
+  // Sports whose History group is expanded (collapsed by default).
+  const [openHistories, setOpenHistories] = useState<Record<string, boolean>>({});
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isReplaceModalOpen, setIsReplaceModalOpen] = useState(false);
   const [equipmentToReplace, setEquipmentToReplace] = useState<EquipmentItem | null>(null);
@@ -152,9 +154,11 @@ export default function EquipmentSection({ profileId, isOwnProfile = false }: Eq
     [equipment]
   );
 
-  // Filter equipment: status AND sport AND "in bag during any selected year"
+  // Filter equipment: sport AND "in bag during any selected year". There is
+  // deliberately NO status filter anymore — active vs retired is structural
+  // (Current Setup vs History per sport), so a select for it was redundant
+  // and one more control in a row that wrapped to four lines at 320px.
   const filteredEquipment = equipment.filter(item => {
-    if (filter !== 'all' && item.status !== filter) return false;
     if (!matchesSportFilter(item.sport_key || 'general', selectedSports)) return false;
     if (selectedYears.length === 0) return true;
     return selectedYears.some(year =>
@@ -166,20 +170,18 @@ export default function EquipmentSection({ profileId, isOwnProfile = false }: Eq
     );
   });
 
-  // Group by sport, then by category within each sport. Sport headers only
-  // render when more than one sport is present in the filtered set.
-  const groupedBySport = filteredEquipment.reduce((acc, item) => {
+  // One section per sport — a mini profile of that sport's gear: what's in
+  // play now (active, grouped by category), then a collapsible year-grouped
+  // History of retired gear.
+  const bySport = filteredEquipment.reduce((acc, item) => {
     const sport = item.sport_key || 'general';
-    if (!acc[sport]) acc[sport] = {};
-    if (!acc[sport][item.category]) acc[sport][item.category] = [];
-    acc[sport][item.category].push(item);
+    (acc[sport] ??= []).push(item);
     return acc;
-  }, {} as Record<string, Record<string, EquipmentItem[]>>);
+  }, {} as Record<string, EquipmentItem[]>);
 
-  const sportGroups = Object.keys(groupedBySport).sort((a, b) =>
+  const sportGroups = Object.keys(bySport).sort((a, b) =>
     sportLabel(a).localeCompare(sportLabel(b))
   );
-  const multiSport = sportGroups.length > 1;
 
   // Category order within a sport: the sport's config order, unknown/free-
   // text categories after, alphabetically.
@@ -200,9 +202,9 @@ export default function EquipmentSection({ profileId, isOwnProfile = false }: Eq
       {/* Filters + add button — shared FilterBar treatment */}
       <FilterBar
         resultCount={loading ? undefined : filteredEquipment.length}
-        activeCount={selectedSports.length + selectedYears.length + (filter !== 'active' ? 1 : 0)}
+        resultNoun="item"
+        activeCount={selectedSports.length + selectedYears.length}
         onClearAll={() => {
-          setFilter('active');
           setSelectedSports([]);
           setSelectedYears([]);
         }}
@@ -218,18 +220,6 @@ export default function EquipmentSection({ profileId, isOwnProfile = false }: Eq
           ) : undefined
         }
       >
-        {/* Status filter */}
-        <select
-          value={filter}
-          onChange={(e) => setFilter(e.target.value as 'all' | 'active' | 'retired')}
-          className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-violet-500 bg-white"
-          aria-label="Filter by status"
-        >
-          <option value="active">Active ({equipment.filter(e => e.status === 'active').length})</option>
-          <option value="retired">Retired ({equipment.filter(e => e.status === 'retired').length})</option>
-          <option value="all">All ({equipment.length})</option>
-        </select>
-
         {/* Sport filter — enabled once gear spans more than one sport */}
         <MultiSelectDropdown<string>
           allLabel="All Sports"
@@ -267,15 +257,9 @@ export default function EquipmentSection({ profileId, isOwnProfile = false }: Eq
             <Dumbbell className="w-10 h-10 text-gray-400" />
           </div>
           <h3 className="text-xl font-bold text-gray-900 mb-2">
-            {selectedYears.length > 0 || selectedSports.length > 0 ? (
-              'No equipment matches your filters'
-            ) : (
-              <>
-                {filter === 'active' && 'No active equipment'}
-                {filter === 'retired' && 'No retired equipment'}
-                {filter === 'all' && 'No equipment added'}
-              </>
-            )}
+            {selectedYears.length > 0 || selectedSports.length > 0
+              ? 'No equipment matches your filters'
+              : 'No equipment added'}
           </h3>
           <p className="text-gray-600 mb-6 max-w-md mx-auto">
             {isOwnProfile
@@ -294,53 +278,106 @@ export default function EquipmentSection({ profileId, isOwnProfile = false }: Eq
         </div>
       )}
 
-      {/* Equipment grid — grouped by sport, then category */}
+      {/* One section per sport: Current Setup (active, by category) + History */}
       {!loading && filteredEquipment.length > 0 && (
-        <div className="space-y-10">
+        <div className="space-y-12">
           {sportGroups.map(sport => {
-            const categories = categoryOrder(sport, Object.keys(groupedBySport[sport]));
+            const items = bySport[sport];
+            const counts = countByStatus(items);
+            const activeItems = items.filter(i => i.status === 'active');
+            const activeByCategory = activeItems.reduce((acc, item) => {
+              (acc[item.category] ??= []).push(item);
+              return acc;
+            }, {} as Record<string, EquipmentItem[]>);
+            const categories = categoryOrder(sport, Object.keys(activeByCategory));
+            const historyBuckets = groupRetiredByYear(items);
+            const historyOpen = openHistories[sport] ?? false;
+
+            const renderCard = (item: EquipmentItem) => (
+              <EquipmentCard
+                key={item.id}
+                item={item}
+                isOwnProfile={isOwnProfile}
+                onEdit={() => setEquipmentToEdit(item)}
+                onDelete={id => setPendingDelete(equipment.find(e => e.id === id) ?? null)}
+                onToggleStatus={handleToggleStatus}
+                onReplace={() => handleReplace(item)}
+              />
+            );
+
             return (
-              <div key={sport}>
-                {/* Sport header — only when gear spans multiple sports */}
-                {multiSport && (
-                  <h3 className="text-xl font-bold text-gray-900 mb-4 pb-2 border-b border-gray-200">
-                    {sportLabel(sport)}
-                  </h3>
+              <section key={sport}>
+                {/* Sport header — the section IS this sport's gear profile,
+                    so it renders even for a single sport. */}
+                <div className="flex items-baseline gap-3 mb-4 pb-2 border-b border-gray-200">
+                  <h3 className="text-xl font-bold text-gray-900">{sportLabel(sport)}</h3>
+                  <span className="text-sm text-gray-500">
+                    {counts.active} active{counts.retired > 0 ? ` · ${counts.retired} retired` : ''}
+                  </span>
+                </div>
+
+                {/* Current setup — sport-appropriate label (golf: "In the Bag") */}
+                <h4 className="text-sm font-semibold uppercase tracking-wide text-gray-500 mb-4">
+                  {getSetupLabel(sport)}
+                </h4>
+                {activeItems.length === 0 ? (
+                  <p className="text-sm text-gray-500 mb-2">
+                    {isOwnProfile
+                      ? 'Nothing in your current setup — add gear or re-activate something below.'
+                      : 'No current gear listed.'}
+                  </p>
+                ) : (
+                  <div className="space-y-8">
+                    {categories.map(category => {
+                      const config = getCategoryConfig(sport, category);
+                      const categoryItems = activeByCategory[category];
+                      return (
+                        <div key={category}>
+                          <div className="flex items-center gap-3 mb-4">
+                            <span className="text-2xl">{config.icon}</span>
+                            <h5 className="text-lg font-bold text-gray-900">{config.label}</h5>
+                            <span className="text-sm text-gray-500">({categoryItems.length})</span>
+                          </div>
+                          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-4">
+                            {categoryItems.map(renderCard)}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
                 )}
 
-                <div className="space-y-8">
-                  {categories.map(category => {
-                    const items = groupedBySport[sport][category];
-                    const config = getCategoryConfig(sport, category);
-                    return (
-                      <div key={category}>
-                        {/* Category header */}
-                        <div className="flex items-center gap-3 mb-4">
-                          <span className="text-2xl">{config.icon}</span>
-                          <h4 className="text-lg font-bold text-gray-900">{config.label}</h4>
-                          <span className="text-sm text-gray-500">({items.length})</span>
-                        </div>
-
-                        {/* Equipment cards grid */}
-                        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-                          {items.map((item) => (
-                            <EquipmentCard
-                              key={item.id}
-                              item={item}
-                              isOwnProfile={isOwnProfile}
-                              showSportChip={multiSport}
-                              onEdit={() => setEquipmentToEdit(item)}
-                              onDelete={id => setPendingDelete(equipment.find(e => e.id === id) ?? null)}
-                              onToggleStatus={handleToggleStatus}
-                              onReplace={() => handleReplace(item)}
-                            />
-                          ))}
-                        </div>
+                {/* History — retired gear, year over year, collapsed by default */}
+                {historyBuckets.length > 0 && (
+                  <div className="mt-8">
+                    <button
+                      onClick={() => setOpenHistories(prev => ({ ...prev, [sport]: !historyOpen }))}
+                      aria-expanded={historyOpen}
+                      className="ea-interactive flex items-center gap-2 rounded-lg px-2 py-2 -mx-2 text-sm font-semibold uppercase tracking-wide text-gray-500"
+                    >
+                      <ChevronDown
+                        className={`w-4 h-4 transition-transform ${historyOpen ? '' : '-rotate-90'}`}
+                      />
+                      History
+                      <span className="normal-case font-normal">({counts.retired} retired)</span>
+                    </button>
+                    {historyOpen && (
+                      <div className="mt-4 space-y-8">
+                        {historyBuckets.map(bucket => (
+                          <div key={String(bucket.year)}>
+                            <h5 className="text-lg font-bold text-gray-900 mb-4">
+                              {bucket.year === EARLIER_BUCKET ? 'Earlier' : bucket.year}
+                            </h5>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-4">
+                              {bucket.items.map(renderCard)}
+                            </div>
+                          </div>
+                        ))}
                       </div>
-                    );
-                  })}
-                </div>
-              </div>
+                    )}
+                  </div>
+                )}
+              </section>
             );
           })}
         </div>
@@ -410,8 +447,6 @@ export default function EquipmentSection({ profileId, isOwnProfile = false }: Eq
 interface EquipmentCardProps {
   item: EquipmentItem;
   isOwnProfile: boolean;
-  /** Show a sport chip next to the category (when gear spans sports). */
-  showSportChip?: boolean;
   onEdit: () => void;
   onDelete: (id: string) => void;
   onToggleStatus: (id: string) => void;
@@ -435,17 +470,17 @@ function formatOwnershipSpan(item: EquipmentItem): string | null {
     : `${formatMonthYear(acquired, { yearOnly: true })} – ${formatMonthYear(retired, { yearOnly: true })}`;
 }
 
-function EquipmentCard({ item, isOwnProfile, showSportChip = false, onEdit, onDelete, onToggleStatus, onReplace }: EquipmentCardProps) {
+function EquipmentCard({ item, isOwnProfile, onEdit, onDelete, onToggleStatus, onReplace }: EquipmentCardProps) {
   const config = getCategoryConfig(item.sport_key || 'general', item.category);
   const isActive = item.status === 'active';
   const ownershipSpan = formatOwnershipSpan(item);
 
   return (
     <div
-      className={`relative rounded-xl overflow-hidden transition-all duration-200 ${
+      className={`relative rounded-lg overflow-hidden transition-all duration-200 ${
         isActive
           ? 'bg-white border-2 border-gray-200 hover:border-violet-400 hover:shadow-lg'
-          : 'bg-gray-50 border-2 border-gray-200 opacity-75 hover:opacity-100'
+          : 'bg-gray-50 border-2 border-gray-200'
       }`}
     >
       {/* Status badge */}
@@ -464,7 +499,7 @@ function EquipmentCard({ item, isOwnProfile, showSportChip = false, onEdit, onDe
       </div>
 
       {/* Image */}
-      <div className="aspect-video bg-gradient-to-br from-gray-100 to-gray-200 relative">
+      <div className={`aspect-video bg-gradient-to-br from-gray-100 to-gray-200 relative ${isActive ? '' : 'opacity-75'}`}>
         {item.image_url ? (
           <OptimizedImage
             src={item.image_url}
@@ -480,51 +515,50 @@ function EquipmentCard({ item, isOwnProfile, showSportChip = false, onEdit, onDe
         )}
       </div>
 
-      {/* Content */}
+      {/* Content. Retired items dim the INFO only — the owner actions
+          (Edit/Activate/Delete) keep full contrast, which whole-card
+          opacity used to wash out. */}
       <div className="p-4 space-y-3">
-        {/* Category (+ sport) badges */}
-        <div className="flex items-center gap-2 flex-wrap">
-          <span className={`px-2 py-1 rounded-md text-xs font-semibold ${config.color}`}>
-            {config.label}
-          </span>
-          {showSportChip && (
-            <span className="px-2 py-1 rounded-md text-xs font-semibold bg-violet-50 text-violet-700">
-              {sportLabel(item.sport_key || 'general')}
+        <div className={`space-y-3 ${isActive ? '' : 'opacity-75'}`}>
+          {/* Category badge */}
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className={`px-2 py-1 rounded-md text-xs font-semibold ${config.color}`}>
+              {config.label}
             </span>
-          )}
-        </div>
-
-        {/* Brand & Model */}
-        <div>
-          <h4 className="text-sm font-semibold text-gray-900 leading-tight">{item.brand}</h4>
-          <p className="text-lg font-bold text-gray-900 leading-tight mt-0.5">{item.model}</p>
-          {ownershipSpan && (
-            <p className="text-xs text-gray-500 mt-1">{ownershipSpan}</p>
-          )}
-        </div>
-
-        {/* Specs */}
-        {item.specs && Object.keys(item.specs).length > 0 && (
-          <div className="space-y-1">
-            {Object.entries(item.specs)
-              .filter(([, value]) => value)
-              .slice(0, 3) // Show only first 3 specs
-              .map(([key, value]) => (
-                <div key={key} className="flex items-center justify-between text-xs">
-                  {/* /_/g, not '_': replace() with a string swaps only the
-                      FIRST underscore, so a three-word spec key such as
-                      batting_glove_size rendered as "Batting glove_size". */}
-                  <span className="text-gray-500 capitalize">{key.replace(/_/g, ' ')}</span>
-                  <span className="text-gray-900 font-semibold">{value}</span>
-                </div>
-              ))}
           </div>
-        )}
 
-        {/* Notes preview */}
-        {item.notes && (
-          <p className="text-xs text-gray-600 line-clamp-2 italic">&quot;{item.notes}&quot;</p>
-        )}
+          {/* Brand & Model */}
+          <div>
+            <h4 className="text-sm font-semibold text-gray-900 leading-tight">{item.brand}</h4>
+            <p className="text-lg font-bold text-gray-900 leading-tight mt-0.5">{item.model}</p>
+            {ownershipSpan && (
+              <p className="text-xs text-gray-500 mt-1">{ownershipSpan}</p>
+            )}
+          </div>
+
+          {/* Specs */}
+          {item.specs && Object.keys(item.specs).length > 0 && (
+            <div className="space-y-1">
+              {Object.entries(item.specs)
+                .filter(([, value]) => value)
+                .slice(0, 3) // Show only first 3 specs
+                .map(([key, value]) => (
+                  <div key={key} className="flex items-center justify-between text-xs">
+                    {/* /_/g, not '_': replace() with a string swaps only the
+                        FIRST underscore, so a three-word spec key such as
+                        batting_glove_size rendered as "Batting glove_size". */}
+                    <span className="text-gray-500 capitalize">{key.replace(/_/g, ' ')}</span>
+                    <span className="text-gray-900 font-semibold">{value}</span>
+                  </div>
+                ))}
+            </div>
+          )}
+
+          {/* Notes preview */}
+          {item.notes && (
+            <p className="text-xs text-gray-600 line-clamp-2 italic">&quot;{item.notes}&quot;</p>
+          )}
+        </div>
 
         {/* Actions (only for own profile) */}
         {isOwnProfile && (
