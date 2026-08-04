@@ -6,6 +6,7 @@ import Image from 'next/image';
 import AddEquipmentModal from './AddEquipmentModal';
 import type { EquipmentItem } from '@/types/equipment';
 import { getCategoryConfig } from '@/lib/equipment-config';
+import { isOptimizableImageSrc } from '@/lib/media/image-src';
 import { useBodyScrollLock } from '@/hooks/useBodyScrollLock';
 import { useToast } from './Toast';
 
@@ -97,7 +98,7 @@ export default function ReplaceEquipmentModal({
       {/* Confirmation step */}
       {step === 'confirm' && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl max-w-lg w-full max-h-modal overflow-y-auto shadow-2xl">
+          <div className="bg-white rounded-xl max-w-lg w-full max-h-modal overflow-y-auto shadow-2xl">
             {/* Header */}
             <div className="sticky top-0 bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between rounded-t-2xl">
               <div className="flex items-center gap-3">
@@ -136,7 +137,7 @@ export default function ReplaceEquipmentModal({
                         width={80}
                         height={80}
                         className="w-20 h-20 object-contain rounded-lg bg-white"
-                        unoptimized={oldEquipment.image_url.includes('golfwrx.com')}
+                        unoptimized={!isOptimizableImageSrc(oldEquipment.image_url)}
                       />
                     ) : (
                       <div className="w-20 h-20 bg-gray-200 rounded-lg flex items-center justify-center text-3xl">

@@ -1,5 +1,47 @@
 # Development Log
 
+## August 4, 2026 — Equipment becomes a per-sport profile: current setup vs. history
+
+Tom's direction, near-verbatim: every sport's gear grouped like a mini
+profile — see what you're playing with NOW; history legible year over year,
+driven by the dates; "bag makes sense for golf, for biking it wouldn't."
+The insight that kept this PR small: **the data model already had all of
+it.** "Current setup" is `status='active'`; history is the retired rows plus
+`retired_on`. No new columns — the whole change is presentation.
+
+**The new shape.** One section per sport (header + "3 active · 1 retired"
+counts — always rendered now; the section IS the sport's gear profile, so
+identity beats the old only-when-multi-sport rule). Inside: a
+**current-setup group** (active items, category-grouped as before) under a
+sport-appropriate label — `getSetupLabel()` in equipment-config, golf says
+"In the Bag", everything else defaults to "Current Setup", and a sport
+without a meta entry degrades to the default rather than breaking. Then
+**History**: collapsed by default, retired gear bucketed by retirement year
+descending (user date first, audit timestamp fallback, an "Earlier" bucket
+for undated legacy rows). Grouping/counting are pure functions in the new
+`src/lib/equipment-display.ts` with node tests; the component only derives.
+
+**The status filter is gone** — active/retired is structural now, so the
+select was redundant, and it was one of the controls that made the FilterBar
+wrap to ~4 rows at 320px before any gear was visible. Sport and year filters
+stay (the year filter answers "what was in my bag during 2023" — a
+cross-section the year-grouped History can't).
+
+**Polish debts from the exploration, same pass:** cards `rounded-xl` →
+`rounded-lg`; retired dimming moved off the card root onto image+info so
+Edit/Activate/Delete keep full contrast; redundant `lg:grid-cols-3` dropped;
+`resultNoun` aligned with sibling tabs; ReplaceEquipmentModal matches
+AddEquipmentModal's shape (`rounded-xl`) and its stale
+`golfwrx.com`-special-case `unoptimized` hack now uses
+`isOptimizableImageSrc`; equipment-catalog `DEFAULT_LIMIT` 60 → 100 (golf
+has 73 brand seeds — browse-all was silently truncating, and the production
+verify at the time even recorded "golf 60" without flagging it).
+
+Verified with a scripted browser pass (seeded golf active ×3 / retired ×1 +
+soccer retired ×1 via API): sport sections and labels render, History is
+hidden until expanded and shows year buckets, zero horizontal overflow at
+320/768/1280. Cleanup left no rows.
+
 ## August 4, 2026 — Smoke suite v2: the social loop finally has a second player
 
 The suite's biggest blind spot was that every spec ran as one user — and the
