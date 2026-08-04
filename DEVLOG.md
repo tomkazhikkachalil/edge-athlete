@@ -1,5 +1,35 @@
 # Development Log
 
+## August 4, 2026 — Equipment round 3a: the Filters popover and the rail as a true navigator
+
+Tom's next notes on the live tab. Three changes, all presentation:
+
+**The season chips became a "Filters" control.** One button with an
+active-count badge opens a popover with three parameter groups — Season
+(the Now/year radios, same `view` state), Category (checkboxes of the
+categories actually present, filtering the pipeline after sport+view), and
+Retired gear (a Show History toggle that unrenders the History sections and
+EXCLUDES retired items from rail counts — not remaps them, which would have
+inflated the active numbers). Mechanics mirror MultiSelectDropdown (the
+established popover: outside-click, Escape, edge-flip). SeasonSwitcher.tsx
+is deleted — its radios live in the popover now.
+
+**The rail's "All Sports" is a dropdown.** A single-select sport picker at
+the rail top (per-sport counts, stable `aria-label="Choose sport"` because
+the visible label mirrors the selection — the label-changes locator trap,
+recorded before it bit). Sport titles keep click-to-filter as a second
+affordance.
+
+**First sport open, the rest closed on arrival.** The rail's collapse state
+lazily initializes to everything-but-first collapsed — it should orient,
+not overwhelm. (Round 3b will let the athlete choose which sport is first.)
+
+E2E moved season assertions from chips to popover radios and added category
+narrowing, the History toggle, the dropdown filter round-trip, and the
+default-collapse state. New trap for the file: a rail option's accessible
+name includes its count badge ("Golf 2"), so exact-match against the bare
+label fails — anchor with a regex.
+
 ## August 4, 2026 — Equipment refinement: one toolbar, the rail as selector, and the sparse-inventory fix
 
 Tom's pass over the live store-browse tab, plus the bug that made him ask

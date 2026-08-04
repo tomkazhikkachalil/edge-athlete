@@ -2,7 +2,7 @@
 
 import { Plus } from 'lucide-react';
 import MultiSelectDropdown from '../filters/MultiSelectDropdown';
-import SeasonSwitcher from './SeasonSwitcher';
+import EquipmentFilters from './EquipmentFilters';
 import type { EquipmentSort, EquipmentView } from '@/lib/equipment-display';
 
 /**
@@ -10,11 +10,10 @@ import type { EquipmentSort, EquipmentView } from '@/lib/equipment-display';
  * time-machine chips, the sport filter (mobile only — the rail is the sport
  * selector at lg+) and Add Equipment, all in one place.
  *
- * One flex-wrap container, no duplicated controls (duplicating the season
- * tablist would break ARIA and strict-mode locators): order classes give
- * lg a single row [search | sort | seasons | add], while `basis-full` drops
- * the seasons strip to its own row below lg — two compact rows on a phone,
- * with the Add label collapsing to an icon below sm.
+ * One flex-wrap container, no duplicated controls: order classes give lg a
+ * single row [search | sort | filters | add]; below lg the sport dropdown
+ * and Filters wrap onto a second compact row, with the Add label collapsing
+ * to an icon below sm.
  */
 
 interface EquipmentToolbarProps {
@@ -25,6 +24,11 @@ interface EquipmentToolbarProps {
   years: number[];
   view: EquipmentView;
   onViewChange: (view: EquipmentView) => void;
+  categoryOptions: Array<{ value: string; label: string }>;
+  selectedCategories: string[];
+  onSelectedCategories: (categories: string[]) => void;
+  showHistory: boolean;
+  onShowHistory: (show: boolean) => void;
   sportOptions: Array<{ value: string; label: string }>;
   selectedSports: string[];
   onSelectedSports: (sports: string[]) => void;
@@ -35,6 +39,8 @@ interface EquipmentToolbarProps {
 export default function EquipmentToolbar({
   search, onSearch, sort, onSort,
   years, view, onViewChange,
+  categoryOptions, selectedCategories, onSelectedCategories,
+  showHistory, onShowHistory,
   sportOptions, selectedSports, onSelectedSports,
   isOwnProfile, onAdd,
 }: EquipmentToolbarProps) {
@@ -79,11 +85,19 @@ export default function EquipmentToolbar({
           disabled={sportOptions.length < 2}
         />
       </div>
-      {years.length > 0 && (
-        <div className="order-5 lg:order-4 min-w-0 flex-1 basis-full lg:basis-auto lg:flex-initial">
-          <SeasonSwitcher embedded years={years} view={view} onChange={onViewChange} />
-        </div>
-      )}
+      {/* Filters — season, category, retired-gear parameters in one place */}
+      <div className="order-5 lg:order-4 shrink-0">
+        <EquipmentFilters
+          years={years}
+          view={view}
+          onViewChange={onViewChange}
+          categoryOptions={categoryOptions}
+          selectedCategories={selectedCategories}
+          onSelectedCategories={onSelectedCategories}
+          showHistory={showHistory}
+          onShowHistory={onShowHistory}
+        />
+      </div>
     </div>
   );
 }
