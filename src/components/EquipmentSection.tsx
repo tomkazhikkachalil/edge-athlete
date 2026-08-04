@@ -5,12 +5,10 @@ import { Plus, Dumbbell, ChevronDown, ChevronRight } from 'lucide-react';
 import AddEquipmentModal from './AddEquipmentModal';
 import ReplaceEquipmentModal from './ReplaceEquipmentModal';
 import ConfirmModal from './ConfirmModal';
-import FilterBar from './filters/FilterBar';
-import MultiSelectDropdown from './filters/MultiSelectDropdown';
 import EquipmentCard from './equipment/EquipmentCard';
 import EquipmentShelf, { ShelfCard, SHELF_VISIBLE_COUNT } from './equipment/EquipmentShelf';
 import EquipmentRail from './equipment/EquipmentRail';
-import SeasonSwitcher from './equipment/SeasonSwitcher';
+import EquipmentToolbar from './equipment/EquipmentToolbar';
 import { deriveInBagYearOptions, matchesSportFilter } from '@/lib/profile-filters';
 import { getCategoryConfig, getEquipmentCategories, getSetupLabel } from '@/lib/equipment-config';
 import {
@@ -18,7 +16,7 @@ import {
   filterEquipmentBySearch, sortEquipment, type EquipmentSort,
   buildEquipmentNav, equipmentAnchorId,
   filterEquipmentForView, type EquipmentView,
-  partitionByGroupLabel,
+  partitionByGroupLabel, packCategoryShelves, combinedShelfAnchorId,
 } from '@/lib/equipment-display';
 import { SPORT_NAMES } from '@/lib/config/sports-config';
 import { useToast } from './Toast';
@@ -226,15 +224,25 @@ export default function EquipmentSection({ profileId, isOwnProfile = false }: Eq
 
   const inSeasonView = view !== 'now';
 
-  // Rail model — built from the same filtered set the sections render, so
-  // rail counts always agree with what's on screen. In a season view every
-  // in-bag item counts (status is irrelevant to "what did they play with"),
-  // so items are presented to the nav as active and History entries vanish.
-  const navItems = inSeasonView
-    ? searchedEquipment.map(i => ({ ...i, status: 'active' as const }))
-    : searchedEquipment;
-  const railNav = buildEquipmentNav(navItems, {
-    sortedSportKeys: sportGroups,
+  // Rail model. The rail is the SPORT SELECTOR, so it lists every sport the
+  // athlete has gear in — deliberately NOT filtered by the selected sport
+  // (or you couldn't switch back), but honoring season view and search so
+  // counts agree with what's reachable. Season views present items as
+  // active (status is irrelevant to "what did they play with") and History
+  // entries vanish.
+  const railSource = filterEquipmentBySearch(
+    filterEquipmentForView(equipment, view),
+    search,
+    item => getCategoryConfig(item.sport_key || 'general', item.category).label
+  );
+  const railItems = inSeasonView
+    ? railSource.map(i => ({ ...i, status: 'active' as const }))
+    : railSource;
+  const railSportKeys = Array.from(
+    new Set(railItems.map(i => i.sport_key || 'general'))
+  ).sort((a, b) => sportLabel(a).localeCompare(sportLabel(b)));
+  const railNav = buildEquipmentNav(railItems, {
+    sortedSportKeys: railSportKeys,
     sportLabel,
     categoryLabel: (sport, category) => getCategoryConfig(sport, category).label,
     categoryRank: (sport, category) => {
@@ -255,70 +263,25 @@ export default function EquipmentSection({ profileId, isOwnProfile = false }: Eq
 
   return (
     <div className="w-full space-y-6">
-      {/* Filters + add button — shared FilterBar treatment */}
-      <FilterBar
-        resultCount={loading ? undefined : searchedEquipment.length}
-        resultNoun="item"
-        activeCount={selectedSports.length + (view !== 'now' ? 1 : 0)}
-        onClearAll={() => {
-          setSelectedSports([]);
-          setView('now');
-        }}
-        actions={
-          isOwnProfile ? (
-            <button
-              onClick={() => setIsAddModalOpen(true)}
-              className="flex items-center gap-2 px-4 py-2 bg-violet-600 text-white rounded-lg font-semibold text-sm hover:bg-violet-700 transition-colors shadow-sm"
-            >
-              <Plus className="w-4 h-4" />
-              Add Equipment
-            </button>
-          ) : undefined
-        }
-      >
-        {/* Sport filter — enabled once gear spans more than one sport */}
-        <MultiSelectDropdown<string>
-          allLabel="All Sports"
-          itemNounPlural="sports"
-          searchPlaceholder="Search sports..."
-          options={sportOptions}
-          selected={selectedSports}
-          onChange={setSelectedSports}
-          disabled={sportOptions.length < 2}
+      {/* The one control banner: search, sort, seasons, sport filter
+          (mobile — the rail owns it at lg+) and Add, together at the top.
+          Replaced the FilterBar + separate search row + floating season
+          strip; the count pill and clear-all strip went with them. */}
+      {!loading && (equipment.length > 0 || isOwnProfile) && (
+        <EquipmentToolbar
+          search={search}
+          onSearch={setSearch}
+          sort={sort}
+          onSort={setSort}
+          years={yearOptions}
+          view={view}
+          onViewChange={setView}
+          sportOptions={sportOptions}
+          selectedSports={selectedSports}
+          onSelectedSports={setSelectedSports}
+          isOwnProfile={isOwnProfile}
+          onAdd={() => setIsAddModalOpen(true)}
         />
-
-      </FilterBar>
-
-      {/* Season strip — the store's time machine. Single-select: a year
-          shows that season's in-bag setup (retired-since included); "Now"
-          is the live Current Setup / History split. Replaces the old year
-          multi-select filter. */}
-      {!loading && yearOptions.length > 0 && (
-        <SeasonSwitcher years={yearOptions} view={view} onChange={setView} />
-      )}
-
-      {/* Search + sort — their own row so the pair always fits one line at
-          320px (the input yields via flex-1 min-w-0, the select stays fixed) */}
-      {!loading && equipment.length > 0 && (
-        <div className="flex items-center gap-3">
-          <input
-            type="search"
-            value={search}
-            onChange={e => setSearch(e.target.value)}
-            placeholder="Search gear — brand, model, notes…"
-            aria-label="Search equipment"
-            className="flex-1 min-w-0 px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white"
-          />
-          <select
-            value={sort}
-            onChange={e => setSort(e.target.value as EquipmentSort)}
-            aria-label="Sort equipment"
-            className="px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white"
-          >
-            <option value="newest">Newest</option>
-            <option value="brand">Brand A–Z</option>
-          </select>
-        </div>
       )}
 
       {/* Loading state */}
@@ -367,18 +330,10 @@ export default function EquipmentSection({ profileId, isOwnProfile = false }: Eq
         <div className="lg:flex lg:gap-6 lg:items-start">
           <EquipmentRail
             nav={railNav}
+            selectedSport={selectedSports.length === 1 ? selectedSports[0] : null}
+            onSelectSport={sportKey => setSelectedSports(sportKey ? [sportKey] : [])}
             onJump={jumpTo}
             onJumpHistory={jumpToHistory}
-            topSlot={
-              yearOptions.length > 0 ? (
-                <button
-                  onClick={() => jumpTo('equip-seasons')}
-                  className="ea-interactive w-full text-left rounded-lg px-2 py-1.5 text-xs font-bold uppercase tracking-wide text-violet-600"
-                >
-                  🕒 Seasons
-                </button>
-              ) : undefined
-            }
           />
           <div className="min-w-0 flex-1 space-y-12">
           {sportGroups.map(sport => {
@@ -472,44 +427,61 @@ export default function EquipmentSection({ profileId, isOwnProfile = false }: Eq
                         </div>
                       );
                     })}
-                    {categories.map(category => {
-                      const config = getCategoryConfig(sport, category);
-                      const categoryItems = activeByCategory[category];
-                      const anchorId = equipmentAnchorId(sport, category);
-                      const expanded = expandedShelves[anchorId] ?? false;
-                      const overflows = categoryItems.length > SHELF_VISIBLE_COUNT;
-                      return (
-                        <div key={category} id={anchorId} className="scroll-mt-24">
-                          <div className="flex items-center gap-3 mb-4">
-                            <span className="text-2xl">{config.icon}</span>
-                            <h5 className="text-lg font-bold text-gray-900">{config.label}</h5>
-                            <span className="text-sm text-gray-500">({categoryItems.length})</span>
-                            {overflows && (
-                              /* Shelf ⇄ grid toggle is a desktop concern — the
-                                 mobile grid always shows everything. */
-                              <button
-                                onClick={() =>
-                                  setExpandedShelves(prev => ({ ...prev, [anchorId]: !expanded }))
-                                }
-                                className="ea-interactive hidden lg:inline-flex items-center gap-1 ml-auto rounded-lg px-2 py-1 text-sm font-semibold text-violet-600"
-                              >
-                                {expanded ? 'Collapse' : `See all ${categoryItems.length}`}
-                                <ChevronRight
-                                  className={`w-4 h-4 transition-transform ${expanded ? 'rotate-90' : ''}`}
-                                />
-                              </button>
+                    {(() => {
+                      // Sparse packing: categories under the threshold share
+                      // one combined shelf, so one-item categories sit side
+                      // by side instead of stacking full-width blocks.
+                      const shelves = packCategoryShelves(activeByCategory, categories);
+                      // The combined shelf needs a header only when it isn't
+                      // the whole setup (the setup label already titles the
+                      // single-shelf case).
+                      const combinedNeedsHeader = shelves.length > 1 || sets.length > 0;
+                      return shelves.map(shelf => {
+                        const isCombined = shelf.kind === 'combined';
+                        const anchorId = isCombined
+                          ? combinedShelfAnchorId(sport)
+                          : equipmentAnchorId(sport, shelf.category);
+                        const config = isCombined ? null : getCategoryConfig(sport, shelf.category);
+                        const expanded = expandedShelves[anchorId] ?? false;
+                        const overflows = shelf.items.length > SHELF_VISIBLE_COUNT;
+                        const showHeader = !isCombined || combinedNeedsHeader;
+                        return (
+                          <div key={anchorId} id={anchorId} className="scroll-mt-24">
+                            {showHeader && (
+                              <div className="flex items-center gap-3 mb-4">
+                                <span className="text-2xl">{config ? config.icon : '🎒'}</span>
+                                <h5 className="text-lg font-bold text-gray-900">
+                                  {config ? config.label : 'More gear'}
+                                </h5>
+                                <span className="text-sm text-gray-500">({shelf.items.length})</span>
+                                {overflows && (
+                                  /* Shelf ⇄ grid toggle is a desktop concern —
+                                     the mobile grid always shows everything. */
+                                  <button
+                                    onClick={() =>
+                                      setExpandedShelves(prev => ({ ...prev, [anchorId]: !expanded }))
+                                    }
+                                    className="ea-interactive hidden lg:inline-flex items-center gap-1 ml-auto rounded-lg px-2 py-1 text-sm font-semibold text-violet-600"
+                                  >
+                                    {expanded ? 'Collapse' : `See all ${shelf.items.length}`}
+                                    <ChevronRight
+                                      className={`w-4 h-4 transition-transform ${expanded ? 'rotate-90' : ''}`}
+                                    />
+                                  </button>
+                                )}
+                              </div>
                             )}
+                            <EquipmentShelf expanded={expanded}>
+                              {sortEquipment(shelf.items, sort, () => 0).map(item => (
+                                <ShelfCard key={item.id} expanded={expanded}>
+                                  {renderCard(item)}
+                                </ShelfCard>
+                              ))}
+                            </EquipmentShelf>
                           </div>
-                          <EquipmentShelf expanded={expanded}>
-                            {sortEquipment(categoryItems, sort, () => 0).map(item => (
-                              <ShelfCard key={item.id} expanded={expanded}>
-                                {renderCard(item)}
-                              </ShelfCard>
-                            ))}
-                          </EquipmentShelf>
-                        </div>
-                      );
-                    })}
+                        );
+                      });
+                    })()}
                   </div>
                 )}
 

@@ -3,7 +3,7 @@ import {
   groupRetiredByYear, countByStatus, EARLIER_BUCKET,
   filterEquipmentBySearch, sortEquipment,
   buildEquipmentNav, equipmentAnchorId,
-  filterEquipmentForView, partitionByGroupLabel,
+  filterEquipmentForView, partitionByGroupLabel, packCategoryShelves,
 } from '../equipment-display';
 
 type Item = {
@@ -173,10 +173,15 @@ describe('buildEquipmentNav', () => {
     expect(nav[0].retiredCount).toBe(2);
   });
 
-  it('emits stable anchor ids that match equipmentAnchorId', () => {
-    const nav = buildEquipmentNav([item('golf', 'driver', 'active')], opts);
+  it('emits stable anchor ids — dedicated categories own theirs, small ones share the combined shelf', () => {
+    const nav = buildEquipmentNav([
+      item('golf', 'driver', 'active'),
+      item('golf', 'wedge', 'active'), item('golf', 'wedge', 'active'), item('golf', 'wedge', 'active'),
+    ], opts);
     expect(nav[0].anchorId).toBe(equipmentAnchorId('golf'));
-    expect(nav[0].categories[0].anchorId).toBe(equipmentAnchorId('golf', 'driver'));
+    const byValue = Object.fromEntries(nav[0].categories.map(c => [c.value, c.anchorId]));
+    expect(byValue.wedge).toBe(equipmentAnchorId('golf', 'wedge'));       // 3 items → dedicated
+    expect(byValue.driver).toBe(equipmentAnchorId('golf', 'more-gear'));  // 1 item → combined shelf
     expect(nav[0].historyAnchorId).toBe('equip-golf-history');
   });
 
@@ -284,7 +289,51 @@ describe('buildEquipmentNav custom sets', () => {
       { value: 'Tournament bag', label: 'Tournament bag', count: 1, anchorId: 'equip-golf-set-tournament-bag' },
     ]);
     expect(nav[0].categories).toEqual([
-      { value: 'driver', label: 'driver', count: 1, anchorId: 'equip-golf-driver' },
+      { value: 'driver', label: 'driver', count: 1, anchorId: 'equip-golf-more-gear' },
     ]);
+  });
+});
+
+describe('packCategoryShelves', () => {
+  const n = (count: number) => Array.from({ length: count }, (_, i) => `x${i}`);
+
+  it('dedicates categories at the threshold, merges the rest into one trailing shelf', () => {
+    const shelves = packCategoryShelves(
+      { driver: n(3), putter: n(1), ball: n(2) },
+      ['driver', 'putter', 'ball']
+    );
+    expect(shelves.map(s => s.kind)).toEqual(['category', 'combined']);
+    expect(shelves[0]).toMatchObject({ category: 'driver' });
+    expect(shelves[1]).toMatchObject({ categories: ['putter', 'ball'] });
+    expect((shelves[1] as { items: string[] }).items).toHaveLength(3);
+  });
+
+  it('all-small inventories collapse to a single combined shelf (the sparse fix)', () => {
+    const shelves = packCategoryShelves(
+      { driver: n(1), iron_set: n(1) },
+      ['driver', 'iron_set']
+    );
+    expect(shelves).toHaveLength(1);
+    expect(shelves[0].kind).toBe('combined');
+    expect((shelves[0] as { items: string[] }).items).toHaveLength(2);
+  });
+
+  it('all-large inventories get no combined shelf', () => {
+    const shelves = packCategoryShelves({ driver: n(4), wedge: n(5) }, ['driver', 'wedge']);
+    expect(shelves.map(s => s.kind)).toEqual(['category', 'category']);
+  });
+
+  it('skips empty categories and preserves category order in the combined shelf', () => {
+    const shelves = packCategoryShelves(
+      { a: [], b: ['b1'], c: ['c1', 'c2'] },
+      ['a', 'b', 'c']
+    );
+    expect(shelves).toHaveLength(1);
+    expect((shelves[0] as { items: string[] }).items).toEqual(['b1', 'c1', 'c2']);
+  });
+
+  it('respects a custom threshold', () => {
+    const shelves = packCategoryShelves({ a: n(2) }, ['a'], 2);
+    expect(shelves[0].kind).toBe('category');
   });
 });

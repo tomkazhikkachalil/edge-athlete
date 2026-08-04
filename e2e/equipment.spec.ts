@@ -23,6 +23,17 @@ test('equipment: seed → In the Bag → search → retire → History', async (
       });
       expect(extra.ok(), await readErrorBody(extra)).toBe(true);
     }
+    // A lone-category item (sparse packing: <3 items → the combined
+    // "More gear" shelf, NOT a full-width category block).
+    const ball = await api.post('/api/equipment', {
+      data: { profileId: userA.id, sportKey: 'golf', category: 'ball', brand: 'Titleist', model: `QA Ball ${stamp}` },
+    });
+    expect(ball.ok(), await readErrorBody(ball)).toBe(true);
+    // A second sport, to prove the rail's sport filter.
+    const cleats = await api.post('/api/equipment', {
+      data: { profileId: userA.id, sportKey: 'soccer', category: 'cleats', brand: 'Nike', model: `QA Cleats ${stamp}` },
+    });
+    expect(cleats.ok(), await readErrorBody(cleats)).toBe(true);
   } finally {
     await api.dispose();
   }
@@ -72,13 +83,38 @@ test('equipment: seed → In the Bag → search → retire → History', async (
   await expect(page.getByText(`QA Set Putter ${stamp}`).first()).toBeVisible();
   await expect(rail.getByRole('button', { name: /Tournament bag/ })).toBeVisible();
   await expect(rail.getByRole('button', { name: /^Putter/ })).toHaveCount(0);
+
+  // Sparse packing: the lone ball lives in the combined "More gear" shelf,
+  // and its rail entry jumps THERE (no full-width Ball category block).
+  await expect(page.getByRole('heading', { name: 'More gear' })).toBeVisible();
+  await expect(page.locator('#equip-golf-ball')).toHaveCount(0);
+  await rail.getByRole('button', { name: /^Ball/ }).click();
+  await expect(page.locator('#equip-golf-more-gear')).toBeInViewport({ timeout: 10_000 });
+
+  // Rail = sport selector: filter to Golf, soccer section disappears;
+  // All Sports brings it back.
+  const soccerSection = page.locator('section').filter({
+    has: page.getByRole('heading', { name: 'Soccer', exact: true }),
+  });
+  await expect(soccerSection).toHaveCount(1);
+  await rail.getByRole('button', { name: 'Golf', exact: true }).click();
+  await expect(soccerSection).toHaveCount(0);
+  await expect(rail.getByRole('button', { name: 'Soccer', exact: true })).toBeVisible();
+  await rail.getByRole('button', { name: 'All Sports', exact: true }).click();
+  await expect(soccerSection).toHaveCount(1);
+
+  // Collapsible rail groups: collapsing Golf hides its category entries.
+  await rail.getByRole('button', { name: 'Collapse Golf' }).click();
+  await expect(rail.getByRole('button', { name: /^Driver/ })).toHaveCount(0);
+  await rail.getByRole('button', { name: 'Expand Golf' }).click();
+  await expect(rail.getByRole('button', { name: /^Driver/ })).toBeVisible();
   await rail.getByRole('button', { name: /^Driver/ }).click();
   await expect(page.locator('#equip-golf-driver')).toBeInViewport({ timeout: 10_000 });
   const seeAll = page.getByRole('button', { name: 'See all 5' });
   await expect(seeAll).toBeVisible();
   await seeAll.click();
-  await expect(page.getByRole('button', { name: 'Collapse' })).toBeVisible();
-  await page.getByRole('button', { name: 'Collapse' }).click();
+  await expect(page.getByRole('button', { name: 'Collapse', exact: true })).toBeVisible();
+  await page.getByRole('button', { name: 'Collapse', exact: true }).click();
 
   // Search narrows; garbage empties.
   const searchBox = page.getByLabel('Search equipment');

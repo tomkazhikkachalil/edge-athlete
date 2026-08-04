@@ -14,9 +14,11 @@ interface SeasonSwitcherProps {
   years: number[];
   view: EquipmentView;
   onChange: (view: EquipmentView) => void;
+  /** Inside the toolbar: the parent owns spacing, so no edge bleed. */
+  embedded?: boolean;
 }
 
-export default function SeasonSwitcher({ years, view, onChange }: SeasonSwitcherProps) {
+export default function SeasonSwitcher({ years, view, onChange, embedded = false }: SeasonSwitcherProps) {
   const chips: Array<{ value: EquipmentView; label: string }> = [
     { value: 'now', label: 'Now' },
     ...years.map(year => ({ value: year as EquipmentView, label: String(year) })),
@@ -27,7 +29,9 @@ export default function SeasonSwitcher({ years, view, onChange }: SeasonSwitcher
       id="equip-seasons"
       role="tablist"
       aria-label="Season"
-      className="flex gap-2 overflow-x-auto scrollbar-hide pb-1 -mx-4 px-4 sm:mx-0 sm:px-0 scroll-mt-24"
+      className={`flex gap-2 overflow-x-auto scrollbar-hide scroll-mt-24 ${
+        embedded ? '' : 'pb-1 -mx-4 px-4 sm:mx-0 sm:px-0'
+      }`}
     >
       {chips.map(chip => {
         const active = view === chip.value;

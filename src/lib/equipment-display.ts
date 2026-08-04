@@ -171,6 +171,8 @@ export function buildEquipmentNav<T extends EquipmentSearchable & { sport_key?: 
     sportLabel: (sportKey: string) => string;
     categoryLabel: (sportKey: string, category: string) => string;
     categoryRank: (sportKey: string, category: string) => number;
+    /** Threshold matching packCategoryShelves (default 3). */
+    minDedicated?: number;
   }
 ): EquipmentNavSport[] {
   return opts.sortedSportKeys.map(sportKey => {
@@ -212,7 +214,11 @@ export function buildEquipmentNav<T extends EquipmentSearchable & { sport_key?: 
         value,
         count,
         label: opts.categoryLabel(sportKey, value),
-        anchorId: equipmentAnchorId(sportKey, value),
+        // Small categories share the combined shelf (see packCategoryShelves)
+        // — their rail entries must land there, not on a nonexistent anchor.
+        anchorId: count >= (opts.minDedicated ?? 3)
+          ? equipmentAnchorId(sportKey, value)
+          : combinedShelfAnchorId(sportKey),
       }));
     return {
       sportKey,
@@ -295,4 +301,45 @@ export function partitionByGroupLabel<T extends { group_label?: string | null }>
       anchorId: equipmentAnchorId(sportKey, `set-${set.label}`),
     }));
   return { sets, rest };
+}
+
+// ── Sparse packing ───────────────────────────────────────────────────────────
+
+export type CategoryShelf<T> =
+  | { kind: 'category'; category: string; items: T[] }
+  | { kind: 'combined'; categories: string[]; items: T[] };
+
+/** Anchor for the combined "small categories" shelf of a sport. */
+export function combinedShelfAnchorId(sport: string): string {
+  return equipmentAnchorId(sport, 'more-gear');
+}
+
+/**
+ * Pack a sport's categories into shelves. A category with >= minDedicated
+ * items earns its own shelf; everything smaller merges into ONE combined
+ * shelf at the end (items in category order, each card already carrying its
+ * category chip). This is the fix for the sparse-inventory failure mode: an
+ * athlete with one item per category used to get a full-width block PER
+ * category — single cards stacked vertically, visually identical to the
+ * pre-shelf layout. Now they share a shelf and sit side by side.
+ */
+export function packCategoryShelves<T>(
+  byCategory: Record<string, T[]>,
+  orderedCategories: string[],
+  minDedicated = 3
+): CategoryShelf<T>[] {
+  const shelves: CategoryShelf<T>[] = [];
+  const combined: { categories: string[]; items: T[] } = { categories: [], items: [] };
+  for (const category of orderedCategories) {
+    const items = byCategory[category] ?? [];
+    if (items.length === 0) continue;
+    if (items.length >= minDedicated) {
+      shelves.push({ kind: 'category', category, items });
+    } else {
+      combined.categories.push(category);
+      combined.items.push(...items);
+    }
+  }
+  if (combined.items.length > 0) shelves.push({ kind: 'combined', ...combined });
+  return shelves;
 }
