@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { ChevronDown } from 'lucide-react';
 import type { EquipmentNavSport } from '@/lib/equipment-display';
 
@@ -40,9 +40,37 @@ const badge = (count: number, active: boolean) => (
 export default function EquipmentRail({
   nav, selectedSport, onSelectSport, onJump, onJumpHistory,
 }: EquipmentRailProps) {
-  // Collapsed rail groups (default expanded). Rail-local state on purpose —
-  // it is presentation, not data.
-  const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
+  // Collapsed rail groups. First sport open, the rest closed on arrival —
+  // the rail should orient, not overwhelm. Lazy init is safe: the rail only
+  // mounts once equipment exists, so nav is populated on first render.
+  const [collapsed, setCollapsed] = useState<Record<string, boolean>>(() =>
+    Object.fromEntries(nav.slice(1).map(sport => [sport.sportKey, true]))
+  );
+
+  // Sport nav dropdown (single-select; outside-click + Escape close per the
+  // MultiSelectDropdown popover conventions).
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const pickerRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!pickerOpen) return;
+    const handleMouseDown = (e: MouseEvent) => {
+      if (pickerRef.current && !pickerRef.current.contains(e.target as Node)) {
+        setPickerOpen(false);
+      }
+    };
+    const handleKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setPickerOpen(false);
+    };
+    document.addEventListener('mousedown', handleMouseDown);
+    document.addEventListener('keydown', handleKey);
+    return () => {
+      document.removeEventListener('mousedown', handleMouseDown);
+      document.removeEventListener('keydown', handleKey);
+    };
+  }, [pickerOpen]);
+
+  const selectedLabel =
+    nav.find(s => s.sportKey === selectedSport)?.label ?? 'All Sports';
 
   return (
     <nav
@@ -50,15 +78,62 @@ export default function EquipmentRail({
       className="hidden lg:block w-[210px] flex-shrink-0 self-start sticky top-[calc(var(--ea-banner-h,0px)+5rem)] z-30 max-h-[calc(100vh-var(--ea-banner-h,0px)-6rem)] overflow-y-auto pr-1"
     >
       <div className="space-y-4">
-        <button
-          onClick={() => onSelectSport(null)}
-          aria-pressed={selectedSport === null}
-          className={`ea-interactive w-full text-left rounded-lg px-2 py-1.5 text-xs font-bold uppercase tracking-wide ${
-            selectedSport === null ? 'bg-violet-50 text-violet-800' : 'text-violet-800'
-          }`}
-        >
-          All Sports
-        </button>
+        {/* Sport picker — the rail's "department" dropdown */}
+        <div className="relative" ref={pickerRef}>
+          <button
+            onClick={() => setPickerOpen(o => !o)}
+            aria-haspopup="listbox"
+            aria-expanded={pickerOpen}
+            aria-label="Choose sport"
+            className={`w-full flex items-center justify-between gap-2 rounded-lg border px-2.5 py-2 text-xs font-bold uppercase tracking-wide transition-colors ${
+              selectedSport !== null
+                ? 'border-violet-500 bg-violet-50 text-violet-800'
+                : 'border-gray-300 bg-white text-violet-800 hover:bg-gray-50'
+            }`}
+          >
+            <span className="truncate">{selectedLabel}</span>
+            <ChevronDown
+              className={`w-4 h-4 shrink-0 transition-transform ${pickerOpen ? 'rotate-180' : ''}`}
+              aria-hidden="true"
+            />
+          </button>
+          {pickerOpen && (
+            <div
+              role="listbox"
+              aria-label="Choose sport"
+              className="absolute left-0 top-full mt-1 w-full bg-white border border-gray-200 rounded-lg shadow-lg z-20 py-1"
+            >
+              <button
+                role="option"
+                aria-selected={selectedSport === null}
+                onClick={() => { onSelectSport(null); setPickerOpen(false); }}
+                className={`w-full text-left px-3 py-2 text-sm hover:bg-gray-50 ${
+                  selectedSport === null ? 'font-semibold text-violet-800' : 'text-gray-700'
+                }`}
+              >
+                All Sports
+              </button>
+              {nav.map(sport => (
+                <button
+                  key={sport.sportKey}
+                  role="option"
+                  aria-selected={selectedSport === sport.sportKey}
+                  onClick={() => { onSelectSport(sport.sportKey); setPickerOpen(false); }}
+                  className={`w-full flex items-center justify-between gap-2 text-left px-3 py-2 text-sm hover:bg-gray-50 ${
+                    selectedSport === sport.sportKey ? 'font-semibold text-violet-800' : 'text-gray-700'
+                  }`}
+                >
+                  <span className="truncate">{sport.label}</span>
+                  {badge(
+                    sport.categories.reduce((sum, c) => sum + c.count, 0) +
+                      sport.sets.reduce((sum, s) => sum + s.count, 0),
+                    selectedSport === sport.sportKey
+                  )}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
         {nav.map(sport => {
           const isCollapsed = collapsed[sport.sportKey] ?? false;
           const isSelected = selectedSport === sport.sportKey;

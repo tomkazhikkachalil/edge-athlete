@@ -91,17 +91,33 @@ test('equipment: seed → In the Bag → search → retire → History', async (
   await rail.getByRole('button', { name: /^Ball/ }).click();
   await expect(page.locator('#equip-golf-more-gear')).toBeInViewport({ timeout: 10_000 });
 
-  // Rail = sport selector: filter to Golf, soccer section disappears;
-  // All Sports brings it back.
+  // Default rail state: first sport (Golf) expanded, later sports collapsed —
+  // Soccer's category entries are hidden until its group is expanded.
+  await expect(rail.getByRole('button', { name: /^Driver/ })).toBeVisible();
+  await expect(rail.getByRole('button', { name: /^Cleats/ })).toHaveCount(0);
+  await rail.getByRole('button', { name: 'Expand Soccer' }).click();
+  await expect(rail.getByRole('button', { name: /^Cleats/ })).toBeVisible();
+
+  // Rail sport DROPDOWN filters: pick Golf, soccer section disappears;
+  // All Sports brings it back. (Trigger has a stable aria-label because its
+  // visible label mirrors the selection.)
   const soccerSection = page.locator('section').filter({
     has: page.getByRole('heading', { name: 'Soccer', exact: true }),
   });
   await expect(soccerSection).toHaveCount(1);
-  await rail.getByRole('button', { name: 'Golf', exact: true }).click();
+  const sportPicker = rail.getByRole('button', { name: 'Choose sport' });
+  await sportPicker.click();
+  await rail.getByRole('option', { name: /^Golf/ }).click();
   await expect(soccerSection).toHaveCount(0);
-  await expect(rail.getByRole('button', { name: 'Soccer', exact: true })).toBeVisible();
-  await rail.getByRole('button', { name: 'All Sports', exact: true }).click();
+  await sportPicker.click();
+  await rail.getByRole('option', { name: 'All Sports', exact: true }).click();
   await expect(soccerSection).toHaveCount(1);
+
+  // Sport TITLES still filter on click too.
+  await rail.getByRole('button', { name: 'Soccer', exact: true }).click();
+  await expect(page.locator('#equip-golf')).toHaveCount(0);
+  await rail.getByRole('button', { name: 'Soccer', exact: true }).click();
+  await expect(page.locator('#equip-golf')).toHaveCount(1);
 
   // Collapsible rail groups: collapsing Golf hides its category entries.
   await rail.getByRole('button', { name: 'Collapse Golf' }).click();
@@ -115,6 +131,16 @@ test('equipment: seed → In the Bag → search → retire → History', async (
   await seeAll.click();
   await expect(page.getByRole('button', { name: 'Collapse', exact: true })).toBeVisible();
   await page.getByRole('button', { name: 'Collapse', exact: true }).click();
+
+  // Filters popover: category narrowing hides the ball and the set putter.
+  const filtersButton = page.getByRole('button', { name: /^Filters/ });
+  await filtersButton.click();
+  await page.getByRole('checkbox', { name: 'Driver', exact: true }).check();
+  await expect(page.getByText(`QA Ball ${stamp}`)).toBeHidden();
+  await expect(page.getByText(`QA Set Putter ${stamp}`)).toBeHidden();
+  await page.getByRole('checkbox', { name: 'Driver', exact: true }).uncheck();
+  await expect(page.getByText(`QA Ball ${stamp}`).first()).toBeVisible();
+  await page.keyboard.press('Escape');
 
   // Search narrows; garbage empties.
   const searchBox = page.getByLabel('Search equipment');
@@ -146,9 +172,24 @@ test('equipment: seed → In the Bag → search → retire → History', async (
   await page.locator('section').getByRole('button', { name: /history/i }).first().click();
   await expect(page.getByText(model)).toBeHidden();
   const year = String(new Date().getFullYear());
-  await page.getByRole('tab', { name: year, exact: true }).click();
+  const filters = page.getByRole('button', { name: /^Filters/ });
+  await filters.click();
+  await page.getByRole('radio', { name: year, exact: true }).check();
+  await page.keyboard.press('Escape');
   await expect(page.getByText(`In the Bag — ${year}`).first()).toBeVisible();
   await expect(page.getByText(model).first()).toBeVisible();
-  await page.getByRole('tab', { name: 'Now', exact: true }).click();
+  await filters.click();
+  await page.getByRole('radio', { name: 'Now', exact: true }).check();
+  await page.keyboard.press('Escape');
   await expect(page.getByText(model)).toBeHidden({ timeout: 10_000 });
+
+  // Show History toggle: off removes the History section entirely.
+  await filters.click();
+  await page.getByRole('checkbox', { name: 'Show History' }).uncheck();
+  await page.keyboard.press('Escape');
+  await expect(page.locator('section').getByRole('button', { name: /history/i })).toHaveCount(0);
+  await filters.click();
+  await page.getByRole('checkbox', { name: 'Show History' }).check();
+  await page.keyboard.press('Escape');
+  await expect(page.locator('section').getByRole('button', { name: /history/i }).first()).toBeVisible();
 });

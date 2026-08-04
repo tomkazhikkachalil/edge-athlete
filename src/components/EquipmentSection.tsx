@@ -44,6 +44,9 @@ export default function EquipmentSection({ profileId, isOwnProfile = false }: Eq
   // 'now' or a season year — the store's time machine (replaces the old
   // year multi-select filter; single-select is the chosen model).
   const [view, setView] = useState<EquipmentView>('now');
+  const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
+  // Filters popover's "Show History" — a quick de-clutter toggle.
+  const [showHistory, setShowHistory] = useState(true);
   const [search, setSearch] = useState('');
   const [sort, setSort] = useState<EquipmentSort>('newest');
   // Sports whose History group is expanded (collapsed by default).
@@ -165,6 +168,24 @@ export default function EquipmentSection({ profileId, isOwnProfile = false }: Eq
     return [...byKey.values()].sort((a, b) => a.localeCompare(b));
   }, [equipment]);
 
+  // Category filter options: categories present in the (sport-filtered)
+  // gear, config labels, config order first.
+  const categoryOptions = useMemo(() => {
+    const pool = equipment.filter(item =>
+      matchesSportFilter(item.sport_key || 'general', selectedSports)
+    );
+    const seen = new Map<string, string>();
+    for (const item of pool) {
+      const sport = item.sport_key || 'general';
+      if (!seen.has(item.category)) {
+        seen.set(item.category, getCategoryConfig(sport, item.category).label);
+      }
+    }
+    return [...seen.entries()]
+      .map(([value, label]) => ({ value, label }))
+      .sort((a, b) => a.label.localeCompare(b.label));
+  }, [equipment, selectedSports]);
+
   // Year options: every year each item spent in the bag (user dates, with
   // the server audit timestamps as fallback for legacy rows)
   const yearOptions = useMemo(
@@ -185,7 +206,7 @@ export default function EquipmentSection({ profileId, isOwnProfile = false }: Eq
   const filteredEquipment = filterEquipmentForView(
     equipment.filter(item => matchesSportFilter(item.sport_key || 'general', selectedSports)),
     view
-  );
+  ).filter(item => selectedCategories.length === 0 || selectedCategories.includes(item.category));
 
   // Text search applies after the structured filters; a sport section with
   // zero matches disappears entirely.
@@ -237,7 +258,9 @@ export default function EquipmentSection({ profileId, isOwnProfile = false }: Eq
   );
   const railItems = inSeasonView
     ? railSource.map(i => ({ ...i, status: 'active' as const }))
-    : railSource;
+    : showHistory
+      ? railSource
+      : railSource.filter(i => i.status === 'active');
   const railSportKeys = Array.from(
     new Set(railItems.map(i => i.sport_key || 'general'))
   ).sort((a, b) => sportLabel(a).localeCompare(sportLabel(b)));
@@ -276,6 +299,11 @@ export default function EquipmentSection({ profileId, isOwnProfile = false }: Eq
           years={yearOptions}
           view={view}
           onViewChange={setView}
+          categoryOptions={categoryOptions}
+          selectedCategories={selectedCategories}
+          onSelectedCategories={setSelectedCategories}
+          showHistory={showHistory}
+          onShowHistory={setShowHistory}
           sportOptions={sportOptions}
           selectedSports={selectedSports}
           onSelectedSports={setSelectedSports}
@@ -488,7 +516,7 @@ export default function EquipmentSection({ profileId, isOwnProfile = false }: Eq
                 {/* History — retired gear, year over year, collapsed by
                     default. 'now' view only: a season view IS historical,
                     and the "Earlier" bucket for undated gear lives here. */}
-                {!inSeasonView && historyBuckets.length > 0 && (
+                {!inSeasonView && showHistory && historyBuckets.length > 0 && (
                   <div className="mt-8 scroll-mt-24" id={`${equipmentAnchorId(sport)}-history`}>
                     <button
                       onClick={() => setOpenHistories(prev => ({ ...prev, [sport]: !historyOpen }))}
