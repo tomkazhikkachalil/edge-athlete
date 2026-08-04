@@ -21,6 +21,7 @@ test('UI login with email/password reaches the authenticated app', async ({ page
   await page.waitForURL('**/athlete', { timeout: 20_000 });
   // NOT getByText(...).first(): the nav drawer is always mounted off-canvas,
   // so the first text match is a hidden drawer copy. Anchor to a heading.
-  await expect(page.getByRole('heading', { name: /edge qa/i }).first())
+  // Profile headings compose first+last ("Edge Alpha"), not display_name.
+  await expect(page.getByRole('heading', { name: /edge alpha/i }).first())
     .toBeVisible({ timeout: 15_000 });
 });
