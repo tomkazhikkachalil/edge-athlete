@@ -14,6 +14,8 @@ import type { EquipmentItem } from '@/types/equipment';
 export interface EquipmentCardProps {
   item: EquipmentItem;
   isOwnProfile: boolean;
+  /** Compact cards drop specs and notes (equipment_prefs.cardDetail). */
+  compact?: boolean;
   onEdit: () => void;
   onDelete: (id: string) => void;
   onToggleStatus: (id: string) => void;
@@ -37,7 +39,7 @@ export function formatOwnershipSpan(item: EquipmentItem): string | null {
     : `${formatMonthYear(acquired, { yearOnly: true })} – ${formatMonthYear(retired, { yearOnly: true })}`;
 }
 
-export default function EquipmentCard({ item, isOwnProfile, onEdit, onDelete, onToggleStatus, onReplace }: EquipmentCardProps) {
+export default function EquipmentCard({ item, isOwnProfile, compact = false, onEdit, onDelete, onToggleStatus, onReplace }: EquipmentCardProps) {
   const config = getCategoryConfig(item.sport_key || 'general', item.category);
   const isActive = item.status === 'active';
   const ownershipSpan = formatOwnershipSpan(item);
@@ -121,7 +123,7 @@ export default function EquipmentCard({ item, isOwnProfile, onEdit, onDelete, on
           </div>
 
           {/* Specs */}
-          {item.specs && Object.keys(item.specs).length > 0 && (
+          {!compact && item.specs && Object.keys(item.specs).length > 0 && (
             <div className="space-y-1">
               {Object.entries(item.specs)
                 .filter(([, value]) => value)
@@ -139,7 +141,7 @@ export default function EquipmentCard({ item, isOwnProfile, onEdit, onDelete, on
           )}
 
           {/* Notes preview */}
-          {item.notes && (
+          {!compact && item.notes && (
             <p className="text-xs text-gray-600 line-clamp-2 italic">&quot;{item.notes}&quot;</p>
           )}
         </div>
