@@ -1,4 +1,5 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
+import { request, type APIRequestContext } from '@playwright/test';
 import { readFileSync, existsSync } from 'fs';
 import { join } from 'path';
 
@@ -58,7 +59,18 @@ export interface QaUser {
   password: string;
 }
 
-export async function createQaUser(): Promise<QaUser> {
+export interface QaUserOptions {
+  /** Distinct per user — identical names ambiguate every name-based
+   *  assertion, and neither name may be a substring of the other. */
+  displayName?: string;
+  firstName?: string;
+  lastName?: string;
+}
+
+export async function createQaUser(opts: QaUserOptions = {}): Promise<QaUser> {
+  const displayName = opts.displayName ?? 'Edge QA';
+  const firstName = opts.firstName ?? 'Edge';
+  const lastName = opts.lastName ?? 'QA';
   const admin = adminClient();
   const rand = Math.random().toString(36).slice(2, 10);
   const email = `edgeqa-${rand}@example.com`;
@@ -74,14 +86,16 @@ export async function createQaUser(): Promise<QaUser> {
 
   // Admin-created users get NO profiles row from the signup trigger — insert
   // one by hand. visibility 'private' keeps the QA user out of public
-  // surfaces; onboarded_at set so login lands on /athlete, not /onboarding.
+  // surfaces (and is REQUIRED by the follow-request spec: only private
+  // targets produce pending requests); onboarded_at set so login lands on
+  // /athlete, not /onboarding.
   const { error: profileError } = await admin.from('profiles').insert({
     id,
     email,
-    display_name: 'Edge QA',
-    full_name: 'Edge QA',
-    first_name: 'Edge',
-    last_name: 'QA',
+    display_name: displayName,
+    full_name: displayName,
+    first_name: firstName,
+    last_name: lastName,
     visibility: 'private',
     onboarded_at: new Date().toISOString(),
   });
@@ -159,13 +173,44 @@ export async function mintStorageState(user: QaUser): Promise<{
 }
 
 /**
- * Delete a QA user and everything it created. Golf tables first — their
- * chain blocks the auth-user cascade. Every step is idempotent so teardown
- * can run against a user that created nothing.
+ * Delete a QA user and everything it created. Social tables first (their
+ * cross-user rows — a notification ABOUT you, a conversation you're in —
+ * are what block the partner's deletion), then the golf chain (which blocks
+ * the auth-user cascade). Every step is idempotent so teardown can run
+ * against a user that created nothing, or whose partner is already gone.
  */
 export async function deleteQaUser(userId: string): Promise<void> {
   const admin = adminClient();
 
+  // ── Social cleanup ────────────────────────────────────────────────────────
+  // Conversations this user touches, as participant or creator.
+  const { data: partRows } = await admin
+    .from('conversation_participants').select('conversation_id').eq('profile_id', userId);
+  const { data: createdConvos } = await admin
+    .from('conversations').select('id').eq('created_by', userId);
+  const convoIds = [...new Set([
+    ...(partRows ?? []).map(r => r.conversation_id),
+    ...(createdConvos ?? []).map(r => r.id),
+  ])];
+  if (convoIds.length) {
+    // ALL messages in those conversations — the partner's rows block too.
+    await admin.from('message_reactions').delete().in('message_id',
+      ((await admin.from('messages').select('id').in('conversation_id', convoIds)).data ?? []).map(m => m.id));
+    await admin.from('messages').delete().in('conversation_id', convoIds);
+    await admin.from('conversation_participants').delete().in('conversation_id', convoIds);
+    await admin.from('conversations').delete().in('id', convoIds);
+  }
+  // Follows in both directions (cascades their follow notifications).
+  await admin.from('follows').delete().eq('follower_id', userId);
+  await admin.from('follows').delete().eq('following_id', userId);
+  // Notifications owned by OR CAUSED BY this user — actor_id is the sneaky
+  // direction: A's actions create rows owned by B that block deleting A.
+  await admin.from('notifications').delete().eq('user_id', userId);
+  await admin.from('notifications').delete().eq('actor_id', userId);
+  // Auto-created the first time the user is notified.
+  await admin.from('notification_preferences').delete().eq('user_id', userId);
+
+  // ── Golf / posts chain ────────────────────────────────────────────────────
   const { data: rounds } = await admin
     .from('group_posts').select('id').eq('creator_id', userId);
   const roundIds = (rounds ?? []).map(r => r.id);
@@ -224,6 +269,26 @@ export async function sweepStaleQaUsers(): Promise<void> {
   } catch (err) {
     console.warn('[e2e sweep] skipped:', (err as Error).message);
   }
+}
+
+/** Read a persisted QA user from e2e/.auth (written by global setup). */
+export function loadQaUser(file: 'user.json' | 'user-b.json'): QaUser {
+  return JSON.parse(readFileSync(join(process.cwd(), 'e2e', '.auth', file), 'utf8'));
+}
+
+/**
+ * An API request context authenticated as one of the QA users — for driving
+ * cross-user setup that the UI can't (athlete search is public-only, so two
+ * private QA users cannot find each other in any search modal). Caller must
+ * `await ctx.dispose()` when done.
+ */
+export async function apiAs(
+  stateFile: 'state.json' | 'state-b.json'
+): Promise<APIRequestContext> {
+  return request.newContext({
+    baseURL: 'http://localhost:3000',
+    storageState: join(process.cwd(), 'e2e', '.auth', stateFile),
+  });
 }
 
 /**

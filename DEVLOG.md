@@ -1,5 +1,44 @@
 # Development Log
 
+## August 4, 2026 — Smoke suite v2: the social loop finally has a second player
+
+The suite's biggest blind spot was that every spec ran as one user — and the
+bug class this app keeps producing (PR #33's invisible live rounds, the
+silent shared-round invites before that) is precisely "works for me, broken
+for the other person." Three new specs close it: a full follow-request loop
+(A requests on B's private profile → B accepts on Fan Requests → A sees the
+acceptance notification), a DM loop (A opens the conversation and messages
+via API, B reads AND replies in the real UI, A sees the reply, B gets the
+notification), and a shared-round invite (A creates a round with B as
+participant → B gets the group_invite notification).
+
+**Why the cross-user setup goes through the API:** `/api/search` filters
+athletes to public profiles only, so two private QA users cannot find each
+other in ANY search UI (New Message modal, Tag People). Rather than make B
+public — which would break the follow-request path, since only private
+targets produce pending requests — relationships are created with
+`request.newContext` carrying the minted cookie, and the assertions stay in
+the real UI. One private B satisfies all three flows because privacy blocks
+neither DMs (messaging_permission defaults to 'everyone') nor invites.
+
+**Teardown grew a social-cleanup block**, and it runs FIRST: cross-user rows
+are what block the partner's deletion — a conversation's messages from BOTH
+sides, follows in either direction, and (the sneaky one) notifications where
+the user is the ACTOR, which are owned by the other user. The teardown
+deletes B then A, attempting both even if one throws, so the second deletion
+constantly re-proves the steps idempotent. Verified: full suite twice
+back-to-back, both users deleted every run, zero `edgeqa-*` residue by
+admin listing.
+
+**The trap this session recorded:** name-based assertions must match how
+each surface COMPOSES names, not what the profile says. Nearly everything
+renders `formatDisplayName(first, last)` ("Edge Alpha") — but the messaging
+notification title alone uses the full display name ("Edge QA Alpha sent
+you a message"). Three assertions failed on exactly this before being
+pinned to per-surface copy. QA users are now "Edge QA Alpha"/"Edge QA
+Bravo" — distinct, and neither name a substring of the other, or every
+`getByText` would ambiguate.
+
 ## August 4, 2026 — The empty scorecard: a manual course now gets its grid on mount
 
 The bug the smoke suite surfaced yesterday, fixed the day after — with the
