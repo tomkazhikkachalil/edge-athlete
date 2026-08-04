@@ -244,6 +244,7 @@ export async function deleteQaUser(userId: string): Promise<void> {
   if (roundIds.length) {
     await admin.from('group_posts').delete().in('id', roundIds);
   }
+  await admin.from('athlete_equipment').delete().eq('profile_id', userId);
 
   const { error } = await admin.auth.admin.deleteUser(userId);
   if (error) throw new Error(`deleteUser(${userId}) failed: ${error.message}`);

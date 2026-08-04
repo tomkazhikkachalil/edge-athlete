@@ -10,7 +10,12 @@ import FilterBar from './filters/FilterBar';
 import MultiSelectDropdown from './filters/MultiSelectDropdown';
 import { deriveInBagYearOptions, isInBagDuringYear, formatMonthYear, yearOf, matchesSportFilter } from '@/lib/profile-filters';
 import { getCategoryConfig, getEquipmentCategories, getSetupLabel } from '@/lib/equipment-config';
-import { groupRetiredByYear, countByStatus, EARLIER_BUCKET } from '@/lib/equipment-display';
+import {
+  groupRetiredByYear, countByStatus, EARLIER_BUCKET,
+  filterEquipmentBySearch, sortEquipment, type EquipmentSort,
+} from '@/lib/equipment-display';
+import { resolveBrandDomain } from '@/lib/equipment-catalog';
+import BrandLogo from './BrandLogo';
 import { SPORT_NAMES } from '@/lib/config/sports-config';
 import { useToast } from './Toast';
 
@@ -35,6 +40,8 @@ export default function EquipmentSection({ profileId, isOwnProfile = false }: Eq
   const [equipment, setEquipment] = useState<EquipmentItem[]>([]);
   const [selectedSports, setSelectedSports] = useState<string[]>([]);
   const [selectedYears, setSelectedYears] = useState<number[]>([]);
+  const [search, setSearch] = useState('');
+  const [sort, setSort] = useState<EquipmentSort>('newest');
   // Sports whose History group is expanded (collapsed by default).
   const [openHistories, setOpenHistories] = useState<Record<string, boolean>>({});
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
@@ -170,10 +177,18 @@ export default function EquipmentSection({ profileId, isOwnProfile = false }: Eq
     );
   });
 
+  // Text search applies after the structured filters; a sport section with
+  // zero matches disappears entirely.
+  const searchedEquipment = filterEquipmentBySearch(
+    filteredEquipment,
+    search,
+    item => getCategoryConfig(item.sport_key || 'general', item.category).label
+  );
+
   // One section per sport — a mini profile of that sport's gear: what's in
   // play now (active, grouped by category), then a collapsible year-grouped
   // History of retired gear.
-  const bySport = filteredEquipment.reduce((acc, item) => {
+  const bySport = searchedEquipment.reduce((acc, item) => {
     const sport = item.sport_key || 'general';
     (acc[sport] ??= []).push(item);
     return acc;
@@ -201,7 +216,7 @@ export default function EquipmentSection({ profileId, isOwnProfile = false }: Eq
     <div className="w-full space-y-6">
       {/* Filters + add button — shared FilterBar treatment */}
       <FilterBar
-        resultCount={loading ? undefined : filteredEquipment.length}
+        resultCount={loading ? undefined : searchedEquipment.length}
         resultNoun="item"
         activeCount={selectedSports.length + selectedYears.length}
         onClearAll={() => {
@@ -243,6 +258,30 @@ export default function EquipmentSection({ profileId, isOwnProfile = false }: Eq
         />
       </FilterBar>
 
+      {/* Search + sort — their own row so the pair always fits one line at
+          320px (the input yields via flex-1 min-w-0, the select stays fixed) */}
+      {!loading && equipment.length > 0 && (
+        <div className="flex items-center gap-3">
+          <input
+            type="search"
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            placeholder="Search gear — brand, model, notes…"
+            aria-label="Search equipment"
+            className="flex-1 min-w-0 px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white"
+          />
+          <select
+            value={sort}
+            onChange={e => setSort(e.target.value as EquipmentSort)}
+            aria-label="Sort equipment"
+            className="px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white"
+          >
+            <option value="newest">Newest</option>
+            <option value="brand">Brand A–Z</option>
+          </select>
+        </div>
+      )}
+
       {/* Loading state */}
       {loading && (
         <div className="flex justify-center items-center py-16">
@@ -251,15 +290,17 @@ export default function EquipmentSection({ profileId, isOwnProfile = false }: Eq
       )}
 
       {/* Empty state */}
-      {!loading && filteredEquipment.length === 0 && (
+      {!loading && searchedEquipment.length === 0 && (
         <div className="text-center py-16 px-4">
           <div className="w-20 h-20 mx-auto mb-6 rounded-full bg-gray-100 flex items-center justify-center">
             <Dumbbell className="w-10 h-10 text-gray-400" />
           </div>
           <h3 className="text-xl font-bold text-gray-900 mb-2">
-            {selectedYears.length > 0 || selectedSports.length > 0
-              ? 'No equipment matches your filters'
-              : 'No equipment added'}
+            {search.trim()
+              ? 'No gear matches'
+              : selectedYears.length > 0 || selectedSports.length > 0
+                ? 'No equipment matches your filters'
+                : 'No equipment added'}
           </h3>
           <p className="text-gray-600 mb-6 max-w-md mx-auto">
             {isOwnProfile
@@ -279,7 +320,7 @@ export default function EquipmentSection({ profileId, isOwnProfile = false }: Eq
       )}
 
       {/* One section per sport: Current Setup (active, by category) + History */}
-      {!loading && filteredEquipment.length > 0 && (
+      {!loading && searchedEquipment.length > 0 && (
         <div className="space-y-12">
           {sportGroups.map(sport => {
             const items = bySport[sport];
@@ -339,7 +380,7 @@ export default function EquipmentSection({ profileId, isOwnProfile = false }: Eq
                             <span className="text-sm text-gray-500">({categoryItems.length})</span>
                           </div>
                           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-4">
-                            {categoryItems.map(renderCard)}
+                            {sortEquipment(categoryItems, sort, () => 0).map(renderCard)}
                           </div>
                         </div>
                       );
@@ -369,7 +410,7 @@ export default function EquipmentSection({ profileId, isOwnProfile = false }: Eq
                               {bucket.year === EARLIER_BUCKET ? 'Earlier' : bucket.year}
                             </h5>
                             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-4">
-                              {bucket.items.map(renderCard)}
+                              {sortEquipment(bucket.items, sort, () => 0).map(renderCard)}
                             </div>
                           </div>
                         ))}
@@ -474,6 +515,14 @@ function EquipmentCard({ item, isOwnProfile, onEdit, onDelete, onToggleStatus, o
   const config = getCategoryConfig(item.sport_key || 'general', item.category);
   const isActive = item.status === 'active';
   const ownershipSpan = formatOwnershipSpan(item);
+  // Auto imagery: free-text brand → seed domain (exact canonical/alias match
+  // only — a wrong logo is worse than none).
+  const brandDomain = resolveBrandDomain(item.sport_key || 'general', item.brand);
+  const categoryEmoji = (
+    <div className="absolute inset-0 flex items-center justify-center">
+      <span className="text-6xl">{config.icon}</span>
+    </div>
+  );
 
   return (
     <div
@@ -508,10 +557,14 @@ function EquipmentCard({ item, isOwnProfile, onEdit, onDelete, onToggleStatus, o
             height={300}
             className="w-full h-full object-contain p-4"
           />
-        ) : (
+        ) : brandDomain ? (
+          // No photo → the brand's logo fills in ("people might get lazy");
+          // no token / no logo → the category emoji, same as no-photo before.
           <div className="absolute inset-0 flex items-center justify-center">
-            <span className="text-6xl">{config.icon}</span>
+            <BrandLogo domain={brandDomain} name={item.brand} size={96} fallback={categoryEmoji} />
           </div>
+        ) : (
+          categoryEmoji
         )}
       </div>
 
@@ -529,7 +582,12 @@ function EquipmentCard({ item, isOwnProfile, onEdit, onDelete, onToggleStatus, o
 
           {/* Brand & Model */}
           <div>
-            <h4 className="text-sm font-semibold text-gray-900 leading-tight">{item.brand}</h4>
+            <div className="flex items-center gap-1.5">
+              {brandDomain && (
+                <BrandLogo domain={brandDomain} name={item.brand} size={16} fallback={null} />
+              )}
+              <h4 className="text-sm font-semibold text-gray-900 leading-tight">{item.brand}</h4>
+            </div>
             <p className="text-lg font-bold text-gray-900 leading-tight mt-0.5">{item.model}</p>
             {ownershipSpan && (
               <p className="text-xs text-gray-500 mt-1">{ownershipSpan}</p>

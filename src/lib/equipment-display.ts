@@ -67,3 +67,63 @@ export function countByStatus(items: Array<{ status: 'active' | 'retired' }>): {
   }
   return { active, retired };
 }
+
+export interface EquipmentSearchable extends EquipmentDatesLike {
+  brand: string;
+  model: string;
+  category: string;
+  notes?: string | null;
+}
+
+/**
+ * Case-insensitive substring search over brand, model, category (raw value
+ * AND the humanized label the athlete actually sees) and notes. Empty query
+ * passes everything through.
+ */
+export function filterEquipmentBySearch<T extends EquipmentSearchable>(
+  items: T[],
+  query: string,
+  categoryLabel: (item: T) => string
+): T[] {
+  const q = query.trim().toLowerCase();
+  if (!q) return items;
+  return items.filter(item =>
+    [item.brand, item.model, item.category, categoryLabel(item), item.notes ?? '']
+      .some(field => field.toLowerCase().includes(q))
+  );
+}
+
+export type EquipmentSort = 'newest' | 'brand' | 'category';
+
+/**
+ * Sort for display within a group. 'newest' orders by acquisition (user date
+ * first, audit timestamp fallback, undated last); 'brand' A–Z then model;
+ * 'category' by the caller-supplied category rank (equipment-config order)
+ * then brand. Returns a new array.
+ */
+export function sortEquipment<T extends EquipmentSearchable>(
+  items: T[],
+  sort: EquipmentSort,
+  categoryRank: (item: T) => number
+): T[] {
+  const acquired = (item: T): number => {
+    const date = item.acquired_on ?? item.added_at;
+    return date ? new Date(date).getTime() : Number.NEGATIVE_INFINITY;
+  };
+  const byBrand = (a: T, b: T) =>
+    a.brand.localeCompare(b.brand) || a.model.localeCompare(b.model);
+
+  const sorted = [...items];
+  switch (sort) {
+    case 'newest':
+      sorted.sort((a, b) => acquired(b) - acquired(a) || byBrand(a, b));
+      break;
+    case 'brand':
+      sorted.sort(byBrand);
+      break;
+    case 'category':
+      sorted.sort((a, b) => categoryRank(a) - categoryRank(b) || byBrand(a, b));
+      break;
+  }
+  return sorted;
+}

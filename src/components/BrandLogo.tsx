@@ -34,15 +34,23 @@ interface BrandLogoProps {
   name: string;
   /** Rendered edge length in px. */
   size?: number;
+  /**
+   * Custom no-logo state (no token / no domain / load failure). The card
+   * image well passes the category emoji here so it degrades to the same
+   * state as "no photo" instead of to a letter tile; the picker rows omit it
+   * and keep the letter tile.
+   */
+  fallback?: React.ReactNode;
 }
 
-export default function BrandLogo({ domain, name, size = 24 }: BrandLogoProps) {
+export default function BrandLogo({ domain, name, size = 24, fallback }: BrandLogoProps) {
   const [failed, setFailed] = useState(false);
 
   const box = { width: size, height: size };
   const src = logoUrl(domain, size);
 
   if (!src || failed) {
+    if (fallback !== undefined) return <>{fallback}</>;
     return (
       <div
         style={box}

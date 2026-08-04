@@ -1,5 +1,46 @@
 # Development Log
 
+## August 4, 2026 — Equipment: search, sort, and gear that illustrates itself
+
+The second half of the equipment pass (the IA landed separately): finding
+things and Tom's "images should be auto added — people might get lazy."
+
+**Search + sort.** Client-side (the GET already returns everything):
+case-insensitive substring over brand/model/notes and BOTH the raw category
+value and the humanized label athletes actually see; sort by Newest
+(acquisition date, audit-timestamp fallback, undated last) or Brand A–Z.
+Both are pure functions in `equipment-display.ts` with tests. The controls
+sit on their own row — input `flex-1 min-w-0`, fixed select — so the pair
+always fits one line at 320px. A sport section with zero matches disappears
+whole. The planned third sort ("by category") was dropped as meaningless:
+the setup grids already GROUP by category, so it would have been a no-op.
+
+**Auto imagery = brand logos, not product photos.** The one prior attempt at
+product imagery is a documented graveyard (124 of 126 external catalog URLs
+dead), so the honest automatic image is the brand mark logo.dev already
+serves. `resolveBrandDomain` (equipment-catalog) maps free-text brand →
+seed domain by exact canonical/alias match, then the same across every
+sport's seeds (golf brand on a General item still resolves) — and NEVER
+fuzzy-matches: a wrong logo is worse than none. Cards get a 16px mark
+beside the brand name, and the image well's fallback chain is now
+photo → large brand logo → category emoji. `BrandLogo` grew an optional
+`fallback` node for exactly that (the picker rows keep their letter tiles);
+its no-token behavior is unchanged, so cards degrade to the emoji cleanly.
+
+**E2E:** `equipment.spec.ts` — seed via API → renders under "In the Bag"
+with an imagery element (asserting an element, not logo.dev bytes — CI may
+lack the token) → search narrows and empties honestly → Retire moves it
+into History's current-year bucket. `deleteQaUser` now also clears
+`athlete_equipment`. New locator-trap entry: the athlete profile has OTHER
+"Golf" headings (sport posts strip), so equipment assertions anchor to the
+section that carries the setup label.
+
+**Explicitly out, on purpose:** gear-on-rounds linking (needs composer +
+post-render work — the natural next equipment feature); community
+suggestions (deferred with the documented k≥2 privacy floor);
+`/u/[username]` equipment (the public page has no equipment surface at
+all); product-photo scraping (see graveyard, above).
+
 ## August 4, 2026 — Equipment becomes a per-sport profile: current setup vs. history
 
 Tom's direction, near-verbatim: every sport's gear grouped like a mini

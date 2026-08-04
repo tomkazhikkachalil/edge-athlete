@@ -5,6 +5,7 @@ import {
   rankSuggestions,
   getBrandSuggestions,
   getModelSuggestions,
+  resolveBrandDomain,
 } from '@/lib/equipment-catalog';
 import { BRAND_SEEDS, getSeedBrands, getBrandPlaceholder } from '@/lib/equipment-brands';
 import { FEATURE_FLAGS } from '@/lib/features';
@@ -192,5 +193,30 @@ describe('brand seed hygiene', () => {
   it('gives every sport a usable placeholder', () => {
     expect(getBrandPlaceholder('ice_hockey')).toContain('Bauer');
     expect(getBrandPlaceholder('general')).toContain('Nike');
+  });
+});
+
+describe('resolveBrandDomain', () => {
+  it('resolves an exact seed brand for the sport', () => {
+    expect(resolveBrandDomain('golf', 'Titleist')).toBe('titleist.com');
+  });
+
+  it('tolerates case and punctuation via canonical matching', () => {
+    expect(resolveBrandDomain('golf', 'TITLEIST ')).toBe('titleist.com');
+    expect(resolveBrandDomain('golf', 'taylor-made')).toBe('taylormadegolf.com');
+  });
+
+  it('resolves aliases exactly', () => {
+    expect(resolveBrandDomain('golf', 'tm')).toBe('taylormadegolf.com');
+  });
+
+  it('falls back across sports for items filed under general', () => {
+    expect(resolveBrandDomain('general', 'Titleist')).toBe('titleist.com');
+  });
+
+  it('never guesses: unknown brands and empty strings return undefined', () => {
+    expect(resolveBrandDomain('golf', "Bob's Custom Shafts")).toBeUndefined();
+    expect(resolveBrandDomain('golf', '')).toBeUndefined();
+    expect(resolveBrandDomain('golf', '  ')).toBeUndefined();
   });
 });
