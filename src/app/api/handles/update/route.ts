@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getSupabaseAdmin, getServerClient } from '@/lib/auth-server';
+import { getSupabaseAdmin, getServerAuth } from '@/lib/auth-server';
 
 export async function POST(request: NextRequest) {
   try {
@@ -15,12 +15,11 @@ export async function POST(request: NextRequest) {
     }
 
     // Get authenticated user
-    const supabase = getServerClient(request);
-    const { data: { user }, error: userError } = await supabase.auth.getUser();
+    const { user, error: userError } = await getServerAuth(request);
 
     if (userError || !user) {
       return NextResponse.json(
-        { error: 'Unauthorized' },
+        { error: 'Authentication required' },
         { status: 401 }
       );
     }

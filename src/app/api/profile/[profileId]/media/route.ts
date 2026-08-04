@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getSupabaseAdmin, getServerClient } from '@/lib/auth-server';
+import { getSupabaseAdmin, getServerAuth } from '@/lib/auth-server';
 import { canViewProfile } from '@/lib/privacy';
 
 interface MediaItem {
@@ -70,11 +70,10 @@ export async function GET(
 ) {
   try {
     const supabaseAdmin = getSupabaseAdmin();
-    const supabase = getServerClient(request);
     const { searchParams } = new URL(request.url);
 
     // Get authenticated user (optional - public profiles work without auth)
-    const { data: { user } } = await supabase.auth.getUser();
+    const { supabase, user } = await getServerAuth(request);
     const viewerId = user?.id || null;
 
     // Parameters (await params in Next.js 15)
@@ -339,10 +338,9 @@ export async function POST(
 ) {
   try {
     const supabaseAdmin = getSupabaseAdmin();
-    const supabase = getServerClient(request);
 
     // Get authenticated user (optional)
-    const { data: { user } } = await supabase.auth.getUser();
+    const { user } = await getServerAuth(request);
     const viewerId = user?.id || null;
 
     const { profileId } = await params;

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getServerClient } from '@/lib/auth-server';
+import { getServerAuth } from '@/lib/auth-server';
 import { isActiveParticipant } from '@/lib/golf/round-status';
 import { pickLiveRound, type LiveRoundRow } from '@/lib/golf/live-round';
 
@@ -17,11 +17,9 @@ import { pickLiveRound, type LiveRoundRow } from '@/lib/golf/live-round';
  *                           course_name } | null }
  */
 export async function GET(request: NextRequest) {
-  const supabase = getServerClient(request);
-
-  const { data: { user }, error: authError } = await supabase.auth.getUser();
+  const { supabase, user, error: authError } = await getServerAuth(request);
   if (authError || !user) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
   }
 
   try {
