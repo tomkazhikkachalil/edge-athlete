@@ -5,7 +5,48 @@ import {
   toParLabel,
   toParColorClass,
   calcPlayerTotals,
+  buildDefaultHoles,
+  STANDARD_PARS_18,
 } from '../scoring';
+
+describe('buildDefaultHoles', () => {
+  it('builds 18 holes numbered 1-18 with the standard par distribution (sum 72)', () => {
+    const holes = buildDefaultHoles(18, 'front');
+    expect(holes).toHaveLength(18);
+    expect(holes.map(h => h.hole)).toEqual(Array.from({ length: 18 }, (_, i) => i + 1));
+    expect(holes.map(h => h.par)).toEqual(STANDARD_PARS_18);
+    expect(holes.reduce((sum, h) => sum + h.par, 0)).toBe(72);
+  });
+
+  it('builds front-9 rounds as holes 1-9', () => {
+    const holes = buildDefaultHoles(9, 'front');
+    expect(holes.map(h => h.hole)).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9]);
+    expect(holes.map(h => h.par)).toEqual(STANDARD_PARS_18.slice(0, 9));
+  });
+
+  it('builds back-9 rounds as holes 10-18 with the back-nine par slice (sum 36)', () => {
+    const holes = buildDefaultHoles(9, 'back');
+    expect(holes.map(h => h.hole)).toEqual([10, 11, 12, 13, 14, 15, 16, 17, 18]);
+    expect(holes.map(h => h.par)).toEqual(STANDARD_PARS_18.slice(9));
+    expect(holes.reduce((sum, h) => sum + h.par, 0)).toBe(36);
+  });
+
+  it('marks par-3 holes fairway "na" and leaves par 4/5 undefined', () => {
+    for (const h of buildDefaultHoles(18, 'front')) {
+      expect(h.fairway).toBe(h.par === 3 ? 'na' : undefined);
+    }
+  });
+
+  it('assigns deterministic yardages by par (150/380/520 — jitter removed on purpose)', () => {
+    for (const h of buildDefaultHoles(18, 'front')) {
+      expect(h.yardage).toBe(h.par === 3 ? 150 : h.par === 4 ? 380 : 520);
+    }
+  });
+
+  it('starts every hole unscored', () => {
+    expect(buildDefaultHoles(18, 'front').every(h => h.score === undefined)).toBe(true);
+  });
+});
 
 describe('holePar', () => {
   it('returns the fallback (4) when there is no hole data', () => {

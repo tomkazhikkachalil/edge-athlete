@@ -7,7 +7,47 @@
 // This is also the foundation for future game formats (match play,
 // stableford): formats become scoring strategies layered on these primitives.
 
+import type { HoleData } from '@/types/golf';
+
 export type ScoreClass = 'eagle' | 'birdie' | 'par' | 'bogey' | 'double' | null;
+
+/** Standard par distribution for a default 18-hole layout (sums to 72). */
+export const STANDARD_PARS_18 = [4, 4, 3, 5, 4, 4, 4, 3, 5, 4, 4, 3, 5, 4, 4, 4, 3, 5];
+
+/**
+ * Build the default editable hole grid for the scorecard form (the
+ * `@/types/golf` `hole`/`par`/`score` shape — NOT the DB `hole_number`/
+ * `strokes` shape ScoreEntryModal reads).
+ *
+ * Extracted from GolfScorecardForm so it can seed `useState` lazily on mount:
+ * the form previously built the grid only when the hole COUNT changed, so a
+ * manually-typed course at the default 18 holes rendered zero score cells and
+ * quick-entry silently discarded every score (its merge mapped over an empty
+ * array). Yardages are deliberately deterministic (150/380/520 by par) — the
+ * old Math.random() jitter was removed on purpose; tests pin exact values.
+ */
+export function buildDefaultHoles(
+  holeCount: number,
+  startingHole: 'front' | 'back'
+): HoleData[] {
+  const startHole = holeCount === 9 && startingHole === 'back' ? 10 : 1;
+  const holes: HoleData[] = [];
+  for (let i = 0; i < holeCount; i++) {
+    const holeNumber = startHole + i;
+    const par =
+      holeNumber <= 18
+        ? STANDARD_PARS_18[holeNumber - 1] || 4
+        : STANDARD_PARS_18[i % 18] || 4;
+    const baseYardage = par === 3 ? 150 : par === 4 ? 380 : 520;
+    holes.push({
+      hole: holeNumber,
+      par,
+      yardage: baseYardage,
+      fairway: par === 3 ? 'na' : undefined,
+    });
+  }
+  return holes;
+}
 
 export interface HoleParSource {
   hole: number;
