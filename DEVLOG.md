@@ -5,7 +5,14 @@
 The Equipment tab gets its own settings — organization without a trip to
 main Settings, per Tom: "how it's organized, what shows up where."
 
-**Migration 065** adds `profiles.equipment_prefs JSONB`. It is NOT cosmetic
+**Migration 065** adds `profiles.equipment_prefs JSONB`. **Run by Tom in
+the Supabase SQL editor Aug 4, 2026** — verified live by service-role
+select, then the full 12-step equipment e2e (settings save, reorder,
+compact, and the two-user visibility check) green against production.
+That check surfaced a fixture subtlety worth keeping: QA user A is created
+PRIVATE, so a visitor spec must flip A public first (B is no approved
+follower; the private-profile view has no tabs at all — an assertion
+against it times out rather than failing loudly). It is NOT cosmetic
 state: `hiddenSports` is enforced SERVER-SIDE in GET /api/equipment
 (non-owners never receive those rows), which is why this lives on the
 profile row and not in localStorage. Shape is app-enforced by

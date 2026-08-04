@@ -1,10 +1,11 @@
 import { test, expect } from '@playwright/test';
-import { apiAs, loadQaUser, readErrorBody } from './helpers/qa-user';
+import { apiAs, loadQaUser, readErrorBody, adminClient } from './helpers/qa-user';
 
 // Equipment round-trip through the sport-profile layout: seed via API,
 // verify Current Setup rendering + auto-imagery element, search, retire via
 // the card action, verify it lands in History under the current year.
 test('equipment: seed → In the Bag → search → retire → History', async ({ page }) => {
+  test.setTimeout(120_000);
   const userA = loadQaUser('user.json');
   const stamp = Date.now();
   const model = `QA Driver ${stamp}`;
@@ -209,7 +210,11 @@ test('equipment: seed → In the Bag → search → retire → History', async (
   await expect(page.getByText('10.5 deg')).toHaveCount(0);
   await expect(page.locator('section').getByRole('button', { name: /history/i }).first()).toBeVisible();
 
-  // Visitor view (user B): History hidden — server/prefs enforced.
+  // Visitor view (user B): History hidden — server/prefs enforced. A is
+  // created PRIVATE and B is not an approved follower, so flip A public for
+  // the visitor check (teardown deletes the user regardless; B must stay
+  // private for the follow-request spec, A's own visibility is unconstrained).
+  await adminClient().from('profiles').update({ visibility: 'public' }).eq('id', userA.id);
   const ctxB = await page.context().browser()!.newContext({
     storageState: 'e2e/.auth/state-b.json',
   });
