@@ -1,99 +1,51 @@
 # Edge Athlete Database Documentation
 
-## Overview
-This directory contains all database-related SQL files for the Edge Athlete platform, organized for clarity and maintainability.
+**Start with [`database/MIGRATIONS.md`](../MIGRATIONS.md)** — it is the canonical
+guide: what the migration history is, how migrations are run (Supabase SQL
+editor, manually, in order — this project does **not** use the Supabase CLI
+migration runner), how runs are verified, and where the run record lives
+(`DEVLOG.md` at the repo root).
 
 ## Directory Structure
 
-### `/migrations/` - Core Database Migrations
-Numbered, chronological migrations that define the primary database schema. **Run these in order** when setting up a new database.
-
-| File | Description |
-|------|-------------|
-| 001_initial_setup.sql | Initial Supabase setup (tables, RLS, functions) |
-| 002_golf_schema.sql | Complete golf feature schema |
-| 003_notifications.sql | Notification system setup |
-| 004_group_posts.sql | Group posts/shared scorecard foundation |
-| 005_name_migration.sql | Name structure refactor (first/middle/last) |
-| 006_handles_system.sql | @handle username system |
-| 007_saved_posts.sql | Saved/bookmarked posts feature |
-| 008_tagging_system.sql | User tagging in posts |
-
-### `/features/` - Feature-Specific Schemas
-Organized by feature for easier navigation and updates.
-
-- **`/golf/`** - Golf-specific tables, functions, and enhancements
-- **`/notifications/`** - Notification system additions
-- **`/search/`** - Full-text search implementation
-- **`/tagging/`** - User tagging system
-
-### `/tests/` - Testing & Diagnostics
-Tools for verifying database health and debugging issues.
-
-- **`/verification/`** - Schema validation scripts (verify-*, check-*)
-- **`/test-data/`** - Test user creation and sample data
-- **`/diagnostics/`** - Debug scripts for troubleshooting
-
-### `/archive/` - Historical/Deprecated Files
-Old migrations and superseded implementations. **Do not use** these files for new setups.
-
-- **`/old-migrations/`** - Previous versions of features
-- **`/failed-attempts/`** - Abandoned or broken migrations
+- **`/migrations/`** — the numbered migrations. The directory listing is the
+  source of truth for the current range; each file's header carries its own
+  what/why, pre-flight queries, and verification steps.
+- **`/features/`** — feature-development SQL (golf, notifications, search,
+  tagging), long since folded into the numbered migrations. Reference only —
+  see the README in that directory.
+- **`/fixes/`** — one-off fix scripts, also folded into the numbered
+  migrations. Reference only.
+- **`/tests/`** — diagnostics and verification queries:
+  - `/verification/` — schema validation scripts (verify-*, check-*)
+  - `/test-data/` — test user creation and sample data
+  - `/diagnostics/` — debug scripts for troubleshooting
+- **`/archive/`** — superseded and legacy SQL. **Never run anything in it** —
+  see [`archive/DO_NOT_RUN.md`](../archive/DO_NOT_RUN.md), which records the
+  time an archived script broke production tagging.
 
 ## Database Technology
-- **Platform**: Supabase (PostgreSQL + Extensions)
+
+- **Platform**: Supabase (PostgreSQL + extensions)
 - **Auth**: Supabase Auth
 - **Storage**: Supabase Storage (avatars, post media)
-- **Real-time**: Supabase Realtime (optional)
+- **Real-time**: Supabase Realtime (live round scores, messaging)
 
-## Key Database Features
-
-### Core Tables
-- `profiles` - User profiles (extends auth.users)
-- `posts` - Social posts with media
-- `post_media` - Image/video attachments
-- `post_comments` - Threaded comments
-- `follows` - Follow relationships
-- `notifications` - User notifications
-- `golf_rounds` - Golf round data
-- `golf_holes` - Hole-by-hole scores
-
-### Security
-- **Row Level Security (RLS)** enabled on all tables
-- **Privacy system** (public/private profiles)
-- **Service role** bypasses RLS for admin operations
-
-### Performance
-- Optimized RLS policies (auth.uid() → `(select auth.uid())`)
-- Full-text search indexes
-- Automatic count management (likes_count, comments_count)
-
-## Getting Started
-
-1. **New Database Setup**:
-   ```bash
-   # Run migrations in order
-   cat database/migrations/001_initial_setup.sql | supabase sql
-   cat database/migrations/002_golf_schema.sql | supabase sql
-   # ... continue through all numbered migrations
-   ```
-
-2. **Add a Feature**:
-   - Check `/features/{feature-name}/` for relevant schemas
-   - Review migration history in `/migrations/INDEX.md`
-
-3. **Debugging**:
-   - Use scripts in `/tests/verification/` to check database health
-   - Run diagnostics from `/tests/diagnostics/` for specific issues
+There is deliberately no table list here — `database/migrations/` defines 40+
+tables and grows most weeks; a partial list presented as complete is worse than
+no list. Read the migrations or introspect the live schema.
 
 ## Important Notes
 
-⚠️ **These SQL files are documentation** - They show the database evolution history. Your Next.js app connects directly to the live Supabase database, not these files.
+⚠️ **These SQL files are history, not a setup script.** The Next.js app
+connects to the live Supabase database; nothing here executes at runtime.
 
-✅ **Safe to move/organize** - Moving these files does NOT affect the running application or database.
-
-❌ **Do not re-run** old migrations on an existing database without understanding their impact.
+❌ **Do not re-run** old migrations or anything under `/archive/`, `/features/`
+or `/fixes/` against an existing database. If you need logic from one of those
+files, port it into a new numbered migration (workflow in
+[`MIGRATIONS.md`](../MIGRATIONS.md)).
 
 ## See Also
-- [MIGRATION_GUIDE.md](./MIGRATION_GUIDE.md) - Detailed migration instructions
-- [/migrations/INDEX.md](../migrations/INDEX.md) - Complete migration history
+
+- [`PHASE0_GUARDIAN_RECONCILIATION.md`](./PHASE0_GUARDIAN_RECONCILIATION.md) —
+  guardian-profiles data reconciliation notes

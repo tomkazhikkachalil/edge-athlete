@@ -6,7 +6,7 @@
 -- (DATE avoids timezone off-by-one on user-entered dates).
 --
 -- ⚠️ SCHEMA DRIFT FIX (July 26): the LIVE table was created from an older
--- script than database/migrations/create-equipment-table.sql — it has a
+-- script than create-equipment-table.sql (now in database/archive/loose-legacy/) — it has a
 -- legacy retired_date column and NO added_at/retired_at. That means the
 -- deployed POST /api/equipment (which writes added_at) has been failing in
 -- prod all along (table has 0 rows). This migration aligns the live table

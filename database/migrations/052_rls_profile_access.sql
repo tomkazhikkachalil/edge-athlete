@@ -97,7 +97,8 @@ BEGIN
 END $$;
 
 -- ── posts_select_policy REWRITE: status arms (narrowing — can't be additive)
--- Base body = optimize-all-rls-policies.sql canon; public/follower arms now
+-- Base body = optimize-all-rls-policies.sql canon (now in
+-- database/archive/loose-legacy/); public/follower arms now
 -- require status='published'; owners see everything (guardians via the
 -- additive policy above).
 DROP POLICY IF EXISTS posts_select_policy ON posts;

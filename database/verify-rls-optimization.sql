@@ -1,7 +1,8 @@
 -- ============================================
 -- RLS OPTIMIZATION VERIFICATION SCRIPT
 -- ============================================
--- Run this AFTER applying optimize-all-rls-policies.sql
+-- Companion to optimize-all-rls-policies.sql (now archived at
+-- database/archive/loose-legacy/ — do not run it; see database/MIGRATIONS.md)
 -- This confirms all policies were optimized correctly
 -- ============================================
 

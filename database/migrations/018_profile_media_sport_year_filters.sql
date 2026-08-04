@@ -7,7 +7,8 @@
 --
 -- Why a new migration rather than modifying in place:
 --   - PostgreSQL requires DROP + CREATE when changing function signature.
---   - Following the project convention of numbered migrations + INDEX.md entry.
+--   - Following the project convention of numbered migrations (+ INDEX.md entry
+--     at the time; INDEX.md has since been retired in favor of MIGRATIONS.md).
 --
 -- Reference baseline (function bodies preserved from):
 --   database/features/golf/add-round-id-to-profile-media-functions.sql

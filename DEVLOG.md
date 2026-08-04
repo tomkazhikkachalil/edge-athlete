@@ -1,5 +1,49 @@
 # Development Log
 
+## August 4, 2026 — Migration-dir hygiene: the last unnumbered strays, and docs that stop lying
+
+Sprint 6 (July 23) unified the three migration dirs and fenced `archive/` with
+`DO_NOT_RUN.md` — but left residue this pass clears. No SQL semantics changed
+anywhere; every edit to an applied migration is comment-only.
+
+**Ten unnumbered legacy SQL files were still sitting inside
+`database/migrations/`** (`add-shared-golf-rounds.sql`,
+`create-equipment-table.sql`, the `fix-*`/`optimize-*`/`final-*`/`perfect-*`
+RLS scripts) — exactly the kind of runnable-looking stray the archive fence
+exists for, parked in the one directory whose contract is "run these in
+order". All ten are `git mv`'d to `database/archive/loose-legacy/`, which
+already held the strays consolidated from the old `database-migrations/` and
+`supabase/migrations/` dirs. The four current-file references to them
+(044, 052, 063 headers + `verify-rls-optimization.sql`) now name the archive
+path; **older DEVLOG entries keep their pre-move paths on purpose** — history
+records where things were.
+
+**Two docs were actively wrong and are gone rather than fixed:**
+
+- `database/migrations/INDEX.md` presented itself as "all database migrations
+  in order" while documenting only 001–008. That is the "partial list
+  presented as complete" failure mode this project keeps re-learning
+  (AGENTS.md core-tables list, the docs index before commit `790aa7b`).
+  Deleted in favor of `MIGRATIONS.md`; its two referrers updated, and 018's
+  header note about the INDEX.md convention now says the convention was
+  retired.
+- `database/docs/MIGRATION_GUIDE.md` was generic boilerplate that contradicted
+  `MIGRATIONS.md` on nearly every load-bearing point: Supabase-CLI-as-runner
+  (explicitly not used here), a staging database that doesn't exist,
+  "document in INDEX.md", and — worst — troubleshooting steps that pipe
+  scripts from `database/archive/old-migrations/` straight into psql, the
+  precise action that broke prod tagging once. The only still-true unique
+  content (idempotent-SQL conventions, `(select auth.uid())`, SECURITY
+  DEFINER `search_path = ''`) is ported into `MIGRATIONS.md`'s workflow
+  section.
+
+`database/docs/README.md` is rewritten to defer to `MIGRATIONS.md` instead of
+carrying its own 001–008 table and a fake `supabase sql` command. `fixes/` and
+`features/` get local do-not-run READMEs (the warning previously lived only
+one level up). Stale range claims (`MIGRATIONS.md` "001…062",
+`DO_NOT_RUN.md` "001–030") now say "the numbered files in
+`database/migrations/`" — wording that can't go stale again.
+
 ## August 3, 2026 — Live rounds were invisible to the audience (PR #33 + migration 063)
 
 The first real two-account test of live following found it broken: a signed-in

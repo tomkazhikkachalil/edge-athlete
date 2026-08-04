@@ -2,9 +2,10 @@
 
 ## The one source of truth
 
-**`database/migrations/`** holds the numbered migrations, `001` … `062`. They are
-the canonical schema history and are applied **in order** via the Supabase SQL
-editor (this project does not use the Supabase CLI migration runner).
+**`database/migrations/`** holds the numbered migrations — the directory listing
+is the source of truth for the current range. They are the canonical schema
+history and are applied **in order** via the Supabase SQL editor (this project
+does not use the Supabase CLI migration runner).
 
 There is **no automated migration tracking**, and **`DEVLOG.md` is the authoritative
 record of what has actually been run** — each migration's DEVLOG entry states when it
@@ -51,6 +52,13 @@ verification queries) and confirm against the live schema.
    `DROP COLUMN` on function bodies, they break at runtime; see migration 022's
    lesson).
 4. Record it in `DEVLOG.md`.
+
+SQL conventions (ported from the retired `docs/MIGRATION_GUIDE.md`, which
+otherwise contradicted this file): write idempotent SQL (`IF NOT EXISTS`,
+`DROP ... IF EXISTS` before `CREATE` for functions); never modify an existing
+migration file — add a new number; use `(select auth.uid())` (not bare
+`auth.uid()`) in RLS policies for performance; SECURITY DEFINER functions set
+`search_path = ''` and fully qualify table names.
 
 ## ⚠️ Everything else is historical — do NOT run it
 
