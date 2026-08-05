@@ -939,8 +939,8 @@ export default function EditProfileTabs({
     <div className="space-y-6">
       <div>
         <label htmlFor="twitter" className="block text-sm font-medium text-gray-700 mb-1">
-          <i className="fab fa-twitter text-violet-400 mr-2" aria-hidden="true"></i>
-          Twitter Handle
+          <i className="fa-brands fa-x-twitter text-gray-900 mr-2" aria-hidden="true"></i>
+          X Handle
         </label>
         <div className="relative">
           <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500 text-sm">@</span>

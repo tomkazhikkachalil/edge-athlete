@@ -19,10 +19,9 @@ import { topPills } from '@/lib/achievements/display';
 import type { Achievement } from '@/lib/achievements';
 // Privacy checks moved to API route
 import {
-  formatHeight,
-  formatAge,
   formatDisplayName,
   getInitials,
+  formatSocialHandle,
   formatSocialHandleDisplay
 } from '@/lib/formatters';
 import { getHandle } from '@/lib/profile-display';
@@ -50,7 +49,6 @@ export default function AthleteProfilePage() {
   const [achievements, setAchievements] = useState<Achievement[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [postsCount, setPostsCount] = useState(0);
   const [followStats, setFollowStats] = useState({
     followersCount: 0,
     followingCount: 0,
@@ -364,46 +362,8 @@ export default function AthleteProfilePage() {
               </p>
             )}
 
-            {/* Stats Grid */}
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-4 sm:gap-6 p-4 bg-gray-50 rounded-xl mb-6">
-              <div className="text-center">
-                <p className="font-bold text-gray-900">Height</p>
-                <p className="font-bold text-xl text-black mt-1">
-                  {profile.height_cm ? formatHeight(profile.height_cm) : '--'}
-                </p>
-              </div>
-              <div className="text-center md:border-l">
-                <p className="font-bold text-gray-900">Weight</p>
-                <p className="font-bold text-xl text-black mt-1">
-                  {/* weight_display is already in the display unit — do NOT run
-                      it through formatWeightWithUnit (which expects kg and
-                      converts; 150 lbs was rendering as "331 lbs") */}
-                  {profile.weight_display && profile.weight_unit
-                    ? `${profile.weight_display} ${profile.weight_unit}`
-                    : '--'}
-                </p>
-              </div>
-              <div className="text-center md:border-l">
-                <p className="font-bold text-gray-900">Age</p>
-                <p className="font-bold text-xl text-black mt-1">
-                  {profile.dob ? formatAge(profile.dob) : '--'}
-                </p>
-              </div>
-              <div className="text-center md:border-l min-w-0">
-                <p className="font-bold text-gray-900">Location</p>
-                {/* truncate: "San Francisco, California" at text-xl blew the
-                    row out to three lines on phones */}
-                <p className="font-bold text-xl text-black mt-1 truncate" title={profile.location || undefined}>
-                  {profile.location || '--'}
-                </p>
-              </div>
-              <div className="text-center md:border-l">
-                <p className="font-bold text-gray-900">Posts</p>
-                <p className="font-bold text-xl text-black mt-1">{postsCount}</p>
-              </div>
-            </div>
-
-            {/* Social Links & Follow Stats */}
+            {/* Follow stats + social links — socials are outbound links here
+                (the owner's page keeps click-to-edit instead) */}
             <div className="bg-gray-50 rounded-xl p-4 mb-6">
               <div className="flex flex-wrap items-center gap-4 sm:gap-8">
                 <button
@@ -426,23 +386,43 @@ export default function AthleteProfilePage() {
                   <span className="font-bold">{followStats.followersCount}</span>
                   <span>Fans</span>
                 </button>
-                
-                {/* Social Links */}
+
+                {/* Social links */}
                 {profile.social_twitter && (
-                  <div className="flex items-center gap-3">
-                    <i className="fa-brands fa-twitter text-2xl text-violet-500"></i>
-                    <span className="text-gray-900 font-bold">
-                      {formatSocialHandleDisplay(profile.social_twitter)}
-                    </span>
-                  </div>
+                  <a
+                    href={`https://x.com/${formatSocialHandle(profile.social_twitter)}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    aria-label={`${formatDisplayName(profile.first_name, null, profile.last_name, profile.full_name)} on X`}
+                    className="flex items-center gap-2 text-gray-900 font-bold hover:text-violet-600 transition-colors"
+                  >
+                    <i className="fa-brands fa-x-twitter text-2xl" aria-hidden="true"></i>
+                    <span>{formatSocialHandleDisplay(profile.social_twitter)}</span>
+                  </a>
                 )}
                 {profile.social_instagram && (
-                  <div className="flex items-center gap-3">
-                    <i className="fa-brands fa-instagram text-2xl text-pink-600"></i>
-                    <span className="text-gray-900 font-bold">
-                      {formatSocialHandleDisplay(profile.social_instagram)}
-                    </span>
-                  </div>
+                  <a
+                    href={`https://instagram.com/${formatSocialHandle(profile.social_instagram)}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    aria-label={`${formatDisplayName(profile.first_name, null, profile.last_name, profile.full_name)} on Instagram`}
+                    className="flex items-center gap-2 text-gray-900 font-bold hover:text-violet-600 transition-colors"
+                  >
+                    <i className="fa-brands fa-instagram text-2xl text-pink-600" aria-hidden="true"></i>
+                    <span>{formatSocialHandleDisplay(profile.social_instagram)}</span>
+                  </a>
+                )}
+                {profile.social_facebook && (
+                  <a
+                    href={`https://facebook.com/${formatSocialHandle(profile.social_facebook)}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    aria-label={`${formatDisplayName(profile.first_name, null, profile.last_name, profile.full_name)} on Facebook`}
+                    className="flex items-center gap-2 text-gray-900 font-bold hover:text-violet-600 transition-colors"
+                  >
+                    <i className="fa-brands fa-facebook text-2xl text-violet-600" aria-hidden="true"></i>
+                    <span>{formatSocialHandleDisplay(profile.social_facebook)}</span>
+                  </a>
                 )}
               </div>
             </div>
@@ -467,7 +447,6 @@ export default function AthleteProfilePage() {
           profileId={athleteId}
           currentUserId={user?.id}
           isOwnProfile={isOwnProfile}
-          onCountsChange={(counts) => setPostsCount(counts.all)}
         />
       </div>
       </div>

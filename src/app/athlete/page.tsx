@@ -28,13 +28,9 @@ import AchievementPills from '@/components/achievements/AchievementPills';
 import { topPills } from '@/lib/achievements/display';
 import type { Achievement } from '@/lib/achievements';
 import {
-  formatHeight,
-  formatWeightWithUnit,
-  formatAge,
   formatDisplayName,
   getInitials,
   formatSocialHandleDisplay,
-  validateHeight
 } from '@/lib/formatters';
 import { getHandle } from '@/lib/profile-display';
 import { 
@@ -102,32 +98,50 @@ function InlineEdit({
         />
         {/* Edit box: viewport-centered on mobile, anchored to the field on sm+ */}
         <div className="fixed sm:absolute inset-0 z-50 flex items-center justify-center p-4 sm:p-0">
-          <div className="bg-white border-2 border-violet-500 rounded-lg shadow-xl p-4 min-w-[280px] max-w-[calc(100vw-2rem)]">
+          {/* Stacked layout: full-width input on top, ✓/✕ in their own row
+              below. The old side-by-side row overflowed the bordered box on
+              narrow screens (input's intrinsic min-width + two 44px buttons
+              exceeded the max-w cap, so the buttons rendered OUTSIDE the
+              bubble) — and would have floated mid-height beside a textarea. */}
+          <div className="bg-white border-2 border-violet-500 rounded-lg shadow-xl p-4 w-[min(320px,calc(100vw-2rem))]">
           <div className="flex flex-col gap-2">
-            <div className="flex items-center gap-2">
-              {multiline ? (
-                <textarea
-                  value={tempValues[field] || ''}
-                  onChange={(e) => setTempValue(field, e.target.value)}
-                  className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent resize-none min-h-[44px]"
-                  style={{ direction: 'ltr', unicodeBidi: 'normal' }}
-                  dir="ltr"
-                  rows={3}
-                  autoFocus
-                  aria-label={ariaLabel || `Edit ${field}`}
-                  disabled={isSubmitting}
-                />
-              ) : (
-                <input
-                  type={inputType}
-                  value={tempValues[field] || ''}
-                  onChange={(e) => setTempValue(field, e.target.value)}
-                  className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent min-h-[44px]"
-                  autoFocus
-                  aria-label={ariaLabel || `Edit ${field}`}
-                  disabled={isSubmitting}
-                />
-              )}
+            {multiline ? (
+              <textarea
+                value={tempValues[field] || ''}
+                onChange={(e) => setTempValue(field, e.target.value)}
+                className="w-full min-w-0 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent resize-none min-h-[44px]"
+                style={{ direction: 'ltr', unicodeBidi: 'normal' }}
+                dir="ltr"
+                rows={3}
+                autoFocus
+                aria-label={ariaLabel || `Edit ${field}`}
+                disabled={isSubmitting}
+              />
+            ) : (
+              <input
+                type={inputType}
+                value={tempValues[field] || ''}
+                onChange={(e) => setTempValue(field, e.target.value)}
+                className="w-full min-w-0 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent min-h-[44px]"
+                autoFocus
+                aria-label={ariaLabel || `Edit ${field}`}
+                disabled={isSubmitting}
+              />
+            )}
+            {error && (
+              <div className="text-red-600 text-sm px-2" role="alert">
+                {error}
+              </div>
+            )}
+            <div className="flex justify-end gap-2">
+              <button
+                onClick={cancelEditing}
+                disabled={isSubmitting}
+                className="min-w-[44px] min-h-[44px] px-3 py-2 bg-gray-500 text-white rounded-md text-sm hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-gray-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                aria-label="Cancel editing"
+              >
+                ✕
+              </button>
               <button
                 onClick={saveInlineEdit}
                 disabled={isSubmitting}
@@ -140,20 +154,7 @@ function InlineEdit({
                   '✓'
                 )}
               </button>
-              <button
-                onClick={cancelEditing}
-                disabled={isSubmitting}
-                className="min-w-[44px] min-h-[44px] px-3 py-2 bg-gray-500 text-white rounded-md text-sm hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-gray-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                aria-label="Cancel editing"
-              >
-                ✕
-              </button>
             </div>
-            {error && (
-              <div className="text-red-600 text-sm px-2" role="alert">
-                {error}
-              </div>
-            )}
           </div>
           </div>
         </div>
@@ -442,41 +443,13 @@ export default function AthleteProfilePage() {
     ]);
   };
 
-  // Inline editing functions
+  // Inline editing functions. Only the socials use InlineEdit since the
+  // header Vitals strip was removed (Aug 2026) — height/weight/location/
+  // class-year edit through Edit Profile → Vitals now.
   const startEditing = (field: string, currentValue: string) => {
     setEditingField(field);
-
-    // For height and weight fields, show user-friendly format for editing
-    let editValue = currentValue;
-    if (field === 'height_cm') {
-      if (profile?.height_cm) {
-        // Show formatted height for editing (e.g., "5'10")
-        editValue = formatHeight(profile.height_cm);
-      } else if (!currentValue || currentValue === PLACEHOLDERS.EMPTY_VALUE) {
-        editValue = '';
-      }
-      // If currentValue is already a formatted height like "5'10"", use it as-is
-      else if (currentValue && (currentValue.includes("'") || currentValue.includes("ft"))) {
-        editValue = currentValue;
-      }
-    } else if (field === 'weight_display') {
-      // For weight, show the current value with unit for editing
-      if (profile?.weight_display) {
-        editValue = `${profile.weight_display} ${profile.weight_unit || 'lbs'}`;
-      } else if (!currentValue || currentValue === PLACEHOLDERS.EMPTY_VALUE || currentValue === 'Add weight') {
-        editValue = '';
-      } else {
-        // Use the current formatted value as-is
-        editValue = currentValue;
-      }
-    } else if (field === 'bio') {
-      // For bio, use the actual profile bio value directly
-      editValue = profile?.bio || '';
-    } else if (!currentValue || currentValue === PLACEHOLDERS.EMPTY_VALUE) {
-      // If no value or placeholder, start with empty string
-      editValue = '';
-    }
-
+    const editValue =
+      !currentValue || currentValue === PLACEHOLDERS.EMPTY_VALUE ? '' : currentValue;
     setTempValues({ [field]: editValue });
   };
 
@@ -491,69 +464,9 @@ export default function AthleteProfilePage() {
     }
 
     const field = editingField!;
-    let newValue: string | number | null = tempValues[field];
-    
-    // Convert specific fields with proper parsing and validation
-    if (field === 'height_cm') {
-      const validation = validateHeight(newValue as string);
-      if (validation.error) {
-        throw new Error(validation.error);
-      }
-      newValue = validation.value || null;
-    } else if (field === 'weight_display') {
-      // Parse weight input - could be "150", "150 lbs", "68 kg", "11.7 stone"
-      const input = (newValue as string).trim();
-      const match = input.match(/^([\d.]+)\s*(lbs?|kg|stone)?$/i);
-      
-      if (!match) {
-        throw new Error('Please enter a valid weight (e.g., "150", "150 lbs", "68 kg")');
-      }
-      
-      const value = parseFloat(match[1]);
-      const unit = (match[2]?.toLowerCase() || profile?.weight_unit || 'lbs') as 'lbs' | 'kg' | 'stone';
-      
-      if (isNaN(value) || value <= 0) {
-        throw new Error('Please enter a valid weight value');
-      }
-      
-      // Validate based on unit
-      const maxWeight = unit === 'kg' ? 500 : unit === 'stone' ? 80 : 1100;
-      if (value > maxWeight) {
-        throw new Error(`Weight must be less than ${maxWeight} ${unit}`);
-      }
-      
-      // Save both weight_display and weight_unit
-      const updateData: Partial<Profile> = { 
-        weight_display: value,
-        weight_unit: unit
-      };
-      
-      // Cancel editing immediately for better UX
-      cancelEditing();
+    const newValue: string | number | null = tempValues[field];
 
-      const response = await fetch('/api/profile', {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          profileData: updateData,
-          userId: user.id
-        }),
-      });
-
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.error || 'Failed to save changes. Please try again.');
-      }
-
-      // Refresh the data to confirm the update
-      await refreshProfile();
-      return; // Exit early since we handled the save
-    } else if (field === 'class_year') {
-      const numValue = parseFloat(newValue as string);
-      newValue = isNaN(numValue) || numValue <= 0 ? null : numValue;
-    } else if (field === 'full_name') {
+    if (field === 'full_name') {
       // Split full_name into first_name and last_name
       const fullNameTrimmed = (newValue as string).trim();
       let firstName = '';
@@ -866,105 +779,43 @@ export default function AthleteProfilePage() {
                       <span>Posts</span>
                     </div>
                   </div>
+
+                  {/* Social connections — directly under the profile info.
+                      Click-to-edit is the affordance here; visitor + /u
+                      surfaces render these as outbound links. */}
+                  <div className="flex flex-wrap items-center gap-4 sm:gap-6 mt-4" role="list" aria-label="Social media links">
+                    <div className="flex items-center gap-2" role="listitem">
+                      <i className="fa-brands fa-x-twitter text-gray-900 text-lg" aria-hidden="true"></i>
+                      <InlineEdit
+                        field="social_twitter"
+                        value={profile?.social_twitter ? formatSocialHandleDisplay(profile.social_twitter) : ''}
+                        placeholder={getPlaceholder('ADD_TWITTER')}
+                        className="text-sm text-gray-600"
+                        ariaLabel="X handle"
+                      />
+                    </div>
+                    <div className="flex items-center gap-2" role="listitem">
+                      <i className="fab fa-instagram text-pink-500 text-lg" aria-hidden="true"></i>
+                      <InlineEdit
+                        field="social_instagram"
+                        value={profile?.social_instagram ? formatSocialHandleDisplay(profile.social_instagram) : ''}
+                        placeholder={getPlaceholder('ADD_INSTAGRAM')}
+                        className="text-sm text-gray-600"
+                        ariaLabel="Instagram handle"
+                      />
+                    </div>
+                    <div className="flex items-center gap-2" role="listitem">
+                      <i className="fab fa-facebook text-violet-600 text-lg" aria-hidden="true"></i>
+                      <InlineEdit
+                        field="social_facebook"
+                        value={profile?.social_facebook ? formatSocialHandleDisplay(profile.social_facebook) : ''}
+                        placeholder="Add Facebook"
+                        className="text-sm text-gray-600"
+                        ariaLabel="Facebook handle"
+                      />
+                    </div>
+                  </div>
                 </div>
-              </div>
-            </div>
-          </div>
-          
-          {/* Vitals Section */}
-          <div className="border-t border-gray-200 bg-gray-50 px-4 sm:px-8 py-6">
-            <h3 className="text-lg font-semibold text-gray-900 mb-4">Vitals</h3>
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-4 sm:gap-6">
-              <div className="text-center bg-white rounded-lg border border-gray-200 p-4">
-                <InlineEdit
-                  field="height_cm"
-                  value={formatHeight(profile?.height_cm)}
-                  placeholder={getPlaceholder('NO_HEIGHT')}
-                  className="text-2xl font-bold text-gray-900 block mb-1"
-                  ariaLabel="Height in feet and inches"
-                  inputType="text"
-                />
-                <div className="text-sm font-semibold text-gray-900 uppercase tracking-wide">Height</div>
-              </div>
-              <div className="text-center bg-white rounded-lg border border-gray-200 p-4">
-                <InlineEdit
-                  field="weight_display"
-                  value={(() => {
-                    if (profile?.weight_display && profile?.weight_unit) {
-                      return `${profile.weight_display} ${profile.weight_unit}`;
-                    }
-                    const formatted = formatWeightWithUnit(profile?.weight_kg, profile?.weight_unit);
-                    return formatted;
-                  })()}
-                  placeholder={getPlaceholder('NO_WEIGHT')}
-                  className="text-2xl font-bold text-gray-900 block mb-1"
-                  ariaLabel="Weight"
-                  inputType="text"
-                />
-                <div className="text-sm font-semibold text-gray-900 uppercase tracking-wide">Weight</div>
-              </div>
-              <div className="text-center bg-white rounded-lg border border-gray-200 p-4">
-                <div className="text-2xl font-bold text-gray-900 mb-1">
-                  {formatAge(profile?.dob) || '--'}
-                </div>
-                <div className="text-sm font-semibold text-gray-900 uppercase tracking-wide">Age</div>
-              </div>
-              <div className="text-center bg-white rounded-lg border border-gray-200 p-4">
-                <InlineEdit
-                  field="location"
-                  value={profile?.location || ''}
-                  placeholder={getPlaceholder('NO_LOCATION')}
-                  className="text-2xl font-bold text-gray-900 block mb-1"
-                  ariaLabel="Location"
-                />
-                <div className="text-sm font-semibold text-gray-900 uppercase tracking-wide">Location</div>
-              </div>
-              <div className="text-center bg-white rounded-lg border border-gray-200 p-4">
-                <InlineEdit
-                  field="class_year"
-                  value={profile?.class_year ? String(profile.class_year) : ''}
-                  placeholder={getPlaceholder('NO_CLASS_YEAR')}
-                  className="text-2xl font-bold text-gray-900 block mb-1"
-                  inputType="number"
-                  ariaLabel="Class year"
-                />
-                <div className="text-sm font-semibold text-gray-900 uppercase tracking-wide">Class Year</div>
-              </div>
-            </div>
-          </div>
-          
-          {/* Social Media Section */}
-          <div className="border-t border-gray-200 px-4 sm:px-8 py-4">
-            <div className="flex flex-wrap items-center justify-center gap-4 sm:gap-6" role="list" aria-label="Social media links">
-              <div className="flex items-center gap-2" role="listitem">
-                <i className="fab fa-twitter text-violet-400 text-lg" aria-label="Twitter" aria-hidden="true"></i>
-                <InlineEdit
-                  field="social_twitter"
-                  value={profile?.social_twitter ? formatSocialHandleDisplay(profile.social_twitter) : ''}
-                  placeholder={getPlaceholder('ADD_TWITTER')}
-                  className="text-sm text-gray-600"
-                  ariaLabel="Twitter handle"
-                />
-              </div>
-              <div className="flex items-center gap-2" role="listitem">
-                <i className="fab fa-instagram text-pink-500 text-lg" aria-label="Instagram" aria-hidden="true"></i>
-                <InlineEdit
-                  field="social_instagram"
-                  value={profile?.social_instagram ? formatSocialHandleDisplay(profile.social_instagram) : ''}
-                  placeholder={getPlaceholder('ADD_INSTAGRAM')}
-                  className="text-sm text-gray-600"
-                  ariaLabel="Instagram handle"
-                />
-              </div>
-              <div className="flex items-center gap-2" role="listitem">
-                <i className="fab fa-facebook text-violet-600 text-lg" aria-label="Facebook" aria-hidden="true"></i>
-                <InlineEdit
-                  field="social_facebook"
-                  value={profile?.social_facebook ? formatSocialHandleDisplay(profile.social_facebook) : ''}
-                  placeholder="Add Facebook"
-                  className="text-sm text-gray-600"
-                  ariaLabel="Facebook handle"
-                />
               </div>
             </div>
           </div>

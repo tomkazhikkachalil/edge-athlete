@@ -573,7 +573,7 @@ export default function VitalsTab({ profileId, currentUserId, isOwnProfile = fal
           <div className="flex items-baseline justify-between mb-3">
             <h3 className="text-base font-bold text-gray-900">Current Vitals</h3>
             {isOwnProfile && (
-              <span className="text-xs text-gray-400">Edit in your profile header</span>
+              <span className="text-xs text-gray-400">Edit in Edit Profile</span>
             )}
           </div>
           <div className={`grid grid-cols-2 gap-4 ${isOwnProfile ? 'md:grid-cols-4' : 'md:grid-cols-3'}`}>

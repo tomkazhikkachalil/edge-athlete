@@ -38,6 +38,7 @@ export async function GET(request: NextRequest) {
         class_year,
         social_twitter,
         social_instagram,
+        social_facebook,
         visibility,
         created_at
       `)

@@ -40,6 +40,8 @@ interface PublicProfile {
   class_year: number | null;
   social_twitter: string | null;
   social_instagram: string | null;
+  /** Optional so cached responses from before this field existed parse. */
+  social_facebook?: string | null;
   visibility: string;
   created_at: string;
   followersCount: number;
@@ -332,13 +334,24 @@ export default function PublicProfilePage() {
                   )}
                   {profile.social_twitter && (
                     <a
-                      href={`https://twitter.com/${profile.social_twitter.replace('@', '')}`}
+                      href={`https://x.com/${profile.social_twitter.replace('@', '')}`}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="text-gray-500 hover:text-violet-400 transition-colors"
-                      aria-label={`${displayName} on Twitter`}
+                      className="text-gray-500 hover:text-gray-900 transition-colors"
+                      aria-label={`${displayName} on X`}
                     >
-                      <i className="fab fa-twitter text-xl" aria-hidden="true"></i>
+                      <i className="fa-brands fa-x-twitter text-xl" aria-hidden="true"></i>
+                    </a>
+                  )}
+                  {profile.social_facebook && (
+                    <a
+                      href={`https://facebook.com/${profile.social_facebook.replace('@', '')}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-gray-500 hover:text-violet-600 transition-colors"
+                      aria-label={`${displayName} on Facebook`}
+                    >
+                      <i className="fab fa-facebook text-xl" aria-hidden="true"></i>
                     </a>
                   )}
                 </div>
