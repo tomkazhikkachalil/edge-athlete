@@ -1,7 +1,7 @@
 /**
  * Pure display helpers for the Tagged tab. The summary shape comes from
  * /api/profile/[id]/tagged-summary (all-time, viewer-scoped) — these turn
- * it into hero-tile values and real-data filter options.
+ * it into the tab's real-data filter options.
  */
 
 import { SPORT_NAMES } from '@/lib/config/sports-config';
@@ -19,26 +19,6 @@ export const EMPTY_TAGGED_SUMMARY: TaggedSummary = {
   sportKeys: [],
   years: [],
 };
-
-export interface TaggedHeroStats {
-  timesTagged: number;
-  taggerCount: number;
-  sportCount: number;
-  yearsActive: number;
-  /** "2023–2026" when spanning multiple years, else undefined. */
-  yearSpan?: string;
-}
-
-export function taggedHeroStats(summary: TaggedSummary): TaggedHeroStats {
-  const years = [...summary.years].sort((a, b) => a - b);
-  return {
-    timesTagged: summary.timesTagged,
-    taggerCount: summary.taggerCount,
-    sportCount: summary.sportKeys.length,
-    yearsActive: years.length,
-    yearSpan: years.length >= 2 ? `${years[0]}–${years[years.length - 1]}` : undefined,
-  };
-}
 
 /** Sport filter options from the sports the athlete is ACTUALLY tagged in,
  *  labeled and name-sorted. */

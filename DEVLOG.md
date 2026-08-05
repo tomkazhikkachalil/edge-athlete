@@ -1,5 +1,18 @@
 # Development Log
 
+## August 5, 2026 — Tagged hero cut: the grid IS the content
+
+Tom, after seeing it live: the four stat bubbles under Tagged should go —
+"the section under is perfect and should just move up." Fair: unlike
+vitals (where the numbers ARE the product) or achievements (career
+totals), a tagged surface is a photo wall; a stat strip above it was
+ceremony. `TaggedHero.tsx` deleted, `taggedHeroStats` + its tests gone,
+the tab now goes header → filters → grid. The summary endpoint and RPC
+STAY — they feed the real-data sport/year filter options, which was half
+their job all along. The e2e spec swapped its hero-math assertions for
+the FilterBar count pill + enabled-filters checks (same 066-backed
+truth, different surface). 960 → 957 unit tests.
+
 ## August 5, 2026 — Tagged pinned by e2e (14th spec) — and a lesson in fake anonymity
 
 Fourth and last Tagged-tab PR. `e2e/tagged.spec.ts` drives the whole

@@ -49,21 +49,17 @@ test('tagged: tag → round auto-tag → hero → untag → privacy pins', async
     await apiA.dispose();
   }
 
-  // ── A's own tab: attribution + hero math ──────────────────────────────
+  // ── A's own tab: attribution + count pill ─────────────────────────────
   await page.goto('/athlete');
   await page.getByRole('button', { name: /tagged/i }).first().click();
   await expect(page.getByText(`Range session with a teammate ${stamp}`).first())
     .toBeVisible({ timeout: 15_000 });
   await expect(page.getByText('by Edge Bravo').first()).toBeVisible();
 
-  // Hero: tagged once, by one athlete, one sport, one year. All-time truth
-  // from the summary RPC (066).
-  const heroValue = (label: string) =>
-    page.locator('div.text-center', { hasText: label }).locator('span.text-2xl').first();
-  await expect(heroValue('Times tagged')).toHaveText('1');
-  await expect(heroValue('Tagged by')).toHaveText('1');
-  await expect(heroValue('Sports')).toHaveText('1');
-  await expect(heroValue('Years active')).toHaveText('1');
+  // The FilterBar count pill agrees, and the real-data filter dropdowns are
+  // live (fed by the summary RPC from 066 — golf is a real option).
+  await expect(page.getByText('1 post', { exact: true })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'All Sports' })).toBeEnabled();
 
   // A authored the round, so it must NOT appear on A's own tagged tab.
   await expect(page.getByText(`Back nine at dusk ${stamp}`)).toHaveCount(0);
@@ -135,9 +131,8 @@ test('tagged: tag → round auto-tag → hero → untag → privacy pins', async
   await page.getByRole('button', { name: 'Remove tag from post by Edge Bravo' }).first().click();
   await page.getByRole('button', { name: 'Remove', exact: true }).click();
   await expect(page.getByText(`Range session with a teammate ${stamp}`)).toHaveCount(0, { timeout: 10_000 });
-  await expect(heroValue('Times tagged')).toHaveText('0');
   await page.reload();
   await page.getByRole('button', { name: /tagged/i }).first().click();
-  await expect(page.getByText('Times tagged').first()).toBeVisible({ timeout: 15_000 });
+  await expect(page.getByText('No tags yet')).toBeVisible({ timeout: 15_000 });
   await expect(page.getByText(`Range session with a teammate ${stamp}`)).toHaveCount(0);
 });
