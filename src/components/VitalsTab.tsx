@@ -29,7 +29,7 @@ import { weeklySummary, streakWeeks, latestPB } from '@/lib/workouts/dashboard';
 import HeroStrip from './vitals/HeroStrip';
 import PBShowcase from './vitals/PBShowcase';
 import ProgressSection from './vitals/ProgressSection';
-import SectionEmptyState from './vitals/SectionEmptyState';
+import SectionEmptyState from './SectionEmptyState';
 import { categoryAccent } from './vitals/category-colors';
 import type { ServerWorkoutSession } from '@/lib/workouts/serialize';
 

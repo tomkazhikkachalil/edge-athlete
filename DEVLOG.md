@@ -1,5 +1,30 @@
 # Development Log
 
+## August 5, 2026 — The trophy case: achievements tab rebuilt like the vitals dashboard
+
+Second achievements PR — the visible one. The flat grid of identical
+amber-trophy grey boxes is gone; the tab now argues its order: career stat
+tiles (achievements / podium finishes / organizations / years active with
+first–last span — ALL-TIME and never filtered, because "12 achievements"
+must not lie to match a filter), then Top Finishes (up to 4 auto-picked
+podiums, best tier first — parsePlacement reorders but never fabricates,
+and the row simply doesn't render when there are no podiums), then the
+FilterBar scoped to the record it filters, then a year-grouped timeline
+(the workout log's month-header treatment) where podiums wear tier-tinted
+Medals and everything else a neutral Trophy. Non-podium placement chips
+went gray after the screenshot pass — they were rendering in the same
+amber as gold, which muddied the tier signal.
+
+`SectionEmptyState` was promoted from `src/components/vitals/` to
+`src/components/` — it's a two-tab shared primitive now (the achievements
+empty state was the third bespoke variant; it's dead). New pieces live in
+`src/components/achievements/` (`AchievementsHero`, `TopFinishes`,
+`YearTimeline`, `tier-colors.ts` — literal Tailwind classes only, the JIT
+purge rule). `AchievementsTab` stays the orchestrator: fetch, modals, and
+the delete flow are untouched; `visible` is finally memoized. Screenshot
+pass at 320/768/1280 own+visitor, seeded+empty (hero 2×2 at 320px; honest
+zeros for a brand-new athlete).
+
 ## August 5, 2026 — Achievements display lib: podium parsing + trophy-case stats
 
 First of three PRs for the achievements "trophy case" redesign (same
