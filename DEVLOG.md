@@ -1,5 +1,42 @@
 # Development Log
 
+## August 5, 2026 — Tagged tab groundwork: the 021 privacy hole closed for real, plus group-round backfill
+
+First of four PRs for the Tagged tab round. Migration 066 + read-path
+changes only — the visible rebuild comes later.
+
+The hole: `get_profile_tagged_media` gated on POST visibility but never on
+the post OWNER's profile visibility, so a private athlete's public posts
+appeared — with their name and avatar — on other people's Tagged tabs for
+ANY viewer, including anonymous ones. `021_rpc_visibility_hardening.sql`
+was written to close exactly this and turned out to be an unapplied
+placeholder. 066 recreates the RPC with the owner clause (author public,
+OR viewer is the author / the tagged athlete / an accepted follower of
+the author — the tagged athlete keeps their own tab complete because
+being tagged is the author's explicit, already-notified action), applies
+the same clause to the counts RPC's tagged subquery, and adds a GIN index
+on `posts.tags` with containment-form predicates (`@> ARRAY[uuid]`) so
+the tagged queries stop sequentially scanning posts. The all/stats
+subqueries share the owner hole; changing them changes All/Stats tab
+behavior, so that's recorded backlog, not smuggled in.
+
+A second leak fixed at the API layer: the counts POST called the RPC
+BEFORE its privacy gate, so blocked viewers of private profiles got real
+all/stats/tagged badge numbers while GET hid the items. The gate is
+hoisted; blocked viewers get zeros across the board now.
+
+New `get_profile_tagged_summary` RPC + `/api/profile/[id]/tagged-summary`
+route: one aggregate returning times-tagged, distinct taggers, and the
+REAL sport/year sets — the tab's upcoming hero tiles and filter options
+(replacing dropdowns that offered the entire sport registry and 2000–now).
+Degrades to zeros pre-066, same pattern as the counts endpoint.
+
+066 also backfills group-round mirror posts: `tags` = participants
+(author excluded, declined excluded) — Tom's "rounds with multiple names
+should automatically get tagged," retroactively. posts.tags ONLY: the
+tag-notification trigger fires on `post_tags` inserts, so the backfill is
+structurally notification-free. Guarded on empty tags → rerunnable.
+
 ## August 5, 2026 — Real achievements everywhere; the fabricated badges are dead
 
 Third achievements PR. `AthleteService.getBadges` had been FABRICATING
