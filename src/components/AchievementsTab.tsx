@@ -1,21 +1,32 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Plus, Edit2, Trash2, Trophy, Medal } from 'lucide-react';
+import { Plus, Trophy } from 'lucide-react';
 import FilterBar from './filters/FilterBar';
 import MultiSelectDropdown from './filters/MultiSelectDropdown';
 import AddAchievementModal from './AddAchievementModal';
 import ConfirmModal from './ConfirmModal';
+import SectionEmptyState from './SectionEmptyState';
+import AchievementsHero from './achievements/AchievementsHero';
+import TopFinishes from './achievements/TopFinishes';
+import YearTimeline from './achievements/YearTimeline';
 import { useToast } from './Toast';
 import { SPORT_NAMES } from '@/lib/config/sports-config';
+import { achievementStats } from '@/lib/achievements/display';
 import {
   GENERAL_SPORT_KEY,
   deriveYearOptions,
-  formatMonthYear,
   matchesSportFilter,
   matchesYearFilter,
 } from '@/lib/profile-filters';
 import type { Achievement } from '@/lib/achievements';
+
+/**
+ * The trophy case. Order is the argument: career stat tiles (all-time,
+ * never filtered — "12 achievements" must not lie to match a filter), the
+ * Top Finishes showcase (auto-picked podiums), then the filterable
+ * year-grouped record.
+ */
 
 interface AchievementsTabProps {
   profileId: string;
@@ -77,11 +88,17 @@ export default function AchievementsTab({ profileId, isOwnProfile = false }: Ach
     [achievements]
   );
 
-  const visible = achievements.filter(
-    a =>
-      matchesSportFilter(a.sport_key, selectedSports) &&
-      matchesYearFilter(a.achieved_on, selectedYears)
+  const visible = useMemo(
+    () =>
+      achievements.filter(
+        a =>
+          matchesSportFilter(a.sport_key, selectedSports) &&
+          matchesYearFilter(a.achieved_on, selectedYears)
+      ),
+    [achievements, selectedSports, selectedYears]
   );
+
+  const stats = useMemo(() => achievementStats(achievements), [achievements]);
 
   const handleDelete = async () => {
     if (!deleting) return;
@@ -114,10 +131,46 @@ export default function AchievementsTab({ profileId, isOwnProfile = false }: Ach
   const hasAny = achievements.length > 0;
   const activeCount = selectedSports.length + selectedYears.length;
 
+  if (loading) {
+    return (
+      <div className="flex justify-center items-center py-16">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-violet-600"></div>
+      </div>
+    );
+  }
+
+  if (loadError) {
+    return (
+      <div className="text-center py-16 px-4">
+        <p className="text-gray-600 mb-4">Couldn&apos;t load achievements.</p>
+        <button
+          onClick={fetchAchievements}
+          className="inline-flex items-center gap-2 px-4 py-2 bg-violet-600 text-white rounded-lg font-semibold text-sm hover:bg-violet-700 transition-colors"
+        >
+          Try again
+        </button>
+      </div>
+    );
+  }
+
   return (
-    <div className="w-full space-y-6">
-      {/* Filters — always visible (disabled dropdowns until there's data) */}
-      {!loading && !loadError && (
+    <div className="w-full space-y-8">
+      {/* ── Header ───────────────────────────────────────────────────── */}
+      <div>
+        <h2 className="text-h2 text-gray-900">Achievements</h2>
+        <p className="text-sm text-gray-500 mt-0.5">
+          Awards, titles, and milestones — the athletic résumé.
+        </p>
+      </div>
+
+      {/* ── Hero: career totals — always all-time, never filtered ────── */}
+      <AchievementsHero stats={stats} />
+
+      {/* ── Top Finishes — auto-picked podiums (hidden when none) ────── */}
+      <TopFinishes achievements={achievements} />
+
+      {/* ── The record: filters + year-grouped timeline ──────────────── */}
+      <div className="space-y-6">
         <FilterBar
           resultCount={visible.length}
           resultNoun="achievement"
@@ -157,73 +210,35 @@ export default function AchievementsTab({ profileId, isOwnProfile = false }: Ach
             disabled={yearOptions.length === 0}
           />
         </FilterBar>
-      )}
 
-      {/* Loading state */}
-      {loading && (
-        <div className="flex justify-center items-center py-16">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-violet-600"></div>
-        </div>
-      )}
+        {!hasAny && (
+          <SectionEmptyState
+            icon={Trophy}
+            title="No achievements yet"
+            body={
+              isOwnProfile
+                ? 'Add your awards, titles, and milestones to build your athletic résumé over the years.'
+                : "This athlete hasn't added achievements yet."
+            }
+            cta={isOwnProfile ? { label: 'Add Your First Achievement', onClick: openAdd } : undefined}
+          />
+        )}
 
-      {/* Load error */}
-      {!loading && loadError && (
-        <div className="text-center py-16 px-4">
-          <p className="text-gray-600 mb-4">Couldn&apos;t load achievements.</p>
-          <button
-            onClick={fetchAchievements}
-            className="inline-flex items-center gap-2 px-4 py-2 bg-violet-600 text-white rounded-lg font-semibold text-sm hover:bg-violet-700 transition-colors"
-          >
-            Try again
-          </button>
-        </div>
-      )}
-
-      {/* Empty state (no achievements at all) */}
-      {!loading && !loadError && !hasAny && (
-        <div className="text-center py-16 px-4">
-          <div className="w-20 h-20 mx-auto mb-6 rounded-full bg-amber-50 flex items-center justify-center">
-            <Trophy className="w-10 h-10 text-amber-400" />
+        {hasAny && visible.length === 0 && (
+          <div className="text-center py-10 px-4 border border-dashed border-gray-200 rounded-lg">
+            <p className="text-sm text-gray-500">No achievements match your filters.</p>
           </div>
-          <h3 className="text-xl font-bold text-gray-900 mb-2">No achievements yet</h3>
-          <p className="text-gray-600 mb-6 max-w-md mx-auto">
-            {isOwnProfile
-              ? 'Add your awards, titles, and milestones to build your athletic résumé over the years.'
-              : "This athlete hasn't added achievements yet."}
-          </p>
-          {isOwnProfile && (
-            <button
-              onClick={openAdd}
-              className="inline-flex items-center gap-2 px-6 py-3 bg-violet-600 text-white rounded-lg font-semibold hover:bg-violet-700 transition-colors shadow-sm"
-            >
-              <Plus className="w-5 h-5" />
-              Add Your First Achievement
-            </button>
-          )}
-        </div>
-      )}
+        )}
 
-      {/* Filtered-empty state */}
-      {!loading && hasAny && visible.length === 0 && (
-        <div className="text-center py-16 px-4">
-          <p className="text-gray-600">No achievements match your filters.</p>
-        </div>
-      )}
-
-      {/* Achievements grid — date-ordered newest first (API order) */}
-      {!loading && visible.length > 0 && (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {visible.map(achievement => (
-            <AchievementCard
-              key={achievement.id}
-              achievement={achievement}
-              isOwnProfile={isOwnProfile}
-              onEdit={() => openEdit(achievement)}
-              onDelete={() => setDeleting(achievement)}
-            />
-          ))}
-        </div>
-      )}
+        {visible.length > 0 && (
+          <YearTimeline
+            achievements={visible}
+            isOwnProfile={isOwnProfile}
+            onEdit={openEdit}
+            onDelete={setDeleting}
+          />
+        )}
+      </div>
 
       <AddAchievementModal
         isOpen={isModalOpen}
@@ -243,77 +258,6 @@ export default function AchievementsTab({ profileId, isOwnProfile = false }: Ach
         onConfirm={handleDelete}
         onCancel={() => setDeleting(null)}
       />
-    </div>
-  );
-}
-
-interface AchievementCardProps {
-  achievement: Achievement;
-  isOwnProfile: boolean;
-  onEdit: () => void;
-  onDelete: () => void;
-}
-
-function AchievementCard({ achievement, isOwnProfile, onEdit, onDelete }: AchievementCardProps) {
-  const sportLabel = achievement.sport_key
-    ? SPORT_NAMES[achievement.sport_key] ?? achievement.sport_key
-    : 'General';
-  const meta = [formatMonthYear(achievement.achieved_on), achievement.organization]
-    .filter(Boolean)
-    .join(' · ');
-
-  return (
-    <div className="bg-white rounded-xl border-2 border-gray-200 hover:border-violet-400 hover:shadow-lg transition-all duration-200 p-4 flex flex-col gap-3">
-      <div className="flex items-start gap-3">
-        <div className="w-10 h-10 rounded-full bg-amber-100 flex items-center justify-center flex-shrink-0">
-          <Trophy className="w-5 h-5 text-amber-600" aria-hidden="true" />
-        </div>
-        <div className="min-w-0 flex-1">
-          <h4 className="text-base font-bold text-gray-900 leading-tight break-words">
-            {achievement.title}
-          </h4>
-          <p className="text-sm text-gray-500 mt-0.5">{meta}</p>
-        </div>
-      </div>
-
-      <div className="flex items-center gap-2 flex-wrap">
-        <span
-          className={`px-2 py-1 rounded-md text-xs font-semibold ${
-            achievement.sport_key ? 'bg-violet-100 text-violet-700' : 'bg-gray-100 text-gray-700'
-          }`}
-        >
-          {sportLabel}
-        </span>
-        {achievement.placement && (
-          <span className="inline-flex items-center gap-1 px-2 py-1 rounded-md text-xs font-semibold bg-amber-100 text-amber-700">
-            <Medal className="w-3 h-3" aria-hidden="true" />
-            {achievement.placement}
-          </span>
-        )}
-      </div>
-
-      {achievement.description && (
-        <p className="text-sm text-gray-600 line-clamp-3">{achievement.description}</p>
-      )}
-
-      {isOwnProfile && (
-        <div className="flex items-center gap-2 pt-2 mt-auto border-t border-gray-200">
-          <button
-            onClick={onEdit}
-            className="flex-1 flex items-center justify-center gap-1 px-3 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg text-xs font-semibold transition-colors"
-          >
-            <Edit2 className="w-3 h-3" />
-            Edit
-          </button>
-          <button
-            onClick={onDelete}
-            className="px-3 py-2 bg-red-50 hover:bg-red-100 text-red-600 rounded-lg text-xs font-semibold transition-colors"
-            aria-label={`Delete ${achievement.title}`}
-          >
-            <Trash2 className="w-3 h-3" />
-          </button>
-        </div>
-      )}
     </div>
   );
 }
