@@ -349,6 +349,30 @@ export async function POST(
       return NextResponse.json({ error: 'Profile ID is required' }, { status: 400 });
     }
 
+    // Profile-level privacy gate FIRST — before any RPC. This used to run
+    // after the media-counts RPC, so a blocked viewer of a private profile
+    // still received real all/stats/tagged badge numbers while the GET
+    // endpoint hid the items themselves. Blocked viewers now get zeros.
+    let canSee = viewerId === profileId;
+    if (!canSee) {
+      const { data: prof } = await supabaseAdmin
+        .from('profiles')
+        .select('visibility')
+        .eq('id', profileId)
+        .single();
+      if (prof?.visibility === 'public') {
+        canSee = true;
+      } else if (prof) {
+        const { canView } = await canViewProfile(profileId, viewerId);
+        canSee = canView;
+      }
+    }
+    if (!canSee) {
+      return NextResponse.json({
+        all: 0, stats: 0, tagged: 0, equipment: 0, vitals: 0, achievements: 0
+      });
+    }
+
     // Call count function
     const { data: counts, error: countError } = await supabaseAdmin.rpc('get_profile_media_counts', {
       target_profile_id: profileId,
@@ -371,35 +395,16 @@ export async function POST(
     };
 
     // Equipment, vitals & achievements counts for their tab badges. The media
-    // RPC doesn't cover these tables, so they were always 0. Gate on profile
-    // visibility for non-owners (private profiles shouldn't expose these counts).
-    let equipment = 0;
-    let vitals = 0;
-    let achievements = 0;
-    let canSee = viewerId === profileId;
-    if (!canSee) {
-      const { data: prof } = await supabaseAdmin
-        .from('profiles')
-        .select('visibility')
-        .eq('id', profileId)
-        .single();
-      if (prof?.visibility === 'public') {
-        canSee = true;
-      } else if (prof) {
-        const { canView } = await canViewProfile(profileId, viewerId);
-        canSee = canView;
-      }
-    }
-    if (canSee) {
-      const [{ count: eqCount }, { count: vitCount }, { count: achCount }] = await Promise.all([
-        supabaseAdmin.from('athlete_equipment').select('id', { count: 'exact', head: true }).eq('profile_id', profileId),
-        supabaseAdmin.from('athlete_vitals').select('id', { count: 'exact', head: true }).eq('profile_id', profileId),
-        supabaseAdmin.from('athlete_achievements').select('id', { count: 'exact', head: true }).eq('profile_id', profileId),
-      ]);
-      equipment = eqCount ?? 0;
-      vitals = vitCount ?? 0;
-      achievements = achCount ?? 0;
-    }
+    // RPC doesn't cover these tables, so they were always 0. (Visibility
+    // already gated above.)
+    const [{ count: eqCount }, { count: vitCount }, { count: achCount }] = await Promise.all([
+      supabaseAdmin.from('athlete_equipment').select('id', { count: 'exact', head: true }).eq('profile_id', profileId),
+      supabaseAdmin.from('athlete_vitals').select('id', { count: 'exact', head: true }).eq('profile_id', profileId),
+      supabaseAdmin.from('athlete_achievements').select('id', { count: 'exact', head: true }).eq('profile_id', profileId),
+    ]);
+    const equipment = eqCount ?? 0;
+    const vitals = vitCount ?? 0;
+    const achievements = achCount ?? 0;
 
     return NextResponse.json({
       all: parseInt(result.all_media_count || '0', 10),
