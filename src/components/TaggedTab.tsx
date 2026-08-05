@@ -190,15 +190,8 @@ export default function TaggedTab({ profileId, currentUserId, isOwnProfile = fal
 
   return (
     <div className="w-full space-y-8">
-      {/* ── Header ───────────────────────────────────────────────────── */}
-      <div>
-        <h2 className="text-h2 text-gray-900">Tagged</h2>
-        <p className="text-sm text-gray-500 mt-0.5">
-          Posts and rounds other athletes tagged {isOwnProfile ? 'you' : 'this athlete'} in.
-        </p>
-      </div>
-
-      {/* ── The record: filters + grid ───────────────────────────────── */}
+      {/* Filters + grid — the tab pill already names the surface, so there
+          is no in-tab header (Tom cut it). */}
       <div className="space-y-6">
         <FilterBar
           resultCount={items.length}

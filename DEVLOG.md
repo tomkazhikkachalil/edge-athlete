@@ -1,5 +1,12 @@
 # Development Log
 
+## August 5, 2026 — Tagged in-tab header cut
+
+Tom: the "Tagged / Posts and rounds other athletes tagged you in" header
+inside the tab is redundant — the tab pill already names the surface.
+Removed; the tab opens straight on the filters + grid, matching how the
+Media tab has always behaved.
+
 ## August 5, 2026 — TikTok joins the socials (migration 067)
 
 The fourth connection. Migration 067 adds `profiles.social_tiktok TEXT`
