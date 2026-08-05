@@ -11,6 +11,9 @@ import {
   getTrendArrow,
   formatSecondsToDisplay,
 } from '@/lib/vitals-config';
+import {
+  Plus, History, Ruler, Timer, Dumbbell, Loader2, Star, Camera, ChevronDown,
+} from 'lucide-react';
 import AddVitalModal from './AddVitalModal';
 import CreatePostModal from './CreatePostModal';
 import PostCard from './PostCard';
@@ -22,6 +25,12 @@ import { useToast } from './Toast';
 import { deriveYearOptions, matchesYearFilter } from '@/lib/profile-filters';
 import { formatHeight, formatWeightWithUnit, formatAge, formatDate } from '@/lib/formatters';
 import { effectiveSessionStatus } from '@/lib/workouts/status';
+import { weeklySummary, streakWeeks, latestPB } from '@/lib/workouts/dashboard';
+import HeroStrip from './vitals/HeroStrip';
+import PBShowcase from './vitals/PBShowcase';
+import ProgressSection from './vitals/ProgressSection';
+import SectionEmptyState from './vitals/SectionEmptyState';
+import { categoryAccent } from './vitals/category-colors';
 import type { ServerWorkoutSession } from '@/lib/workouts/serialize';
 
 // ── Types ──────────────────────────────────────────────────────────────────
@@ -204,7 +213,7 @@ function MetricCard({ metricKey, entries, athleteBirthday, onOpenPost }: MetricC
             {/* PB badge */}
             {isCurrentBest ? (
               <div className="inline-flex items-center gap-1 text-xs font-semibold text-amber-700 bg-amber-50 px-2 py-0.5 rounded-full mb-2">
-                <i className="fas fa-star text-amber-500" style={{ fontSize: '9px' }}></i>
+                <Star className="w-2.5 h-2.5 text-amber-500 inline" aria-hidden="true" />
                 Personal Best
               </div>
             ) : best.value !== null && (
@@ -243,7 +252,7 @@ function MetricCard({ metricKey, entries, athleteBirthday, onOpenPost }: MetricC
             <div className="text-xs text-gray-400">
               {new Date(latest.recorded_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
             </div>
-            <i className={`fas fa-chevron-${expanded ? 'up' : 'down'} text-xs text-gray-400`}></i>
+            <ChevronDown className={`w-4 h-4 text-gray-400 transition-transform ${expanded ? 'rotate-180' : ''}`} aria-hidden="true" />
           </div>
         </div>
       </button>
@@ -269,7 +278,7 @@ function MetricCard({ metricKey, entries, athleteBirthday, onOpenPost }: MetricC
                           <span className="font-semibold text-gray-900">{formatEntryValue(entry)}</span>
                           {entry.id === best.id && (
                             <span className="text-xs text-amber-600 font-medium">
-                              <i className="fas fa-star text-amber-500 mr-0.5" style={{ fontSize: '9px' }}></i>PB
+                              <Star className="w-2.5 h-2.5 text-amber-500 inline mr-0.5" aria-hidden="true" />PB
                             </span>
                           )}
                           {athleteBirthday && (
@@ -294,7 +303,7 @@ function MetricCard({ metricKey, entries, athleteBirthday, onOpenPost }: MetricC
                             className="text-violet-500 hover:text-violet-700 transition-colors"
                             title="View media post"
                           >
-                            <i className="fas fa-camera text-xs"></i>
+                            <Camera className="w-3.5 h-3.5" aria-hidden="true" />
                           </button>
                         )}
                       </div>
@@ -440,6 +449,17 @@ export default function VitalsTab({ profileId, currentUserId, isOwnProfile = fal
     s => s.status === 'completed' && matchesYearFilter(s.started_at, selectedYears)
   );
 
+  // Dashboard headline stats — all-time / unfiltered on purpose: filters
+  // narrow the library below, but "this week" and PBs must never lie.
+  const completedWorkouts = useMemo(
+    () => workouts.filter(s => s.status === 'completed'),
+    [workouts]
+  );
+  const weekly = useMemo(() => weeklySummary(completedWorkouts), [completedWorkouts]);
+  const streak = useMemo(() => streakWeeks(completedWorkouts), [completedWorkouts]);
+  const pbSpotlight = useMemo(() => latestPB(vitals), [vitals]);
+  const [showAllActivity, setShowAllActivity] = useState(false);
+
   // Group vitals by metric key
   const vitalsByMetric: Record<string, VitalEntry[]> = {};
   for (const entry of visibleVitals) {
@@ -453,7 +473,7 @@ export default function VitalsTab({ profileId, currentUserId, isOwnProfile = fal
   if (loading) {
     return (
       <div className="py-16 flex items-center justify-center">
-        <i className="fas fa-spinner fa-spin text-gray-400 text-2xl"></i>
+        <Loader2 className="w-7 h-7 text-gray-400 animate-spin" aria-label="Loading" />
       </div>
     );
   }
@@ -495,7 +515,7 @@ export default function VitalsTab({ profileId, currentUserId, isOwnProfile = fal
                 onClick={() => router.push('/app/workout/new')}
                 className="flex items-center gap-1.5 px-4 py-2.5 border border-gray-300 text-gray-700 rounded-lg font-semibold text-sm hover:bg-gray-50 transition-colors"
               >
-                <i className="fas fa-history text-xs" aria-hidden="true"></i>
+                <History className="w-3.5 h-3.5" aria-hidden="true" />
                 Log Past Workout
               </button>
             </div>
@@ -536,6 +556,15 @@ export default function VitalsTab({ profileId, currentUserId, isOwnProfile = fal
         )}
       </div>
 
+      {/* ── Hero: this week, streak, latest PB — always all-time-true ── */}
+      <HeroStrip summary={weekly} streak={streak} pb={pbSpotlight} />
+
+      {/* ── Personal bests — the trophy wall ─────────────────────────── */}
+      <PBShowcase vitals={vitals} />
+
+      {/* ── Progress — one big chart, pick what to track ─────────────── */}
+      <ProgressSection vitals={vitals} sessions={completedWorkouts} />
+
       {/* ── Current Vitals — the athlete's present-day snapshot from their
              profile (edited via the profile header / Edit Profile). DOB is
              owner-only; visitors see Age. ──────────────────────────────── */}
@@ -552,7 +581,7 @@ export default function VitalsTab({ profileId, currentUserId, isOwnProfile = fal
               <div className="text-2xl font-bold text-gray-900 mb-1">
                 {formatHeight(currentVitals.heightCm)}
               </div>
-              <div className="text-sm font-semibold text-gray-900 uppercase tracking-wide">Height</div>
+              <div className="text-xs text-gray-500 uppercase tracking-wide">Height</div>
             </div>
             <div className="text-center bg-white rounded-lg border border-gray-200 p-4">
               <div className="text-2xl font-bold text-gray-900 mb-1">
@@ -560,13 +589,13 @@ export default function VitalsTab({ profileId, currentUserId, isOwnProfile = fal
                   ? `${currentVitals.weightDisplay} ${currentVitals.weightUnit}`
                   : formatWeightWithUnit(currentVitals.weightKg, currentVitals.weightUnit)}
               </div>
-              <div className="text-sm font-semibold text-gray-900 uppercase tracking-wide">Weight</div>
+              <div className="text-xs text-gray-500 uppercase tracking-wide">Weight</div>
             </div>
             <div className="text-center bg-white rounded-lg border border-gray-200 p-4">
               <div className="text-2xl font-bold text-gray-900 mb-1">
                 {formatAge(currentVitals.dob)}
               </div>
-              <div className="text-sm font-semibold text-gray-900 uppercase tracking-wide">Age</div>
+              <div className="text-xs text-gray-500 uppercase tracking-wide">Age</div>
             </div>
             {isOwnProfile && (
               <div className="text-center bg-white rounded-lg border border-gray-200 p-4">
@@ -575,7 +604,7 @@ export default function VitalsTab({ profileId, currentUserId, isOwnProfile = fal
                       string parses as UTC and shows the previous day in the US */}
                   {currentVitals.dob ? formatDate(`${currentVitals.dob.slice(0, 10)}T00:00:00`) : '—'}
                 </div>
-                <div className="text-sm font-semibold text-gray-900 uppercase tracking-wide">Date of Birth</div>
+                <div className="text-xs text-gray-500 uppercase tracking-wide">Date of Birth</div>
               </div>
             )}
           </div>
@@ -630,35 +659,23 @@ export default function VitalsTab({ profileId, currentUserId, isOwnProfile = fal
               onClick={() => setShowAddVital(true)}
               className="flex items-center gap-1.5 px-3 py-2 bg-violet-600 text-white rounded-lg text-sm font-semibold hover:bg-violet-700 transition-colors"
             >
-              <i className="fas fa-plus text-xs"></i>
+              <Plus className="w-3.5 h-3.5" aria-hidden="true" />
               Add Metric
             </button>
           )}
         </div>
 
         {totalMetrics === 0 && vitals.length > 0 ? (
-          <div className="text-center py-12 border border-dashed border-gray-200 rounded-xl">
+          <div className="text-center py-12 border border-dashed border-gray-200 rounded-lg">
             <p className="text-sm text-gray-600">No metrics match your filters.</p>
           </div>
         ) : totalMetrics === 0 ? (
-          <div className="text-center py-12 border border-dashed border-gray-200 rounded-xl">
-            <div className="w-14 h-14 mx-auto mb-4 rounded-full bg-gray-100 flex items-center justify-center">
-              <i className="fas fa-ruler-vertical text-gray-400 text-xl"></i>
-            </div>
-            <h4 className="text-sm font-semibold text-gray-700 mb-1">No metrics recorded yet</h4>
-            <p className="text-xs text-gray-500 max-w-xs mx-auto mb-4">
-              Track physical development over time — speed, strength, conditioning, and body metrics.
-            </p>
-            {isOwnProfile && (
-              <button
-                onClick={() => setShowAddVital(true)}
-                className="inline-flex items-center gap-1.5 px-4 py-2 bg-violet-600 text-white rounded-lg text-sm font-semibold hover:bg-violet-700 transition-colors"
-              >
-                <i className="fas fa-plus text-xs"></i>
-                Add First Metric
-              </button>
-            )}
-          </div>
+          <SectionEmptyState
+            icon={Ruler}
+            title="No metrics recorded yet"
+            body="Track physical development over time — speed, strength, conditioning, and body metrics."
+            cta={isOwnProfile ? { label: 'Add First Metric', onClick: () => setShowAddVital(true) } : undefined}
+          />
         ) : (
           <div className="space-y-6">
             {VITAL_CATEGORIES.map(category => {
@@ -670,8 +687,12 @@ export default function VitalsTab({ profileId, currentUserId, isOwnProfile = fal
               return (
                 <div key={category.key}>
                   <div className="flex items-center gap-2 mb-3">
-                    <i className={`${category.icon} text-sm text-gray-500`}></i>
-                    <h4 className="text-sm font-semibold text-gray-600">{category.label}</h4>
+                    <span
+                      className="w-2.5 h-2.5 rounded-full"
+                      style={{ backgroundColor: categoryAccent(category.key).hex }}
+                      aria-hidden="true"
+                    />
+                    <h4 className={`text-sm font-semibold ${categoryAccent(category.key).text}`}>{category.label}</h4>
                   </div>
                   <div className="space-y-2">
                     {categoryMetrics.map(m => (
@@ -705,39 +726,40 @@ export default function VitalsTab({ profileId, currentUserId, isOwnProfile = fal
         </div>
 
         {visibleWorkouts.length === 0 && workouts.some(s => s.status === 'completed') ? (
-          <div className="text-center py-12 border border-dashed border-gray-200 rounded-xl">
+          <div className="text-center py-12 border border-dashed border-gray-200 rounded-lg">
             <p className="text-sm text-gray-600">No workouts match your filters.</p>
           </div>
         ) : visibleWorkouts.length === 0 ? (
-          <div className="text-center py-12 border border-dashed border-gray-200 rounded-xl">
-            <div className="w-14 h-14 mx-auto mb-4 rounded-full bg-violet-50 flex items-center justify-center">
-              <i className="fas fa-stopwatch text-violet-400 text-xl"></i>
-            </div>
-            <h4 className="text-sm font-semibold text-gray-700 mb-1">No workouts recorded yet</h4>
-            <p className="text-xs text-gray-500 max-w-xs mx-auto mb-4">
-              {isOwnProfile
-                ? 'Hit Start Workout to record live — exercises, sets, reps, and weight as you go.'
-                : "This athlete hasn't recorded workouts yet."}
-            </p>
-            {isOwnProfile && (
-              <button
-                onClick={handleStartWorkout}
-                disabled={startingWorkout}
-                className="inline-flex items-center gap-2 px-4 py-2 bg-violet-600 text-white rounded-lg text-sm font-semibold hover:bg-violet-700 transition-colors disabled:opacity-60"
-              >
-                <span className="w-1.5 h-1.5 bg-white rounded-full animate-pulse" aria-hidden="true" />
-                Start Your First Workout
-              </button>
-            )}
-          </div>
+          <SectionEmptyState
+            icon={Timer}
+            title="No workouts recorded yet"
+            body={isOwnProfile
+              ? 'Hit Start Workout to record live — exercises, sets, reps, and weight as you go.'
+              : "This athlete hasn't recorded workouts yet."}
+            cta={isOwnProfile ? { label: 'Start Your First Workout', onClick: handleStartWorkout } : undefined}
+          />
         ) : (
-          <div className="space-y-2">
-            {visibleWorkouts.map(session => (
-              <WorkoutCard
-                key={session.id}
-                session={session}
-                onOpenPost={postId => setLinkedPostId(postId)}
-              />
+          <div className="space-y-5">
+            {/* Month-grouped log — the training diary reads by month */}
+            {visibleWorkouts.reduce<Array<{ month: string; sessions: ServerWorkoutSession[] }>>((groups, session) => {
+              const month = new Date(session.started_at).toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+              const last = groups[groups.length - 1];
+              if (last && last.month === month) last.sessions.push(session);
+              else groups.push({ month, sessions: [session] });
+              return groups;
+            }, []).map(group => (
+              <div key={group.month}>
+                <h4 className="text-xs font-bold text-gray-500 uppercase tracking-wide mb-2">{group.month}</h4>
+                <div className="space-y-2">
+                  {group.sessions.map(session => (
+                    <WorkoutCard
+                      key={session.id}
+                      session={session}
+                      onOpenPost={postId => setLinkedPostId(postId)}
+                    />
+                  ))}
+                </div>
+              </div>
             ))}
           </div>
         )}
@@ -757,45 +779,42 @@ export default function VitalsTab({ profileId, currentUserId, isOwnProfile = fal
               onClick={() => setShowCreatePost(true)}
               className="flex items-center gap-1.5 px-3 py-2 border border-gray-300 text-gray-700 rounded-lg text-sm font-semibold hover:bg-gray-50 transition-colors"
             >
-              <i className="fas fa-plus text-xs"></i>
+              <Plus className="w-3.5 h-3.5" aria-hidden="true" />
               Log Training
             </button>
           )}
         </div>
 
         {visibleTrainingPosts.length === 0 && trainingPosts.length > 0 ? (
-          <div className="text-center py-12 border border-dashed border-gray-200 rounded-xl">
+          <div className="text-center py-12 border border-dashed border-gray-200 rounded-lg">
             <p className="text-sm text-gray-600">No sessions match your filters.</p>
           </div>
         ) : trainingPosts.length === 0 ? (
-          <div className="text-center py-12 border border-dashed border-gray-200 rounded-xl">
-            <div className="w-14 h-14 mx-auto mb-4 rounded-full bg-gray-100 flex items-center justify-center">
-              <i className="fas fa-dumbbell text-gray-400 text-xl"></i>
-            </div>
-            <h4 className="text-sm font-semibold text-gray-700 mb-1">No training activity logged yet</h4>
-            <p className="text-xs text-gray-500 max-w-xs mx-auto mb-4">
-              Share training sessions, workouts, and gym progress to build your development history.
-            </p>
-            {isOwnProfile && (
-              <button
-                onClick={() => setShowCreatePost(true)}
-                className="inline-flex items-center gap-1.5 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg text-sm font-semibold hover:bg-gray-50 transition-colors"
-              >
-                <i className="fas fa-plus text-xs"></i>
-                Log First Session
-              </button>
-            )}
-          </div>
+          <SectionEmptyState
+            icon={Dumbbell}
+            title="No training activity logged yet"
+            body="Share training sessions, workouts, and gym progress to build your development history. Workouts count even when you don't post."
+            cta={isOwnProfile ? { label: 'Log First Session', onClick: () => setShowCreatePost(true) } : undefined}
+          />
         ) : (
           <div className="space-y-4">
-            {visibleTrainingPosts.map(post => (
+            {(showAllActivity ? visibleTrainingPosts : visibleTrainingPosts.slice(0, 3)).map(post => (
               <PostCard
                 key={post.id}
                 post={post as Parameters<typeof PostCard>[0]['post']}
                 currentUserId={currentUserId}
               />
             ))}
-            {trainingPosts.length >= 20 && (
+            {!showAllActivity && visibleTrainingPosts.length > 3 && (
+              <button
+                onClick={() => setShowAllActivity(true)}
+                className="ea-interactive w-full flex items-center justify-center gap-2 py-3 rounded-lg border border-gray-200 text-sm font-semibold text-violet-700"
+              >
+                Show all {visibleTrainingPosts.length} posts
+                <ChevronDown className="w-4 h-4" aria-hidden="true" />
+              </button>
+            )}
+            {showAllActivity && trainingPosts.length >= 20 && (
               <div className="text-center py-4">
                 <p className="text-xs text-gray-400">Showing most recent 20 sessions</p>
               </div>
