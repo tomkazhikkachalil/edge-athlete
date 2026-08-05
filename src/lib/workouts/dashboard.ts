@@ -164,7 +164,9 @@ export function latestPB(vitals: VitalEntryLike[]): LatestPB | null {
       latest = {
         metricKey: entry.metric_key,
         label: entry.metric_label || metric?.label || entry.metric_key,
-        valueDisplay: entry.value_display || String(entry.value),
+        valueDisplay:
+          entry.value_display ||
+          `${entry.value}${metric?.unit ? ` ${metric.unit}` : ''}`,
         recordedAt: entry.recorded_at,
       };
     }

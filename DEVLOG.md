@@ -1,5 +1,40 @@
 # Development Log
 
+## August 4, 2026 — The Vitals dashboard: numbers first, like a real tracker
+
+Second vitals pass — the visible one. The tab now READS like a training
+app instead of a list of lists.
+
+**The order is the argument:** hero strip (workouts / volume / time this
+week with vs-last-week delta glyphs, the week streak, and a trophy card
+for the latest personal best — all computed ALL-TIME/unfiltered on
+purpose, because "this week" must never lie to match a filter), then the
+PB showcase (best-ever per metric, PR-mapped lifts first — the numbers
+recruiters ask about — direction-aware arrows, values in ink with color
+only on glyphs per the dataviz text rule), then Progress (one large
+TrendLineChart with a picker over every metric with ≥2 entries and every
+exercise with ≥2 sessions of history — the never-rendered cross-session
+progression finally drawn), then the metrics library (existing MetricCards,
+now with the validated category accents and lucide icons — VitalsTab's
+FontAwesome is gone), the month-grouped workout log, and Activity demoted
+to last with first-3 + "Show all N" (Tom: people work out without
+posting).
+
+**Zeros render honestly.** A brand-new athlete sees "0 workouts · 0 lbs ·
+0 min · 0 streak" and "Log a metric to start chasing PBs" — stat tiles,
+not a dashed apology box. The three near-identical dashed empty states
+below collapsed into one `SectionEmptyState`.
+
+Current Vitals (height/weight/age) demoted from the top to a compact row
+above the library, labels aligned to the house stat-label weight. New
+section components under `src/components/vitals/`; `category-colors.ts`
+holds the validator-passed literal hexes and the metric→category lookup
+(the config's `color` tokens stay data — interpolating them into classes
+is the JIT purge trap).
+
+Screenshot-verified at 320/768/1280 with a dense six-workout progression
+fixture and the brand-new-athlete case; zero horizontal overflow.
+
 ## August 4, 2026 — Vitals dashboard groundwork: the numbers exist now
 
 First of three passes turning the Vitals tab into a professional tracker
