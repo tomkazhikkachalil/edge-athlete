@@ -15,7 +15,10 @@ import FeaturedPosts from '@/components/FeaturedPosts';
 import MultiSportHighlights from '@/components/MultiSportHighlights';
 import PostDetailModal from '@/components/PostDetailModal';
 import FollowersModal from '@/components/FollowersModal';
-import type { Profile, AthleteBadge } from '@/lib/supabase';
+import type { Profile } from '@/lib/supabase';
+import AchievementPills from '@/components/achievements/AchievementPills';
+import { topPills } from '@/lib/achievements/display';
+import type { Achievement } from '@/lib/achievements';
 // Privacy checks moved to API route
 import {
   formatHeight,
@@ -67,7 +70,7 @@ export default function AthleteProfilePage() {
 
   // Profile data
   const [profile, setProfile] = useState<Profile | null>(null);
-  const [badges, setBadges] = useState<AthleteBadge[]>([]);
+  const [achievements, setAchievements] = useState<Achievement[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [postsCount, setPostsCount] = useState(0);
@@ -123,8 +126,14 @@ export default function AthleteProfilePage() {
       setLoading(true);
       setError(null);
 
-      // Load profile data
-      const response = await fetch(`/api/profile?id=${athleteId}`);
+      // Load profile + achievements in parallel. The achievements API's own
+      // gate ladder (owner → public → accepted follow → 403) is exactly this
+      // page's privacy model, so a 403/error simply means "show none".
+      const [response, achievementsResponse] = await Promise.all([
+        fetch(`/api/profile?id=${athleteId}`),
+        fetch(`/api/achievements?profileId=${athleteId}`, { credentials: 'include' })
+          .catch(() => null),
+      ]);
       if (seq !== requestSeqRef.current) return; // stale response
       if (!response.ok) {
         if (response.status === 404) {
@@ -135,9 +144,14 @@ export default function AthleteProfilePage() {
       }
 
       const profileData = await response.json();
+      let achievementsData: Achievement[] = [];
+      if (achievementsResponse?.ok) {
+        const payload = await achievementsResponse.json();
+        achievementsData = payload.achievements || [];
+      }
       if (seq !== requestSeqRef.current) return; // stale response
       setProfile(profileData.profile);
-      setBadges(profileData.badges || []);
+      setAchievements(achievementsData);
       // Note: seasonHighlights and performances are fetched by API but not displayed yet
       // Can be added to UI in future: setSeasonHighlights(profileData.seasonHighlights || []);
       // Can be added to UI in future: setPerformances(profileData.performances || []);
@@ -189,19 +203,6 @@ export default function AthleteProfilePage() {
       console.error('Failed to load follow stats:', e);
     }
   };
-
-  // Badge color mapping helper (currently unused but kept for future feature)
-  // const getBadgeColor = (colorToken: string) => {
-  //   const colorMap: Record<string, string> = {
-  //     'blue': 'border-violet-200 bg-violet-50 text-violet-700',
-  //     'green': 'border-green-200 bg-green-50 text-green-700',
-  //     'yellow': 'border-yellow-200 bg-yellow-50 text-yellow-700',
-  //     'red': 'border-red-200 bg-red-50 text-red-700',
-  //     'purple': 'border-purple-200 bg-purple-50 text-purple-700',
-  //     'gray': 'border-gray-200 bg-gray-50 text-gray-700',
-  //   };
-  //   return colorMap[colorToken] || colorMap['gray'];
-  // };
 
   const handleFollowChange = (isFollowing: boolean, followersCount: number) => {
     setFollowStats(prev => ({
@@ -372,26 +373,10 @@ export default function AthleteProfilePage() {
                 )}
               </div>
 
-              {/* Badges */}
-              {badges.length > 0 && (
-                <div className="flex gap-3 mt-2 flex-wrap">
-                  {badges.slice(0, 2).map((badge, index) => (
-                    <div
-                      key={badge.id}
-                      className={`${index === 0 ? 'bg-gradient-to-r from-violet-600 to-violet-700' : 'bg-gradient-to-r from-purple-600 to-purple-700'} text-white px-4 py-1.5 rounded-full font-semibold flex items-center`}
-                    >
-                      {badge.icon_url && (
-                        <LazyImage
-                          src={badge.icon_url}
-                          alt={`${badge.label} logo`}
-                          className="w-5 h-5 mr-2"
-                          width={20}
-                          height={20}
-                        />
-                      )}
-                      {badge.label}
-                    </div>
-                  ))}
+              {/* Top achievements — same source as the Achievements tab */}
+              {achievements.length > 0 && (
+                <div className="mt-2">
+                  <AchievementPills pills={topPills(achievements, 4)} />
                 </div>
               )}
             </div>

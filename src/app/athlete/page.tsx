@@ -25,7 +25,10 @@ const EditProfileTabs = dynamic(() => import('@/components/EditProfileTabs'), { 
 const CreatePostModal = dynamic(() => import('@/components/CreatePostModal'), { ssr: false });
 const PerformanceModal = dynamic(() => import('@/components/PerformanceModal'), { ssr: false });
 const FollowersModal = dynamic(() => import('@/components/FollowersModal'), { ssr: false });
-import type { AthleteBadge, SeasonHighlight, Performance, Profile } from '@/lib/supabase';
+import type { SeasonHighlight, Performance, Profile } from '@/lib/supabase';
+import AchievementPills from '@/components/achievements/AchievementPills';
+import { topPills } from '@/lib/achievements/display';
+import type { Achievement } from '@/lib/achievements';
 import {
   formatHeight,
   formatWeightWithUnit,
@@ -179,9 +182,7 @@ function InlineEdit({
 export default function AthleteProfilePage() {
   const { user, profile, loading, refreshProfile, initialAuthCheckComplete } = useAuth();
   const router = useRouter();
-  const [badges, setBadges] = useState<AthleteBadge[]>([]);
-  const [highlights, setHighlights] = useState<SeasonHighlight[]>([]);
-  const [performances, setPerformances] = useState<Performance[]>([]);
+  const [achievements, setAchievements] = useState<Achievement[]>([]);
   const [dataLoading, setDataLoading] = useState(true);
   
   // Modal states
@@ -280,23 +281,20 @@ export default function AthleteProfilePage() {
       }
 
       // Use Promise.allSettled for better error handling and faster responses
-      const [badgesResult, highlightsResult, performancesResult] = await Promise.allSettled([
-        AthleteService.getBadges(profileId),
-        AthleteService.getSeasonHighlights(profileId),
-        AthleteService.getRecentPerformances(profileId)
+      const [achievementsResult, highlightsResult] = await Promise.allSettled([
+        fetch(`/api/achievements?profileId=${profileId}`, { credentials: 'include' })
+          .then(res => (res.ok ? res.json() : { achievements: [] }))
+          .then(data => (data.achievements || []) as Achievement[]),
+        AthleteService.getSeasonHighlights(profileId)
       ]);
 
       // Update each piece of data as it becomes available
-      if (badgesResult.status === 'fulfilled') {
-        setBadges(badgesResult.value);
+      if (achievementsResult.status === 'fulfilled') {
+        setAchievements(achievementsResult.value);
       }
       if (highlightsResult.status === 'fulfilled') {
-        setHighlights(highlightsResult.value);
         // Calculate athletic score based on highlights
         calculateAthleticScore(highlightsResult.value);
-      }
-      if (performancesResult.status === 'fulfilled') {
-        setPerformances(performancesResult.value);
       }
     } catch (e) {
       console.error('Failed to load athlete profile data:', e);
@@ -354,20 +352,6 @@ export default function AthleteProfilePage() {
 
     // Cap at 100
     setAthleticScore(Math.min(score, 100));
-  };
-
-  // Helper functions for display
-  const getBadgeColor = (colorToken: string): string => {
-    const colors: Record<string, string> = {
-      primary: 'bg-violet-100 text-violet-800 border-violet-200',
-      purple: 'bg-purple-100 text-purple-800 border-purple-200',
-      green: 'bg-green-100 text-green-800 border-green-200',
-      red: 'bg-red-100 text-red-800 border-red-200',
-      yellow: 'bg-yellow-100 text-yellow-800 border-yellow-200',
-      gray: 'bg-gray-100 text-gray-800 border-gray-200',
-    };
-    
-    return colors[colorToken] || colors.primary;
   };
 
   // Prevent double submissions
@@ -428,13 +412,6 @@ export default function AthleteProfilePage() {
         // Don't await - let it happen in background for faster UI response
         refreshProfile();
         loadAthleteData(user.id, true); // Skip loading state for background refresh
-        
-        // Also refresh performances specifically to maintain sort order
-        AthleteService.getRecentPerformances(user.id).then(newPerformances => {
-          setPerformances(newPerformances);
-        }).catch(() => {
-          // Silently handle error - non-critical refresh
-        });
       }
     } catch (err) {
       // Performance save error
@@ -840,37 +817,14 @@ export default function AthleteProfilePage() {
                     </p>
                   )}
 
-                  {/* Badges Row */}
-                  <div className="flex flex-wrap gap-2 mb-4" role="list" aria-label="Athlete badges">
-                    {badges.length > 0 ? (
-                      badges.slice(0, 4).map((badge: AthleteBadge) => (
-                        <div
-                          key={badge.id}
-                          className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium border ${getBadgeColor(badge.color_token)}`}
-                          role="listitem"
-                          aria-label={`Badge: ${badge.label}`}
-                        >
-                          {badge.icon_url && (
-                            <LazyImage
-                              src={badge.icon_url}
-                              alt={`${badge.label} badge icon`}
-                              className="w-4 h-4 mr-2"
-                              width={16}
-                              height={16}
-                            />
-                          )}
-                          <span>{badge.label}</span>
-                        </div>
-                      ))
-                    ) : (
-                      <div 
-                        className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-gray-100 text-gray-500 border border-gray-200"
-                        role="listitem"
-                        aria-label="No badges earned yet"
-                      >
-                        {getPlaceholder('NO_ACHIEVEMENTS')}
-                      </div>
-                    )}
+                  {/* Top achievements — real athlete_achievements rows, the
+                      same source as the Achievements tab (no fabricated
+                      sample badges, ever) */}
+                  <div className="mb-4">
+                    <AchievementPills
+                      pills={topPills(achievements, 4)}
+                      emptyLabel={getPlaceholder('NO_ACHIEVEMENTS')}
+                    />
                   </div>
 
                   {/* Sport and Team Info. Single column below sm — two ~110px
@@ -1083,9 +1037,6 @@ export default function AthleteProfilePage() {
         isOpen={isEditModalOpen}
         onClose={() => setIsEditModalOpen(false)}
         profile={profile}
-        badges={badges}
-        highlights={highlights}
-        performances={performances}
         onSave={async () => {
           // Refresh all data after save
           await Promise.all([

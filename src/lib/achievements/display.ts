@@ -128,13 +128,22 @@ export interface TopPill {
   year: number;
 }
 
+/** The minimal row shape pills need — the public profile API ships only
+ *  these four columns. */
+export type AchievementPillSource = Pick<Achievement, 'id' | 'title' | 'placement' | 'achieved_on'>;
+
 /** Header/public pills: podium-ranked first, then most recent. */
-export function topPills(list: Achievement[], n: number): TopPill[] {
+export function topPills(list: AchievementPillSource[], n: number): TopPill[] {
   return [...list]
     .sort((x, y) =>
       tierRank(parsePlacement(x.placement)) - tierRank(parsePlacement(y.placement)) ||
       y.achieved_on.localeCompare(x.achieved_on)
     )
     .slice(0, n)
-    .map((a) => ({ id: a.id, title: a.title, tier: parsePlacement(a.placement), year: yearOf(a) }));
+    .map((a) => ({
+      id: a.id,
+      title: a.title,
+      tier: parsePlacement(a.placement),
+      year: parseInt(a.achieved_on.slice(0, 4), 10),
+    }));
 }

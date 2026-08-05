@@ -1,5 +1,41 @@
 # Development Log
 
+## August 5, 2026 — Real achievements everywhere; the fabricated badges are dead
+
+Third achievements PR. `AthleteService.getBadges` had been FABRICATING
+three sample badges ("NCAA D1 Scholar Athlete", "Big Ten Championship",
+"Team Captain") for every athlete whose `athlete_badges` table was empty —
+which was every athlete, because badges were never editable in the live
+UI. Meanwhile `/u/[username]` rendered those badges under a literal
+"Achievements" heading while real `athlete_achievements` rows appeared
+nowhere outside the tab.
+
+Now every surface reads real achievements through ONE treatment
+(`AchievementPills`, podium-first via `topPills`): the own-profile header
+(top 4), the visitor header (top 4, replacing the divergent gradient
+pills), and the /u/ page's Achievements card (top 8). Server side,
+`/api/public/profile` swapped its badges query for
+`athlete_achievements` (`id,title,placement,achieved_on`, limit 12 —
+net-zero perf, same handler), and `/api/profile` dropped its badges query;
+both keep `badges: []` one release for cached clients. Deleted:
+getBadges/createBadge/deleteBadge/getBadgeColor, the orphaned
+`BadgesTab.tsx`, the `AthleteBadge` type, and EditProfileTabs'
+badges/highlights/performances props (four call sites passed arrays it
+immediately discarded; the own page's `highlights`/`performances` state
+went write-only in the process and died too — the athletic score reads the
+fetched value directly). The `athlete_badges` TABLE remains, still covered
+by account-deletion and storage-sweep.
+
+`e2e/achievements.spec.ts` (13th spec) pins the whole feature: hero math
+(4 total / 2 podiums / 2 orgs / 3 years) with the "1st Team All-State"
+trap seeded and asserted OUT of Top Finishes, year grouping, filter →
+2 shown while the hero stays all-time, add→edit→delete through the modal
+(submit button shares its name with the FilterBar opener — scope to the
+form), header pills, visitor read-only, and the /u/ page showing real
+titles with the fabricated strings asserted extinct. Lessons: QA users
+have no handle — the spec mints one; `athlete_achievements` joined the
+explicit child-first teardown chain.
+
 ## August 5, 2026 — The trophy case: achievements tab rebuilt like the vitals dashboard
 
 Second achievements PR — the visible one. The flat grid of identical

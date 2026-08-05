@@ -105,12 +105,14 @@ export async function GET(request: NextRequest) {
       .order('created_at', { ascending: false })
       .limit(6);
 
-    // Fetch badges
-    const { data: badges } = await supabase
-      .from('athlete_badges')
-      .select('*')
+    // Fetch top achievements (real athlete_achievements rows — the fields
+    // the pill treatment needs; podium ranking happens client-side)
+    const { data: achievements } = await supabase
+      .from('athlete_achievements')
+      .select('id, title, placement, achieved_on')
       .eq('profile_id', profile.id)
-      .order('position', { ascending: true });
+      .order('achieved_on', { ascending: false })
+      .limit(12);
 
     // Sport stats card — sport-aware (golf: rounds; stat-line sports: posts).
     // Generic shape: { label, tiles: [{label, value}] } | null.
@@ -209,7 +211,10 @@ export async function GET(request: NextRequest) {
         postsCount: postsCount || 0
       },
       recentPosts: recentPosts || [],
-      badges: badges || [],
+      achievements: achievements || [],
+      // Deprecated: athlete_badges no longer render anywhere. Kept one
+      // release so cached clients keep working.
+      badges: [],
       sportStats,
       sportSettings,
       // Deprecated alias — kept one release so cached clients keep working
