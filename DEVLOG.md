@@ -1,5 +1,39 @@
 # Development Log
 
+## August 5, 2026 — Header slimmed: vitals strip out, socials up, Twitter is X, edit bubble contained
+
+Continuing Tom's profile simplification. Four changes in one PR:
+
+**The Vitals strip is gone from both profile pages** (the Height/Weight/
+Age/Location/Class-Year cards under the picture, and the visitor page's
+read-only Stats Grid). Those fields edit through Edit Profile → Vitals
+now — the strip was the only INLINE edit path, so the dead
+height/weight/location/class-year branches in `startEditing`/
+`saveInlineEdit` went with it (weight parsing, height validation — all
+duplicated in EditProfileTabs anyway). VitalsTab's owner hint "Edit in
+your profile header" was re-pointed at Edit Profile.
+
+**Socials moved up under the profile picture** — a compact row right
+below the bio/counts. Own page keeps click-to-edit as the affordance;
+the visitor page's socials became real outbound links (X, Instagram, and
+now Facebook — it was never shown to visitors before), as did /u/'s
+(which gained Facebook too; `social_facebook` joined the public-profile
+select — existing column, no migration).
+
+**Twitter is X**: `fa-x-twitter` icon (FA 7.2 has it; brands stay
+FontAwesome — lucide dropped brand icons, DEVLOG:2260), x.com hrefs,
+"Add X" placeholder, "X Handle" in Edit Profile. The DB column stays
+`social_twitter` — renaming it touches 8 files for zero user value. The
+own page's contradictory aria-label+aria-hidden on one icon was cleaned
+(icon hidden, name on the control).
+
+**The inline-edit bubble bug**: the ✓/✕ rendered OUTSIDE the violet
+border on narrow screens — flex overflow (input's ~200px intrinsic
+min-width + two 44px buttons beat the bubble's max-width cap; none could
+shrink). The layout is stacked now: full-width `min-w-0` input, buttons
+in their own right-aligned row below, bubble sized
+`w-[min(320px,calc(100vw-2rem))]`. Verified contained at 320px.
+
 ## August 5, 2026 — Sport Highlights cut from the profile
 
 Tom: it "doesn't flow well and seems out of place — users can go directly

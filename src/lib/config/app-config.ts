@@ -40,7 +40,7 @@ export const PLACEHOLDERS = {
   NO_DATA: 'No data available',
   
   // Profile placeholders
-  ADD_TWITTER: 'Add Twitter',
+  ADD_TWITTER: 'Add X',
   ADD_INSTAGRAM: 'Add Instagram',
   ADD_TIKTOK: 'Add TikTok',
   ADD_YOUTUBE: 'Add YouTube',

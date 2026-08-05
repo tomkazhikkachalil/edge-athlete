@@ -137,7 +137,7 @@ export const COPY = {
     NO_WEIGHT: 'Add weight',
     NO_LOCATION: 'Add location',
     NO_CLASS_YEAR: 'Add class year',
-    ADD_TWITTER: 'Add Twitter',
+    ADD_TWITTER: 'Add X',
     ADD_INSTAGRAM: 'Add Instagram',
     ADD_FACEBOOK: 'Add Facebook',
     EMPTY_VALUE: '—',
