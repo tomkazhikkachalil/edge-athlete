@@ -7,20 +7,19 @@ import MultiSelectDropdown from './filters/MultiSelectDropdown';
 import SectionEmptyState from './SectionEmptyState';
 import ConfirmModal from './ConfirmModal';
 import PostDetailModal from './PostDetailModal';
-import TaggedHero from './tagged/TaggedHero';
 import TaggedTile, { type TaggedItem } from './tagged/TaggedTile';
 import { useToast } from './Toast';
 import {
-  taggedHeroStats, taggedSportOptions, taggedYearOptions,
+  taggedSportOptions, taggedYearOptions,
   EMPTY_TAGGED_SUMMARY, type TaggedSummary,
 } from '@/lib/tagged/display';
 
 /**
- * The Tagged tab: posts and rounds other athletes tagged this profile in.
- * Order is the argument — all-time hero tiles (never filtered), then the
- * filterable grid with tagger attribution on every tile. Filter options
+ * The Tagged tab: posts and rounds other athletes tagged this profile in —
+ * the filterable grid with tagger attribution on every tile. Filter options
  * come from the summary endpoint (what the athlete is ACTUALLY tagged in),
- * not the platform-wide catalogs.
+ * not the platform-wide catalogs. (There was a hero stat strip here for one
+ * release; Tom cut it — the grid IS the content.)
  */
 
 type SortType = 'newest' | 'most_engaged';
@@ -156,7 +155,6 @@ export default function TaggedTab({ profileId, currentUserId, isOwnProfile = fal
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [hasMore, loadingMore]);
 
-  const heroStats = useMemo(() => taggedHeroStats(summary), [summary]);
   const sportOptions = useMemo(() => taggedSportOptions(summary.sportKeys), [summary.sportKeys]);
   const yearOptions = useMemo(() => taggedYearOptions(summary.years), [summary.years]);
   const activeCount = selectedSports.length + selectedYears.length;
@@ -199,9 +197,6 @@ export default function TaggedTab({ profileId, currentUserId, isOwnProfile = fal
           Posts and rounds other athletes tagged {isOwnProfile ? 'you' : 'this athlete'} in.
         </p>
       </div>
-
-      {/* ── Hero — all-time, never filtered ──────────────────────────── */}
-      <TaggedHero stats={heroStats} />
 
       {/* ── The record: filters + grid ───────────────────────────────── */}
       <div className="space-y-6">
