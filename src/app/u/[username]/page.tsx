@@ -7,6 +7,8 @@ import { useAuth } from '@/lib/auth';
 import AppHeader from '@/components/AppHeader';
 import LazyImage from '@/components/LazyImage';
 import SportSettingsRow from '@/components/SportSettingsRow';
+import AchievementPills from '@/components/achievements/AchievementPills';
+import { topPills } from '@/lib/achievements/display';
 import type { SettingsDisplayItem } from '@/lib/sports/settings-schemas';
 import {
   formatHeight,
@@ -69,10 +71,13 @@ interface SportStats {
 interface ProfileData {
   profile: PublicProfile;
   recentPosts: RecentPost[];
-  badges: Array<{
+  /** Real athlete_achievements rows (pill fields only). Optional so a
+   *  cached response from before this field existed still parses. */
+  achievements?: Array<{
     id: string;
-    label: string;
-    color_token: string;
+    title: string;
+    placement: string | null;
+    achieved_on: string;
   }>;
   sportStats: SportStats | null;
   /** Declared per-sport details. Already filtered server-side, so a sport
@@ -220,9 +225,10 @@ export default function PublicProfilePage() {
 
   if (!profileData) return null;
 
-  const { profile, recentPosts, badges, sportStats } = profileData;
-  // Default so a response predating this field renders normally.
+  const { profile, recentPosts, sportStats } = profileData;
+  // Defaults so a response predating these fields renders normally.
   const sportSettings = profileData.sportSettings ?? [];
+  const achievements = profileData.achievements ?? [];
   const displayName = formatDisplayName(profile.first_name, profile.middle_name, profile.last_name, profile.full_name);
 
   return (
@@ -377,20 +383,11 @@ export default function PublicProfilePage() {
           </div>
         </div>
 
-        {/* Badges */}
-        {badges.length > 0 && (
+        {/* Achievements — real athlete_achievements rows, podium-first */}
+        {achievements.length > 0 && (
           <div className="mt-4 bg-white rounded-xl shadow-sm border border-gray-200 p-4">
             <h2 className="text-sm font-semibold text-gray-700 mb-3">Achievements</h2>
-            <div className="flex flex-wrap gap-2">
-              {badges.map((badge) => (
-                <span
-                  key={badge.id}
-                  className="inline-flex items-center px-3 py-1 rounded-full text-sm bg-violet-50 text-violet-700 border border-violet-200"
-                >
-                  {badge.label}
-                </span>
-              ))}
-            </div>
+            <AchievementPills pills={topPills(achievements, 8)} />
           </div>
         )}
 

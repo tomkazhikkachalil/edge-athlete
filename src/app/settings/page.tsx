@@ -141,9 +141,6 @@ export default function SettingsPage() {
         isOpen={isEditProfileModalOpen}
         onClose={() => setIsEditProfileModalOpen(false)}
         profile={profile}
-        badges={[]}
-        highlights={[]}
-        performances={[]}
         onSave={() => {
           // Profile will be refreshed automatically by useAuth
           setIsEditProfileModalOpen(false);

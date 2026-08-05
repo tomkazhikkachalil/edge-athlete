@@ -5,7 +5,7 @@ import { useAuth } from '@/lib/auth';
 import { useToast } from './Toast';
 import LazyImage from './LazyImage';
 import AvatarUploader from './AvatarUploader';
-import type { Profile, AthleteBadge, SeasonHighlight, Performance } from '@/lib/supabase';
+import type { Profile } from '@/lib/supabase';
 import { getSportDefinition, getAllSports, type SportKey } from '@/lib/sports';
 import { resolveSportKey } from '@/lib/sports/resolve-sport-key';
 import {
@@ -33,9 +33,6 @@ interface EditProfileTabsProps {
   isOpen: boolean;
   onClose: () => void;
   profile: Profile | null;
-  badges: AthleteBadge[];
-  highlights: SeasonHighlight[];
-  performances: Performance[];
   onSave: () => void;
 }
 
@@ -100,9 +97,6 @@ export default function EditProfileTabs({
   isOpen,
   onClose,
   profile,
-  badges: _badges, // eslint-disable-line @typescript-eslint/no-unused-vars
-  highlights: _highlights, // eslint-disable-line @typescript-eslint/no-unused-vars
-  performances: _performances, // eslint-disable-line @typescript-eslint/no-unused-vars
   onSave
 }: EditProfileTabsProps) {
   const { user } = useAuth();

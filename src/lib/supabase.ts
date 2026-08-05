@@ -116,16 +116,9 @@ export interface Profile {
   // Note: Sport-specific settings (golf, hockey, etc.) are now stored in the sport_settings table
 }
 
-export interface AthleteBadge {
-  id: string;
-  profile_id: string;
-  label: string;
-  icon_url?: string;
-  color_token: string;
-  position: number;
-  created_at: string;
-  updated_at: string;
-}
+// AthleteBadge was deleted August 2026 — no surface renders athlete_badges
+// anymore (profile pills read real rows from /api/achievements). The table
+// remains; account-deletion and storage-sweep reference it by name.
 
 export interface Sport {
   id: string;

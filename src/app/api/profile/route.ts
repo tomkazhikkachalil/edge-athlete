@@ -52,17 +52,6 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Failed to fetch profile' }, { status: 500 });
     }
 
-    // Fetch badges
-    const { data: badges, error: badgesError } = await supabaseAdmin
-      .from('athlete_badges')
-      .select('*')
-      .eq('profile_id', profileId)
-      .order('created_at', { ascending: false });
-
-    if (badgesError && badgesError.code !== 'PGRST116') {
-      console.error('Badges error:', badgesError);
-    }
-
     // Fetch season highlights
     const { data: seasonHighlights, error: highlightsError } = await supabaseAdmin
       .from('season_highlights')
@@ -110,7 +99,9 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({
       profile: shapedProfile,
-      badges: badges || [],
+      // Deprecated: athlete_badges no longer render anywhere (profile pages
+      // read /api/achievements). Kept one release for cached clients.
+      badges: [],
       seasonHighlights: seasonHighlights || [],
       performances: performances || []
     });

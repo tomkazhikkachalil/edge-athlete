@@ -1,10 +1,9 @@
 import { supabase } from './supabase';
-import type { 
-  Profile, 
-  AthleteBadge, 
-  Sport, 
-  SeasonHighlight, 
-  Performance 
+import type {
+  Profile,
+  Sport,
+  SeasonHighlight,
+  Performance
 } from './supabase';
 
 export class AthleteService {
@@ -38,83 +37,10 @@ export class AthleteService {
     return data;
   }
 
-  // Badge operations
-  static async getBadges(profileId: string): Promise<AthleteBadge[]> {
-    const { data, error } = await supabase
-      .from('athlete_badges')
-      .select('*')
-      .eq('profile_id', profileId)
-      .order('position', { ascending: true });
-
-    if (error) {
-      // Badges error
-    }
-
-    // If no real badges exist, return sample badges for demonstration
-    if (!data || data.length === 0) {
-      return [
-        {
-          id: 'sample-badge-1',
-          profile_id: profileId,
-          label: 'NCAA D1 Scholar Athlete',
-          icon_url: undefined,
-          color_token: 'primary',
-          position: 1,
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString()
-        },
-        {
-          id: 'sample-badge-2',
-          profile_id: profileId,
-          label: 'Big Ten Championship',
-          icon_url: undefined,
-          color_token: 'purple',
-          position: 2,
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString()
-        },
-        {
-          id: 'sample-badge-3',
-          profile_id: profileId,
-          label: 'Team Captain',
-          icon_url: undefined,
-          color_token: 'green',
-          position: 3,
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString()
-        }
-      ];
-    }
-
-    return data || [];
-  }
-
-  static async createBadge(badge: Omit<AthleteBadge, 'id' | 'created_at' | 'updated_at'>): Promise<AthleteBadge | null> {
-    const { data, error } = await supabase
-      .from('athlete_badges')
-      .insert(badge)
-      .select()
-      .single();
-
-    if (error) {
-      return null;
-    }
-
-    return data;
-  }
-
-  static async deleteBadge(badgeId: string): Promise<boolean> {
-    const { error } = await supabase
-      .from('athlete_badges')
-      .delete()
-      .eq('id', badgeId);
-
-    if (error) {
-      return false;
-    }
-
-    return true;
-  }
+  // Badge operations were deleted August 2026: `getBadges` fabricated three
+  // sample badges for every athlete with an empty athlete_badges table, and
+  // every display surface now reads real rows from /api/achievements. The
+  // table itself remains (account-deletion and storage-sweep still cover it).
 
   // Sports operations
   static async getSports(profileId: string): Promise<Sport[]> {
@@ -222,10 +148,6 @@ export class AthleteService {
     };
   }
 
-  static getEmptyBadges(): AthleteBadge[] {
-    return [];
-  }
-
   static getEmptyHighlights(): SeasonHighlight[] {
     return [];
   }
@@ -269,18 +191,5 @@ export class AthleteService {
       month: 'short',
       day: 'numeric'
     });
-  }
-
-  static getBadgeColor(colorToken: string): string {
-    const colors: Record<string, string> = {
-      primary: 'bg-blue-100 text-blue-800 border-blue-200',
-      purple: 'bg-purple-100 text-purple-800 border-purple-200',
-      green: 'bg-green-100 text-green-800 border-green-200',
-      red: 'bg-red-100 text-red-800 border-red-200',
-      yellow: 'bg-yellow-100 text-yellow-800 border-yellow-200',
-      gray: 'bg-gray-100 text-gray-800 border-gray-200',
-    };
-    
-    return colors[colorToken] || colors.primary;
   }
 }
