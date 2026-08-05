@@ -103,6 +103,7 @@ export interface Profile {
   social_twitter?: string;
   social_instagram?: string;
   social_facebook?: string;
+  social_tiktok?: string;
   twitter_handle?: string;
   instagram_handle?: string;
   avatar_url?: string;

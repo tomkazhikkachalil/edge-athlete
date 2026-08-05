@@ -145,6 +145,7 @@ export class AthleteService {
       social_twitter: undefined,
       social_instagram: undefined,
       social_facebook: undefined,
+      social_tiktok: undefined,
     };
   }
 

@@ -412,6 +412,18 @@ export default function AthleteProfilePage() {
                     <span>{formatSocialHandleDisplay(profile.social_instagram)}</span>
                   </a>
                 )}
+                {profile.social_tiktok && (
+                  <a
+                    href={`https://www.tiktok.com/@${formatSocialHandle(profile.social_tiktok)}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    aria-label={`${formatDisplayName(profile.first_name, null, profile.last_name, profile.full_name)} on TikTok`}
+                    className="flex items-center gap-2 text-gray-900 font-bold hover:text-violet-600 transition-colors"
+                  >
+                    <i className="fa-brands fa-tiktok text-2xl" aria-hidden="true"></i>
+                    <span>{formatSocialHandleDisplay(profile.social_tiktok)}</span>
+                  </a>
+                )}
                 {profile.social_facebook && (
                   <a
                     href={`https://facebook.com/${formatSocialHandle(profile.social_facebook)}`}

@@ -40,8 +40,9 @@ interface PublicProfile {
   class_year: number | null;
   social_twitter: string | null;
   social_instagram: string | null;
-  /** Optional so cached responses from before this field existed parse. */
+  /** Optional so cached responses from before these fields existed parse. */
   social_facebook?: string | null;
+  social_tiktok?: string | null;
   visibility: string;
   created_at: string;
   followersCount: number;
@@ -341,6 +342,17 @@ export default function PublicProfilePage() {
                       aria-label={`${displayName} on X`}
                     >
                       <i className="fa-brands fa-x-twitter text-xl" aria-hidden="true"></i>
+                    </a>
+                  )}
+                  {profile.social_tiktok && (
+                    <a
+                      href={`https://www.tiktok.com/@${profile.social_tiktok.replace('@', '')}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-gray-500 hover:text-gray-900 transition-colors"
+                      aria-label={`${displayName} on TikTok`}
+                    >
+                      <i className="fa-brands fa-tiktok text-xl" aria-hidden="true"></i>
                     </a>
                   )}
                   {profile.social_facebook && (
