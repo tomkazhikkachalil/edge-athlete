@@ -15,7 +15,11 @@ interface TrendLineChartProps {
   unit?: string;           // appended to values ('%', '')
   yDomain?: [number, number]; // fixed domain (e.g. [0,100] for percentages)
   rollingWindow?: number;  // 0 = no rolling-average overlay
-  invertGood?: boolean;    // lower is better (score to par, putts)
+  /** What one point is — drives legend/aria/empty copy ('round', 'session',
+   *  'entry'). Generalized out of golf; geometry never changes with it. */
+  pointNoun?: string;
+  /** Override the too-few-points message entirely. */
+  emptyMessage?: string;
   formatValue?: (v: number) => string;
 }
 
@@ -42,6 +46,8 @@ export default function TrendLineChart({
   yDomain,
   rollingWindow = 5,
   formatValue,
+  pointNoun = 'round',
+  emptyMessage,
 }: TrendLineChartProps) {
   const [hoverIndex, setHoverIndex] = useState<number | null>(null);
   const svgRef = useRef<SVGSVGElement>(null);
@@ -94,7 +100,7 @@ export default function TrendLineChart({
       <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
         <h3 className="text-sm font-semibold text-gray-900 mb-2">{title}</h3>
         <p className="text-sm text-gray-500 py-8 text-center">
-          Log at least two rounds with this stat to see a trend.
+          {emptyMessage ?? `Log at least two ${pointNoun}s with this stat to see a trend.`}
         </p>
       </div>
     );
@@ -139,13 +145,13 @@ export default function TrendLineChart({
           <div className="flex items-center gap-3 text-xs text-gray-500">
             <span className="flex items-center gap-1.5">
               <span className="inline-block w-4 h-0.5 rounded" style={{ backgroundColor: color }} />
-              Per round
+              Per {pointNoun}
             </span>
             <span className="flex items-center gap-1.5">
               <svg width="16" height="2" aria-hidden="true">
                 <line x1="0" y1="1" x2="16" y2="1" stroke="#6b7280" strokeWidth="2" strokeDasharray="4 3" />
               </svg>
-              {rollingWindow}-round avg
+              {rollingWindow}-{pointNoun} avg
             </span>
           </div>
         )}
@@ -158,7 +164,7 @@ export default function TrendLineChart({
           viewBox={`0 0 ${CHART_W} ${CHART_H}`}
           className="w-full h-auto touch-pan-y"
           role="img"
-          aria-label={`${title}: ${points.length} rounds, latest ${fmt(points[points.length - 1].value)}`}
+          aria-label={`${title}: ${points.length} ${pointNoun}s, latest ${fmt(points[points.length - 1].value)}`}
           onMouseMove={e => handleMove(e.clientX)}
           onMouseLeave={() => setHoverIndex(null)}
           onTouchStart={e => handleMove(e.touches[0].clientX)}

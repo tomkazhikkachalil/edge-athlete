@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useAuth } from '@/lib/auth';
 import AppHeader from '@/components/AppHeader';
-import TrendLineChart from '@/components/golf/TrendLineChart';
+import TrendLineChart from '@/components/charts/TrendLineChart';
 import { toParLabel, toParColorClass } from '@/lib/golf/scoring';
 import { formatHandicapIndex } from '@/lib/golf/handicap';
 

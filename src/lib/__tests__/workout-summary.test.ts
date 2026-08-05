@@ -43,7 +43,8 @@ describe('computeSummary', () => {
     expect(summary.totalSets).toBe(3);
     expect(summary.totalVolumeLbs).toBe(5 * 185 + 3 * 205);
     expect(summary.topLine).toBe('Bench Press 205 lbs × 3');
-    expect(summary.perExerciseBest['Bench Press'].maxWeightLbs).toBe(205);
+    // Keyed on exercise_key ?? normalized name (free-text must not fork lifts)
+    expect(summary.perExerciseBest['bench press'].maxWeightLbs).toBe(205);
   });
 
   it('converts kg to lbs for volume and comparisons', () => {
