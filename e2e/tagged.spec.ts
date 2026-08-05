@@ -57,7 +57,9 @@ test('tagged: tag → round auto-tag → hero → untag → privacy pins', async
   // ── A's own tab: attribution + count pill ─────────────────────────────
   await page.goto('/athlete');
   await page.getByRole('button', { name: /tagged/i }).first().click();
-  await expect(page.getByText(`Range session with a teammate ${stamp}`).first())
+  // The seed post carries stats_data, so its tile renders the stat line, not
+  // the caption — the caption survives only as the tile's accessible name.
+  await expect(page.getByRole('button', { name: `Range session with a teammate ${stamp}` }).first())
     .toBeVisible({ timeout: 15_000 });
   await expect(page.getByText('by Edge Bravo').first()).toBeVisible();
 
@@ -156,15 +158,15 @@ test('tagged: tag → round auto-tag → hero → untag → privacy pins', async
   // A's own view is unchanged (viewer = tagged athlete grant).
   await page.reload();
   await page.getByRole('button', { name: /tagged/i }).first().click();
-  await expect(page.getByText(`Range session with a teammate ${stamp}`).first())
+  await expect(page.getByRole('button', { name: `Range session with a teammate ${stamp}` }).first())
     .toBeVisible({ timeout: 15_000 });
 
   // ── Untag: A removes B's tag of them; it sticks ───────────────────────
   await page.getByRole('button', { name: 'Remove tag from post by Edge Bravo' }).first().click();
   await page.getByRole('button', { name: 'Remove', exact: true }).click();
-  await expect(page.getByText(`Range session with a teammate ${stamp}`)).toHaveCount(0, { timeout: 10_000 });
+  await expect(page.getByRole('button', { name: `Range session with a teammate ${stamp}` })).toHaveCount(0, { timeout: 10_000 });
   await page.reload();
   await page.getByRole('button', { name: /tagged/i }).first().click();
   await expect(page.getByText('No tags yet')).toBeVisible({ timeout: 15_000 });
-  await expect(page.getByText(`Range session with a teammate ${stamp}`)).toHaveCount(0);
+  await expect(page.getByRole('button', { name: `Range session with a teammate ${stamp}` })).toHaveCount(0);
 });

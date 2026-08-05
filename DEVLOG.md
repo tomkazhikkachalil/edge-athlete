@@ -39,8 +39,17 @@ seeds B's post with `stats_data` and pins the anonymous All/Stats grids and
 the badge==grid equality (exact equality leans on workers:1 — noted in the
 spec). The spec passes only once 068 has run against the target DB.
 
-⏳ Migration 068 not yet run — pre-flight/VERIFY results to be recorded here
-when Tom applies it in the Supabase SQL editor.
+✅ Migration 068 run by Tom (Aug 5) and verified live: direct PostgREST RPC to
+`get_profile_media_counts` and `get_profile_all_media` with the ANON key now
+returns 42501 permission-denied (pre-068 the counts call returned real rows);
+service-role calls still work. Full e2e suite 14/14 green against the
+migrated DB, including the new 068 pins.
+
+One assertion trap the pins surfaced: giving B's seed post `stats_data` makes
+its tile render the stat line instead of the caption — the caption survives
+only as the tile button's accessible name. The four caption `getByText`
+assertions became `getByRole('button', { name: caption })` (same family as
+the name-composition trap from the smoke-suite round).
 
 ## August 5, 2026 — Tagged in-tab header cut
 
