@@ -346,7 +346,10 @@ export async function POST(request: NextRequest) {
         caption: description || title,
         visibility: visibility || 'public',
         group_post_id: groupPost.id,
-        tags: [],
+        // Participants ARE the tags: everyone in a shared round appears on
+        // each other's Tagged tab. posts.tags only — no post_tags rows, so
+        // no 'tag' notification next to the group_invite one.
+        tags: inviteeIds,
         hashtags: [],
         likes_count: 0,
         comments_count: 0,

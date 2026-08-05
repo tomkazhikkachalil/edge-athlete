@@ -202,9 +202,36 @@ export async function GET(request: NextRequest) {
   }
 }
 
+/** Strip one profile UUID from a post's tags array (the store the Tagged
+ *  tab reads). Without this, tag removal was a no-op on the visible surface
+ *  — post_tags rows changed while posts.tags kept serving the tab. */
+async function stripFromPostTags(
+  supabase: ReturnType<typeof getSupabaseAdmin>,
+  postId: string,
+  profileId: string
+): Promise<void> {
+  const { data: post } = await supabase
+    .from('posts')
+    .select('tags')
+    .eq('id', postId)
+    .maybeSingle();
+  if (!post?.tags || !post.tags.includes(profileId)) return;
+  const { error } = await supabase
+    .from('posts')
+    .update({ tags: post.tags.filter((t: string) => t !== profileId) })
+    .eq('id', postId);
+  if (error) {
+    console.error(`stripFromPostTags(${postId}, ${profileId}) failed:`, error.message);
+  }
+}
+
 /**
- * DELETE /api/tags?tagId=xxx
- * Remove a tag (by creator or tagged person)
+ * DELETE /api/tags?tagId=xxx  — remove a tag row (creator or tagged person)
+ * DELETE /api/tags?postId=xxx — untag YOURSELF from a post. Writes a
+ *   status='removed' post_tags marker (notification-silent — the notify
+ *   trigger only fires on status='active' inserts; the marker also stops
+ *   group-round resync from re-adding you) and strips your UUID from
+ *   posts.tags so the Tagged tab actually forgets the post.
  */
 export async function DELETE(request: NextRequest) {
   try {
@@ -218,10 +245,50 @@ export async function DELETE(request: NextRequest) {
     const supabase = getSupabaseAdmin();
     const { searchParams } = new URL(request.url);
     const tagId = searchParams.get('tagId');
+    const postId = searchParams.get('postId');
+
+    if (postId) {
+      // Self-untag by post. Verify the caller is actually tagged.
+      const { data: post } = await supabase
+        .from('posts')
+        .select('id, profile_id, tags')
+        .eq('id', postId)
+        .maybeSingle();
+      if (!post) {
+        return NextResponse.json({ error: 'Post not found' }, { status: 404 });
+      }
+      const { data: tagRow } = await supabase
+        .from('post_tags')
+        .select('id, status')
+        .eq('post_id', postId)
+        .eq('tagged_profile_id', user.id)
+        .maybeSingle();
+      const inPostTags = Array.isArray(post.tags) && post.tags.includes(user.id);
+      if (!inPostTags && !tagRow) {
+        return NextResponse.json({ error: 'You are not tagged in this post' }, { status: 404 });
+      }
+
+      // Marker row: upsert status='removed' (silent — trigger gates on
+      // 'active'). Group-round resync reads these markers and won't re-add.
+      const { error: markerError } = await supabase
+        .from('post_tags')
+        .upsert({
+          post_id: postId,
+          tagged_profile_id: user.id,
+          created_by_profile_id: post.profile_id,
+          status: 'removed',
+        }, { onConflict: 'post_id,tagged_profile_id' });
+      if (markerError) {
+        console.error('untag marker upsert failed:', markerError.message);
+      }
+
+      await stripFromPostTags(supabase, postId, user.id);
+      return NextResponse.json({ success: true });
+    }
 
     if (!tagId) {
       return NextResponse.json(
-        { error: 'Missing required parameter: tagId' },
+        { error: 'Missing required parameter: tagId or postId' },
         { status: 400 }
       );
     }
@@ -229,7 +296,7 @@ export async function DELETE(request: NextRequest) {
     // Get the tag to verify permissions
     const { data: tag, error: fetchError } = await supabase
       .from('post_tags')
-      .select('created_by_profile_id, tagged_profile_id')
+      .select('post_id, created_by_profile_id, tagged_profile_id')
       .eq('id', tagId)
       .single();
 
@@ -272,6 +339,10 @@ export async function DELETE(request: NextRequest) {
         );
       }
     }
+
+    // Either way, the Tagged tab reads posts.tags — strip it there too
+    // (this branch used to be a no-op on the visible surface).
+    await stripFromPostTags(supabase, tag.post_id, tag.tagged_profile_id);
 
     return NextResponse.json({ success: true });
   } catch (error) {
