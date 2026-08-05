@@ -31,6 +31,7 @@ interface MediaAttachment {
   media_url: string;
   media_type: string;
   display_order: number;
+  thumbnail_url?: string | null;
 }
 
 interface TaggedProfile {
@@ -233,10 +234,11 @@ export async function GET(
     if (items.length > 0) {
       const postIds = items.map((item: MediaItem) => item.id);
 
-      // Fetch media attachments
+      // Fetch media attachments (thumbnail_url = video poster frames — the
+      // grid renders videos as posters, never raw <video> elements)
       const { data: media } = await supabase
         .from('post_media')
-        .select('id, post_id, media_url, media_type, display_order')
+        .select('id, post_id, media_url, media_type, display_order, thumbnail_url')
         .in('post_id', postIds)
         .order('display_order', { ascending: true });
 

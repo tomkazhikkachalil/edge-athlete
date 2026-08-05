@@ -37,6 +37,39 @@ should automatically get tagged," retroactively. posts.tags ONLY: the
 tag-notification trigger fires on `post_tags` inserts, so the backfill is
 structurally notification-free. Guarded on empty tags → rerunnable.
 
+## August 5, 2026 — The Tagged tab: a dashboard of who tags you, honest to its name
+
+Third Tagged-tab PR — the visible rebuild. The tab no longer shares the
+Media tab's render branch: it's its own component (`TaggedTab` +
+`src/components/tagged/`), in the house dashboard shape.
+
+**Order is the argument:** header → hero tiles (times tagged / tagged by
+N athletes / sports / years active with span — ALL-TIME from the new
+summary endpoint, never filtered) → FilterBar whose sport/year options
+come from what the athlete is ACTUALLY tagged in (the old dropdowns
+offered the entire platform registry and every year since 2000) → the
+grid. Every tile now answers the question a tagged surface exists for:
+WHO tagged you — a pinned attribution strip with the author's avatar and
+name. The redundant green "Tagged" chip is gone (every tile here is
+tagged by definition), and so is the fake green "unread" dot on the tab
+pill that never cleared. Owner-only hover affordance: Remove tag →
+ConfirmModal → the working untag from the previous PR, with local
+removal + summary/badge refetch.
+
+Craft notes: tiles render through the shared `MediaTile` (videos are
+poster frames — the raw `<video preload>` grid copy is dead; the media
+endpoint now returns `thumbnail_url`), lucide only, `SectionEmptyState`
+for the true-empty case with a separate dashed filtered-empty state.
+Dead `TaggedPosts.tsx` (never imported, N+1 fetch fan-out) deleted —
+which freed a warning, so the lint ratchet drops 45 → 44. One lint
+lesson recorded: the set-state-in-effect rule false-positives on
+useCallback loaders and on functions declared ABOVE the effect that
+calls them, but stays quiet for hoisted declarations called via forward
+reference — the athlete/[id] file documented this; TaggedTab follows it.
+
+All/Stats tabs: pixel-identical on purpose — only the branch condition,
+MEDIA_TABS array, and the fake dot changed in the shared file.
+
 ## August 5, 2026 — Rounds tag their players, and untag finally works
 
 Second Tagged-tab PR — the write path (runs parallel to the migration-066

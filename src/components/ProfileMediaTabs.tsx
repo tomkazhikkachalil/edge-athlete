@@ -8,6 +8,7 @@ import PostDetailModal from './PostDetailModal';
 import EditPostModal from './EditPostModal';
 import EquipmentSection from './EquipmentSection';
 import AchievementsTab from './AchievementsTab';
+import TaggedTab from './TaggedTab';
 import SportYearFilter from './SportYearFilter';
 import FilterBar from './filters/FilterBar';
 import { useToast } from './Toast';
@@ -36,10 +37,10 @@ type TabType = 'all' | 'stats' | 'tagged' | 'equipment' | 'vitals' | 'achievemen
 type SortType = 'newest' | 'most_engaged';
 type MediaFilterType = 'all' | 'photos' | 'videos' | 'posts';
 
-// Tabs backed by the media endpoint (/api/profile/[id]/media). The others
-// (equipment, vitals, achievements) render their own components and must NOT
-// hit the media endpoint — it rejects their tab names with a 400.
-const MEDIA_TABS: TabType[] = ['all', 'stats', 'tagged'];
+// Tabs backed by the media endpoint (/api/profile/[id]/media) FROM THIS
+// component. The others (equipment, vitals, achievements, and now tagged —
+// which fetches its own data inside TaggedTab) render their own components.
+const MEDIA_TABS: TabType[] = ['all', 'stats'];
 const isMediaTab = (t: TabType): boolean => MEDIA_TABS.includes(t);
 
 interface MediaItem {
@@ -433,10 +434,6 @@ export default function ProfileMediaTabs({ profileId, currentUserId, isOwnProfil
                       </span>
                     )}
 
-                    {/* Active indicator dot (for new/unread items - future feature) */}
-                    {tab.id === 'tagged' && tab.count > 0 && !isActive && (
-                      <span className="absolute -top-0.5 -right-0.5 w-2 h-2 bg-green-500 rounded-full border-2 border-white" />
-                    )}
                   </button>
                 );
               })}
@@ -464,8 +461,18 @@ export default function ProfileMediaTabs({ profileId, currentUserId, isOwnProfil
         <AchievementsTab profileId={profileId} isOwnProfile={isOwnProfile} />
       )}
 
-      {/* Media/Stats/Tagged tabs */}
-      {(activeTab === 'all' || activeTab === 'stats' || activeTab === 'tagged') && (
+      {/* Tagged tab — its own dashboard (hero + real-data filters + grid) */}
+      {activeTab === 'tagged' && (
+        <TaggedTab
+          profileId={profileId}
+          currentUserId={currentUserId}
+          isOwnProfile={isOwnProfile}
+          onCountsChanged={fetchCounts}
+        />
+      )}
+
+      {/* Media/Stats tabs */}
+      {(activeTab === 'all' || activeTab === 'stats') && (
         <>
           {/* Filter rows — Sport + Year sit inline with Sort and Media Type,
               wrapped in the shared FilterBar (controls + count pill + the
@@ -527,13 +534,11 @@ export default function ProfileMediaTabs({ profileId, currentUserId, isOwnProfil
           <div className="w-20 h-20 mx-auto mb-6 rounded-full bg-gray-100 flex items-center justify-center">
             {activeTab === 'all' && <Camera className="w-10 h-10 text-gray-400" />}
             {activeTab === 'stats' && <BarChart3 className="w-10 h-10 text-gray-400" />}
-            {activeTab === 'tagged' && <Tag className="w-10 h-10 text-gray-400" />}
           </div>
 
           <h3 className="text-xl font-bold text-gray-900 mb-2">
             {activeTab === 'all' && 'No media yet'}
             {activeTab === 'stats' && 'No performance stats'}
-            {activeTab === 'tagged' && 'No tags yet'}
           </h3>
 
           <p className="text-gray-600 mb-6 max-w-md mx-auto">
@@ -541,8 +546,6 @@ export default function ProfileMediaTabs({ profileId, currentUserId, isOwnProfil
             {activeTab === 'all' && !isOwnProfile && 'This athlete hasn\'t posted any content yet'}
             {activeTab === 'stats' && isOwnProfile && 'Add performance stats to your posts to track your progress over time'}
             {activeTab === 'stats' && !isOwnProfile && 'No performance statistics available for this athlete'}
-            {activeTab === 'tagged' && isOwnProfile && 'You haven\'t been tagged in any posts yet'}
-            {activeTab === 'tagged' && !isOwnProfile && 'This athlete hasn\'t been tagged in any posts'}
           </p>
           </div>
           )}
