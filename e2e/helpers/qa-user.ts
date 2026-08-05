@@ -245,6 +245,12 @@ export async function deleteQaUser(userId: string): Promise<void> {
     await admin.from('group_posts').delete().in('id', roundIds);
   }
   await admin.from('athlete_equipment').delete().eq('profile_id', userId);
+  // Workout chain + vitals — FKs claim CASCADE, but house style is explicit
+  // child-first deletes (the golf chain taught why). All carry profile_id.
+  await admin.from('workout_sets').delete().eq('profile_id', userId);
+  await admin.from('workout_exercises').delete().eq('profile_id', userId);
+  await admin.from('workout_sessions').delete().eq('profile_id', userId);
+  await admin.from('athlete_vitals').delete().eq('profile_id', userId);
 
   const { error } = await admin.auth.admin.deleteUser(userId);
   if (error) throw new Error(`deleteUser(${userId}) failed: ${error.message}`);
