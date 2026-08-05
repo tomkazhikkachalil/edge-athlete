@@ -39,6 +39,7 @@ export async function GET(request: NextRequest) {
         social_twitter,
         social_instagram,
         social_facebook,
+        social_tiktok,
         visibility,
         created_at
       `)

@@ -805,6 +805,16 @@ export default function AthleteProfilePage() {
                       />
                     </div>
                     <div className="flex items-center gap-2" role="listitem">
+                      <i className="fa-brands fa-tiktok text-gray-900 text-lg" aria-hidden="true"></i>
+                      <InlineEdit
+                        field="social_tiktok"
+                        value={profile?.social_tiktok ? formatSocialHandleDisplay(profile.social_tiktok) : ''}
+                        placeholder={getPlaceholder('ADD_TIKTOK')}
+                        className="text-sm text-gray-600"
+                        ariaLabel="TikTok handle"
+                      />
+                    </div>
+                    <div className="flex items-center gap-2" role="listitem">
                       <i className="fab fa-facebook text-violet-600 text-lg" aria-hidden="true"></i>
                       <InlineEdit
                         field="social_facebook"

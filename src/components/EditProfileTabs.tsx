@@ -135,6 +135,7 @@ export default function EditProfileTabs({
     social_twitter: '',
     social_instagram: '',
     social_facebook: '',
+    social_tiktok: '',
   });
 
   // One entry per sport that has a settings schema, keyed by sport key.
@@ -298,6 +299,7 @@ export default function EditProfileTabs({
       social_twitter: formatSocialHandle(profile?.social_twitter),
       social_instagram: formatSocialHandle(profile?.social_instagram),
       social_facebook: formatSocialHandle(profile?.social_facebook),
+      social_tiktok: formatSocialHandle(profile?.social_tiktok),
     };
     setSocialsForm(loadedSocials);
 
@@ -437,6 +439,7 @@ export default function EditProfileTabs({
             social_twitter: socialsForm.social_twitter.trim(),
             social_instagram: socialsForm.social_instagram.trim(),
             social_facebook: socialsForm.social_facebook.trim(),
+            social_tiktok: socialsForm.social_tiktok.trim(),
           };
           hasChanges = true;
           break;
@@ -967,6 +970,24 @@ export default function EditProfileTabs({
             type="text"
             value={socialsForm.social_instagram || ''}
             onChange={(e) => setSocialsForm(prev => ({ ...prev, social_instagram: e.target.value }))}
+            className="w-full pl-8 pr-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent"
+            placeholder="username"
+          />
+        </div>
+      </div>
+
+      <div>
+        <label htmlFor="tiktok" className="block text-sm font-medium text-gray-700 mb-1">
+          <i className="fa-brands fa-tiktok text-gray-900 mr-2" aria-hidden="true"></i>
+          TikTok Handle
+        </label>
+        <div className="relative">
+          <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500 text-sm">@</span>
+          <input
+            id="tiktok"
+            type="text"
+            value={socialsForm.social_tiktok || ''}
+            onChange={(e) => setSocialsForm(prev => ({ ...prev, social_tiktok: e.target.value }))}
             className="w-full pl-8 pr-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent"
             placeholder="username"
           />

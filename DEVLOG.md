@@ -1,5 +1,17 @@
 # Development Log
 
+## August 5, 2026 — TikTok joins the socials (migration 067)
+
+The fourth connection. Migration 067 adds `profiles.social_tiktok TEXT`
+(the first social column since the pre-numbering era). TikTok now
+appears everywhere its three siblings do: the own-page click-to-edit row
+("Add TikTok"), the visitor page's outbound links, /u/'s icon links
+(`tiktok.com/@handle` — TikTok URLs keep the @, unlike x/instagram),
+Edit Profile → Socials ("TikTok Handle", `fa-brands fa-tiktok` — FA 7.2
+ships it), the public-profile select, the PUT whitelist (''→NULL), and
+the Profile type. Merge gated on Tom running 067 — the public select
+references the column, so pre-067 the /u/ page would 42703.
+
 ## August 5, 2026 — Header slimmed: vitals strip out, socials up, Twitter is X, edit bubble contained
 
 Continuing Tom's profile simplification. Four changes in one PR:

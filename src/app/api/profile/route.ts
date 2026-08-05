@@ -189,7 +189,7 @@ export async function PUT(request: NextRequest) {
     }
     
     // Convert empty strings to null for optional text fields (keeps them as empty strings if that's intended)
-    const optionalFields = ['username', 'bio', 'location', 'middle_name', 'social_twitter', 'social_instagram', 'social_facebook'];
+    const optionalFields = ['username', 'bio', 'location', 'middle_name', 'social_twitter', 'social_instagram', 'social_facebook', 'social_tiktok'];
     optionalFields.forEach(field => {
       if (cleanedProfileData[field] === '') {
         cleanedProfileData[field] = null;
