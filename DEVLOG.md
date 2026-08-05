@@ -1,5 +1,25 @@
 # Development Log
 
+## August 4, 2026 — Vitals dashboard pinned by e2e (12th spec) + teardown hardening
+
+Third vitals pass. `e2e/vitals.spec.ts` drives the whole dashboard: seeded
+metric history in BOTH directions (bench rising, 1-mile falling — the
+lower-is-better path), a manual workout this week, then asserts the hero
+volume MATH (5×185 + 3×205 = 1,540 lbs, not just presence), the PB
+spotlight with its unit, mm:ss formatting (and that raw seconds NEVER
+render), the progress picker switching between metric charts by
+aria-label, metric history expansion, the month-grouped log's set line,
+and the visitor view: user B sees the read-only dashboard with the same
+numbers and NO Start Workout / Add Metric.
+
+`deleteQaUser` grew the workout chain + vitals (workout_sets →
+workout_exercises → workout_sessions → athlete_vitals, all by the
+denormalized profile_id) — the FKs claim CASCADE, but the golf chain
+taught us what live FKs are worth; explicit child-first deletes are house
+style. One config lesson recorded: the catalog label is "1-Mile Run", not
+"Mile Run" — seeded `metric_label` snapshots don't drive picker options,
+the catalog does.
+
 ## August 4, 2026 — The Vitals dashboard: numbers first, like a real tracker
 
 Second vitals pass — the visible one. The tab now READS like a training
