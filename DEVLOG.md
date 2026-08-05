@@ -1,5 +1,33 @@
 # Development Log
 
+## August 5, 2026 — Tagged pinned by e2e (14th spec) — and a lesson in fake anonymity
+
+Fourth and last Tagged-tab PR. `e2e/tagged.spec.ts` drives the whole
+feature: B tags A via a post → A's dashboard shows the tile with "by
+Edge Bravo" and the hero math reads 1/1/1/1 from the summary RPC; A
+shares a round with B → the mirror post auto-appears on B's tab ("by
+Edge Alpha"), NOT on A's (author excluded), and B gets ONLY the
+group-invite notification — the spec asserts the 'tag' notification is
+absent (the double-notify we designed against). Untag: A removes B's
+tag through the UI, the tile disappears, the hero drops to 0, and it
+survives reload. Privacy pins at the API layer: the private author's
+post absent from A's anonymous tagged list AND summary; a private
+profile's badge counts all-zero for anonymous viewers.
+
+The lesson: the privacy pin FAILED three runs straight — the anonymous
+list kept containing the private author's post — while a direct RPC
+probe with identical arguments returned []. Server-side instrumentation
+found the "anonymous" request arriving with viewer_id = A: a bare
+`request.newContext({ baseURL })` inside a test INHERITS the config's
+default storageState (state.json = A's session), so the pin was silently
+running as the tagged athlete — the ONE viewer the owner clause
+deliberately grants. Anonymous request contexts must pass an explicitly
+empty `storageState`. The fix was one line; the diagnosis was the work.
+
+`deleteQaUser` grew `post_tags` deletes in both directions (tagged-in
+and tagger) before the posts deletes — explicit child-first, house
+style. Suite: 14 specs.
+
 ## August 5, 2026 — Tagged tab groundwork: the 021 privacy hole closed for real, plus group-round backfill
 
 First of four PRs for the Tagged tab round. Migration 066 + read-path

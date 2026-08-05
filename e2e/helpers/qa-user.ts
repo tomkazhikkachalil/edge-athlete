@@ -240,6 +240,10 @@ export async function deleteQaUser(userId: string): Promise<void> {
     await admin.from('golf_scorecard_data').delete().in('group_post_id', roundIds);
     await admin.from('posts').delete().in('group_post_id', roundIds);
   }
+  // Tag rows in BOTH directions (tagged-in and tagger) — before the posts
+  // deletes; FKs claim CASCADE, but explicit child-first is house style.
+  await admin.from('post_tags').delete().eq('tagged_profile_id', userId);
+  await admin.from('post_tags').delete().eq('created_by_profile_id', userId);
   await admin.from('posts').delete().eq('profile_id', userId);
   if (roundIds.length) {
     await admin.from('group_posts').delete().in('id', roundIds);
