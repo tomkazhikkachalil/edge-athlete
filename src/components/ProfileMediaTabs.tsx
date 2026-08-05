@@ -94,25 +94,14 @@ interface TabCounts {
 
 type MediaCountsResponse = TabCounts;
 
-/** Sport-card spotlight: parent creates a FRESH object per click (ts =
- *  Date.now()), so re-clicking the same sport after the user cleared the
- *  filter still re-applies it (identity-based effect trigger). */
-export interface SportSpotlight {
-  sportKey: string;
-  /** Highlight-year selection riding along from Sport Highlights (null = all time). */
-  year?: number | null;
-  ts: number;
-}
-
 interface ProfileMediaTabsProps {
   profileId: string;
   currentUserId?: string;
   isOwnProfile?: boolean;
   onCountsChange?: (counts: TabCounts) => void;
-  sportSpotlight?: SportSpotlight | null;
 }
 
-export default function ProfileMediaTabs({ profileId, currentUserId, isOwnProfile = false, onCountsChange, sportSpotlight }: ProfileMediaTabsProps) {
+export default function ProfileMediaTabs({ profileId, currentUserId, isOwnProfile = false, onCountsChange }: ProfileMediaTabsProps) {
   const [activeTab, setActiveTab] = useState<TabType>('all');
   const [sort, setSort] = useState<SortType>('newest');
   const [mediaFilter, setMediaFilter] = useState<MediaFilterType>('all');
@@ -238,21 +227,6 @@ export default function ProfileMediaTabs({ profileId, currentUserId, isOwnProfil
   useEffect(() => {
     fetchCounts();
   }, [fetchCounts]);
-
-  // Sport-card spotlight from the parent (Sport Highlights click): jump to
-  // the All tab filtered to that sport (and its selected highlight year,
-  // when one is active). Identity-based — see SportSpotlight.
-  const [syncedSpotlight, setSyncedSpotlight] = useState(sportSpotlight);
-  if (syncedSpotlight !== sportSpotlight) {
-    setSyncedSpotlight(sportSpotlight);
-    if (sportSpotlight) {
-      setActiveTab('all');
-      setSelectedSports([sportSpotlight.sportKey]);
-      if (sportSpotlight.year != null) {
-        setSelectedYears([sportSpotlight.year]);
-      }
-    }
-  }
 
   // Load media when tab/filter/sort/profileId or sport/year filters change.
   // Only the media-backed tabs (all/stats/tagged) call the media endpoint;

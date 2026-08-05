@@ -1,5 +1,23 @@
 # Development Log
 
+## August 5, 2026 — Sport Highlights cut from the profile
+
+Tom: it "doesn't flow well and seems out of place — users can go directly
+to media to find what they are looking for." The Sport Highlights section
+(the per-sport stat cards between the profile header and My Media) is
+gone from BOTH profile pages; the header/vitals now flow straight into
+the media tabs. Everything else unchanged.
+
+What went with it, because nothing else used any of it:
+`MultiSportHighlights.tsx` (the whole component), both pages'
+`handleSportClick` (the click-through that filtered the media grid and
+opened the sport's latest post), and ProfileMediaTabs' `sportSpotlight`
+prop + `SportSpotlight` type + the render-phase sync block that consumed
+it. The sport-settings data the cards displayed still has its public
+surface on /u/ (SportSettingsRow) and its editor in Edit Profile — this
+removed a VIEW, not the data. Lint ratchet holds at 44 (the deleted
+component carried no warnings; two freed unused imports offset nothing).
+
 ## August 5, 2026 — Tagged hero cut: the grid IS the content
 
 Tom, after seeing it live: the four stat bubbles under Tagged should go —

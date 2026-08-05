@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useRef, useCallback } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { useAuth } from '@/lib/auth';
 import { useRouter, useParams, useSearchParams } from 'next/navigation';
 import Image from 'next/image';
@@ -9,10 +9,8 @@ import LazyImage from '@/components/LazyImage';
 import AppHeader from '@/components/AppHeader';
 import FollowButton from '@/components/FollowButton';
 import PrivateProfileView from '@/components/PrivateProfileView';
-import ProfileMediaTabs, { type SportSpotlight } from '@/components/ProfileMediaTabs';
-import type { SportKey } from '@/lib/sports';
+import ProfileMediaTabs from '@/components/ProfileMediaTabs';
 import FeaturedPosts from '@/components/FeaturedPosts';
-import MultiSportHighlights from '@/components/MultiSportHighlights';
 import PostDetailModal from '@/components/PostDetailModal';
 import FollowersModal from '@/components/FollowersModal';
 import type { Profile } from '@/lib/supabase';
@@ -46,27 +44,6 @@ export default function AthleteProfilePage() {
     const postParam = searchParams.get('post');
     if (postParam) setDeepLinkPostId(postParam);
   }
-
-  // Sport Highlights card click → filter media + open the sport's latest
-  // post (reuses the deep-link modal below; privacy is server-side in
-  // /api/posts, so a visitor never gets a modal for a post they can't see).
-  const [sportSpotlight, setSportSpotlight] = useState<SportSpotlight | null>(null);
-  const spotlightSeqRef = useRef(0);
-  const handleSportClick = useCallback(async (sportKey: SportKey, year: number | null) => {
-    setSportSpotlight({ sportKey, year, ts: Date.now() });
-    document.getElementById('media-section')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    const seq = ++spotlightSeqRef.current;
-    try {
-      const res = await fetch(
-        `/api/posts?userId=${athleteId}&sportKey=${sportKey}&limit=1`,
-        { credentials: 'include' }
-      );
-      if (!res.ok || seq !== spotlightSeqRef.current) return;
-      const data = await res.json();
-      const id = data.posts?.[0]?.id;
-      if (id && seq === spotlightSeqRef.current) setDeepLinkPostId(id);
-    } catch { /* scroll + filter already happened */ }
-  }, [athleteId]);
 
   // Profile data
   const [profile, setProfile] = useState<Profile | null>(null);
@@ -475,12 +452,6 @@ export default function AthleteProfilePage() {
         </div>
         </div>
 
-      {/* Sport Highlights — same live summary the owner sees; every data
-          endpoint underneath privacy-gates by profileId server-side */}
-      <div className="mb-8">
-        <MultiSportHighlights profileId={athleteId} onSportClick={handleSportClick} />
-      </div>
-
       {/* Media Section with Segmented Tabs (scroll-mt clears sticky header) */}
       <div id="media-section" className="bg-white rounded-lg shadow-md p-4 sm:p-6 scroll-mt-20">
         <div className="flex justify-between items-center mb-6">
@@ -497,7 +468,6 @@ export default function AthleteProfilePage() {
           currentUserId={user?.id}
           isOwnProfile={isOwnProfile}
           onCountsChange={(counts) => setPostsCount(counts.all)}
-          sportSpotlight={sportSpotlight}
         />
       </div>
       </div>
