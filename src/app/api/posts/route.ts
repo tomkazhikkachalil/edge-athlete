@@ -1125,6 +1125,35 @@ export async function PUT(request: NextRequest) {
       }, { status: 500 });
     }
 
+    // Reconcile post_tags with the new tagged-people list. This used to be
+    // skipped entirely, leaving post_tags permanently stale after any edit.
+    // Upsert takes the ON CONFLICT UPDATE path for existing rows — the
+    // notify trigger is AFTER INSERT, so only genuinely NEW tags notify.
+    if (Array.isArray(taggedProfiles)) {
+      try {
+        if (taggedProfiles.length > 0) {
+          await supabase
+            .from('post_tags')
+            .delete()
+            .eq('post_id', postId)
+            .not('tagged_profile_id', 'in', `(${taggedProfiles.join(',')})`);
+          await supabase
+            .from('post_tags')
+            .upsert(taggedProfiles.map((taggedId: string) => ({
+              post_id: postId,
+              tagged_profile_id: taggedId,
+              created_by_profile_id: user.id,
+              status: 'active',
+            })), { onConflict: 'post_id,tagged_profile_id' });
+        } else {
+          await supabase.from('post_tags').delete().eq('post_id', postId);
+        }
+      } catch (tagSyncError) {
+        // Non-fatal: posts.tags (the read store) is already updated above.
+        console.error('[PUT] post_tags reconciliation failed:', tagSyncError);
+      }
+    }
+
     return NextResponse.json({
       success: true,
       post: updatedPost,
