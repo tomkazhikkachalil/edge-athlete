@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useRef, useCallback, createContext, useContext } from 'react';
+import { useEffect, useState, createContext, useContext } from 'react';
 import dynamic from 'next/dynamic';
 import Image from 'next/image';
 import { isOptimizableImageSrc } from '@/lib/media/image-src';
@@ -8,14 +8,12 @@ import { useAuth } from '@/lib/auth';
 import { useRouter } from 'next/navigation';
 import { AthleteService } from '@/lib/athleteService';
 import { useToast } from '@/components/Toast';
-import MultiSportHighlights from '@/components/MultiSportHighlights';
 import LazyImage from '@/components/LazyImage';
-import ProfileMediaTabs, { type SportSpotlight } from '@/components/ProfileMediaTabs';
+import ProfileMediaTabs from '@/components/ProfileMediaTabs';
 import FeaturedPosts from '@/components/FeaturedPosts';
 import AvatarUploader from '@/components/AvatarUploader';
 import CoverPhotoUploader from '@/components/CoverPhotoUploader';
 import PostDetailModal from '@/components/PostDetailModal';
-import type { SportKey } from '@/lib/sports';
 import { resolveSportKey, isComposerSport } from '@/lib/sports/resolve-sport-key';
 import AppHeader from '@/components/AppHeader';
 
@@ -201,11 +199,8 @@ export default function AthleteProfilePage() {
 
   // Media refresh trigger
   const [mediaRefreshKey, setMediaRefreshKey] = useState(0);
-  // Sport Highlights click-through: filter the media grid + open latest post.
-  // openPostId is shared with the ?post= deep link (mutually exclusive in time).
-  const [sportSpotlight, setSportSpotlight] = useState<SportSpotlight | null>(null);
+  // ?post= deep link target (own-profile share links).
   const [openPostId, setOpenPostId] = useState<string | null>(null);
-  const spotlightSeqRef = useRef(0); // rapid-click race guard
 
   // Follow stats
   const [followersCount, setFollowersCount] = useState(0);
@@ -237,26 +232,6 @@ export default function AthleteProfilePage() {
     const p = new URLSearchParams(window.location.search).get('post');
     if (p) setOpenPostId(p);
   }, []);
-
-  // Sport Highlights card click: scroll to the media section filtered to
-  // that sport, then open its most recent post. Zero posts → scroll+filter
-  // only (no modal, no error). Modal open is best-effort.
-  const handleSportClick = useCallback(async (sportKey: SportKey, year: number | null) => {
-    setSportSpotlight({ sportKey, year, ts: Date.now() });
-    document.getElementById('media-section')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    if (!user?.id) return;
-    const seq = ++spotlightSeqRef.current;
-    try {
-      const res = await fetch(
-        `/api/posts?userId=${user.id}&sportKey=${sportKey}&limit=1`,
-        { credentials: 'include' }
-      );
-      if (!res.ok || seq !== spotlightSeqRef.current) return;
-      const data = await res.json();
-      const id = data.posts?.[0]?.id;
-      if (id && seq === spotlightSeqRef.current) setOpenPostId(id);
-    } catch { /* scroll + filter already happened */ }
-  }, [user?.id]);
 
   // Load athlete data
   useEffect(() => {
@@ -997,10 +972,6 @@ export default function AthleteProfilePage() {
 
         {/* Main content */}
         <div className="space-y-8">
-          {/* Sport Highlights — live summary computed from posted activity;
-              clicking a card jumps to that sport's media + opens latest post */}
-          <MultiSportHighlights profileId={user?.id || ''} onSportClick={handleSportClick} />
-
           {/* Media Tabs (scroll-mt clears the sticky AppHeader) */}
           <div id="media-section" className="bg-white rounded-lg shadow-md p-4 sm:p-6 scroll-mt-20">
             {/* flex-wrap: title + Create Post is ~340px, over a 320px screen */}
@@ -1026,7 +997,6 @@ export default function AthleteProfilePage() {
               currentUserId={user?.id}
               isOwnProfile={true}
               onCountsChange={(counts) => setPostsCount(counts.all)}
-              sportSpotlight={sportSpotlight}
             />
           </div>
         </div>
