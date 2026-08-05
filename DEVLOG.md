@@ -1,5 +1,34 @@
 # Development Log
 
+## August 5, 2026 — Achievements display lib: podium parsing + trophy-case stats
+
+First of three PRs for the achievements "trophy case" redesign (same
+treatment vitals just got). Pure lib only — zero visible change.
+
+`src/lib/achievements.ts` became `src/lib/achievements/` (index.ts
+verbatim, every `@/lib/achievements` import untouched — the workouts/
+pattern). New `display.ts`: `parsePlacement` classifies the free-text
+`placement` column into gold/silver/bronze/podium/null so the showcase can
+auto-pick podiums WITHOUT a schema change. The heuristic is deliberately
+conservative — an honor guard runs FIRST (`\bteam\b`, `all-state/
+conference/america/…`) so "1st Team All-State" parses null instead of
+gold, ties T-1/2/3 map to tiers (T-4+ null), bronze/silver are checked
+before gold so "2nd" wins over an incidental "1st" match, and "champions?"
+matches Champion/Champions but never Championship. Preference order:
+a missed podium over a fabricated one — the showcase reorders, it never
+invents. Also: `achievementStats` (total / podiums / distinct orgs
+case-insensitive / years active + span), `topFinishes` (tier then
+recency), `groupByYear`, `topPills` (for the header + /u/ pills coming in
+PR 3). Years always come from `achieved_on.slice(0,4)` — never `new
+Date()` on a bare DATE. One self-caught bug: `tierRank` returned Infinity
+for null, and `Infinity - Infinity` is NaN in a sort comparator —
+implementation-defined ordering; the rank is finite now.
+
+Tests: a 46-case parsePlacement table + stats/ordering coverage, PLUS the
+missing `validateAchievementInput` suite (required fields, partial PATCH,
+caps, empty→null, unknown sport, future date) — that validator had shipped
+untested. 888 → 945 unit tests.
+
 ## August 4, 2026 — Vitals dashboard pinned by e2e (12th spec) + teardown hardening
 
 Third vitals pass. `e2e/vitals.spec.ts` drives the whole dashboard: seeded
