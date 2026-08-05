@@ -7,9 +7,8 @@
 
 import { EXERCISE_MAP } from '@/lib/workout-config';
 import { VITAL_METRICS_MAP } from '@/lib/vitals-config';
+import { toLbs } from './summary';
 import type { EntryExercise } from './entries';
-
-const KG_TO_LBS = 2.20462;
 
 export interface PRCandidate {
   metricKey: string;
@@ -40,7 +39,7 @@ export function detectPRs(
         if (set.reps !== null && set.reps > 0) candidate = set.reps;
       } else {
         if (set.weight !== null && set.weight > 0) {
-          candidate = set.weightUnit === 'kg' ? set.weight * KG_TO_LBS : set.weight;
+          candidate = toLbs(set.weight, set.weightUnit);
         }
       }
       if (candidate !== null) {

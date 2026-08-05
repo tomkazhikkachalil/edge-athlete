@@ -1,5 +1,43 @@
 # Development Log
 
+## August 4, 2026 — Vitals dashboard groundwork: the numbers exist now
+
+First of three passes turning the Vitals tab into a professional tracker
+(Tom: "looks like the best apps on the market"). This one is invisible —
+the derived-stats layer and the chart made reusable.
+
+**`src/lib/workouts/dashboard.ts`** (pure, 18 node tests): `weeklySummary`
+(this week vs prior — completed sessions only, kg→lbs volume, duration
+falling back to ended−started), `streakWeeks` (consecutive training weeks;
+an empty CURRENT week doesn't break the streak — on Monday morning every
+streak would read zero — an empty PRIOR week does), `latestPB` (most recent
+entry that set or tied its metric's all-time best, direction from
+`lower_is_better`, body metrics excluded — height is not a PR),
+`exerciseProgression` (best set per session per exercise, value chosen by
+the exercise's inputMode, ascending — the "am I getting stronger" series),
+`metricSeries`. Weeks start Monday 00:00 local, documented on
+`startOfWeek`.
+
+**Two long-standing paper cuts fixed en route:** `toLbs` existed as two
+private copies (summary + pr-detection) — now ONE exported source of truth;
+and `computeSummary.perExerciseBest` was keyed on the free-text exercise
+NAME, so "Bench Press" typed manually forked from catalog `bench_press` —
+now keyed `exercise_key ?? normalized name` (it was computed-but-never-
+rendered, so zero UI risk, and the dashboard is about to render it).
+
+**TrendLineChart moved out of golf** (`src/components/golf/` →
+`src/components/charts/`): new `pointNoun` prop drives the legend, aria
+and empty copy ("Per round" / "5-round avg" stay the defaults — golf is
+string-identical by construction), `emptyMessage` override, and the dead
+`invertGood` prop is deleted — direction only ever matters for delta
+COLORING, which belongs to the surrounding UI where `lower_is_better`
+lives, not to line geometry. Single importer (golf trends page) updated.
+
+**Palette locked for the dashboard** (dataviz validator, light mode, all
+checks pass outright): speed #d97706 · strength #7c3aed · conditioning
+#dc2626 · body #2563eb — as literal hexes, because Tailwind token
+interpolation is a JIT purge hazard.
+
 ## August 4, 2026 — Equipment round 3b: the settings gear (equipment_prefs)
 
 The Equipment tab gets its own settings — organization without a trip to

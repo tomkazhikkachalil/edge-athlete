@@ -18,6 +18,8 @@ export interface WorkoutSummary {
   totalVolumeLbs: number;
   /** Headline set, e.g. "Bench Press 185 lbs × 5" — heaviest weighted set. */
   topLine: string | null;
+  /** Keyed by exercise_key when present, else normalized name — free-text
+   *  "Bench Press" and catalog bench_press must not fork one lift. */
   perExerciseBest: Record<string, { maxWeightLbs: number | null; maxReps: number | null }>;
 }
 
@@ -30,7 +32,9 @@ function setHasData(s: EntryExercise['sets'][number]): boolean {
   );
 }
 
-function toLbs(weight: number, unit: 'lbs' | 'kg' | null): number {
+/** Canonical weight conversion — the ONE source of truth (also used by
+ *  pr-detection and the dashboard stats). */
+export function toLbs(weight: number, unit: 'lbs' | 'kg' | null): number {
   return unit === 'kg' ? weight * KG_TO_LBS : weight;
 }
 
@@ -68,7 +72,20 @@ export function computeSummary(exercises: EntryExercise[]): WorkoutSummary {
     }
 
     if (maxWeightLbs !== null || maxReps !== null) {
-      perExerciseBest[exercise.name] = { maxWeightLbs, maxReps };
+      const key = exercise.exerciseKey ?? exercise.name.trim().toLowerCase();
+      const existing = perExerciseBest[key];
+      perExerciseBest[key] = existing
+        ? {
+            maxWeightLbs:
+              maxWeightLbs === null ? existing.maxWeightLbs
+                : existing.maxWeightLbs === null ? maxWeightLbs
+                  : Math.max(existing.maxWeightLbs, maxWeightLbs),
+            maxReps:
+              maxReps === null ? existing.maxReps
+                : existing.maxReps === null ? maxReps
+                  : Math.max(existing.maxReps, maxReps),
+          }
+        : { maxWeightLbs, maxReps };
     }
   }
 
