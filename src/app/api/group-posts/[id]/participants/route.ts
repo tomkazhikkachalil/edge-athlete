@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getServerAuth } from '@/lib/auth-server';
+import { getServerAuth, getSupabaseAdmin } from '@/lib/auth-server';
+import { syncMirrorPostTags } from '@/lib/group-posts/mirror-tags';
 
 /**
  * GET /api/group-posts/[id]/participants
@@ -151,6 +152,10 @@ export async function POST(
       return NextResponse.json({ error: 'Failed to add participants' }, { status: 500 });
     }
 
+    // Keep the mirror post's tags in step (participants ARE the tags).
+    // Best-effort: the participant insert is the primary contract.
+    await syncMirrorPostTags(getSupabaseAdmin(), id);
+
     return NextResponse.json({
       participants: newParticipants,
       message: 'Participants added successfully',
@@ -241,6 +246,9 @@ export async function DELETE(
       console.error('Error removing participant:', deleteError);
       return NextResponse.json({ error: 'Failed to remove participant' }, { status: 500 });
     }
+
+    // Keep the mirror post's tags in step (participants ARE the tags).
+    await syncMirrorPostTags(getSupabaseAdmin(), id);
 
     return NextResponse.json({
       message: 'Participant removed successfully',

@@ -1,5 +1,33 @@
 # Development Log
 
+## August 5, 2026 — Rounds tag their players, and untag finally works
+
+Second Tagged-tab PR — the write path (runs parallel to the migration-066
+PR). Tom's rule: "rounds or sporting events where there are multiple
+names attached should automatically get tagged."
+
+**Participants ARE the tags now.** Round creation seeds the mirror feed
+post's `tags` with the invitee IDs (already deduped and creator-excluded
+by the July 25 fix). Late participant add/remove calls
+`syncMirrorPostTags` (new `src/lib/group-posts/mirror-tags.ts`) — an
+authoritative recompute from `group_post_participants` (declined
+excluded) minus anyone who untagged themself. Best-effort after the
+mutation: the participant change is the contract, tag-sync failures log.
+posts.tags only, never post_tags — participants already get round-invite
+notifications, and the tag trigger would have doubled them.
+
+**Untag-self went from no-op to real.** `DELETE /api/tags` previously
+soft-flagged `post_tags` — a table the Tagged tab never reads — so
+removing a tag of yourself changed nothing visible. Now: a new
+`?postId=` self-untag variant writes a `status='removed'` marker
+(notification-silent — the notify trigger fires only on status='active'
+inserts — and it's what keeps group-round resync from re-adding you) AND
+strips your UUID from `posts.tags`; the existing `?tagId=` branches strip
+`posts.tags` too. And `PUT /api/posts` finally reconciles `post_tags`
+when `taggedProfiles` is sent (delete missing, upsert active; ON CONFLICT
+UPDATE doesn't fire the AFTER INSERT trigger, so only genuinely new tags
+notify) — the two stores stop diverging on edit.
+
 ## August 5, 2026 — Real achievements everywhere; the fabricated badges are dead
 
 Third achievements PR. `AthleteService.getBadges` had been FABRICATING
