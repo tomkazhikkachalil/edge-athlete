@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, Suspense, useCallback } from 'react';
+import { useState, useEffect, useRef, Suspense, useCallback } from 'react';
 import dynamic from 'next/dynamic';
 import { useAuth } from '@/lib/auth';
 import { useRouter, useSearchParams } from 'next/navigation';
@@ -40,6 +40,51 @@ export default function SettingsPage() {
   const [activeTab, setActiveTab] = useState<SettingsTab>('account');
   const [isEditProfileModalOpen, setIsEditProfileModalOpen] = useState(false);
   const handleTabParam = useCallback((tab: SettingsTab) => setActiveTab(tab), []);
+
+  // Six tabs are ~670px of intrinsic width against ~358px on a 390px phone,
+  // and `scrollbar-hide` removes the only native hint that the rest exists.
+  // Two affordances below: fades on whichever edge has more content, and
+  // scrolling the active tab into view so a ?tab= deep link never lands
+  // off-screen.
+  const tabNavRef = useRef<HTMLElement>(null);
+  const tabRefs = useRef<Partial<Record<SettingsTab, HTMLButtonElement | null>>>({});
+  const [tabOverflow, setTabOverflow] = useState({ left: false, right: false });
+
+  const measureTabOverflow = useCallback(() => {
+    const nav = tabNavRef.current;
+    if (!nav) return;
+    // 1px slack: fractional scroll positions otherwise leave a fade pinned on.
+    setTabOverflow({
+      left: nav.scrollLeft > 1,
+      right: nav.scrollLeft + nav.clientWidth < nav.scrollWidth - 1,
+    });
+  }, []);
+
+  useEffect(() => {
+    const nav = tabNavRef.current;
+    if (!nav) return;
+    measureTabOverflow();
+    nav.addEventListener('scroll', measureTabOverflow, { passive: true });
+    window.addEventListener('resize', measureTabOverflow);
+    return () => {
+      nav.removeEventListener('scroll', measureTabOverflow);
+      window.removeEventListener('resize', measureTabOverflow);
+    };
+  }, [measureTabOverflow, loading]);
+
+  useEffect(() => {
+    const nav = tabNavRef.current;
+    const button = tabRefs.current[activeTab];
+    if (!nav || !button) return;
+    // Adjust scrollLeft directly rather than scrollIntoView(), which also
+    // scrolls ancestor scrollers and would yank the whole page vertically.
+    const left = button.offsetLeft;
+    const right = left + button.offsetWidth;
+    const PEEK = 16; // leave a sliver of the neighbour visible
+    if (left < nav.scrollLeft) nav.scrollLeft = Math.max(0, left - PEEK);
+    else if (right > nav.scrollLeft + nav.clientWidth) nav.scrollLeft = right - nav.clientWidth + PEEK;
+    measureTabOverflow();
+  }, [activeTab, measureTabOverflow]);
 
   // Redirect if not authenticated
   useEffect(() => {
@@ -95,14 +140,16 @@ export default function SettingsPage() {
 
         {/* Tabs Navigation */}
         <div className="bg-surface rounded-lg shadow-sm border border-border overflow-hidden">
-          <div className="border-b border-border">
-            {/* scrollbar-hide + shrink-0: five tabs are ~560px of intrinsic
+          <div className="relative border-b border-border">
+            {/* scrollbar-hide + shrink-0: six tabs are ~670px of intrinsic
                 width — they scroll cleanly instead of showing a scrollbar
-                band with no affordance. */}
-            <nav className="flex overflow-x-auto scrollbar-hide" aria-label="Settings tabs">
+                band. `scrollbar-hide` costs the only native overflow cue,
+                so the gradients below stand in for it. */}
+            <nav ref={tabNavRef} className="flex overflow-x-auto scrollbar-hide" aria-label="Settings tabs">
               {tabs.map((tab) => (
                 <button
                   key={tab.id}
+                  ref={(el) => { tabRefs.current[tab.id] = el; }}
                   onClick={() => !tab.disabled && setActiveTab(tab.id)}
                   disabled={tab.disabled}
                   className={`flex shrink-0 items-center gap-2 px-4 sm:px-6 py-4 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
@@ -123,6 +170,20 @@ export default function SettingsPage() {
                 </button>
               ))}
             </nav>
+            {/* Decorative overflow cues. `from-surface` is a theme token, so
+                these follow light/dark with no extra work. */}
+            {tabOverflow.left && (
+              <div
+                aria-hidden="true"
+                className="pointer-events-none absolute left-0 top-0 bottom-0 w-6 bg-gradient-to-r from-surface to-transparent"
+              />
+            )}
+            {tabOverflow.right && (
+              <div
+                aria-hidden="true"
+                className="pointer-events-none absolute right-0 top-0 bottom-0 w-6 bg-gradient-to-l from-surface to-transparent"
+              />
+            )}
           </div>
 
           {/* Tab Content */}

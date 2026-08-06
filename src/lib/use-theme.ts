@@ -10,7 +10,7 @@ import {
   type ThemePrefs,
 } from './theme-prefs';
 import { readStoredThemePrefs, writeStoredThemePrefs, subscribeThemePrefs } from './theme';
-import { writeThemeCookie } from './theme-cookie';
+import { writeThemeCookie, writeResolvedThemeCookie } from './theme-cookie';
 import { THEME_COLOR } from './theme-colors';
 
 /**
@@ -64,6 +64,9 @@ function applyResolved() {
     document
       .querySelectorAll('meta[name="theme-color"]')
       .forEach(meta => meta.setAttribute('content', THEME_COLOR[next]));
+    // Lets the web manifest serve a matching splash colour — the OS reads the
+    // manifest outside the page, so it can only learn the theme via a cookie.
+    writeResolvedThemeCookie(next);
   } catch {
     // non-browser — nothing to stamp
   }

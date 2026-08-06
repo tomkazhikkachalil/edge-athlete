@@ -1,5 +1,60 @@
 # Development Log
 
+## August 6, 2026 — Theme-aware PWA splash + Settings tabs stop hiding
+
+Two loose ends from the dark-mode work, both mobile-only.
+
+**The install splash now follows the theme.** `manifest.ts` hardcoded
+`background_color: '#f5f3ff'`, so launching the installed app in dark mode
+flashed lavender before going near-black. The runtime `<meta name="theme-color">`
+trick from the last round can't reach this — the OS reads the manifest outside
+the document — so the manifest itself has to vary per request.
+
+Three things had to line up, and each one silently no-ops if you miss it:
+
+1. **A resolved-theme cookie.** The existing `ea-theme` cookie holds *prefs*,
+   and a server cannot resolve `scheduled` (needs the device clock) or
+   `system` (needs the OS setting). So the pre-paint script and
+   `useTheme.applyResolved` now publish `ea-theme-resolved` (`light`/`dark`)
+   — a display hint only; prefs remain authoritative.
+2. **`crossorigin="use-credentials"` on the manifest link.** Manifest fetches
+   omit cookies by default. Without this the route would never see the cookie
+   and would serve the light splash to everyone — a failure that looks exactly
+   like success, which is why the link carries a comment saying so.
+3. **A route handler, not the `manifest.ts` convention.** Next AUTO-INJECTS
+   its own `<link rel="manifest">` whenever `app/manifest.ts` exists, and that
+   injected tag can't carry the credentials flag. Keeping both shipped two
+   competing links (verified: the page really did render two) whose precedence
+   is left to browser order. The manifest now lives at
+   `src/app/manifest.webmanifest/route.ts`, served `private, no-store` so a
+   shared cache can't hand a dark splash to a light-theme install.
+
+Unrecognised or absent cookie → the light pair, i.e. exactly the old output.
+`theme_color` stays brand violet in both themes: it tints OS chrome, where
+brand identity beats theme matching. **Known limit:** Chrome re-fetches the
+manifest periodically so the splash tracks changes; **iOS caches it at install
+time**, so an installed iPhone app keeps the theme it was installed with.
+
+**iOS status bar deliberately unchanged.** Apple offers `default` (white bar,
+black glyphs), `black`, and `black-translucent` (full-bleed, but glyphs stay
+white even on light backgrounds), and the value is read at launch so JS can't
+swap it. `default` is the only one readable in both themes — a thin white
+strip in dark mode beats invisible glyphs in light mode.
+
+**Settings tabs stopped hiding themselves.** Six tabs (~670px) in ~358px of a
+390px phone, inside `overflow-x-auto scrollbar-hide` — which removes the only
+native cue that more exists. Added gradient fades on whichever edge has more
+content (`from-surface`, so they follow the theme for free), and the active tab
+now scrolls itself into view, so `?tab=appearance` deep links land visible.
+The scroll adjusts `scrollLeft` directly rather than calling `scrollIntoView()`,
+which would also scroll ancestor scrollers and yank the page vertically.
+
+Verified against a production build at 390px and 1280px: right fade on load,
+`?tab=security` lands fully in view with the fade flipping to the left edge,
+no fades on desktop where nothing overflows, and the fade renders `#1f1a16` in
+dark. Manifest checked by request (no cookie → `#f5f3ff`, `dark` → `#171310`,
+junk → light) and through a real credentialed browser fetch.
+
 ## August 6, 2026 — Dark mode follow-up: the mobile toggle was desktop-only
 
 **The bug Tom found on his phone: there was no way to switch themes.** The
