@@ -13,6 +13,7 @@ import MessagesBell from '@/components/messages/MessagesBell';
 import HeaderSearch from '@/components/HeaderSearch';
 import { FEATURE_FLAGS } from '@/lib/features';
 import { useLiveNow } from '@/hooks/useLiveNow';
+import { useTheme } from '@/lib/use-theme';
 import { useBodyScrollLock } from '@/hooks/useBodyScrollLock';
 import { pillGeometry, activeNavIndex, type ItemBox } from '@/lib/nav-pill';
 
@@ -77,6 +78,7 @@ export default function AppHeader({ onCreatePost, onEditProfile }: AppHeaderProp
   const router = useRouter();
   const pathname = usePathname();
   const { user, initialAuthCheckComplete, profile, signOut, managedProfiles, activeProfile, setActiveProfile } = useAuth();
+  const { theme, toggleNow: toggleTheme } = useTheme();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isProfileDropdownOpen, setIsProfileDropdownOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
@@ -541,6 +543,19 @@ export default function AppHeader({ onCreatePost, onEditProfile }: AppHeaderProp
                         >
                           <i className="fas fa-cog w-4"></i>
                           <span>Settings</span>
+                        </button>
+                        {/* Quick theme flip. Deliberately does NOT close the
+                            dropdown: the visible flip is the feedback. In
+                            Scheduled mode this writes the until-next-
+                            transition override (see toggleThemeNow). */}
+                        <button
+                          onClick={() => {
+                            toggleTheme();
+                          }}
+                          className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-3"
+                        >
+                          <i className={`fas ${theme === 'dark' ? 'fa-sun' : 'fa-moon'} w-4`}></i>
+                          <span>{theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}</span>
                         </button>
                       </div>
 

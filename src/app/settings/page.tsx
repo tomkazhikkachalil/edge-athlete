@@ -10,13 +10,14 @@ import PrivacySettings from '@/components/settings/PrivacySettings';
 import MessagingSettings from '@/components/settings/MessagingSettings';
 import NotificationSettings from '@/components/settings/NotificationSettings';
 import SecuritySettings from '@/components/settings/SecuritySettings';
+import AppearanceSettings from '@/components/settings/AppearanceSettings';
 
 // 1091-line modal — only loaded on demand
 const EditProfileTabs = dynamic(() => import('@/components/EditProfileTabs'), { ssr: false });
 
-type SettingsTab = 'account' | 'privacy' | 'messaging' | 'notifications' | 'security';
+type SettingsTab = 'account' | 'privacy' | 'appearance' | 'messaging' | 'notifications' | 'security';
 
-const SETTINGS_TABS: SettingsTab[] = ['account', 'privacy', 'messaging', 'notifications', 'security'];
+const SETTINGS_TABS: SettingsTab[] = ['account', 'privacy', 'appearance', 'messaging', 'notifications', 'security'];
 
 // useSearchParams must live under Suspense (house rule) — this tiny reader
 // honours ?tab=<id> so other surfaces can deep-link to a section (the chat
@@ -65,6 +66,7 @@ export default function SettingsPage() {
   const tabs: { id: SettingsTab; label: string; icon: string; disabled?: boolean }[] = [
     { id: 'account', label: 'Account', icon: 'fa-user-cog' },
     { id: 'privacy', label: 'Privacy', icon: 'fa-shield-alt' },
+    { id: 'appearance', label: 'Appearance', icon: 'fa-moon' },
     { id: 'messaging', label: 'Messaging', icon: 'fa-comment-alt' },
     { id: 'notifications', label: 'Notifications', icon: 'fa-bell' },
     { id: 'security', label: 'Security', icon: 'fa-lock' },
@@ -129,6 +131,7 @@ export default function SettingsPage() {
               <AccountSettings onEditProfile={() => setIsEditProfileModalOpen(true)} />
             )}
             {activeTab === 'privacy' && <PrivacySettings />}
+            {activeTab === 'appearance' && <AppearanceSettings />}
             {activeTab === 'messaging' && <MessagingSettings />}
             {activeTab === 'notifications' && <NotificationSettings />}
             {activeTab === 'security' && <SecuritySettings />}
