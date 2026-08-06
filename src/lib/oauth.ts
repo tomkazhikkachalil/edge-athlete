@@ -1,6 +1,7 @@
 'use client';
 
 import { supabase } from './supabase';
+import { setChatDockHidden } from './chat-dock-visibility';
 
 // OAuth sign-in is fire-and-navigate: the page unloads immediately and the
 // session arrives later via auth.tsx's onAuthStateChange. No React state to
@@ -18,6 +19,12 @@ export const appleOAuthEnabled = process.env.NEXT_PUBLIC_OAUTH_APPLE === '1';
 export async function signInWithProvider(
   provider: OAuthProvider
 ): Promise<{ error: Error | null }> {
+  // Fresh-login dock restore (the password twin is in auth.tsx signIn).
+  // BEFORE signInWithOAuth: supabase-js navigates away internally, so writing
+  // first guarantees the localStorage write lands. Firing on a cancelled
+  // provider flow is benign — the user stays signed out, and the dock only
+  // renders with a user.
+  setChatDockHidden(false);
   const { error } = await supabase.auth.signInWithOAuth({
     provider,
     options: {

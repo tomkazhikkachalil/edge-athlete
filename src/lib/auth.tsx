@@ -5,6 +5,7 @@ import { User, AuthChangeEvent, Session } from '@supabase/supabase-js';
 import { supabase } from './supabase';
 import type { Profile } from './supabase';
 import { FEATURE_FLAGS } from './features';
+import { setChatDockHidden } from './chat-dock-visibility';
 
 const ACTIVE_PROFILE_KEY = 'ea:active-profile';
 
@@ -355,6 +356,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         email,
         password,
       });
+      // A fresh login restores the chat dock: closing it (X) hides it for the
+      // rest of the login session only. Here — not in onAuthStateChange —
+      // because SIGNED_IN also fires on tab refocus, and OAuth logins boot a
+      // fresh document where the first event is INITIAL_SESSION (identical to
+      // a refresh). The OAuth twin lives in oauth.ts.
+      if (!error) setChatDockHidden(false);
       return { error };
     } catch (error) {
       return { error };

@@ -1,6 +1,60 @@
 # Development Log
 
-## August 5, 2026 — Tagged in-tab header cut
+## August 5, 2026 — Chat dock UX round: login restore, minimize-to-dock, labeled pills, close-is-pill-only
+
+Four behavior changes Tom asked for, one theme: the dock should feel like a
+persistent workspace, not a toggle you manage.
+
+**Fresh login restores a closed dock.** Closing the pill (X) still persists
+`ea:chat-dock-hidden:v1`, but now only for the login session: `signIn` in
+auth.tsx clears it on success, and `signInWithProvider` in oauth.ts clears
+it BEFORE `signInWithOAuth` (supabase-js navigates away internally — writing
+first guarantees the localStorage write lands; a cancelled provider flow
+clearing it is benign since signed-out users never see the dock). NOT in
+`onAuthStateChange` — SIGNED_IN also fires on tab refocus, and OAuth logins
+boot a fresh document whose first event is INITIAL_SESSION, byte-identical
+to a refresh. Call sites are the only deterministic hook.
+
+**Minimize-to-dock from the full Messages page.** New header button (compress
+icon — the FontAwesome inverse of the mini window's "Open full view" expand;
+`hidden lg:flex`, flag-gated) hands the conversation to the dock and
+`router.push('/feed')`. The bridge is `src/lib/chat-dock-open.ts` — the
+codebase's second CustomEvent (`ea:chat-dock-open-conversation`), mirroring
+chat-dock-visibility.ts including the lives-in-lib/ rationale. It works from
+the dock-suppressed /messages route because ChatDock renders null there but
+never unmounts: the listener dispatches OPEN_WINDOW + CLOSE_PANEL, clears
+the hidden preference (opening a chat un-hides a closed dock), and calls
+`fetchConversations()` so a brand-new id survives PRUNE — all synchronously
+before the soft navigation. Known gap, accepted: ≥1024px wide but <600px
+tall shows the button while the dock's viewport gate holds; state persists
+and the window appears once the viewport qualifies.
+
+**Minimized chats are labeled pills BESIDE the Messages pill.** Tom's
+layout: horizontal along the bottom edge, not stacked above. The two fixed
+containers (windows row at right-[22rem] + corner column at right-4) merged
+into ONE bottom-anchored flex row — open windows → minimized pills → widget
+— which also kills the only overlap risk by construction. MinimizedStack
+went from 44px avatar-only bubbles (name on hover) to white `ea-surface`
+chips: 32px avatar + visible truncated name, presence dot on the avatar,
+inline trailing unread badge (the old absolute top-left float reads badly on
+a wide pill), `h-11` matching the widget bar. Violet variant documented as a
+class-constant swap in the file. While there: the restore button gained a
+real aria-label, and the close X shows on `group-focus-within` too so
+keyboard users can reach it.
+
+**Close is pill-only.** The bar's X no longer fires CLEAR_WINDOWS — open and
+minimized chats stay on screen; only each chat's own X removes it. The
+render gate split accordingly: enabled/suppressed still hide everything,
+`hidden` now hides only the widget (plus CLOSE_PANEL so it reappears
+collapsed). With the widget hidden, the restore affordances are the
+/messages toggle and the next login — per Tom's explicit ask.
+
+Tests: `chat-dock-open.test.ts` (5, harness cloned from the visibility
+test); dock-state already covered the two transitions the flow leans on
+(cap minimizes oldest, OPEN_WINDOW promotes a minimized id). New
+`e2e/chat-dock.spec.ts` (3 tests: minimize-to-dock + un-hide, close-leaves-
+chats + labeled-pill round-trip, fresh-login restore) — all green alongside
+direct-message.spec.ts; screenshots verified the row layout visually.
 
 Tom: the "Tagged / Posts and rounds other athletes tagged you in" header
 inside the tab is redundant — the tab pill already names the surface.

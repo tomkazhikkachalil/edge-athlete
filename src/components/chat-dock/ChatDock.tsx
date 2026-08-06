@@ -22,6 +22,7 @@ import {
   setChatDockHidden,
   subscribeChatDockVisibility,
 } from '@/lib/chat-dock-visibility';
+import { subscribeDockConversationRequests } from '@/lib/chat-dock-open';
 import DockPanel, { type DockComposeMode } from './DockPanel';
 import MiniChatWindow from './MiniChatWindow';
 import MinimizedStack from './MinimizedStack';
@@ -73,7 +74,11 @@ export default function ChatDock() {
     profile?.last_name,
     profile?.full_name
   );
-  const visible = enabled && !hidden && !isDockSuppressedPath(pathname);
+  // `hidden` (the persisted close) hides ONLY the widget — open and
+  // minimized chats stay on screen; closing the pill must not touch them.
+  // Suppressed routes and the enabled gate still hide everything.
+  const suppressed = isDockSuppressedPath(pathname);
+  const hasWindows = state.open.length > 0 || state.minimized.length > 0;
 
   // Viewport gate + width-aware window cap (SSR-safe: starts false).
   useEffect(() => {
@@ -115,6 +120,21 @@ export default function ChatDock() {
     if (hydrated) saveDockState(state);
   }, [state, hydrated]);
 
+  // Open-conversation requests from outside the dock (the full Messages
+  // page's "minimize to dock"). This effect stays live even while render is
+  // null — the component never unmounts, which is exactly why a request
+  // fired on the dock-suppressed /messages route lands: the reducer commits
+  // and persists before the caller navigates to a visible route.
+  useEffect(() => {
+    if (!FEATURE_FLAGS.FEATURE_CHAT_DOCK) return;
+    return subscribeDockConversationRequests(id => {
+      setChatDockHidden(false); // opening a chat un-hides a closed dock
+      dispatch({ type: 'OPEN_WINDOW', id });
+      dispatch({ type: 'CLOSE_PANEL' }); // the window, not the panel, is the focus
+      fetchConversations(); // hardening: a brand-new id must survive PRUNE
+    });
+  }, [fetchConversations]);
+
   // Drop persisted conversation ids that no longer exist for this user.
   useEffect(() => {
     if (!hydrated || loading || conversations.length === 0) return;
@@ -152,22 +172,32 @@ export default function ChatDock() {
     dispatch({ type: 'TOGGLE_PANEL' });
   }, []);
 
-  /** Close (X): put the whole widget away and remember that. Also tears
-   *  down open windows — closing means "clear my messaging workspace". */
+  /** Close (X): put the WIDGET away and remember that — open and minimized
+   *  chats are deliberately untouched (Tom: "closing the pill must not
+   *  affect the chats"). The preference lasts for the login session; a
+   *  fresh sign-in clears it (auth.tsx / oauth.ts). */
   const hideWidget = useCallback(() => {
-    dispatch({ type: 'CLEAR_WINDOWS' });
+    dispatch({ type: 'CLOSE_PANEL' }); // reappear collapsed, not expanded
     setMode('list');
     setChatDockHidden(true); // persists + notifies (setHidden via subscribe)
   }, []);
 
-  if (!visible) return null;
+  if (!enabled || suppressed) return null;
+  if (hidden && !hasWindows) return null;
 
   const conversationById = new Map(conversations.map(c => [c.id, c]));
 
   return (
     <div className="hidden lg:block">
-      {/* Mini windows row: fixed, right of the dock pill/panel. */}
-      <div className="fixed bottom-0 right-[22rem] z-[45] flex items-end gap-3 pointer-events-none">
+      {/* ONE bottom-anchored row: open windows → minimized pills → the
+          widget. Minimized chats sit BESIDE the Messages pill (not stacked
+          above it), and a single flex row anchored at right-4 means nothing
+          can overlap — the old separate right-[22rem] windows row could
+          collide with a horizontal pill run. items-end keeps bottoms
+          aligned while windows and the panel body grow upward. z-[45] is
+          deliberate: above the sticky header (z-40), below the
+          dropdown/modal bands (50+) so modals correctly cover the dock. */}
+      <div className="fixed bottom-0 right-4 z-[45] flex items-end gap-3 pointer-events-none">
         {state.open.map(id => {
           const conversation = conversationById.get(id);
           if (!conversation) return null;
@@ -204,13 +234,7 @@ export default function ChatDock() {
             </div>
           );
         })}
-      </div>
 
-      {/* Dock corner: minimized bubbles above the panel/pill. Capped to the
-          viewport height so the column can never grow off the top edge.
-          z-[45] is deliberate: above the sticky header (z-40), below the
-          dropdown/modal bands (50+) so modals correctly cover the dock. */}
-      <div className="fixed bottom-0 right-4 z-[45] flex flex-col items-end gap-2 pb-0 max-h-[calc(100dvh-0.5rem)]">
         <MinimizedStack
           ids={state.minimized}
           conversationById={conversationById}
@@ -227,10 +251,13 @@ export default function ChatDock() {
             body height are transitioned between two explicit values —
             `auto` can't be interpolated, and a content-derived height
             collapses unevenly — so the pill appears to grow into the
-            panel rather than a second surface appearing above it. */}
+            panel rather than a second surface appearing above it.
+            Absent while `hidden` (the persisted close) — the windows and
+            minimized pills above stay; close is pill-only. */}
+        {!hidden && (
         <div
           data-testid="chat-widget"
-          className={`bg-white rounded-t-lg shadow-2xl border border-gray-200 border-b-0 overflow-hidden flex flex-col transition-[width] duration-200 ease-out ${
+          className={`pointer-events-auto shrink-0 max-h-[calc(100dvh-0.5rem)] bg-white rounded-t-lg shadow-2xl border border-gray-200 border-b-0 overflow-hidden flex flex-col transition-[width] duration-200 ease-out ${
             open ? 'w-80' : 'w-44'
           }`}
         >
@@ -333,15 +360,16 @@ export default function ChatDock() {
               onModeChange={setMode}
               // Opening a conversation deliberately LEAVES THE PANEL OPEN.
               // It used to collapse, which meant picking a second person cost
-              // a re-open every time. The window appears beside the panel
-              // (windows are right-[22rem], the panel right-4), so there is no
-              // space conflict — the collapse was never a layout workaround.
+              // a re-open every time. The window appears beside the panel in
+              // the same bottom row, so there is no space conflict — the
+              // collapse was never a layout workaround.
               onSelect={openWindow}
               onOpenWindow={openWindow}
               fetchConversations={fetchConversations}
             />
           </div>
         </div>
+        )}
       </div>
     </div>
   );
