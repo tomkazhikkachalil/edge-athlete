@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { THEME_INIT_SCRIPT } from '../theme-script';
 import { THEME_PREFS_KEY } from '../theme-storage-keys';
+import { THEME_COOKIE, encodeThemeCookie } from '../theme-cookie';
 import { resolveTheme, sanitizeThemePrefs, type ResolvedTheme } from '../theme-prefs';
 
 /**
@@ -23,23 +24,49 @@ function makeFrozenDate(fixedNow: Date): DateConstructor {
   } as DateConstructor;
 }
 
-function runScript(stored: string | null, now: Date, systemPrefersDark: boolean): ResolvedTheme {
-  const documentStub = { documentElement: { dataset: {} as Record<string, string> } };
+interface RunResult {
+  theme: ResolvedTheme;
+  /** What the script left in the localStorage mirror. */
+  mirror: string | null;
+}
+
+function run(opts: {
+  stored?: string | null;
+  cookie?: string | null;
+  now: Date;
+  systemPrefersDark?: boolean;
+}): RunResult {
+  const documentStub = {
+    cookie: opts.cookie ? `${THEME_COOKIE}=${opts.cookie}` : '',
+    documentElement: { dataset: {} as Record<string, string | undefined> },
+  };
+  let mirror = opts.stored ?? null;
   const localStorageStub = {
-    getItem: (key: string) => (key === THEME_PREFS_KEY ? stored : null),
+    getItem: (key: string) => (key === THEME_PREFS_KEY ? mirror : null),
+    setItem: (key: string, value: string) => {
+      if (key === THEME_PREFS_KEY) mirror = value;
+    },
   };
   const windowStub = {
     matchMedia: (query: string) => ({
-      matches: query === '(prefers-color-scheme: dark)' && systemPrefersDark,
+      matches: query === '(prefers-color-scheme: dark)' && (opts.systemPrefersDark ?? false),
     }),
   };
-  new Function('localStorage', 'window', 'document', 'Date', THEME_INIT_SCRIPT)(
+  new Function('localStorage', 'window', 'document', 'Date', 'atob', THEME_INIT_SCRIPT)(
     localStorageStub,
     windowStub,
     documentStub,
-    makeFrozenDate(now)
+    makeFrozenDate(opts.now),
+    (b64: string) => Buffer.from(b64, 'base64').toString('binary')
   );
-  return documentStub.documentElement.dataset.theme === 'dark' ? 'dark' : 'light';
+  return {
+    theme: documentStub.documentElement.dataset.theme === 'dark' ? 'dark' : 'light',
+    mirror,
+  };
+}
+
+function runScript(stored: string | null, now: Date, systemPrefersDark: boolean): ResolvedTheme {
+  return run({ stored, now, systemPrefersDark }).theme;
 }
 
 const aug5 = (h: number, m = 0) => new Date(2026, 7, 5, h, m);
@@ -149,18 +176,65 @@ describe('THEME_INIT_SCRIPT agrees with resolveTheme', () => {
     });
   }
 
+  it('runs the same matrix from the COOKIE, ignoring the mirror entirely', () => {
+    // The stale mirror says "always dark"; the cookie is server truth and must
+    // win outright — this is the swap-removal contract.
+    const staleMirror = JSON.stringify({ mode: 'on' });
+    for (const { name, prefs, now, sys } of cases) {
+      const sanitized = sanitizeThemePrefs(prefs);
+      const { theme, mirror } = run({
+        stored: staleMirror,
+        cookie: encodeThemeCookie(sanitized),
+        now,
+        systemPrefersDark: sys,
+      });
+      expect(theme, name).toBe(resolveTheme(sanitized, now, sys));
+      // and the cookie's value is written back, so the runtime evaluator
+      // starts from server truth and has nothing to correct
+      expect(JSON.parse(mirror as string), name).toEqual(sanitized);
+    }
+  });
+
+  it('falls back to the mirror when the cookie is absent or corrupt', () => {
+    const darkMirror = JSON.stringify({ mode: 'on' });
+    expect(run({ stored: darkMirror, cookie: null, now: aug5(12) }).theme).toBe('dark');
+    expect(run({ stored: darkMirror, cookie: 'not!base64', now: aug5(12) }).theme).toBe('dark');
+    // valid base64, truncated JSON inside — the parse throws, so the mirror stands
+    const truncated = btoa('{"mode":"o').replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+    expect(run({ stored: darkMirror, cookie: truncated, now: aug5(12) }).theme).toBe('dark');
+    // An EMPTY cookie is server truth meaning "no preference" — it must beat a
+    // stale dark mirror rather than being treated as absent.
+    expect(run({ stored: darkMirror, cookie: encodeThemeCookie({}), now: aug5(12) }).theme).toBe('light');
+  });
+
+  it('clears a previously-stamped attribute when it resolves to light', () => {
+    const documentStub = {
+      cookie: `${THEME_COOKIE}=${encodeThemeCookie({ mode: 'off' })}`,
+      documentElement: { dataset: { theme: 'dark' } as Record<string, string | undefined> },
+    };
+    new Function('localStorage', 'window', 'document', 'Date', 'atob', THEME_INIT_SCRIPT)(
+      { getItem: () => null, setItem: () => {} },
+      { matchMedia: () => ({ matches: false }) },
+      documentStub,
+      makeFrozenDate(aug5(12)),
+      (b64: string) => Buffer.from(b64, 'base64').toString('binary')
+    );
+    expect(documentStub.documentElement.dataset.theme).toBeUndefined();
+  });
+
   it('falls back to light on missing key, garbage JSON, and throwing storage', () => {
     expect(runScript(null, aug5(23), true)).toBe('light');
     expect(runScript('{not json', aug5(23), true)).toBe('light');
     expect(runScript('"a string"', aug5(23), true)).toBe('light');
     expect(runScript(JSON.stringify([1, 2]), aug5(23), true)).toBe('light');
 
-    const documentStub = { documentElement: { dataset: {} as Record<string, string> } };
-    new Function('localStorage', 'window', 'document', 'Date', THEME_INIT_SCRIPT)(
-      { getItem: () => { throw new Error('storage disabled'); } },
+    const documentStub = { cookie: '', documentElement: { dataset: {} as Record<string, string | undefined> } };
+    new Function('localStorage', 'window', 'document', 'Date', 'atob', THEME_INIT_SCRIPT)(
+      { getItem: () => { throw new Error('storage disabled'); }, setItem: () => {} },
       { matchMedia: () => ({ matches: true }) },
       documentStub,
-      makeFrozenDate(aug5(23))
+      makeFrozenDate(aug5(23)),
+      (b64: string) => Buffer.from(b64, 'base64').toString('binary')
     );
     expect(documentStub.documentElement.dataset.theme).toBeUndefined();
   });

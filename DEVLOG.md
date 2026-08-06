@@ -52,10 +52,35 @@ exports a real `logo-dark.png`; `public/logo.png` itself must NOT change
 og-image, manifest splash, global-error.tsx (renders outside the shell),
 user media (the invert filter is scoped to `.themed-logo` only).
 
+**The `ea-theme` cookie is what makes "no flash" also mean "no swap."** The
+localStorage mirror alone could only tell a device what IT last knew, so a
+device whose account theme had been changed elsewhere — or any brand-new
+browser, incognito window, or cleared jar — painted the wrong theme and
+corrected ~500ms later when the client-side profile fetch landed. The
+middleware (already one Supabase round trip per request) now refreshes a
+`ea-theme` cookie from `profiles.theme_prefs` on every DOCUMENT navigation
+(`sec-fetch-dest`, so RSC prefetches and assets skip the query), and the
+head script reads `document.cookie` FIRST, falling back to the mirror only
+when there is no cookie (signed out / offline). Cookie prefs are written
+back into the mirror so the runtime evaluator starts from server truth.
+
+Two design points worth keeping: the cookie is read by the inline SCRIPT,
+not by the root layout via `next/headers` — reading cookies there would
+have opted all 32 prerendered routes out of static rendering for nothing,
+since resolution has to happen on the device anyway (`scheduled` needs the
+local clock, `system` needs the OS setting). And an ABSENT cookie is not
+the same as an EMPTY one: absent means "no server truth, use the device's
+memory", empty means "the account was read and has no preference", which
+must beat a stale mirror. Signing out deletes the cookie, so a device keeps
+its own look instead of snapping back to light.
+
 **Migration 069: run by Tom Aug 6, verified live** (`theme_prefs` column
-present, NULL rows = light, exactly the pre-069 contract). Runtime verified
-in headless Chrome: pre-paint stamping, reload-free toggling, scheduled
-resolution, both themes screenshotted.
+present, NULL rows = light, exactly the pre-069 contract). Verified in
+headless Chrome across four cases — fresh browser, stale mirror, stale
+COOKIE with the account changed elsewhere, and signed-out — all painting
+the right theme at `ready:interactive` with zero value transitions after.
+Also E2E'd through the real API: 401 anonymously, junk sanitized to `{}`,
+and spoofed `userId`/`profileId` bodies leaving another account untouched.
 
 **"Fans, Following, Posts" — one order, one wording, three surfaces.** The
 row read "Fan Of, Fans, Posts" on the own page, "Fan Of, Fans" (no Posts!)

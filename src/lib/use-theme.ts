@@ -10,6 +10,7 @@ import {
   type ThemePrefs,
 } from './theme-prefs';
 import { readStoredThemePrefs, writeStoredThemePrefs, subscribeThemePrefs } from './theme';
+import { writeThemeCookie } from './theme-cookie';
 
 /**
  * The one theme evaluator. Module-level singleton, not a context provider,
@@ -62,10 +63,14 @@ function applyResolved() {
   if (changed) subscribers.forEach(fn => fn());
 }
 
-/** Set prefs locally (module + mirror) and re-apply. No server write. */
+/** Set prefs locally (module + mirror + cookie) and re-apply. No server write.
+ *  The cookie matters as much as the mirror: it is what the next document
+ *  load's head script paints from, so skipping it would reintroduce a swap on
+ *  the very next navigation. */
 function setLocalPrefs(next: ThemePrefs) {
   prefs = next;
   writeStoredThemePrefs(next);
+  writeThemeCookie(next);
   applyResolved();
 }
 
@@ -166,11 +171,19 @@ export function toggleThemeNow(): Promise<boolean> {
   return saveThemePrefs(next);
 }
 
-/** Server truth arriving (ThemeApplier): overwrite the device mirror iff it
- *  differs. No PATCH back — this IS the server value. */
+/** Server truth arriving (ThemeApplier): overwrite the device copies iff they
+ *  differ. No PATCH back — this IS the server value.
+ *
+ *  The cookie is refreshed even when nothing changed, so its lifetime keeps
+ *  extending on an active session and a browser that dropped it (privacy
+ *  settings, a cleared jar) gets it back without waiting for a preference
+ *  change. */
 export function adoptServerThemePrefs(raw: unknown) {
   const clean = sanitizeThemePrefs(raw);
-  if (JSON.stringify(clean) === JSON.stringify(getPrefs())) return;
+  if (JSON.stringify(clean) === JSON.stringify(getPrefs())) {
+    writeThemeCookie(clean);
+    return;
+  }
   setLocalPrefs(clean);
 }
 
