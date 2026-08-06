@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { encodeThemeCookie, decodeThemeCookie } from '../theme-cookie';
 import { DEFAULT_SCHEDULE, type ThemePrefs } from '../theme-prefs';
+import { MANIFEST_COLORS, manifestColorsFor } from '../theme-colors';
 
 describe('theme cookie encoding', () => {
   it('round-trips every prefs shape', () => {
@@ -45,5 +46,25 @@ describe('theme cookie encoding', () => {
     const evil = btoa(JSON.stringify({ mode: 'chaos', schedule: { start: -5, end: 9999 }, evil: 'x' }))
       .replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
     expect(decodeThemeCookie(evil)).toEqual({});
+  });
+});
+
+describe('manifest colours', () => {
+  it('serves the dark splash only for an explicit dark cookie', () => {
+    expect(manifestColorsFor('dark')).toEqual(MANIFEST_COLORS.dark);
+    expect(manifestColorsFor('dark').background).toBe('#171310');
+  });
+
+  it('falls back to light for absent, junk, or credential-stripped values', () => {
+    // The credentials case matters: a manifest fetch without cookies must
+    // degrade to today's light splash, never to a broken/empty colour.
+    for (const raw of [undefined, null, '', 'DARK', 'true', 'light', 'nonsense']) {
+      expect(manifestColorsFor(raw)).toEqual(MANIFEST_COLORS.light);
+    }
+    expect(MANIFEST_COLORS.light.background).toBe('#f5f3ff');
+  });
+
+  it('keeps theme_color brand violet in both themes (OS chrome is brand, not theme)', () => {
+    expect(MANIFEST_COLORS.light.theme).toBe(MANIFEST_COLORS.dark.theme);
   });
 });

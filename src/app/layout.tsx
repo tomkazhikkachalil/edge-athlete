@@ -36,8 +36,12 @@ export const metadata: Metadata = {
     card: 'summary_large_image',
     images: ['/og-image.png'],
   },
-  // Next serves the manifest from app/manifest.ts at /manifest.webmanifest
-  manifest: "/manifest.webmanifest",
+  // NOTE: `manifest` is deliberately NOT declared here. The manifest is
+  // theme-aware (app/manifest.ts reads the ea-theme-resolved cookie), and a
+  // manifest fetch omits credentials unless the link carries
+  // crossorigin="use-credentials" — which the metadata API cannot express.
+  // The link is hand-rendered in <head> below. Re-adding it here would emit a
+  // SECOND, credential-less manifest link and quietly break the themed splash.
   appleWebApp: {
     capable: true,
     statusBarStyle: "default",
@@ -87,6 +91,10 @@ export default function RootLayout({
             so there is no flash of the wrong theme. Must stay ahead of any
             stylesheet-dependent paint; see src/lib/theme-script.ts. */}
         <script dangerouslySetInnerHTML={{ __html: THEME_INIT_SCRIPT }} />
+        {/* use-credentials is load-bearing: without it the browser fetches the
+            manifest without cookies, app/manifest.ts never sees the resolved
+            theme, and every install gets the light splash. */}
+        <link rel="manifest" href="/manifest.webmanifest" crossOrigin="use-credentials" />
       </head>
       <body className={`${inter.className} antialiased`}>
         <AuthProvider>

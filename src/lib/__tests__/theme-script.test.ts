@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { THEME_INIT_SCRIPT } from '../theme-script';
 import { THEME_PREFS_KEY } from '../theme-storage-keys';
-import { THEME_COOKIE, encodeThemeCookie } from '../theme-cookie';
+import { THEME_COOKIE, THEME_RESOLVED_COOKIE, encodeThemeCookie } from '../theme-cookie';
 import { THEME_COLOR } from '../theme-colors';
 import { resolveTheme, sanitizeThemePrefs, type ResolvedTheme } from '../theme-prefs';
 
@@ -31,6 +31,8 @@ interface RunResult {
   mirror: string | null;
   /** What it wrote into the theme-color metas (browser chrome). */
   metaColors: string[];
+  /** Every document.cookie assignment the script made. */
+  cookieWrites: string[];
 }
 
 interface MetaStub {
@@ -55,8 +57,16 @@ function run(opts: {
   systemPrefersDark?: boolean;
 }): RunResult {
   const metas = makeMetaStubs();
+  const written: string[] = [];
   const documentStub = {
-    cookie: opts.cookie ? `${THEME_COOKIE}=${opts.cookie}` : '',
+    // Reads return the prefs cookie; writes are captured, mirroring how a
+    // real document.cookie setter appends rather than replaces.
+    get cookie() {
+      return opts.cookie ? `${THEME_COOKIE}=${opts.cookie}` : '';
+    },
+    set cookie(value: string) {
+      written.push(value);
+    },
     documentElement: { dataset: {} as Record<string, string | undefined> },
     querySelectorAll: () => metas,
   };
@@ -71,6 +81,7 @@ function run(opts: {
     matchMedia: (query: string) => ({
       matches: query === '(prefers-color-scheme: dark)' && (opts.systemPrefersDark ?? false),
     }),
+    location: { protocol: 'http:' },
   };
   new Function('localStorage', 'window', 'document', 'Date', 'atob', THEME_INIT_SCRIPT)(
     localStorageStub,
@@ -83,6 +94,7 @@ function run(opts: {
     theme: documentStub.documentElement.dataset.theme === 'dark' ? 'dark' : 'light',
     mirror,
     metaColors: metas.map(m => m.content),
+    cookieWrites: written,
   };
 }
 
@@ -229,6 +241,21 @@ describe('THEME_INIT_SCRIPT agrees with resolveTheme', () => {
     expect(light.metaColors).toEqual([THEME_COLOR.light, THEME_COLOR.light]);
   });
 
+  it('publishes the resolved theme as a cookie for the web manifest', () => {
+    // The manifest is read by the OS outside the page, so a cookie is the
+    // only channel that can carry the resolved theme to its splash colour.
+    const dark = run({ cookie: encodeThemeCookie({ mode: 'on' }), now: aug5(12) });
+    const darkWrite = dark.cookieWrites.find(c => c.startsWith(`${THEME_RESOLVED_COOKIE}=`));
+    expect(darkWrite).toBeDefined();
+    expect(darkWrite).toContain(`${THEME_RESOLVED_COOKIE}=dark`);
+    expect(darkWrite).toContain('Path=/');
+    expect(darkWrite).toContain('SameSite=Lax');
+
+    const light = run({ cookie: encodeThemeCookie({ mode: 'off' }), now: aug5(23) });
+    expect(light.cookieWrites.find(c => c.startsWith(`${THEME_RESOLVED_COOKIE}=`)))
+      .toContain(`${THEME_RESOLVED_COOKIE}=light`);
+  });
+
   it('falls back to the mirror when the cookie is absent or corrupt', () => {
     const darkMirror = JSON.stringify({ mode: 'on' });
     expect(run({ stored: darkMirror, cookie: null, now: aug5(12) }).theme).toBe('dark');
@@ -249,7 +276,7 @@ describe('THEME_INIT_SCRIPT agrees with resolveTheme', () => {
     };
     new Function('localStorage', 'window', 'document', 'Date', 'atob', THEME_INIT_SCRIPT)(
       { getItem: () => null, setItem: () => {} },
-      { matchMedia: () => ({ matches: false }) },
+      { matchMedia: () => ({ matches: false }), location: { protocol: 'http:' } },
       documentStub,
       makeFrozenDate(aug5(12)),
       (b64: string) => Buffer.from(b64, 'base64').toString('binary')
@@ -266,7 +293,7 @@ describe('THEME_INIT_SCRIPT agrees with resolveTheme', () => {
     const documentStub = { cookie: '', documentElement: { dataset: {} as Record<string, string | undefined> }, querySelectorAll: () => makeMetaStubs() };
     new Function('localStorage', 'window', 'document', 'Date', 'atob', THEME_INIT_SCRIPT)(
       { getItem: () => { throw new Error('storage disabled'); }, setItem: () => {} },
-      { matchMedia: () => ({ matches: true }) },
+      { matchMedia: () => ({ matches: true }), location: { protocol: 'http:' } },
       documentStub,
       makeFrozenDate(aug5(23)),
       (b64: string) => Buffer.from(b64, 'base64').toString('binary')

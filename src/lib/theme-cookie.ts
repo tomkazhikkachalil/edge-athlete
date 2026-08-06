@@ -56,6 +56,28 @@ export function decodeThemeCookie(raw: string | undefined | null): ThemePrefs | 
   }
 }
 
+/**
+ * The device's currently-RESOLVED theme ('light' | 'dark'), as opposed to the
+ * prefs above. It exists for one consumer: the web manifest
+ * (`src/app/manifest.ts`), which needs a splash colour and cannot resolve
+ * `scheduled` (needs the device clock) or `system` (needs the OS setting)
+ * from prefs alone.
+ *
+ * Display hint only — never authoritative. The prefs cookie and its
+ * middleware refresh remain the source of truth for what the theme IS.
+ */
+export const THEME_RESOLVED_COOKIE = 'ea-theme-resolved';
+
+export function writeResolvedThemeCookie(resolved: 'light' | 'dark'): void {
+  try {
+    const secure = window.location.protocol === 'https:' ? '; Secure' : '';
+    document.cookie =
+      `${THEME_RESOLVED_COOKIE}=${resolved}; Path=/; Max-Age=${THEME_COOKIE_MAX_AGE}; SameSite=Lax${secure}`;
+  } catch {
+    // storage disabled — the manifest just keeps serving the light default
+  }
+}
+
 /** Browser-side write, so a preference the user just changed is already on the
  *  next request (and the middleware's refresh agrees rather than fighting it). */
 export function writeThemeCookie(prefs: ThemePrefs): void {

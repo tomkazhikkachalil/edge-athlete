@@ -28,7 +28,7 @@
  */
 
 import { THEME_PREFS_KEY } from './theme-storage-keys';
-import { THEME_COOKIE } from './theme-cookie';
+import { THEME_COOKIE, THEME_RESOLVED_COOKIE, THEME_COOKIE_MAX_AGE } from './theme-cookie';
 import { THEME_COLOR } from './theme-colors';
 
 export const THEME_INIT_SCRIPT = `(function(){try{
@@ -82,5 +82,8 @@ else delete document.documentElement.dataset.theme;
 try{
 var ms=document.querySelectorAll('meta[name="theme-color"]');
 for(var k=0;k<ms.length;k++)ms[k].setAttribute('content',dark?${JSON.stringify(THEME_COLOR.dark)}:${JSON.stringify(THEME_COLOR.light)});
+}catch(e){}
+try{
+document.cookie=${JSON.stringify(THEME_RESOLVED_COOKIE)}+'='+(dark?'dark':'light')+'; Path=/; Max-Age=${THEME_COOKIE_MAX_AGE}; SameSite=Lax'+(window.location.protocol==='https:'?'; Secure':'');
 }catch(e){}
 }catch(e){}})()`;
