@@ -62,10 +62,10 @@ export default function CompleteProfilePage() {
 
   if (loading || !initialAuthCheckComplete || !user || profile) {
     return (
-      <div className="min-h-screen bg-violet-50 flex items-center justify-center">
+      <div className="min-h-screen bg-brand-soft flex items-center justify-center">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-violet-600 mx-auto"></div>
-          <p className="mt-4 text-gray-700 font-medium">One moment...</p>
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-brand mx-auto"></div>
+          <p className="mt-4 text-secondary font-medium">One moment...</p>
         </div>
       </div>
     );
@@ -133,19 +133,19 @@ export default function CompleteProfilePage() {
 
   if (parkedMessage) {
     return (
-      <div className="min-h-screen flex flex-col bg-violet-50">
+      <div className="min-h-screen flex flex-col bg-brand-soft">
         <BrandBar hideEscape />
         <div className="flex-grow flex items-center justify-center p-4">
-          <div className="w-full max-w-lg bg-white rounded-lg shadow-lg p-6 sm:p-8 text-center">
-            <i className="fas fa-envelope-circle-check text-violet-600 text-4xl mb-4"></i>
-            <h2 className="text-xl sm:text-2xl font-bold text-violet-800 mb-2">
+          <div className="w-full max-w-lg bg-surface rounded-lg shadow-lg p-6 sm:p-8 text-center">
+            <i className="fas fa-envelope-circle-check text-brand-fg text-4xl mb-4"></i>
+            <h2 className="text-xl sm:text-2xl font-bold text-violet-800 dark:text-violet-200 mb-2">
               Check with your parent or guardian
             </h2>
-            <p className="text-sm text-gray-600 mb-6">{parkedMessage}</p>
+            <p className="text-sm text-tertiary mb-6">{parkedMessage}</p>
             <button
               type="button"
               onClick={() => signOut()}
-              className="text-sm text-violet-600 hover:underline"
+              className="text-sm text-brand-fg hover:underline"
             >
               Done — sign out
             </button>
@@ -156,14 +156,14 @@ export default function CompleteProfilePage() {
   }
 
   return (
-    <div className="min-h-screen flex flex-col bg-violet-50">
+    <div className="min-h-screen flex flex-col bg-brand-soft">
       <BrandBar hideEscape />
       <div className="flex-grow flex items-center justify-center p-4">
-        <div className="w-full max-w-lg bg-white rounded-lg shadow-lg p-6 sm:p-8">
-          <h2 className="text-xl sm:text-2xl font-bold text-violet-800 mb-1">
+        <div className="w-full max-w-lg bg-surface rounded-lg shadow-lg p-6 sm:p-8">
+          <h2 className="text-xl sm:text-2xl font-bold text-violet-800 dark:text-violet-200 mb-1">
             Complete your account
           </h2>
-          <p className="text-sm text-gray-600 mb-4">
+          <p className="text-sm text-tertiary mb-4">
             You&apos;re almost in — confirm your name and pick a handle.
           </p>
 
@@ -172,14 +172,14 @@ export default function CompleteProfilePage() {
               ref={errorRef}
               role="alert"
               tabIndex={-1}
-              className="bg-red-50 border border-red-200 text-red-600 px-4 py-3 rounded-md text-sm mb-4"
+              className="bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-800 text-red-600 dark:text-red-400 px-4 py-3 rounded-md text-sm mb-4"
             >
               {error}
               {emailCollision && (
                 <button
                   type="button"
                   onClick={() => signOut()}
-                  className="block mt-2 text-violet-600 hover:underline font-medium"
+                  className="block mt-2 text-brand-fg hover:underline font-medium"
                 >
                   Go to login
                 </button>
@@ -190,7 +190,7 @@ export default function CompleteProfilePage() {
           <form className="flex flex-col gap-4" onSubmit={handleSubmit}>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
-                <label htmlFor="cp-first-name" className="block text-sm font-medium text-gray-700 mb-1">
+                <label htmlFor="cp-first-name" className="block text-sm font-medium text-secondary mb-1">
                   First Name
                 </label>
                 <input
@@ -198,12 +198,12 @@ export default function CompleteProfilePage() {
                   id="cp-first-name"
                   value={firstName}
                   onChange={e => setFirstName(e.target.value)}
-                  className="w-full px-4 py-3 text-sm text-gray-800 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-violet-500"
+                  className="w-full px-4 py-3 text-sm text-primary border border-border-strong rounded-md focus:outline-none focus:ring-1 focus:ring-violet-500"
                   required
                 />
               </div>
               <div>
-                <label htmlFor="cp-last-name" className="block text-sm font-medium text-gray-700 mb-1">
+                <label htmlFor="cp-last-name" className="block text-sm font-medium text-secondary mb-1">
                   Last Name
                 </label>
                 <input
@@ -211,24 +211,24 @@ export default function CompleteProfilePage() {
                   id="cp-last-name"
                   value={lastName}
                   onChange={e => setLastName(e.target.value)}
-                  className="w-full px-4 py-3 text-sm text-gray-800 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-violet-500"
+                  className="w-full px-4 py-3 text-sm text-primary border border-border-strong rounded-md focus:outline-none focus:ring-1 focus:ring-violet-500"
                 />
               </div>
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
+              <label className="block text-sm font-medium text-secondary mb-1">Email</label>
               <input
                 type="email"
                 value={user.email ?? ''}
                 disabled
-                className="w-full px-4 py-3 text-sm text-gray-500 bg-gray-100 border border-gray-300 rounded-md cursor-not-allowed"
+                className="w-full px-4 py-3 text-sm text-muted bg-surface-sunken border border-border-strong rounded-md cursor-not-allowed"
               />
             </div>
 
             {FEATURE_FLAGS.FEATURE_GUARDIAN_PROFILES && (
               <div>
-                <label htmlFor="cp-dob" className="block text-sm font-medium text-gray-700 mb-1">
+                <label htmlFor="cp-dob" className="block text-sm font-medium text-secondary mb-1">
                   Date of birth
                 </label>
                 <input
@@ -236,7 +236,7 @@ export default function CompleteProfilePage() {
                   id="cp-dob"
                   value={dob}
                   onChange={e => setDob(e.target.value)}
-                  className="w-full px-4 py-3 text-sm text-gray-800 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-violet-500"
+                  className="w-full px-4 py-3 text-sm text-primary border border-border-strong rounded-md focus:outline-none focus:ring-1 focus:ring-violet-500"
                   required
                 />
               </div>
@@ -244,10 +244,10 @@ export default function CompleteProfilePage() {
 
             {needsGuardian && (
               <div>
-                <label htmlFor="cp-guardian" className="block text-sm font-medium text-gray-700 mb-1">
+                <label htmlFor="cp-guardian" className="block text-sm font-medium text-secondary mb-1">
                   Parent or guardian&apos;s email
                 </label>
-                <p className="text-xs text-gray-600 mb-1">
+                <p className="text-xs text-tertiary mb-1">
                   A parent or guardian needs to finish setting up this account —
                   we&apos;ll email them a link.
                 </p>
@@ -256,7 +256,7 @@ export default function CompleteProfilePage() {
                   id="cp-guardian"
                   value={guardianEmail}
                   onChange={e => setGuardianEmail(e.target.value)}
-                  className="w-full px-4 py-3 text-sm text-gray-800 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-violet-500"
+                  className="w-full px-4 py-3 text-sm text-primary border border-border-strong rounded-md focus:outline-none focus:ring-1 focus:ring-violet-500"
                   placeholder="parent@example.com"
                   required
                 />
@@ -271,14 +271,14 @@ export default function CompleteProfilePage() {
             />
 
             {error && (
-              <p className="text-sm text-red-600 text-center" aria-hidden="true">
+              <p className="text-sm text-red-600 dark:text-red-400 text-center" aria-hidden="true">
                 {error}
               </p>
             )}
             <button
               type="submit"
               disabled={submitting}
-              className="w-full bg-violet-600 text-white py-3 px-4 rounded-md hover:bg-violet-700 transition duration-300 flex items-center justify-center text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+              className="w-full bg-brand text-white py-3 px-4 rounded-md hover:bg-brand-hover transition duration-300 flex items-center justify-center text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {submitting ? (
                 <>
@@ -297,7 +297,7 @@ export default function CompleteProfilePage() {
             <button
               type="button"
               onClick={() => signOut()}
-              className="text-sm text-gray-500 hover:text-violet-600 hover:underline text-center"
+              className="text-sm text-muted hover:text-brand-fg hover:underline text-center"
             >
               Sign out and return to login
             </button>

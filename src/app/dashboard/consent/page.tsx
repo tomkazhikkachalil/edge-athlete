@@ -56,38 +56,38 @@ export default function ConsentReviewPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-canvas">
       <AppHeader showSearch={false} />
       <main className="max-w-3xl mx-auto px-4 py-8">
-        <h1 className="text-2xl font-bold text-gray-900 mb-1">Consent reviews</h1>
-        <p className="text-sm text-gray-600 mb-6">
+        <h1 className="text-2xl font-bold text-primary mb-1">Consent reviews</h1>
+        <p className="text-sm text-tertiary mb-6">
           Signed parental-consent forms awaiting verification. Decisions are
           permanent audit records.
         </p>
 
         {state === 'loading' && (
-          <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-violet-600 mx-auto my-12"></div>
+          <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-brand mx-auto my-12"></div>
         )}
         {state === 'forbidden' && (
-          <p className="text-sm text-gray-600">Admin access required.</p>
+          <p className="text-sm text-tertiary">Admin access required.</p>
         )}
         {state === 'ready' && items.length === 0 && (
-          <p className="text-sm text-gray-500 bg-white border border-gray-200 rounded-lg p-6 text-center">
+          <p className="text-sm text-muted bg-surface border border-border rounded-lg p-6 text-center">
             No consent submissions waiting for review.
           </p>
         )}
         {items.map(item => (
-          <div key={item.recordId} className="bg-white border border-gray-200 rounded-lg p-5 mb-4">
+          <div key={item.recordId} className="bg-surface border border-border rounded-lg p-5 mb-4">
             <div className="flex items-start justify-between gap-4 flex-wrap">
               <div>
-                <p className="font-bold text-black">
+                <p className="font-bold text-black dark:text-primary">
                   {item.athleteName}
-                  {item.athleteHandle && <span className="text-gray-500 font-normal ml-2">@{item.athleteHandle}</span>}
+                  {item.athleteHandle && <span className="text-muted font-normal ml-2">@{item.athleteHandle}</span>}
                 </p>
-                <p className="text-sm text-gray-600 mt-1">
+                <p className="text-sm text-tertiary mt-1">
                   Guardian: {item.guardianEmail} · {item.jurisdiction} (under {item.thresholdAge}) · {item.policyVersion}
                 </p>
-                <p className="text-xs text-gray-400 mt-1">
+                <p className="text-xs text-faint mt-1">
                   Submitted {new Date(item.submittedAt).toLocaleString()}
                 </p>
                 {item.evidenceUrl ? (
@@ -95,12 +95,12 @@ export default function ConsentReviewPage() {
                     href={item.evidenceUrl}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="inline-block mt-2 text-sm text-violet-600 hover:underline"
+                    className="inline-block mt-2 text-sm text-brand-fg hover:underline"
                   >
                     <i className="fas fa-file-signature mr-1"></i> View signed form
                   </a>
                 ) : (
-                  <p className="mt-2 text-sm text-red-600">No evidence file attached</p>
+                  <p className="mt-2 text-sm text-red-600 dark:text-red-400">No evidence file attached</p>
                 )}
               </div>
               <div className="flex gap-2">
@@ -108,7 +108,7 @@ export default function ConsentReviewPage() {
                   type="button"
                   disabled={acting === item.profileId}
                   onClick={() => decide(item.profileId, 'approve')}
-                  className="bg-violet-600 text-white px-4 py-2 rounded-md text-sm font-medium hover:bg-violet-700 disabled:opacity-50"
+                  className="bg-brand text-white px-4 py-2 rounded-md text-sm font-medium hover:bg-brand-hover disabled:opacity-50"
                 >
                   Approve
                 </button>
@@ -116,7 +116,7 @@ export default function ConsentReviewPage() {
                   type="button"
                   disabled={acting === item.profileId}
                   onClick={() => decide(item.profileId, 'reject')}
-                  className="border border-red-300 text-red-600 px-4 py-2 rounded-md text-sm font-medium hover:bg-red-50 disabled:opacity-50"
+                  className="border border-red-300 dark:border-red-700 text-red-600 dark:text-red-400 px-4 py-2 rounded-md text-sm font-medium hover:bg-red-50 dark:hover:bg-red-950/40 disabled:opacity-50"
                 >
                   Reject
                 </button>

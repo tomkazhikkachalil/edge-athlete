@@ -23,10 +23,10 @@ import type { EventDetail, EventGuest, MyStatus } from './types';
 // re-fetches on open.
 
 const STATUS_PILLS: Record<string, { label: string; classes: string }> = {
-  accepted: { label: 'Going', classes: 'bg-emerald-100 text-emerald-700' },
-  declined: { label: 'Declined', classes: 'bg-red-100 text-red-600' },
-  maybe: { label: 'Maybe', classes: 'bg-amber-100 text-amber-700' },
-  invited: { label: 'Pending', classes: 'bg-gray-100 text-gray-600' },
+  accepted: { label: 'Going', classes: 'bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300' },
+  declined: { label: 'Declined', classes: 'bg-red-100 dark:bg-red-950/60 text-red-600 dark:text-red-400' },
+  maybe: { label: 'Maybe', classes: 'bg-amber-100 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300' },
+  invited: { label: 'Pending', classes: 'bg-surface-sunken text-tertiary' },
 };
 
 function whenLines(event: EventDetail): { primary: string; secondary: string | null } {
@@ -208,49 +208,49 @@ export default function EventDetailModal({
 
   return (
     <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-      <div className="bg-white rounded-lg shadow-xl max-w-lg w-full max-h-modal overflow-y-auto">
-        <div className="flex items-center justify-between p-6 border-b border-gray-200">
+      <div className="bg-surface-raised rounded-lg shadow-xl max-w-lg w-full max-h-modal overflow-y-auto">
+        <div className="flex items-center justify-between p-6 border-b border-border">
           <div className="flex items-center gap-3 min-w-0">
-            <span className={`w-9 h-9 rounded-full flex items-center justify-center shrink-0 ${color ? color.bg : 'bg-violet-600'}`}>
+            <span className={`w-9 h-9 rounded-full flex items-center justify-center shrink-0 ${color ? color.bg : 'bg-brand'}`}>
               <CalendarDays className="w-5 h-5 text-white" />
             </span>
-            <h2 className="text-lg font-bold text-gray-900 truncate">
+            <h2 className="text-lg font-bold text-primary truncate">
               {event?.title ?? 'Event'}
             </h2>
           </div>
-          <button type="button" onClick={onClose} aria-label="Close" className="ea-icon-btn inline-flex items-center justify-center text-gray-400 hover:text-gray-600 shrink-0">
+          <button type="button" onClick={onClose} aria-label="Close" className="ea-icon-btn inline-flex items-center justify-center text-faint hover:text-tertiary shrink-0">
             <X className="w-5 h-5" />
           </button>
         </div>
 
         {loading || !event ? (
           <div className="flex justify-center py-16">
-            <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-violet-600"></div>
+            <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-brand"></div>
           </div>
         ) : (
           <div className="p-6 space-y-4">
             {cancelled && (
-              <div role="alert" className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-md text-sm font-medium">
+              <div role="alert" className="bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-300 px-4 py-3 rounded-md text-sm font-medium">
                 This event was cancelled by the organizer.
               </div>
             )}
 
             <div className="space-y-1.5 text-sm">
-              <p className="text-gray-900 font-medium">{when!.primary}</p>
-              {when!.secondary && <p className="text-gray-500 text-xs">{when!.secondary}</p>}
+              <p className="text-primary font-medium">{when!.primary}</p>
+              {when!.secondary && <p className="text-muted text-xs">{when!.secondary}</p>}
               {event.location && (
-                <p className="text-gray-700">
-                  <i className="fas fa-location-dot text-gray-400 mr-1.5"></i>
+                <p className="text-secondary">
+                  <i className="fas fa-location-dot text-faint mr-1.5"></i>
                   {event.location}
                 </p>
               )}
-              <p className="text-gray-500 text-xs">
+              <p className="text-muted text-xs">
                 <span className={`inline-block w-2 h-2 rounded-full mr-1 ${color!.dot}`} />
                 {CATEGORY_LABELS[event.category] ?? event.category}
               </p>
               {event.series && (
-                <p className="text-gray-500 text-xs">
-                  <i className="fas fa-arrows-rotate text-gray-400 mr-1"></i>
+                <p className="text-muted text-xs">
+                  <i className="fas fa-arrows-rotate text-faint mr-1"></i>
                   {describeRecurrence(event.series, event.timezone)}
                 </p>
               )}
@@ -258,7 +258,7 @@ export default function EventDetailModal({
                 <p className="text-xs pt-0.5">
                   <a
                     href={`/api/calendar/events/${event.id}/ics`}
-                    className="text-violet-600 hover:underline font-medium"
+                    className="text-brand-fg hover:underline font-medium"
                   >
                     <i className="fas fa-download mr-1"></i>
                     Add to calendar
@@ -268,15 +268,15 @@ export default function EventDetailModal({
             </div>
 
             {event.description && (
-              <p className="text-sm text-gray-700 whitespace-pre-wrap border-t border-gray-100 pt-3">
+              <p className="text-sm text-secondary whitespace-pre-wrap border-t border-border-subtle pt-3">
                 {event.description}
               </p>
             )}
 
             {/* Respond (guests only, not on cancelled events) */}
             {myGuestRow && myGuestRow.role !== 'organizer' && !cancelled && (
-              <div className="border-t border-gray-100 pt-3">
-                <p className="text-sm font-semibold text-gray-900 mb-2">Are you going?</p>
+              <div className="border-t border-border-subtle pt-3">
+                <p className="text-sm font-semibold text-primary mb-2">Are you going?</p>
                 <div className="flex gap-2">
                   {([
                     { value: 'accepted', label: 'Yes' },
@@ -290,8 +290,8 @@ export default function EventDetailModal({
                       onClick={() => handleRespondTap(opt.value)}
                       className={`flex-1 py-2 rounded-lg text-sm font-medium border transition min-h-[44px] disabled:opacity-50 ${
                         myGuestRow.status === opt.value
-                          ? 'bg-violet-600 text-white border-violet-600'
-                          : 'bg-white text-gray-700 border-gray-300 hover:border-violet-400'
+                          ? 'bg-brand text-white border-brand'
+                          : 'bg-surface text-secondary border-border-strong hover:border-violet-400'
                       }`}
                     >
                       {opt.label}
@@ -303,9 +303,9 @@ export default function EventDetailModal({
 
             {/* Reminder (any viewer with a guest row, organizer included) */}
             {myGuestRow && !cancelled && (
-              <div className="border-t border-gray-100 pt-3 flex items-center gap-2 flex-wrap">
-                <label htmlFor="ev-reminder" className="text-sm font-semibold text-gray-900">
-                  <i className="fas fa-bell text-gray-400 mr-1.5"></i>
+              <div className="border-t border-border-subtle pt-3 flex items-center gap-2 flex-wrap">
+                <label htmlFor="ev-reminder" className="text-sm font-semibold text-primary">
+                  <i className="fas fa-bell text-faint mr-1.5"></i>
                   Remind me
                 </label>
                 <select
@@ -313,26 +313,26 @@ export default function EventDetailModal({
                   value={myGuestRow.reminder_minutes}
                   disabled={savingReminder}
                   onChange={e => setReminder(Number(e.target.value))}
-                  className="px-2 py-1.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-violet-500 focus:outline-none disabled:opacity-50"
+                  className="px-2 py-1.5 border border-border-strong rounded-lg text-sm focus:ring-2 focus:ring-violet-500 focus:outline-none disabled:opacity-50"
                 >
                   {REMINDER_OPTIONS.map(m => (
                     <option key={m} value={m}>{REMINDER_LABELS[m]}</option>
                   ))}
                 </select>
                 {event.series_id && (
-                  <span className="text-xs text-gray-400">This event only</span>
+                  <span className="text-xs text-faint">This event only</span>
                 )}
               </div>
             )}
 
             {/* Guest list + tally */}
-            <div className="border-t border-gray-100 pt-3">
+            <div className="border-t border-border-subtle pt-3">
               <div className="flex items-center justify-between mb-2">
-                <p className="text-sm font-semibold text-gray-900">
+                <p className="text-sm font-semibold text-primary">
                   Guests ({event.guests.length})
                 </p>
                 {tally && (
-                  <p className="text-xs text-gray-500">
+                  <p className="text-xs text-muted">
                     {tally.going} going · {tally.maybe} maybe · {tally.pending} pending · {tally.declined} declined
                   </p>
                 )}
@@ -343,9 +343,9 @@ export default function EventDetailModal({
                   const pill = STATUS_PILLS[guest.status] ?? STATUS_PILLS.invited;
                   return (
                     <div key={guest.id} className="flex items-center gap-2">
-                      <span className="relative w-7 h-7 rounded-full overflow-hidden bg-violet-100 flex items-center justify-center shrink-0">
+                      <span className="relative w-7 h-7 rounded-full overflow-hidden bg-violet-100 dark:bg-violet-950/60 flex items-center justify-center shrink-0">
                         {guest.invited_email ? (
-                          <i className="fas fa-envelope text-gray-400 text-xs"></i>
+                          <i className="fas fa-envelope text-faint text-xs"></i>
                         ) : guest.profiles?.avatar_url ? (
                           <Image
                             src={guest.profiles.avatar_url}
@@ -356,13 +356,13 @@ export default function EventDetailModal({
                             unoptimized={!isOptimizableImageSrc(guest.profiles.avatar_url)}
                           />
                         ) : (
-                          <span className="text-[10px] font-semibold text-violet-700">{getInitials(name)}</span>
+                          <span className="text-[10px] font-semibold text-brand-fg-strong">{getInitials(name)}</span>
                         )}
                       </span>
-                      <span className="text-sm text-gray-900 truncate flex-grow min-w-0">
+                      <span className="text-sm text-primary truncate flex-grow min-w-0">
                         {name}
                         {guest.role === 'organizer' && (
-                          <span className="ml-1.5 text-xs text-violet-600 font-medium">Organizer</span>
+                          <span className="ml-1.5 text-xs text-brand-fg font-medium">Organizer</span>
                         )}
                       </span>
                       {guest.role !== 'organizer' && (
@@ -378,18 +378,18 @@ export default function EventDetailModal({
 
             {/* Organizer controls */}
             {isOrganizer && !cancelled && (
-              <div className="border-t border-gray-100 pt-3 flex gap-3">
+              <div className="border-t border-border-subtle pt-3 flex gap-3">
                 <button
                   type="button"
                   onClick={() => onEdit(event)}
-                  className="flex-1 bg-violet-600 text-white py-2 rounded-lg text-sm font-medium hover:bg-violet-700 transition min-h-[44px]"
+                  className="flex-1 bg-brand text-white py-2 rounded-lg text-sm font-medium hover:bg-brand-hover transition min-h-[44px]"
                 >
                   Edit event
                 </button>
                 <button
                   type="button"
                   onClick={() => setConfirmingCancel(true)}
-                  className="flex-1 border border-red-300 text-red-600 py-2 rounded-lg text-sm font-medium hover:bg-red-50 transition min-h-[44px]"
+                  className="flex-1 border border-red-300 dark:border-red-700 text-red-600 dark:text-red-400 py-2 rounded-lg text-sm font-medium hover:bg-red-50 dark:hover:bg-red-950/40 transition min-h-[44px]"
                 >
                   Cancel event
                 </button>

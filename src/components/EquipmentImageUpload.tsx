@@ -109,7 +109,7 @@ export default function EquipmentImageUpload({
     <div className="space-y-3">
       {/* Image Preview */}
       {value && (
-        <div className="relative w-full aspect-video bg-gray-100 rounded-lg overflow-hidden">
+        <div className="relative w-full aspect-video bg-surface-sunken rounded-lg overflow-hidden">
           <Image
             src={value}
             alt="Equipment"
@@ -134,17 +134,17 @@ export default function EquipmentImageUpload({
           type="button"
           onClick={() => fileInputRef.current?.click()}
           disabled={uploading}
-          className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 border-2 border-dashed border-gray-300 rounded-lg hover:border-violet-500 hover:bg-violet-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 border-2 border-dashed border-border-strong rounded-lg hover:border-violet-500 hover:bg-brand-soft transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
         >
           {uploading ? (
             <>
-              <Loader2 className="w-5 h-5 animate-spin text-violet-600" />
-              <span className="text-sm font-medium text-gray-700">Uploading...</span>
+              <Loader2 className="w-5 h-5 animate-spin text-brand-fg" />
+              <span className="text-sm font-medium text-secondary">Uploading...</span>
             </>
           ) : (
             <>
-              <Upload className="w-5 h-5 text-gray-400" />
-              <span className="text-sm font-medium text-gray-700">
+              <Upload className="w-5 h-5 text-faint" />
+              <span className="text-sm font-medium text-secondary">
                 {value ? 'Change Image' : 'Upload Image'}
               </span>
             </>
@@ -167,7 +167,7 @@ export default function EquipmentImageUpload({
       )}
 
       {/* Helper text */}
-      <p className="text-xs text-gray-500">
+      <p className="text-xs text-muted">
         {uploading
           ? 'Uploading your image...'
           : 'Upload a photo of your gear. Max 5MB.'}

@@ -136,21 +136,21 @@ export default function AddAchievementModal({
 
   return (
     <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-      <div className="bg-white rounded-lg shadow-xl max-w-lg w-full max-h-modal overflow-y-auto">
+      <div className="bg-surface-raised rounded-lg shadow-xl max-w-lg w-full max-h-modal overflow-y-auto">
         {/* Header */}
-        <div className="flex items-center justify-between p-6 border-b border-gray-200">
+        <div className="flex items-center justify-between p-6 border-b border-border">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-full bg-amber-100 flex items-center justify-center">
-              <Trophy className="w-5 h-5 text-amber-600" aria-hidden="true" />
+            <div className="w-10 h-10 rounded-full bg-amber-100 dark:bg-amber-950/60 flex items-center justify-center">
+              <Trophy className="w-5 h-5 text-amber-600 dark:text-amber-400" aria-hidden="true" />
             </div>
-            <h2 className="text-xl font-bold text-gray-900">
+            <h2 className="text-xl font-bold text-primary">
               {editing ? 'Edit Achievement' : 'Add Achievement'}
             </h2>
           </div>
           <button
             type="button"
             onClick={onClose}
-            className="p-2 text-gray-400 hover:text-gray-600 transition-colors"
+            className="p-2 text-faint hover:text-tertiary transition-colors"
             aria-label="Close"
           >
             <X className="w-5 h-5" />
@@ -160,7 +160,7 @@ export default function AddAchievementModal({
         {/* Form */}
         <form onSubmit={handleSubmit} className="p-6 space-y-4">
           <div>
-            <label htmlFor="achievement-title" className="block text-sm font-semibold text-gray-900 mb-1">
+            <label htmlFor="achievement-title" className="block text-sm font-semibold text-primary mb-1">
               Title <span className="text-red-500">*</span>
             </label>
             <input
@@ -170,21 +170,21 @@ export default function AddAchievementModal({
               onChange={e => set('title', e.target.value)}
               maxLength={120}
               placeholder="e.g. Club Championship Winner"
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-base focus:outline-none focus:ring-2 focus:ring-violet-500"
+              className="w-full px-3 py-2 border border-border-strong rounded-lg text-base focus:outline-none focus:ring-2 focus:ring-violet-500"
               required
             />
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
-              <label htmlFor="achievement-sport" className="block text-sm font-semibold text-gray-900 mb-1">
+              <label htmlFor="achievement-sport" className="block text-sm font-semibold text-primary mb-1">
                 Sport
               </label>
               <select
                 id="achievement-sport"
                 value={form.sportKey}
                 onChange={e => set('sportKey', e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-base focus:outline-none focus:ring-2 focus:ring-violet-500 bg-white"
+                className="w-full px-3 py-2 border border-border-strong rounded-lg text-base focus:outline-none focus:ring-2 focus:ring-violet-500 bg-surface"
               >
                 <option value="">General</option>
                 {getAllSports().map(key => (
@@ -196,7 +196,7 @@ export default function AddAchievementModal({
             </div>
 
             <div>
-              <label htmlFor="achievement-date" className="block text-sm font-semibold text-gray-900 mb-1">
+              <label htmlFor="achievement-date" className="block text-sm font-semibold text-primary mb-1">
                 Date <span className="text-red-500">*</span>
               </label>
               <input
@@ -205,7 +205,7 @@ export default function AddAchievementModal({
                 value={form.achievedOn}
                 onChange={e => set('achievedOn', e.target.value)}
                 max={today()}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-base focus:outline-none focus:ring-2 focus:ring-violet-500 bg-white"
+                className="w-full px-3 py-2 border border-border-strong rounded-lg text-base focus:outline-none focus:ring-2 focus:ring-violet-500 bg-surface"
                 required
               />
             </div>
@@ -213,7 +213,7 @@ export default function AddAchievementModal({
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
-              <label htmlFor="achievement-org" className="block text-sm font-semibold text-gray-900 mb-1">
+              <label htmlFor="achievement-org" className="block text-sm font-semibold text-primary mb-1">
                 Organization
               </label>
               <input
@@ -223,12 +223,12 @@ export default function AddAchievementModal({
                 onChange={e => set('organization', e.target.value)}
                 maxLength={120}
                 placeholder="e.g. USGA, NCAA"
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-base focus:outline-none focus:ring-2 focus:ring-violet-500"
+                className="w-full px-3 py-2 border border-border-strong rounded-lg text-base focus:outline-none focus:ring-2 focus:ring-violet-500"
               />
             </div>
 
             <div>
-              <label htmlFor="achievement-placement" className="block text-sm font-semibold text-gray-900 mb-1">
+              <label htmlFor="achievement-placement" className="block text-sm font-semibold text-primary mb-1">
                 Placement
               </label>
               <input
@@ -238,13 +238,13 @@ export default function AddAchievementModal({
                 onChange={e => set('placement', e.target.value)}
                 maxLength={60}
                 placeholder="e.g. 1st Place, Finalist"
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-base focus:outline-none focus:ring-2 focus:ring-violet-500"
+                className="w-full px-3 py-2 border border-border-strong rounded-lg text-base focus:outline-none focus:ring-2 focus:ring-violet-500"
               />
             </div>
           </div>
 
           <div>
-            <label htmlFor="achievement-description" className="block text-sm font-semibold text-gray-900 mb-1">
+            <label htmlFor="achievement-description" className="block text-sm font-semibold text-primary mb-1">
               Description
             </label>
             <textarea
@@ -254,12 +254,12 @@ export default function AddAchievementModal({
               maxLength={1000}
               rows={3}
               placeholder="What made this one special?"
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-base focus:outline-none focus:ring-2 focus:ring-violet-500 resize-none"
+              className="w-full px-3 py-2 border border-border-strong rounded-lg text-base focus:outline-none focus:ring-2 focus:ring-violet-500 resize-none"
             />
           </div>
 
           {error && (
-            <div className="px-3 py-2 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">
+            <div className="px-3 py-2 bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-800 rounded-lg text-sm text-red-700 dark:text-red-300">
               {error}
             </div>
           )}
@@ -269,14 +269,14 @@ export default function AddAchievementModal({
             <button
               type="button"
               onClick={onClose}
-              className="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition-colors font-medium"
+              className="px-4 py-2 border border-border-strong rounded-lg text-secondary hover:bg-surface-muted transition-colors font-medium"
             >
               Cancel
             </button>
             <button
               type="submit"
               disabled={saving}
-              className="inline-flex items-center gap-2 px-4 py-2 bg-violet-600 text-white rounded-lg font-semibold hover:bg-violet-700 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+              className="inline-flex items-center gap-2 px-4 py-2 bg-brand text-white rounded-lg font-semibold hover:bg-brand-hover transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
             >
               {saving && (
                 <span className="animate-spin rounded-full h-4 w-4 border-b-2 border-white" aria-hidden="true" />

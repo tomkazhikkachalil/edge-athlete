@@ -131,10 +131,10 @@ export default function MultiSelectDropdown<T extends string | number>({
         aria-disabled={disabled || undefined}
         className={`px-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-violet-500 inline-flex items-center gap-2 transition-colors ${
           disabled
-            ? 'border-gray-200 text-gray-400 bg-gray-50 cursor-not-allowed'
+            ? 'border-border text-faint bg-surface-muted cursor-not-allowed'
             : hasActive
-              ? 'border-violet-500 text-violet-700 bg-violet-50'
-              : 'border-gray-300 text-gray-700 bg-white hover:bg-gray-50'
+              ? 'border-violet-500 text-brand-fg-strong bg-brand-soft'
+              : 'border-border-strong text-secondary bg-surface hover:bg-surface-muted'
         }`}
       >
         <span>{buttonLabel}</span>
@@ -149,12 +149,12 @@ export default function MultiSelectDropdown<T extends string | number>({
           ref={panelRef}
           role="listbox"
           aria-multiselectable="true"
-          className="absolute left-0 top-full mt-1 min-w-full w-max max-w-[calc(100vw-2rem)] bg-white border border-gray-200 rounded-lg shadow-lg z-20 flex flex-col"
+          className="absolute left-0 top-full mt-1 min-w-full w-max max-w-[calc(100vw-2rem)] bg-surface-raised border border-border rounded-lg shadow-lg z-20 flex flex-col"
         >
           {/* Search input — auto-focused on open */}
-          <div className="relative border-b border-gray-100">
+          <div className="relative border-b border-border-subtle">
             <Search
-              className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none"
+              className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-faint pointer-events-none"
               aria-hidden="true"
             />
             <input
@@ -164,7 +164,7 @@ export default function MultiSelectDropdown<T extends string | number>({
               placeholder={searchPlaceholder}
               value={searchQuery}
               onChange={e => setSearchQuery(e.target.value)}
-              className="w-full pl-9 pr-3 py-2 text-sm bg-white border-0 focus:outline-none focus:ring-0 rounded-t-lg"
+              className="w-full pl-9 pr-3 py-2 text-sm bg-surface border-0 focus:outline-none focus:ring-0 rounded-t-lg"
               aria-label={searchPlaceholder}
             />
           </div>
@@ -172,7 +172,7 @@ export default function MultiSelectDropdown<T extends string | number>({
           {/* Filtered options list */}
           <div className="max-h-60 overflow-y-auto py-1">
             {filteredOptions.length === 0 ? (
-              <div className="px-3 py-2 text-sm text-gray-500 italic">
+              <div className="px-3 py-2 text-sm text-muted italic">
                 No matches
               </div>
             ) : (
@@ -185,14 +185,14 @@ export default function MultiSelectDropdown<T extends string | number>({
                     role="option"
                     aria-selected={isSelected}
                     onClick={() => toggle(opt.value)}
-                    className="w-full text-left px-3 py-2 text-sm flex items-center gap-2 hover:bg-gray-50 transition-colors"
+                    className="w-full text-left px-3 py-2 text-sm flex items-center gap-2 hover:bg-surface-muted transition-colors"
                   >
                     <span
                       aria-hidden="true"
                       className={`w-4 h-4 flex items-center justify-center rounded border ${
                         isSelected
-                          ? 'bg-violet-600 border-violet-600 text-white'
-                          : 'bg-white border-gray-300'
+                          ? 'bg-brand border-brand text-white'
+                          : 'bg-surface border-border-strong'
                       }`}
                     >
                       {isSelected && (
@@ -201,7 +201,7 @@ export default function MultiSelectDropdown<T extends string | number>({
                         </svg>
                       )}
                     </span>
-                    <span className={isSelected ? 'font-medium text-gray-900' : 'text-gray-700'}>
+                    <span className={isSelected ? 'font-medium text-primary' : 'text-secondary'}>
                       {opt.label}
                     </span>
                   </button>
@@ -212,11 +212,11 @@ export default function MultiSelectDropdown<T extends string | number>({
 
           {hasActive && (
             <>
-              <div className="border-t border-gray-100" />
+              <div className="border-t border-border-subtle" />
               <button
                 type="button"
                 onClick={() => onChange([])}
-                className="w-full text-left px-3 py-2 text-sm text-gray-500 hover:bg-gray-50 transition-colors rounded-b-lg"
+                className="w-full text-left px-3 py-2 text-sm text-muted hover:bg-surface-muted transition-colors rounded-b-lg"
               >
                 Clear selection
               </button>

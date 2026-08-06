@@ -34,18 +34,18 @@ export default function TimeGridView({
     events.filter(e => !e.all_day && eventOverlapsDay(e, day));
 
   return (
-    <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
+    <div className="bg-surface rounded-lg shadow-sm border border-border overflow-hidden">
       <div className="overflow-x-auto">
         <div style={{ minWidth: days.length > 1 ? days.length * 130 + 56 : undefined }}>
           {/* Header: day labels */}
-          <div className="flex border-b border-gray-200">
+          <div className="flex border-b border-border">
             <div className="w-14 shrink-0" />
             {days.map(day => (
-              <div key={day.toISOString()} className="flex-1 py-2 text-center border-l border-gray-100">
-                <p className="text-xs text-gray-500">{format(day, 'EEE')}</p>
+              <div key={day.toISOString()} className="flex-1 py-2 text-center border-l border-border-subtle">
+                <p className="text-xs text-muted">{format(day, 'EEE')}</p>
                 <p
                   className={`text-sm font-semibold inline-flex items-center justify-center w-7 h-7 rounded-full ${
-                    isSameDay(day, today) ? 'bg-violet-600 text-white' : 'text-gray-900'
+                    isSameDay(day, today) ? 'bg-brand text-white' : 'text-primary'
                   }`}
                 >
                   {day.getDate()}
@@ -55,10 +55,10 @@ export default function TimeGridView({
           </div>
 
           {/* All-day row */}
-          <div className="flex border-b border-gray-200 bg-gray-50/60">
-            <div className="w-14 shrink-0 py-1 pr-1 text-right text-[10px] text-gray-400">all-day</div>
+          <div className="flex border-b border-border bg-surface-muted/60">
+            <div className="w-14 shrink-0 py-1 pr-1 text-right text-[10px] text-faint">all-day</div>
             {days.map(day => (
-              <div key={day.toISOString()} className="flex-1 border-l border-gray-100 p-1 flex flex-col gap-0.5 min-h-7">
+              <div key={day.toISOString()} className="flex-1 border-l border-border-subtle p-1 flex flex-col gap-0.5 min-h-7">
                 {allDayFor(day).map(e => (
                   <EventChip key={e.id} event={e} onClick={() => onSelectEvent(e.id)} showTime={false} />
                 ))}
@@ -74,7 +74,7 @@ export default function TimeGridView({
                 {Array.from({ length: 24 }, (_, h) => (
                   <div
                     key={h}
-                    className="absolute right-1 text-[10px] text-gray-400 -translate-y-1/2"
+                    className="absolute right-1 text-[10px] text-faint -translate-y-1/2"
                     style={{ top: h * HOUR_PX }}
                   >
                     {h === 0 ? '' : format(new Date(2000, 0, 1, h), 'h a')}
@@ -85,11 +85,11 @@ export default function TimeGridView({
               {days.map(day => {
                 const laid = assignLanes(timedFor(day));
                 return (
-                  <div key={day.toISOString()} className="flex-1 relative border-l border-gray-100">
+                  <div key={day.toISOString()} className="flex-1 relative border-l border-border-subtle">
                     {Array.from({ length: 24 }, (_, h) => (
                       <div
                         key={h}
-                        className="absolute left-0 right-0 border-t border-gray-100"
+                        className="absolute left-0 right-0 border-t border-border-subtle"
                         style={{ top: h * HOUR_PX }}
                       />
                     ))}

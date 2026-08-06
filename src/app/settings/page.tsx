@@ -10,13 +10,14 @@ import PrivacySettings from '@/components/settings/PrivacySettings';
 import MessagingSettings from '@/components/settings/MessagingSettings';
 import NotificationSettings from '@/components/settings/NotificationSettings';
 import SecuritySettings from '@/components/settings/SecuritySettings';
+import AppearanceSettings from '@/components/settings/AppearanceSettings';
 
 // 1091-line modal — only loaded on demand
 const EditProfileTabs = dynamic(() => import('@/components/EditProfileTabs'), { ssr: false });
 
-type SettingsTab = 'account' | 'privacy' | 'messaging' | 'notifications' | 'security';
+type SettingsTab = 'account' | 'privacy' | 'appearance' | 'messaging' | 'notifications' | 'security';
 
-const SETTINGS_TABS: SettingsTab[] = ['account', 'privacy', 'messaging', 'notifications', 'security'];
+const SETTINGS_TABS: SettingsTab[] = ['account', 'privacy', 'appearance', 'messaging', 'notifications', 'security'];
 
 // useSearchParams must live under Suspense (house rule) — this tiny reader
 // honours ?tab=<id> so other surfaces can deep-link to a section (the chat
@@ -53,10 +54,10 @@ export default function SettingsPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+      <div className="min-h-screen bg-canvas flex items-center justify-center">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-violet-600 mx-auto"></div>
-          <p className="mt-2 text-gray-600">Loading...</p>
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-brand mx-auto"></div>
+          <p className="mt-2 text-tertiary">Loading...</p>
         </div>
       </div>
     );
@@ -65,13 +66,14 @@ export default function SettingsPage() {
   const tabs: { id: SettingsTab; label: string; icon: string; disabled?: boolean }[] = [
     { id: 'account', label: 'Account', icon: 'fa-user-cog' },
     { id: 'privacy', label: 'Privacy', icon: 'fa-shield-alt' },
+    { id: 'appearance', label: 'Appearance', icon: 'fa-moon' },
     { id: 'messaging', label: 'Messaging', icon: 'fa-comment-alt' },
     { id: 'notifications', label: 'Notifications', icon: 'fa-bell' },
     { id: 'security', label: 'Security', icon: 'fa-lock' },
   ];
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-canvas">
       <Suspense fallback={null}>
         <TabParamReader onTab={handleTabParam} />
       </Suspense>
@@ -82,18 +84,18 @@ export default function SettingsPage() {
         <div className="mb-6">
           <button
             onClick={() => router.back()}
-            className="text-gray-600 hover:text-gray-900 mb-4 inline-flex items-center gap-2 transition-colors min-h-[44px] -my-2"
+            className="text-tertiary hover:text-primary mb-4 inline-flex items-center gap-2 transition-colors min-h-[44px] -my-2"
           >
             <i className="fas fa-arrow-left"></i>
             <span>Back</span>
           </button>
-          <h1 className="text-3xl font-bold text-gray-900">Settings</h1>
-          <p className="text-gray-600 mt-2">Manage your account settings and preferences</p>
+          <h1 className="text-3xl font-bold text-primary">Settings</h1>
+          <p className="text-tertiary mt-2">Manage your account settings and preferences</p>
         </div>
 
         {/* Tabs Navigation */}
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
-          <div className="border-b border-gray-200">
+        <div className="bg-surface rounded-lg shadow-sm border border-border overflow-hidden">
+          <div className="border-b border-border">
             {/* scrollbar-hide + shrink-0: five tabs are ~560px of intrinsic
                 width — they scroll cleanly instead of showing a scrollbar
                 band with no affordance. */}
@@ -105,16 +107,16 @@ export default function SettingsPage() {
                   disabled={tab.disabled}
                   className={`flex shrink-0 items-center gap-2 px-4 sm:px-6 py-4 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
                     activeTab === tab.id
-                      ? 'border-violet-600 text-violet-600'
+                      ? 'border-brand text-brand-fg'
                       : tab.disabled
-                      ? 'border-transparent text-gray-400 cursor-not-allowed'
-                      : 'border-transparent text-gray-600 hover:text-gray-900 hover:border-gray-300'
+                      ? 'border-transparent text-faint cursor-not-allowed'
+                      : 'border-transparent text-tertiary hover:text-primary hover:border-border-strong'
                   }`}
                 >
                   <i className={`fas ${tab.icon}`}></i>
                   <span>{tab.label}</span>
                   {tab.disabled && (
-                    <span className="text-xs bg-gray-100 text-gray-500 px-2 py-0.5 rounded-full">
+                    <span className="text-xs bg-surface-sunken text-muted px-2 py-0.5 rounded-full">
                       Coming Soon
                     </span>
                   )}
@@ -129,6 +131,7 @@ export default function SettingsPage() {
               <AccountSettings onEditProfile={() => setIsEditProfileModalOpen(true)} />
             )}
             {activeTab === 'privacy' && <PrivacySettings />}
+            {activeTab === 'appearance' && <AppearanceSettings />}
             {activeTab === 'messaging' && <MessagingSettings />}
             {activeTab === 'notifications' && <NotificationSettings />}
             {activeTab === 'security' && <SecuritySettings />}

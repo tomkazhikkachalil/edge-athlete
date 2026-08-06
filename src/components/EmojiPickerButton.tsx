@@ -2,7 +2,9 @@
 
 import { useState, useRef, useEffect } from 'react';
 import dynamic from 'next/dynamic';
+import { Theme } from 'emoji-picker-react';
 import type { EmojiClickData } from 'emoji-picker-react';
+import { useTheme } from '@/lib/use-theme';
 
 // Lazy-load the picker so it doesn't bloat the initial bundle
 const EmojiPicker = dynamic(() => import('emoji-picker-react'), {
@@ -40,6 +42,7 @@ export default function EmojiPickerButton({
 }: Props) {
   const [open, setOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
+  const { theme } = useTheme();
 
   // A panel left open while the button goes disabled (a send starting, say)
   // would hover over a dead control. Render-phase sync, not an effect — the
@@ -83,7 +86,7 @@ export default function EmojiPickerButton({
         type="button"
         onClick={() => setOpen(prev => !prev)}
         disabled={disabled}
-        className="shrink-0 p-2.5 text-gray-400 hover:text-yellow-500 transition-colors disabled:opacity-40"
+        className="shrink-0 p-2.5 text-faint hover:text-yellow-500 transition-colors disabled:opacity-40"
         aria-label="Add emoji"
         title="Add emoji"
       >
@@ -94,6 +97,7 @@ export default function EmojiPickerButton({
         <div className={`absolute bottom-full mb-2 z-50 ${align === 'right' ? 'right-0' : 'left-0'}`}>
           <EmojiPicker
             onEmojiClick={handleEmojiClick}
+            theme={theme === 'dark' ? Theme.DARK : Theme.LIGHT}
             lazyLoadEmojis
             height={350}
             width="min(300px, calc(100vw - 2rem))"

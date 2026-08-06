@@ -189,38 +189,38 @@ export default function SharedRoundFullCard({
 
     return (
       <div className="mb-4">
-        <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
+        <div className="bg-surface rounded-lg border border-border overflow-hidden">
           {/* Table Header */}
           <div className="overflow-x-auto">
             <table className="w-full text-xs">
               <thead>
-                <tr className="bg-gray-50 border-b border-gray-200">
+                <tr className="bg-surface-muted border-b border-border">
                   {/* Narrower sticky column below sm: at 320px the 120px
                       column + the TOTAL column left ~1.75 hole columns
                       visible; 72px shows ~4.5. Names truncate in their cells. */}
-                  <th className="text-left py-2 px-2 sm:px-3 font-bold text-gray-700 sticky left-0 bg-gray-50 z-10 min-w-[72px] sm:min-w-[120px] max-w-[96px] sm:max-w-none">
+                  <th className="text-left py-2 px-2 sm:px-3 font-bold text-secondary sticky left-0 bg-surface-muted z-10 min-w-[72px] sm:min-w-[120px] max-w-[96px] sm:max-w-none">
                     {title}
                   </th>
                   {holeNumbers.map(holeNum => (
-                    <th key={holeNum} className="text-center py-2 px-2 font-black text-gray-700 min-w-[40px]">
+                    <th key={holeNum} className="text-center py-2 px-2 font-black text-secondary min-w-[40px]">
                       {holeNum}
                     </th>
                   ))}
-                  <th className="text-center py-2 px-3 font-black text-gray-800 bg-gray-100 min-w-[50px]">
+                  <th className="text-center py-2 px-3 font-black text-primary bg-surface-sunken min-w-[50px]">
                     {title === 'Front 9' ? 'OUT' : title === 'Back 9' ? 'IN' : 'TOTAL'}
                   </th>
                 </tr>
               </thead>
               <tbody>
                 {/* Par Row */}
-                <tr className="border-b border-gray-200 bg-gray-50">
-                  <td className="py-2 px-2 sm:px-3 font-bold text-gray-700 sticky left-0 bg-gray-50 z-10">PAR</td>
+                <tr className="border-b border-border bg-surface-muted">
+                  <td className="py-2 px-2 sm:px-3 font-bold text-secondary sticky left-0 bg-surface-muted z-10">PAR</td>
                   {holeNumbers.map(holeNum => (
-                    <td key={holeNum} className="text-center py-2 px-2 font-bold text-gray-900">
+                    <td key={holeNum} className="text-center py-2 px-2 font-bold text-primary">
                       {parFor(holeNum)}
                     </td>
                   ))}
-                  <td className="text-center py-2 px-3 font-black text-gray-800 bg-gray-100">
+                  <td className="text-center py-2 px-3 font-black text-primary bg-surface-sunken">
                     {holeNumbers.reduce((sum, h) => sum + parFor(h), 0)}
                   </td>
                 </tr>
@@ -239,8 +239,8 @@ export default function SharedRoundFullCard({
                   layout exists for.
                 */}
                 {segmentsWithMedia.size > 0 && (
-                  <tr className="border-b border-gray-200">
-                    <td className="py-1.5 px-2 sm:px-3 font-bold text-gray-500 text-[11px] uppercase tracking-wide sticky left-0 bg-white z-10">
+                  <tr className="border-b border-border">
+                    <td className="py-1.5 px-2 sm:px-3 font-bold text-muted text-[11px] uppercase tracking-wide sticky left-0 bg-surface z-10">
                       Media
                     </td>
                     {holeNumbers.map(holeNum => {
@@ -272,7 +272,7 @@ export default function SharedRoundFullCard({
                         </td>
                       );
                     })}
-                    <td className="bg-gray-100"></td>
+                    <td className="bg-surface-sunken"></td>
                   </tr>
                 )}
 
@@ -302,8 +302,8 @@ export default function SharedRoundFullCard({
                     const isCurrentUser = participant.profile_id === currentUserId;
 
                     return (
-                      <tr key={participant.id} className="border-b border-gray-200 hover:bg-gray-50">
-                        <td className="py-2 px-2 sm:px-3 sticky left-0 bg-white z-10 hover:bg-gray-50">
+                      <tr key={participant.id} className="border-b border-border hover:bg-surface-muted">
+                        <td className="py-2 px-2 sm:px-3 sticky left-0 bg-surface z-10 hover:bg-surface-muted">
                           <div className="flex items-center gap-2">
                             {/* Avatar hides below sm — in the 72px phone
                                 column the name is the information */}
@@ -317,14 +317,14 @@ export default function SharedRoundFullCard({
                                   height={24}
                                 />
                               ) : (
-                                <div className="w-6 h-6 rounded-full bg-gray-200 flex items-center justify-center flex-shrink-0">
-                                  <span className="text-[10px] font-medium text-gray-600">
+                                <div className="w-6 h-6 rounded-full bg-gray-200 dark:bg-stone-800 flex items-center justify-center flex-shrink-0">
+                                  <span className="text-[10px] font-medium text-tertiary">
                                     {getInitials(displayName)}
                                   </span>
                                 </div>
                               )}
                             </span>
-                            <span className={`font-bold text-gray-900 text-xs min-w-0 truncate ${isCurrentUser ? 'text-violet-600' : ''}`} title={displayName}>
+                            <span className={`font-bold text-primary text-xs min-w-0 truncate ${isCurrentUser ? 'text-brand-fg' : ''}`} title={displayName}>
                               {displayName}
                               {isCurrentUser && <span className="ml-1">(You)</span>}
                             </span>
@@ -336,7 +336,7 @@ export default function SharedRoundFullCard({
                           if (!hole) {
                             return (
                               <td key={holeNum} className="text-center py-2 px-2">
-                                <span className="text-gray-400 text-xs">-</span>
+                                <span className="text-faint text-xs">-</span>
                               </td>
                             );
                           }
@@ -351,15 +351,15 @@ export default function SharedRoundFullCard({
                               {/* SEMANTIC COLOUR — DO NOT NEUTRALISE. SCORE_CELL_RING
                             encodes eagle/birdie/bogey/double against par; this is
                             the scorecard's at-a-glance read, not decoration. */}
-                        <div className={`${textColor} ${border} bg-white rounded mx-auto w-7 h-7 flex items-center justify-center text-sm`}>
+                        <div className={`${textColor} ${border} bg-surface rounded mx-auto w-7 h-7 flex items-center justify-center text-sm`}>
                                 {hole.strokes}
                               </div>
                             </td>
                           );
                         })}
 
-                        <td className="text-center py-2 px-3 bg-violet-50">
-                          <span className="font-black text-violet-900 text-base">
+                        <td className="text-center py-2 px-3 bg-brand-soft">
+                          <span className="font-black text-violet-900 dark:text-violet-200 text-base">
                             {subtotal || '-'}
                           </span>
                         </td>
@@ -381,8 +381,8 @@ export default function SharedRoundFullCard({
                     const isCurrentUser = participant.profile_id === currentUserId;
 
                     return (
-                      <tr key={participant.id} className="border-b border-gray-200 bg-gray-50">
-                        <td className="py-2 px-2 sm:px-3 sticky left-0 bg-gray-50 z-10">
+                      <tr key={participant.id} className="border-b border-border bg-surface-muted">
+                        <td className="py-2 px-2 sm:px-3 sticky left-0 bg-surface-muted z-10">
                           <div className="flex items-center gap-2">
                             {profile.avatar_url ? (
                               <LazyImage
@@ -393,13 +393,13 @@ export default function SharedRoundFullCard({
                                 height={24}
                               />
                             ) : (
-                              <div className="w-6 h-6 rounded-full bg-gray-300 flex items-center justify-center flex-shrink-0">
-                                <span className="text-[10px] font-medium text-gray-600">
+                              <div className="w-6 h-6 rounded-full bg-gray-300 dark:bg-stone-700 flex items-center justify-center flex-shrink-0">
+                                <span className="text-[10px] font-medium text-tertiary">
                                   {getInitials(displayName)}
                                 </span>
                               </div>
                             )}
-                            <span className={`font-bold text-gray-600 text-xs truncate ${isCurrentUser ? 'text-violet-600' : ''}`}>
+                            <span className={`font-bold text-tertiary text-xs truncate ${isCurrentUser ? 'text-brand-fg' : ''}`}>
                               {displayName}
                               {isCurrentUser && <span className="ml-1">(You)</span>}
                             </span>
@@ -408,7 +408,7 @@ export default function SharedRoundFullCard({
 
                         {holeNumbers.map(holeNum => (
                           <td key={holeNum} className="text-center py-2 px-2">
-                            <span className="text-gray-400 text-xs">-</span>
+                            <span className="text-faint text-xs">-</span>
                           </td>
                         ))}
 
@@ -416,12 +416,12 @@ export default function SharedRoundFullCard({
                           {isCurrentUser && onAddScores ? (
                             <button
                               onClick={() => onAddScores(participant.id)}
-                              className="text-xs text-violet-600 hover:text-violet-800 font-bold px-3 py-2 -m-1 min-h-[40px] rounded-md hover:bg-violet-50"
+                              className="text-xs text-brand-fg hover:text-brand-fg-strong font-bold px-3 py-2 -m-1 min-h-[40px] rounded-md hover:bg-brand-soft"
                             >
                               Add
                             </button>
                           ) : (
-                            <span className="text-gray-400 text-xs">Awaiting</span>
+                            <span className="text-faint text-xs">Awaiting</span>
                           )}
                         </td>
                       </tr>
@@ -437,7 +437,7 @@ export default function SharedRoundFullCard({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-      <div className="bg-white rounded-lg shadow-2xl max-w-6xl w-full max-h-modal overflow-hidden flex flex-col">
+      <div className="bg-surface-raised rounded-lg shadow-2xl max-w-6xl w-full max-h-modal overflow-hidden flex flex-col">
         {/* Header. `shrink-0` so it keeps its height and the SCROLL AREA absorbs
             the overflow instead — without it a tall header squeezes `flex-1`. */}
         <div className="shrink-0 bg-gray-900 text-white p-4 sm:p-6">
@@ -532,9 +532,9 @@ export default function SharedRoundFullCard({
             icon+label tabs are ~380px of intrinsic width, which wrapped the
             labels mid-word on every phone. Same pattern as ProfileMediaTabs —
             edge fades signal the off-screen tab, scrollbar stays hidden. */}
-        <div className="shrink-0 border-b border-gray-300 bg-white relative">
-          <div className="absolute left-0 top-0 bottom-0 w-8 bg-gradient-to-r from-white to-transparent z-10 pointer-events-none md:hidden" />
-          <div className="absolute right-0 top-0 bottom-0 w-8 bg-gradient-to-l from-white to-transparent z-10 pointer-events-none md:hidden" />
+        <div className="shrink-0 border-b border-border-strong bg-surface relative">
+          <div className="absolute left-0 top-0 bottom-0 w-8 bg-gradient-to-r from-surface to-transparent z-10 pointer-events-none md:hidden" />
+          <div className="absolute right-0 top-0 bottom-0 w-8 bg-gradient-to-l from-surface to-transparent z-10 pointer-events-none md:hidden" />
           <div className="flex overflow-x-auto scrollbar-hide px-4 sm:px-6" role="tablist" aria-label="Round detail sections">
             {TABS.map(tab => {
               const selected = activeTab === tab.id;
@@ -548,14 +548,14 @@ export default function SharedRoundFullCard({
                   onClick={() => setActiveTab(tab.id)}
                   className={`px-4 sm:px-6 py-3 font-bold text-sm border-b-2 transition-colors whitespace-nowrap shrink-0 ${
                     selected
-                      ? 'border-violet-600 text-violet-700'
-                      : 'border-transparent text-gray-600 hover:text-gray-900'
+                      ? 'border-brand text-brand-fg-strong'
+                      : 'border-transparent text-tertiary hover:text-primary'
                   }`}
                 >
                   <i className={`${tab.icon} mr-2`}></i>
                   {tab.label}
                   {tab.id === 'media' && roundMediaItems.length > 0 && (
-                    <span className="ml-1.5 text-xs font-semibold text-gray-500">
+                    <span className="ml-1.5 text-xs font-semibold text-muted">
                       {roundMediaItems.length}
                     </span>
                   )}
@@ -594,7 +594,7 @@ export default function SharedRoundFullCard({
                     <button
                       type="button"
                       onClick={() => setActiveTab('media')}
-                      className="mt-2 text-sm font-semibold text-violet-600 hover:text-violet-700"
+                      className="mt-2 text-sm font-semibold text-brand-fg hover:text-brand-fg-strong"
                     >
                       See all {roundMediaItems.length} photos and videos
                     </button>
@@ -603,16 +603,16 @@ export default function SharedRoundFullCard({
               )}
               {/* Match play status banner */}
               {matchStatus && matchStatus.thru > 0 && (
-                <div className="flex items-center gap-3 bg-gray-50 border border-gray-200 rounded-lg px-4 py-3">
-                  <i className="fas fa-people-arrows text-gray-500 text-lg"></i>
+                <div className="flex items-center gap-3 bg-surface-muted border border-border rounded-lg px-4 py-3">
+                  <i className="fas fa-people-arrows text-muted text-lg"></i>
                   <div>
-                    <div className="text-base font-black text-gray-900">
+                    <div className="text-base font-black text-primary">
                       {matchStatus.leaderIndex === null
                         ? matchStatus.summary
                         : `${matchLeaderName} ${matchStatus.final ? 'wins' : ''} ${matchStatus.summary}`.replace(/\s+/g, ' ')}
                     </div>
                     {!matchStatus.final && (
-                      <div className="text-xs font-semibold text-gray-600">
+                      <div className="text-xs font-semibold text-tertiary">
                         {matchStatus.remaining} hole{matchStatus.remaining === 1 ? '' : 's'} remaining
                       </div>
                     )}
@@ -621,17 +621,17 @@ export default function SharedRoundFullCard({
               )}
 
               {/* Leaderboard */}
-              <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
-                <div className="bg-gray-50 px-4 py-3 border-b border-gray-200">
-                  <h3 className="text-lg font-black text-gray-900">
+              <div className="bg-surface rounded-lg border border-border overflow-hidden">
+                <div className="bg-surface-muted px-4 py-3 border-b border-border">
+                  <h3 className="text-lg font-black text-primary">
                     <i className={`fas ${participants.filter(p => isActiveParticipant(p.participant.status)).length > 1 ? 'fa-trophy' : 'fa-golf-ball'} mr-2`}></i>
                     {participants.filter(p => isActiveParticipant(p.participant.status)).length > 1 ? 'Leaderboard' : 'Your Round'}
                     {gameFormat === 'stableford' && (
-                      <span className="ml-2 text-sm font-bold text-gray-500">(points — highest wins)</span>
+                      <span className="ml-2 text-sm font-bold text-muted">(points — highest wins)</span>
                     )}
                   </h3>
                 </div>
-                <div className="divide-y divide-gray-200">
+                <div className="divide-y divide-border">
                   {participants
                     .filter(p => isActiveParticipant(p.participant.status) && p.scores.total_score !== null)
                     .sort((a, b) =>
@@ -650,7 +650,7 @@ export default function SharedRoundFullCard({
                       const isCurrentUser = participant.profile_id === currentUserId;
 
                       return (
-                        <div key={participant.id} className={`flex items-center gap-4 p-4 ${isCurrentUser ? 'bg-violet-50' : 'hover:bg-gray-50'}`}>
+                        <div key={participant.id} className={`flex items-center gap-4 p-4 ${isCurrentUser ? 'bg-brand-soft' : 'hover:bg-surface-muted'}`}>
                           {/* Position */}
                           <div className="w-10 h-10 flex-shrink-0 flex items-center justify-center">
                             {index === 0 ? (
@@ -658,7 +658,7 @@ export default function SharedRoundFullCard({
                                 <i className="fas fa-trophy text-white text-sm"></i>
                               </div>
                             ) : (
-                              <span className="text-2xl font-black text-gray-400">{index + 1}</span>
+                              <span className="text-2xl font-black text-faint">{index + 1}</span>
                             )}
                           </div>
 
@@ -681,14 +681,14 @@ export default function SharedRoundFullCard({
 
                           {/* Name */}
                           <div className="flex-1 min-w-0">
-                            <div className={`font-black text-base ${isCurrentUser ? 'text-violet-700' : 'text-gray-900'}`}>
+                            <div className={`font-black text-base ${isCurrentUser ? 'text-brand-fg-strong' : 'text-primary'}`}>
                               {displayName}
                               {isCurrentUser && <span className="ml-2 text-sm">(You)</span>}
                             </div>
-                            <div className="text-sm text-gray-600">
+                            <div className="text-sm text-tertiary">
                               {scores.holes_completed} of {golf_data.holes_played} holes
                               {scores.scores_confirmed === false && !isCurrentUser && (
-                                <span className="ml-2 text-xs text-amber-700">
+                                <span className="ml-2 text-xs text-amber-700 dark:text-amber-300">
                                   <i className="fas fa-pen-to-square mr-1"></i>entered by organizer
                                 </span>
                               )}
@@ -701,7 +701,7 @@ export default function SharedRoundFullCard({
                           {isCreator && !isCurrentUser && onAddScores && (
                             <button
                               onClick={() => onAddScores(participant.id)}
-                              className="text-sm font-bold text-violet-600 hover:text-violet-700 px-3 py-2 rounded-lg border border-violet-200 hover:bg-violet-50 transition-colors flex-shrink-0"
+                              className="text-sm font-bold text-brand-fg hover:text-brand-fg-strong px-3 py-2 rounded-lg border border-violet-200 dark:border-violet-800 hover:bg-brand-soft transition-colors flex-shrink-0"
                             >
                               Edit
                             </button>
@@ -711,18 +711,18 @@ export default function SharedRoundFullCard({
                           <div className="text-right">
                             {gameFormat === 'stableford' ? (
                               <>
-                                <div className="text-3xl font-black text-gray-900">
+                                <div className="text-3xl font-black text-primary">
                                   {stablefordPointsFor(scores.hole_scores)}
-                                  <span className="text-sm font-bold text-gray-500 ml-1">pts</span>
+                                  <span className="text-sm font-bold text-muted ml-1">pts</span>
                                 </div>
-                                <div className="text-sm font-bold text-gray-600">{scores.total_score} strokes</div>
+                                <div className="text-sm font-bold text-tertiary">{scores.total_score} strokes</div>
                               </>
                             ) : (
                               <>
-                                <div className="text-3xl font-black text-gray-900">{scores.total_score}</div>
+                                <div className="text-3xl font-black text-primary">{scores.total_score}</div>
                                 {/* SEMANTIC COLOUR — DO NOT NEUTRALISE: under/over par. */}
                                 {scores.to_par !== null && (
-                                  <div className={`text-sm font-bold ${scores.to_par < 0 ? 'text-green-600' : scores.to_par > 0 ? 'text-red-600' : 'text-gray-600'}`}>
+                                  <div className={`text-sm font-bold ${scores.to_par < 0 ? 'text-green-600 dark:text-green-400' : scores.to_par > 0 ? 'text-red-600 dark:text-red-400' : 'text-tertiary'}`}>
                                     {scores.to_par >= 0 ? '+' : ''}{scores.to_par}
                                   </div>
                                 )}
@@ -747,7 +747,7 @@ export default function SharedRoundFullCard({
                       const isCurrentUser = participant.profile_id === currentUserId;
 
                       return (
-                        <div key={participant.id} className="flex items-center gap-4 p-4 bg-gray-50">
+                        <div key={participant.id} className="flex items-center gap-4 p-4 bg-surface-muted">
                           <div className="w-10 h-10 flex-shrink-0 flex items-center justify-center">
                             <span className="text-2xl font-black text-gray-300">-</span>
                           </div>
@@ -761,19 +761,19 @@ export default function SharedRoundFullCard({
                               height={48}
                             />
                           ) : (
-                            <div className="w-12 h-12 rounded-full bg-gray-300 flex items-center justify-center flex-shrink-0">
-                              <span className="text-gray-600 text-sm font-bold">
+                            <div className="w-12 h-12 rounded-full bg-gray-300 dark:bg-stone-700 flex items-center justify-center flex-shrink-0">
+                              <span className="text-tertiary text-sm font-bold">
                                 {getInitials(displayName)}
                               </span>
                             </div>
                           )}
 
                           <div className="flex-1 min-w-0">
-                            <div className={`font-bold text-base ${isCurrentUser ? 'text-violet-700' : 'text-gray-600'}`}>
+                            <div className={`font-bold text-base ${isCurrentUser ? 'text-brand-fg-strong' : 'text-tertiary'}`}>
                               {displayName}
                               {isCurrentUser && <span className="ml-2 text-sm">(You)</span>}
                             </div>
-                            <div className="text-sm text-gray-500 italic">
+                            <div className="text-sm text-muted italic">
                               {isCurrentUser && onAddScores ? 'Tap to add your scores' : 'Awaiting scores'}
                             </div>
                           </div>
@@ -781,7 +781,7 @@ export default function SharedRoundFullCard({
                           {isCreator && !isCurrentUser && onAddScores && (
                             <button
                               onClick={() => onAddScores(participant.id)}
-                              className="text-sm font-bold text-violet-600 hover:text-violet-700 px-3 py-2 rounded-lg border border-violet-200 hover:bg-violet-50 transition-colors flex-shrink-0"
+                              className="text-sm font-bold text-brand-fg hover:text-brand-fg-strong px-3 py-2 rounded-lg border border-violet-200 dark:border-violet-800 hover:bg-brand-soft transition-colors flex-shrink-0"
                             >
                               Add scores
                             </button>
@@ -790,7 +790,7 @@ export default function SharedRoundFullCard({
                           {isCurrentUser && onAddScores && (
                             <button
                               onClick={() => onAddScores(participant.id)}
-                              className="bg-violet-600 hover:bg-violet-700 text-white font-bold py-2 px-4 rounded-lg text-sm transition-colors"
+                              className="bg-brand hover:bg-brand-hover text-white font-bold py-2 px-4 rounded-lg text-sm transition-colors"
                             >
                               Add Scores
                             </button>
@@ -802,28 +802,28 @@ export default function SharedRoundFullCard({
               </div>
 
               {/* Round Details */}
-              <div className="bg-white rounded-lg border-2 border-gray-300 p-4">
-                <h3 className="text-lg font-black text-gray-900 mb-3">
+              <div className="bg-surface rounded-lg border-2 border-border-strong p-4">
+                <h3 className="text-lg font-black text-primary mb-3">
                   <i className="fas fa-info-circle mr-2"></i>
                   Round Details
                 </h3>
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                   <div>
-                    <div className="text-xs font-semibold text-gray-600 mb-1">Course</div>
-                    <div className="font-bold text-gray-900">{golf_data.course_name}</div>
+                    <div className="text-xs font-semibold text-tertiary mb-1">Course</div>
+                    <div className="font-bold text-primary">{golf_data.course_name}</div>
                   </div>
                   <div>
-                    <div className="text-xs font-semibold text-gray-600 mb-1">Date</div>
-                    <div className="font-bold text-gray-900">{formattedDate}</div>
+                    <div className="text-xs font-semibold text-tertiary mb-1">Date</div>
+                    <div className="font-bold text-primary">{formattedDate}</div>
                   </div>
                   <div>
-                    <div className="text-xs font-semibold text-gray-600 mb-1">Holes</div>
-                    <div className="font-bold text-gray-900">{golf_data.holes_played}</div>
+                    <div className="text-xs font-semibold text-tertiary mb-1">Holes</div>
+                    <div className="font-bold text-primary">{golf_data.holes_played}</div>
                   </div>
                   {golf_data.tee_color && (
                     <div>
-                      <div className="text-xs font-semibold text-gray-600 mb-1">Tees</div>
-                      <div className="font-bold text-gray-900">{golf_data.tee_color.charAt(0).toUpperCase() + golf_data.tee_color.slice(1)}</div>
+                      <div className="text-xs font-semibold text-tertiary mb-1">Tees</div>
+                      <div className="font-bold text-primary">{golf_data.tee_color.charAt(0).toUpperCase() + golf_data.tee_color.slice(1)}</div>
                     </div>
                   )}
                 </div>
@@ -839,7 +839,7 @@ export default function SharedRoundFullCard({
 
               {/* Total Score Summary */}
               {front9.length > 0 && back9.length > 0 && (
-                <div className="bg-violet-100 border-2 border-violet-300 rounded-lg p-4 mb-4">
+                <div className="bg-violet-100 dark:bg-violet-950/60 border-2 border-violet-300 dark:border-violet-700 rounded-lg p-4 mb-4">
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                     {participants
                       .filter(p => isActiveParticipant(p.participant.status) && p.scores.total_score)
@@ -854,10 +854,10 @@ export default function SharedRoundFullCard({
 
                         return (
                           <div key={participant.id} className="text-center">
-                            <div className="font-bold text-sm text-violet-900 mb-1">{displayName}</div>
-                            <div className="text-3xl font-black text-violet-900">{scores.total_score}</div>
+                            <div className="font-bold text-sm text-violet-900 dark:text-violet-200 mb-1">{displayName}</div>
+                            <div className="text-3xl font-black text-violet-900 dark:text-violet-200">{scores.total_score}</div>
                             {scores.to_par !== null && (
-                              <div className={`text-sm font-bold ${scores.to_par < 0 ? 'text-green-600' : scores.to_par > 0 ? 'text-red-600' : 'text-gray-600'}`}>
+                              <div className={`text-sm font-bold ${scores.to_par < 0 ? 'text-green-600 dark:text-green-400' : scores.to_par > 0 ? 'text-red-600 dark:text-red-400' : 'text-tertiary'}`}>
                                 ({scores.to_par >= 0 ? '+' : ''}{scores.to_par})
                               </div>
                             )}
@@ -869,21 +869,21 @@ export default function SharedRoundFullCard({
               )}
 
               {/* Legend */}
-              <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-xs text-gray-600 mb-4">
+              <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-xs text-tertiary mb-4">
                 <div className="flex items-center gap-1">
-                  <div className="w-5 h-5 rounded ring-2 ring-violet-500 ring-inset bg-white"></div>
+                  <div className="w-5 h-5 rounded ring-2 ring-violet-500 ring-inset bg-surface"></div>
                   <span>Eagle (-2)</span>
                 </div>
                 <div className="flex items-center gap-1">
-                  <div className="w-5 h-5 rounded ring-1 ring-violet-400 ring-inset bg-white"></div>
+                  <div className="w-5 h-5 rounded ring-1 ring-violet-400 ring-inset bg-surface"></div>
                   <span>Birdie (-1)</span>
                 </div>
                 <div className="flex items-center gap-1">
-                  <div className="w-5 h-5 rounded border border-red-400 bg-white"></div>
+                  <div className="w-5 h-5 rounded border border-red-400 dark:border-red-500 bg-surface"></div>
                   <span>Bogey (+1)</span>
                 </div>
                 <div className="flex items-center gap-1">
-                  <div className="w-5 h-5 rounded ring-2 ring-red-500 ring-inset bg-white"></div>
+                  <div className="w-5 h-5 rounded ring-2 ring-red-500 ring-inset bg-surface"></div>
                   <span>Double+ (+2)</span>
                 </div>
               </div>
@@ -907,9 +907,9 @@ export default function SharedRoundFullCard({
               )}
 
               {roundMediaItems.length === 0 ? (
-                <div className="py-12 text-center text-gray-500">
+                <div className="py-12 text-center text-muted">
                   <i className="fas fa-images text-4xl text-gray-300 mb-3 block" aria-hidden="true"></i>
-                  <p className="font-semibold text-gray-700">No photos or videos yet</p>
+                  <p className="font-semibold text-secondary">No photos or videos yet</p>
                   <p className="mt-1 text-sm">
                     Photos added while scoring are tagged to the hole automatically.
                   </p>
@@ -920,7 +920,7 @@ export default function SharedRoundFullCard({
                     {/* The ONLY sport-specific thing here is the word, and it
                         comes from the schema — an innings heading is this same
                         code with a different label. */}
-                    <div className="mb-2 text-xs font-bold uppercase tracking-wide text-gray-500">
+                    <div className="mb-2 text-xs font-bold uppercase tracking-wide text-muted">
                       {segmentLabel('golf', segment)}
                     </div>
                     <MediaGrid
@@ -963,16 +963,16 @@ export default function SharedRoundFullCard({
             above already shows it per player and highlights your own row, so
             for a solo round this was the same number twice, inches apart. */}
         {canScore && (
-          <div className="shrink-0 border-t border-gray-300 p-4 bg-gray-50 safe-bottom">
+          <div className="shrink-0 border-t border-border-strong p-4 bg-surface-muted safe-bottom">
             <div className="flex items-center justify-between gap-3">
-              <div className="min-w-0 text-sm text-gray-700">
+              <div className="min-w-0 text-sm text-secondary">
                 {!currentUserParticipant!.scores.total_score && (
-                  <span className="font-bold text-gray-900">You haven&apos;t added your scores yet</span>
+                  <span className="font-bold text-primary">You haven&apos;t added your scores yet</span>
                 )}
               </div>
               <button
                 onClick={() => onAddScores!(currentUserParticipant!.participant.id)}
-                className="shrink-0 bg-violet-600 hover:bg-violet-700 text-white font-bold py-2 px-4 rounded-lg transition-colors"
+                className="shrink-0 bg-brand hover:bg-brand-hover text-white font-bold py-2 px-4 rounded-lg transition-colors"
               >
                 {currentUserParticipant!.scores.total_score ? 'Edit Scores' : 'Add Scores'}
               </button>
@@ -1001,7 +1001,7 @@ export default function SharedRoundFullCard({
         message="Mark this round as final? The live leaderboard stops updating as LIVE, but players can still add or fix scores afterward."
         confirmText="End Round"
         cancelText="Keep Playing"
-        confirmButtonClass="bg-violet-600 hover:bg-violet-700"
+        confirmButtonClass="bg-brand hover:bg-brand-hover"
         onConfirm={handleEndRound}
         onCancel={() => setShowEndConfirm(false)}
       />

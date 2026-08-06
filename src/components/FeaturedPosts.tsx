@@ -89,7 +89,7 @@ export default function FeaturedPosts({
     <div className="mb-6">
       <div className="flex items-center gap-2 mb-3">
         <i className="fas fa-thumbtack text-amber-500 text-sm" aria-hidden="true"></i>
-        <h3 className="text-lg font-bold text-black">Featured</h3>
+        <h3 className="text-lg font-bold text-black dark:text-primary">Featured</h3>
       </div>
 
       <div className="grid grid-cols-3 gap-3 sm:gap-4">
@@ -143,7 +143,7 @@ function FeaturedTile({
     <div className="relative group">
       <button
         onClick={onOpen}
-        className="relative w-full aspect-square rounded-xl overflow-hidden bg-gray-100 ring-2 ring-amber-200 hover:shadow-lg hover:scale-105 transition-all duration-300"
+        className="relative w-full aspect-square rounded-xl overflow-hidden bg-surface-sunken ring-2 ring-amber-200 hover:shadow-lg hover:scale-105 transition-all duration-300"
         aria-label={post.caption || 'Featured post'}
       >
         {firstMedia ? (
@@ -170,8 +170,8 @@ function FeaturedTile({
             />
           )
         ) : (
-          <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-amber-50 via-yellow-50 to-amber-100 p-3">
-            <p className="text-sm text-gray-700 line-clamp-4 text-center">
+          <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-amber-50 dark:from-amber-950/40 via-yellow-50 dark:via-yellow-950/40 to-amber-100 dark:to-amber-950/60 p-3">
+            <p className="text-sm text-secondary line-clamp-4 text-center">
               {textContent || 'Post'}
             </p>
           </div>

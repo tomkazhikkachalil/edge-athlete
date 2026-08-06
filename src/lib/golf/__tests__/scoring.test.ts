@@ -107,11 +107,13 @@ describe('toParLabel', () => {
 });
 
 describe('toParColorClass', () => {
-  it('under par is green, over is red, even is gray (app-wide convention)', () => {
+  it('under par is green, over is red, even is neutral (app-wide convention)', () => {
     expect(toParColorClass(-1)).toContain('green');
     expect(toParColorClass(3)).toContain('red');
-    expect(toParColorClass(0)).toContain('gray');
-    expect(toParColorClass(null)).toContain('gray');
+    // The neutral gray tier is spelled via the theme tokens since the dark-
+    // mode sweep: tertiary = the old text-gray-600, faint = text-gray-400.
+    expect(toParColorClass(0)).toBe('text-tertiary');
+    expect(toParColorClass(null)).toBe('text-faint');
   });
 });
 

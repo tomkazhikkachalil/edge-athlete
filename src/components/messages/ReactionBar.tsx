@@ -110,8 +110,8 @@ export default function ReactionBar({
           onTouchMove={cancelLongPress}
           className={`ea-reaction-chip inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs transition-colors border ${
             r.reacted
-              ? 'bg-violet-50 border-violet-300 text-violet-700'
-              : 'bg-gray-50 border-gray-200 text-gray-600 hover:bg-gray-100'
+              ? 'bg-brand-soft border-violet-300 dark:border-violet-700 text-brand-fg-strong'
+              : 'bg-surface-muted border-border text-tertiary hover:bg-surface-sunken'
           }`}
           title={r.reacted ? 'Remove reaction (long-press to see who)' : 'React (long-press to see who)'}
         >
@@ -123,17 +123,17 @@ export default function ReactionBar({
       {/* Add reaction button */}
       <div className="relative">
         {showPicker ? (
-          <div className={`absolute bottom-full mb-2 z-30 bg-white rounded-xl shadow-xl border border-gray-200 p-2 w-72 max-w-[80vw] ${align === 'right' ? 'right-0' : 'left-0'}`}>
+          <div className={`absolute bottom-full mb-2 z-30 bg-surface-raised rounded-xl shadow-xl border border-border p-2 w-72 max-w-[80vw] ${align === 'right' ? 'right-0' : 'left-0'}`}>
             {recents.length > 0 && (
-              <div className="mb-2 pb-2 border-b border-gray-100">
-                <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide mb-1 px-1">Recent</p>
+              <div className="mb-2 pb-2 border-b border-border-subtle">
+                <p className="text-[10px] font-semibold text-faint uppercase tracking-wide mb-1 px-1">Recent</p>
                 <div className="flex flex-wrap gap-1">
                   {recents.map(e => (
                     <button
                       key={e}
                       type="button"
                       onClick={() => handlePickerSelect(e)}
-                      className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-gray-100 text-base"
+                      className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-surface-sunken text-base"
                       aria-label={`React with ${e}`}
                     >
                       {e}
@@ -142,11 +142,11 @@ export default function ReactionBar({
                 </div>
               </div>
             )}
-            <EmojiPickerButton onEmojiSelect={handlePickerSelect} className="text-gray-400" />
+            <EmojiPickerButton onEmojiSelect={handlePickerSelect} className="text-faint" />
             <button
               type="button"
               onClick={() => setShowPicker(false)}
-              className="absolute -top-1 -right-1 w-5 h-5 bg-white border border-gray-200 text-gray-400 hover:text-gray-600 rounded-full flex items-center justify-center text-[10px] shadow-sm"
+              className="absolute -top-1 -right-1 w-5 h-5 bg-surface border border-border text-faint hover:text-tertiary rounded-full flex items-center justify-center text-[10px] shadow-sm"
               aria-label="Close"
             >
               <i className="fas fa-times"></i>
@@ -155,7 +155,7 @@ export default function ReactionBar({
         ) : (
           <button
             onClick={() => setShowPicker(true)}
-            className="inline-flex items-center justify-center w-7 h-7 rounded-full bg-gray-50 border border-gray-200 text-gray-400 hover:bg-gray-100 hover:text-gray-600 transition-colors text-xs"
+            className="inline-flex items-center justify-center w-7 h-7 rounded-full bg-surface-muted border border-border text-faint hover:bg-surface-sunken hover:text-tertiary transition-colors text-xs"
             title="Add reaction"
             aria-label="Add reaction"
           >

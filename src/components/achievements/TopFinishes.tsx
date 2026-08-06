@@ -23,23 +23,23 @@ export default function TopFinishes({ achievements }: TopFinishesProps) {
 
   return (
     <section aria-label="Top finishes">
-      <h3 className="text-base font-bold text-gray-900 mb-3">Top Finishes</h3>
+      <h3 className="text-base font-bold text-primary mb-3">Top Finishes</h3>
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         {finishes.map(a => {
           const accent = tierAccent(parsePlacement(a.placement));
           const meta = [formatMonthYear(a.achieved_on), a.organization].filter(Boolean).join(' · ');
           return (
-            <div key={a.id} className="bg-white rounded-lg border border-gray-200 p-4">
+            <div key={a.id} className="bg-surface rounded-lg border border-border p-4">
               <div className="flex items-center gap-1.5 mb-1">
                 <Medal className={`w-3.5 h-3.5 ${accent.text}`} aria-hidden="true" />
-                <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide truncate">
+                <span className="text-xs font-semibold text-muted uppercase tracking-wide truncate">
                   {a.placement}
                 </span>
               </div>
-              <div className="text-base font-bold text-gray-900 leading-snug line-clamp-2">
+              <div className="text-base font-bold text-primary leading-snug line-clamp-2">
                 {a.title}
               </div>
-              <div className="text-xs text-gray-500 mt-0.5 truncate">{meta}</div>
+              <div className="text-xs text-muted mt-0.5 truncate">{meta}</div>
             </div>
           );
         })}

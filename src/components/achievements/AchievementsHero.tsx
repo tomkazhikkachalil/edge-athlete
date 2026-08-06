@@ -20,13 +20,13 @@ function Tile({
   icon: typeof Trophy; value: string; label: string; sub?: string;
 }) {
   return (
-    <div className="bg-white rounded-lg border border-gray-200 p-4 text-center">
+    <div className="bg-surface rounded-lg border border-border p-4 text-center">
       <div className="flex items-center justify-center gap-1.5 mb-1">
-        <Icon className="w-4 h-4 text-gray-400" aria-hidden="true" />
-        <span className="text-2xl font-bold text-gray-900 tabular-nums">{value}</span>
+        <Icon className="w-4 h-4 text-faint" aria-hidden="true" />
+        <span className="text-2xl font-bold text-primary tabular-nums">{value}</span>
       </div>
-      <div className="text-xs text-gray-500 uppercase tracking-wide">{label}</div>
-      {sub && <div className="text-xs text-gray-400 mt-0.5 tabular-nums">{sub}</div>}
+      <div className="text-xs text-muted uppercase tracking-wide">{label}</div>
+      {sub && <div className="text-xs text-faint mt-0.5 tabular-nums">{sub}</div>}
     </div>
   );
 }

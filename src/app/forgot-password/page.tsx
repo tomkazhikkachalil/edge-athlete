@@ -37,44 +37,44 @@ export default function ForgotPasswordPage() {
   };
 
   return (
-    <div className="min-h-screen flex flex-col bg-violet-50">
+    <div className="min-h-screen flex flex-col bg-brand-soft">
       <BrandBar />
 
       <div className="flex-grow flex items-center justify-center p-4">
-        <div className="w-full max-w-md bg-white rounded-lg shadow-lg p-6 sm:p-8">
-          <h2 className="text-2xl font-bold text-violet-800 mb-2">Reset your password</h2>
+        <div className="w-full max-w-md bg-surface rounded-lg shadow-lg p-6 sm:p-8">
+          <h2 className="text-2xl font-bold text-violet-800 dark:text-violet-200 mb-2">Reset your password</h2>
 
           {sent ? (
             <div>
-              <div className="bg-green-50 border border-green-200 text-green-700 px-4 py-3 rounded-md text-sm mb-6">
+              <div className="bg-green-50 dark:bg-green-950/40 border border-green-200 dark:border-green-800 text-green-700 dark:text-green-300 px-4 py-3 rounded-md text-sm mb-6">
                 If an account exists for <span className="font-semibold">{email.trim()}</span>, a
                 password reset link is on its way. Check your inbox (and spam folder).
               </div>
-              <Link href="/" className="text-violet-600 hover:text-violet-700 text-sm font-medium">
+              <Link href="/" className="text-brand-fg hover:text-brand-fg-strong text-sm font-medium">
                 ← Back to login
               </Link>
             </div>
           ) : (
             <>
-              <p className="text-sm text-gray-600 mb-6">
+              <p className="text-sm text-tertiary mb-6">
                 Enter the email you signed up with and we&apos;ll send you a link to set a new password.
               </p>
 
               {error && (
-                <div className="bg-red-50 border border-red-200 text-red-600 px-4 py-3 rounded-md text-sm mb-4">
+                <div className="bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-800 text-red-600 dark:text-red-400 px-4 py-3 rounded-md text-sm mb-4">
                   {error}
                 </div>
               )}
 
               <form onSubmit={handleSubmit} className="space-y-4">
                 <div>
-                  <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-2">Email</label>
+                  <label htmlFor="email" className="block text-sm font-medium text-secondary mb-2">Email</label>
                   <input
                     id="email"
                     type="email"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
-                    className="w-full px-3 py-3 sm:py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-violet-500 text-base text-gray-800"
+                    className="w-full px-3 py-3 sm:py-2 border border-border-strong rounded-md focus:outline-none focus:ring-2 focus:ring-violet-500 text-base text-primary"
                     placeholder="you@example.com"
                     autoComplete="email"
                     required
@@ -83,7 +83,7 @@ export default function ForgotPasswordPage() {
                 <button
                   type="submit"
                   disabled={submitting}
-                  className="w-full bg-violet-600 text-white py-3 px-4 rounded-md hover:bg-violet-700 transition duration-300 font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="w-full bg-brand text-white py-3 px-4 rounded-md hover:bg-brand-hover transition duration-300 font-medium disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   {submitting ? (
                     <><i className="fas fa-spinner fa-spin mr-2"></i> Sending…</>
@@ -94,7 +94,7 @@ export default function ForgotPasswordPage() {
               </form>
 
               <div className="mt-6 text-center">
-                <Link href="/" className="text-violet-600 hover:text-violet-700 text-sm font-medium">
+                <Link href="/" className="text-brand-fg hover:text-brand-fg-strong text-sm font-medium">
                   ← Back to login
                 </Link>
               </div>

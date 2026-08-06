@@ -212,12 +212,12 @@ export default function SavedPostsPage() {
   // user refreshing this page flashes "Sign In Required".
   if (!initialAuthCheckComplete || (user && loading)) {
     return (
-      <div className="min-h-screen bg-gray-50">
+      <div className="min-h-screen bg-canvas">
         <AppHeader showSearch={false} />
         <div className="container mx-auto px-4 py-8">
           <div className="max-w-2xl mx-auto">
             <div className="flex items-center justify-center py-12">
-              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-violet-600"></div>
+              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-brand"></div>
             </div>
           </div>
         </div>
@@ -227,15 +227,15 @@ export default function SavedPostsPage() {
 
   if (!user) {
     return (
-      <div className="min-h-screen bg-gray-50">
+      <div className="min-h-screen bg-canvas">
         <AppHeader showSearch={false} />
         <div className="container mx-auto px-4 py-8">
           <div className="max-w-2xl mx-auto text-center">
             <h1 className="text-2xl font-bold mb-4">Sign In Required</h1>
-            <p className="text-gray-600 mb-6">Please sign in to view your saved posts.</p>
+            <p className="text-tertiary mb-6">Please sign in to view your saved posts.</p>
             <button
               onClick={() => router.push('/')}
-              className="px-6 py-2 bg-violet-600 text-white rounded-lg hover:bg-violet-700"
+              className="px-6 py-2 bg-brand text-white rounded-lg hover:bg-brand-hover"
             >
               Sign In
             </button>
@@ -247,12 +247,12 @@ export default function SavedPostsPage() {
 
   if (error) {
     return (
-      <div className="min-h-screen bg-gray-50">
+      <div className="min-h-screen bg-canvas">
         <AppHeader showSearch={false} />
         <div className="container mx-auto px-4 py-8">
           <div className="max-w-2xl mx-auto">
-            <div className="bg-red-50 border border-red-200 rounded-lg p-4">
-              <p className="text-red-600">{error}</p>
+            <div className="bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-800 rounded-lg p-4">
+              <p className="text-red-600 dark:text-red-400">{error}</p>
             </div>
           </div>
         </div>
@@ -261,23 +261,23 @@ export default function SavedPostsPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-canvas">
       {/* Unified Header */}
       <AppHeader showSearch={false} />
 
       {/* Page Header */}
-      <div className="bg-white border-b border-gray-200">
+      <div className="bg-surface border-b border-border">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 py-6">
           <div className="flex items-center gap-4 mb-2">
             <button
               onClick={() => router.back()}
-              className="text-gray-600 hover:text-gray-900"
+              className="text-tertiary hover:text-primary"
             >
               <i className="fas fa-arrow-left text-xl"></i>
             </button>
-            <h1 className="text-2xl font-bold text-gray-900">Saved Posts</h1>
+            <h1 className="text-2xl font-bold text-primary">Saved Posts</h1>
           </div>
-          <p className="text-sm text-gray-600 ml-12">
+          <p className="text-sm text-tertiary ml-12">
             {savedPosts.length} {savedPosts.length === 1 ? 'post' : 'posts'} saved
           </p>
         </div>
@@ -290,8 +290,8 @@ export default function SavedPostsPage() {
         {savedPosts.length === 0 ? (
           <div className="text-center py-12">
             <i className="far fa-bookmark text-6xl text-gray-300 mb-4"></i>
-            <h2 className="text-xl font-semibold text-gray-700 mb-2">No saved posts yet</h2>
-            <p className="text-gray-500">
+            <h2 className="text-xl font-semibold text-secondary mb-2">No saved posts yet</h2>
+            <p className="text-muted">
               Posts you save will appear here. Tap the bookmark icon on any post to save it.
             </p>
           </div>

@@ -31,8 +31,8 @@ export default function AchievementPills({ pills, emptyLabel }: AchievementPills
               key={pill.id}
               className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-sm font-medium border ${
                 podium
-                  ? 'bg-amber-50 text-amber-900 border-amber-200'
-                  : 'bg-violet-50 text-violet-700 border-violet-200'
+                  ? 'bg-amber-50 dark:bg-amber-950/40 text-amber-900 dark:text-amber-200 border-amber-200 dark:border-amber-800'
+                  : 'bg-brand-soft text-brand-fg-strong border-violet-200 dark:border-violet-800'
               }`}
               role="listitem"
               aria-label={`Achievement: ${pill.title}`}
@@ -48,7 +48,7 @@ export default function AchievementPills({ pills, emptyLabel }: AchievementPills
         })
       ) : (
         <div
-          className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-gray-100 text-gray-500 border border-gray-200"
+          className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-surface-sunken text-muted border border-border"
           role="listitem"
           aria-label="No achievements yet"
         >

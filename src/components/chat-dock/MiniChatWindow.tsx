@@ -56,13 +56,13 @@ export default function MiniChatWindow({
   return (
     <div
       data-testid="mini-chat-window"
-      className="w-80 bg-white rounded-t-lg shadow-2xl border border-gray-200 border-b-0 flex flex-col"
+      className="w-80 bg-surface-raised rounded-t-lg shadow-2xl border border-border border-b-0 flex flex-col"
       /* Shared with the expanded panel so the two line up — see
          DOCK_SURFACE_HEIGHT for why 30rem specifically. */
       style={{ height: DOCK_SURFACE_HEIGHT }}
     >
       {/* Header */}
-      <div className="flex items-center gap-2 px-3 py-2 bg-violet-600 text-white rounded-t-lg shrink-0">
+      <div className="flex items-center gap-2 px-3 py-2 bg-brand text-white rounded-t-lg shrink-0">
         <span className="relative shrink-0">
           <span className="block w-7 h-7 rounded-full overflow-hidden bg-violet-400">
             {avatarUrl ? (
@@ -74,7 +74,7 @@ export default function MiniChatWindow({
             )}
           </span>
           {online && (
-            <span className="absolute bottom-0 right-0 w-2 h-2 bg-emerald-400 border border-violet-600 rounded-full"></span>
+            <span className="absolute bottom-0 right-0 w-2 h-2 bg-emerald-400 border border-brand rounded-full"></span>
           )}
         </span>
         <span className="flex-1 text-sm font-semibold truncate">{title}</span>
@@ -108,13 +108,13 @@ export default function MiniChatWindow({
       </div>
 
       {/* Messages — newest-first + column-reverse = free stick-to-bottom. */}
-      <div className="flex-1 overflow-y-auto flex flex-col-reverse px-2 py-2 gap-1 bg-gray-50/50">
+      <div className="flex-1 overflow-y-auto flex flex-col-reverse px-2 py-2 gap-1 bg-surface-muted/50">
         {thread.loading ? (
           <div className="flex justify-center py-8">
-            <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-violet-600"></div>
+            <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-brand"></div>
           </div>
         ) : thread.messages.length === 0 ? (
-          <p className="text-xs text-gray-400 text-center py-8">Say hi 👋</p>
+          <p className="text-xs text-faint text-center py-8">Say hi 👋</p>
         ) : (
           <>
             {thread.messages.map(message => (
@@ -135,7 +135,7 @@ export default function MiniChatWindow({
                 type="button"
                 onClick={thread.loadOlder}
                 disabled={thread.loadingMore}
-                className="text-xs text-violet-600 hover:underline py-1.5 disabled:opacity-50"
+                className="text-xs text-brand-fg hover:underline py-1.5 disabled:opacity-50"
               >
                 {thread.loadingMore ? 'Loading…' : 'Load earlier messages'}
               </button>
@@ -146,7 +146,7 @@ export default function MiniChatWindow({
 
       <TypingIndicator conversationId={conversation.id} currentUserId={currentUserId} />
 
-      <div className="shrink-0 border-t border-gray-100">
+      <div className="shrink-0 border-t border-border-subtle">
         <MessageInput
           conversationId={conversation.id}
           currentUserId={currentUserId}

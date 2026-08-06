@@ -449,7 +449,7 @@ export default function ScoreEntryModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-      <div className="bg-white rounded-lg shadow-2xl max-w-md w-full max-h-modal overflow-hidden flex flex-col">
+      <div className="bg-surface-raised rounded-lg shadow-2xl max-w-md w-full max-h-modal overflow-hidden flex flex-col">
         {/* Header — color signals WHOSE card is open: green for your own,
             amber when entering for someone else (unmissable identity) */}
         <div className={`${enteringForOther ? 'bg-amber-600' : 'bg-green-600'} text-white p-4`}>
@@ -510,7 +510,7 @@ export default function ScoreEntryModal({
         {players && players.length > 1 && onSwitchPlayer && (
           // shrink-0 on chips AND avatars: without it the flex row squashed
           // the 20px avatars into ovals before it started scrolling.
-          <div className="bg-gray-50 border-b border-gray-200 px-3 py-2 flex gap-2 overflow-x-auto scrollbar-hide">
+          <div className="bg-surface-muted border-b border-border px-3 py-2 flex gap-2 overflow-x-auto scrollbar-hide">
             {players.map(p => {
               const active = p.participantId === participantId;
               return (
@@ -521,7 +521,7 @@ export default function ScoreEntryModal({
                   className={`flex shrink-0 items-center gap-1.5 px-2.5 py-1.5 min-h-[40px] rounded-full text-xs font-bold whitespace-nowrap transition-all border-2 disabled:opacity-60 ${
                     active
                       ? 'bg-green-600 text-white border-green-700 shadow'
-                      : 'bg-white text-gray-700 border-gray-300 hover:border-green-400'
+                      : 'bg-surface text-secondary border-border-strong hover:border-green-400'
                   }`}
                 >
                   {p.avatarUrl ? (
@@ -534,12 +534,12 @@ export default function ScoreEntryModal({
                       unoptimized={!isOptimizableImageSrc(p.avatarUrl)}
                     />
                   ) : (
-                    <span className={`w-5 h-5 shrink-0 rounded-full flex items-center justify-center text-[10px] ${active ? 'bg-white/25' : 'bg-gray-200'}`}>
+                    <span className={`w-5 h-5 shrink-0 rounded-full flex items-center justify-center text-[10px] ${active ? 'bg-white/25' : 'bg-gray-200 dark:bg-stone-800'}`}>
                       {p.name.charAt(0)}
                     </span>
                   )}
                   {p.isSelf ? 'You' : p.name.split(' ')[0]}
-                  <span className={active ? 'opacity-80' : 'text-gray-400'}>· {p.holesCompleted}</span>
+                  <span className={active ? 'opacity-80' : 'text-faint'}>· {p.holesCompleted}</span>
                 </button>
               );
             })}
@@ -547,7 +547,7 @@ export default function ScoreEntryModal({
         )}
 
         {/* Progress Bar */}
-        <div className="bg-gray-200 h-2">
+        <div className="bg-gray-200 dark:bg-stone-800 h-2">
           <div
             className="bg-green-600 h-full transition-all duration-300"
             style={{ width: `${(holesCompleted / holesPlayed) * 100}%` }}
@@ -558,24 +558,24 @@ export default function ScoreEntryModal({
         <div className="flex-1 min-h-0 overflow-y-auto p-4 sm:p-6">
           {/* Current Hole Display */}
           <div className="text-center mb-6">
-            <div className="text-5xl font-black text-green-900 mb-2">
+            <div className="text-5xl font-black text-green-900 dark:text-green-100 mb-2">
               Hole {currentHoleData.hole_number}
             </div>
-            <div className="text-sm text-gray-600">
+            <div className="text-sm text-tertiary">
               {courseName && <span className="font-semibold">{courseName} · </span>}
               Par {currentHoleData.par}
               {(() => {
                 const yardage = courseHoleData?.find(
                   h => h.hole === currentHoleData.hole_number
                 )?.yardage;
-                return yardage ? <span className="text-gray-500"> · {yardage} yds</span> : null;
+                return yardage ? <span className="text-muted"> · {yardage} yds</span> : null;
               })()}
             </div>
           </div>
 
           {/* Strokes Entry */}
           <div className="mb-6">
-            <label className="block text-sm font-bold text-gray-900 mb-3">Strokes</label>
+            <label className="block text-sm font-bold text-primary mb-3">Strokes</label>
             <div className="grid grid-cols-5 gap-2">
               {[2, 3, 4, 5, 6, 7, 8, 9, 10, 11].map(num => (
                 <button
@@ -584,7 +584,7 @@ export default function ScoreEntryModal({
                   className={`py-3 px-2 rounded-lg font-bold text-lg transition-colors ${
                     currentHoleData.strokes === num
                       ? 'bg-green-600 text-white'
-                      : 'bg-gray-100 text-gray-900 hover:bg-gray-200'
+                      : 'bg-surface-sunken text-primary hover:bg-gray-200 dark:hover:bg-stone-800'
                   }`}
                 >
                   {num}
@@ -595,7 +595,7 @@ export default function ScoreEntryModal({
 
           {/* Putts Entry */}
           <div className="mb-6">
-            <label className="block text-sm font-bold text-gray-900 mb-3">Putts (optional)</label>
+            <label className="block text-sm font-bold text-primary mb-3">Putts (optional)</label>
             <div className="grid grid-cols-5 gap-2">
               {[0, 1, 2, 3, 4].map(num => (
                 <button
@@ -603,8 +603,8 @@ export default function ScoreEntryModal({
                   onClick={() => handlePuttClick(num)}
                   className={`py-3 px-2 rounded-lg font-bold text-lg transition-colors ${
                     currentHoleData.putts === num
-                      ? 'bg-violet-600 text-white'
-                      : 'bg-gray-100 text-gray-900 hover:bg-gray-200'
+                      ? 'bg-brand text-white'
+                      : 'bg-surface-sunken text-primary hover:bg-gray-200 dark:hover:bg-stone-800'
                   }`}
                 >
                   {num}
@@ -614,15 +614,15 @@ export default function ScoreEntryModal({
           </div>
 
           {/* Optional Stats */}
-          <div className="border-t border-gray-200 pt-4 mb-4">
-            <div className="text-xs font-bold text-gray-700 mb-2">Optional Stats</div>
+          <div className="border-t border-border pt-4 mb-4">
+            <div className="text-xs font-bold text-secondary mb-2">Optional Stats</div>
             <div className="flex gap-2">
               <button
                 onClick={() => updateCurrentHole('fairway_hit', !currentHoleData.fairway_hit)}
                 className={`flex-1 py-2 px-3 min-h-[40px] rounded-lg text-sm font-semibold transition-colors ${
                   currentHoleData.fairway_hit
                     ? 'bg-green-600 text-white'
-                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                    : 'bg-surface-sunken text-secondary hover:bg-gray-200 dark:hover:bg-stone-800'
                 }`}
               >
                 <i className="fas fa-check mr-1"></i>
@@ -633,7 +633,7 @@ export default function ScoreEntryModal({
                 className={`flex-1 py-2 px-3 min-h-[40px] rounded-lg text-sm font-semibold transition-colors ${
                   currentHoleData.green_in_regulation
                     ? 'bg-green-600 text-white'
-                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                    : 'bg-surface-sunken text-secondary hover:bg-gray-200 dark:hover:bg-stone-800'
                 }`}
               >
                 <i className="fas fa-check mr-1"></i>
@@ -655,7 +655,7 @@ export default function ScoreEntryModal({
               <button
                 onClick={() => mediaInputRef.current?.click()}
                 disabled={uploadingMedia}
-                className="w-full py-2.5 px-3 min-h-[40px] rounded-lg text-sm font-semibold bg-gray-100 text-gray-700 hover:bg-gray-200 transition-colors disabled:opacity-60"
+                className="w-full py-2.5 px-3 min-h-[40px] rounded-lg text-sm font-semibold bg-surface-sunken text-secondary hover:bg-gray-200 dark:hover:bg-stone-800 transition-colors disabled:opacity-60"
               >
                 {uploadingMedia ? (
                   <><i className="fas fa-spinner fa-spin mr-2"></i>Uploading…</>
@@ -664,7 +664,7 @@ export default function ScoreEntryModal({
                     <i className="fas fa-camera mr-2"></i>
                     Add photo or video to hole {currentHoleData.hole_number}
                     {(mediaCountByHole[currentHoleData.hole_number ?? -1] ?? 0) > 0 && (
-                      <span className="ml-2 text-green-700 font-bold">
+                      <span className="ml-2 text-green-700 dark:text-green-300 font-bold">
                         <i className="fas fa-check mr-1"></i>
                         {mediaCountByHole[currentHoleData.hole_number ?? -1]}
                       </span>
@@ -677,32 +677,32 @@ export default function ScoreEntryModal({
 
           {/* Error Message */}
           {error && (
-            <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm mb-4">
+            <div className="bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-300 px-4 py-3 rounded-lg text-sm mb-4">
               {error}
             </div>
           )}
 
           {/* Current Totals */}
-          <div className="bg-gray-50 rounded-lg p-4 mb-4">
+          <div className="bg-surface-muted rounded-lg p-4 mb-4">
             <div className="grid grid-cols-3 gap-4 text-center">
               <div>
-                <div className="text-xs text-gray-600 mb-1">Holes</div>
-                <div className="text-xl font-black text-gray-900">{holesCompleted}/{holesPlayed}</div>
+                <div className="text-xs text-tertiary mb-1">Holes</div>
+                <div className="text-xl font-black text-primary">{holesCompleted}/{holesPlayed}</div>
               </div>
               <div>
-                <div className="text-xs text-gray-600 mb-1">Strokes</div>
-                <div className="text-xl font-black text-gray-900">{totalStrokes}</div>
+                <div className="text-xs text-tertiary mb-1">Strokes</div>
+                <div className="text-xl font-black text-primary">{totalStrokes}</div>
               </div>
               <div>
-                <div className="text-xs text-gray-600 mb-1">Putts</div>
-                <div className="text-xl font-black text-gray-900">{totalPutts}</div>
+                <div className="text-xs text-tertiary mb-1">Putts</div>
+                <div className="text-xl font-black text-primary">{totalPutts}</div>
               </div>
             </div>
           </div>
 
           {/* Hole Navigation Grid */}
           <div>
-            <div className="text-xs font-bold text-gray-700 mb-2">Jump to Hole:</div>
+            <div className="text-xs font-bold text-secondary mb-2">Jump to Hole:</div>
             <div className="grid grid-cols-6 sm:grid-cols-9 gap-1">
               {Array.from({ length: holesPlayed }, (_, i) => i + 1).map(holeNum => {
                 const hole = holeData[holeNum - 1];
@@ -719,8 +719,8 @@ export default function ScoreEntryModal({
                       isCurrent
                         ? 'bg-green-600 text-white ring-2 ring-green-800'
                         : hasScore
-                        ? 'bg-violet-100 text-violet-900 hover:bg-violet-200'
-                        : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                        ? 'bg-violet-100 text-violet-900 hover:bg-violet-200 dark:bg-violet-950/60 dark:text-violet-200 dark:hover:bg-violet-900/60'
+                        : 'bg-surface-sunken text-tertiary hover:bg-gray-200 dark:hover:bg-stone-800'
                     }`}
                     title={isSaved ? 'Saved' : undefined}
                   >
@@ -740,7 +740,7 @@ export default function ScoreEntryModal({
         {/* Footer Navigation. safe-bottom: this is the primary live-scoring
             control, used one-handed on a course — without it Previous/Next/
             Done sit under the iOS home indicator. */}
-        <div className="bg-gray-100 border-t border-gray-300 p-4 safe-bottom">
+        <div className="bg-surface-sunken border-t border-border-strong p-4 safe-bottom">
           <div className="flex items-center justify-between gap-3">
             <button
               onClick={handlePrevious}
@@ -767,7 +767,7 @@ export default function ScoreEntryModal({
               <button
                 onClick={handleDone}
                 disabled={saving || savingHole !== null}
-                className="flex-1 bg-violet-600 hover:bg-violet-700 disabled:bg-violet-400 disabled:cursor-not-allowed text-white font-bold py-3 px-4 rounded-lg transition-colors"
+                className="flex-1 bg-brand hover:bg-brand-hover disabled:bg-violet-400 disabled:cursor-not-allowed text-white font-bold py-3 px-4 rounded-lg transition-colors"
               >
                 {saving || savingHole !== null ? (
                   <><i className="fas fa-spinner fa-spin mr-2"></i>Saving…</>
@@ -779,7 +779,7 @@ export default function ScoreEntryModal({
               <button
                 onClick={handleSave}
                 disabled={saving}
-                className="flex-1 bg-violet-600 hover:bg-violet-700 disabled:bg-violet-400 disabled:cursor-not-allowed text-white font-bold py-3 px-4 rounded-lg transition-colors"
+                className="flex-1 bg-brand hover:bg-brand-hover disabled:bg-violet-400 disabled:cursor-not-allowed text-white font-bold py-3 px-4 rounded-lg transition-colors"
               >
                 {saving ? (
                   <>

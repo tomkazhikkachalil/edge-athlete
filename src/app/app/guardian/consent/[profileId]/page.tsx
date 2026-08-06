@@ -38,8 +38,8 @@ export default function ConsentPage() {
 
   if (!FEATURE_FLAGS.FEATURE_GUARDIAN_PROFILES || loading || !initialAuthCheckComplete || !user || state === 'loading') {
     return (
-      <div className="min-h-screen bg-violet-50 flex items-center justify-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-violet-600"></div>
+      <div className="min-h-screen bg-brand-soft flex items-center justify-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-brand"></div>
       </div>
     );
   }
@@ -68,23 +68,23 @@ export default function ConsentPage() {
   };
 
   return (
-    <div className="min-h-screen flex flex-col bg-violet-50">
+    <div className="min-h-screen flex flex-col bg-brand-soft">
       <BrandBar />
       <div className="flex-grow flex items-center justify-center p-4">
-        <div className="w-full max-w-2xl bg-white rounded-lg shadow-lg p-6 sm:p-8">
+        <div className="w-full max-w-2xl bg-surface rounded-lg shadow-lg p-6 sm:p-8">
           {state === 'forbidden' && (
-            <p className="text-sm text-gray-600 text-center py-8">
+            <p className="text-sm text-tertiary text-center py-8">
               Only this athlete&apos;s guardian can manage consent.
             </p>
           )}
 
           {(state === 'pending_review' || state === 'approved') && (
             <div className="text-center py-6">
-              <i className={`fas ${state === 'approved' ? 'fa-circle-check' : 'fa-hourglass-half'} text-violet-600 text-4xl mb-4`}></i>
-              <h2 className="text-xl sm:text-2xl font-bold text-violet-800 mb-2">
+              <i className={`fas ${state === 'approved' ? 'fa-circle-check' : 'fa-hourglass-half'} text-brand-fg text-4xl mb-4`}></i>
+              <h2 className="text-xl sm:text-2xl font-bold text-violet-800 dark:text-violet-200 mb-2">
                 {state === 'approved' ? 'Consent approved' : 'Consent under review'}
               </h2>
-              <p className="text-sm text-gray-600 max-w-md mx-auto mb-6">
+              <p className="text-sm text-tertiary max-w-md mx-auto mb-6">
                 {state === 'approved'
                   ? "You're all set — you can now choose what to share from their profile."
                   : "We've received your signed form. We'll review it shortly — the profile stays private until then."}
@@ -93,12 +93,12 @@ export default function ConsentPage() {
                 <button
                   type="button"
                   onClick={() => router.push(`/app/guardian/credentials/${profileId}`)}
-                  className="w-full max-w-xs mx-auto bg-violet-600 text-white py-3 px-4 rounded-md hover:bg-violet-700 transition text-sm font-medium mb-3 block"
+                  className="w-full max-w-xs mx-auto bg-brand text-white py-3 px-4 rounded-md hover:bg-brand-hover transition text-sm font-medium mb-3 block"
                 >
                   Set up their login
                 </button>
               )}
-              <button type="button" onClick={() => router.push('/athlete')} className="text-sm text-violet-600 hover:underline">
+              <button type="button" onClick={() => router.push('/athlete')} className="text-sm text-brand-fg hover:underline">
                 Back to my account
               </button>
             </div>
@@ -106,23 +106,23 @@ export default function ConsentPage() {
 
           {(state === 'none' || state === 'rejected') && (
             <>
-              <h2 className="text-xl sm:text-2xl font-bold text-violet-800 mb-1">Parental consent</h2>
-              <p className="text-sm text-gray-600 mb-4">
+              <h2 className="text-xl sm:text-2xl font-bold text-violet-800 dark:text-violet-200 mb-1">Parental consent</h2>
+              <p className="text-sm text-tertiary mb-4">
                 {state === 'rejected'
                   ? 'Your previous submission couldn’t be verified — please re-submit a clear photo or scan of the signed statement.'
                   : 'One last step to activate your athlete’s profile: sign the statement below and upload a photo or scan of it.'}
               </p>
-              <pre className="whitespace-pre-wrap bg-gray-50 border border-gray-200 rounded-md p-4 text-xs text-gray-700 mb-4 max-h-64 overflow-y-auto">
+              <pre className="whitespace-pre-wrap bg-surface-muted border border-border rounded-md p-4 text-xs text-secondary mb-4 max-h-64 overflow-y-auto">
                 {CONSENT_STATEMENT}
               </pre>
               {error && (
-                <div role="alert" className="bg-red-50 border border-red-200 text-red-600 px-4 py-3 rounded-md text-sm mb-4">
+                <div role="alert" className="bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-800 text-red-600 dark:text-red-400 px-4 py-3 rounded-md text-sm mb-4">
                   {error}
                 </div>
               )}
               <form onSubmit={handleSubmit} className="flex flex-col gap-4">
                 <div>
-                  <label htmlFor="consent-file" className="block text-sm font-medium text-gray-700 mb-1">
+                  <label htmlFor="consent-file" className="block text-sm font-medium text-secondary mb-1">
                     Signed form (photo or PDF, 10 MB max)
                   </label>
                   <input
@@ -130,14 +130,14 @@ export default function ConsentPage() {
                     id="consent-file"
                     ref={fileRef}
                     accept="image/jpeg,image/png,image/webp,application/pdf"
-                    className="w-full text-sm text-gray-700 file:mr-3 file:py-2 file:px-4 file:rounded-md file:border-0 file:bg-violet-600 file:text-white hover:file:bg-violet-700"
+                    className="w-full text-sm text-secondary file:mr-3 file:py-2 file:px-4 file:rounded-md file:border-0 file:bg-brand file:text-white hover:file:bg-brand-hover"
                     required
                   />
                 </div>
                 <button
                   type="submit"
                   disabled={submitting}
-                  className="w-full bg-violet-600 text-white py-3 px-4 rounded-md hover:bg-violet-700 transition duration-300 flex items-center justify-center text-sm font-medium disabled:opacity-50"
+                  className="w-full bg-brand text-white py-3 px-4 rounded-md hover:bg-brand-hover transition duration-300 flex items-center justify-center text-sm font-medium disabled:opacity-50"
                 >
                   {submitting ? (
                     <><i className="fas fa-spinner fa-spin mr-2"></i> Uploading...</>

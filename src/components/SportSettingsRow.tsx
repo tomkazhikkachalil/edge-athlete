@@ -29,14 +29,14 @@ export default function SportSettingsRow({ items, className = '' }: SportSetting
   if (items.length === 0) return null;
 
   return (
-    <div className={`border-t border-gray-200/60 px-4 py-2 ${className}`}>
+    <div className={`border-t border-border/60 px-4 py-2 ${className}`}>
       <div className="flex flex-wrap gap-x-3 gap-y-1">
         {items.map(item => (
           <div key={item.key} className="flex items-baseline gap-1 min-w-0">
-            <span className="text-[0.7rem] uppercase tracking-wide text-gray-500 shrink-0">
+            <span className="text-[0.7rem] uppercase tracking-wide text-muted shrink-0">
               {item.label}
             </span>
-            <span className="text-xs font-semibold text-gray-900 truncate">
+            <span className="text-xs font-semibold text-primary truncate">
               {item.value}
             </span>
           </div>

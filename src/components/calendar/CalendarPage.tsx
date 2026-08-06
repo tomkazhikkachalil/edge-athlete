@@ -120,7 +120,7 @@ export default function CalendarPage({
             type="button"
             onClick={() => navigate(-1)}
             aria-label="Previous"
-            className="w-10 h-10 rounded-lg border border-gray-300 text-gray-600 hover:border-violet-400 hover:text-violet-600 flex items-center justify-center"
+            className="w-10 h-10 rounded-lg border border-border-strong text-tertiary hover:border-violet-400 hover:text-brand-fg flex items-center justify-center"
           >
             <i className="fas fa-chevron-left text-sm"></i>
           </button>
@@ -128,32 +128,32 @@ export default function CalendarPage({
             type="button"
             onClick={() => navigate(1)}
             aria-label="Next"
-            className="w-10 h-10 rounded-lg border border-gray-300 text-gray-600 hover:border-violet-400 hover:text-violet-600 flex items-center justify-center"
+            className="w-10 h-10 rounded-lg border border-border-strong text-tertiary hover:border-violet-400 hover:text-brand-fg flex items-center justify-center"
           >
             <i className="fas fa-chevron-right text-sm"></i>
           </button>
           <button
             type="button"
             onClick={() => setFocusDate(new Date())}
-            className="px-3 h-10 rounded-lg border border-gray-300 text-sm text-gray-700 hover:border-violet-400 hover:text-violet-600"
+            className="px-3 h-10 rounded-lg border border-border-strong text-sm text-secondary hover:border-violet-400 hover:text-brand-fg"
           >
             Today
           </button>
         </div>
 
-        <h1 className="text-base sm:text-xl font-bold text-gray-900 flex-grow min-w-32">
+        <h1 className="text-base sm:text-xl font-bold text-primary flex-grow min-w-32">
           {rangeLabel}
-          {loading && <i className="fas fa-spinner fa-spin text-gray-300 text-sm ml-2"></i>}
+          {loading && <i className="fas fa-spinner fa-spin text-gray-300 dark:text-stone-600 text-sm ml-2"></i>}
         </h1>
 
         <input
           type="date"
           aria-label="Jump to date"
           onChange={e => e.target.value && handleDateJump(e.target.value)}
-          className="h-10 px-2 border border-gray-300 rounded-lg text-sm text-gray-700 hidden sm:block"
+          className="h-10 px-2 border border-border-strong rounded-lg text-sm text-secondary hidden sm:block"
         />
 
-        <div className="flex rounded-lg border border-gray-300 overflow-hidden">
+        <div className="flex rounded-lg border border-border-strong overflow-hidden">
           {VIEWS.map(v => (
             <button
               key={v.key}
@@ -161,7 +161,7 @@ export default function CalendarPage({
               onClick={() => setView(v.key)}
               aria-label={v.label}
               className={`h-10 px-2.5 sm:px-3 text-sm font-medium transition ${
-                view === v.key ? 'bg-violet-600 text-white' : 'bg-white text-gray-600 hover:text-violet-600'
+                view === v.key ? 'bg-brand text-white' : 'bg-surface text-tertiary hover:text-brand-fg'
               }`}
             >
               <i className={`fas ${v.icon} sm:hidden`}></i>
@@ -175,7 +175,7 @@ export default function CalendarPage({
           onClick={() => setSyncOpen(true)}
           aria-label="Sync to another calendar"
           title="Sync to another calendar"
-          className="h-10 px-2.5 rounded-lg border border-gray-300 text-gray-600 hover:border-violet-400 hover:text-violet-600 text-sm"
+          className="h-10 px-2.5 rounded-lg border border-border-strong text-tertiary hover:border-violet-400 hover:text-brand-fg text-sm"
         >
           <i className="fas fa-rotate"></i>
         </button>
@@ -183,7 +183,7 @@ export default function CalendarPage({
         <button
           type="button"
           onClick={() => { setEditingEvent(null); setFormOpen(true); }}
-          className="h-10 px-3 sm:px-4 bg-violet-600 text-white rounded-lg text-sm font-medium hover:bg-violet-700 transition flex items-center gap-1.5"
+          className="h-10 px-3 sm:px-4 bg-brand text-white rounded-lg text-sm font-medium hover:bg-brand-hover transition flex items-center gap-1.5"
         >
           <i className="fas fa-plus text-xs"></i>
           <span className="hidden sm:inline">New event</span>
@@ -206,8 +206,8 @@ export default function CalendarPage({
       )}
 
       {/* Legend for the pending style */}
-      <p className="text-xs text-gray-400">
-        <span className="inline-block w-3 h-3 rounded border border-dashed border-gray-400 bg-white align-middle mr-1"></span>
+      <p className="text-xs text-faint">
+        <span className="inline-block w-3 h-3 rounded border border-dashed border-gray-400 bg-surface align-middle mr-1"></span>
         Outlined events are invitations waiting for your response.
       </p>
 

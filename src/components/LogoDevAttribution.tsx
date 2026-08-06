@@ -31,7 +31,7 @@ export default function LogoDevAttribution({ className = '' }: { className?: str
       href="https://logo.dev"
       target="_blank"
       rel="noopener"
-      className={`hover:text-gray-700 ${className}`}
+      className={`hover:text-secondary ${className}`}
     >
       Logos provided by Logo.dev
     </a>
@@ -50,11 +50,11 @@ export function LogoDevCredits() {
   if (!LOGO_DEV_ENABLED) return null;
 
   return (
-    <div className="mt-10 pt-6 border-t border-gray-200">
-      <h2 className="text-lg font-semibold text-gray-900 mb-2">Credits</h2>
-      <p className="text-sm text-gray-600">
+    <div className="mt-10 pt-6 border-t border-border">
+      <h2 className="text-lg font-semibold text-primary mb-2">Credits</h2>
+      <p className="text-sm text-tertiary">
         Brand logos in the equipment picker are provided by Logo.dev.{' '}
-        <LogoDevAttribution className="text-violet-600 hover:text-violet-700 font-medium" />
+        <LogoDevAttribution className="text-brand-fg hover:text-brand-fg-strong font-medium" />
       </p>
     </div>
   );

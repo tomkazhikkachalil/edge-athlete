@@ -134,7 +134,7 @@ export default function AchievementsTab({ profileId, isOwnProfile = false }: Ach
   if (loading) {
     return (
       <div className="flex justify-center items-center py-16">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-violet-600"></div>
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-brand"></div>
       </div>
     );
   }
@@ -142,10 +142,10 @@ export default function AchievementsTab({ profileId, isOwnProfile = false }: Ach
   if (loadError) {
     return (
       <div className="text-center py-16 px-4">
-        <p className="text-gray-600 mb-4">Couldn&apos;t load achievements.</p>
+        <p className="text-tertiary mb-4">Couldn&apos;t load achievements.</p>
         <button
           onClick={fetchAchievements}
-          className="inline-flex items-center gap-2 px-4 py-2 bg-violet-600 text-white rounded-lg font-semibold text-sm hover:bg-violet-700 transition-colors"
+          className="inline-flex items-center gap-2 px-4 py-2 bg-brand text-white rounded-lg font-semibold text-sm hover:bg-brand-hover transition-colors"
         >
           Try again
         </button>
@@ -157,8 +157,8 @@ export default function AchievementsTab({ profileId, isOwnProfile = false }: Ach
     <div className="w-full space-y-8">
       {/* ── Header ───────────────────────────────────────────────────── */}
       <div>
-        <h2 className="text-h2 text-gray-900">Achievements</h2>
-        <p className="text-sm text-gray-500 mt-0.5">
+        <h2 className="text-h2 text-primary">Achievements</h2>
+        <p className="text-sm text-muted mt-0.5">
           Awards, titles, and milestones — the athletic résumé.
         </p>
       </div>
@@ -183,7 +183,7 @@ export default function AchievementsTab({ profileId, isOwnProfile = false }: Ach
             isOwnProfile ? (
               <button
                 onClick={openAdd}
-                className="flex items-center gap-2 px-4 py-2 bg-violet-600 text-white rounded-lg font-semibold text-sm hover:bg-violet-700 transition-colors shadow-sm"
+                className="flex items-center gap-2 px-4 py-2 bg-brand text-white rounded-lg font-semibold text-sm hover:bg-brand-hover transition-colors shadow-sm"
               >
                 <Plus className="w-4 h-4" />
                 Add Achievement
@@ -225,8 +225,8 @@ export default function AchievementsTab({ profileId, isOwnProfile = false }: Ach
         )}
 
         {hasAny && visible.length === 0 && (
-          <div className="text-center py-10 px-4 border border-dashed border-gray-200 rounded-lg">
-            <p className="text-sm text-gray-500">No achievements match your filters.</p>
+          <div className="text-center py-10 px-4 border border-dashed border-border rounded-lg">
+            <p className="text-sm text-muted">No achievements match your filters.</p>
           </div>
         )}
 

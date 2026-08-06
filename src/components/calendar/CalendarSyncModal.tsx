@@ -80,46 +80,46 @@ export default function CalendarSyncModal({
 
   return (
     <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-      <div className="bg-white rounded-lg shadow-xl max-w-lg w-full max-h-modal overflow-y-auto">
-        <div className="flex items-center justify-between p-6 border-b border-gray-200">
+      <div className="bg-surface-raised rounded-lg shadow-xl max-w-lg w-full max-h-modal overflow-y-auto">
+        <div className="flex items-center justify-between p-6 border-b border-border">
           <div className="flex items-center gap-3">
-            <span className="w-9 h-9 rounded-full bg-violet-100 flex items-center justify-center">
-              <CalendarSync className="w-5 h-5 text-violet-600" />
+            <span className="w-9 h-9 rounded-full bg-violet-100 dark:bg-violet-950/60 flex items-center justify-center">
+              <CalendarSync className="w-5 h-5 text-brand-fg" />
             </span>
-            <h2 className="text-lg font-bold text-gray-900">Sync to another calendar</h2>
+            <h2 className="text-lg font-bold text-primary">Sync to another calendar</h2>
           </div>
-          <button type="button" onClick={onClose} aria-label="Close" className="text-gray-400 hover:text-gray-600">
+          <button type="button" onClick={onClose} aria-label="Close" className="text-faint hover:text-tertiary">
             <X className="w-5 h-5" />
           </button>
         </div>
 
         <div className="p-6 space-y-4">
-          <p className="text-sm text-gray-600">
+          <p className="text-sm text-tertiary">
             Subscribe once from Google or Outlook and your Edge Athlete events
             appear there automatically and stay updated. The link is read-only.
           </p>
 
           {loading ? (
             <div className="flex justify-center py-4">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-violet-600"></div>
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-brand"></div>
             </div>
           ) : url ? (
             <div className="space-y-3">
-              <div className="bg-violet-50 border border-violet-200 rounded-lg p-3">
-                <p className="text-xs font-semibold text-violet-800 mb-1.5">
+              <div className="bg-brand-soft border border-violet-200 dark:border-violet-800 rounded-lg p-3">
+                <p className="text-xs font-semibold text-violet-800 dark:text-violet-200 mb-1.5">
                   Your personal calendar link — treat it like a password:
                 </p>
-                <code className="block text-xs text-gray-800 break-all select-all mb-2">{url}</code>
+                <code className="block text-xs text-primary break-all select-all mb-2">{url}</code>
                 <button
                   type="button"
                   onClick={copy}
-                  className="bg-violet-600 text-white px-3 py-1.5 rounded-md text-xs font-medium hover:bg-violet-700"
+                  className="bg-brand text-white px-3 py-1.5 rounded-md text-xs font-medium hover:bg-brand-hover"
                 >
                   <i className="fas fa-copy mr-1.5"></i>
                   Copy link
                 </button>
               </div>
-              <p className="text-xs text-gray-500">
+              <p className="text-xs text-muted">
                 This is the only time the link is shown. Anyone with it can see
                 your events; if it ever leaks, regenerate it here and the old
                 link stops working.
@@ -130,7 +130,7 @@ export default function CalendarSyncModal({
               type="button"
               onClick={() => (exists ? setConfirmRotate(true) : create())}
               disabled={creating}
-              className="w-full bg-violet-600 text-white py-3 px-4 rounded-lg hover:bg-violet-700 transition flex items-center justify-center text-sm font-medium disabled:opacity-50 min-h-[44px]"
+              className="w-full bg-brand text-white py-3 px-4 rounded-lg hover:bg-brand-hover transition flex items-center justify-center text-sm font-medium disabled:opacity-50 min-h-[44px]"
             >
               {creating ? (
                 <><i className="fas fa-spinner fa-spin mr-2"></i> Creating…</>
@@ -138,23 +138,23 @@ export default function CalendarSyncModal({
             </button>
           )}
           {exists && !url && !loading && (
-            <p className="text-xs text-gray-500">
+            <p className="text-xs text-muted">
               You already have a link. For your security it can&apos;t be shown
               again — regenerating creates a new one and invalidates the old.
             </p>
           )}
 
-          <div className="border-t border-gray-100 pt-4 text-xs text-gray-500 space-y-2">
-            <p className="font-semibold text-gray-700">How to subscribe</p>
+          <div className="border-t border-border-subtle pt-4 text-xs text-muted space-y-2">
+            <p className="font-semibold text-secondary">How to subscribe</p>
             <p>
-              <span className="font-medium text-gray-700">Google Calendar:</span>{' '}
+              <span className="font-medium text-secondary">Google Calendar:</span>{' '}
               Settings → Add calendar → From URL → paste the link.
             </p>
             <p>
-              <span className="font-medium text-gray-700">Outlook:</span>{' '}
+              <span className="font-medium text-secondary">Outlook:</span>{' '}
               Add calendar → Subscribe from web → paste the link.
             </p>
-            <p className="text-gray-400">
+            <p className="text-faint">
               Calendar apps refresh subscriptions on their own schedule —
               new events can take a few hours to appear there.
             </p>
@@ -168,7 +168,7 @@ export default function CalendarSyncModal({
         message="Your current link will stop working everywhere it was added. You'll need to re-subscribe with the new one."
         confirmText="Regenerate"
         cancelText="Keep current link"
-        confirmButtonClass="bg-violet-600 hover:bg-violet-700"
+        confirmButtonClass="bg-brand hover:bg-brand-hover"
         onConfirm={create}
         onCancel={() => setConfirmRotate(false)}
       />

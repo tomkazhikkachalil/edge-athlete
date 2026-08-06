@@ -8,17 +8,17 @@ export const metadata = { title: 'Privacy Policy — Edge Athlete' };
 // is a general template, not legal advice.
 export default function PrivacyPage() {
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-canvas">
       <BrandBar />
 
       <div className="max-w-3xl mx-auto px-4 py-10">
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 sm:p-10">
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">Privacy Policy</h1>
-          <p className="text-sm text-gray-500 mb-8">Last updated: July 2026</p>
+        <div className="bg-surface rounded-lg shadow-sm border border-border p-6 sm:p-10">
+          <h1 className="text-3xl font-bold text-primary mb-2">Privacy Policy</h1>
+          <p className="text-sm text-muted mb-8">Last updated: July 2026</p>
 
-          <div className="space-y-6 text-gray-700 text-sm leading-relaxed">
+          <div className="space-y-6 text-secondary text-sm leading-relaxed">
             <section>
-              <h2 className="text-lg font-semibold text-gray-900 mb-2">What we collect</h2>
+              <h2 className="text-lg font-semibold text-primary mb-2">What we collect</h2>
               <p className="mb-2">
                 <span className="font-medium">Account information</span>: name, email, handle,
                 password (stored hashed by our authentication provider), and optional profile
@@ -35,7 +35,7 @@ export default function PrivacyPage() {
             </section>
 
             <section>
-              <h2 className="text-lg font-semibold text-gray-900 mb-2">How it&apos;s used</h2>
+              <h2 className="text-lg font-semibold text-primary mb-2">How it&apos;s used</h2>
               <p>
                 To run Edge Athlete: showing your profile and posts to the audiences you choose,
                 computing your stats and trends, delivering notifications and messages, and keeping
@@ -44,7 +44,7 @@ export default function PrivacyPage() {
             </section>
 
             <section>
-              <h2 className="text-lg font-semibold text-gray-900 mb-2">Who can see what</h2>
+              <h2 className="text-lg font-semibold text-primary mb-2">Who can see what</h2>
               <p>
                 You control profile visibility (public or private) in Settings → Privacy. Private
                 profiles are visible only to fans you approve. Messages are visible only to their
@@ -53,7 +53,7 @@ export default function PrivacyPage() {
             </section>
 
             <section>
-              <h2 className="text-lg font-semibold text-gray-900 mb-2">Where data lives</h2>
+              <h2 className="text-lg font-semibold text-primary mb-2">Where data lives</h2>
               <p>
                 Your data is stored with Supabase (database, authentication, and file storage) and
                 the application is hosted on Vercel. Both process data on our behalf under their
@@ -62,7 +62,7 @@ export default function PrivacyPage() {
             </section>
 
             <section>
-              <h2 className="text-lg font-semibold text-gray-900 mb-2">Your controls</h2>
+              <h2 className="text-lg font-semibold text-primary mb-2">Your controls</h2>
               <ul className="list-disc pl-5 space-y-1">
                 <li>Edit or remove any profile field, post, activity, or comment at any time</li>
                 <li>Switch your profile between public and private</li>
@@ -76,19 +76,19 @@ export default function PrivacyPage() {
             </section>
 
             <section>
-              <h2 className="text-lg font-semibold text-gray-900 mb-2">Questions or requests</h2>
+              <h2 className="text-lg font-semibold text-primary mb-2">Questions or requests</h2>
               <p>
                 For privacy questions or data requests,{' '}
-                <Link href="/contact" className="text-violet-600 hover:text-violet-700">contact us</Link>{' '}
+                <Link href="/contact" className="text-brand-fg hover:text-brand-fg-strong">contact us</Link>{' '}
                 and we&apos;ll respond by email.
               </p>
             </section>
           </div>
 
-          <div className="mt-10 pt-6 border-t border-gray-200 flex flex-wrap gap-4 text-sm">
-            <Link href="/terms" className="text-violet-600 hover:text-violet-700 font-medium">Terms of Service</Link>
-            <Link href="/contact" className="text-violet-600 hover:text-violet-700 font-medium">Contact</Link>
-            <Link href="/" className="text-violet-600 hover:text-violet-700 font-medium">← Back to Edge Athlete</Link>
+          <div className="mt-10 pt-6 border-t border-border flex flex-wrap gap-4 text-sm">
+            <Link href="/terms" className="text-brand-fg hover:text-brand-fg-strong font-medium">Terms of Service</Link>
+            <Link href="/contact" className="text-brand-fg hover:text-brand-fg-strong font-medium">Contact</Link>
+            <Link href="/" className="text-brand-fg hover:text-brand-fg-strong font-medium">← Back to Edge Athlete</Link>
           </div>
         </div>
       </div>

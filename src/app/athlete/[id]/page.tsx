@@ -193,10 +193,10 @@ export default function AthleteProfilePage() {
   // Show loading state
   if (authLoading || loading) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+      <div className="min-h-screen bg-canvas flex items-center justify-center">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-violet-600 mx-auto"></div>
-          <p className="mt-2 text-gray-900 font-medium">Loading athlete profile...</p>
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-brand mx-auto"></div>
+          <p className="mt-2 text-primary font-medium">Loading athlete profile...</p>
         </div>
       </div>
     );
@@ -205,7 +205,7 @@ export default function AthleteProfilePage() {
   // Show private profile view if access is denied
   if (!hasAccess && profile) {
     return (
-      <div className="min-h-screen bg-gray-50">
+      <div className="min-h-screen bg-canvas">
         <AppHeader showSearch={false} />
         <PrivateProfileView
           profile={profile}
@@ -223,13 +223,13 @@ export default function AthleteProfilePage() {
   // Show error state
   if (error) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+      <div className="min-h-screen bg-canvas flex items-center justify-center">
         <div className="text-center max-w-md mx-auto p-6">
           <div className="text-red-500 mb-4">
             <i className="fas fa-exclamation-triangle text-4xl"></i>
           </div>
-          <h1 className="text-xl font-bold text-gray-900 mb-2">{error}</h1>
-          <p className="text-gray-900 font-medium mb-4">
+          <h1 className="text-xl font-bold text-primary mb-2">{error}</h1>
+          <p className="text-primary font-medium mb-4">
             {error === 'Athlete not found'
               ? 'This athlete profile could not be found or may not be public.'
               : 'There was an error loading the athlete profile.'}
@@ -237,13 +237,13 @@ export default function AthleteProfilePage() {
           <div className="space-x-4">
             <button
               onClick={() => router.push('/feed')}
-              className="bg-violet-600 text-white px-6 py-2 rounded-lg hover:bg-violet-700 transition-colors"
+              className="bg-brand text-white px-6 py-2 rounded-lg hover:bg-brand-hover transition-colors"
             >
               Back to Feed
             </button>
             <button
               onClick={loadAthleteProfile}
-              className="bg-gray-200 text-gray-900 font-semibold px-6 py-2 rounded-lg hover:bg-gray-300 transition-colors"
+              className="bg-gray-200 dark:bg-stone-800 text-primary font-semibold px-6 py-2 rounded-lg hover:bg-gray-300 dark:hover:bg-stone-700 transition-colors"
             >
               Try Again
             </button>
@@ -261,26 +261,26 @@ export default function AthleteProfilePage() {
   const isOwnProfile = user?.id === athleteId;
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-canvas">
       {/* Unified Header */}
       <AppHeader showSearch={true} />
 
       {/* Profile Content */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 py-6">
         {/* Page Header with Back Button and Actions */}
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 sm:p-6 mb-6">
+        <div className="bg-surface rounded-lg shadow-sm border border-border p-4 sm:p-6 mb-6">
           {/* flex-wrap: back + title + FollowButton is wider than a 320px
               screen; the button drops to its own line instead of overflowing. */}
           <div className="flex flex-wrap items-center justify-between gap-y-2 mb-4">
             <div className="flex items-center gap-2 min-w-0">
               <button
                 onClick={() => router.back()}
-                className="ea-icon-btn inline-flex items-center justify-center -ml-2 text-gray-700 hover:text-gray-900"
+                className="ea-icon-btn inline-flex items-center justify-center -ml-2 text-secondary hover:text-primary"
                 aria-label="Go back"
               >
                 <i className="fas fa-arrow-left text-xl"></i>
               </button>
-              <h2 className="text-xl sm:text-2xl font-bold text-gray-900">
+              <h2 className="text-xl sm:text-2xl font-bold text-primary">
                 {isOwnProfile ? 'My Profile' : 'Athlete Profile'}
               </h2>
             </div>
@@ -299,7 +299,7 @@ export default function AthleteProfilePage() {
         </div>
 
         {/* Profile Info Section */}
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200 mb-6 overflow-hidden">
+        <div className="bg-surface rounded-lg shadow-sm border border-border mb-6 overflow-hidden">
           {/* Cover photo (3:1; gradient until the athlete sets one) */}
           {profile.cover_url ? (
             // The 3:1 ratio moves to this wrapper so <Image fill> has a
@@ -343,11 +343,11 @@ export default function AthleteProfilePage() {
           <div className="flex-1 min-w-0 w-full">
             <div className="mb-3">
               <div className="flex flex-wrap items-center gap-2 mb-1">
-                <h1 className="text-2xl sm:text-3xl font-bold text-black break-words min-w-0">
+                <h1 className="text-2xl sm:text-3xl font-bold text-black dark:text-primary break-words min-w-0">
                   {formatDisplayName(profile.first_name, null, profile.last_name, profile.full_name)}
                 </h1>
                 {getHandle(profile) && (
-                  <span className="text-lg text-gray-500">{getHandle(profile)}</span>
+                  <span className="text-lg text-muted">{getHandle(profile)}</span>
                 )}
               </div>
 
@@ -360,21 +360,21 @@ export default function AthleteProfilePage() {
             </div>
             
             {profile.bio && (
-              <p className="text-black font-semibold text-lg mb-6">
+              <p className="text-black dark:text-primary font-semibold text-lg mb-6">
                 {profile.bio}
               </p>
             )}
 
             {/* Follow stats + social links — socials are outbound links here
                 (the owner's page keeps click-to-edit instead) */}
-            <div className="bg-gray-50 rounded-xl p-4 mb-6">
+            <div className="bg-surface-muted rounded-xl p-4 mb-6">
               <div className="flex flex-wrap items-center gap-4 sm:gap-8">
                 <button
                   onClick={() => {
                     setFollowersModalTab('followers');
                     setIsFollowersModalOpen(true);
                   }}
-                  className="flex items-center gap-1 text-gray-900 font-bold hover:text-violet-600 transition-colors"
+                  className="flex items-center gap-1 text-primary font-bold hover:text-brand-fg transition-colors"
                 >
                   <span className="font-bold">{followStats.followersCount}</span>
                   <span>Fans</span>
@@ -384,12 +384,12 @@ export default function AthleteProfilePage() {
                     setFollowersModalTab('following');
                     setIsFollowersModalOpen(true);
                   }}
-                  className="flex items-center gap-1 text-gray-900 font-bold hover:text-violet-600 transition-colors"
+                  className="flex items-center gap-1 text-primary font-bold hover:text-brand-fg transition-colors"
                 >
                   <span className="font-bold">{followStats.followingCount}</span>
                   <span>Following</span>
                 </button>
-                <div className="flex items-center gap-1 text-gray-900 font-bold">
+                <div className="flex items-center gap-1 text-primary font-bold">
                   <span className="font-bold">{postsCount}</span>
                   <span>Posts</span>
                 </div>
@@ -401,7 +401,7 @@ export default function AthleteProfilePage() {
                     target="_blank"
                     rel="noopener noreferrer"
                     aria-label={`${formatDisplayName(profile.first_name, null, profile.last_name, profile.full_name)} on X`}
-                    className="flex items-center gap-2 text-gray-900 font-bold hover:text-violet-600 transition-colors"
+                    className="flex items-center gap-2 text-primary font-bold hover:text-brand-fg transition-colors"
                   >
                     <i className="fa-brands fa-x-twitter text-2xl" aria-hidden="true"></i>
                     <span>{formatSocialHandleDisplay(profile.social_twitter)}</span>
@@ -413,7 +413,7 @@ export default function AthleteProfilePage() {
                     target="_blank"
                     rel="noopener noreferrer"
                     aria-label={`${formatDisplayName(profile.first_name, null, profile.last_name, profile.full_name)} on Instagram`}
-                    className="flex items-center gap-2 text-gray-900 font-bold hover:text-violet-600 transition-colors"
+                    className="flex items-center gap-2 text-primary font-bold hover:text-brand-fg transition-colors"
                   >
                     <i className="fa-brands fa-instagram text-2xl text-pink-600" aria-hidden="true"></i>
                     <span>{formatSocialHandleDisplay(profile.social_instagram)}</span>
@@ -425,7 +425,7 @@ export default function AthleteProfilePage() {
                     target="_blank"
                     rel="noopener noreferrer"
                     aria-label={`${formatDisplayName(profile.first_name, null, profile.last_name, profile.full_name)} on TikTok`}
-                    className="flex items-center gap-2 text-gray-900 font-bold hover:text-violet-600 transition-colors"
+                    className="flex items-center gap-2 text-primary font-bold hover:text-brand-fg transition-colors"
                   >
                     <i className="fa-brands fa-tiktok text-2xl" aria-hidden="true"></i>
                     <span>{formatSocialHandleDisplay(profile.social_tiktok)}</span>
@@ -437,9 +437,9 @@ export default function AthleteProfilePage() {
                     target="_blank"
                     rel="noopener noreferrer"
                     aria-label={`${formatDisplayName(profile.first_name, null, profile.last_name, profile.full_name)} on Facebook`}
-                    className="flex items-center gap-2 text-gray-900 font-bold hover:text-violet-600 transition-colors"
+                    className="flex items-center gap-2 text-primary font-bold hover:text-brand-fg transition-colors"
                   >
-                    <i className="fa-brands fa-facebook text-2xl text-violet-600" aria-hidden="true"></i>
+                    <i className="fa-brands fa-facebook text-2xl text-brand-fg" aria-hidden="true"></i>
                     <span>{formatSocialHandleDisplay(profile.social_facebook)}</span>
                   </a>
                 )}
@@ -452,9 +452,9 @@ export default function AthleteProfilePage() {
         </div>
 
       {/* Media Section with Segmented Tabs (scroll-mt clears sticky header) */}
-      <div id="media-section" className="bg-white rounded-lg shadow-md p-4 sm:p-6 scroll-mt-20">
+      <div id="media-section" className="bg-surface rounded-lg shadow-md p-4 sm:p-6 scroll-mt-20">
         <div className="flex justify-between items-center mb-6">
-          <h2 className="text-2xl font-bold text-black">Athletic Profile & Media</h2>
+          <h2 className="text-2xl font-bold text-black dark:text-primary">Athletic Profile & Media</h2>
         </div>
 
         <FeaturedPosts

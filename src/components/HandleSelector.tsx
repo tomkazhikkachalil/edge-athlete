@@ -127,12 +127,12 @@ export default function HandleSelector({
   return (
     <div className="space-y-3">
       <div>
-        <label htmlFor="handle" className="block text-sm font-medium text-gray-700 mb-1">
+        <label htmlFor="handle" className="block text-sm font-medium text-secondary mb-1">
           Choose Your Handle {required && <span className="text-red-500">*</span>}
         </label>
         <div className="relative">
           <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-            <span className="text-gray-500 text-lg">@</span>
+            <span className="text-muted text-lg">@</span>
           </div>
           <input
             type="text"
@@ -147,7 +147,7 @@ export default function HandleSelector({
                 ? 'border-green-500 focus:ring-green-500'
                 : validationMessage && !isChecking
                   ? 'border-red-500 focus:ring-red-500'
-                  : 'border-gray-300 focus:ring-violet-500'
+                  : 'border-border-strong focus:ring-violet-500'
               }
             `}
             required={required}
@@ -175,15 +175,15 @@ export default function HandleSelector({
         )}
 
         {/* Format requirements */}
-        <p className="mt-1 text-xs text-gray-500">
+        <p className="mt-1 text-xs text-muted">
           3-20 characters • Letters, numbers, dots, underscores • No spaces • Must start and end with letter or number
         </p>
       </div>
 
       {/* Suggestions */}
       {showSuggestions && suggestions.length > 0 && (
-        <div className="border border-gray-200 rounded-lg p-3 bg-gray-50">
-          <p className="text-sm font-medium text-gray-700 mb-2">
+        <div className="border border-border rounded-lg p-3 bg-surface-muted">
+          <p className="text-sm font-medium text-secondary mb-2">
             Available suggestions:
           </p>
           <div className="flex flex-wrap gap-2">
@@ -192,7 +192,7 @@ export default function HandleSelector({
                 key={suggestion}
                 type="button"
                 onClick={() => handleSuggestionClick(suggestion)}
-                className="px-3 py-1 bg-white border border-gray-300 rounded-full text-sm hover:bg-violet-50 hover:border-violet-500 transition-colors"
+                className="px-3 py-1 bg-surface border border-border-strong rounded-full text-sm hover:bg-brand-soft hover:border-violet-500 transition-colors"
               >
                 @{suggestion}
               </button>

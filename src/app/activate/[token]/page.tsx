@@ -104,30 +104,30 @@ export default function ActivatePage() {
   };
 
   return (
-    <div className="min-h-screen flex flex-col bg-violet-50">
+    <div className="min-h-screen flex flex-col bg-brand-soft">
       <BrandBar />
       <div className="flex-grow flex items-center justify-center p-4">
-        <div className="w-full max-w-lg bg-white rounded-lg shadow-lg p-6 sm:p-8">
+        <div className="w-full max-w-lg bg-surface rounded-lg shadow-lg p-6 sm:p-8">
           {state === 'loading' && (
             <div className="flex justify-center py-12">
-              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-violet-600"></div>
+              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-brand"></div>
             </div>
           )}
 
           {state === 'invalid' && (
             <div className="text-center py-6">
-              <i className="fas fa-link-slash text-violet-600 text-4xl mb-4"></i>
-              <h2 className="text-xl sm:text-2xl font-bold text-violet-800 mb-2">
+              <i className="fas fa-link-slash text-brand-fg text-4xl mb-4"></i>
+              <h2 className="text-xl sm:text-2xl font-bold text-violet-800 dark:text-violet-200 mb-2">
                 This activation link has expired or was already used
               </h2>
-              <p className="text-sm text-gray-600 max-w-md mx-auto mb-6">
+              <p className="text-sm text-tertiary max-w-md mx-auto mb-6">
                 Don&apos;t worry — your account is still yours. You can sign in any
                 time by resetting your password with your new email address.
               </p>
               <button
                 type="button"
                 onClick={() => router.push('/forgot-password')}
-                className="w-full max-w-xs mx-auto bg-violet-600 text-white py-3 px-4 rounded-md hover:bg-violet-700 transition text-sm font-medium block"
+                className="w-full max-w-xs mx-auto bg-brand text-white py-3 px-4 rounded-md hover:bg-brand-hover transition text-sm font-medium block"
               >
                 Reset my password
               </button>
@@ -136,15 +136,15 @@ export default function ActivatePage() {
 
           {state === 'password' && needsManualLogin && (
             <div className="text-center py-6">
-              <i className="fas fa-circle-check text-violet-600 text-4xl mb-4"></i>
-              <h2 className="text-xl sm:text-2xl font-bold text-violet-800 mb-2">Password set!</h2>
-              <p className="text-sm text-gray-600 max-w-md mx-auto mb-6">
+              <i className="fas fa-circle-check text-brand-fg text-4xl mb-4"></i>
+              <h2 className="text-xl sm:text-2xl font-bold text-violet-800 dark:text-violet-200 mb-2">Password set!</h2>
+              <p className="text-sm text-tertiary max-w-md mx-auto mb-6">
                 Please sign in with your email and new password.
               </p>
               <button
                 type="button"
                 onClick={() => router.push('/')}
-                className="w-full max-w-xs mx-auto bg-violet-600 text-white py-3 px-4 rounded-md hover:bg-violet-700 transition text-sm font-medium block"
+                className="w-full max-w-xs mx-auto bg-brand text-white py-3 px-4 rounded-md hover:bg-brand-hover transition text-sm font-medium block"
               >
                 Go to sign in
               </button>
@@ -153,18 +153,18 @@ export default function ActivatePage() {
 
           {state === 'password' && !needsManualLogin && (
             <>
-              <h2 className="text-xl sm:text-2xl font-bold text-violet-800 mb-1">Welcome to your account</h2>
-              <p className="text-sm text-gray-600 mb-6">
+              <h2 className="text-xl sm:text-2xl font-bold text-violet-800 dark:text-violet-200 mb-1">Welcome to your account</h2>
+              <p className="text-sm text-tertiary mb-6">
                 It&apos;s officially yours. Set a password to get started.
               </p>
               {error && (
-                <div role="alert" className="bg-red-50 border border-red-200 text-red-600 px-4 py-3 rounded-md text-sm mb-4">
+                <div role="alert" className="bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-800 text-red-600 dark:text-red-400 px-4 py-3 rounded-md text-sm mb-4">
                   {error}
                 </div>
               )}
               <form onSubmit={handleSetPassword} className="flex flex-col gap-4">
                 <div>
-                  <label htmlFor="new-password" className="block text-sm font-medium text-gray-700 mb-1">
+                  <label htmlFor="new-password" className="block text-sm font-medium text-secondary mb-1">
                     New password
                   </label>
                   <input
@@ -175,11 +175,11 @@ export default function ActivatePage() {
                     minLength={6}
                     required
                     autoComplete="new-password"
-                    className="w-full border border-gray-300 rounded-md px-4 py-3 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-violet-500"
+                    className="w-full border border-border-strong rounded-md px-4 py-3 text-sm text-primary focus:outline-none focus:ring-2 focus:ring-violet-500"
                   />
                 </div>
                 <div>
-                  <label htmlFor="confirm-password" className="block text-sm font-medium text-gray-700 mb-1">
+                  <label htmlFor="confirm-password" className="block text-sm font-medium text-secondary mb-1">
                     Confirm password
                   </label>
                   <input
@@ -190,13 +190,13 @@ export default function ActivatePage() {
                     minLength={6}
                     required
                     autoComplete="new-password"
-                    className="w-full border border-gray-300 rounded-md px-4 py-3 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-violet-500"
+                    className="w-full border border-border-strong rounded-md px-4 py-3 text-sm text-primary focus:outline-none focus:ring-2 focus:ring-violet-500"
                   />
                 </div>
                 <button
                   type="submit"
                   disabled={busy}
-                  className="w-full bg-violet-600 text-white py-3 px-4 rounded-md hover:bg-violet-700 transition flex items-center justify-center text-sm font-medium disabled:opacity-50"
+                  className="w-full bg-brand text-white py-3 px-4 rounded-md hover:bg-brand-hover transition flex items-center justify-center text-sm font-medium disabled:opacity-50"
                 >
                   {busy ? <><i className="fas fa-spinner fa-spin mr-2"></i> Setting up...</> : 'Set password & continue'}
                 </button>
@@ -206,19 +206,19 @@ export default function ActivatePage() {
 
           {state === 'review' && (
             <>
-              <h2 className="text-xl sm:text-2xl font-bold text-violet-800 mb-1">Your account, your rules</h2>
-              <p className="text-sm text-gray-600 mb-6">
+              <h2 className="text-xl sm:text-2xl font-bold text-violet-800 dark:text-violet-200 mb-1">Your account, your rules</h2>
+              <p className="text-sm text-tertiary mb-6">
                 One quick look at who can see and contact you. These are your
                 current settings — keep them or change them, then you&apos;re done.
               </p>
               {error && (
-                <div role="alert" className="bg-red-50 border border-red-200 text-red-600 px-4 py-3 rounded-md text-sm mb-4">
+                <div role="alert" className="bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-800 text-red-600 dark:text-red-400 px-4 py-3 rounded-md text-sm mb-4">
                   {error}
                 </div>
               )}
 
               <fieldset className="mb-5">
-                <legend className="text-sm font-semibold text-gray-900 mb-2">Who can see your profile</legend>
+                <legend className="text-sm font-semibold text-primary mb-2">Who can see your profile</legend>
                 {([
                   { value: 'private', label: 'Private', description: 'Only people you approve can see your profile.' },
                   { value: 'public', label: 'Public', description: 'Anyone can find and view your profile.' },
@@ -232,15 +232,15 @@ export default function ActivatePage() {
                       className="mt-1 accent-violet-600"
                     />
                     <span className="text-sm">
-                      <span className="text-gray-900 font-medium">{opt.label}</span>
-                      <span className="block text-gray-500">{opt.description}</span>
+                      <span className="text-primary font-medium">{opt.label}</span>
+                      <span className="block text-muted">{opt.description}</span>
                     </span>
                   </label>
                 ))}
               </fieldset>
 
               <fieldset className="mb-5">
-                <legend className="text-sm font-semibold text-gray-900 mb-2">Who can message you</legend>
+                <legend className="text-sm font-semibold text-primary mb-2">Who can message you</legend>
                 {MESSAGING_OPTIONS.map(opt => (
                   <label key={opt.value} className="flex items-start gap-3 py-2 cursor-pointer">
                     <input
@@ -251,15 +251,15 @@ export default function ActivatePage() {
                       className="mt-1 accent-violet-600"
                     />
                     <span className="text-sm">
-                      <span className="text-gray-900 font-medium">{opt.label}</span>
-                      <span className="block text-gray-500">{opt.description}</span>
+                      <span className="text-primary font-medium">{opt.label}</span>
+                      <span className="block text-muted">{opt.description}</span>
                     </span>
                   </label>
                 ))}
               </fieldset>
 
               {guardianAccess && (
-                <p className="text-xs text-gray-500 bg-gray-50 border border-gray-200 rounded-md px-4 py-3 mb-5">
+                <p className="text-xs text-muted bg-surface-muted border border-border rounded-md px-4 py-3 mb-5">
                   {guardianAccess === 'viewer'
                     ? 'Your former guardian can still view your profile (view-only — they can no longer manage anything).'
                     : 'Your former guardian no longer has access to your account.'}
@@ -270,11 +270,11 @@ export default function ActivatePage() {
                 type="button"
                 onClick={handleDone}
                 disabled={busy}
-                className="w-full bg-violet-600 text-white py-3 px-4 rounded-md hover:bg-violet-700 transition flex items-center justify-center text-sm font-medium disabled:opacity-50"
+                className="w-full bg-brand text-white py-3 px-4 rounded-md hover:bg-brand-hover transition flex items-center justify-center text-sm font-medium disabled:opacity-50"
               >
                 {busy ? <><i className="fas fa-spinner fa-spin mr-2"></i> Saving...</> : 'Done'}
               </button>
-              <p className="text-xs text-gray-500 text-center mt-3">
+              <p className="text-xs text-muted text-center mt-3">
                 You can change any of this later in Settings.
               </p>
             </>

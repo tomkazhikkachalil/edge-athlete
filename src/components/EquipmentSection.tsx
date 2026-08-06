@@ -337,17 +337,17 @@ export default function EquipmentSection({ profileId, isOwnProfile = false }: Eq
       {/* Loading state */}
       {loading && (
         <div className="flex justify-center items-center py-16">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-violet-600"></div>
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-brand"></div>
         </div>
       )}
 
       {/* Empty state */}
       {!loading && searchedEquipment.length === 0 && (
         <div className="text-center py-16 px-4">
-          <div className="w-20 h-20 mx-auto mb-6 rounded-full bg-gray-100 flex items-center justify-center">
-            <Dumbbell className="w-10 h-10 text-gray-400" />
+          <div className="w-20 h-20 mx-auto mb-6 rounded-full bg-surface-sunken flex items-center justify-center">
+            <Dumbbell className="w-10 h-10 text-faint" />
           </div>
-          <h3 className="text-xl font-bold text-gray-900 mb-2">
+          <h3 className="text-xl font-bold text-primary mb-2">
             {search.trim()
               ? 'No gear matches'
               : view !== 'now'
@@ -356,7 +356,7 @@ export default function EquipmentSection({ profileId, isOwnProfile = false }: Eq
                   ? 'No equipment matches your filters'
                   : 'No equipment added'}
           </h3>
-          <p className="text-gray-600 mb-6 max-w-md mx-auto">
+          <p className="text-tertiary mb-6 max-w-md mx-auto">
             {isOwnProfile
               ? `Add your equipment to showcase your setup and track gear changes over time.`
               : 'This athlete hasn\'t added their equipment yet.'}
@@ -364,7 +364,7 @@ export default function EquipmentSection({ profileId, isOwnProfile = false }: Eq
           {isOwnProfile && (
             <button
               onClick={() => setIsAddModalOpen(true)}
-              className="inline-flex items-center gap-2 px-6 py-3 bg-violet-600 text-white rounded-lg font-semibold hover:bg-violet-700 transition-colors shadow-sm"
+              className="inline-flex items-center gap-2 px-6 py-3 bg-brand text-white rounded-lg font-semibold hover:bg-brand-hover transition-colors shadow-sm"
             >
               <Plus className="w-5 h-5" />
               Add Your First Item
@@ -421,9 +421,9 @@ export default function EquipmentSection({ profileId, isOwnProfile = false }: Eq
               <section key={sport} id={equipmentAnchorId(sport)} className="scroll-mt-24">
                 {/* Sport header — the section IS this sport's gear profile,
                     so it renders even for a single sport. */}
-                <div className="flex items-baseline gap-3 mb-4 pb-2 border-b border-gray-200">
-                  <h3 className="text-xl font-bold text-gray-900">{sportLabel(sport)}</h3>
-                  <span className="text-sm text-gray-500">
+                <div className="flex items-baseline gap-3 mb-4 pb-2 border-b border-border">
+                  <h3 className="text-xl font-bold text-primary">{sportLabel(sport)}</h3>
+                  <span className="text-sm text-muted">
                     {inSeasonView
                       ? `${items.length} in the bag in ${view}`
                       : `${counts.active} active${counts.retired > 0 ? ` · ${counts.retired} retired` : ''}`}
@@ -432,11 +432,11 @@ export default function EquipmentSection({ profileId, isOwnProfile = false }: Eq
 
                 {/* Current setup — sport-appropriate label (golf: "In the Bag");
                     in a season view the label carries the year. */}
-                <h4 className="text-sm font-semibold uppercase tracking-wide text-gray-500 mb-4">
+                <h4 className="text-sm font-semibold uppercase tracking-wide text-muted mb-4">
                   {inSeasonView ? `${getSetupLabel(sport)} — ${view}` : getSetupLabel(sport)}
                 </h4>
                 {activeItems.length === 0 ? (
-                  <p className="text-sm text-gray-500 mb-2">
+                  <p className="text-sm text-muted mb-2">
                     {isOwnProfile
                       ? 'Nothing in your current setup — add gear or re-activate something below.'
                       : 'No current gear listed.'}
@@ -452,14 +452,14 @@ export default function EquipmentSection({ profileId, isOwnProfile = false }: Eq
                         <div key={set.anchorId} id={set.anchorId} className="scroll-mt-24">
                           <div className="flex items-center gap-3 mb-4">
                             <span className="text-2xl">★</span>
-                            <h5 className="text-lg font-bold text-gray-900">{set.label}</h5>
-                            <span className="text-sm text-gray-500">({set.items.length})</span>
+                            <h5 className="text-lg font-bold text-primary">{set.label}</h5>
+                            <span className="text-sm text-muted">({set.items.length})</span>
                             {overflows && (
                               <button
                                 onClick={() =>
                                   setExpandedShelves(prev => ({ ...prev, [set.anchorId]: !expanded }))
                                 }
-                                className="ea-interactive hidden lg:inline-flex items-center gap-1 ml-auto rounded-lg px-2 py-1 text-sm font-semibold text-violet-600"
+                                className="ea-interactive hidden lg:inline-flex items-center gap-1 ml-auto rounded-lg px-2 py-1 text-sm font-semibold text-brand-fg"
                               >
                                 {expanded ? 'Collapse' : `See all ${set.items.length}`}
                                 <ChevronRight
@@ -501,10 +501,10 @@ export default function EquipmentSection({ profileId, isOwnProfile = false }: Eq
                             {showHeader && (
                               <div className="flex items-center gap-3 mb-4">
                                 <span className="text-2xl">{config ? config.icon : '🎒'}</span>
-                                <h5 className="text-lg font-bold text-gray-900">
+                                <h5 className="text-lg font-bold text-primary">
                                   {config ? config.label : 'More gear'}
                                 </h5>
-                                <span className="text-sm text-gray-500">({shelf.items.length})</span>
+                                <span className="text-sm text-muted">({shelf.items.length})</span>
                                 {overflows && (
                                   /* Shelf ⇄ grid toggle is a desktop concern —
                                      the mobile grid always shows everything. */
@@ -512,7 +512,7 @@ export default function EquipmentSection({ profileId, isOwnProfile = false }: Eq
                                     onClick={() =>
                                       setExpandedShelves(prev => ({ ...prev, [anchorId]: !expanded }))
                                     }
-                                    className="ea-interactive hidden lg:inline-flex items-center gap-1 ml-auto rounded-lg px-2 py-1 text-sm font-semibold text-violet-600"
+                                    className="ea-interactive hidden lg:inline-flex items-center gap-1 ml-auto rounded-lg px-2 py-1 text-sm font-semibold text-brand-fg"
                                   >
                                     {expanded ? 'Collapse' : `See all ${shelf.items.length}`}
                                     <ChevronRight
@@ -544,7 +544,7 @@ export default function EquipmentSection({ profileId, isOwnProfile = false }: Eq
                     <button
                       onClick={() => setOpenHistories(prev => ({ ...prev, [sport]: !historyOpen }))}
                       aria-expanded={historyOpen}
-                      className="ea-interactive flex items-center gap-2 rounded-lg px-2 py-2 -mx-2 text-sm font-semibold uppercase tracking-wide text-gray-500"
+                      className="ea-interactive flex items-center gap-2 rounded-lg px-2 py-2 -mx-2 text-sm font-semibold uppercase tracking-wide text-muted"
                     >
                       <ChevronDown
                         className={`w-4 h-4 transition-transform ${historyOpen ? '' : '-rotate-90'}`}
@@ -561,16 +561,16 @@ export default function EquipmentSection({ profileId, isOwnProfile = false }: Eq
                           return (
                             <div key={String(bucket.year)}>
                               <div className="flex items-center gap-3 mb-4">
-                                <h5 className="text-lg font-bold text-gray-900">
+                                <h5 className="text-lg font-bold text-primary">
                                   {bucket.year === EARLIER_BUCKET ? 'Earlier' : bucket.year}
                                 </h5>
-                                <span className="text-sm text-gray-500">({bucket.items.length})</span>
+                                <span className="text-sm text-muted">({bucket.items.length})</span>
                                 {overflows && (
                                   <button
                                     onClick={() =>
                                       setExpandedShelves(prev => ({ ...prev, [bucketAnchor]: !expanded }))
                                     }
-                                    className="ea-interactive hidden lg:inline-flex items-center gap-1 ml-auto rounded-lg px-2 py-1 text-sm font-semibold text-violet-600"
+                                    className="ea-interactive hidden lg:inline-flex items-center gap-1 ml-auto rounded-lg px-2 py-1 text-sm font-semibold text-brand-fg"
                                   >
                                     {expanded ? 'Collapse' : `See all ${bucket.items.length}`}
                                     <ChevronRight

@@ -76,22 +76,22 @@ export default function ReactionDetails({
   return (
     <div
       ref={containerRef}
-      className={`absolute z-30 bg-white rounded-xl shadow-xl border border-gray-200 w-64 max-w-[80vw] ${
+      className={`absolute z-30 bg-surface-raised rounded-xl shadow-xl border border-border w-64 max-w-[80vw] ${
         align === 'right' ? 'right-0' : 'left-0'
       } top-full mt-1`}
       role="dialog"
       aria-label="Reaction details"
     >
       {/* Emoji tabs */}
-      <div className="flex items-center gap-1 px-2 pt-2 pb-1 border-b border-gray-100 overflow-x-auto">
+      <div className="flex items-center gap-1 px-2 pt-2 pb-1 border-b border-border-subtle overflow-x-auto">
         {tabs.map(t => (
           <button
             key={t.emoji}
             onClick={() => setActiveEmoji(t.emoji)}
             className={`shrink-0 inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs transition-colors ${
               t.emoji === activeEmoji
-                ? 'bg-violet-50 text-violet-700 font-semibold'
-                : 'text-gray-600 hover:bg-gray-50'
+                ? 'bg-brand-soft text-brand-fg-strong font-semibold'
+                : 'text-tertiary hover:bg-surface-muted'
             }`}
             aria-pressed={t.emoji === activeEmoji}
           >
@@ -104,14 +104,14 @@ export default function ReactionDetails({
       {/* Reactor list */}
       <div className="max-h-60 overflow-y-auto py-1">
         {reactors.length === 0 ? (
-          <p className="px-3 py-3 text-xs text-gray-400">No reactor details available.</p>
+          <p className="px-3 py-3 text-xs text-faint">No reactor details available.</p>
         ) : (
           reactors.map(p => {
             const name = formatDisplayName(p.first_name, null, p.last_name, p.full_name) || 'Unknown';
             return (
               <div
                 key={p.id}
-                className="flex items-center gap-2 px-3 py-1.5 hover:bg-gray-50"
+                className="flex items-center gap-2 px-3 py-1.5 hover:bg-surface-muted"
               >
                 {p.avatar_url ? (
                   <LazyImage
@@ -126,7 +126,7 @@ export default function ReactionDetails({
                     {getInitials(name)}
                   </div>
                 )}
-                <span className="text-sm text-gray-900 truncate">{name}</span>
+                <span className="text-sm text-primary truncate">{name}</span>
               </div>
             );
           })

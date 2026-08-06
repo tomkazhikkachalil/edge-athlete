@@ -53,7 +53,7 @@ export default function TransferBanner() {
       {/* flex-wrap + truncate: long transfer copy wraps the action onto its
           own line instead of pushing the row past a 320px screen. */}
       <div className="flex flex-wrap items-center justify-center gap-x-3 gap-y-1 text-sm">
-        <i className="fas fa-key text-violet-700 shrink-0"></i>
+        <i className="fas fa-key text-brand-fg-strong shrink-0"></i>
         <span className="text-violet-900 font-medium min-w-0 truncate">{bannerCopy(transfer.state)}</span>
         <Link
           href={`/app/transfer/${user!.id}`}

@@ -1,6 +1,86 @@
 # Development Log
 
-## August 5, 2026 — Counter rows normalized + one-click follow for public profiles
+## August 6, 2026 — Dark mode: token architecture, four-mode scheduler, ~150-file sweep
+
+**The whole app now has a dark theme — colours only.** Layout, spacing, type
+and behaviour untouched; light mode is pixel-identical by construction
+(every token's light value is the exact hex of the utility it replaced).
+
+**The token system.** `globals.css` colours all live as `:root` custom
+properties with a `[data-theme="dark"]` override block; `@theme inline`
+entries are pure `var()` dereferences — never put a hex literal in
+`@theme inline`, it cannot be re-pointed per theme. Vocabulary: surfaces
+`canvas / surface / surface-muted / surface-sunken / surface-raised`
+(dark elevation = LIGHTER surface, because shadows barely read on dark),
+text `primary / secondary / tertiary / muted / faint` (the old gray
+900/700/600/500/400), borders `border / border-subtle / border-strong`,
+brand `brand / brand-hover / brand-soft / brand-fg / brand-fg-strong`
+(violet-600 text is only ~3.4:1 on dark surfaces — brand-fg lightens to
+violet-400 there), status `{success,warning,danger} × {solid,fg,soft,border}`.
+Dark ramp is warm stone-family (no #000 canvas, no #fff body text); all 23
+WCAG spot-checks pass. A `@custom-variant dark` keys `dark:` to the
+attribute, NOT `prefers-color-scheme` — three of the four modes would
+disagree with the media query.
+
+**The protected colour maps got dark twins, append-only.** golf/scoring.ts
+(blue=under-par stays blue), calendar/categories.ts, vitals/category-colors
+(now carries `hexDark`, picked via `useTheme()` at chart call sites),
+sports-config/league-config/sports-metrics/equipment-config: light class
+strings byte-identical, `dark:` classes appended. That is the standing rule
+for these files.
+
+**Four-mode control** (Settings → Appearance + avatar-dropdown quick
+toggle): Off / On / Scheduled (user window, default 20:00–07:00,
+cross-midnight aware) / Match system. A manual toggle during a scheduled
+window writes an override that expires at the next boundary — expiry is
+COMPUTED (`setAt > prevTransition(now)`), never stored, so every device
+agrees without cleanup. Preference lives in `profiles.theme_prefs` JSONB
+(migration 069, equipment_prefs pattern) — account-level, synced across
+devices, keyed `.eq('id', user.id)`; guardian profile switching cannot
+touch it. localStorage mirror `ea:theme:v1` + a blocking head script
+resolve the theme (schedule included) before first paint — no flash; the
+script duplicates resolveTheme in ES5 and theme-script.test.ts pins the
+two implementations together.
+
+**Landmines defused along the way:** the `input { color:#000 !important }`
+rule is GONE (it forced black text on every control; theme tokens replace
+it, `color-scheme` themes native pickers/scrollbars/video controls,
+`-webkit-autofill` repainted via the inset-shadow trick). The wordmark
+logo is inverted in dark via `.themed-logo` filter — interim until Tom
+exports a real `logo-dark.png`; `public/logo.png` itself must NOT change
+(every outbound email embeds it). Never themed: email-service.ts,
+og-image, manifest splash, global-error.tsx (renders outside the shell),
+user media (the invert filter is scoped to `.themed-logo` only).
+
+**The `ea-theme` cookie is what makes "no flash" also mean "no swap."** The
+localStorage mirror alone could only tell a device what IT last knew, so a
+device whose account theme had been changed elsewhere — or any brand-new
+browser, incognito window, or cleared jar — painted the wrong theme and
+corrected ~500ms later when the client-side profile fetch landed. The
+middleware (already one Supabase round trip per request) now refreshes a
+`ea-theme` cookie from `profiles.theme_prefs` on every DOCUMENT navigation
+(`sec-fetch-dest`, so RSC prefetches and assets skip the query), and the
+head script reads `document.cookie` FIRST, falling back to the mirror only
+when there is no cookie (signed out / offline). Cookie prefs are written
+back into the mirror so the runtime evaluator starts from server truth.
+
+Two design points worth keeping: the cookie is read by the inline SCRIPT,
+not by the root layout via `next/headers` — reading cookies there would
+have opted all 32 prerendered routes out of static rendering for nothing,
+since resolution has to happen on the device anyway (`scheduled` needs the
+local clock, `system` needs the OS setting). And an ABSENT cookie is not
+the same as an EMPTY one: absent means "no server truth, use the device's
+memory", empty means "the account was read and has no preference", which
+must beat a stale mirror. Signing out deletes the cookie, so a device keeps
+its own look instead of snapping back to light.
+
+**Migration 069: run by Tom Aug 6, verified live** (`theme_prefs` column
+present, NULL rows = light, exactly the pre-069 contract). Verified in
+headless Chrome across four cases — fresh browser, stale mirror, stale
+COOKIE with the account changed elsewhere, and signed-out — all painting
+the right theme at `ready:interactive` with zero value transitions after.
+Also E2E'd through the real API: 401 anonymously, junk sanitized to `{}`,
+and spoofed `userId`/`profileId` bodies leaving another account untouched.
 
 **"Fans, Following, Posts" — one order, one wording, three surfaces.** The
 row read "Fan Of, Fans, Posts" on the own page, "Fan Of, Fans" (no Posts!)

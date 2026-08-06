@@ -81,11 +81,11 @@ export default function Home() {
   // Show loading state while auth is being determined - prevent flash of login page
   if (loading || !initialAuthCheckComplete) {
     return (
-      <div className="min-h-screen bg-violet-50 flex items-center justify-center">
+      <div className="min-h-screen bg-brand-soft flex items-center justify-center">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-violet-600 mx-auto"></div>
-          <p className="mt-4 text-gray-700 font-medium">Checking your session...</p>
-          <p className="mt-1 text-sm text-gray-500">This should only take a moment</p>
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-brand mx-auto"></div>
+          <p className="mt-4 text-secondary font-medium">Checking your session...</p>
+          <p className="mt-1 text-sm text-muted">This should only take a moment</p>
         </div>
       </div>
     );
@@ -97,11 +97,11 @@ export default function Home() {
   // initialAuthCheckComplete, so they arrive here with user === null.
   if (user) {
     return (
-      <div className="min-h-screen bg-violet-50 flex items-center justify-center">
+      <div className="min-h-screen bg-brand-soft flex items-center justify-center">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-violet-600 mx-auto"></div>
-          <p className="mt-4 text-gray-700 font-medium">Welcome back!</p>
-          <p className="mt-1 text-sm text-gray-500">Redirecting to your profile...</p>
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-brand mx-auto"></div>
+          <p className="mt-4 text-secondary font-medium">Welcome back!</p>
+          <p className="mt-1 text-sm text-muted">Redirecting to your profile...</p>
         </div>
       </div>
     );
@@ -326,58 +326,58 @@ export default function Home() {
     // The legacy single-form registration below remains the flag-off path.
     if (FEATURE_FLAGS.FEATURE_GUARDIAN_PROFILES) {
       return (
-        <div className="min-h-screen flex flex-col bg-violet-50">
+        <div className="min-h-screen flex flex-col bg-brand-soft">
           <BrandBar />
           <RegistrationSteps onBackToLogin={handleBackToLogin} />
         </div>
       );
     }
     return (
-      <div className="min-h-screen flex flex-col bg-violet-50">
+      <div className="min-h-screen flex flex-col bg-brand-soft">
         <BrandBar />
 
         <div className="flex-grow flex items-center justify-center p-4">
-          <div className="w-full max-w-3xl bg-white rounded-lg shadow-lg overflow-hidden">
+          <div className="w-full max-w-3xl bg-surface rounded-lg shadow-lg overflow-hidden">
             <div className="w-full p-6 sm:p-8">
-              <h2 className="text-xl sm:text-2xl font-bold text-violet-800 space-micro">Create Athlete Account</h2>
+              <h2 className="text-xl sm:text-2xl font-bold text-violet-800 dark:text-violet-200 space-micro">Create Athlete Account</h2>
               <OAuthButtons onError={setError} divider="below" />
               {error && (
                 <div
                   ref={errorRef}
                   role="alert"
                   tabIndex={-1}
-                  className="bg-red-50 border border-red-200 text-red-600 px-4 py-3 rounded-md text-sm"
+                  className="bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-800 text-red-600 dark:text-red-400 px-4 py-3 rounded-md text-sm"
                 >
                   {error}
                 </div>
               )}
               {success && (
-                <div className="bg-green-50 border border-green-200 text-green-600 px-4 py-3 rounded-md text-sm">
+                <div className="bg-green-50 dark:bg-green-950/40 border border-green-200 dark:border-green-800 text-green-600 dark:text-green-400 px-4 py-3 rounded-md text-sm">
                   {success}
                 </div>
               )}
               <form className="gap-micro flex flex-col" onSubmit={handleRegistrationSubmit}>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
-                    <label htmlFor="first-name" className="block text-sm font-medium text-gray-700 mb-1">First Name</label>
+                    <label htmlFor="first-name" className="block text-sm font-medium text-secondary mb-1">First Name</label>
                     <input
                       type="text"
                       id="firstName"
                       value={formData.firstName}
                       onChange={handleInputChange}
-                      className="w-full px-4 py-3 text-sm text-gray-800 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-violet-500"
+                      className="w-full px-4 py-3 text-sm text-primary border border-border-strong rounded-md focus:outline-none focus:ring-1 focus:ring-violet-500"
                       placeholder="Enter first name"
                       required
                     />
                   </div>
                   <div>
-                    <label htmlFor="lastName" className="block text-sm font-medium text-gray-700 mb-1">Last Name</label>
+                    <label htmlFor="lastName" className="block text-sm font-medium text-secondary mb-1">Last Name</label>
                     <input
                       type="text"
                       id="lastName"
                       value={formData.lastName}
                       onChange={handleInputChange}
-                      className="w-full px-4 py-3 text-sm text-gray-800 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-violet-500"
+                      className="w-full px-4 py-3 text-sm text-primary border border-border-strong rounded-md focus:outline-none focus:ring-1 focus:ring-violet-500"
                       placeholder="Enter last name"
                       required
                     />
@@ -390,52 +390,52 @@ export default function Home() {
                   required={true}
                 />
                 <div>
-                  <label htmlFor="nickname" className="block text-sm font-medium text-gray-700 mb-1">Nickname</label>
+                  <label htmlFor="nickname" className="block text-sm font-medium text-secondary mb-1">Nickname</label>
                   <input
                     type="text"
                     id="nickname"
                     value={formData.nickname}
                     onChange={handleInputChange}
-                    className="w-full px-4 py-3 text-sm text-gray-800 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-violet-500"
+                    className="w-full px-4 py-3 text-sm text-primary border border-border-strong rounded-md focus:outline-none focus:ring-1 focus:ring-violet-500"
                     placeholder="Enter nickname"
                   />
                 </div>
                 <div>
-                  <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-1">Email</label>
+                  <label htmlFor="email" className="block text-sm font-medium text-secondary mb-1">Email</label>
                   <input
                     type="email"
                     id="email"
                     value={formData.email}
                     onChange={handleInputChange}
-                    className="w-full px-4 py-3 text-sm text-gray-800 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-violet-500"
+                    className="w-full px-4 py-3 text-sm text-primary border border-border-strong rounded-md focus:outline-none focus:ring-1 focus:ring-violet-500"
                     placeholder="Enter email"
                     required
                   />
                 </div>
                 <div>
-                  <label htmlFor="phone" className="block text-sm font-medium text-gray-700 mb-1">Phone Number</label>
+                  <label htmlFor="phone" className="block text-sm font-medium text-secondary mb-1">Phone Number</label>
                   <input
                     type="tel"
                     id="phone"
                     value={formData.phone}
                     onChange={handleInputChange}
-                    className="w-full px-4 py-3 text-sm text-gray-800 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-violet-500"
+                    className="w-full px-4 py-3 text-sm text-primary border border-border-strong rounded-md focus:outline-none focus:ring-1 focus:ring-violet-500"
                     placeholder="Enter phone number"
                   />
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
-                    <label htmlFor="birthday" className="block text-sm font-medium text-gray-700 mb-1">Birthday</label>
+                    <label htmlFor="birthday" className="block text-sm font-medium text-secondary mb-1">Birthday</label>
                     <input
                       type="date"
                       id="birthday"
                       value={formData.birthday}
                       onChange={handleInputChange}
-                      className="w-full px-4 py-3 text-sm text-gray-800 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-violet-500"
+                      className="w-full px-4 py-3 text-sm text-primary border border-border-strong rounded-md focus:outline-none focus:ring-1 focus:ring-violet-500"
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Gender</label>
+                    <label className="block text-sm font-medium text-secondary mb-1">Gender</label>
                     <div className="flex flex-wrap gap-3 sm:space-x-4 sm:gap-0">
                       <label className="inline-flex items-center">
                         <input 
@@ -444,7 +444,7 @@ export default function Home() {
                           value="female" 
                           checked={formData.gender === 'female'}
                           onChange={handleInputChange}
-                          className="form-radio text-violet-600" 
+                          className="form-radio text-brand-fg" 
                         />
                         <span className="ml-1 text-sm">Female</span>
                       </label>
@@ -455,7 +455,7 @@ export default function Home() {
                           value="male" 
                           checked={formData.gender === 'male'}
                           onChange={handleInputChange}
-                          className="form-radio text-violet-600" 
+                          className="form-radio text-brand-fg" 
                         />
                         <span className="ml-1 text-sm">Male</span>
                       </label>
@@ -466,7 +466,7 @@ export default function Home() {
                           value="custom" 
                           checked={formData.gender === 'custom'}
                           onChange={handleInputChange}
-                          className="form-radio text-violet-600" 
+                          className="form-radio text-brand-fg" 
                         />
                         <span className="ml-1 text-sm">Custom</span>
                       </label>
@@ -474,7 +474,7 @@ export default function Home() {
                   </div>
                 </div>
                 <div>
-                  <label htmlFor="location" className="block text-sm font-medium text-gray-700 mb-1">Location</label>
+                  <label htmlFor="location" className="block text-sm font-medium text-secondary mb-1">Location</label>
                   <div className="relative">
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       <div>
@@ -483,7 +483,7 @@ export default function Home() {
                           id="location"
                           value={formData.location}
                           onChange={handleInputChange}
-                          className="w-full px-4 py-3 text-sm text-gray-800 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-violet-500"
+                          className="w-full px-4 py-3 text-sm text-primary border border-border-strong rounded-md focus:outline-none focus:ring-1 focus:ring-violet-500"
                           placeholder="Enter your location"
                         />
                       </div>
@@ -493,54 +493,54 @@ export default function Home() {
                           id="postalCode"
                           value={formData.postalCode}
                           onChange={handleInputChange}
-                          className="w-full px-4 py-3 text-sm text-gray-800 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-violet-500 pr-10"
+                          className="w-full px-4 py-3 text-sm text-primary border border-border-strong rounded-md focus:outline-none focus:ring-1 focus:ring-violet-500 pr-10"
                           placeholder="Enter postal code"
                         />
-                        <button type="button" className="absolute right-2 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-violet-500 sm:hidden">
+                        <button type="button" className="absolute right-2 top-1/2 transform -translate-y-1/2 text-faint hover:text-violet-500 sm:hidden">
                           <i className="fas fa-location-dot text-sm"></i>
                         </button>
                       </div>
                     </div>
-                    <button type="button" className="hidden sm:block absolute right-2 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-violet-500">
+                    <button type="button" className="hidden sm:block absolute right-2 top-1/2 transform -translate-y-1/2 text-faint hover:text-violet-500">
                       <i className="fas fa-location-dot"></i>
                     </button>
                   </div>
                 </div>
                 <div>
-                  <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-1">Password</label>
+                  <label htmlFor="password" className="block text-sm font-medium text-secondary mb-1">Password</label>
                   <input
                     type="password"
                     id="password"
                     value={formData.password}
                     onChange={handleInputChange}
-                    className="w-full px-4 py-3 text-sm text-gray-800 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-violet-500"
+                    className="w-full px-4 py-3 text-sm text-primary border border-border-strong rounded-md focus:outline-none focus:ring-1 focus:ring-violet-500"
                     placeholder="Enter password"
                     required
                     minLength={6}
                   />
                 </div>
                 <div>
-                  <label htmlFor="confirmPassword" className="block text-sm font-medium text-gray-700 mb-1">Confirm Password</label>
+                  <label htmlFor="confirmPassword" className="block text-sm font-medium text-secondary mb-1">Confirm Password</label>
                   <input
                     type="password"
                     id="confirmPassword"
                     value={formData.confirmPassword}
                     onChange={handleInputChange}
-                    className="w-full px-4 py-3 text-sm text-gray-800 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-violet-500"
+                    className="w-full px-4 py-3 text-sm text-primary border border-border-strong rounded-md focus:outline-none focus:ring-1 focus:ring-violet-500"
                     placeholder="Confirm password"
                     required
                     minLength={6}
                   />
                 </div>
                 {error && (
-                  <p className="text-sm text-red-600 text-center" aria-hidden="true">
+                  <p className="text-sm text-red-600 dark:text-red-400 text-center" aria-hidden="true">
                     {error}
                   </p>
                 )}
                 <button
                   type="submit"
                   disabled={isSubmitting}
-                  className="w-full bg-violet-600 text-white py-3 px-4 rounded-md hover:bg-violet-700 transition duration-300 flex items-center justify-center text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="w-full bg-brand text-white py-3 px-4 rounded-md hover:bg-brand-hover transition duration-300 flex items-center justify-center text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   {isSubmitting ? (
                     <>
@@ -554,10 +554,10 @@ export default function Home() {
                 </button>
               </form>
               <div className="mt-4 text-center">
-                <p className="text-xs text-gray-600">
+                <p className="text-xs text-tertiary">
                   Already have an account? 
                   <span 
-                    className="text-violet-600 hover:underline cursor-pointer ml-1"
+                    className="text-brand-fg hover:underline cursor-pointer ml-1"
                     onClick={handleBackToLogin}
                   >
                     Log in as an Athlete
@@ -572,23 +572,23 @@ export default function Home() {
   }
 
   return (
-    <div className="min-h-screen flex flex-col bg-violet-50">
+    <div className="min-h-screen flex flex-col bg-brand-soft">
       <BrandBar />
       
       <div className="flex-grow flex items-center justify-center p-4">
-        <div className="w-full max-w-4xl flex flex-col lg:flex-row bg-white rounded-lg shadow-lg overflow-hidden">
+        <div className="w-full max-w-4xl flex flex-col lg:flex-row bg-surface rounded-lg shadow-lg overflow-hidden">
           {/* Login Section */}
           <div className="w-full lg:w-1/2 p-6 sm:p-8 lg:p-12">
-            <h2 className="text-2xl sm:text-3xl font-bold text-violet-800 mb-6 sm:mb-8 text-center lg:text-left">Login to Your Account</h2>
+            <h2 className="text-2xl sm:text-3xl font-bold text-violet-800 dark:text-violet-200 mb-6 sm:mb-8 text-center lg:text-left">Login to Your Account</h2>
             {error && (
-              <div className="bg-red-50 border border-red-200 text-red-600 px-4 py-3 rounded-md text-sm mb-4">
+              <div className="bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-800 text-red-600 dark:text-red-400 px-4 py-3 rounded-md text-sm mb-4">
                 {error}
                 {unconfirmedEmail && (
                   <button
                     type="button"
                     onClick={handleResendConfirmation}
                     disabled={resendingConfirmation}
-                    className="block mt-2 font-semibold text-violet-600 hover:text-violet-700 disabled:opacity-50"
+                    className="block mt-2 font-semibold text-brand-fg hover:text-brand-fg-strong disabled:opacity-50"
                   >
                     {resendingConfirmation ? 'Resending…' : 'Resend confirmation email'}
                   </button>
@@ -596,35 +596,35 @@ export default function Home() {
               </div>
             )}
             {success && (
-              <div className="bg-green-50 border border-green-200 text-green-600 px-4 py-3 rounded-md text-sm mb-4">
+              <div className="bg-green-50 dark:bg-green-950/40 border border-green-200 dark:border-green-800 text-green-600 dark:text-green-400 px-4 py-3 rounded-md text-sm mb-4">
                 {success}
               </div>
             )}
             <form className="space-y-4" onSubmit={handleLoginSubmit}>
               <div>
-                <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-2">
+                <label htmlFor="email" className="block text-sm font-medium text-secondary mb-2">
                   {FEATURE_FLAGS.FEATURE_GUARDIAN_PROFILES ? 'Email or username' : 'Email'}
                 </label>
                 <input
                   type={FEATURE_FLAGS.FEATURE_GUARDIAN_PROFILES ? 'text' : 'email'}
                   name="email"
                   autoComplete="username"
-                  className="w-full px-3 py-3 sm:py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-violet-500 text-base text-gray-800"
+                  className="w-full px-3 py-3 sm:py-2 border border-border-strong rounded-md focus:outline-none focus:ring-2 focus:ring-violet-500 text-base text-primary"
                   placeholder={FEATURE_FLAGS.FEATURE_GUARDIAN_PROFILES ? 'Enter your email or username' : 'Enter your email'}
                   required
                 />
               </div>
               <div>
-                <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-2">Password</label>
+                <label htmlFor="password" className="block text-sm font-medium text-secondary mb-2">Password</label>
                 <input 
                   type="password" 
                   name="password"
-                  className="w-full px-3 py-3 sm:py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-violet-500 text-base text-gray-800" 
+                  className="w-full px-3 py-3 sm:py-2 border border-border-strong rounded-md focus:outline-none focus:ring-2 focus:ring-violet-500 text-base text-primary" 
                   placeholder="Enter your password"
                   required
                 />
                 <div className="mt-2 text-right">
-                  <Link href="/forgot-password" className="text-sm text-violet-600 hover:text-violet-700 font-medium">
+                  <Link href="/forgot-password" className="text-sm text-brand-fg hover:text-brand-fg-strong font-medium">
                     Forgot password?
                   </Link>
                 </div>
@@ -632,7 +632,7 @@ export default function Home() {
               <button 
                 type="submit" 
                 disabled={isSubmitting}
-                className="w-full bg-violet-600 text-white py-3 px-4 rounded-md hover:bg-violet-700 transition duration-300 font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+                className="w-full bg-brand text-white py-3 px-4 rounded-md hover:bg-brand-hover transition duration-300 font-medium disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {isSubmitting ? (
                   <>
@@ -647,7 +647,7 @@ export default function Home() {
           </div>
 
           {/* Sign Up Section */}
-          <div className="w-full lg:w-1/2 bg-violet-600 p-6 sm:p-8 lg:p-12 text-white flex flex-col justify-between">
+          <div className="w-full lg:w-1/2 bg-brand p-6 sm:p-8 lg:p-12 text-white flex flex-col justify-between">
             <div className="flex flex-col items-center justify-center flex-grow">
               <h2 className="text-2xl sm:text-3xl font-bold mb-4 text-center">New Here?</h2>
               <p className="mb-6 text-center text-sm sm:text-base">Choose your role and sign up to discover new opportunities!</p>
@@ -685,7 +685,7 @@ export default function Home() {
             <div className="mt-6 sm:mt-8">
               <button 
                 onClick={() => handleWaitlistClick('Guest')}
-                className="w-full bg-transparent border-2 border-white text-white py-3 px-4 rounded-md font-semibold hover:bg-white hover:text-violet-600 transition duration-300 flex items-center justify-center text-sm sm:text-base"
+                className="w-full bg-transparent border-2 border-white text-white py-3 px-4 rounded-md font-semibold hover:bg-surface hover:text-brand-fg transition duration-300 flex items-center justify-center text-sm sm:text-base"
               >
                 <i className="fas fa-binoculars mr-2"></i> Explore as Guest
               </button>
@@ -695,10 +695,10 @@ export default function Home() {
       </div>
       
       <footer className="py-4 px-4">
-        <div className="flex flex-wrap items-center justify-center gap-4 text-xs text-gray-500">
-          <Link href="/terms" className="hover:text-gray-700">Terms</Link>
-          <Link href="/privacy" className="hover:text-gray-700">Privacy</Link>
-          <Link href="/contact" className="hover:text-gray-700">Contact</Link>
+        <div className="flex flex-wrap items-center justify-center gap-4 text-xs text-muted">
+          <Link href="/terms" className="hover:text-secondary">Terms</Link>
+          <Link href="/privacy" className="hover:text-secondary">Privacy</Link>
+          <Link href="/contact" className="hover:text-secondary">Contact</Link>
           {/* Logo.dev's free plan requires a PUBLICLY reachable credit; the
               equipment picker that shows their logos is behind login, so the
               verifiable copy lives here. Renders nothing without a token. */}

@@ -22,18 +22,18 @@ export const LEAGUE_CONFIGS: Record<string, LeagueConfig> = {
     key: 'ncaa_d1',
     displayName: 'NCAA Division I',
     shortName: 'NCAA D1',
-    color: 'text-blue-600',
-    bgColor: 'bg-blue-50',
-    borderColor: 'border-blue-200',
+    color: 'text-blue-600 dark:text-blue-400',
+    bgColor: 'bg-blue-50 dark:bg-blue-950/40',
+    borderColor: 'border-blue-200 dark:border-blue-800',
     category: 'collegiate'
   },
   ncaa_d2: {
     key: 'ncaa_d2',
     displayName: 'NCAA Division II',
     shortName: 'NCAA D2',
-    color: 'text-blue-500',
-    bgColor: 'bg-blue-50',
-    borderColor: 'border-blue-200',
+    color: 'text-blue-500 dark:text-blue-400',
+    bgColor: 'bg-blue-50 dark:bg-blue-950/40',
+    borderColor: 'border-blue-200 dark:border-blue-800',
     category: 'collegiate'
   },
   ncaa_d3: {
@@ -41,26 +41,26 @@ export const LEAGUE_CONFIGS: Record<string, LeagueConfig> = {
     displayName: 'NCAA Division III',
     shortName: 'NCAA D3',
     color: 'text-blue-400',
-    bgColor: 'bg-blue-50',
-    borderColor: 'border-blue-200',
+    bgColor: 'bg-blue-50 dark:bg-blue-950/40',
+    borderColor: 'border-blue-200 dark:border-blue-800',
     category: 'collegiate'
   },
   naia: {
     key: 'naia',
     displayName: 'NAIA',
     shortName: 'NAIA',
-    color: 'text-purple-600',
-    bgColor: 'bg-purple-50',
-    borderColor: 'border-purple-200',
+    color: 'text-purple-600 dark:text-purple-400',
+    bgColor: 'bg-purple-50 dark:bg-purple-950/40',
+    borderColor: 'border-purple-200 dark:border-purple-800',
     category: 'collegiate'
   },
   njcaa: {
     key: 'njcaa',
     displayName: 'NJCAA',
     shortName: 'NJCAA',
-    color: 'text-indigo-600',
-    bgColor: 'bg-indigo-50',
-    borderColor: 'border-indigo-200',
+    color: 'text-indigo-600 dark:text-indigo-400',
+    bgColor: 'bg-indigo-50 dark:bg-indigo-950/40',
+    borderColor: 'border-indigo-200 dark:border-indigo-800',
     category: 'collegiate'
   },
   
@@ -69,45 +69,45 @@ export const LEAGUE_CONFIGS: Record<string, LeagueConfig> = {
     key: 'big_ten',
     displayName: 'Big Ten Conference',
     shortName: 'Big Ten',
-    color: 'text-slate-700',
-    bgColor: 'bg-slate-50',
-    borderColor: 'border-slate-200',
+    color: 'text-slate-700 dark:text-slate-300',
+    bgColor: 'bg-slate-50 dark:bg-slate-950/40',
+    borderColor: 'border-slate-200 dark:border-slate-800',
     category: 'collegiate'
   },
   sec: {
     key: 'sec',
     displayName: 'Southeastern Conference',
     shortName: 'SEC',
-    color: 'text-amber-600',
-    bgColor: 'bg-amber-50',
-    borderColor: 'border-amber-200',
+    color: 'text-amber-600 dark:text-amber-400',
+    bgColor: 'bg-amber-50 dark:bg-amber-950/40',
+    borderColor: 'border-amber-200 dark:border-amber-800',
     category: 'collegiate'
   },
   acc: {
     key: 'acc',
     displayName: 'Atlantic Coast Conference',
     shortName: 'ACC',
-    color: 'text-sky-600',
-    bgColor: 'bg-sky-50',
-    borderColor: 'border-sky-200',
+    color: 'text-sky-600 dark:text-sky-400',
+    bgColor: 'bg-sky-50 dark:bg-sky-950/40',
+    borderColor: 'border-sky-200 dark:border-sky-800',
     category: 'collegiate'
   },
   pac_12: {
     key: 'pac_12',
     displayName: 'Pac-12 Conference',
     shortName: 'Pac-12',
-    color: 'text-emerald-600',
-    bgColor: 'bg-emerald-50',
-    borderColor: 'border-emerald-200',
+    color: 'text-emerald-600 dark:text-emerald-400',
+    bgColor: 'bg-emerald-50 dark:bg-emerald-950/40',
+    borderColor: 'border-emerald-200 dark:border-emerald-800',
     category: 'collegiate'
   },
   big_12: {
     key: 'big_12',
     displayName: 'Big 12 Conference',
     shortName: 'Big 12',
-    color: 'text-red-600',
-    bgColor: 'bg-red-50',
-    borderColor: 'border-red-200',
+    color: 'text-red-600 dark:text-red-400',
+    bgColor: 'bg-red-50 dark:bg-red-950/40',
+    borderColor: 'border-red-200 dark:border-red-800',
     category: 'collegiate'
   },
   
@@ -116,27 +116,27 @@ export const LEAGUE_CONFIGS: Record<string, LeagueConfig> = {
     key: 'nhl',
     displayName: 'National Hockey League',
     shortName: 'NHL',
-    color: 'text-gray-800',
-    bgColor: 'bg-gray-100',
-    borderColor: 'border-gray-300',
+    color: 'text-gray-800 dark:text-stone-200',
+    bgColor: 'bg-gray-100 dark:bg-stone-800',
+    borderColor: 'border-gray-300 dark:border-stone-700',
     category: 'professional'
   },
   ahl: {
     key: 'ahl',
     displayName: 'American Hockey League',
     shortName: 'AHL',
-    color: 'text-orange-600',
-    bgColor: 'bg-orange-50',
-    borderColor: 'border-orange-200',
+    color: 'text-orange-600 dark:text-orange-400',
+    bgColor: 'bg-orange-50 dark:bg-orange-950/40',
+    borderColor: 'border-orange-200 dark:border-orange-800',
     category: 'professional'
   },
   echl: {
     key: 'echl',
     displayName: 'East Coast Hockey League',
     shortName: 'ECHL',
-    color: 'text-teal-600',
-    bgColor: 'bg-teal-50',
-    borderColor: 'border-teal-200',
+    color: 'text-teal-600 dark:text-teal-400',
+    bgColor: 'bg-teal-50 dark:bg-teal-950/40',
+    borderColor: 'border-teal-200 dark:border-teal-800',
     category: 'professional'
   },
   
@@ -145,27 +145,27 @@ export const LEAGUE_CONFIGS: Record<string, LeagueConfig> = {
     key: 'usav',
     displayName: 'USA Volleyball',
     shortName: 'USAV',
-    color: 'text-blue-700',
-    bgColor: 'bg-blue-50',
-    borderColor: 'border-blue-200',
+    color: 'text-blue-700 dark:text-blue-300',
+    bgColor: 'bg-blue-50 dark:bg-blue-950/40',
+    borderColor: 'border-blue-200 dark:border-blue-800',
     category: 'club'
   },
   aau: {
     key: 'aau',
     displayName: 'Amateur Athletic Union',
     shortName: 'AAU',
-    color: 'text-purple-700',
-    bgColor: 'bg-purple-50',
-    borderColor: 'border-purple-200',
+    color: 'text-purple-700 dark:text-purple-300',
+    bgColor: 'bg-purple-50 dark:bg-purple-950/40',
+    borderColor: 'border-purple-200 dark:border-purple-800',
     category: 'club'
   },
   usatf: {
     key: 'usatf',
     displayName: 'USA Track & Field',
     shortName: 'USATF',
-    color: 'text-red-700',
-    bgColor: 'bg-red-50',
-    borderColor: 'border-red-200',
+    color: 'text-red-700 dark:text-red-300',
+    bgColor: 'bg-red-50 dark:bg-red-950/40',
+    borderColor: 'border-red-200 dark:border-red-800',
     category: 'club'
   },
   
@@ -174,18 +174,18 @@ export const LEAGUE_CONFIGS: Record<string, LeagueConfig> = {
     key: 'nfhs',
     displayName: 'National Federation of State High School Associations',
     shortName: 'NFHS',
-    color: 'text-green-600',
-    bgColor: 'bg-green-50',
-    borderColor: 'border-green-200',
+    color: 'text-green-600 dark:text-green-400',
+    bgColor: 'bg-green-50 dark:bg-green-950/40',
+    borderColor: 'border-green-200 dark:border-green-800',
     category: 'youth'
   },
   prep: {
     key: 'prep',
     displayName: 'Prep League',
     shortName: 'Prep',
-    color: 'text-cyan-600',
-    bgColor: 'bg-cyan-50',
-    borderColor: 'border-cyan-200',
+    color: 'text-cyan-600 dark:text-cyan-400',
+    bgColor: 'bg-cyan-50 dark:bg-cyan-950/40',
+    borderColor: 'border-cyan-200 dark:border-cyan-800',
     category: 'youth'
   },
   
@@ -194,27 +194,27 @@ export const LEAGUE_CONFIGS: Record<string, LeagueConfig> = {
     key: 'fiba',
     displayName: 'International Basketball Federation',
     shortName: 'FIBA',
-    color: 'text-orange-700',
-    bgColor: 'bg-orange-50',
-    borderColor: 'border-orange-200',
+    color: 'text-orange-700 dark:text-orange-300',
+    bgColor: 'bg-orange-50 dark:bg-orange-950/40',
+    borderColor: 'border-orange-200 dark:border-orange-800',
     category: 'international'
   },
   fivb: {
     key: 'fivb',
     displayName: 'International Volleyball Federation',
     shortName: 'FIVB',
-    color: 'text-yellow-700',
-    bgColor: 'bg-yellow-50',
-    borderColor: 'border-yellow-200',
+    color: 'text-yellow-700 dark:text-yellow-300',
+    bgColor: 'bg-yellow-50 dark:bg-yellow-950/40',
+    borderColor: 'border-yellow-200 dark:border-yellow-800',
     category: 'international'
   },
   iihf: {
     key: 'iihf',
     displayName: 'International Ice Hockey Federation',
     shortName: 'IIHF',
-    color: 'text-sky-700',
-    bgColor: 'bg-sky-50',
-    borderColor: 'border-sky-200',
+    color: 'text-sky-700 dark:text-sky-300',
+    bgColor: 'bg-sky-50 dark:bg-sky-950/40',
+    borderColor: 'border-sky-200 dark:border-sky-800',
     category: 'international'
   }
 };
@@ -254,9 +254,9 @@ export function getLeagueChipStyles(leagueName: string): {
     // Default styling for unknown leagues
     return {
       text: leagueName,
-      color: 'text-gray-600',
-      bgColor: 'bg-gray-50',
-      borderColor: 'border-gray-200'
+      color: 'text-gray-600 dark:text-stone-400',
+      bgColor: 'bg-gray-50 dark:bg-stone-900',
+      borderColor: 'border-gray-200 dark:border-stone-700'
     };
   }
   
@@ -288,9 +288,9 @@ export function formatLeagueTags(tags?: string[]): Array<{ text: string; styles:
         text: '—',
         styles: {
           text: '—',
-          color: 'text-gray-400',
-          bgColor: 'bg-gray-100',
-          borderColor: 'border-gray-200'
+          color: 'text-gray-400 dark:text-stone-500',
+          bgColor: 'bg-gray-100 dark:bg-stone-800',
+          borderColor: 'border-gray-200 dark:border-stone-700'
         }
       });
     }

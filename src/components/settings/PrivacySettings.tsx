@@ -48,8 +48,8 @@ export default function PrivacySettings() {
   return (
     <div className="space-y-6">
       <div>
-        <h3 className="text-lg font-semibold text-gray-900 mb-4">Profile Visibility</h3>
-        <p className="text-gray-600 text-sm mb-6">
+        <h3 className="text-lg font-semibold text-primary mb-4">Profile Visibility</h3>
+        <p className="text-tertiary text-sm mb-6">
           Control who can see your profile, posts, and athletic performance data.
         </p>
 
@@ -60,15 +60,15 @@ export default function PrivacySettings() {
             disabled={saving}
             className={`w-full text-left p-4 rounded-lg border-2 transition-all ${
               visibility === 'public'
-                ? 'border-violet-600 bg-violet-50'
-                : 'border-gray-200 hover:border-gray-300'
+                ? 'border-brand bg-brand-soft'
+                : 'border-border hover:border-border-strong'
             }`}
           >
             <div className="flex items-start gap-3">
               <div className={`mt-0.5 w-5 h-5 rounded-full border-2 flex items-center justify-center ${
                 visibility === 'public'
-                  ? 'border-violet-600 bg-violet-600'
-                  : 'border-gray-300'
+                  ? 'border-brand bg-brand'
+                  : 'border-border-strong'
               }`}>
                 {visibility === 'public' && (
                   <i className="fas fa-check text-white text-xs"></i>
@@ -76,10 +76,10 @@ export default function PrivacySettings() {
               </div>
               <div className="flex-1">
                 <div className="flex items-center gap-2 mb-1">
-                  <i className="fas fa-globe text-violet-600"></i>
-                  <h4 className="font-semibold text-gray-900">Public</h4>
+                  <i className="fas fa-globe text-brand-fg"></i>
+                  <h4 className="font-semibold text-primary">Public</h4>
                 </div>
-                <p className="text-sm text-gray-600">
+                <p className="text-sm text-tertiary">
                   Anyone can see your profile, posts, and stats. Your content may appear in search results.
                 </p>
               </div>
@@ -92,15 +92,15 @@ export default function PrivacySettings() {
             disabled={saving}
             className={`w-full text-left p-4 rounded-lg border-2 transition-all ${
               visibility === 'private'
-                ? 'border-violet-600 bg-violet-50'
-                : 'border-gray-200 hover:border-gray-300'
+                ? 'border-brand bg-brand-soft'
+                : 'border-border hover:border-border-strong'
             }`}
           >
             <div className="flex items-start gap-3">
               <div className={`mt-0.5 w-5 h-5 rounded-full border-2 flex items-center justify-center ${
                 visibility === 'private'
-                  ? 'border-violet-600 bg-violet-600'
-                  : 'border-gray-300'
+                  ? 'border-brand bg-brand'
+                  : 'border-border-strong'
               }`}>
                 {visibility === 'private' && (
                   <i className="fas fa-check text-white text-xs"></i>
@@ -108,10 +108,10 @@ export default function PrivacySettings() {
               </div>
               <div className="flex-1">
                 <div className="flex items-center gap-2 mb-1">
-                  <i className="fas fa-lock text-purple-600"></i>
-                  <h4 className="font-semibold text-gray-900">Private</h4>
+                  <i className="fas fa-lock text-purple-600 dark:text-purple-400"></i>
+                  <h4 className="font-semibold text-primary">Private</h4>
                 </div>
-                <p className="text-sm text-gray-600">
+                <p className="text-sm text-tertiary">
                   Only approved followers can see your posts and stats. People must send a follow request to connect.
                 </p>
               </div>
@@ -121,12 +121,12 @@ export default function PrivacySettings() {
       </div>
 
       {/* Additional Privacy Info */}
-      <div className="bg-violet-50 border border-violet-200 rounded-lg p-4">
+      <div className="bg-brand-soft border border-violet-200 dark:border-violet-800 rounded-lg p-4">
         <div className="flex gap-3">
-          <i className="fas fa-info-circle text-violet-600 mt-0.5"></i>
+          <i className="fas fa-info-circle text-brand-fg mt-0.5"></i>
           <div>
-            <h4 className="font-medium text-violet-900 mb-1">Privacy Note</h4>
-            <p className="text-sm text-violet-800">
+            <h4 className="font-medium text-violet-900 dark:text-violet-200 mb-1">Privacy Note</h4>
+            <p className="text-sm text-violet-800 dark:text-violet-200">
               Your profile picture and name are always visible to help others find you.
               All other information respects your privacy settings.
             </p>

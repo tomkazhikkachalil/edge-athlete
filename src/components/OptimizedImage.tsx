@@ -38,10 +38,10 @@ export default function OptimizedImage({
     // Default fallback: gray placeholder
     return (
       <div
-        className={`bg-gray-200 flex items-center justify-center ${className}`}
+        className={`bg-gray-200 dark:bg-stone-800 flex items-center justify-center ${className}`}
         style={{ width: `${width}px`, height: `${height}px` }}
       >
-        <span className="text-gray-400 text-xs">No image</span>
+        <span className="text-faint text-xs">No image</span>
       </div>
     );
   }
@@ -127,8 +127,8 @@ export function MediaImage({
 
   if (error) {
     return (
-      <div className={`bg-gray-200 flex items-center justify-center ${className}`}>
-        <span className="text-gray-400">Failed to load image</span>
+      <div className={`bg-gray-200 dark:bg-stone-800 flex items-center justify-center ${className}`}>
+        <span className="text-faint">Failed to load image</span>
       </div>
     );
   }

@@ -52,19 +52,19 @@ export default function StatLineForm({ sportKey, value, onChange }: StatLineForm
   };
 
   return (
-    <div className="bg-gray-50 rounded-lg p-4 border border-gray-200 space-y-4">
+    <div className="bg-surface-muted rounded-lg p-4 border border-border space-y-4">
       <div className="flex items-center gap-2">
-        <i className={`${sportDef.icon_id} text-violet-600`} aria-hidden="true"></i>
-        <h3 className="text-sm font-bold text-gray-900">
+        <i className={`${sportDef.icon_id} text-brand-fg`} aria-hidden="true"></i>
+        <h3 className="text-sm font-bold text-primary">
           {schema.activityNoun} Stats
         </h3>
-        <span className="text-xs text-gray-500">optional — fill in what you have</span>
+        <span className="text-xs text-muted">optional — fill in what you have</span>
       </div>
 
       {/* Context row: date / opponent / result */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
         <div>
-          <label htmlFor={`${sportKey}-date`} className="block text-xs font-semibold text-gray-700 mb-1">
+          <label htmlFor={`${sportKey}-date`} className="block text-xs font-semibold text-secondary mb-1">
             {schema.activityNoun} Date
           </label>
           <input
@@ -72,11 +72,11 @@ export default function StatLineForm({ sportKey, value, onChange }: StatLineForm
             type="date"
             value={value.date ?? ''}
             onChange={e => onChange({ ...value, date: e.target.value })}
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm text-gray-900 focus:ring-2 focus:ring-violet-500 focus:border-violet-500"
+            className="w-full px-3 py-2 border border-border-strong rounded-lg text-sm text-primary focus:ring-2 focus:ring-violet-500 focus:border-violet-500"
           />
         </div>
         <div>
-          <label htmlFor={`${sportKey}-opponent`} className="block text-xs font-semibold text-gray-700 mb-1">
+          <label htmlFor={`${sportKey}-opponent`} className="block text-xs font-semibold text-secondary mb-1">
             {schema.opponentLabel}
           </label>
           <input
@@ -86,11 +86,11 @@ export default function StatLineForm({ sportKey, value, onChange }: StatLineForm
             placeholder="e.g. Central High"
             value={value.opponent ?? ''}
             onChange={e => onChange({ ...value, opponent: e.target.value })}
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm text-gray-900 placeholder-gray-400 focus:ring-2 focus:ring-violet-500 focus:border-violet-500"
+            className="w-full px-3 py-2 border border-border-strong rounded-lg text-sm text-primary placeholder-faint focus:ring-2 focus:ring-violet-500 focus:border-violet-500"
           />
         </div>
         <div>
-          <label className="block text-xs font-semibold text-gray-700 mb-1">Result</label>
+          <label className="block text-xs font-semibold text-secondary mb-1">Result</label>
           {/* flex-wrap + min widths: at the sm grid boundary this row's
               column is ~173px, which squeezed three W/L/T buttons to ~32px
               beside the fixed score input — now the input wraps instead. */}
@@ -110,7 +110,7 @@ export default function StatLineForm({ sportKey, value, onChange }: StatLineForm
                       : r === 'L'
                         ? 'bg-red-600 text-white border-red-600'
                         : 'bg-gray-600 text-white border-gray-600'
-                    : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-100'
+                    : 'bg-surface text-secondary border-border-strong hover:bg-surface-sunken'
                 }`}
               >
                 {r}
@@ -123,7 +123,7 @@ export default function StatLineForm({ sportKey, value, onChange }: StatLineForm
               aria-label="Score"
               value={value.result_score ?? ''}
               onChange={e => onChange({ ...value, result_score: e.target.value })}
-              className="w-16 shrink-0 px-2 py-2 min-h-[40px] border border-gray-300 rounded-lg text-sm text-center text-gray-900 placeholder-gray-400 focus:ring-2 focus:ring-violet-500 focus:border-violet-500"
+              className="w-16 shrink-0 px-2 py-2 min-h-[40px] border border-border-strong rounded-lg text-sm text-center text-primary placeholder-faint focus:ring-2 focus:ring-violet-500 focus:border-violet-500"
             />
           </div>
         </div>
@@ -138,7 +138,7 @@ export default function StatLineForm({ sportKey, value, onChange }: StatLineForm
                 input row zig-zags. */}
             <label
               htmlFor={`${sportKey}-${field.key}`}
-              className="block text-xs font-semibold text-gray-700 mb-1 min-h-[2rem]"
+              className="block text-xs font-semibold text-secondary mb-1 min-h-[2rem]"
               title={field.label}
             >
               {field.label}
@@ -152,7 +152,7 @@ export default function StatLineForm({ sportKey, value, onChange }: StatLineForm
               placeholder="0"
               value={value.stats[field.key] ?? ''}
               onChange={e => setStat(field.key, e.target.value)}
-              className="w-full px-2 py-2 border border-gray-300 rounded-lg text-sm text-center text-gray-900 placeholder-gray-400 focus:ring-2 focus:ring-violet-500 focus:border-violet-500"
+              className="w-full px-2 py-2 border border-border-strong rounded-lg text-sm text-center text-primary placeholder-faint focus:ring-2 focus:ring-violet-500 focus:border-violet-500"
             />
           </div>
         ))}

@@ -57,10 +57,13 @@ export default function OAuthButtons({ onError, divider = 'above' }: OAuthButton
   const dividerRow = (
     <div className="relative my-4">
       <div className="absolute inset-0 flex items-center">
-        <div className="w-full border-t border-gray-300"></div>
+        <div className="w-full border-t border-border-strong"></div>
       </div>
       <div className="relative flex justify-center">
-        <span className="bg-white px-3 text-sm text-gray-500">or</span>
+        {/* Must match the form panel behind it so the divider line appears
+            to pass "under" the word — surface, not literal white. The Google
+            button below stays white per Google's branding rules. */}
+        <span className="bg-surface px-3 text-sm text-muted">or</span>
       </div>
     </div>
   );

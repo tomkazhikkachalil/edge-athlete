@@ -5,6 +5,7 @@ import TrendLineChart, { type TrendChartPoint } from '@/components/charts/TrendL
 import { VITAL_METRICS_MAP, formatSecondsToDisplay } from '@/lib/vitals-config';
 import { metricSeries, exerciseProgression, type VitalEntryLike } from '@/lib/workouts/dashboard';
 import { categoryAccent, metricCategory } from './category-colors';
+import { useTheme } from '@/lib/use-theme';
 import type { ServerWorkoutSession } from '@/lib/workouts/serialize';
 
 /**
@@ -34,6 +35,7 @@ const dateLabel = (iso: string) =>
   new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: '2-digit' });
 
 export default function ProgressSection({ vitals, sessions }: ProgressSectionProps) {
+  const { theme } = useTheme();
   const options = useMemo<PickerOption[]>(() => {
     const built: PickerOption[] = [];
 
@@ -47,7 +49,7 @@ export default function ProgressSection({ vitals, sessions }: ProgressSectionPro
       built.push({
         id: `metric:${key}`,
         label: metric.label,
-        color: categoryAccent(metricCategory(key)).hex,
+        color: theme === 'dark' ? categoryAccent(metricCategory(key)).hexDark : categoryAccent(metricCategory(key)).hex,
         unit: metric.unit,
         timeFormat: metric.time_format,
         points: series.map(p => ({ label: dateLabel(p.date), value: p.value })),
@@ -60,7 +62,7 @@ export default function ProgressSection({ vitals, sessions }: ProgressSectionPro
       built.push({
         id: `exercise:${prog.key}`,
         label: `${prog.label} (workouts)`,
-        color: categoryAccent('strength').hex,
+        color: theme === 'dark' ? categoryAccent('strength').hexDark : categoryAccent('strength').hex,
         unit: prog.unit,
         timeFormat: prog.unit === 'sec' ? 'mm:ss' : null,
         points: prog.points.map(p => ({ label: dateLabel(p.date), value: p.value, meta: p.meta })),
@@ -68,7 +70,7 @@ export default function ProgressSection({ vitals, sessions }: ProgressSectionPro
     }
 
     return built.sort((a, b) => a.label.localeCompare(b.label));
-  }, [vitals, sessions]);
+  }, [vitals, sessions, theme]);
 
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const selected =
@@ -87,14 +89,14 @@ export default function ProgressSection({ vitals, sessions }: ProgressSectionPro
   return (
     <div className="space-y-3">
       <div className="flex items-center gap-3">
-        <label htmlFor="progress-picker" className="text-sm font-semibold text-gray-900 shrink-0">
+        <label htmlFor="progress-picker" className="text-sm font-semibold text-primary shrink-0">
           Tracking
         </label>
         <select
           id="progress-picker"
           value={selected.id}
           onChange={e => setSelectedId(e.target.value)}
-          className="min-w-0 px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white"
+          className="min-w-0 px-3 py-2 border border-border-strong rounded-lg text-sm bg-surface"
         >
           {options.map(option => (
             <option key={option.id} value={option.id}>{option.label}</option>

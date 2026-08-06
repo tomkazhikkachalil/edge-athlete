@@ -30,12 +30,12 @@ export default function LazyImage({
   if (!src || hasError) {
     return fallback || (
       <div
-        className={`bg-gray-200 flex items-center justify-center ${className}`}
+        className={`bg-gray-200 dark:bg-stone-800 flex items-center justify-center ${className}`}
         style={{ width, height }}
         role="img"
         aria-label={alt}
       >
-        <i className="fas fa-image text-gray-400" aria-hidden="true"></i>
+        <i className="fas fa-image text-faint" aria-hidden="true"></i>
       </div>
     );
   }
@@ -45,7 +45,7 @@ export default function LazyImage({
       {/* Skeleton shown on top until image is ready — fades out on load */}
       {!isLoaded && (
         <div
-          className={`absolute inset-0 bg-gray-200 animate-pulse z-10 ${className}`}
+          className={`absolute inset-0 bg-gray-200 dark:bg-stone-800 animate-pulse z-10 ${className}`}
           aria-hidden="true"
         />
       )}

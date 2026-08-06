@@ -136,26 +136,26 @@ export default function GolfRoundsListPage() {
 
   if (authLoading || !user) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-violet-600"></div>
+      <div className="min-h-screen bg-canvas flex items-center justify-center">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-brand"></div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-canvas">
       <AppHeader showSearch={false} />
 
       <div className="max-w-3xl mx-auto px-4 py-6">
         {/* Header */}
         <div className="flex items-center justify-between mb-6">
           <div>
-            <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">
-              <i className="fas fa-golf-ball mr-2 text-green-600"></i>
+            <h1 className="text-2xl sm:text-3xl font-bold text-primary">
+              <i className="fas fa-golf-ball mr-2 text-green-600 dark:text-green-400"></i>
               My Rounds
             </h1>
             {!loading && (
-              <p className="text-sm text-gray-500 mt-1">
+              <p className="text-sm text-muted mt-1">
                 {total} round{total !== 1 ? 's' : ''} logged
               </p>
             )}
@@ -163,14 +163,14 @@ export default function GolfRoundsListPage() {
           <div className="flex items-center gap-4">
             <Link
               href="/app/sport/golf/trends"
-              className="text-sm text-violet-600 hover:text-violet-700 font-medium min-h-[44px] flex items-center"
+              className="text-sm text-brand-fg hover:text-brand-fg-strong font-medium min-h-[44px] flex items-center"
             >
               <i className="fas fa-chart-line mr-1"></i>
               Trends
             </Link>
             <Link
               href="/athlete"
-              className="text-sm text-violet-600 hover:text-violet-700 font-medium min-h-[44px] flex items-center"
+              className="text-sm text-brand-fg hover:text-brand-fg-strong font-medium min-h-[44px] flex items-center"
             >
               ← Profile
             </Link>
@@ -178,14 +178,14 @@ export default function GolfRoundsListPage() {
         </div>
 
         {/* Filters */}
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-3 sm:p-4 mb-6">
+        <div className="bg-surface rounded-lg shadow-sm border border-border p-3 sm:p-4 mb-6">
           <div className="flex flex-col sm:flex-row gap-3">
             <input
               type="search"
               value={courseSearch}
               onChange={e => setCourseSearch(e.target.value)}
               placeholder="Search by course…"
-              className="flex-1 px-3 py-2 min-h-[44px] border border-gray-300 rounded-md text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-violet-500"
+              className="flex-1 px-3 py-2 min-h-[44px] border border-border-strong rounded-md text-sm text-primary focus:outline-none focus:ring-2 focus:ring-violet-500"
               aria-label="Search rounds by course"
             />
             <div className="flex gap-2">
@@ -196,7 +196,7 @@ export default function GolfRoundsListPage() {
                   className={`px-4 py-2 min-h-[44px] rounded-md text-sm font-medium transition-colors ${
                     holesFilter === f
                       ? 'bg-green-600 text-white'
-                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                      : 'bg-surface-sunken text-secondary hover:bg-gray-200 dark:hover:bg-stone-800'
                   }`}
                 >
                   {f === 'all' ? 'All' : `${f} holes`}
@@ -204,7 +204,7 @@ export default function GolfRoundsListPage() {
               ))}
               <button
                 onClick={() => setSort(s => (s === 'newest' ? 'oldest' : 'newest'))}
-                className="px-3 py-2 min-h-[44px] rounded-md text-sm font-medium bg-gray-100 text-gray-700 hover:bg-gray-200"
+                className="px-3 py-2 min-h-[44px] rounded-md text-sm font-medium bg-surface-sunken text-secondary hover:bg-gray-200 dark:hover:bg-stone-800"
                 title={`Sorted ${sort} first`}
                 aria-label={`Change sort order, currently ${sort} first`}
               >
@@ -218,20 +218,20 @@ export default function GolfRoundsListPage() {
         {/* Content */}
         {loading ? (
           <div className="text-center py-16">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-violet-600 mx-auto"></div>
-            <p className="mt-3 text-gray-600">Loading rounds…</p>
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-brand mx-auto"></div>
+            <p className="mt-3 text-tertiary">Loading rounds…</p>
           </div>
         ) : error ? (
-          <div className="bg-red-50 border border-red-200 text-red-600 px-4 py-3 rounded-md text-sm">
+          <div className="bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-800 text-red-600 dark:text-red-400 px-4 py-3 rounded-md text-sm">
             {error}
           </div>
         ) : rounds.length === 0 ? (
-          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-10 text-center">
+          <div className="bg-surface rounded-lg shadow-sm border border-border p-10 text-center">
             <i className="fas fa-golf-ball text-4xl text-gray-300 mb-4"></i>
-            <h2 className="text-lg font-semibold text-gray-900 mb-2">
+            <h2 className="text-lg font-semibold text-primary mb-2">
               {courseSearch || holesFilter !== 'all' ? 'No rounds match those filters' : 'No rounds logged yet'}
             </h2>
-            <p className="text-sm text-gray-500 mb-4">
+            <p className="text-sm text-muted mb-4">
               {courseSearch || holesFilter !== 'all'
                 ? 'Try clearing the filters above.'
                 : 'Log your first round and it will show up here.'}
@@ -254,19 +254,19 @@ export default function GolfRoundsListPage() {
                 <Link
                   key={round.id}
                   href={`/app/sport/golf/rounds/${round.id}`}
-                  className="block bg-white rounded-lg shadow-sm border border-gray-200 p-4 hover:border-green-300 hover:shadow transition-all"
+                  className="block bg-surface rounded-lg shadow-sm border border-border p-4 hover:border-green-300 dark:hover:border-green-700 hover:shadow transition-all"
                 >
                   <div className="flex items-center justify-between gap-3">
                     <div className="min-w-0 flex-1">
                       <div className="flex flex-wrap items-center gap-2">
-                        <h3 className="font-bold text-gray-900 truncate">{round.course}</h3>
+                        <h3 className="font-bold text-primary truncate">{round.course}</h3>
                         {!round.is_complete && (
-                          <span className="px-2 py-0.5 bg-yellow-100 text-yellow-700 text-xs rounded-full flex-shrink-0">
+                          <span className="px-2 py-0.5 bg-yellow-100 dark:bg-yellow-950/60 text-yellow-700 dark:text-yellow-300 text-xs rounded-full flex-shrink-0">
                             Partial
                           </span>
                         )}
                       </div>
-                      <p className="text-sm text-gray-500 mt-0.5">
+                      <p className="text-sm text-muted mt-0.5">
                         {new Date(round.date + 'T00:00:00').toLocaleDateString('en-US', {
                           month: 'short', day: 'numeric', year: 'numeric',
                         })}
@@ -274,9 +274,9 @@ export default function GolfRoundsListPage() {
                         {round.tee ? ` · ${round.tee} tees` : ''}
                         {round.round_type === 'indoor' ? ' · Indoor' : ''}
                       </p>
-                      <div className="flex flex-wrap gap-x-4 gap-y-1 mt-2 text-xs text-gray-600">
+                      <div className="flex flex-wrap gap-x-4 gap-y-1 mt-2 text-xs text-tertiary">
                         {round.total_putts !== null && round.total_putts > 0 && (
-                          <span><i className="fas fa-flag mr-1 text-gray-400"></i>{round.total_putts} putts</span>
+                          <span><i className="fas fa-flag mr-1 text-faint"></i>{round.total_putts} putts</span>
                         )}
                         {round.fir_percentage !== null && round.fir_percentage > 0 && (
                           <span>FIR {Math.round(round.fir_percentage)}%</span>
@@ -287,7 +287,7 @@ export default function GolfRoundsListPage() {
                       </div>
                     </div>
                     <div className="text-right flex-shrink-0">
-                      <div className="text-3xl font-bold text-gray-900">
+                      <div className="text-3xl font-bold text-primary">
                         {round.gross_score ?? '—'}
                       </div>
                       {toPar !== null && (
@@ -305,7 +305,7 @@ export default function GolfRoundsListPage() {
               <button
                 onClick={loadMore}
                 disabled={loadingMore}
-                className="w-full py-3 min-h-[44px] bg-white border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors disabled:opacity-50"
+                className="w-full py-3 min-h-[44px] bg-surface border border-border-strong rounded-lg text-sm font-medium text-secondary hover:bg-surface-muted transition-colors disabled:opacity-50"
               >
                 {loadingMore ? (
                   <><i className="fas fa-spinner fa-spin mr-2"></i>Loading…</>

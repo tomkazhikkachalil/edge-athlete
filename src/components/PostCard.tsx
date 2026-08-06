@@ -372,7 +372,7 @@ function PostCard({
   };
 
   return (
-    <div className="bg-white rounded-lg shadow-md border-2 border-gray-300 overflow-hidden mb-6">
+    <div className="bg-surface rounded-lg shadow-md border-2 border-border-strong overflow-hidden mb-6">
       {/* Header */}
       <div className="p-base flex items-center justify-between">
         <button
@@ -384,7 +384,7 @@ function PostCard({
               router.push(`/athlete/${post.profile.id}`);
             }
           }}
-          className="flex items-center gap-4 hover:bg-gray-50 p-1 rounded-lg transition-colors flex-1 min-w-0 text-left"
+          className="flex items-center gap-4 hover:bg-surface-muted p-1 rounded-lg transition-colors flex-1 min-w-0 text-left"
         >
           {/* Profile Avatar */}
           {post.profile.avatar_url ? (
@@ -396,8 +396,8 @@ function PostCard({
               height={40}
             />
           ) : (
-            <div className="w-10 h-10 rounded-full bg-gray-200 flex items-center justify-center flex-shrink-0">
-              <span className="text-sm font-medium text-gray-600">
+            <div className="w-10 h-10 rounded-full bg-gray-200 dark:bg-stone-800 flex items-center justify-center flex-shrink-0">
+              <span className="text-sm font-medium text-tertiary">
                 {getInitials(displayName)}
               </span>
             </div>
@@ -408,19 +408,19 @@ function PostCard({
               {/* min-w-0 + truncate: long name/handle must shrink, not push the
                   owner edit/delete buttons off a 360px card */}
               <div className="flex items-center gap-2 min-w-0">
-                <h3 className="font-bold text-gray-900 text-base hover:text-violet-600 transition-colors truncate">{displayName}</h3>
+                <h3 className="font-bold text-primary text-base hover:text-brand-fg transition-colors truncate">{displayName}</h3>
                 {getHandle(post.profile) && (
-                  <span className="text-sm text-gray-900 font-medium truncate flex-shrink-[2]">{getHandle(post.profile)}</span>
+                  <span className="text-sm text-primary font-medium truncate flex-shrink-[2]">{getHandle(post.profile)}</span>
                 )}
               </div>
               <div className="flex items-center gap-2 flex-wrap">
-                <span className="text-sm text-gray-700 font-medium">{timeAgo}</span>
+                <span className="text-sm text-secondary font-medium">{timeAgo}</span>
                 {post.sport_key && (
                   <>
-                    <span className="text-sm text-gray-700 font-medium">•</span>
+                    <span className="text-sm text-secondary font-medium">•</span>
                     <div className="flex items-center gap-1">
                       <SportGlyph sportKey={post.sport_key} color={sportColor} />
-                      <span className="text-sm text-gray-700 font-semibold">{getSportName(post.sport_key)}</span>
+                      <span className="text-sm text-secondary font-semibold">{getSportName(post.sport_key)}</span>
                     </div>
                   </>
                 )}
@@ -432,7 +432,7 @@ function PostCard({
         <div className="flex items-center gap-2">
           {/* Privacy indicator */}
           {post.visibility === 'private' && (
-            <div className="text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded">
+            <div className="text-xs text-muted bg-surface-sunken px-2 py-1 rounded">
               Private
             </div>
           )}
@@ -443,8 +443,8 @@ function PostCard({
               <button
                 onClick={handleTogglePin}
                 disabled={pinBusy}
-                className={`transition-colors p-2 min-w-[44px] min-h-[44px] rounded-full hover:bg-amber-50 flex items-center justify-center disabled:opacity-60 ${
-                  isPinned ? 'text-amber-500 hover:text-amber-600' : 'text-gray-800 hover:text-amber-500'
+                className={`transition-colors p-2 min-w-[44px] min-h-[44px] rounded-full hover:bg-amber-50 dark:hover:bg-amber-950/40 flex items-center justify-center disabled:opacity-60 ${
+                  isPinned ? 'text-amber-500 hover:text-amber-600' : 'text-primary hover:text-amber-500'
                 }`}
                 title={isPinned ? 'Unpin from profile' : 'Pin to profile'}
                 aria-label={isPinned ? 'Unpin from profile' : 'Pin to profile'}
@@ -454,14 +454,14 @@ function PostCard({
               </button>
               <button
                 onClick={() => onEdit?.(post.id)}
-                className="text-gray-800 hover:text-violet-600 transition-colors p-2 min-w-[44px] min-h-[44px] rounded-full hover:bg-violet-50 flex items-center justify-center"
+                className="text-primary hover:text-brand-fg transition-colors p-2 min-w-[44px] min-h-[44px] rounded-full hover:bg-brand-soft flex items-center justify-center"
                 title="Edit post"
               >
                 <i className="fas fa-edit text-sm"></i>
               </button>
               <button
                 onClick={handleDeleteClick}
-                className="text-gray-800 hover:text-red-600 transition-colors p-2 min-w-[44px] min-h-[44px] rounded-full hover:bg-red-50 flex items-center justify-center"
+                className="text-primary hover:text-red-600 transition-colors p-2 min-w-[44px] min-h-[44px] rounded-full hover:bg-red-50 dark:hover:bg-red-950/40 flex items-center justify-center"
                 title="Delete post"
               >
                 <i className="fas fa-trash text-sm"></i>
@@ -473,7 +473,7 @@ function PostCard({
 
       {/* Pin error (e.g. featured-posts cap reached) */}
       {pinError && (
-        <div className="px-4 pb-2 text-sm text-red-600 font-medium" role="alert">
+        <div className="px-4 pb-2 text-sm text-red-600 dark:text-red-400 font-medium" role="alert">
           {pinError}
         </div>
       )}
@@ -481,7 +481,7 @@ function PostCard({
       {/* Media */}
       {post.media && post.media.length > 0 && (
         <div
-          className="relative bg-gray-100"
+          className="relative bg-surface-sunken"
           onTouchStart={handleMediaTouchStart}
           onTouchEnd={handleMediaTouchEnd}
         >
@@ -545,7 +545,7 @@ function PostCard({
                   <div
                     key={index}
                     className={`w-2 h-2 rounded-full ${
-                      index === currentMediaIndex ? 'bg-white' : 'bg-white/50'
+                      index === currentMediaIndex ? 'bg-surface' : 'bg-surface/50'
                     }`}
                   />
                 ))}
@@ -557,12 +557,12 @@ function PostCard({
 
       {/* Actions */}
       {showActions && (
-        <div className="px-base py-micro border-b border-gray-100">
+        <div className="px-base py-micro border-b border-border-subtle">
           <div className="flex items-center gap-base">
             <button
               onClick={handleLike}
               className={`flex items-center gap-2 text-base font-bold transition-colors min-h-[44px] ${
-                isLiked ? 'text-red-600' : 'text-gray-800 hover:text-red-600'
+                isLiked ? 'text-red-600 dark:text-red-400' : 'text-primary hover:text-red-600'
               }`}
             >
               <i className={`${isLiked ? 'fas' : 'far'} fa-heart text-lg`}></i>
@@ -571,7 +571,7 @@ function PostCard({
 
             <button
               onClick={handleComment}
-              className="flex items-center gap-2 text-base font-bold text-gray-800 hover:text-violet-600 transition-colors min-h-[44px]"
+              className="flex items-center gap-2 text-base font-bold text-primary hover:text-brand-fg transition-colors min-h-[44px]"
             >
               <i className="far fa-comment text-lg"></i>
               <span>{localCommentsCount}</span>
@@ -581,7 +581,7 @@ function PostCard({
                 ~20px glyph (like/comment get width from their counts) */}
             <button
               onClick={handleShare}
-              className="flex items-center justify-center text-base font-bold text-gray-800 hover:text-green-600 transition-colors min-h-[44px] min-w-[44px]"
+              className="flex items-center justify-center text-base font-bold text-primary hover:text-green-600 transition-colors min-h-[44px] min-w-[44px]"
               title="Share post"
               aria-label="Share post"
             >
@@ -591,7 +591,7 @@ function PostCard({
             <button
               onClick={handleSave}
               className={`flex items-center justify-center text-base font-bold transition-colors ml-auto min-h-[44px] min-w-[44px] ${
-                isSaved ? 'text-yellow-600' : 'text-gray-800 hover:text-yellow-600'
+                isSaved ? 'text-yellow-600 dark:text-yellow-400' : 'text-primary hover:text-yellow-600'
               }`}
               title={isSaved ? 'Unsave post' : 'Save post'}
               aria-label={isSaved ? 'Unsave post' : 'Save post'}
@@ -606,7 +606,7 @@ function PostCard({
       <div className="px-4 sm:px-6 py-4">
         {/* Caption */}
         {post.caption && (
-          <p className="text-gray-900 text-base font-medium leading-relaxed mb-3 break-words">{post.caption}</p>
+          <p className="text-primary text-base font-medium leading-relaxed mb-3 break-words">{post.caption}</p>
         )}
 
         {/* Hashtags */}
@@ -615,7 +615,7 @@ function PostCard({
             {post.hashtags.map((hashtag, index) => (
               <span
                 key={index}
-                className="text-violet-600 hover:text-violet-700 cursor-pointer text-base font-bold"
+                className="text-brand-fg hover:text-brand-fg-strong cursor-pointer text-base font-bold"
               >
                 {hashtag}
               </span>
@@ -626,7 +626,7 @@ function PostCard({
         {/* Tags - Display tagged users/organizations */}
         {post.tagged_profiles && post.tagged_profiles.length > 0 && (
           <div className="flex flex-wrap gap-2 mb-3 items-center">
-            <span className="text-sm text-gray-600">with</span>
+            <span className="text-sm text-tertiary">with</span>
             {post.tagged_profiles.map((taggedProfile) => {
               const taggedDisplayName = formatDisplayName(
                 taggedProfile.first_name,
@@ -648,7 +648,7 @@ function PostCard({
                       router.push(`/athlete/${taggedProfile.id}`);
                     }
                   }}
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-violet-50 hover:bg-violet-100 text-violet-700 text-sm rounded-full font-semibold border border-violet-200 transition-colors"
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-brand-soft hover:bg-violet-100 dark:hover:bg-violet-950/60 text-brand-fg-strong text-sm rounded-full font-semibold border border-violet-200 dark:border-violet-800 transition-colors"
                 >
                   {taggedProfile.avatar_url ? (
                     <LazyImage
@@ -659,8 +659,8 @@ function PostCard({
                       height={16}
                     />
                   ) : (
-                    <div className="w-4 h-4 rounded-full bg-violet-200 flex items-center justify-center">
-                      <span className="text-[8px] font-medium text-violet-700">
+                    <div className="w-4 h-4 rounded-full bg-violet-200 dark:bg-violet-800 flex items-center justify-center">
+                      <span className="text-[8px] font-medium text-brand-fg-strong">
                         {getInitials(taggedDisplayName)}
                       </span>
                     </div>
@@ -692,12 +692,12 @@ function PostCard({
 
         {/* Vitals badge — shown on training posts created from a vitals entry */}
         {post.stats_data?.type === 'vitals_entry' && (
-          <div className="flex items-center gap-2 px-3 py-2 bg-violet-50 rounded-lg text-sm mb-2">
+          <div className="flex items-center gap-2 px-3 py-2 bg-brand-soft rounded-lg text-sm mb-2">
             <i className="fas fa-dumbbell text-violet-500 text-xs"></i>
-            <span className="font-semibold text-violet-700">
+            <span className="font-semibold text-brand-fg-strong">
               {post.stats_data.metric_label as string}
             </span>
-            <span className="text-violet-600 font-medium">
+            <span className="text-brand-fg font-medium">
               {post.stats_data.value_display as string}
             </span>
           </div>

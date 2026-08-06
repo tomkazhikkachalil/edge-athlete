@@ -27,6 +27,8 @@
 // ─────────────────────────────────────────────────────────────────────────────
 import { createServerClient, type CookieOptions } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
+import { THEME_COOKIE, THEME_COOKIE_MAX_AGE, encodeThemeCookie } from '@/lib/theme-cookie'
+import { sanitizeThemePrefs } from '@/lib/theme-prefs'
 
 export async function middleware(request: NextRequest) {
   let response = NextResponse.next({
@@ -82,9 +84,75 @@ export async function middleware(request: NextRequest) {
   )
 
   // Refresh session if expired - required for SSR
-  await supabase.auth.getUser()
+  const { data: { user } } = await supabase.auth.getUser()
+
+  await syncThemeCookie(request, response, supabase, user?.id)
 
   return response
+}
+
+/**
+ * Keep the `ea-theme` cookie holding the ACCOUNT's theme, so the inline head
+ * script paints from server truth instead of this device's possibly-stale
+ * memory. Without this the device only learned about a theme set elsewhere
+ * from the client-side profile fetch — i.e. a visible swap a few hundred ms
+ * after first paint.
+ *
+ * Scoped to DOCUMENT navigations (`sec-fetch-dest: document`), which is the
+ * only time the head script runs — RSC prefetches and client-side navigations
+ * skip it. That keeps the extra query off the vast majority of requests
+ * through here, which matters because this middleware is already one network
+ * round trip per request (see the decision note at the top of this file).
+ *
+ * Never fatal: any failure leaves whatever cookie is already there, and the
+ * localStorage mirror is still behind that.
+ */
+async function syncThemeCookie(
+  request: NextRequest,
+  response: NextResponse,
+  supabase: ReturnType<typeof createServerClient>,
+  userId: string | undefined
+) {
+  const existing = request.cookies.get(THEME_COOKIE)?.value
+
+  if (!userId) {
+    // Signed out: drop the server's copy. The device keeps its own look via
+    // the localStorage mirror rather than snapping back to light.
+    if (existing) response.cookies.delete(THEME_COOKIE)
+    return
+  }
+
+  const dest = request.headers.get('sec-fetch-dest')
+  const isDocumentLoad = dest === 'document' || dest === null
+  if (!isDocumentLoad) return
+
+  try {
+    const { data, error } = await supabase
+      .from('profiles')
+      .select('theme_prefs')
+      .eq('id', userId)
+      .single()
+
+    // On error the value is unknown, NOT empty — writing {} here would paint
+    // light for a dark-themed account on the next load.
+    if (error) return
+
+    const encoded = encodeThemeCookie(sanitizeThemePrefs(data?.theme_prefs))
+    if (encoded === existing) return
+
+    response.cookies.set({
+      name: THEME_COOKIE,
+      value: encoded,
+      path: '/',
+      maxAge: THEME_COOKIE_MAX_AGE,
+      sameSite: 'lax',
+      // Read by the inline head script — a display preference, not a secret.
+      httpOnly: false,
+      secure: request.nextUrl.protocol === 'https:',
+    })
+  } catch {
+    // network/RLS hiccup — leave the existing cookie alone
+  }
 }
 
 export const config = {

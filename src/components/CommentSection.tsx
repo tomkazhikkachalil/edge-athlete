@@ -363,14 +363,14 @@ export default function CommentSection({
 
         {/* Comment content */}
         <div className="flex-1 min-w-0">
-          <div className="bg-gray-50 rounded-lg px-3 py-2">
+          <div className="bg-surface-muted rounded-lg px-3 py-2">
             <div className="flex items-center justify-between mb-1">
               <div className="flex items-center gap-2">
-                <span className="font-semibold text-sm text-gray-900">
+                <span className="font-semibold text-sm text-primary">
                   {displayName}
                 </span>
                 {comment.is_pinned && (
-                  <span className="flex items-center gap-1 text-xs text-amber-600 font-medium">
+                  <span className="flex items-center gap-1 text-xs text-amber-600 dark:text-amber-400 font-medium">
                     <i className="fas fa-thumbtack text-[10px]" />
                     Pinned
                   </span>
@@ -383,8 +383,8 @@ export default function CommentSection({
                     onClick={() => handlePinComment(comment.id, !!comment.is_pinned)}
                     className={`text-xs transition-colors min-w-[40px] min-h-[40px] -m-2 inline-flex items-center justify-center ${
                       comment.is_pinned
-                        ? 'text-amber-600 hover:text-amber-700'
-                        : 'text-gray-400 hover:text-amber-600'
+                        ? 'text-amber-600 dark:text-amber-400 hover:text-amber-700'
+                        : 'text-faint hover:text-amber-600'
                     }`}
                     title={comment.is_pinned ? 'Unpin comment' : 'Pin comment'}
                   >
@@ -395,7 +395,7 @@ export default function CommentSection({
                 {user?.id === comment.profile_id && (
                   <button
                     onClick={() => handleDeleteComment(comment.id)}
-                    className="text-xs text-red-600 hover:text-red-700 min-w-[40px] min-h-[40px] -m-2 inline-flex items-center justify-center"
+                    className="text-xs text-red-600 dark:text-red-400 hover:text-red-700 min-w-[40px] min-h-[40px] -m-2 inline-flex items-center justify-center"
                     title="Delete comment"
                   >
                     <i className="fas fa-trash" />
@@ -404,7 +404,7 @@ export default function CommentSection({
               </div>
             </div>
             {comment.content && (
-              <p className="text-sm text-gray-800 whitespace-pre-wrap break-words">
+              <p className="text-sm text-primary whitespace-pre-wrap break-words">
                 {comment.content}
               </p>
             )}
@@ -424,7 +424,7 @@ export default function CommentSection({
           </div>
 
           {/* Action bar */}
-          <div className="mt-1 px-3 flex items-center gap-3 text-xs text-gray-500">
+          <div className="mt-1 px-3 flex items-center gap-3 text-xs text-muted">
             <span>{formatTimeAgo(comment.created_at)}</span>
 
             {/* Like button */}
@@ -434,8 +434,8 @@ export default function CommentSection({
                 disabled={likingComments.has(comment.id)}
                 className={`flex items-center gap-1 transition-colors py-2 px-2 -mx-1 ${
                   isLiked
-                    ? 'text-red-600 hover:text-red-700'
-                    : 'text-gray-500 hover:text-red-600'
+                    ? 'text-red-600 dark:text-red-400 hover:text-red-700'
+                    : 'text-muted hover:text-red-600'
                 } disabled:opacity-50`}
                 title="Like comment"
               >
@@ -455,7 +455,7 @@ export default function CommentSection({
                   setReplyGifUrl(null);
                   requestAnimationFrame(() => replyInputRef.current?.focus());
                 }}
-                className="text-gray-500 hover:text-violet-600 transition-colors font-medium py-2 px-2 -mx-1"
+                className="text-muted hover:text-brand-fg transition-colors font-medium py-2 px-2 -mx-1"
               >
                 Reply{replyCount > 0 ? ` (${replyCount})` : ''}
               </button>
@@ -476,7 +476,7 @@ export default function CommentSection({
           {/* Raw <img>: animated Giphy GIF, fixed height + auto width — no
               honest intrinsic dimensions to hand <Image>. */}
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={replyGifUrl} alt="GIF" className="h-16 rounded-lg border border-gray-200 object-cover" />
+          <img src={replyGifUrl} alt="GIF" className="h-16 rounded-lg border border-border object-cover" />
           {/* Padding grows the 20px circle to a ~40px hit area; the visual
               circle lives on the inner span so the design doesn't change. */}
           <button
@@ -499,7 +499,7 @@ export default function CommentSection({
           type="button"
           onClick={() => setShowReplyGifPicker(prev => !prev)}
           disabled={isSubmitting}
-          className="shrink-0 p-2 text-gray-400 hover:text-violet-500 transition-colors disabled:opacity-40 text-xs font-bold"
+          className="shrink-0 p-2 text-faint hover:text-violet-500 transition-colors disabled:opacity-40 text-xs font-bold"
           title="Add a GIF"
         >
           GIF
@@ -523,21 +523,21 @@ export default function CommentSection({
             }
           }}
           placeholder="Write a reply..."
-          className="flex-1 min-w-0 px-3 py-1.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-500 text-sm"
+          className="flex-1 min-w-0 px-3 py-1.5 border border-border-strong rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-500 text-sm"
           disabled={isSubmitting}
         />
         <button
           type="button"
           onClick={() => handleSubmitReply(parentCommentId)}
           disabled={(!replyText.trim() && !replyGifUrl) || isSubmitting}
-          className="px-3 py-1.5 bg-violet-600 text-white rounded-lg text-sm font-medium hover:bg-violet-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors shrink-0"
+          className="px-3 py-1.5 bg-brand text-white rounded-lg text-sm font-medium hover:bg-brand-hover disabled:opacity-50 disabled:cursor-not-allowed transition-colors shrink-0"
         >
           {isSubmitting ? '...' : 'Reply'}
         </button>
         <button
           type="button"
           onClick={() => { setReplyingTo(null); setReplyText(''); setReplyGifUrl(null); }}
-          className="p-1.5 text-gray-400 hover:text-gray-600 transition-colors shrink-0"
+          className="p-1.5 text-faint hover:text-tertiary transition-colors shrink-0"
           title="Cancel"
         >
           <i className="fas fa-times text-sm"></i>
@@ -547,13 +547,13 @@ export default function CommentSection({
   );
 
   return (
-    <div className="border-t border-gray-200">
+    <div className="border-t border-border">
       {/* Comment toggle button */}
       <button
         onClick={() => setShowComments(!showComments)}
-        className="w-full px-4 py-3 text-left text-sm font-medium text-gray-600 hover:bg-gray-50 transition-colors"
+        className="w-full px-4 py-3 text-left text-sm font-medium text-tertiary hover:bg-surface-muted transition-colors"
       >
-        <i className={`fas fa-comment mr-2 ${showComments ? 'text-violet-600' : ''}`} />
+        <i className={`fas fa-comment mr-2 ${showComments ? 'text-brand-fg' : ''}`} />
         {showComments ? 'Hide' : 'View'} Comments ({commentsCount})
       </button>
 
@@ -569,7 +569,7 @@ export default function CommentSection({
                   {/* Raw <img>: animated Giphy GIF, fixed height + auto width
                       — same reasoning as the reply composer above. */}
                   {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={gifUrl} alt="GIF" className="h-20 rounded-lg border border-gray-200 object-cover" />
+                  <img src={gifUrl} alt="GIF" className="h-20 rounded-lg border border-border object-cover" />
                   {/* Same hit-area trick as the reply GIF preview above. */}
                   <button
                     type="button"
@@ -593,7 +593,7 @@ export default function CommentSection({
                   type="button"
                   onClick={() => setShowGifPicker(prev => !prev)}
                   disabled={isSubmitting}
-                  className="shrink-0 p-2 text-gray-400 hover:text-violet-500 transition-colors disabled:opacity-40 text-xs font-bold"
+                  className="shrink-0 p-2 text-faint hover:text-violet-500 transition-colors disabled:opacity-40 text-xs font-bold"
                   title="Add a GIF"
                 >
                   GIF
@@ -615,13 +615,13 @@ export default function CommentSection({
                   value={newComment}
                   onChange={(e) => setNewComment(e.target.value)}
                   placeholder="Write a comment..."
-                  className="flex-1 min-w-0 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-500 text-sm"
+                  className="flex-1 min-w-0 px-3 py-2 border border-border-strong rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-500 text-sm"
                   disabled={isSubmitting}
                 />
                 <button
                   type="submit"
                   disabled={(!newComment.trim() && !gifUrl) || isSubmitting}
-                  className="px-4 py-2 bg-violet-600 text-white rounded-lg text-sm font-medium hover:bg-violet-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors shrink-0"
+                  className="px-4 py-2 bg-brand text-white rounded-lg text-sm font-medium hover:bg-brand-hover disabled:opacity-50 disabled:cursor-not-allowed transition-colors shrink-0"
                 >
                   {isSubmitting ? 'Posting...' : 'Post'}
                 </button>
@@ -631,21 +631,21 @@ export default function CommentSection({
 
           {/* Error message */}
           {error && (
-            <div className="mb-3 p-2 bg-red-50 border border-red-200 rounded text-red-600 text-sm">
+            <div className="mb-3 p-2 bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-800 rounded text-red-600 dark:text-red-400 text-sm">
               {error}
             </div>
           )}
 
           {/* Loading state */}
           {isLoading && (
-            <div className="text-center py-4 text-gray-500 text-sm">
+            <div className="text-center py-4 text-muted text-sm">
               Loading comments...
             </div>
           )}
 
           {/* Comments list */}
           {!isLoading && comments.length === 0 && (
-            <div className="text-center py-4 text-gray-500 text-sm">
+            <div className="text-center py-4 text-muted text-sm">
               No comments yet. Be the first to comment!
             </div>
           )}
@@ -659,7 +659,7 @@ export default function CommentSection({
 
                   {/* Replies */}
                   {repliesByParent[comment.id] && repliesByParent[comment.id].length > 0 && (
-                    <div className="ml-10 mt-2 space-y-2 border-l-2 border-gray-200 pl-3">
+                    <div className="ml-10 mt-2 space-y-2 border-l-2 border-border pl-3">
                       {repliesByParent[comment.id].map((reply) => (
                         renderComment(reply, true)
                       ))}

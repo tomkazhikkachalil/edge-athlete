@@ -144,17 +144,17 @@ export default function PerformanceModal({
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-lg max-w-md w-full max-h-modal overflow-hidden">
+      <div className="bg-surface-raised rounded-lg max-w-md w-full max-h-modal overflow-hidden">
         <form onSubmit={handleSubmit}>
-          <div className="p-6 border-b border-gray-200">
+          <div className="p-6 border-b border-border">
             <div className="flex items-center justify-between">
-              <h2 className="text-xl font-semibold text-gray-900">
+              <h2 className="text-xl font-semibold text-primary">
                 {existingData ? 'Edit Performance' : 'Add Performance'}
               </h2>
               <button
                 type="button"
                 onClick={onClose}
-                className="text-gray-400 hover:text-gray-500 transition-colors"
+                className="text-faint hover:text-muted transition-colors"
               >
                 <i className="fas fa-times text-xl"></i>
               </button>
@@ -163,7 +163,7 @@ export default function PerformanceModal({
 
           <div className="p-6 max-h-[60vh] overflow-y-auto">
             {errors.general && (
-              <div className="mb-4 p-3 bg-red-100 border border-red-300 text-red-700 rounded-md text-sm">
+              <div className="mb-4 p-3 bg-red-100 dark:bg-red-950/60 border border-red-300 dark:border-red-700 text-red-700 dark:text-red-300 rounded-md text-sm">
                 {errors.general}
               </div>
             )}
@@ -171,14 +171,14 @@ export default function PerformanceModal({
             <div className="space-y-4">
               {/* Date - Required */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label className="block text-sm font-medium text-secondary mb-2">
                   Date <span className="text-red-500">*</span>
                 </label>
                 <input
                   type="date"
                   value={formData.date}
                   onChange={(e) => handleInputChange('date', e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-violet-500"
+                  className="w-full px-3 py-2 border border-border-strong rounded-md focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-violet-500"
                 />
                 {errors.date && (
                   <p className="mt-1 text-sm text-red-600">{errors.date}</p>
@@ -187,7 +187,7 @@ export default function PerformanceModal({
 
               {/* Event - Required */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label className="block text-sm font-medium text-secondary mb-2">
                   Event <span className="text-red-500">*</span>
                 </label>
                 <input
@@ -195,7 +195,7 @@ export default function PerformanceModal({
                   value={formData.event}
                   onChange={(e) => handleInputChange('event', e.target.value)}
                   placeholder="e.g., 100m Freestyle, Shot Put, Marathon"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-violet-500"
+                  className="w-full px-3 py-2 border border-border-strong rounded-md focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-violet-500"
                 />
                 {errors.event && (
                   <p className="mt-1 text-sm text-red-600">{errors.event}</p>
@@ -204,7 +204,7 @@ export default function PerformanceModal({
 
               {/* Result (Place) - Optional */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label className="block text-sm font-medium text-secondary mb-2">
                   Result (Place)
                 </label>
                 <input
@@ -212,13 +212,13 @@ export default function PerformanceModal({
                   value={formData.result_place}
                   onChange={(e) => handleInputChange('result_place', e.target.value)}
                   placeholder="e.g., 1st, 3rd, DNF, PR"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-violet-500"
+                  className="w-full px-3 py-2 border border-border-strong rounded-md focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-violet-500"
                 />
               </div>
 
               {/* Stat (Primary) - Optional */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label className="block text-sm font-medium text-secondary mb-2">
                   Stat (Primary)
                 </label>
                 <input
@@ -226,13 +226,13 @@ export default function PerformanceModal({
                   value={formData.stat_primary}
                   onChange={(e) => handleInputChange('stat_primary', e.target.value)}
                   placeholder="e.g., 12.45s, 15.2m, 2:45:30"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-violet-500"
+                  className="w-full px-3 py-2 border border-border-strong rounded-md focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-violet-500"
                 />
               </div>
 
               {/* Organization - Optional */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label className="block text-sm font-medium text-secondary mb-2">
                   Organization
                 </label>
                 <input
@@ -240,13 +240,13 @@ export default function PerformanceModal({
                   value={formData.organization}
                   onChange={(e) => handleInputChange('organization', e.target.value)}
                   placeholder="e.g., NCAA, USATF, High School"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-violet-500"
+                  className="w-full px-3 py-2 border border-border-strong rounded-md focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-violet-500"
                 />
               </div>
 
               {/* Athletic Score (0-100) - Optional */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label className="block text-sm font-medium text-secondary mb-2">
                   Athletic Score (0-100)
                 </label>
                 <input
@@ -257,7 +257,7 @@ export default function PerformanceModal({
                   value={formData.athletic_score}
                   onChange={(e) => handleInputChange('athletic_score', e.target.value)}
                   placeholder="85"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-violet-500"
+                  className="w-full px-3 py-2 border border-border-strong rounded-md focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-violet-500"
                 />
                 {errors.athletic_score && (
                   <p className="mt-1 text-sm text-red-600">{errors.athletic_score}</p>
@@ -266,19 +266,19 @@ export default function PerformanceModal({
             </div>
           </div>
 
-          <div className="p-6 border-t border-gray-200 flex justify-end space-x-3">
+          <div className="p-6 border-t border-border flex justify-end space-x-3">
             <button
               type="button"
               onClick={onClose}
               disabled={saving}
-              className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 transition-colors"
+              className="px-4 py-2 text-sm font-medium text-secondary bg-surface border border-border-strong rounded-md hover:bg-surface-muted disabled:opacity-50 transition-colors"
             >
               Cancel
             </button>
             <button
               type="submit"
               disabled={saving}
-              className="px-4 py-2 text-sm font-medium text-white bg-violet-600 border border-transparent rounded-md hover:bg-violet-700 disabled:opacity-50 transition-colors"
+              className="px-4 py-2 text-sm font-medium text-white bg-brand border border-transparent rounded-md hover:bg-brand-hover disabled:opacity-50 transition-colors"
             >
               {saving ? 'Saving...' : existingData ? 'Update Performance' : 'Add Performance'}
             </button>

@@ -54,7 +54,7 @@ export default function BrandLogo({ domain, name, size = 24, fallback }: BrandLo
     return (
       <div
         style={box}
-        className="flex-shrink-0 bg-gray-200 rounded flex items-center justify-center text-xs font-bold text-gray-600"
+        className="flex-shrink-0 bg-gray-200 dark:bg-stone-800 rounded flex items-center justify-center text-xs font-bold text-tertiary"
         aria-hidden="true"
       >
         {name.charAt(0).toUpperCase()}
@@ -74,7 +74,7 @@ export default function BrandLogo({ domain, name, size = 24, fallback }: BrandLo
       height={size}
       loading="lazy"
       style={box}
-      className="flex-shrink-0 object-contain"
+      className="flex-shrink-0 object-contain dark:bg-stone-100 dark:rounded"
       onError={() => setFailed(true)}
     />
   );

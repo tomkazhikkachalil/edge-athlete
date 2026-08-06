@@ -174,14 +174,14 @@ export default function NotificationBell() {
           panel this wide would hang off the LEFT screen edge and horizontally
           scroll the page). sm+: classic anchored dropdown. */}
       {showDropdown && (
-        <div className="fixed inset-x-2 top-[calc(4rem+env(safe-area-inset-top)+0.5rem)] mx-auto sm:absolute sm:inset-x-auto sm:right-0 sm:top-auto sm:mx-0 sm:mt-2 sm:w-96 max-w-[24rem] bg-white rounded-lg shadow-lg border border-gray-200 z-50 max-h-[80vh] sm:max-h-[600px] overflow-hidden flex flex-col">
+        <div className="fixed inset-x-2 top-[calc(4rem+env(safe-area-inset-top)+0.5rem)] mx-auto sm:absolute sm:inset-x-auto sm:right-0 sm:top-auto sm:mx-0 sm:mt-2 sm:w-96 max-w-[24rem] bg-surface-raised rounded-lg shadow-lg border border-border z-50 max-h-[80vh] sm:max-h-[600px] overflow-hidden flex flex-col">
           {/* Header */}
-          <div className="px-4 py-3 border-b border-gray-200 flex items-center justify-between bg-gray-50">
-            <h3 className="font-semibold text-gray-900">Notifications</h3>
+          <div className="px-4 py-3 border-b border-border flex items-center justify-between bg-surface-muted">
+            <h3 className="font-semibold text-primary">Notifications</h3>
             {unreadCount > 0 && (
               <button
                 onClick={() => markAllAsRead()}
-                className="text-xs text-violet-600 hover:text-violet-700 font-medium"
+                className="text-xs text-brand-fg hover:text-brand-fg-strong font-medium"
               >
                 Mark all read
               </button>
@@ -193,10 +193,10 @@ export default function NotificationBell() {
             {recentNotifications.length === 0 ? (
               <div className="px-4 py-8 text-center">
                 <i className="fas fa-bell-slash text-4xl text-gray-300 mb-2"></i>
-                <p className="text-gray-500 text-sm">No new notifications</p>
+                <p className="text-muted text-sm">No new notifications</p>
               </div>
             ) : (
-              <div className="divide-y divide-gray-100">
+              <div className="divide-y divide-border-subtle">
                 {recentNotifications.map((notification) => (
                   <div
                     key={`${notification.id}-${notification.is_read}`}
@@ -204,7 +204,7 @@ export default function NotificationBell() {
                     data-notification-id={notification.id}
                     data-is-read={notification.is_read}
                     onClick={() => handleNotificationClick(notification)}
-                    className="px-4 py-3 hover:bg-gray-50 cursor-pointer transition-colors"
+                    className="px-4 py-3 hover:bg-surface-muted cursor-pointer transition-colors"
                   >
                     <div className="flex items-start gap-3">
                       {/* Actor Avatar or Icon */}
@@ -229,7 +229,7 @@ export default function NotificationBell() {
                         />
                       ) : (
                         <div className="w-10 h-10 bg-violet-100 rounded-full flex items-center justify-center">
-                          <i className={`fas ${getNotificationIcon(notification.type)} text-violet-600`}></i>
+                          <i className={`fas ${getNotificationIcon(notification.type)} text-brand-fg`}></i>
                         </div>
                       )}
 
@@ -237,21 +237,21 @@ export default function NotificationBell() {
                       <div className="flex-1 min-w-0">
                         <div className="flex items-start gap-2">
                           <p className={`text-sm font-medium flex-1 line-clamp-2 ${
-                            !notification.is_read ? 'text-gray-900' : 'text-gray-600'
+                            !notification.is_read ? 'text-primary' : 'text-tertiary'
                           }`}>
                             {getNotificationText(notification)}
                           </p>
                           {/* Blue dot indicator for unread AND not viewed */}
                           {!notification.is_read && !viewedNotifications.has(notification.id) && (
-                            <div className="w-2 h-2 bg-violet-600 rounded-full mt-1 flex-shrink-0"></div>
+                            <div className="w-2 h-2 bg-brand rounded-full mt-1 flex-shrink-0"></div>
                           )}
                         </div>
                         {notification.message && (
-                          <p className="text-xs text-gray-600 mt-1 line-clamp-2">
+                          <p className="text-xs text-tertiary mt-1 line-clamp-2">
                             {notification.message}
                           </p>
                         )}
-                        <p className="text-xs text-gray-500 mt-1">
+                        <p className="text-xs text-muted mt-1">
                           {getRelativeTime(notification.created_at)}
                         </p>
                       </div>
@@ -263,13 +263,13 @@ export default function NotificationBell() {
           </div>
 
           {/* Footer */}
-          <div className="px-4 py-3 border-t border-gray-200 bg-gray-50">
+          <div className="px-4 py-3 border-t border-border bg-surface-muted">
             <button
               onClick={() => {
                 router.push('/app/notifications');
                 setShowDropdown(false);
               }}
-              className="w-full text-center text-sm text-violet-600 hover:text-violet-700 font-medium"
+              className="w-full text-center text-sm text-brand-fg hover:text-brand-fg-strong font-medium"
             >
               View all notifications
             </button>

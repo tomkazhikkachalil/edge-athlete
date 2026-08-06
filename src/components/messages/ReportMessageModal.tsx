@@ -89,32 +89,32 @@ export default function ReportMessageModal({
         role="dialog"
         aria-modal="true"
         aria-label="Report message"
-        className="relative bg-white rounded-2xl shadow-xl w-full max-w-md max-h-modal overflow-y-auto safe-bottom"
+        className="relative bg-surface-raised rounded-2xl shadow-xl w-full max-w-md max-h-modal overflow-y-auto safe-bottom"
       >
-        <div className="px-5 pt-5 pb-3 border-b border-gray-100">
+        <div className="px-5 pt-5 pb-3 border-b border-border-subtle">
           <div className="flex items-center justify-between">
-            <h2 className="text-lg font-semibold text-gray-900">Report</h2>
+            <h2 className="text-lg font-semibold text-primary">Report</h2>
             <button
               type="button"
               onClick={() => !submitting && onClose()}
-              className="p-1 -m-1 text-gray-400 hover:text-gray-600"
+              className="p-1 -m-1 text-faint hover:text-tertiary"
               aria-label="Close"
             >
               <i className="fas fa-times text-base"></i>
             </button>
           </div>
-          <p className="text-xs text-gray-500 mt-1">
+          <p className="text-xs text-muted mt-1">
             Reports are reviewed by the Edge Athlete team. Your identity is not shown to the reported user.
           </p>
         </div>
 
         {done ? (
           <div className="px-5 py-6 text-center">
-            <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-green-50 text-green-600 mb-3">
+            <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-green-50 dark:bg-green-950/40 text-green-600 dark:text-green-400 mb-3">
               <i className="fas fa-check text-xl"></i>
             </div>
-            <p className="text-sm font-semibold text-gray-900">Report submitted</p>
-            <p className="text-xs text-gray-500 mt-1">Thanks — we&apos;ll review this shortly.</p>
+            <p className="text-sm font-semibold text-primary">Report submitted</p>
+            <p className="text-xs text-muted mt-1">Thanks — we&apos;ll review this shortly.</p>
           </div>
         ) : (
           <>
@@ -124,8 +124,8 @@ export default function ReportMessageModal({
                   key={r.value}
                   className={`flex items-start gap-3 p-3 rounded-lg border cursor-pointer transition-colors ${
                     reason === r.value
-                      ? 'border-violet-500 bg-violet-50'
-                      : 'border-gray-200 hover:bg-gray-50'
+                      ? 'border-violet-500 bg-brand-soft'
+                      : 'border-border hover:bg-surface-muted'
                   }`}
                 >
                   <input
@@ -137,39 +137,39 @@ export default function ReportMessageModal({
                     className="mt-0.5 accent-violet-600"
                   />
                   <span className="flex-1">
-                    <span className="block text-sm font-medium text-gray-900">{r.label}</span>
-                    <span className="block text-xs text-gray-500 mt-0.5">{r.hint}</span>
+                    <span className="block text-sm font-medium text-primary">{r.label}</span>
+                    <span className="block text-xs text-muted mt-0.5">{r.hint}</span>
                   </span>
                 </label>
               ))}
 
               <div className="pt-2">
-                <label className="block text-xs font-semibold text-gray-700 mb-1">
-                  Additional details <span className="font-normal text-gray-400">(optional)</span>
+                <label className="block text-xs font-semibold text-secondary mb-1">
+                  Additional details <span className="font-normal text-faint">(optional)</span>
                 </label>
                 <textarea
                   value={details}
                   onChange={e => setDetails(e.target.value.slice(0, MAX_DETAILS_LEN))}
                   rows={3}
                   placeholder="Anything else we should know?"
-                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm resize-y focus:outline-none focus:ring-2 focus:ring-violet-500"
+                  className="w-full rounded-lg border border-border-strong px-3 py-2 text-sm resize-y focus:outline-none focus:ring-2 focus:ring-violet-500"
                 />
-                <p className="text-[10px] text-gray-400 text-right mt-1">
+                <p className="text-[10px] text-faint text-right mt-1">
                   {details.length}/{MAX_DETAILS_LEN}
                 </p>
               </div>
 
               {error && (
-                <p className="text-xs text-red-600">{error}</p>
+                <p className="text-xs text-red-600 dark:text-red-400">{error}</p>
               )}
             </div>
 
-            <div className="px-5 py-4 border-t border-gray-100 flex items-center justify-end gap-2">
+            <div className="px-5 py-4 border-t border-border-subtle flex items-center justify-end gap-2">
               <button
                 type="button"
                 onClick={onClose}
                 disabled={submitting}
-                className="px-4 py-2 text-sm text-gray-600 hover:text-gray-900 transition-colors disabled:opacity-50"
+                className="px-4 py-2 text-sm text-tertiary hover:text-primary transition-colors disabled:opacity-50"
               >
                 Cancel
               </button>

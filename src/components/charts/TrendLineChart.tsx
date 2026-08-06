@@ -97,9 +97,9 @@ export default function TrendLineChart({
 
   if (points.length < 2) {
     return (
-      <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
-        <h3 className="text-sm font-semibold text-gray-900 mb-2">{title}</h3>
-        <p className="text-sm text-gray-500 py-8 text-center">
+      <div className="bg-surface rounded-lg shadow-sm border border-border p-4">
+        <h3 className="text-sm font-semibold text-primary mb-2">{title}</h3>
+        <p className="text-sm text-muted py-8 text-center">
           {emptyMessage ?? `Log at least two ${pointNoun}s with this stat to see a trend.`}
         </p>
       </div>
@@ -138,18 +138,18 @@ export default function TrendLineChart({
   const hover = hoverIndex !== null ? points[hoverIndex] : null;
 
   return (
-    <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
+    <div className="bg-surface rounded-lg shadow-sm border border-border p-4">
       <div className="flex flex-wrap items-center justify-between gap-2 mb-1">
-        <h3 className="text-sm font-semibold text-gray-900">{title}</h3>
+        <h3 className="text-sm font-semibold text-primary">{title}</h3>
         {hasAvg && (
-          <div className="flex items-center gap-3 text-xs text-gray-500">
+          <div className="flex items-center gap-3 text-xs text-muted">
             <span className="flex items-center gap-1.5">
               <span className="inline-block w-4 h-0.5 rounded" style={{ backgroundColor: color }} />
               Per {pointNoun}
             </span>
             <span className="flex items-center gap-1.5">
               <svg width="16" height="2" aria-hidden="true">
-                <line x1="0" y1="1" x2="16" y2="1" stroke="#6b7280" strokeWidth="2" strokeDasharray="4 3" />
+                <line x1="0" y1="1" x2="16" y2="1" stroke="var(--chart-ref)" strokeWidth="2" strokeDasharray="4 3" />
               </svg>
               {rollingWindow}-{pointNoun} avg
             </span>
@@ -181,7 +181,7 @@ export default function TrendLineChart({
               x2={CHART_W - PAD.right}
               y1={t.y}
               y2={t.y}
-              stroke="#f3f4f6"
+              stroke="var(--chart-grid)"
               strokeWidth="1"
               vectorEffect="non-scaling-stroke"
             />
@@ -189,7 +189,7 @@ export default function TrendLineChart({
 
           {/* Rolling average overlay (neutral, dashed, direct-labeled) */}
           {avgSegments.map((d, i) => (
-            <path key={i} d={d} fill="none" stroke="#6b7280" strokeWidth="2" strokeDasharray="4 3" vectorEffect="non-scaling-stroke" />
+            <path key={i} d={d} fill="none" stroke="var(--chart-ref)" strokeWidth="2" strokeDasharray="4 3" vectorEffect="non-scaling-stroke" />
           ))}
 
           {/* Series line + markers (surface ring) */}
@@ -201,7 +201,7 @@ export default function TrendLineChart({
               cy={ys[i]}
               r={hoverIndex === i ? 6 : 4.5}
               fill={color}
-              stroke="#ffffff"
+              stroke="var(--surface)"
               strokeWidth="2"
               vectorEffect="non-scaling-stroke"
             />
@@ -214,7 +214,7 @@ export default function TrendLineChart({
               x2={xs[hoverIndex]}
               y1={PAD.top}
               y2={CHART_H - PAD.bottom}
-              stroke="#d1d5db"
+              stroke="var(--chart-crosshair)"
               strokeWidth="1"
               vectorEffect="non-scaling-stroke"
             />
@@ -227,7 +227,7 @@ export default function TrendLineChart({
         {ticks.map((t, i) => (
           <span
             key={i}
-            className="absolute left-1 text-[10px] leading-none text-gray-400 pointer-events-none"
+            className="absolute left-1 text-[10px] leading-none text-faint pointer-events-none"
             style={{ top: `${(t.y / CHART_H) * 100}%`, transform: 'translateY(-120%)' }}
           >
             {Math.abs(maxY - minY) > 20 ? Math.round(t.v) : Math.round(t.v * 10) / 10}
@@ -235,7 +235,7 @@ export default function TrendLineChart({
         ))}
         {hasAvg && lastAvgY !== null && (
           <span
-            className="absolute right-1 rounded bg-white/85 px-1 text-[10px] font-semibold leading-tight text-gray-500 pointer-events-none"
+            className="absolute right-1 rounded bg-surface/85 px-1 text-[10px] font-semibold leading-tight text-muted pointer-events-none"
             style={{ top: `${(lastAvgY / CHART_H) * 100}%`, transform: 'translateY(-50%)' }}
           >
             avg {fmt(
@@ -246,17 +246,17 @@ export default function TrendLineChart({
             )}
           </span>
         )}
-        <span className="absolute bottom-0 left-0 text-[10px] leading-none text-gray-400 pointer-events-none">
+        <span className="absolute bottom-0 left-0 text-[10px] leading-none text-faint pointer-events-none">
           {points[0].label}
         </span>
-        <span className="absolute bottom-0 right-0 text-[10px] leading-none text-gray-400 pointer-events-none">
+        <span className="absolute bottom-0 right-0 text-[10px] leading-none text-faint pointer-events-none">
           {points[points.length - 1].label}
         </span>
 
         {/* Tooltip (HTML, positioned over the SVG) */}
         {hover && hoverIndex !== null && (
           <div
-            className="absolute z-10 pointer-events-none bg-gray-900 text-white text-xs rounded-md px-2.5 py-1.5 shadow-lg whitespace-nowrap"
+            className="absolute z-10 pointer-events-none bg-surface-inverse text-inverse text-xs rounded-md px-2.5 py-1.5 shadow-lg whitespace-nowrap"
             style={{
               left: `${(xs[hoverIndex] / CHART_W) * 100}%`,
               top: 0,
@@ -264,7 +264,7 @@ export default function TrendLineChart({
             }}
           >
             <div className="font-semibold">{fmt(hover.value)}</div>
-            <div className="text-gray-300">{hover.label}{hover.meta ? ` · ${hover.meta}` : ''}</div>
+            <div className="text-inverse/70">{hover.label}{hover.meta ? ` · ${hover.meta}` : ''}</div>
           </div>
         )}
       </div>

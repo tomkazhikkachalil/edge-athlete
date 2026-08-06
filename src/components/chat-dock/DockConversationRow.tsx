@@ -37,8 +37,8 @@ export default function DockConversationRow({
       onClick={onClick}
       className={`w-full text-left flex items-center gap-2.5 px-3 py-2 transition-colors ${
         hasWindow
-          ? 'bg-violet-50 border-l-2 border-violet-600'
-          : 'hover:bg-violet-50 border-l-2 border-transparent'
+          ? 'bg-brand-soft border-l-2 border-brand'
+          : 'hover:bg-brand-soft border-l-2 border-transparent'
       }`}
     >
       <span className="relative shrink-0">
@@ -50,14 +50,14 @@ export default function DockConversationRow({
               className="w-full h-full object-cover"
             />
           ) : (
-            <span className="w-full h-full flex items-center justify-center text-xs font-semibold text-violet-700">
+            <span className="w-full h-full flex items-center justify-center text-xs font-semibold text-brand-fg-strong">
               {identity.initials}
             </span>
           )}
         </span>
         {identity.isGroup && (
-          <span className="absolute -bottom-0.5 -right-0.5 w-4 h-4 bg-gray-200 rounded-full flex items-center justify-center">
-            <i className="fas fa-users text-gray-600" style={{ fontSize: '7px' }}></i>
+          <span className="absolute -bottom-0.5 -right-0.5 w-4 h-4 bg-gray-200 dark:bg-stone-800 rounded-full flex items-center justify-center">
+            <i className="fas fa-users text-tertiary" style={{ fontSize: '7px' }}></i>
           </span>
         )}
         {online && (
@@ -69,20 +69,20 @@ export default function DockConversationRow({
         <span className="flex items-center gap-1.5">
           <span
             className={`flex-1 text-sm truncate ${
-              unread > 0 ? 'font-semibold text-gray-900' : 'font-medium text-gray-700'
+              unread > 0 ? 'font-semibold text-primary' : 'font-medium text-secondary'
             }`}
           >
             {identity.title}
           </span>
           {conversation.my_participant?.is_muted && (
-            <i className="fas fa-bell-slash text-gray-400" style={{ fontSize: '10px' }}></i>
+            <i className="fas fa-bell-slash text-faint" style={{ fontSize: '10px' }}></i>
           )}
-          <span className="text-xs text-gray-400 shrink-0">{getRelativeTime(timestamp)}</span>
+          <span className="text-xs text-faint shrink-0">{getRelativeTime(timestamp)}</span>
         </span>
         <span className="flex items-center gap-1.5 mt-0.5">
           <span
             className={`flex-1 text-xs truncate ${
-              unread > 0 ? 'text-gray-800 font-medium' : 'text-gray-500'
+              unread > 0 ? 'text-primary font-medium' : 'text-muted'
             }`}
           >
             {preview}

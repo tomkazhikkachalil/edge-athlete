@@ -160,23 +160,23 @@ export default function NewConversationModal({ onClose }: Props) {
         onCancel={cancelDiscard}
       />
       <div
-        className="max-w-md w-full bg-white rounded-xl shadow-xl flex flex-col max-h-modal"
+        className="max-w-md w-full bg-surface-raised rounded-xl shadow-xl flex flex-col max-h-modal"
         onClick={e => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="flex items-center justify-between px-5 py-4 border-b border-gray-200 shrink-0">
-          <h2 className="text-lg font-bold text-gray-900">New Message</h2>
-          <button onClick={requestClose} className="text-gray-400 hover:text-gray-600 p-1">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-border shrink-0">
+          <h2 className="text-lg font-bold text-primary">New Message</h2>
+          <button onClick={requestClose} className="text-faint hover:text-tertiary p-1">
             <i className="fas fa-times"></i>
           </button>
         </div>
 
         {/* Tabs */}
-        <div className="flex border-b border-gray-200 shrink-0">
+        <div className="flex border-b border-border shrink-0">
           <button
             onClick={() => { setTab('dm'); setSearchQuery(''); setSearchResults([]); setError(''); }}
             className={`flex-1 py-3 text-sm font-medium border-b-2 transition-colors ${
-              tab === 'dm' ? 'border-violet-600 text-violet-600' : 'border-transparent text-gray-500 hover:text-gray-700'
+              tab === 'dm' ? 'border-brand text-brand-fg' : 'border-transparent text-muted hover:text-secondary'
             }`}
           >
             <i className="fas fa-user mr-2"></i>Direct Message
@@ -184,7 +184,7 @@ export default function NewConversationModal({ onClose }: Props) {
           <button
             onClick={() => { setTab('group'); setSearchQuery(''); setSearchResults([]); setError(''); }}
             className={`flex-1 py-3 text-sm font-medium border-b-2 transition-colors ${
-              tab === 'group' ? 'border-violet-600 text-violet-600' : 'border-transparent text-gray-500 hover:text-gray-700'
+              tab === 'group' ? 'border-brand text-brand-fg' : 'border-transparent text-muted hover:text-secondary'
             }`}
           >
             <i className="fas fa-users mr-2"></i>Group Chat
@@ -193,7 +193,7 @@ export default function NewConversationModal({ onClose }: Props) {
 
         <div className="flex-1 overflow-y-auto p-4 space-y-4">
           {error && (
-            <p className="text-sm text-red-600 bg-red-50 rounded-lg px-3 py-2">{error}</p>
+            <p className="text-sm text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-950/40 rounded-lg px-3 py-2">{error}</p>
           )}
 
           {/* Group Name (group tab only) */}
@@ -203,7 +203,7 @@ export default function NewConversationModal({ onClose }: Props) {
               value={groupName}
               onChange={e => setGroupName(e.target.value)}
               placeholder="Group name…"
-              className="w-full border border-gray-300 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500"
+              className="w-full border border-border-strong rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500"
               maxLength={GROUP_NAME_MAX}
             />
           )}
@@ -216,10 +216,10 @@ export default function NewConversationModal({ onClose }: Props) {
                 return (
                   <span
                     key={m.id}
-                    className="inline-flex items-center gap-1.5 bg-violet-100 text-violet-700 text-xs font-medium rounded-full px-3 py-1"
+                    className="inline-flex items-center gap-1.5 bg-violet-100 dark:bg-violet-950/60 text-brand-fg-strong text-xs font-medium rounded-full px-3 py-1"
                   >
                     {mName}
-                    <button onClick={() => handleToggleMember(m)} className="hover:text-violet-900">
+                    <button onClick={() => handleToggleMember(m)} className="hover:text-violet-900 dark:hover:text-violet-100">
                       <i className="fas fa-times text-xs"></i>
                     </button>
                   </span>
@@ -230,20 +230,20 @@ export default function NewConversationModal({ onClose }: Props) {
 
           {/* Search */}
           <div className="relative">
-            <i className="fas fa-search absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-xs"></i>
+            <i className="fas fa-search absolute left-3 top-1/2 -translate-y-1/2 text-faint text-xs"></i>
             <input
               type="text"
               value={searchQuery}
               onChange={e => handleSearch(e.target.value)}
               placeholder="Search athletes…"
-              className="w-full pl-8 pr-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-violet-500"
+              className="w-full pl-8 pr-3 py-2.5 border border-border-strong rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-violet-500"
               autoFocus
             />
           </div>
 
           {/* Results */}
           {searching ? (
-            <div className="text-center py-4 text-gray-400 text-sm">
+            <div className="text-center py-4 text-faint text-sm">
               <i className="fas fa-spinner fa-spin mr-2"></i>Searching…
             </div>
           ) : searchResults.length > 0 ? (
@@ -257,7 +257,7 @@ export default function NewConversationModal({ onClose }: Props) {
                     onClick={() => tab === 'dm' ? handleSelectDM(result) : handleToggleMember(result)}
                     disabled={creating}
                     className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-left transition-colors disabled:opacity-50 ${
-                      isSelected ? 'bg-violet-50' : 'hover:bg-gray-50'
+                      isSelected ? 'bg-brand-soft' : 'hover:bg-surface-muted'
                     }`}
                   >
                     {result.avatar_url ? (
@@ -274,12 +274,12 @@ export default function NewConversationModal({ onClose }: Props) {
                       </div>
                     )}
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm font-semibold text-gray-900 truncate">{rName}</p>
-                      {result.handle && <p className="text-xs text-gray-400">@{result.handle}</p>}
+                      <p className="text-sm font-semibold text-primary truncate">{rName}</p>
+                      {result.handle && <p className="text-xs text-faint">@{result.handle}</p>}
                     </div>
                     {tab === 'group' && (
                       <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0 ${
-                        isSelected ? 'bg-violet-600 border-violet-600' : 'border-gray-300'
+                        isSelected ? 'bg-brand border-brand' : 'border-border-strong'
                       }`}>
                         {isSelected && <i className="fas fa-check text-white text-xs"></i>}
                       </div>
@@ -289,17 +289,17 @@ export default function NewConversationModal({ onClose }: Props) {
               })}
             </div>
           ) : searchQuery && !searching ? (
-            <div className="text-center py-4 text-gray-400 text-sm">No athletes found</div>
+            <div className="text-center py-4 text-faint text-sm">No athletes found</div>
           ) : null}
         </div>
 
         {/* Footer (group tab only) */}
         {tab === 'group' && (
-          <div className="px-4 py-3 border-t border-gray-200 shrink-0">
+          <div className="px-4 py-3 border-t border-border shrink-0">
             <button
               onClick={handleCreateGroup}
               disabled={!canCreateGroup({ name: groupName, members: selectedMembers, creating })}
-              className="w-full py-2.5 bg-violet-600 text-white rounded-lg text-sm font-semibold hover:bg-violet-700 disabled:opacity-40 transition-colors"
+              className="w-full py-2.5 bg-brand text-white rounded-lg text-sm font-semibold hover:bg-brand-hover disabled:opacity-40 transition-colors"
             >
               {creating ? (
                 <><i className="fas fa-spinner fa-spin mr-2"></i>Creating…</>

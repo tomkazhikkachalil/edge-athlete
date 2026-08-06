@@ -70,7 +70,7 @@ export default function ParticipantAttestationModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-      <div className="bg-white rounded-lg shadow-2xl max-w-lg w-full max-h-modal overflow-y-auto">
+      <div className="bg-surface-raised rounded-lg shadow-2xl max-w-lg w-full max-h-modal overflow-y-auto">
         {/* Header */}
         <div className="bg-gradient-to-r from-green-600 to-green-700 text-white p-6">
           <div className="flex items-start justify-between">
@@ -95,22 +95,22 @@ export default function ParticipantAttestationModal({
         {/* Content */}
         <div className="p-6">
           {/* Invitation Details */}
-          <div className="bg-green-50 border border-green-200 rounded-lg p-4 mb-6">
+          <div className="bg-green-50 dark:bg-green-950/40 border border-green-200 dark:border-green-800 rounded-lg p-4 mb-6">
             <div className="flex items-center gap-2 mb-3">
-              <i className="fas fa-user-circle text-green-600"></i>
+              <i className="fas fa-user-circle text-green-600 dark:text-green-400"></i>
               <div>
-                <span className="text-sm text-gray-600">Invited by</span>
-                <div className="font-bold text-gray-900">{creatorName}</div>
+                <span className="text-sm text-tertiary">Invited by</span>
+                <div className="font-bold text-primary">{creatorName}</div>
               </div>
             </div>
 
             <div className="space-y-2 text-sm">
               <div className="flex items-start gap-2">
-                <i className="fas fa-map-marker-alt text-green-600 mt-0.5"></i>
+                <i className="fas fa-map-marker-alt text-green-600 dark:text-green-400 mt-0.5"></i>
                 <div>
-                  <span className="font-semibold text-gray-900">{golfData.course_name}</span>
+                  <span className="font-semibold text-primary">{golfData.course_name}</span>
                   {golfData.round_type === 'indoor' ? (
-                    <span className="ml-2 inline-flex items-center gap-1 px-2 py-0.5 bg-violet-600 text-white text-xs font-bold rounded-full">
+                    <span className="ml-2 inline-flex items-center gap-1 px-2 py-0.5 bg-brand text-white text-xs font-bold rounded-full">
                       <i className="fas fa-warehouse text-[8px]"></i>
                       INDOOR
                     </span>
@@ -124,19 +124,19 @@ export default function ParticipantAttestationModal({
               </div>
 
               <div className="flex items-center gap-2">
-                <i className="fas fa-calendar text-green-600"></i>
-                <span className="text-gray-900">{formattedDate}</span>
+                <i className="fas fa-calendar text-green-600 dark:text-green-400"></i>
+                <span className="text-primary">{formattedDate}</span>
               </div>
 
               <div className="flex items-center gap-2">
-                <i className="fas fa-flag text-green-600"></i>
-                <span className="text-gray-900">{golfData.holes_played} Holes</span>
+                <i className="fas fa-flag text-green-600 dark:text-green-400"></i>
+                <span className="text-primary">{golfData.holes_played} Holes</span>
               </div>
 
               {golfData.tee_color && (
                 <div className="flex items-center gap-2">
-                  <i className="fas fa-tint text-green-600"></i>
-                  <span className="text-gray-900">
+                  <i className="fas fa-tint text-green-600 dark:text-green-400"></i>
+                  <span className="text-primary">
                     {golfData.tee_color.charAt(0).toUpperCase() + golfData.tee_color.slice(1)} Tees
                   </span>
                 </div>
@@ -147,24 +147,24 @@ export default function ParticipantAttestationModal({
           {/* Description */}
           {groupPost.description && (
             <div className="mb-6">
-              <h3 className="font-bold text-gray-900 mb-2">Details:</h3>
-              <p className="text-sm text-gray-700">{groupPost.description}</p>
+              <h3 className="font-bold text-primary mb-2">Details:</h3>
+              <p className="text-sm text-secondary">{groupPost.description}</p>
             </div>
           )}
 
           {/* What Happens Next */}
-          <div className="bg-violet-50 border border-violet-200 rounded-lg p-4 mb-6">
-            <h3 className="font-bold text-violet-900 mb-2 flex items-center gap-2">
+          <div className="bg-brand-soft border border-violet-200 dark:border-violet-800 rounded-lg p-4 mb-6">
+            <h3 className="font-bold text-violet-900 dark:text-violet-200 mb-2 flex items-center gap-2">
               <i className="fas fa-info-circle"></i>
               What happens next?
             </h3>
-            <ul className="text-sm text-violet-900 space-y-1">
+            <ul className="text-sm text-violet-900 dark:text-violet-200 space-y-1">
               <li className="flex items-start gap-2">
-                <i className="fas fa-check text-violet-600 mt-0.5"></i>
+                <i className="fas fa-check text-brand-fg mt-0.5"></i>
                 <span>If you <strong>confirm</strong>, you&apos;ll be able to add your scores and appear on the shared scorecard</span>
               </li>
               <li className="flex items-start gap-2">
-                <i className="fas fa-times text-red-600 mt-0.5"></i>
+                <i className="fas fa-times text-red-600 dark:text-red-400 mt-0.5"></i>
                 <span>If you <strong>decline</strong>, you won&apos;t be included in the round</span>
               </li>
             </ul>
@@ -214,7 +214,7 @@ export default function ParticipantAttestationModal({
             <button
               onClick={onClose}
               disabled={processing}
-              className="text-sm text-gray-600 hover:text-gray-800 font-semibold disabled:text-gray-400 disabled:cursor-not-allowed"
+              className="text-sm text-tertiary hover:text-primary font-semibold disabled:text-faint disabled:cursor-not-allowed"
             >
               I&apos;ll decide later
             </button>

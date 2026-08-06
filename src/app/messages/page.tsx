@@ -30,7 +30,7 @@ function MessagesContent() {
   if (authLoading) {
     return (
       <div className="flex items-center justify-center h-full">
-        <i className="fas fa-spinner fa-spin text-gray-400 text-2xl"></i>
+        <i className="fas fa-spinner fa-spin text-faint text-2xl"></i>
       </div>
     );
   }
@@ -45,7 +45,7 @@ function MessagesContent() {
             Quick messages row stays pinned at the bottom instead of being
             pushed off-screen. Note lg:flex (not lg:block) for the same reason. */}
         <div className={`
-          flex-shrink-0 border-r border-gray-200 flex flex-col min-h-0
+          flex-shrink-0 border-r border-border flex flex-col min-h-0
           ${activeId ? 'hidden lg:flex lg:w-80' : 'w-full lg:w-80'}
         `}>
           <div className="flex-1 min-h-0">
@@ -73,16 +73,16 @@ function MessagesContent() {
             />
           </div>
         ) : (
-          <div className="hidden lg:flex flex-1 items-center justify-center bg-gray-50">
+          <div className="hidden lg:flex flex-1 items-center justify-center bg-surface-muted">
             <div className="text-center">
-              <div className="w-16 h-16 bg-gray-200 rounded-full flex items-center justify-center mx-auto mb-4">
-                <i className="fas fa-comment-alt text-gray-400 text-2xl"></i>
+              <div className="w-16 h-16 bg-gray-200 dark:bg-stone-800 rounded-full flex items-center justify-center mx-auto mb-4">
+                <i className="fas fa-comment-alt text-faint text-2xl"></i>
               </div>
-              <p className="text-sm font-semibold text-gray-700 mb-1">Your Messages</p>
-              <p className="text-xs text-gray-400 mb-4">Select a conversation or start a new one</p>
+              <p className="text-sm font-semibold text-secondary mb-1">Your Messages</p>
+              <p className="text-xs text-faint mb-4">Select a conversation or start a new one</p>
               <button
                 onClick={() => setShowNewModal(true)}
-                className="inline-flex items-center gap-2 px-4 py-2 bg-violet-600 text-white rounded-lg text-sm font-semibold hover:bg-violet-700 transition-colors"
+                className="inline-flex items-center gap-2 px-4 py-2 bg-brand text-white rounded-lg text-sm font-semibold hover:bg-brand-hover transition-colors"
               >
                 <i className="fas fa-plus text-xs"></i>
                 New Message
@@ -101,12 +101,12 @@ function MessagesContent() {
 
 export default function MessagesPage() {
   return (
-    <div className="flex flex-col h-dvh bg-white" style={{ height: 'var(--vvh, 100dvh)' }}>
+    <div className="flex flex-col h-dvh bg-surface" style={{ height: 'var(--vvh, 100dvh)' }}>
       <AppHeader showSearch={false} />
       <div className="flex-1 min-h-0">
         <Suspense fallback={
           <div className="flex items-center justify-center h-full">
-            <i className="fas fa-spinner fa-spin text-gray-400 text-2xl"></i>
+            <i className="fas fa-spinner fa-spin text-faint text-2xl"></i>
           </div>
         }>
           <MessagesContent />

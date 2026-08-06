@@ -31,9 +31,9 @@ interface AthleteRow {
 }
 
 const CHIP_TONES = {
-  violet: 'bg-violet-100 text-violet-700',
-  amber: 'bg-amber-100 text-amber-700',
-  gray: 'bg-gray-100 text-gray-600',
+  violet: 'bg-violet-100 dark:bg-violet-950/60 text-brand-fg-strong',
+  amber: 'bg-amber-100 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300',
+  gray: 'bg-surface-sunken text-tertiary',
 } as const;
 
 export default function GuardianTransfersPage() {
@@ -78,33 +78,33 @@ export default function GuardianTransfersPage() {
 
   if (!FEATURE_FLAGS.FEATURE_GUARDIAN_PROFILES || loading || !initialAuthCheckComplete || !user) {
     return (
-      <div className="min-h-screen bg-violet-50 flex items-center justify-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-violet-600"></div>
+      <div className="min-h-screen bg-brand-soft flex items-center justify-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-brand"></div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen flex flex-col bg-violet-50">
+    <div className="min-h-screen flex flex-col bg-brand-soft">
       <BrandBar />
       <main className="flex-grow w-full max-w-2xl mx-auto px-4 py-8">
-        <h1 className="text-xl sm:text-2xl font-bold text-violet-800 mb-1">Account transfers</h1>
-        <p className="text-sm text-gray-600 mb-6">
+        <h1 className="text-xl sm:text-2xl font-bold text-violet-800 dark:text-violet-200 mb-1">Account transfers</h1>
+        <p className="text-sm text-tertiary mb-6">
           When an athlete is old enough, you can hand their account over to them.
           Nothing happens without both of you confirming, and there&apos;s always a
           7-day waiting period.
         </p>
 
         {error && (
-          <div role="alert" className="bg-red-50 border border-red-200 text-red-600 px-4 py-3 rounded-md text-sm mb-4">
+          <div role="alert" className="bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-800 text-red-600 dark:text-red-400 px-4 py-3 rounded-md text-sm mb-4">
             {error}
           </div>
         )}
 
         {state === 'loading' ? (
-          <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-violet-600 mx-auto my-12"></div>
+          <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-brand mx-auto my-12"></div>
         ) : rows.length === 0 ? (
-          <div className="text-sm text-gray-500 bg-white border border-gray-200 rounded-lg p-6 text-center">
+          <div className="text-sm text-muted bg-surface border border-border rounded-lg p-6 text-center">
             You&apos;re not supervising any athlete accounts.
           </div>
         ) : (
@@ -118,7 +118,7 @@ export default function GuardianTransfersPage() {
                 : { label: 'Supervised', tone: 'gray' as const };
             const inner = (
               <>
-                <div className="relative w-10 h-10 rounded-full overflow-hidden bg-violet-100 flex items-center justify-center shrink-0">
+                <div className="relative w-10 h-10 rounded-full overflow-hidden bg-violet-100 dark:bg-violet-950/60 flex items-center justify-center shrink-0">
                   {athlete.avatar_url ? (
                     <Image
                       src={athlete.avatar_url}
@@ -129,12 +129,12 @@ export default function GuardianTransfersPage() {
                       unoptimized={!isOptimizableImageSrc(athlete.avatar_url)}
                     />
                   ) : (
-                    <span className="text-sm font-semibold text-violet-700">{getInitials(name)}</span>
+                    <span className="text-sm font-semibold text-brand-fg-strong">{getInitials(name)}</span>
                   )}
                 </div>
                 <div className="flex-grow min-w-0 text-left">
-                  <p className="text-sm font-semibold text-gray-900 truncate">{name}</p>
-                  {athlete.handle && <p className="text-xs text-gray-500 truncate">@{athlete.handle}</p>}
+                  <p className="text-sm font-semibold text-primary truncate">{name}</p>
+                  {athlete.handle && <p className="text-xs text-muted truncate">@{athlete.handle}</p>}
                 </div>
                 <span className={`text-xs font-medium px-2.5 py-1 rounded-full shrink-0 ${CHIP_TONES[chip.tone]}`}>
                   {chip.label}
@@ -143,7 +143,7 @@ export default function GuardianTransfersPage() {
               </>
             );
             return transferred ? (
-              <div key={athlete.id} className="w-full bg-white border border-gray-200 rounded-lg p-4 mb-3 flex items-center gap-3">
+              <div key={athlete.id} className="w-full bg-surface border border-border rounded-lg p-4 mb-3 flex items-center gap-3">
                 {inner}
               </div>
             ) : (
@@ -151,7 +151,7 @@ export default function GuardianTransfersPage() {
                 key={athlete.id}
                 type="button"
                 onClick={() => router.push(`/app/transfer/${athlete.id}`)}
-                className="w-full bg-white border border-gray-200 rounded-lg p-4 mb-3 flex items-center gap-3 hover:border-violet-300 transition"
+                className="w-full bg-surface border border-border rounded-lg p-4 mb-3 flex items-center gap-3 hover:border-violet-300 transition"
               >
                 {inner}
               </button>

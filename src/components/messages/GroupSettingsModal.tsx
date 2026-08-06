@@ -167,39 +167,39 @@ export default function GroupSettingsModal({ conversation, currentUserId, onClos
   return (
     <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={onClose}>
       <div
-        className="max-w-md w-full bg-white rounded-xl shadow-xl max-h-modal overflow-y-auto"
+        className="max-w-md w-full bg-surface-raised rounded-xl shadow-xl max-h-modal overflow-y-auto"
         onClick={e => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="flex items-center justify-between px-5 py-4 border-b border-gray-200">
-          <h2 className="text-lg font-bold text-gray-900">Group Settings</h2>
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 p-1">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-border">
+          <h2 className="text-lg font-bold text-primary">Group Settings</h2>
+          <button onClick={onClose} className="text-faint hover:text-tertiary p-1">
             <i className="fas fa-times"></i>
           </button>
         </div>
 
         <div className="p-5 space-y-6">
           {error && (
-            <p className="text-sm text-red-600 bg-red-50 rounded-lg px-3 py-2">{error}</p>
+            <p className="text-sm text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-950/40 rounded-lg px-3 py-2">{error}</p>
           )}
 
           {/* Group Name */}
           {isAdmin && (
             <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-2">Group Name</label>
+              <label className="block text-sm font-semibold text-secondary mb-2">Group Name</label>
               <div className="flex gap-2">
                 <input
                   type="text"
                   value={name}
                   onChange={e => setName(e.target.value)}
-                  className="flex-1 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500"
+                  className="flex-1 border border-border-strong rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500"
                   placeholder="Group name"
                   maxLength={100}
                 />
                 <button
                   onClick={handleSaveName}
                   disabled={savingName || !name.trim() || name.trim() === conversation.name}
-                  className="px-4 py-2 bg-violet-600 text-white rounded-lg text-sm font-semibold hover:bg-violet-700 disabled:opacity-40 transition-colors"
+                  className="px-4 py-2 bg-brand text-white rounded-lg text-sm font-semibold hover:bg-brand-hover disabled:opacity-40 transition-colors"
                 >
                   {savingName ? <i className="fas fa-spinner fa-spin"></i> : 'Save'}
                 </button>
@@ -209,7 +209,7 @@ export default function GroupSettingsModal({ conversation, currentUserId, onClos
 
           {/* Members */}
           <div>
-            <h3 className="text-sm font-semibold text-gray-700 mb-3">
+            <h3 className="text-sm font-semibold text-secondary mb-3">
               Members ({activeParticipants.length})
             </h3>
             <div className="space-y-2">
@@ -234,22 +234,22 @@ export default function GroupSettingsModal({ conversation, currentUserId, onClos
                       </div>
                     )}
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-gray-900 truncate">
-                        {displayName} {isMe && <span className="text-gray-400 font-normal">(you)</span>}
+                      <p className="text-sm font-medium text-primary truncate">
+                        {displayName} {isMe && <span className="text-faint font-normal">(you)</span>}
                       </p>
                       {p.profile?.handle && (
-                        <p className="text-xs text-gray-400 truncate">@{p.profile.handle}</p>
+                        <p className="text-xs text-faint truncate">@{p.profile.handle}</p>
                       )}
                     </div>
                     {p.role === 'admin' && (
-                      <span className="text-xs bg-violet-100 text-violet-700 px-2 py-0.5 rounded-full font-medium shrink-0">
+                      <span className="text-xs bg-violet-100 dark:bg-violet-950/60 text-brand-fg-strong px-2 py-0.5 rounded-full font-medium shrink-0">
                         Admin
                       </span>
                     )}
                     {isAdmin && !isMe && (
                       <button
                         onClick={() => handleRemoveMember(p)}
-                        className="text-red-400 hover:text-red-600 p-1 shrink-0"
+                        className="text-red-400 hover:text-red-600 dark:hover:text-red-400 p-1 shrink-0"
                         title="Remove from group"
                       >
                         <i className="fas fa-times text-xs"></i>
@@ -264,21 +264,21 @@ export default function GroupSettingsModal({ conversation, currentUserId, onClos
           {/* Add Members (admin only) */}
           {isAdmin && (
             <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-2">Add Members</label>
+              <label className="block text-sm font-semibold text-secondary mb-2">Add Members</label>
               <div className="relative">
-                <i className="fas fa-search absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-xs"></i>
+                <i className="fas fa-search absolute left-3 top-1/2 -translate-y-1/2 text-faint text-xs"></i>
                 <input
                   type="text"
                   value={searchQuery}
                   onChange={e => setSearchQuery(e.target.value)}
                   placeholder="Search athletes…"
-                  className="w-full pl-8 pr-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-violet-500"
+                  className="w-full pl-8 pr-3 py-2 border border-border-strong rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-violet-500"
                 />
               </div>
               {(searching || searchResults.length > 0) && (
-                <div className="mt-2 border border-gray-200 rounded-lg overflow-hidden">
+                <div className="mt-2 border border-border rounded-lg overflow-hidden">
                   {searching ? (
-                    <div className="px-3 py-3 text-center text-gray-400 text-sm">
+                    <div className="px-3 py-3 text-center text-faint text-sm">
                       <i className="fas fa-spinner fa-spin mr-2"></i>Searching…
                     </div>
                   ) : (
@@ -289,7 +289,7 @@ export default function GroupSettingsModal({ conversation, currentUserId, onClos
                           key={result.id}
                           onClick={() => handleAddMember(result.id)}
                           disabled={addingMembers}
-                          className="w-full flex items-center gap-3 px-3 py-2.5 hover:bg-gray-50 text-left disabled:opacity-50"
+                          className="w-full flex items-center gap-3 px-3 py-2.5 hover:bg-surface-muted text-left disabled:opacity-50"
                         >
                           {result.avatar_url ? (
                             <LazyImage
@@ -305,10 +305,10 @@ export default function GroupSettingsModal({ conversation, currentUserId, onClos
                             </div>
                           )}
                           <div className="flex-1 min-w-0">
-                            <p className="text-sm font-medium text-gray-900 truncate">{rName}</p>
-                            {result.handle && <p className="text-xs text-gray-400">@{result.handle}</p>}
+                            <p className="text-sm font-medium text-primary truncate">{rName}</p>
+                            {result.handle && <p className="text-xs text-faint">@{result.handle}</p>}
                           </div>
-                          <i className="fas fa-plus text-violet-600 text-xs shrink-0"></i>
+                          <i className="fas fa-plus text-brand-fg text-xs shrink-0"></i>
                         </button>
                       );
                     })
@@ -319,11 +319,11 @@ export default function GroupSettingsModal({ conversation, currentUserId, onClos
           )}
 
           {/* Leave Group */}
-          <div className="pt-2 border-t border-gray-200">
+          <div className="pt-2 border-t border-border">
             <button
               onClick={handleLeave}
               disabled={saving}
-              className="w-full flex items-center justify-center gap-2 py-2.5 text-sm font-semibold text-red-600 hover:bg-red-50 rounded-lg transition-colors disabled:opacity-40"
+              className="w-full flex items-center justify-center gap-2 py-2.5 text-sm font-semibold text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/40 rounded-lg transition-colors disabled:opacity-40"
             >
               <i className="fas fa-sign-out-alt"></i>
               {saving ? 'Leaving…' : 'Leave Group'}

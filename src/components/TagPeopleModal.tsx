@@ -168,13 +168,13 @@ export default function TagPeopleModal({
           header + search + a grown selected-chips block + 300px exceeded 80vh
           on an iPhone SE, and overflow-hidden ate the remainder. Now the list
           is the only scroll area and takes whatever height is left. */}
-      <div className="bg-white rounded-lg max-w-md w-full max-h-modal overflow-hidden shadow-xl flex flex-col">
+      <div className="bg-surface-raised rounded-lg max-w-md w-full max-h-modal overflow-hidden shadow-xl flex flex-col">
         {/* Header */}
-        <div className="shrink-0 p-4 border-b border-gray-200 flex items-center justify-between">
-          <h2 className="text-lg font-bold text-gray-900">Tag People</h2>
+        <div className="shrink-0 p-4 border-b border-border flex items-center justify-between">
+          <h2 className="text-lg font-bold text-primary">Tag People</h2>
           <button
             onClick={onClose}
-            className="ea-icon-btn inline-flex items-center justify-center text-gray-400 hover:text-gray-600"
+            className="ea-icon-btn inline-flex items-center justify-center text-faint hover:text-tertiary"
             aria-label="Close"
           >
             <i className="fas fa-times text-xl"></i>
@@ -182,38 +182,38 @@ export default function TagPeopleModal({
         </div>
 
         {/* Search */}
-        <div className="shrink-0 p-4 border-b border-gray-200">
+        <div className="shrink-0 p-4 border-b border-border">
           <div className="relative">
             <input
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="Search people..."
-              className="w-full px-4 py-2 pl-10 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-500"
+              className="w-full px-4 py-2 pl-10 border border-border-strong rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-500"
             />
-            <i className="fas fa-search absolute left-3 top-3 text-gray-400"></i>
+            <i className="fas fa-search absolute left-3 top-3 text-faint"></i>
           </div>
         </div>
 
         {/* Selected People. Capped: with many selections this block would
             otherwise grow unbounded and starve the results list below. */}
         {selectedProfiles.length > 0 && (
-          <div className="shrink-0 max-h-32 overflow-y-auto overscroll-contain p-4 border-b border-gray-200 bg-violet-50">
-            <p className="text-sm font-semibold text-gray-700 mb-2">
+          <div className="shrink-0 max-h-32 overflow-y-auto overscroll-contain p-4 border-b border-border bg-brand-soft">
+            <p className="text-sm font-semibold text-secondary mb-2">
               Selected ({selectedProfiles.length})
             </p>
             <div className="flex flex-wrap gap-2">
               {selectedProfiles.map(profile => (
                 <div
                   key={profile.id}
-                  className="flex items-center gap-2 bg-white px-3 py-1 rounded-full border border-violet-300"
+                  className="flex items-center gap-2 bg-surface px-3 py-1 rounded-full border border-violet-300 dark:border-violet-700"
                 >
-                  <span className="text-sm font-medium text-gray-900">
+                  <span className="text-sm font-medium text-primary">
                     {getDisplayName(profile)}
                   </span>
                   <button
                     onClick={() => toggleProfile(profile)}
-                    className="text-gray-400 hover:text-red-600"
+                    className="text-faint hover:text-red-600 dark:hover:text-red-400"
                   >
                     <i className="fas fa-times text-xs"></i>
                   </button>
@@ -227,29 +227,29 @@ export default function TagPeopleModal({
         <div className="flex-1 min-h-0 overflow-y-auto">
           {loading && (
             <div className="p-8 text-center">
-              <i className="fas fa-spinner fa-spin text-2xl text-gray-400"></i>
+              <i className="fas fa-spinner fa-spin text-2xl text-faint"></i>
             </div>
           )}
 
           {!loading && searchQuery.length < 2 && (
             <div className="p-8 text-center">
-              <i className="fas fa-search text-3xl text-gray-300 mb-2"></i>
-              <p className="text-gray-600 text-sm">Type to search for people</p>
+              <i className="fas fa-search text-3xl text-gray-300 dark:text-stone-600 mb-2"></i>
+              <p className="text-tertiary text-sm">Type to search for people</p>
             </div>
           )}
 
           {!loading && searchQuery.length >= 2 && searchResults.length === 0 && (
             <div className="p-8 text-center">
-              <i className="fas fa-user-slash text-3xl text-gray-300 mb-2"></i>
-              <p className="text-gray-700 font-medium mb-1">No people found</p>
-              <p className="text-gray-500 text-xs">
+              <i className="fas fa-user-slash text-3xl text-gray-300 dark:text-stone-600 mb-2"></i>
+              <p className="text-secondary font-medium mb-1">No people found</p>
+              <p className="text-muted text-xs">
                 Try searching by name, sport, or school
               </p>
             </div>
           )}
 
           {!loading && searchResults.length > 0 && (
-            <div className="divide-y divide-gray-200">
+            <div className="divide-y divide-border">
               {searchResults.map(profile => {
                 const isSelected = selectedProfiles.some(p => p.id === profile.id);
 
@@ -257,7 +257,7 @@ export default function TagPeopleModal({
                   <button
                     key={profile.id}
                     onClick={() => toggleProfile(profile)}
-                    className="w-full p-4 flex items-center gap-3 hover:bg-gray-50 transition-colors text-left"
+                    className="w-full p-4 flex items-center gap-3 hover:bg-surface-muted transition-colors text-left"
                   >
                     {profile.avatar_url ? (
                       <Image
@@ -268,26 +268,26 @@ export default function TagPeopleModal({
                         className="rounded-full object-cover"
                       />
                     ) : (
-                      <div className="w-12 h-12 rounded-full bg-gray-200 flex items-center justify-center">
-                        <span className="text-gray-600 font-semibold">
+                      <div className="w-12 h-12 rounded-full bg-gray-200 dark:bg-stone-800 flex items-center justify-center">
+                        <span className="text-tertiary font-semibold">
                           {getDisplayName(profile).charAt(0)}
                         </span>
                       </div>
                     )}
 
                     <div className="flex-1 min-w-0">
-                      <p className="font-semibold text-gray-900">
+                      <p className="font-semibold text-primary">
                         {getDisplayName(profile)}
                       </p>
                       {profile.sport && profile.school && (
-                        <p className="text-sm text-gray-600">
+                        <p className="text-sm text-tertiary">
                           {profile.sport} • {profile.school}
                         </p>
                       )}
                     </div>
 
                     {isSelected && (
-                      <i className="fas fa-check-circle text-violet-600 text-xl"></i>
+                      <i className="fas fa-check-circle text-brand-fg text-xl"></i>
                     )}
                   </button>
                 );
@@ -297,17 +297,17 @@ export default function TagPeopleModal({
         </div>
 
         {/* Footer */}
-        <div className="p-4 border-t border-gray-200 flex items-center justify-end gap-3">
+        <div className="p-4 border-t border-border flex items-center justify-end gap-3">
           <button
             onClick={onClose}
-            className="px-4 py-2 text-gray-700 hover:text-gray-900 font-medium transition-colors"
+            className="px-4 py-2 text-secondary hover:text-primary font-medium transition-colors"
           >
             Cancel
           </button>
           <button
             onClick={handleSubmit}
             disabled={selectedProfiles.length === 0 || submitting}
-            className="px-6 py-2 bg-violet-600 text-white font-semibold rounded-lg hover:bg-violet-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors"
+            className="px-6 py-2 bg-brand text-white font-semibold rounded-lg hover:bg-brand-hover disabled:bg-gray-300 dark:disabled:bg-stone-700 disabled:cursor-not-allowed transition-colors"
           >
             {submitting ? (
               <>

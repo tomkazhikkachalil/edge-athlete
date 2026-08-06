@@ -35,7 +35,7 @@ export function EventChip({
       title={event.title}
       className={`w-full text-left rounded px-1.5 py-0.5 text-xs leading-tight truncate transition border ${
         pending
-          ? `bg-white border-dashed ${color.border} ${color.text} opacity-70`
+          ? `bg-surface border-dashed ${color.border} ${color.text} opacity-70`
           : `${color.bg} border-transparent text-white`
       }`}
     >
@@ -81,7 +81,7 @@ export function EventBlock({
       }}
       className={`absolute rounded-md px-1.5 py-0.5 text-xs text-left overflow-hidden border transition z-10 ${
         pending
-          ? `bg-white border-dashed ${color.border} ${color.text} opacity-70`
+          ? `bg-surface border-dashed ${color.border} ${color.text} opacity-70`
           : `${color.bg} border-white/20 text-white`
       }`}
     >

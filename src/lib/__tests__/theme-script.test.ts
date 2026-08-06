@@ -1,0 +1,241 @@
+import { describe, it, expect } from 'vitest';
+import { THEME_INIT_SCRIPT } from '../theme-script';
+import { THEME_PREFS_KEY } from '../theme-storage-keys';
+import { THEME_COOKIE, encodeThemeCookie } from '../theme-cookie';
+import { resolveTheme, sanitizeThemePrefs, type ResolvedTheme } from '../theme-prefs';
+
+/**
+ * THEME_INIT_SCRIPT duplicates resolveTheme() in inline ES5 so first paint
+ * can resolve the theme before React loads. This suite pins the two
+ * implementations together: the script is executed via new Function with
+ * stubbed globals (node-only — no jsdom needed, the script touches exactly
+ * localStorage, window.matchMedia, document.documentElement.dataset and
+ * Date) and must agree with resolveTheme across the whole matrix.
+ */
+
+// The script calls bare `new Date()`; shadowing the Date parameter with this
+// class freezes "now" without touching real timers.
+function makeFrozenDate(fixedNow: Date): DateConstructor {
+  return class extends Date {
+    constructor(...args: unknown[]) {
+      if (args.length === 0) super(fixedNow.getTime());
+      else super(...(args as [number]));
+    }
+  } as DateConstructor;
+}
+
+interface RunResult {
+  theme: ResolvedTheme;
+  /** What the script left in the localStorage mirror. */
+  mirror: string | null;
+}
+
+function run(opts: {
+  stored?: string | null;
+  cookie?: string | null;
+  now: Date;
+  systemPrefersDark?: boolean;
+}): RunResult {
+  const documentStub = {
+    cookie: opts.cookie ? `${THEME_COOKIE}=${opts.cookie}` : '',
+    documentElement: { dataset: {} as Record<string, string | undefined> },
+  };
+  let mirror = opts.stored ?? null;
+  const localStorageStub = {
+    getItem: (key: string) => (key === THEME_PREFS_KEY ? mirror : null),
+    setItem: (key: string, value: string) => {
+      if (key === THEME_PREFS_KEY) mirror = value;
+    },
+  };
+  const windowStub = {
+    matchMedia: (query: string) => ({
+      matches: query === '(prefers-color-scheme: dark)' && (opts.systemPrefersDark ?? false),
+    }),
+  };
+  new Function('localStorage', 'window', 'document', 'Date', 'atob', THEME_INIT_SCRIPT)(
+    localStorageStub,
+    windowStub,
+    documentStub,
+    makeFrozenDate(opts.now),
+    (b64: string) => Buffer.from(b64, 'base64').toString('binary')
+  );
+  return {
+    theme: documentStub.documentElement.dataset.theme === 'dark' ? 'dark' : 'light',
+    mirror,
+  };
+}
+
+function runScript(stored: string | null, now: Date, systemPrefersDark: boolean): ResolvedTheme {
+  return run({ stored, now, systemPrefersDark }).theme;
+}
+
+const aug5 = (h: number, m = 0) => new Date(2026, 7, 5, h, m);
+const aug6 = (h: number, m = 0) => new Date(2026, 7, 6, h, m);
+
+describe('THEME_INIT_SCRIPT agrees with resolveTheme', () => {
+  const overnight = { start: 1200, end: 420 };
+  const daytime = { start: 540, end: 1020 };
+
+  // Every stored payload the mirror can legally contain (it writes only
+  // sanitized prefs), across times chosen to hit both sides of every window
+  // and both fates of an override.
+  const cases: Array<{ name: string; prefs: unknown; now: Date; sys: boolean }> = [
+    { name: 'no prefs at night', prefs: {}, now: aug5(23), sys: true },
+    { name: 'off at night', prefs: { mode: 'off' }, now: aug5(23), sys: true },
+    { name: 'on at noon', prefs: { mode: 'on' }, now: aug5(12), sys: false },
+    { name: 'system, OS dark', prefs: { mode: 'system' }, now: aug5(12), sys: true },
+    { name: 'system, OS light', prefs: { mode: 'system' }, now: aug5(23), sys: false },
+    { name: 'scheduled default, evening', prefs: { mode: 'scheduled' }, now: aug5(23), sys: false },
+    { name: 'scheduled default, after midnight', prefs: { mode: 'scheduled' }, now: aug6(3), sys: false },
+    { name: 'scheduled default, noon', prefs: { mode: 'scheduled' }, now: aug5(12), sys: false },
+    { name: 'scheduled default, start boundary', prefs: { mode: 'scheduled' }, now: aug5(20), sys: false },
+    { name: 'scheduled default, end boundary', prefs: { mode: 'scheduled' }, now: aug6(7), sys: false },
+    {
+      name: 'scheduled custom same-day window, inside',
+      prefs: { mode: 'scheduled', schedule: daytime },
+      now: aug5(10),
+      sys: false,
+    },
+    {
+      name: 'scheduled custom same-day window, outside',
+      prefs: { mode: 'scheduled', schedule: daytime },
+      now: aug5(18),
+      sys: false,
+    },
+    {
+      name: 'override to light, still active late evening',
+      prefs: {
+        mode: 'scheduled',
+        schedule: overnight,
+        override: { theme: 'light', setAt: aug5(21).toISOString() },
+      },
+      now: aug5(23, 59),
+      sys: false,
+    },
+    {
+      name: 'override to light, still active pre-dawn',
+      prefs: {
+        mode: 'scheduled',
+        schedule: overnight,
+        override: { theme: 'light', setAt: aug5(21).toISOString() },
+      },
+      now: aug6(6, 59),
+      sys: false,
+    },
+    {
+      name: 'override expired at the end boundary',
+      prefs: {
+        mode: 'scheduled',
+        schedule: overnight,
+        override: { theme: 'light', setAt: aug5(21).toISOString() },
+      },
+      now: aug6(7),
+      sys: false,
+    },
+    {
+      name: 'override expired, next evening resumes dark',
+      prefs: {
+        mode: 'scheduled',
+        schedule: overnight,
+        override: { theme: 'light', setAt: aug5(21).toISOString() },
+      },
+      now: aug6(21),
+      sys: false,
+    },
+    {
+      name: 'daytime override to dark, active before window',
+      prefs: {
+        mode: 'scheduled',
+        schedule: overnight,
+        override: { theme: 'dark', setAt: aug5(14).toISOString() },
+      },
+      now: aug5(19, 59),
+      sys: false,
+    },
+    {
+      name: 'daytime override to dark, expired at window start',
+      prefs: {
+        mode: 'scheduled',
+        schedule: overnight,
+        override: { theme: 'dark', setAt: aug5(14).toISOString() },
+      },
+      now: aug5(20),
+      sys: false,
+    },
+  ];
+
+  for (const { name, prefs, now, sys } of cases) {
+    it(name, () => {
+      const sanitized = sanitizeThemePrefs(prefs);
+      // The mirror only ever stores sanitized prefs — assert the case IS
+      // its own sanitized form, so the equivalence claim stays honest.
+      expect(sanitized).toEqual(prefs);
+      expect(runScript(JSON.stringify(sanitized), now, sys)).toBe(
+        resolveTheme(sanitized, now, sys)
+      );
+    });
+  }
+
+  it('runs the same matrix from the COOKIE, ignoring the mirror entirely', () => {
+    // The stale mirror says "always dark"; the cookie is server truth and must
+    // win outright — this is the swap-removal contract.
+    const staleMirror = JSON.stringify({ mode: 'on' });
+    for (const { name, prefs, now, sys } of cases) {
+      const sanitized = sanitizeThemePrefs(prefs);
+      const { theme, mirror } = run({
+        stored: staleMirror,
+        cookie: encodeThemeCookie(sanitized),
+        now,
+        systemPrefersDark: sys,
+      });
+      expect(theme, name).toBe(resolveTheme(sanitized, now, sys));
+      // and the cookie's value is written back, so the runtime evaluator
+      // starts from server truth and has nothing to correct
+      expect(JSON.parse(mirror as string), name).toEqual(sanitized);
+    }
+  });
+
+  it('falls back to the mirror when the cookie is absent or corrupt', () => {
+    const darkMirror = JSON.stringify({ mode: 'on' });
+    expect(run({ stored: darkMirror, cookie: null, now: aug5(12) }).theme).toBe('dark');
+    expect(run({ stored: darkMirror, cookie: 'not!base64', now: aug5(12) }).theme).toBe('dark');
+    // valid base64, truncated JSON inside — the parse throws, so the mirror stands
+    const truncated = btoa('{"mode":"o').replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+    expect(run({ stored: darkMirror, cookie: truncated, now: aug5(12) }).theme).toBe('dark');
+    // An EMPTY cookie is server truth meaning "no preference" — it must beat a
+    // stale dark mirror rather than being treated as absent.
+    expect(run({ stored: darkMirror, cookie: encodeThemeCookie({}), now: aug5(12) }).theme).toBe('light');
+  });
+
+  it('clears a previously-stamped attribute when it resolves to light', () => {
+    const documentStub = {
+      cookie: `${THEME_COOKIE}=${encodeThemeCookie({ mode: 'off' })}`,
+      documentElement: { dataset: { theme: 'dark' } as Record<string, string | undefined> },
+    };
+    new Function('localStorage', 'window', 'document', 'Date', 'atob', THEME_INIT_SCRIPT)(
+      { getItem: () => null, setItem: () => {} },
+      { matchMedia: () => ({ matches: false }) },
+      documentStub,
+      makeFrozenDate(aug5(12)),
+      (b64: string) => Buffer.from(b64, 'base64').toString('binary')
+    );
+    expect(documentStub.documentElement.dataset.theme).toBeUndefined();
+  });
+
+  it('falls back to light on missing key, garbage JSON, and throwing storage', () => {
+    expect(runScript(null, aug5(23), true)).toBe('light');
+    expect(runScript('{not json', aug5(23), true)).toBe('light');
+    expect(runScript('"a string"', aug5(23), true)).toBe('light');
+    expect(runScript(JSON.stringify([1, 2]), aug5(23), true)).toBe('light');
+
+    const documentStub = { cookie: '', documentElement: { dataset: {} as Record<string, string | undefined> } };
+    new Function('localStorage', 'window', 'document', 'Date', 'atob', THEME_INIT_SCRIPT)(
+      { getItem: () => { throw new Error('storage disabled'); }, setItem: () => {} },
+      { matchMedia: () => ({ matches: true }) },
+      documentStub,
+      makeFrozenDate(aug5(23)),
+      (b64: string) => Buffer.from(b64, 'base64').toString('binary')
+    );
+    expect(documentStub.documentElement.dataset.theme).toBeUndefined();
+  });
+});

@@ -282,53 +282,53 @@ export function getSportMetadata(sportKey: string): SportMetadata {
  */
 export const SPORT_TAILWIND_COLORS: Record<string, { bg: string; text: string; border: string }> = {
   // Track & Field - Blue
-  track_field: { bg: 'bg-blue-500', text: 'text-blue-500', border: 'border-blue-500' },
-  track: { bg: 'bg-blue-500', text: 'text-blue-500', border: 'border-blue-500' },
-  field: { bg: 'bg-blue-500', text: 'text-blue-500', border: 'border-blue-500' },
-  cross_country: { bg: 'bg-emerald-500', text: 'text-emerald-500', border: 'border-emerald-500' },
+  track_field: { bg: 'bg-blue-500', text: 'text-blue-500 dark:text-blue-400', border: 'border-blue-500' },
+  track: { bg: 'bg-blue-500', text: 'text-blue-500 dark:text-blue-400', border: 'border-blue-500' },
+  field: { bg: 'bg-blue-500', text: 'text-blue-500 dark:text-blue-400', border: 'border-blue-500' },
+  cross_country: { bg: 'bg-emerald-500', text: 'text-emerald-500 dark:text-emerald-400', border: 'border-emerald-500' },
   
   // Ball Sports
-  basketball: { bg: 'bg-orange-500', text: 'text-orange-500', border: 'border-orange-500' },
-  football: { bg: 'bg-violet-500', text: 'text-violet-500', border: 'border-violet-500' },
-  soccer: { bg: 'bg-emerald-500', text: 'text-emerald-500', border: 'border-emerald-500' },
-  baseball: { bg: 'bg-red-500', text: 'text-red-500', border: 'border-red-500' },
-  softball: { bg: 'bg-pink-500', text: 'text-pink-500', border: 'border-pink-500' },
-  volleyball: { bg: 'bg-amber-500', text: 'text-amber-500', border: 'border-amber-500' },
-  tennis: { bg: 'bg-lime-500', text: 'text-lime-500', border: 'border-lime-500' },
-  golf: { bg: 'bg-green-500', text: 'text-green-500', border: 'border-green-500' },
+  basketball: { bg: 'bg-orange-500', text: 'text-orange-500 dark:text-orange-400', border: 'border-orange-500' },
+  football: { bg: 'bg-violet-500', text: 'text-violet-500 dark:text-violet-400', border: 'border-violet-500' },
+  soccer: { bg: 'bg-emerald-500', text: 'text-emerald-500 dark:text-emerald-400', border: 'border-emerald-500' },
+  baseball: { bg: 'bg-red-500', text: 'text-red-500 dark:text-red-400', border: 'border-red-500' },
+  softball: { bg: 'bg-pink-500', text: 'text-pink-500 dark:text-pink-400', border: 'border-pink-500' },
+  volleyball: { bg: 'bg-amber-500', text: 'text-amber-500 dark:text-amber-400', border: 'border-amber-500' },
+  tennis: { bg: 'bg-lime-500', text: 'text-lime-500 dark:text-lime-400', border: 'border-lime-500' },
+  golf: { bg: 'bg-green-500', text: 'text-green-500 dark:text-green-400', border: 'border-green-500' },
   
   // Water Sports
-  swimming: { bg: 'bg-cyan-500', text: 'text-cyan-500', border: 'border-cyan-500' },
-  diving: { bg: 'bg-cyan-500', text: 'text-cyan-500', border: 'border-cyan-500' },
-  water_polo: { bg: 'bg-sky-500', text: 'text-sky-500', border: 'border-sky-500' },
+  swimming: { bg: 'bg-cyan-500', text: 'text-cyan-500 dark:text-cyan-400', border: 'border-cyan-500' },
+  diving: { bg: 'bg-cyan-500', text: 'text-cyan-500 dark:text-cyan-400', border: 'border-cyan-500' },
+  water_polo: { bg: 'bg-sky-500', text: 'text-sky-500 dark:text-sky-400', border: 'border-sky-500' },
   
   // Combat Sports
-  wrestling: { bg: 'bg-red-600', text: 'text-red-600', border: 'border-red-600' },
-  boxing: { bg: 'bg-red-700', text: 'text-red-700', border: 'border-red-700' },
-  martial_arts: { bg: 'bg-red-800', text: 'text-red-800', border: 'border-red-800' },
+  wrestling: { bg: 'bg-red-600', text: 'text-red-600 dark:text-red-400', border: 'border-red-600' },
+  boxing: { bg: 'bg-red-700', text: 'text-red-700 dark:text-red-300', border: 'border-red-700' },
+  martial_arts: { bg: 'bg-red-800', text: 'text-red-800 dark:text-red-200', border: 'border-red-800' },
   
   // Winter Sports
-  ice_hockey: { bg: 'bg-sky-500', text: 'text-sky-500', border: 'border-sky-500' },
+  ice_hockey: { bg: 'bg-sky-500', text: 'text-sky-500 dark:text-sky-400', border: 'border-sky-500' },
   skiing: { bg: 'bg-sky-400', text: 'text-sky-400', border: 'border-sky-400' },
   snowboarding: { bg: 'bg-sky-300', text: 'text-sky-300', border: 'border-sky-300' },
   figure_skating: { bg: 'bg-indigo-200', text: 'text-indigo-200', border: 'border-indigo-200' },
   
   // Team Sports
-  lacrosse: { bg: 'bg-violet-500', text: 'text-violet-500', border: 'border-violet-500' },
-  field_hockey: { bg: 'bg-indigo-500', text: 'text-indigo-500', border: 'border-indigo-500' },
-  rugby: { bg: 'bg-emerald-600', text: 'text-emerald-600', border: 'border-emerald-600' },
+  lacrosse: { bg: 'bg-violet-500', text: 'text-violet-500 dark:text-violet-400', border: 'border-violet-500' },
+  field_hockey: { bg: 'bg-indigo-500', text: 'text-indigo-500 dark:text-indigo-400', border: 'border-indigo-500' },
+  rugby: { bg: 'bg-emerald-600', text: 'text-emerald-600 dark:text-emerald-400', border: 'border-emerald-600' },
   
   // Individual Sports
-  gymnastics: { bg: 'bg-purple-500', text: 'text-purple-500', border: 'border-purple-500' },
-  dance: { bg: 'bg-pink-500', text: 'text-pink-500', border: 'border-pink-500' },
-  cheer: { bg: 'bg-rose-500', text: 'text-rose-500', border: 'border-rose-500' },
-  bowling: { bg: 'bg-slate-500', text: 'text-slate-500', border: 'border-slate-500' },
+  gymnastics: { bg: 'bg-purple-500', text: 'text-purple-500 dark:text-purple-400', border: 'border-purple-500' },
+  dance: { bg: 'bg-pink-500', text: 'text-pink-500 dark:text-pink-400', border: 'border-pink-500' },
+  cheer: { bg: 'bg-rose-500', text: 'text-rose-500 dark:text-rose-400', border: 'border-rose-500' },
+  bowling: { bg: 'bg-slate-500', text: 'text-slate-500 dark:text-slate-400', border: 'border-slate-500' },
   
   // Training - Violet
-  training: { bg: 'bg-violet-500', text: 'text-violet-500', border: 'border-violet-500' },
+  training: { bg: 'bg-violet-500', text: 'text-violet-500 dark:text-violet-400', border: 'border-violet-500' },
 
   // Default
-  default: { bg: 'bg-gray-500', text: 'text-gray-500', border: 'border-gray-500' },
+  default: { bg: 'bg-gray-500', text: 'text-gray-500 dark:text-stone-400', border: 'border-gray-500' },
 };
 
 /**

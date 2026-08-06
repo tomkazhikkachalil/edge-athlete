@@ -16,14 +16,14 @@ import type { Conversation } from '@/types/messages';
 // White surface chip — violet stays reserved for the Messages pill. To go
 // violet instead, swap to:
 //   pill:  'flex items-center gap-2 h-11 pl-1.5 pr-3 rounded-lg max-w-44
-//           bg-violet-600 text-white hover:bg-violet-700 shadow-2xl
+//           bg-brand text-white hover:bg-brand-hover shadow-2xl
 //           transition-colors'
 //   name:  'text-sm font-medium truncate'
-//   badge: swap bg-red-500 text-white → bg-white text-violet-700, and the
-//          presence dot border-white → border-violet-600.
+//   badge: swap bg-red-500 text-white → bg-surface text-brand-fg-strong, and the
+//          presence dot border-white → border-brand.
 const PILL_CLASSES =
   'ea-surface ea-surface-raised ea-interactive flex items-center gap-2 h-11 pl-1.5 pr-3 rounded-lg max-w-44';
-const NAME_CLASSES = 'text-sm font-medium text-gray-900 truncate';
+const NAME_CLASSES = 'text-sm font-medium text-primary truncate';
 const BADGE_CLASSES =
   'ml-auto shrink-0 bg-red-500 text-white text-[10px] font-bold rounded-full min-w-4.5 h-4.5 px-1 flex items-center justify-center';
 
@@ -67,7 +67,7 @@ export default function MinimizedStack({
                   {avatarUrl ? (
                     <LazyImage src={avatarUrl} alt="" className="w-full h-full object-cover" />
                   ) : (
-                    <span className="w-full h-full flex items-center justify-center text-xs font-semibold text-violet-700">
+                    <span className="w-full h-full flex items-center justify-center text-xs font-semibold text-brand-fg-strong">
                       {initials}
                     </span>
                   )}

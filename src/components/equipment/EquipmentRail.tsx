@@ -30,7 +30,7 @@ interface EquipmentRailProps {
 const badge = (count: number, active: boolean) => (
   <span
     className={`inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 rounded-full text-xs font-bold ${
-      active ? 'bg-violet-100 text-violet-700' : 'bg-gray-200 text-gray-700'
+      active ? 'bg-violet-100 dark:bg-violet-950/60 text-brand-fg-strong' : 'bg-gray-200 dark:bg-stone-800 text-secondary'
     }`}
   >
     {count > 99 ? '99+' : count}
@@ -87,8 +87,8 @@ export default function EquipmentRail({
             aria-label="Choose sport"
             className={`w-full flex items-center justify-between gap-2 rounded-lg border px-2.5 py-2 text-xs font-bold uppercase tracking-wide transition-colors ${
               selectedSport !== null
-                ? 'border-violet-500 bg-violet-50 text-violet-800'
-                : 'border-gray-300 bg-white text-violet-800 hover:bg-gray-50'
+                ? 'border-violet-500 bg-brand-soft text-violet-800 dark:text-violet-200'
+                : 'border-border-strong bg-surface text-violet-800 dark:text-violet-200 hover:bg-surface-muted'
             }`}
           >
             <span className="truncate">{selectedLabel}</span>
@@ -101,14 +101,14 @@ export default function EquipmentRail({
             <div
               role="listbox"
               aria-label="Choose sport"
-              className="absolute left-0 top-full mt-1 w-full bg-white border border-gray-200 rounded-lg shadow-lg z-20 py-1"
+              className="absolute left-0 top-full mt-1 w-full bg-surface-raised border border-border rounded-lg shadow-lg z-20 py-1"
             >
               <button
                 role="option"
                 aria-selected={selectedSport === null}
                 onClick={() => { onSelectSport(null); setPickerOpen(false); }}
-                className={`w-full text-left px-3 py-2 text-sm hover:bg-gray-50 ${
-                  selectedSport === null ? 'font-semibold text-violet-800' : 'text-gray-700'
+                className={`w-full text-left px-3 py-2 text-sm hover:bg-surface-muted ${
+                  selectedSport === null ? 'font-semibold text-violet-800 dark:text-violet-200' : 'text-secondary'
                 }`}
               >
                 All Sports
@@ -119,8 +119,8 @@ export default function EquipmentRail({
                   role="option"
                   aria-selected={selectedSport === sport.sportKey}
                   onClick={() => { onSelectSport(sport.sportKey); setPickerOpen(false); }}
-                  className={`w-full flex items-center justify-between gap-2 text-left px-3 py-2 text-sm hover:bg-gray-50 ${
-                    selectedSport === sport.sportKey ? 'font-semibold text-violet-800' : 'text-gray-700'
+                  className={`w-full flex items-center justify-between gap-2 text-left px-3 py-2 text-sm hover:bg-surface-muted ${
+                    selectedSport === sport.sportKey ? 'font-semibold text-violet-800 dark:text-violet-200' : 'text-secondary'
                   }`}
                 >
                   <span className="truncate">{sport.label}</span>
@@ -146,7 +146,7 @@ export default function EquipmentRail({
                   onClick={() => onSelectSport(isSelected ? null : sport.sportKey)}
                   aria-pressed={isSelected}
                   className={`ea-interactive flex-1 min-w-0 text-left rounded-lg px-2 py-1.5 text-xs font-bold uppercase tracking-wide truncate ${
-                    isSelected ? 'bg-violet-50 text-violet-800' : 'text-violet-800'
+                    isSelected ? 'bg-brand-soft text-violet-800 dark:text-violet-200' : 'text-violet-800 dark:text-violet-200'
                   }`}
                 >
                   {sport.label}
@@ -160,7 +160,7 @@ export default function EquipmentRail({
                   className="ea-interactive flex h-7 w-7 shrink-0 items-center justify-center rounded-lg"
                 >
                   <ChevronDown
-                    className={`w-4 h-4 text-violet-700 transition-transform ${
+                    className={`w-4 h-4 text-brand-fg-strong transition-transform ${
                       isCollapsed ? '-rotate-90' : ''
                     }`}
                   />
@@ -172,7 +172,7 @@ export default function EquipmentRail({
                     <li key={`set-${set.value}`}>
                       <button
                         onClick={() => onJump(set.anchorId)}
-                        className="ea-interactive w-full flex items-center justify-between gap-2 rounded-lg px-2 py-1.5 text-sm font-semibold text-violet-700"
+                        className="ea-interactive w-full flex items-center justify-between gap-2 rounded-lg px-2 py-1.5 text-sm font-semibold text-brand-fg-strong"
                       >
                         <span className="truncate">★ {set.label}</span>
                         {badge(set.count, true)}
@@ -183,7 +183,7 @@ export default function EquipmentRail({
                     <li key={category.value}>
                       <button
                         onClick={() => onJump(category.anchorId)}
-                        className="ea-interactive w-full flex items-center justify-between gap-2 rounded-lg px-2 py-1.5 text-sm text-gray-700"
+                        className="ea-interactive w-full flex items-center justify-between gap-2 rounded-lg px-2 py-1.5 text-sm text-secondary"
                       >
                         <span className="truncate">{category.label}</span>
                         {badge(category.count, false)}
@@ -194,7 +194,7 @@ export default function EquipmentRail({
                     <li>
                       <button
                         onClick={() => onJumpHistory(sport.sportKey, sport.historyAnchorId)}
-                        className="ea-interactive w-full flex items-center justify-between gap-2 rounded-lg px-2 py-1.5 text-sm text-gray-500"
+                        className="ea-interactive w-full flex items-center justify-between gap-2 rounded-lg px-2 py-1.5 text-sm text-muted"
                       >
                         <span className="truncate">History</span>
                         {badge(sport.retiredCount, false)}

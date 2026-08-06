@@ -27,7 +27,7 @@ export default function BrandBar({ hideEscape = false }: { hideEscape?: boolean 
     // 320px. At sm+ the link goes back to being absolute so the logo stays
     // perfectly centered.
     <div
-      className={`relative w-full bg-white border-b border-violet-100 py-3 px-4 flex items-center ${
+      className={`relative w-full bg-surface border-b border-violet-100 dark:border-violet-900/50 py-3 px-4 flex items-center ${
         showEscape ? 'justify-between sm:justify-center' : 'justify-center'
       }`}
     >
@@ -38,12 +38,12 @@ export default function BrandBar({ hideEscape = false }: { hideEscape?: boolean 
         width={180}
         height={45}
         preload
-        className="h-8 sm:h-9 w-auto shrink-0"
+        className="themed-logo h-8 sm:h-9 w-auto shrink-0"
       />
       {showEscape && (
         <Link
           href={user ? '/feed' : '/'}
-          className="shrink-0 min-h-[44px] -my-2 inline-flex items-center px-2 -mr-2 sm:m-0 sm:px-2 sm:absolute sm:right-4 sm:top-1/2 sm:-translate-y-1/2 text-sm text-violet-600 hover:text-violet-700 hover:underline"
+          className="shrink-0 min-h-[44px] -my-2 inline-flex items-center px-2 -mr-2 sm:m-0 sm:px-2 sm:absolute sm:right-4 sm:top-1/2 sm:-translate-y-1/2 text-sm text-brand-fg hover:text-brand-fg-strong hover:underline"
         >
           {user ? (
             <>

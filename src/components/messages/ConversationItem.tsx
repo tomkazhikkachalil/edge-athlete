@@ -68,8 +68,8 @@ export default function ConversationItem({ conversation, currentUserId, isActive
       onClick={onClick}
       className={`w-full text-left flex items-center gap-3 px-4 py-3 transition-colors ${
         isActive
-          ? 'bg-violet-50 border-l-4 border-violet-600'
-          : 'hover:bg-gray-50 border-l-4 border-transparent'
+          ? 'bg-brand-soft border-l-4 border-brand'
+          : 'hover:bg-surface-muted border-l-4 border-transparent'
       }`}
     >
       {/* Avatar */}
@@ -88,8 +88,8 @@ export default function ConversationItem({ conversation, currentUserId, isActive
           </div>
         )}
         {conversation.type === 'group' && (
-          <div className="absolute -bottom-0.5 -right-0.5 w-4 h-4 bg-gray-200 rounded-full flex items-center justify-center">
-            <i className="fas fa-users text-gray-600" style={{ fontSize: '7px' }}></i>
+          <div className="absolute -bottom-0.5 -right-0.5 w-4 h-4 bg-gray-200 dark:bg-stone-800 rounded-full flex items-center justify-center">
+            <i className="fas fa-users text-tertiary" style={{ fontSize: '7px' }}></i>
           </div>
         )}
       </div>
@@ -97,18 +97,18 @@ export default function ConversationItem({ conversation, currentUserId, isActive
       {/* Content */}
       <div className="flex-1 min-w-0">
         <div className="flex items-center justify-between gap-2">
-          <span className={`text-sm font-semibold truncate ${conversation.unread_count > 0 ? 'text-gray-900' : 'text-gray-700'}`}>
+          <span className={`text-sm font-semibold truncate ${conversation.unread_count > 0 ? 'text-primary' : 'text-secondary'}`}>
             {displayName}
           </span>
           <div className="flex items-center gap-1 shrink-0">
             {conversation.my_participant?.is_muted && (
-              <i className="fas fa-bell-slash text-gray-400" style={{ fontSize: '10px' }}></i>
+              <i className="fas fa-bell-slash text-faint" style={{ fontSize: '10px' }}></i>
             )}
-            <span className="text-xs text-gray-400">{getRelativeTime(timestamp)}</span>
+            <span className="text-xs text-faint">{getRelativeTime(timestamp)}</span>
           </div>
         </div>
         <div className="flex items-center justify-between gap-2 mt-0.5">
-          <p className={`text-xs truncate ${conversation.unread_count > 0 ? 'text-gray-800 font-medium' : 'text-gray-500'}`}>
+          <p className={`text-xs truncate ${conversation.unread_count > 0 ? 'text-primary font-medium' : 'text-muted'}`}>
             {preview}
           </p>
           {conversation.unread_count > 0 && (

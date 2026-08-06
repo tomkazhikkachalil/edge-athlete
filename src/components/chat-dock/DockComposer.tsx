@@ -56,27 +56,27 @@ export default function DockComposer({
 
   return (
     <div className="flex flex-col flex-1 min-h-0">
-      <div className="px-3 py-2 border-b border-gray-100 flex items-center gap-2">
+      <div className="px-3 py-2 border-b border-border-subtle flex items-center gap-2">
         <input
           type="text"
           autoFocus
           value={query}
           onChange={e => setQuery(e.target.value)}
           placeholder="Type a name or handle…"
-          className="flex-1 px-3 py-1.5 bg-gray-50 border border-gray-200 rounded-full text-sm focus:outline-none focus:ring-1 focus:ring-violet-500"
+          className="flex-1 px-3 py-1.5 bg-surface-muted border border-border rounded-full text-sm focus:outline-none focus:ring-1 focus:ring-violet-500"
         />
-        <button type="button" onClick={onCancel} className="text-xs text-gray-500 hover:text-gray-700">
+        <button type="button" onClick={onCancel} className="text-xs text-muted hover:text-secondary">
           Cancel
         </button>
       </div>
       {error && (
-        <p role="alert" className="text-xs text-red-600 px-3 py-2 border-b border-gray-100">{error}</p>
+        <p role="alert" className="text-xs text-red-600 px-3 py-2 border-b border-border-subtle">{error}</p>
       )}
       <div className="flex-1 overflow-y-auto" style={{ minHeight: '8rem' }}>
         {searching && results.length === 0 ? (
-          <p className="text-sm text-gray-400 text-center py-6">Searching…</p>
+          <p className="text-sm text-faint text-center py-6">Searching…</p>
         ) : results.length === 0 ? (
-          <p className="text-sm text-gray-400 text-center py-6">
+          <p className="text-sm text-faint text-center py-6">
             {query.trim().length < 2 ? 'Search for someone to message.' : 'No one found.'}
           </p>
         ) : (
@@ -88,21 +88,21 @@ export default function DockComposer({
                 type="button"
                 disabled={creating}
                 onClick={() => pick(profile)}
-                className="w-full flex items-center gap-2.5 px-3 py-2 text-left hover:bg-violet-50 disabled:opacity-50"
+                className="w-full flex items-center gap-2.5 px-3 py-2 text-left hover:bg-brand-soft disabled:opacity-50"
               >
                 <span className="w-8 h-8 rounded-full overflow-hidden bg-violet-100 shrink-0">
                   {profile.avatar_url ? (
                     <LazyImage src={profile.avatar_url} alt={name} className="w-full h-full object-cover" />
                   ) : (
-                    <span className="w-full h-full flex items-center justify-center text-xs font-semibold text-violet-700">
+                    <span className="w-full h-full flex items-center justify-center text-xs font-semibold text-brand-fg-strong">
                       {getInitials(name)}
                     </span>
                   )}
                 </span>
                 <span className="min-w-0">
-                  <span className="block text-sm text-gray-900 truncate">{name}</span>
+                  <span className="block text-sm text-primary truncate">{name}</span>
                   {profile.handle && (
-                    <span className="block text-xs text-gray-500 truncate">@{profile.handle}</span>
+                    <span className="block text-xs text-muted truncate">@{profile.handle}</span>
                   )}
                 </span>
               </button>

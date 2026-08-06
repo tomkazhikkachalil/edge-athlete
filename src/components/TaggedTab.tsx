@@ -205,7 +205,7 @@ export default function TaggedTab({ profileId, currentUserId, isOwnProfile = fal
           <select
             value={sort}
             onChange={(e) => setSort(e.target.value as SortType)}
-            className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-violet-500"
+            className="px-3 py-2 border border-border-strong rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-violet-500"
           >
             <option value="newest">Newest First</option>
             <option value="most_engaged">Most Engaged</option>
@@ -213,7 +213,7 @@ export default function TaggedTab({ profileId, currentUserId, isOwnProfile = fal
           <select
             value={mediaFilter}
             onChange={(e) => setMediaFilter(e.target.value as MediaFilterType)}
-            className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-violet-500"
+            className="px-3 py-2 border border-border-strong rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-violet-500"
           >
             <option value="all">All Types</option>
             <option value="photos">Photos Only</option>
@@ -242,16 +242,16 @@ export default function TaggedTab({ profileId, currentUserId, isOwnProfile = fal
 
         {loading && (
           <div className="flex justify-center items-center py-12">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-violet-600"></div>
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-brand"></div>
           </div>
         )}
 
         {!loading && loadError && (
           <div className="text-center py-16 px-4">
-            <p className="text-gray-600 mb-4">Couldn&apos;t load tagged posts.</p>
+            <p className="text-tertiary mb-4">Couldn&apos;t load tagged posts.</p>
             <button
               onClick={() => fetchItems(true)}
-              className="inline-flex items-center gap-2 px-4 py-2 bg-violet-600 text-white rounded-lg font-semibold text-sm hover:bg-violet-700 transition-colors"
+              className="inline-flex items-center gap-2 px-4 py-2 bg-brand text-white rounded-lg font-semibold text-sm hover:bg-brand-hover transition-colors"
             >
               Try again
             </button>
@@ -271,8 +271,8 @@ export default function TaggedTab({ profileId, currentUserId, isOwnProfile = fal
         )}
 
         {!loading && !loadError && items.length === 0 && (activeCount > 0 || mediaFilter !== 'all') && (
-          <div className="text-center py-10 px-4 border border-dashed border-gray-200 rounded-lg">
-            <p className="text-sm text-gray-500">No tagged posts match your filters.</p>
+          <div className="text-center py-10 px-4 border border-dashed border-border rounded-lg">
+            <p className="text-sm text-muted">No tagged posts match your filters.</p>
           </div>
         )}
 
@@ -295,7 +295,7 @@ export default function TaggedTab({ profileId, currentUserId, isOwnProfile = fal
 
         {loadingMore && (
           <div className="flex justify-center items-center py-6">
-            <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-violet-600"></div>
+            <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-brand"></div>
           </div>
         )}
         <div ref={observerTarget} className="h-4" />

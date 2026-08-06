@@ -19,28 +19,28 @@ const options: PermissionOption[] = [
     label: 'Everyone',
     description: 'Any Edge Athlete user can send you a direct message.',
     icon: 'fa-globe',
-    iconColor: 'text-violet-600',
+    iconColor: 'text-brand-fg',
   },
   {
     value: 'fans_only',
     label: 'Fans Only',
     description: 'Only athletes who follow you can send you messages.',
     icon: 'fa-user-check',
-    iconColor: 'text-green-600',
+    iconColor: 'text-green-600 dark:text-green-400',
   },
   {
     value: 'mutual_fans',
     label: 'Mutual Fans',
     description: 'Only athletes you both follow each other can message you.',
     icon: 'fa-users',
-    iconColor: 'text-purple-600',
+    iconColor: 'text-purple-600 dark:text-purple-400',
   },
   {
     value: 'nobody',
     label: 'Nobody',
     description: 'Turn off direct messages entirely. No one can message you.',
     icon: 'fa-ban',
-    iconColor: 'text-red-600',
+    iconColor: 'text-red-600 dark:text-red-400',
   },
 ];
 
@@ -89,8 +89,8 @@ export default function MessagingSettings() {
   return (
     <div className="space-y-6">
       <div>
-        <h3 className="text-lg font-semibold text-gray-900 mb-2">Who Can Message You</h3>
-        <p className="text-gray-600 text-sm mb-6">
+        <h3 className="text-lg font-semibold text-primary mb-2">Who Can Message You</h3>
+        <p className="text-tertiary text-sm mb-6">
           Control who is allowed to send you direct messages on Edge Athlete.
         </p>
 
@@ -102,15 +102,15 @@ export default function MessagingSettings() {
               disabled={saving}
               className={`w-full text-left p-4 rounded-lg border-2 transition-all disabled:opacity-60 ${
                 permission === opt.value
-                  ? 'border-violet-600 bg-violet-50'
-                  : 'border-gray-200 hover:border-gray-300'
+                  ? 'border-brand bg-brand-soft'
+                  : 'border-border hover:border-border-strong'
               }`}
             >
               <div className="flex items-start gap-3">
                 <div className={`mt-0.5 w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0 ${
                   permission === opt.value
-                    ? 'border-violet-600 bg-violet-600'
-                    : 'border-gray-300'
+                    ? 'border-brand bg-brand'
+                    : 'border-border-strong'
                 }`}>
                   {permission === opt.value && (
                     <i className="fas fa-check text-white text-xs"></i>
@@ -119,9 +119,9 @@ export default function MessagingSettings() {
                 <div className="flex-1">
                   <div className="flex items-center gap-2 mb-1">
                     <i className={`fas ${opt.icon} ${opt.iconColor}`}></i>
-                    <h4 className="font-semibold text-gray-900">{opt.label}</h4>
+                    <h4 className="font-semibold text-primary">{opt.label}</h4>
                   </div>
-                  <p className="text-sm text-gray-600">{opt.description}</p>
+                  <p className="text-sm text-tertiary">{opt.description}</p>
                 </div>
               </div>
             </button>
@@ -129,12 +129,12 @@ export default function MessagingSettings() {
         </div>
       </div>
 
-      <div className="bg-violet-50 border border-violet-200 rounded-lg p-4">
+      <div className="bg-brand-soft border border-violet-200 dark:border-violet-800 rounded-lg p-4">
         <div className="flex gap-3">
-          <i className="fas fa-info-circle text-violet-600 mt-0.5 shrink-0"></i>
+          <i className="fas fa-info-circle text-brand-fg mt-0.5 shrink-0"></i>
           <div>
-            <h4 className="font-medium text-violet-900 mb-1">Note</h4>
-            <p className="text-sm text-violet-800">
+            <h4 className="font-medium text-violet-900 dark:text-violet-200 mb-1">Note</h4>
+            <p className="text-sm text-violet-800 dark:text-violet-200">
               Group chats can still be created by admins regardless of this setting. Existing
               conversations are not affected when you change this setting.
             </p>

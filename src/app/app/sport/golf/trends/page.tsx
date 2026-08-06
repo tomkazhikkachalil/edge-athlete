@@ -4,6 +4,7 @@ import { useEffect, useState, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useAuth } from '@/lib/auth';
+import { useTheme } from '@/lib/use-theme';
 import AppHeader from '@/components/AppHeader';
 import TrendLineChart from '@/components/charts/TrendLineChart';
 import { toParLabel, toParColorClass } from '@/lib/golf/scoring';
@@ -48,6 +49,7 @@ const shortDate = (iso: string) =>
 export default function GolfTrendsPage() {
   const router = useRouter();
   const { user, loading: authLoading } = useAuth();
+  const { theme } = useTheme();
 
   const [series, setSeries] = useState<TrendPoint[]>([]);
   const [summary, setSummary] = useState<TrendSummary | null>(null);
@@ -109,8 +111,8 @@ export default function GolfTrendsPage() {
 
   if (authLoading || !user) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-violet-600"></div>
+      <div className="min-h-screen bg-canvas flex items-center justify-center">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-brand"></div>
       </div>
     );
   }
@@ -131,52 +133,52 @@ export default function GolfTrendsPage() {
     .map(p => ({ label: shortDate(p.date), value: p.gir_pct as number, meta: p.course }));
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-canvas">
       <AppHeader showSearch={false} />
 
       <div className="max-w-4xl mx-auto px-4 py-6">
         {/* Header */}
         <div className="flex flex-wrap items-center justify-between gap-2 mb-6">
           <div>
-            <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">
-              <i className="fas fa-chart-line mr-2 text-green-600"></i>
+            <h1 className="text-2xl sm:text-3xl font-bold text-primary">
+              <i className="fas fa-chart-line mr-2 text-green-600 dark:text-green-400"></i>
               Golf Trends
             </h1>
             {summary && !loading && (
-              <p className="text-sm text-gray-500 mt-1">
+              <p className="text-sm text-muted mt-1">
                 Based on your last {summary.rounds} round{summary.rounds !== 1 ? 's' : ''}
               </p>
             )}
           </div>
           <Link
             href="/app/sport/golf/rounds"
-            className="text-sm text-violet-600 hover:text-violet-700 font-medium min-h-[44px] flex items-center"
+            className="text-sm text-brand-fg hover:text-brand-fg-strong font-medium min-h-[44px] flex items-center"
           >
             View rounds list →
           </Link>
         </div>
 
         {/* Filter row */}
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-3 mb-6">
+        <div className="bg-surface rounded-lg shadow-sm border border-border p-3 mb-6">
           <div className="flex flex-wrap gap-2">
             {(['all', '18', '9'] as HolesFilter[]).map(f => (
               <button
                 key={f}
                 onClick={() => setHolesFilter(f)}
                 className={`px-4 py-2 min-h-[44px] rounded-md text-sm font-medium transition-colors ${
-                  holesFilter === f ? 'bg-green-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                  holesFilter === f ? 'bg-green-600 text-white' : 'bg-surface-sunken text-secondary hover:bg-gray-200 dark:hover:bg-stone-800'
                 }`}
               >
                 {f === 'all' ? 'All rounds' : `${f}-hole`}
               </button>
             ))}
-            <div className="w-px bg-gray-200 mx-1 hidden sm:block" />
+            <div className="w-px bg-gray-200 dark:bg-stone-800 mx-1 hidden sm:block" />
             {([10, 25, 200] as RangeFilter[]).map(r => (
               <button
                 key={r}
                 onClick={() => setRange(r)}
                 className={`px-4 py-2 min-h-[44px] rounded-md text-sm font-medium transition-colors ${
-                  range === r ? 'bg-violet-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                  range === r ? 'bg-brand text-white' : 'bg-surface-sunken text-secondary hover:bg-gray-200 dark:hover:bg-stone-800'
                 }`}
               >
                 {r === 200 ? 'All time' : `Last ${r}`}
@@ -187,16 +189,16 @@ export default function GolfTrendsPage() {
 
         {loading ? (
           <div className="text-center py-16">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-violet-600 mx-auto"></div>
-            <p className="mt-3 text-gray-600">Crunching your rounds…</p>
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-brand mx-auto"></div>
+            <p className="mt-3 text-tertiary">Crunching your rounds…</p>
           </div>
         ) : error ? (
-          <div className="bg-red-50 border border-red-200 text-red-600 px-4 py-3 rounded-md text-sm">{error}</div>
+          <div className="bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-800 text-red-600 dark:text-red-400 px-4 py-3 rounded-md text-sm">{error}</div>
         ) : series.length < 2 ? (
-          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-10 text-center">
+          <div className="bg-surface rounded-lg shadow-sm border border-border p-10 text-center">
             <i className="fas fa-chart-line text-4xl text-gray-300 mb-4"></i>
-            <h2 className="text-lg font-semibold text-gray-900 mb-2">Not enough rounds yet</h2>
-            <p className="text-sm text-gray-500">
+            <h2 className="text-lg font-semibold text-primary mb-2">Not enough rounds yet</h2>
+            <p className="text-sm text-muted">
               Log at least two rounds{holesFilter !== 'all' ? ` (${holesFilter}-hole)` : ''} and your
               trends will appear here.
             </p>
@@ -206,39 +208,39 @@ export default function GolfTrendsPage() {
             {/* Stat tiles */}
             {summary && (
               <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3 mb-6">
-                <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 text-center">
-                  <div className="text-2xl font-bold text-green-700">
+                <div className="bg-surface rounded-lg shadow-sm border border-border p-4 text-center">
+                  <div className="text-2xl font-bold text-green-700 dark:text-green-300">
                     {summary.handicapIndex !== null ? formatHandicapIndex(summary.handicapIndex) : '—'}
                   </div>
-                  <div className="text-xs text-gray-500 uppercase mt-1">
+                  <div className="text-xs text-muted uppercase mt-1">
                     Handicap est.{summary.handicapIndex !== null ? ` · ${summary.handicapRounds} rds` : ''}
                   </div>
                 </div>
-                <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 text-center">
+                <div className="bg-surface rounded-lg shadow-sm border border-border p-4 text-center">
                   <div className={`text-2xl font-bold ${toParColorClass(summary.avgToParLast5)}`}>
                     {summary.avgToParLast5 !== null
                       ? (summary.avgToParLast5 > 0 ? `+${summary.avgToParLast5}` : summary.avgToParLast5)
                       : '—'}
                   </div>
-                  <div className="text-xs text-gray-500 uppercase mt-1">Avg to par · last 5</div>
+                  <div className="text-xs text-muted uppercase mt-1">Avg to par · last 5</div>
                 </div>
-                <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 text-center">
+                <div className="bg-surface rounded-lg shadow-sm border border-border p-4 text-center">
                   <div className={`text-2xl font-bold ${toParColorClass(summary.bestToPar)}`}>
                     {summary.bestToPar !== null ? toParLabel(summary.bestToPar) : '—'}
                   </div>
-                  <div className="text-xs text-gray-500 uppercase mt-1">Best round</div>
+                  <div className="text-xs text-muted uppercase mt-1">Best round</div>
                 </div>
-                <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 text-center">
-                  <div className="text-2xl font-bold text-gray-900">
+                <div className="bg-surface rounded-lg shadow-sm border border-border p-4 text-center">
+                  <div className="text-2xl font-bold text-primary">
                     {summary.avgPuttsPerHole ?? '—'}
                   </div>
-                  <div className="text-xs text-gray-500 uppercase mt-1">Putts per hole</div>
+                  <div className="text-xs text-muted uppercase mt-1">Putts per hole</div>
                 </div>
-                <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 text-center">
-                  <div className="text-2xl font-bold text-gray-900">
+                <div className="bg-surface rounded-lg shadow-sm border border-border p-4 text-center">
+                  <div className="text-2xl font-bold text-primary">
                     {summary.avgGirPct !== null ? `${summary.avgGirPct}%` : '—'}
                   </div>
-                  <div className="text-xs text-gray-500 uppercase mt-1">Avg GIR</div>
+                  <div className="text-xs text-muted uppercase mt-1">Avg GIR</div>
                 </div>
               </div>
             )}
@@ -249,13 +251,13 @@ export default function GolfTrendsPage() {
                 <TrendLineChart
                   title="Handicap index (estimated)"
                   points={handicapSeries.map(p => ({ label: shortDate(p.date), value: p.index }))}
-                  color="#16a34a"
+                  color={theme === 'dark' ? '#4ade80' : '#16a34a'}
                   rollingWindow={0}
                   formatValue={v => formatHandicapIndex(Math.round(v * 10) / 10)}
                 />
               </div>
             ) : summary?.handicapIndex === null ? (
-              <div className="mb-4 bg-violet-50 border border-violet-200 rounded-lg p-4 text-sm text-violet-800">
+              <div className="mb-4 bg-brand-soft border border-violet-200 dark:border-violet-800 rounded-lg p-4 text-sm text-violet-800 dark:text-violet-200">
                 <i className="fas fa-info-circle mr-2"></i>
                 Your estimated handicap appears after 3+ 18-hole rounds logged with a course
                 rating and slope (find them on the course&apos;s scorecard).
@@ -267,31 +269,31 @@ export default function GolfTrendsPage() {
               <TrendLineChart
                 title="Score to par"
                 points={toParPoints}
-                color="#16a34a"
+                color={theme === 'dark' ? '#4ade80' : '#16a34a'}
                 formatValue={v => toParLabel(Math.round(v * 10) / 10)}
               />
               <TrendLineChart
                 title="Putts per hole"
                 points={puttsPoints}
-                color="#16a34a"
+                color={theme === 'dark' ? '#4ade80' : '#16a34a'}
               />
               <TrendLineChart
                 title="Fairways in regulation"
                 points={firPoints}
-                color="#16a34a"
+                color={theme === 'dark' ? '#4ade80' : '#16a34a'}
                 unit="%"
                 yDomain={[0, 100]}
               />
               <TrendLineChart
                 title="Greens in regulation"
                 points={girPoints}
-                color="#16a34a"
+                color={theme === 'dark' ? '#4ade80' : '#16a34a'}
                 unit="%"
                 yDomain={[0, 100]}
               />
             </div>
 
-            <p className="text-xs text-gray-400 mt-4">
+            <p className="text-xs text-faint mt-4">
               9- and 18-hole rounds are compared by to-par and per-hole stats. Use the filters to
               isolate one format. Rounds without putts/FIR/GIR data are omitted from those charts. The handicap is a WHS-style estimate from your 18-hole rounds with rating &amp; slope — not an official index.
             </p>

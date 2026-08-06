@@ -30,7 +30,7 @@ export default function ConversationPage() {
   if (authLoading || !user) return null;
 
   return (
-    <div className="flex flex-col h-dvh bg-white" style={{ height: 'var(--vvh, 100dvh)' }}>
+    <div className="flex flex-col h-dvh bg-surface" style={{ height: 'var(--vvh, 100dvh)' }}>
       <AppHeader showSearch={false} />
       <div className="flex-1 min-h-0">
         <ChatWindow

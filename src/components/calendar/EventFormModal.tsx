@@ -319,17 +319,17 @@ export default function EventFormModal({
       {/* max-h-modal + flex-col: the whole panel used to scroll, so the
           submit button sat below title/date/repeat/guests/category — off
           screen on every phone. The fields scroll; header and footer don't. */}
-      <div className="bg-white rounded-lg shadow-xl max-w-lg w-full max-h-modal flex flex-col">
-        <div className="shrink-0 flex items-center justify-between p-4 sm:p-6 border-b border-gray-200">
+      <div className="bg-surface-raised rounded-lg shadow-xl max-w-lg w-full max-h-modal flex flex-col">
+        <div className="shrink-0 flex items-center justify-between p-4 sm:p-6 border-b border-border">
           <div className="flex items-center gap-3">
-            <span className="w-9 h-9 rounded-full bg-violet-100 flex items-center justify-center">
-              <CalendarPlus className="w-5 h-5 text-violet-600" />
+            <span className="w-9 h-9 rounded-full bg-violet-100 dark:bg-violet-950/60 flex items-center justify-center">
+              <CalendarPlus className="w-5 h-5 text-brand-fg" />
             </span>
-            <h2 className="text-lg font-bold text-gray-900">
+            <h2 className="text-lg font-bold text-primary">
               {editing ? 'Edit event' : 'New event'}
             </h2>
           </div>
-          <button type="button" onClick={requestClose} aria-label="Close" className="ea-icon-btn inline-flex items-center justify-center text-gray-400 hover:text-gray-600">
+          <button type="button" onClick={requestClose} aria-label="Close" className="ea-icon-btn inline-flex items-center justify-center text-faint hover:text-tertiary">
             <X className="w-5 h-5" />
           </button>
         </div>
@@ -337,13 +337,13 @@ export default function EventFormModal({
         <form onSubmit={handleSubmit} className="flex-1 min-h-0 flex flex-col">
           <div className="flex-1 min-h-0 overflow-y-auto p-4 sm:p-6 space-y-4">
           {error && (
-            <div role="alert" className="bg-red-50 border border-red-200 text-red-600 px-4 py-3 rounded-md text-sm">
+            <div role="alert" className="bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-800 text-red-600 dark:text-red-400 px-4 py-3 rounded-md text-sm">
               {error}
             </div>
           )}
 
           <div>
-            <label htmlFor="ev-title" className="block text-sm font-semibold text-gray-900 mb-1">Title</label>
+            <label htmlFor="ev-title" className="block text-sm font-semibold text-primary mb-1">Title</label>
             <input
               id="ev-title"
               type="text"
@@ -352,51 +352,51 @@ export default function EventFormModal({
               maxLength={120}
               required
               placeholder="Team practice"
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-base focus:ring-2 focus:ring-violet-500 focus:outline-none"
+              className="w-full px-3 py-2 border border-border-strong rounded-lg text-base focus:ring-2 focus:ring-violet-500 focus:outline-none"
             />
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <div>
-              <label htmlFor="ev-date" className="block text-sm font-semibold text-gray-900 mb-1">Date</label>
+              <label htmlFor="ev-date" className="block text-sm font-semibold text-primary mb-1">Date</label>
               <input
                 id="ev-date"
                 type="date"
                 value={form.date}
                 onChange={e => set('date', e.target.value)}
                 required
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-base focus:ring-2 focus:ring-violet-500 focus:outline-none"
+                className="w-full px-3 py-2 border border-border-strong rounded-lg text-base focus:ring-2 focus:ring-violet-500 focus:outline-none"
               />
             </div>
             {!form.allDay && (
               <>
                 <div>
-                  <label htmlFor="ev-start" className="block text-sm font-semibold text-gray-900 mb-1">Starts</label>
+                  <label htmlFor="ev-start" className="block text-sm font-semibold text-primary mb-1">Starts</label>
                   <input
                     id="ev-start"
                     type="time"
                     value={form.startTime}
                     onChange={e => set('startTime', e.target.value)}
                     required
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-base focus:ring-2 focus:ring-violet-500 focus:outline-none"
+                    className="w-full px-3 py-2 border border-border-strong rounded-lg text-base focus:ring-2 focus:ring-violet-500 focus:outline-none"
                   />
                 </div>
                 <div>
-                  <label htmlFor="ev-end" className="block text-sm font-semibold text-gray-900 mb-1">Ends</label>
+                  <label htmlFor="ev-end" className="block text-sm font-semibold text-primary mb-1">Ends</label>
                   <input
                     id="ev-end"
                     type="time"
                     value={form.endTime}
                     onChange={e => set('endTime', e.target.value)}
                     required
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-base focus:ring-2 focus:ring-violet-500 focus:outline-none"
+                    className="w-full px-3 py-2 border border-border-strong rounded-lg text-base focus:ring-2 focus:ring-violet-500 focus:outline-none"
                   />
                 </div>
               </>
             )}
           </div>
 
-          <label className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
+          <label className="flex items-center gap-2 text-sm text-secondary cursor-pointer">
             <input
               type="checkbox"
               checked={form.allDay}
@@ -409,10 +409,10 @@ export default function EventFormModal({
           {/* Repeat — create only; the rule can't change after creation. */}
           {editing ? (
             editing.series && (
-              <p className="text-sm text-gray-500">
-                <i className="fas fa-arrows-rotate text-gray-400 mr-1.5"></i>
+              <p className="text-sm text-muted">
+                <i className="fas fa-arrows-rotate text-faint mr-1.5"></i>
                 {describeRecurrence(editing.series, editing.timezone)}
-                <span className="block text-xs text-gray-400 mt-0.5">
+                <span className="block text-xs text-faint mt-0.5">
                   The repeat schedule can&apos;t be changed — cancel the series and
                   create a new one instead.
                 </span>
@@ -421,7 +421,7 @@ export default function EventFormModal({
           ) : (
             <div className="space-y-3">
               <div className="flex items-center gap-3">
-                <label htmlFor="ev-repeat" className="text-sm font-semibold text-gray-900">Repeat</label>
+                <label htmlFor="ev-repeat" className="text-sm font-semibold text-primary">Repeat</label>
                 <select
                   id="ev-repeat"
                   value={repeat.freq}
@@ -433,7 +433,7 @@ export default function EventFormModal({
                       byweekday: freq === 'weekly' ? [startDow] : [],
                     }));
                   }}
-                  className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-violet-500 focus:outline-none"
+                  className="px-3 py-2 border border-border-strong rounded-lg text-sm focus:ring-2 focus:ring-violet-500 focus:outline-none"
                 >
                   <option value="none">Does not repeat</option>
                   <option value="daily">Daily</option>
@@ -444,8 +444,8 @@ export default function EventFormModal({
               </div>
 
               {repeat.freq !== 'none' && (
-                <div className="rounded-lg border border-gray-200 bg-gray-50/60 p-3 space-y-3">
-                  <div className="flex items-center gap-2 text-sm text-gray-700">
+                <div className="rounded-lg border border-border bg-surface-muted/60 p-3 space-y-3">
+                  <div className="flex items-center gap-2 text-sm text-secondary">
                     Every
                     <input
                       type="number"
@@ -458,7 +458,7 @@ export default function EventFormModal({
                           interval: Math.min(Math.max(parseInt(e.target.value, 10) || 1, 1), 12),
                         }))
                       }
-                      className="w-16 px-2 py-1.5 border border-gray-300 rounded-lg text-sm text-center focus:ring-2 focus:ring-violet-500 focus:outline-none"
+                      className="w-16 px-2 py-1.5 border border-border-strong rounded-lg text-sm text-center focus:ring-2 focus:ring-violet-500 focus:outline-none"
                     />
                     {repeat.freq === 'daily' && (repeat.interval === 1 ? 'day' : 'days')}
                     {repeat.freq === 'weekly' && (repeat.interval === 1 ? 'week' : 'weeks')}
@@ -489,8 +489,8 @@ export default function EventFormModal({
                             }
                             className={`w-8 h-8 sm:w-10 sm:h-10 rounded-full text-xs font-semibold transition ${
                               active
-                                ? 'bg-violet-600 text-white'
-                                : 'bg-white border border-gray-300 text-gray-600 hover:border-violet-400'
+                                ? 'bg-brand text-white'
+                                : 'bg-surface border border-border-strong text-tertiary hover:border-violet-400'
                             } ${locked ? 'opacity-90 cursor-default ring-1 ring-violet-300' : ''}`}
                           >
                             {label}
@@ -500,7 +500,7 @@ export default function EventFormModal({
                     </div>
                   )}
 
-                  <div className="space-y-1.5 text-sm text-gray-700">
+                  <div className="space-y-1.5 text-sm text-secondary">
                     <label className="flex items-center gap-2 cursor-pointer">
                       <input
                         type="radio"
@@ -524,7 +524,7 @@ export default function EventFormModal({
                         type="date"
                         value={repeat.until}
                         onChange={e => setRepeat(prev => ({ ...prev, until: e.target.value, endsKind: 'until' }))}
-                        className="px-2 py-1 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-violet-500 focus:outline-none"
+                        className="px-2 py-1 border border-border-strong rounded-lg text-sm focus:ring-2 focus:ring-violet-500 focus:outline-none"
                       />
                     </label>
                     <label className="flex items-center gap-2 cursor-pointer">
@@ -548,7 +548,7 @@ export default function EventFormModal({
                             endsKind: 'count',
                           }))
                         }
-                        className="w-16 px-2 py-1 border border-gray-300 rounded-lg text-sm text-center focus:ring-2 focus:ring-violet-500 focus:outline-none"
+                        className="w-16 px-2 py-1 border border-border-strong rounded-lg text-sm text-center focus:ring-2 focus:ring-violet-500 focus:outline-none"
                       />
                       times
                     </label>
@@ -562,18 +562,18 @@ export default function EventFormModal({
             <button
               type="button"
               onClick={() => setMoreOpen(true)}
-              className="text-sm text-violet-600 hover:underline"
+              className="text-sm text-brand-fg hover:underline"
             >
               More options — guests, location, details…
             </button>
           ) : (
             <>
               <div>
-                <label className="block text-sm font-semibold text-gray-900 mb-1">Guests</label>
+                <label className="block text-sm font-semibold text-primary mb-1">Guests</label>
                 <GuestPicker chips={chips} onChange={setChips} />
               </div>
               <div>
-                <label htmlFor="ev-location" className="block text-sm font-semibold text-gray-900 mb-1">Location</label>
+                <label htmlFor="ev-location" className="block text-sm font-semibold text-primary mb-1">Location</label>
                 <input
                   id="ev-location"
                   type="text"
@@ -581,11 +581,11 @@ export default function EventFormModal({
                   onChange={e => set('location', e.target.value)}
                   maxLength={200}
                   placeholder="Riverside Field, or a video link"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-base focus:ring-2 focus:ring-violet-500 focus:outline-none"
+                  className="w-full px-3 py-2 border border-border-strong rounded-lg text-base focus:ring-2 focus:ring-violet-500 focus:outline-none"
                 />
               </div>
               <div>
-                <label htmlFor="ev-desc" className="block text-sm font-semibold text-gray-900 mb-1">Details</label>
+                <label htmlFor="ev-desc" className="block text-sm font-semibold text-primary mb-1">Details</label>
                 <textarea
                   id="ev-desc"
                   value={form.description}
@@ -593,11 +593,11 @@ export default function EventFormModal({
                   maxLength={2000}
                   rows={3}
                   placeholder="Bring both jerseys…"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-base focus:ring-2 focus:ring-violet-500 focus:outline-none"
+                  className="w-full px-3 py-2 border border-border-strong rounded-lg text-base focus:ring-2 focus:ring-violet-500 focus:outline-none"
                 />
               </div>
               <div>
-                <label className="block text-sm font-semibold text-gray-900 mb-1">Category</label>
+                <label className="block text-sm font-semibold text-primary mb-1">Category</label>
                 <div className="flex flex-wrap gap-2">
                   {EVENT_CATEGORIES.map(cat => (
                     <button
@@ -606,8 +606,8 @@ export default function EventFormModal({
                       onClick={() => set('category', cat)}
                       className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium border transition ${
                         form.category === cat
-                          ? 'border-violet-600 bg-violet-50 text-violet-700'
-                          : 'border-gray-300 text-gray-600 hover:border-violet-300'
+                          ? 'border-brand bg-brand-soft text-brand-fg-strong'
+                          : 'border-border-strong text-tertiary hover:border-violet-300 dark:hover:border-violet-700'
                       }`}
                     >
                       <span className={`w-2 h-2 rounded-full ${categoryColor(cat).dot}`} />
@@ -621,11 +621,11 @@ export default function EventFormModal({
           </div>
 
           {/* Non-scrolling footer: the primary action is always reachable */}
-          <div className="shrink-0 p-4 sm:p-6 pt-3 sm:pt-3 border-t border-gray-200 safe-bottom">
+          <div className="shrink-0 p-4 sm:p-6 pt-3 sm:pt-3 border-t border-border safe-bottom">
             <button
               type="submit"
               disabled={saving}
-              className="w-full bg-violet-600 text-white py-3 px-4 rounded-lg hover:bg-violet-700 transition flex items-center justify-center text-sm font-medium disabled:opacity-50 min-h-[44px]"
+              className="w-full bg-brand text-white py-3 px-4 rounded-lg hover:bg-brand-hover transition flex items-center justify-center text-sm font-medium disabled:opacity-50 min-h-[44px]"
             >
               {saving ? (
                 <><i className="fas fa-spinner fa-spin mr-2"></i> Saving…</>

@@ -26,10 +26,10 @@ export default function SharedPostPreview({ post, onClick }: Props) {
     <button
       type="button"
       onClick={handleClick}
-      className="w-full text-left rounded-lg border border-gray-200 bg-gray-50 hover:bg-gray-100 transition-colors overflow-hidden"
+      className="w-full text-left rounded-lg border border-border bg-surface-muted hover:bg-surface-sunken transition-colors overflow-hidden"
     >
       {thumbnail && (
-        <div className="w-full bg-gray-200 overflow-hidden">
+        <div className="w-full bg-gray-200 dark:bg-stone-800 overflow-hidden">
           {thumbnail.media_type === 'image' ? (
             <LazyImage
               src={thumbnail.media_url}
@@ -49,12 +49,12 @@ export default function SharedPostPreview({ post, onClick }: Props) {
         </div>
       )}
       <div className="p-3">
-        <div className="flex items-center gap-1.5 text-xs text-gray-400 mb-1.5">
+        <div className="flex items-center gap-1.5 text-xs text-faint mb-1.5">
           <i className="fas fa-share-alt"></i>
           <span>Shared post</span>
         </div>
         {post.caption && (
-          <p className="text-sm text-gray-800 line-clamp-2 mb-2">{post.caption}</p>
+          <p className="text-sm text-primary line-clamp-2 mb-2">{post.caption}</p>
         )}
         <div className="flex items-center gap-2">
           {post.profile?.avatar_url ? (
@@ -70,7 +70,7 @@ export default function SharedPostPreview({ post, onClick }: Props) {
               {getInitials(authorName)}
             </div>
           )}
-          <span className="text-xs font-medium text-gray-700 truncate">{authorName}</span>
+          <span className="text-xs font-medium text-secondary truncate">{authorName}</span>
         </div>
       </div>
     </button>
