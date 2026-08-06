@@ -52,9 +52,9 @@ exports a real `logo-dark.png`; `public/logo.png` itself must NOT change
 og-image, manifest splash, global-error.tsx (renders outside the shell),
 user media (the invert filter is scoped to `.themed-logo` only).
 
-**⚠️ Migration 069 must run in the Supabase SQL editor BEFORE this
-deploys** (PATCH /api/settings/theme writes the column). Verified in
-headless Chrome: pre-paint stamping, reload-free toggling, scheduled
+**Migration 069: run by Tom Aug 6, verified live** (`theme_prefs` column
+present, NULL rows = light, exactly the pre-069 contract). Runtime verified
+in headless Chrome: pre-paint stamping, reload-free toggling, scheduled
 resolution, both themes screenshotted.
 
 **"Fans, Following, Posts" — one order, one wording, three surfaces.** The
