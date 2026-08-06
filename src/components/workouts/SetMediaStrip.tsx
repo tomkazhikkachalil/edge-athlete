@@ -18,7 +18,7 @@ export default function SetMediaStrip({ media }: { media: SetMedia[] }) {
           href={item.url}
           target="_blank"
           rel="noopener noreferrer"
-          className="relative w-12 h-12 rounded-lg overflow-hidden bg-gray-100 block hover:ring-2 hover:ring-violet-400 transition-shadow"
+          className="relative w-12 h-12 rounded-lg overflow-hidden bg-surface-sunken block hover:ring-2 hover:ring-violet-400 transition-shadow"
           aria-label={item.type === 'video' ? 'Watch set video' : 'View set photo'}
         >
           {item.type === 'video' ? (

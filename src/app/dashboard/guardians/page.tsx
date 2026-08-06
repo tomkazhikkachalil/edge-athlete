@@ -84,55 +84,55 @@ export default function GuardianSupportPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-canvas">
       <AppHeader showSearch={false} />
       <main className="max-w-3xl mx-auto px-4 py-8">
-        <h1 className="text-2xl font-bold text-gray-900 mb-1">Guardian support</h1>
-        <p className="text-sm text-gray-600 mb-6">
+        <h1 className="text-2xl font-bold text-primary mb-1">Guardian support</h1>
+        <p className="text-sm text-tertiary mb-6">
           Supervised athlete profiles with no guardian. Invite a new guardian
           (they accept by email link) or permanently delete the profile.
         </p>
 
         {error && (
-          <div role="alert" className="bg-red-50 border border-red-200 text-red-600 px-4 py-3 rounded-md text-sm mb-4">
+          <div role="alert" className="bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-800 text-red-600 dark:text-red-400 px-4 py-3 rounded-md text-sm mb-4">
             {error}
           </div>
         )}
 
         {state === 'forbidden' ? (
-          <p className="text-sm text-gray-600">You&apos;re not authorized to view this page.</p>
+          <p className="text-sm text-tertiary">You&apos;re not authorized to view this page.</p>
         ) : state === 'loading' ? (
-          <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-violet-600 mx-auto my-12"></div>
+          <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-brand mx-auto my-12"></div>
         ) : items.length === 0 ? (
-          <div className="text-sm text-gray-500 bg-white border border-gray-200 rounded-lg p-6 text-center">
+          <div className="text-sm text-muted bg-surface border border-border rounded-lg p-6 text-center">
             No orphaned supervised profiles.
           </div>
         ) : (
           items.map(item => (
-            <div key={item.id} className="bg-white border border-gray-200 rounded-lg p-5 mb-4">
+            <div key={item.id} className="bg-surface border border-border rounded-lg p-5 mb-4">
               <div className="flex items-center justify-between gap-4 mb-3 flex-wrap">
                 <div className="min-w-0">
-                  <p className="text-sm font-semibold text-gray-900 truncate">{item.name}</p>
-                  <p className="text-xs text-gray-500 truncate">
+                  <p className="text-sm font-semibold text-primary truncate">{item.name}</p>
+                  <p className="text-xs text-muted truncate">
                     {item.handle ? `@${item.handle} · ` : ''}created {new Date(item.createdAt).toLocaleDateString()}
                   </p>
                 </div>
                 <div className="flex gap-2 shrink-0">
-                  <span className={`text-xs font-medium px-2.5 py-1 rounded-full ${item.hasCredentials ? 'bg-violet-100 text-violet-700' : 'bg-gray-100 text-gray-600'}`}>
+                  <span className={`text-xs font-medium px-2.5 py-1 rounded-full ${item.hasCredentials ? 'bg-violet-100 dark:bg-violet-950/60 text-brand-fg-strong' : 'bg-surface-sunken text-tertiary'}`}>
                     {item.hasCredentials ? 'has login' : 'no login'}
                   </span>
-                  <span className="text-xs font-medium px-2.5 py-1 rounded-full bg-gray-100 text-gray-600">
+                  <span className="text-xs font-medium px-2.5 py-1 rounded-full bg-surface-sunken text-tertiary">
                     consent: {item.consentState}
                   </span>
                 </div>
               </div>
 
               {inviteResult[item.id] ? (
-                <div className="bg-violet-50 border border-violet-200 rounded-md p-3 mb-3 text-sm">
-                  <p className="text-violet-800 mb-1">
+                <div className="bg-brand-soft border border-violet-200 dark:border-violet-800 rounded-md p-3 mb-3 text-sm">
+                  <p className="text-violet-800 dark:text-violet-200 mb-1">
                     Invite created{inviteResult[item.id].emailSent ? ' and emailed' : ' — email NOT sent (SMTP off); share this link manually'}:
                   </p>
-                  <code className="block text-xs text-gray-800 break-all select-all">{inviteResult[item.id].inviteUrl}</code>
+                  <code className="block text-xs text-primary break-all select-all">{inviteResult[item.id].inviteUrl}</code>
                 </div>
               ) : (
                 // Stacks below sm — the input shared one row with the button
@@ -143,13 +143,13 @@ export default function GuardianSupportPage() {
                     placeholder="new-guardian@email.com"
                     value={inviteEmail[item.id] ?? ''}
                     onChange={e => setInviteEmail(prev => ({ ...prev, [item.id]: e.target.value }))}
-                    className="w-full sm:flex-grow min-w-0 border border-gray-300 rounded-md px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-1 focus:ring-violet-500"
+                    className="w-full sm:flex-grow min-w-0 border border-border-strong rounded-md px-3 py-2 text-sm text-primary focus:outline-none focus:ring-1 focus:ring-violet-500"
                   />
                   <button
                     type="button"
                     onClick={() => invite(item)}
                     disabled={acting === item.id || !(inviteEmail[item.id] ?? '').includes('@')}
-                    className="bg-violet-600 text-white px-4 py-2 rounded-md text-sm font-medium hover:bg-violet-700 disabled:opacity-50"
+                    className="bg-brand text-white px-4 py-2 rounded-md text-sm font-medium hover:bg-brand-hover disabled:opacity-50"
                   >
                     {acting === item.id ? <i className="fas fa-spinner fa-spin"></i> : 'Invite guardian'}
                   </button>
@@ -157,9 +157,9 @@ export default function GuardianSupportPage() {
               )}
 
               {confirmingDelete === item.id ? (
-                <div className="border-t border-gray-100 pt-3">
-                  <p className="text-sm text-gray-700 mb-2">
-                    Type <span className="font-mono text-red-700">{item.handle ?? item.name}</span> to permanently delete this profile.
+                <div className="border-t border-border-subtle pt-3">
+                  <p className="text-sm text-secondary mb-2">
+                    Type <span className="font-mono text-red-700 dark:text-red-300">{item.handle ?? item.name}</span> to permanently delete this profile.
                   </p>
                   {/* Stacks below sm — typing an exact handle into a ~76px
                       input to confirm a destructive action was unusable */}
@@ -169,7 +169,7 @@ export default function GuardianSupportPage() {
                       value={deleteText}
                       onChange={e => setDeleteText(e.target.value)}
                       autoComplete="off"
-                      className="w-full sm:flex-grow min-w-0 border border-gray-300 rounded-md px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-1 focus:ring-red-500"
+                      className="w-full sm:flex-grow min-w-0 border border-border-strong rounded-md px-3 py-2 text-sm text-primary focus:outline-none focus:ring-1 focus:ring-red-500"
                     />
                     <button
                       type="button"
@@ -182,7 +182,7 @@ export default function GuardianSupportPage() {
                     <button
                       type="button"
                       onClick={() => { setConfirmingDelete(''); setDeleteText(''); }}
-                      className="border border-gray-300 text-gray-700 px-4 py-2 rounded-md text-sm font-medium hover:bg-gray-50"
+                      className="border border-border-strong text-secondary px-4 py-2 rounded-md text-sm font-medium hover:bg-surface-muted"
                     >
                       Cancel
                     </button>
@@ -192,7 +192,7 @@ export default function GuardianSupportPage() {
                 <button
                   type="button"
                   onClick={() => { setConfirmingDelete(item.id); setDeleteText(''); }}
-                  className="text-xs text-red-600 hover:underline min-h-[44px] inline-flex items-center -my-2"
+                  className="text-xs text-red-600 dark:text-red-400 hover:underline min-h-[44px] inline-flex items-center -my-2"
                 >
                   Delete profile…
                 </button>

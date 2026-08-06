@@ -90,10 +90,10 @@ export default function SportActivityDetailPage() {
 
   if (authLoading || loading) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+      <div className="min-h-screen bg-canvas flex items-center justify-center">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-violet-600 mx-auto"></div>
-          <p className="mt-2 text-gray-600">Loading activity...</p>
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-brand mx-auto"></div>
+          <p className="mt-2 text-tertiary">Loading activity...</p>
         </div>
       </div>
     );
@@ -105,13 +105,13 @@ export default function SportActivityDetailPage() {
 
   if (notFound) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+      <div className="min-h-screen bg-canvas flex items-center justify-center">
         <div className="text-center">
-          <h1 className="text-4xl font-bold text-gray-900 mb-4">Activity Not Found</h1>
-          <p className="text-gray-600 mb-8">This activity does not exist or the sport is not supported yet.</p>
+          <h1 className="text-4xl font-bold text-primary mb-4">Activity Not Found</h1>
+          <p className="text-tertiary mb-8">This activity does not exist or the sport is not supported yet.</p>
           <button
             onClick={() => router.back()}
-            className="inline-flex items-center px-4 py-2 border border-transparent text-base font-medium rounded-md text-white bg-violet-600 hover:bg-violet-700 transition-colors"
+            className="inline-flex items-center px-4 py-2 border border-transparent text-base font-medium rounded-md text-white bg-brand hover:bg-brand-hover transition-colors"
           >
             <i className="fas fa-arrow-left mr-2"></i>
             Go Back
@@ -127,13 +127,13 @@ export default function SportActivityDetailPage() {
     post && isStatLineData(post.stats_data) ? post.stats_data : null;
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-canvas">
       {/* Navigation */}
-      <div className="bg-white border-b border-gray-200">
+      <div className="bg-surface border-b border-border">
         <div className="max-w-4xl mx-auto px-4 py-4">
           <button
             onClick={() => router.back()}
-            className="inline-flex items-center text-sm text-gray-600 hover:text-gray-900 transition-colors"
+            className="inline-flex items-center text-sm text-tertiary hover:text-primary transition-colors"
           >
             <i className="fas fa-arrow-left mr-2"></i>
             Back to Activity
@@ -143,15 +143,15 @@ export default function SportActivityDetailPage() {
 
       <div className="max-w-4xl mx-auto px-4 py-section">
         {statLine ? (
-          <div className="bg-white rounded-lg shadow-sm p-base">
+          <div className="bg-surface rounded-lg shadow-sm p-base">
             <div className="flex items-center gap-3 mb-4">
-              <i className={`${sportDef.icon_id} text-2xl text-violet-600`} aria-hidden="true"></i>
+              <i className={`${sportDef.icon_id} text-2xl text-brand-fg`} aria-hidden="true"></i>
               <div>
-                <h1 className="text-h3 font-bold text-gray-900">
+                <h1 className="text-h3 font-bold text-primary">
                   {sportDef.display_name} {getStatSchema(sportKey)?.activityNoun}
                 </h1>
                 {post?.profile && (
-                  <p className="text-sm text-gray-600">
+                  <p className="text-sm text-tertiary">
                     {post.profile.full_name ||
                       [post.profile.first_name, post.profile.last_name].filter(Boolean).join(' ')}
                   </p>
@@ -162,17 +162,17 @@ export default function SportActivityDetailPage() {
             <StatLineCard line={statLine} />
 
             {post?.caption && (
-              <p className="mt-4 text-gray-900 whitespace-pre-wrap">{post.caption}</p>
+              <p className="mt-4 text-primary whitespace-pre-wrap">{post.caption}</p>
             )}
           </div>
         ) : (
-          <div className="bg-white rounded-lg shadow-sm p-base">
+          <div className="bg-surface rounded-lg shadow-sm p-base">
             <div className="text-center py-12">
               <i className={`${sportDef.icon_id} text-6xl text-gray-300 mb-6`}></i>
-              <h1 className="text-3xl font-bold text-gray-900 mb-4">
+              <h1 className="text-3xl font-bold text-primary mb-4">
                 {sportDef.display_name} Activity Details
               </h1>
-              <p className="text-gray-600 mb-6">
+              <p className="text-tertiary mb-6">
                 {adapter.isEnabled()
                   ? 'This activity has no detailed stats attached.'
                   : `Detailed ${sportDef.display_name.toLowerCase()} activity tracking is coming soon!`}

@@ -41,24 +41,24 @@ export default function SportMultiSelect({
               aria-pressed={isSelected}
               className={`relative flex flex-col items-center justify-center gap-2 p-4 rounded-lg border-2 transition-all min-h-[88px] ${
                 isSelected
-                  ? 'border-violet-600 bg-violet-50'
+                  ? 'border-brand bg-brand-soft'
                   : blocked
-                  ? 'border-gray-200 bg-gray-50 opacity-50 cursor-not-allowed'
-                  : 'border-gray-200 bg-white hover:border-violet-300 hover:bg-violet-50/50'
+                  ? 'border-border bg-surface-muted opacity-50 cursor-not-allowed'
+                  : 'border-border bg-surface hover:border-violet-300 hover:bg-brand-soft/50'
               }`}
             >
               {isPrimary && (
-                <span className="absolute top-1.5 right-1.5 px-1.5 py-0.5 bg-violet-600 text-white text-[10px] font-bold rounded-full">
+                <span className="absolute top-1.5 right-1.5 px-1.5 py-0.5 bg-brand text-white text-[10px] font-bold rounded-full">
                   PRIMARY
                 </span>
               )}
               {isSelected && !isPrimary && (
-                <span className="absolute top-1.5 right-1.5 w-5 h-5 bg-violet-600 text-white rounded-full flex items-center justify-center">
+                <span className="absolute top-1.5 right-1.5 w-5 h-5 bg-brand text-white rounded-full flex items-center justify-center">
                   <i className="fas fa-check text-[10px]"></i>
                 </span>
               )}
-              <i className={`${def.icon_id} text-2xl ${isSelected ? 'text-violet-600' : 'text-gray-500'}`}></i>
-              <span className={`text-sm font-semibold ${isSelected ? 'text-violet-900' : 'text-gray-800'}`}>
+              <i className={`${def.icon_id} text-2xl ${isSelected ? 'text-brand-fg' : 'text-muted'}`}></i>
+              <span className={`text-sm font-semibold ${isSelected ? 'text-violet-900 dark:text-violet-200' : 'text-primary'}`}>
                 {def.display_name}
               </span>
             </button>
@@ -68,12 +68,12 @@ export default function SportMultiSelect({
 
       {comingSoon.length > 0 && (
         <div className="mt-4">
-          <p className="text-xs font-semibold text-gray-500 mb-2">Coming soon</p>
+          <p className="text-xs font-semibold text-muted mb-2">Coming soon</p>
           <div className="flex flex-wrap gap-2">
             {comingSoon.map(def => (
               <span
                 key={def.sport_key}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-gray-100 text-gray-500 text-xs font-medium rounded-full"
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-surface-sunken text-muted text-xs font-medium rounded-full"
               >
                 <i className="fas fa-lock text-[10px]"></i>
                 {def.display_name}
@@ -83,7 +83,7 @@ export default function SportMultiSelect({
         </div>
       )}
 
-      <p className="mt-3 text-xs text-gray-500">
+      <p className="mt-3 text-xs text-muted">
         Pick up to {max}. Your first pick is your primary sport — you can change this anytime in your profile.
       </p>
     </div>

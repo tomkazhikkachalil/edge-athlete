@@ -89,32 +89,32 @@ export default function GuardianApprovalsPage() {
 
   if (!FEATURE_FLAGS.FEATURE_GUARDIAN_PROFILES || loading || !initialAuthCheckComplete || !user) {
     return (
-      <div className="min-h-screen bg-violet-50 flex items-center justify-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-violet-600"></div>
+      <div className="min-h-screen bg-brand-soft flex items-center justify-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-brand"></div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen flex flex-col bg-violet-50">
+    <div className="min-h-screen flex flex-col bg-brand-soft">
       <BrandBar />
       <main className="flex-grow w-full max-w-2xl mx-auto px-4 py-8">
-        <h1 className="text-xl sm:text-2xl font-bold text-violet-800 mb-1">Approval queue</h1>
-        <p className="text-sm text-gray-600 mb-6">
+        <h1 className="text-xl sm:text-2xl font-bold text-violet-800 dark:text-violet-200 mb-1">Approval queue</h1>
+        <p className="text-sm text-tertiary mb-6">
           Posts your athletes have created are held here until you approve them.
           Nothing is visible to anyone else until you do.
         </p>
 
         {error && (
-          <div role="alert" className="bg-red-50 border border-red-200 text-red-600 px-4 py-3 rounded-md text-sm mb-4">
+          <div role="alert" className="bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-800 text-red-600 dark:text-red-400 px-4 py-3 rounded-md text-sm mb-4">
             {error}
           </div>
         )}
 
         {state === 'loading' ? (
-          <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-violet-600 mx-auto my-12"></div>
+          <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-brand mx-auto my-12"></div>
         ) : posts.length === 0 ? (
-          <div className="text-sm text-gray-500 bg-white border border-gray-200 rounded-lg p-6 text-center">
+          <div className="text-sm text-muted bg-surface border border-border rounded-lg p-6 text-center">
             <i className="fas fa-circle-check text-violet-400 text-2xl mb-2 block"></i>
             All caught up — no posts are waiting for approval.
           </div>
@@ -127,15 +127,15 @@ export default function GuardianApprovalsPage() {
               (a, b) => a.display_order - b.display_order
             );
             return (
-              <div key={post.id} className="bg-white border border-gray-200 rounded-lg p-5 mb-4">
+              <div key={post.id} className="bg-surface border border-border rounded-lg p-5 mb-4">
                 <div className="flex items-center justify-between mb-3">
                   <div>
-                    <p className="text-sm font-semibold text-gray-900">{athleteName}</p>
+                    <p className="text-sm font-semibold text-primary">{athleteName}</p>
                     {post.profiles?.handle && (
-                      <p className="text-xs text-gray-500">@{post.profiles.handle}</p>
+                      <p className="text-xs text-muted">@{post.profiles.handle}</p>
                     )}
                   </div>
-                  <p className="text-xs text-gray-500">
+                  <p className="text-xs text-muted">
                     {new Date(post.created_at).toLocaleDateString(undefined, {
                       month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit',
                     })}
@@ -143,15 +143,15 @@ export default function GuardianApprovalsPage() {
                 </div>
 
                 {post.caption && (
-                  <p className="text-sm text-gray-900 whitespace-pre-wrap mb-3">{post.caption}</p>
+                  <p className="text-sm text-primary whitespace-pre-wrap mb-3">{post.caption}</p>
                 )}
 
                 {media.length > 0 && (
                   <div className="flex gap-2 flex-wrap mb-3">
                     {media.map(m => (
-                      <div key={m.id} className="relative w-24 h-24 rounded-md overflow-hidden bg-gray-100">
+                      <div key={m.id} className="relative w-24 h-24 rounded-md overflow-hidden bg-surface-sunken">
                         {m.media_type === 'video' ? (
-                          <div className="w-full h-full flex items-center justify-center text-gray-400">
+                          <div className="w-full h-full flex items-center justify-center text-faint">
                             <i className="fas fa-video text-xl"></i>
                           </div>
                         ) : (
@@ -172,7 +172,7 @@ export default function GuardianApprovalsPage() {
                   <button
                     onClick={() => decide(post.id, 'approve')}
                     disabled={acting === post.id}
-                    className="bg-violet-600 text-white px-4 py-2 rounded-md text-sm font-medium hover:bg-violet-700 transition disabled:opacity-50"
+                    className="bg-brand text-white px-4 py-2 rounded-md text-sm font-medium hover:bg-brand-hover transition disabled:opacity-50"
                   >
                     {acting === post.id ? (
                       <i className="fas fa-spinner fa-spin mr-2"></i>
@@ -184,7 +184,7 @@ export default function GuardianApprovalsPage() {
                   <button
                     onClick={() => decide(post.id, 'reject')}
                     disabled={acting === post.id}
-                    className="border border-red-300 text-red-600 px-4 py-2 rounded-md text-sm font-medium hover:bg-red-50 transition disabled:opacity-50"
+                    className="border border-red-300 dark:border-red-700 text-red-600 dark:text-red-400 px-4 py-2 rounded-md text-sm font-medium hover:bg-red-50 dark:hover:bg-red-950/40 transition disabled:opacity-50"
                   >
                     <i className="fas fa-xmark mr-2"></i>
                     Reject

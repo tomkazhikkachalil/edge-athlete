@@ -268,15 +268,15 @@ export default function FollowersModal({ isOpen, onClose, profileId, initialTab 
       {/* Modal Content. flex-col + max-h-modal (dvh-aware): the old
           max-h-[80vh] panel with a max-h-[calc(80vh-140px)] list relied on a
           magic 140px header estimate that broke as soon as the header grew. */}
-      <div className="relative w-full max-w-lg max-h-modal bg-white rounded-lg shadow-xl overflow-hidden mx-4 flex flex-col">
+      <div className="relative w-full max-w-lg max-h-modal bg-surface-raised rounded-lg shadow-xl overflow-hidden mx-4 flex flex-col">
         {/* Header */}
-        <div className="shrink-0 flex items-center justify-between p-4 border-b border-gray-200">
-          <h2 className="text-xl font-bold text-gray-900">
+        <div className="shrink-0 flex items-center justify-between p-4 border-b border-border">
+          <h2 className="text-xl font-bold text-primary">
             {activeTab === 'followers' ? 'Fans' : 'Following'}
           </h2>
           <button
             onClick={onClose}
-            className="ea-icon-btn inline-flex items-center justify-center text-gray-800 hover:text-black"
+            className="ea-icon-btn inline-flex items-center justify-center text-primary hover:text-black dark:hover:text-primary"
             aria-label="Close"
           >
             <i className="fas fa-times text-xl"></i>
@@ -284,13 +284,13 @@ export default function FollowersModal({ isOpen, onClose, profileId, initialTab 
         </div>
 
         {/* Tabs */}
-        <div className="shrink-0 flex border-b border-gray-200">
+        <div className="shrink-0 flex border-b border-border">
           <button
             onClick={() => setActiveTab('followers')}
             className={`flex-1 py-3 text-sm font-medium transition-colors ${
               activeTab === 'followers'
-                ? 'text-violet-600 border-b-2 border-violet-600'
-                : 'text-gray-600 hover:text-gray-900'
+                ? 'text-brand-fg border-b-2 border-brand'
+                : 'text-tertiary hover:text-primary'
             }`}
           >
             Fans ({followers.length})
@@ -299,8 +299,8 @@ export default function FollowersModal({ isOpen, onClose, profileId, initialTab 
             onClick={() => setActiveTab('following')}
             className={`flex-1 py-3 text-sm font-medium transition-colors ${
               activeTab === 'following'
-                ? 'text-violet-600 border-b-2 border-violet-600'
-                : 'text-gray-600 hover:text-gray-900'
+                ? 'text-brand-fg border-b-2 border-brand'
+                : 'text-tertiary hover:text-primary'
             }`}
           >
             Following ({following.length})
@@ -312,7 +312,7 @@ export default function FollowersModal({ isOpen, onClose, profileId, initialTab 
         <div className="flex-1 min-h-0 overflow-y-auto p-4">
           {loading && (
             <div className="flex items-center justify-center py-12">
-              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-violet-600"></div>
+              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-brand"></div>
             </div>
           )}
 
@@ -321,10 +321,10 @@ export default function FollowersModal({ isOpen, onClose, profileId, initialTab 
               <div className="text-red-500 mb-4">
                 <i className="fas fa-exclamation-circle text-4xl"></i>
               </div>
-              <p className="text-gray-900 font-medium">{error}</p>
+              <p className="text-primary font-medium">{error}</p>
               <button
                 onClick={loadData}
-                className="mt-4 px-4 py-2 bg-violet-600 text-white rounded-lg hover:bg-violet-700"
+                className="mt-4 px-4 py-2 bg-brand text-white rounded-lg hover:bg-brand-hover"
               >
                 Try Again
               </button>
@@ -333,10 +333,10 @@ export default function FollowersModal({ isOpen, onClose, profileId, initialTab 
 
           {!loading && !error && currentList.length === 0 && (
             <div className="text-center py-12">
-              <div className="text-gray-600 mb-4">
+              <div className="text-tertiary mb-4">
                 <i className="fas fa-users text-4xl"></i>
               </div>
-              <p className="text-gray-900 font-medium">
+              <p className="text-primary font-medium">
                 {activeTab === 'followers'
                   ? 'No fans yet'
                   : 'Not a fan of anyone yet'}
@@ -362,7 +362,7 @@ export default function FollowersModal({ isOpen, onClose, profileId, initialTab 
                 return (
                   <div
                     key={profile.id}
-                    className="flex flex-wrap items-center gap-3 p-3 rounded-lg hover:bg-gray-50 transition-colors"
+                    className="flex flex-wrap items-center gap-3 p-3 rounded-lg hover:bg-surface-muted transition-colors"
                   >
                     {/* Clickable profile section. basis-40 sets the wrap
                         threshold: on your own Fans tab the row carries TWO
@@ -391,15 +391,15 @@ export default function FollowersModal({ isOpen, onClose, profileId, initialTab 
                       {/* Info */}
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2">
-                          <p className="font-semibold text-gray-900 truncate">
+                          <p className="font-semibold text-primary truncate">
                             {displayName}
                           </p>
                           {handle && (
-                            <span className="text-sm text-gray-500 truncate">{handle}</span>
+                            <span className="text-sm text-muted truncate">{handle}</span>
                           )}
                         </div>
                         {(profile.sport || profile.school) && (
-                          <p className="text-sm text-gray-600 truncate">
+                          <p className="text-sm text-tertiary truncate">
                             {[profile.sport, profile.school].filter(Boolean).join(' • ')}
                           </p>
                         )}
@@ -417,7 +417,7 @@ export default function FollowersModal({ isOpen, onClose, profileId, initialTab 
                               <button
                                 onClick={(e) => handleUnfollow(profile.id, e)}
                                 disabled={isLoadingThis}
-                                className="px-3 py-2 min-h-[36px] text-xs font-medium text-gray-700 bg-gray-200 rounded-full hover:bg-gray-300 transition-colors disabled:opacity-50 whitespace-nowrap"
+                                className="px-3 py-2 min-h-[36px] text-xs font-medium text-secondary bg-gray-200 dark:bg-stone-800 rounded-full hover:bg-gray-300 dark:hover:bg-stone-700 transition-colors disabled:opacity-50 whitespace-nowrap"
                               >
                                 {isLoadingThis ? (
                                   <i className="fas fa-spinner fa-spin"></i>
@@ -431,8 +431,8 @@ export default function FollowersModal({ isOpen, onClose, profileId, initialTab 
                                 disabled={isLoadingThis}
                                 className={`px-3 py-2 min-h-[36px] text-xs font-medium rounded-full transition-colors disabled:opacity-50 whitespace-nowrap ${
                                   requestedThem
-                                    ? 'text-gray-700 bg-gray-200 hover:bg-gray-300'
-                                    : 'text-white bg-violet-600 hover:bg-violet-700'
+                                    ? 'text-secondary bg-gray-200 dark:bg-stone-800 hover:bg-gray-300 dark:hover:bg-stone-700'
+                                    : 'text-white bg-brand hover:bg-brand-hover'
                                 }`}
                               >
                                 {isLoadingThis ? (
@@ -450,7 +450,7 @@ export default function FollowersModal({ isOpen, onClose, profileId, initialTab 
                               <button
                                 onClick={(e) => handleRemoveFan(profile.id, e)}
                                 disabled={isLoadingThis}
-                                className="px-3 py-2 min-h-[36px] text-xs font-medium text-red-600 bg-red-50 rounded-full hover:bg-red-100 transition-colors disabled:opacity-50 whitespace-nowrap"
+                                className="px-3 py-2 min-h-[36px] text-xs font-medium text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-950/40 rounded-full hover:bg-red-100 dark:hover:bg-red-950/60 transition-colors disabled:opacity-50 whitespace-nowrap"
                               >
                                 Remove Fan
                               </button>
@@ -465,7 +465,7 @@ export default function FollowersModal({ isOpen, onClose, profileId, initialTab 
                               <button
                                 onClick={(e) => handleUnfollow(profile.id, e)}
                                 disabled={isLoadingThis}
-                                className="px-3 py-2 min-h-[36px] text-xs font-medium text-gray-700 bg-gray-200 rounded-full hover:bg-gray-300 transition-colors disabled:opacity-50 whitespace-nowrap"
+                                className="px-3 py-2 min-h-[36px] text-xs font-medium text-secondary bg-gray-200 dark:bg-stone-800 rounded-full hover:bg-gray-300 dark:hover:bg-stone-700 transition-colors disabled:opacity-50 whitespace-nowrap"
                               >
                                 {isLoadingThis ? (
                                   <i className="fas fa-spinner fa-spin"></i>
@@ -479,8 +479,8 @@ export default function FollowersModal({ isOpen, onClose, profileId, initialTab 
                                 disabled={isLoadingThis}
                                 className={`px-3 py-2 min-h-[36px] text-xs font-medium rounded-full transition-colors disabled:opacity-50 whitespace-nowrap ${
                                   requestedThem
-                                    ? 'text-gray-700 bg-gray-200 hover:bg-gray-300'
-                                    : 'text-white bg-violet-600 hover:bg-violet-700'
+                                    ? 'text-secondary bg-gray-200 dark:bg-stone-800 hover:bg-gray-300 dark:hover:bg-stone-700'
+                                    : 'text-white bg-brand hover:bg-brand-hover'
                                 }`}
                               >
                                 {isLoadingThis ? (

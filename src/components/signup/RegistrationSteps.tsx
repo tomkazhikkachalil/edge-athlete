@@ -29,10 +29,10 @@ type Step = 'role' | 'dob' | 'details' | 'parent' | 'parent-done' | 'guardian' |
 type Role = 'athlete' | 'parent';
 
 const inputClass =
-  'w-full px-4 py-3 text-sm text-gray-800 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-violet-500';
-const labelClass = 'block text-sm font-medium text-gray-700 mb-1';
+  'w-full px-4 py-3 text-sm text-primary border border-border-strong rounded-md focus:outline-none focus:ring-1 focus:ring-violet-500';
+const labelClass = 'block text-sm font-medium text-secondary mb-1';
 const primaryBtn =
-  'w-full bg-violet-600 text-white py-3 px-4 rounded-md hover:bg-violet-700 transition duration-300 flex items-center justify-center text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed';
+  'w-full bg-brand text-white py-3 px-4 rounded-md hover:bg-brand-hover transition duration-300 flex items-center justify-center text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed';
 
 export default function RegistrationSteps({ onBackToLogin }: { onBackToLogin: () => void }) {
   const [step, setStep] = useState<Step>('role');
@@ -192,7 +192,7 @@ export default function RegistrationSteps({ onBackToLogin }: { onBackToLogin: ()
       ref={errorRef}
       role="alert"
       tabIndex={-1}
-      className="bg-red-50 border border-red-200 text-red-600 px-4 py-3 rounded-md text-sm mb-4"
+      className="bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-800 text-red-600 dark:text-red-400 px-4 py-3 rounded-md text-sm mb-4"
     >
       {error}
     </div>
@@ -200,34 +200,34 @@ export default function RegistrationSteps({ onBackToLogin }: { onBackToLogin: ()
 
   return (
     <div className="flex-grow flex items-center justify-center p-4">
-      <div className="w-full max-w-3xl bg-white rounded-lg shadow-lg overflow-hidden">
+      <div className="w-full max-w-3xl bg-surface rounded-lg shadow-lg overflow-hidden">
         <div className="w-full p-6 sm:p-8">
           {step === 'role' && (
             <>
-              <h2 className="text-xl sm:text-2xl font-bold text-violet-800 mb-1">Who&apos;s setting this up?</h2>
-              <p className="text-sm text-gray-600 mb-4">This helps us set up the right kind of account.</p>
+              <h2 className="text-xl sm:text-2xl font-bold text-violet-800 dark:text-violet-200 mb-1">Who&apos;s setting this up?</h2>
+              <p className="text-sm text-tertiary mb-4">This helps us set up the right kind of account.</p>
               {errorBox}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 max-w-lg">
                 <button
                   type="button"
                   onClick={() => { setRole('athlete'); setStep('dob'); }}
-                  className="border-2 border-violet-200 hover:border-violet-600 rounded-lg p-6 text-left transition"
+                  className="border-2 border-violet-200 dark:border-violet-800 hover:border-brand rounded-lg p-6 text-left transition"
                 >
-                  <i className="fas fa-person-running text-violet-600 text-2xl mb-2"></i>
-                  <p className="font-bold text-gray-900">I&apos;m the athlete</p>
-                  <p className="text-sm text-gray-600 mt-1">This account is for me.</p>
+                  <i className="fas fa-person-running text-brand-fg text-2xl mb-2"></i>
+                  <p className="font-bold text-primary">I&apos;m the athlete</p>
+                  <p className="text-sm text-tertiary mt-1">This account is for me.</p>
                 </button>
                 <button
                   type="button"
                   onClick={() => { setRole('parent'); setStep('dob'); }}
-                  className="border-2 border-violet-200 hover:border-violet-600 rounded-lg p-6 text-left transition"
+                  className="border-2 border-violet-200 dark:border-violet-800 hover:border-brand rounded-lg p-6 text-left transition"
                 >
-                  <i className="fas fa-user-shield text-violet-600 text-2xl mb-2"></i>
-                  <p className="font-bold text-gray-900">I&apos;m a parent or guardian</p>
-                  <p className="text-sm text-gray-600 mt-1">I&apos;m setting this up for my athlete.</p>
+                  <i className="fas fa-user-shield text-brand-fg text-2xl mb-2"></i>
+                  <p className="font-bold text-primary">I&apos;m a parent or guardian</p>
+                  <p className="text-sm text-tertiary mt-1">I&apos;m setting this up for my athlete.</p>
                 </button>
               </div>
-              <button type="button" onClick={onBackToLogin} className="mt-4 text-xs text-violet-600 hover:underline">
+              <button type="button" onClick={onBackToLogin} className="mt-4 text-xs text-brand-fg hover:underline">
                 Back to login
               </button>
             </>
@@ -235,10 +235,10 @@ export default function RegistrationSteps({ onBackToLogin }: { onBackToLogin: ()
 
           {step === 'dob' && (
             <>
-              <h2 className="text-xl sm:text-2xl font-bold text-violet-800 mb-1">
+              <h2 className="text-xl sm:text-2xl font-bold text-violet-800 dark:text-violet-200 mb-1">
                 {role === 'parent' ? "Your athlete's date of birth" : 'Your date of birth'}
               </h2>
-              <p className="text-sm text-gray-600 mb-4">
+              <p className="text-sm text-tertiary mb-4">
                 {role === 'parent'
                   ? 'This helps us set up their profile correctly.'
                   : 'This helps us set up your account correctly.'}
@@ -257,7 +257,7 @@ export default function RegistrationSteps({ onBackToLogin }: { onBackToLogin: ()
                   />
                 </div>
                 <button type="submit" className={primaryBtn}>Continue</button>
-                <button type="button" onClick={() => setStep('role')} className="text-xs text-violet-600 hover:underline">
+                <button type="button" onClick={() => setStep('role')} className="text-xs text-brand-fg hover:underline">
                   Back
                 </button>
               </form>
@@ -266,8 +266,8 @@ export default function RegistrationSteps({ onBackToLogin }: { onBackToLogin: ()
 
           {step === 'parent' && (
             <>
-              <h2 className="text-xl sm:text-2xl font-bold text-violet-800 mb-1">Create your account</h2>
-              <p className="text-sm text-gray-600 mb-4">
+              <h2 className="text-xl sm:text-2xl font-bold text-violet-800 dark:text-violet-200 mb-1">Create your account</h2>
+              <p className="text-sm text-tertiary mb-4">
                 Quick and simple — just you for now. You&apos;ll add your athlete right after.
               </p>
               {errorBox}
@@ -302,12 +302,12 @@ export default function RegistrationSteps({ onBackToLogin }: { onBackToLogin: ()
                   )}
                 </button>
                 <div className="flex items-center justify-between">
-                  <button type="button" onClick={() => setStep('dob')} className="text-xs text-violet-600 hover:underline">
+                  <button type="button" onClick={() => setStep('dob')} className="text-xs text-brand-fg hover:underline">
                     Back
                   </button>
-                  <p className="text-xs text-gray-600">
+                  <p className="text-xs text-tertiary">
                     Already have an account?
-                    <span className="text-violet-600 hover:underline cursor-pointer ml-1" onClick={onBackToLogin}>
+                    <span className="text-brand-fg hover:underline cursor-pointer ml-1" onClick={onBackToLogin}>
                       Log in
                     </span>
                   </p>
@@ -318,9 +318,9 @@ export default function RegistrationSteps({ onBackToLogin }: { onBackToLogin: ()
 
           {step === 'parent-done' && (
             <div className="text-center py-8">
-              <i className="fas fa-circle-check text-violet-600 text-4xl mb-4"></i>
-              <h2 className="text-xl sm:text-2xl font-bold text-violet-800 mb-2">You&apos;re all set</h2>
-              <p className="text-sm text-gray-600 max-w-md mx-auto mb-6">
+              <i className="fas fa-circle-check text-brand-fg text-4xl mb-4"></i>
+              <h2 className="text-xl sm:text-2xl font-bold text-violet-800 dark:text-violet-200 mb-2">You&apos;re all set</h2>
+              <p className="text-sm text-tertiary max-w-md mx-auto mb-6">
                 Next step: add your athlete. Sign in and we&apos;ll walk you
                 through setting up their profile — you stay in control of
                 their privacy and what gets posted.
@@ -333,11 +333,11 @@ export default function RegistrationSteps({ onBackToLogin }: { onBackToLogin: ()
 
           {step === 'details' && (
             <>
-              <h2 className="text-xl sm:text-2xl font-bold text-violet-800 space-micro">Create Athlete Account</h2>
+              <h2 className="text-xl sm:text-2xl font-bold text-violet-800 dark:text-violet-200 space-micro">Create Athlete Account</h2>
               <OAuthButtons onError={setError} divider="below" />
               {errorBox}
               {success && (
-                <div className="bg-green-50 border border-green-200 text-green-600 px-4 py-3 rounded-md text-sm mb-4">
+                <div className="bg-green-50 dark:bg-green-950/40 border border-green-200 dark:border-green-800 text-green-600 dark:text-green-400 px-4 py-3 rounded-md text-sm mb-4">
                   {success}
                 </div>
               )}
@@ -377,7 +377,7 @@ export default function RegistrationSteps({ onBackToLogin }: { onBackToLogin: ()
                   <span className={labelClass}>Gender</span>
                   <div className="flex gap-4">
                     {(['female', 'male', 'custom'] as const).map(g => (
-                      <label key={g} className="flex items-center gap-1 text-sm text-gray-700 capitalize">
+                      <label key={g} className="flex items-center gap-1 text-sm text-secondary capitalize">
                         <input
                           type="radio"
                           name="rs-gender"
@@ -419,12 +419,12 @@ export default function RegistrationSteps({ onBackToLogin }: { onBackToLogin: ()
                 </button>
               </form>
               <div className="mt-4 flex items-center justify-between">
-                <button type="button" onClick={() => setStep('dob')} className="text-xs text-violet-600 hover:underline">
+                <button type="button" onClick={() => setStep('dob')} className="text-xs text-brand-fg hover:underline">
                   Back
                 </button>
-                <p className="text-xs text-gray-600">
+                <p className="text-xs text-tertiary">
                   Already have an account?
-                  <span className="text-violet-600 hover:underline cursor-pointer ml-1" onClick={onBackToLogin}>
+                  <span className="text-brand-fg hover:underline cursor-pointer ml-1" onClick={onBackToLogin}>
                     Log in
                   </span>
                 </p>
@@ -434,8 +434,8 @@ export default function RegistrationSteps({ onBackToLogin }: { onBackToLogin: ()
 
           {step === 'guardian' && (
             <>
-              <h2 className="text-xl sm:text-2xl font-bold text-violet-800 mb-1">One more step</h2>
-              <p className="text-sm text-gray-600 mb-4">
+              <h2 className="text-xl sm:text-2xl font-bold text-violet-800 dark:text-violet-200 mb-1">One more step</h2>
+              <p className="text-sm text-tertiary mb-4">
                 A parent or guardian needs to finish setting up this account.
                 Enter their email and we&apos;ll send them a link — they stay in
                 control of the profile, and you&apos;ll be able to use it once
@@ -467,9 +467,9 @@ export default function RegistrationSteps({ onBackToLogin }: { onBackToLogin: ()
                 </button>
               </form>
               <div className="mt-4">
-                <p className="text-xs text-gray-600">
+                <p className="text-xs text-tertiary">
                   Already have an account?
-                  <span className="text-violet-600 hover:underline cursor-pointer ml-1" onClick={onBackToLogin}>
+                  <span className="text-brand-fg hover:underline cursor-pointer ml-1" onClick={onBackToLogin}>
                     Log in
                   </span>
                 </p>
@@ -479,12 +479,12 @@ export default function RegistrationSteps({ onBackToLogin }: { onBackToLogin: ()
 
           {step === 'parked' && (
             <div className="text-center py-8">
-              <i className="fas fa-envelope-circle-check text-violet-600 text-4xl mb-4"></i>
-              <h2 className="text-xl sm:text-2xl font-bold text-violet-800 mb-2">Check with your parent or guardian</h2>
-              <p className="text-sm text-gray-600 max-w-md mx-auto mb-6">
+              <i className="fas fa-envelope-circle-check text-brand-fg text-4xl mb-4"></i>
+              <h2 className="text-xl sm:text-2xl font-bold text-violet-800 dark:text-violet-200 mb-2">Check with your parent or guardian</h2>
+              <p className="text-sm text-tertiary max-w-md mx-auto mb-6">
                 {parkedMessage || "We've emailed your parent or guardian a link to finish setting up your profile."}
               </p>
-              <button type="button" onClick={onBackToLogin} className="text-sm text-violet-600 hover:underline">
+              <button type="button" onClick={onBackToLogin} className="text-sm text-brand-fg hover:underline">
                 Back to login
               </button>
             </div>

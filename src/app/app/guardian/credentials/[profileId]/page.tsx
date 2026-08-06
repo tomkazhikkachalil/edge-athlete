@@ -35,8 +35,8 @@ export default function CredentialsPage() {
 
   if (!FEATURE_FLAGS.FEATURE_GUARDIAN_PROFILES || loading || !initialAuthCheckComplete || !user) {
     return (
-      <div className="min-h-screen bg-violet-50 flex items-center justify-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-violet-600"></div>
+      <div className="min-h-screen bg-brand-soft flex items-center justify-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-brand"></div>
       </div>
     );
   }
@@ -89,43 +89,43 @@ export default function CredentialsPage() {
   };
 
   return (
-    <div className="min-h-screen flex flex-col bg-violet-50">
+    <div className="min-h-screen flex flex-col bg-brand-soft">
       <BrandBar />
       <div className="flex-grow flex flex-col items-center justify-center gap-4 p-4">
-        <div className="w-full max-w-lg bg-white rounded-lg shadow-lg p-6 sm:p-8">
+        <div className="w-full max-w-lg bg-surface rounded-lg shadow-lg p-6 sm:p-8">
           {issued ? (
             <div className="text-center py-4">
-              <i className="fas fa-key text-violet-600 text-4xl mb-4"></i>
-              <h2 className="text-xl sm:text-2xl font-bold text-violet-800 mb-2">Login ready</h2>
-              <p className="text-sm text-gray-600 mb-4">
+              <i className="fas fa-key text-brand-fg text-4xl mb-4"></i>
+              <h2 className="text-xl sm:text-2xl font-bold text-violet-800 dark:text-violet-200 mb-2">Login ready</h2>
+              <p className="text-sm text-tertiary mb-4">
                 Share these with your athlete in person:
               </p>
-              <div className="bg-violet-50 border border-violet-100 rounded-md p-4 mb-6 text-left">
-                <p className="text-sm text-gray-800"><span className="font-medium">Username:</span> {issued.username}</p>
-                <p className="text-sm text-gray-800 mt-1">
+              <div className="bg-brand-soft border border-violet-100 dark:border-violet-900 rounded-md p-4 mb-6 text-left">
+                <p className="text-sm text-primary"><span className="font-medium">Username:</span> {issued.username}</p>
+                <p className="text-sm text-primary mt-1">
                   <span className="font-medium">{issued.mode === 'pin' ? 'PIN' : 'Password'}:</span> the one you just set
                 </p>
               </div>
-              <p className="text-xs text-gray-500 mb-6">
+              <p className="text-xs text-muted mb-6">
                 They sign in with the username on the normal login screen — no
                 email needed. If they ever forget it, come back here and set a
                 new one (their other sessions are signed out automatically).
               </p>
-              <button type="button" onClick={() => router.push('/athlete')} className="text-sm text-violet-600 hover:underline">
+              <button type="button" onClick={() => router.push('/athlete')} className="text-sm text-brand-fg hover:underline">
                 Done
               </button>
             </div>
           ) : (
             <>
-              <h2 className="text-xl sm:text-2xl font-bold text-violet-800 mb-1">
+              <h2 className="text-xl sm:text-2xl font-bold text-violet-800 dark:text-violet-200 mb-1">
                 Set up {athlete ? `${athlete.first_name}'s` : 'their'} login
               </h2>
-              <p className="text-sm text-gray-600 mb-4">
+              <p className="text-sm text-tertiary mb-4">
                 Their username is <span className="font-medium">{athlete?.handle ?? 'their handle'}</span>.
                 Choose a password — or a simple 4–6 digit PIN for younger kids.
               </p>
               {error && (
-                <div role="alert" className="bg-red-50 border border-red-200 text-red-600 px-4 py-3 rounded-md text-sm mb-4">
+                <div role="alert" className="bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-800 text-red-600 dark:text-red-400 px-4 py-3 rounded-md text-sm mb-4">
                   {error}
                 </div>
               )}
@@ -137,8 +137,8 @@ export default function CredentialsPage() {
                     onClick={() => { setMode(m); setSecret(''); setConfirm(''); setError(''); }}
                     className={`px-4 py-2 rounded-md text-sm font-medium border ${
                       mode === m
-                        ? 'bg-violet-600 text-white border-violet-600'
-                        : 'bg-white text-gray-700 border-gray-300 hover:border-violet-400'
+                        ? 'bg-brand text-white border-brand'
+                        : 'bg-surface text-secondary border-border-strong hover:border-violet-400'
                     }`}
                   >
                     {m === 'pin' ? 'PIN (ages ~6–9)' : 'Password'}
@@ -147,7 +147,7 @@ export default function CredentialsPage() {
               </div>
               <form onSubmit={handleSubmit} className="flex flex-col gap-4">
                 <div>
-                  <label htmlFor="cred-secret" className="block text-sm font-medium text-gray-700 mb-1">
+                  <label htmlFor="cred-secret" className="block text-sm font-medium text-secondary mb-1">
                     {mode === 'pin' ? 'PIN (4–6 digits)' : 'Password (6+ characters)'}
                   </label>
                   <input
@@ -159,12 +159,12 @@ export default function CredentialsPage() {
                     pattern={mode === 'pin' ? '[0-9]{4,6}' : undefined}
                     minLength={mode === 'pin' ? 4 : 6}
                     maxLength={mode === 'pin' ? 6 : undefined}
-                    className="w-full px-4 py-3 text-sm text-gray-800 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-violet-500"
+                    className="w-full px-4 py-3 text-sm text-primary border border-border-strong rounded-md focus:outline-none focus:ring-1 focus:ring-violet-500"
                     required
                   />
                 </div>
                 <div>
-                  <label htmlFor="cred-confirm" className="block text-sm font-medium text-gray-700 mb-1">
+                  <label htmlFor="cred-confirm" className="block text-sm font-medium text-secondary mb-1">
                     Confirm {mode === 'pin' ? 'PIN' : 'password'}
                   </label>
                   <input
@@ -173,14 +173,14 @@ export default function CredentialsPage() {
                     value={confirm}
                     onChange={e => setConfirm(e.target.value)}
                     inputMode={mode === 'pin' ? 'numeric' : undefined}
-                    className="w-full px-4 py-3 text-sm text-gray-800 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-violet-500"
+                    className="w-full px-4 py-3 text-sm text-primary border border-border-strong rounded-md focus:outline-none focus:ring-1 focus:ring-violet-500"
                     required
                   />
                 </div>
                 <button
                   type="submit"
                   disabled={submitting}
-                  className="w-full bg-violet-600 text-white py-3 px-4 rounded-md hover:bg-violet-700 transition duration-300 flex items-center justify-center text-sm font-medium disabled:opacity-50"
+                  className="w-full bg-brand text-white py-3 px-4 rounded-md hover:bg-brand-hover transition duration-300 flex items-center justify-center text-sm font-medium disabled:opacity-50"
                 >
                   {submitting ? (
                     <><i className="fas fa-spinner fa-spin mr-2"></i> Setting up...</>
@@ -194,38 +194,38 @@ export default function CredentialsPage() {
         </div>
 
         {/* Danger zone — consent withdrawal = permanent deletion */}
-        <div className="w-full max-w-lg bg-white border border-red-200 rounded-lg p-6">
-          <h3 className="text-sm font-bold text-red-700 mb-1">Danger zone</h3>
+        <div className="w-full max-w-lg bg-surface border border-red-200 dark:border-red-800 rounded-lg p-6">
+          <h3 className="text-sm font-bold text-red-700 dark:text-red-300 mb-1">Danger zone</h3>
           {!deleteOpen ? (
             <div className="flex items-center justify-between gap-4">
-              <p className="text-xs text-gray-500">
+              <p className="text-xs text-muted">
                 Withdrawing consent permanently deletes {athlete?.first_name ?? 'this athlete'}&apos;s
                 profile and everything on it.
               </p>
               <button
                 type="button"
                 onClick={() => { setDeleteOpen(true); setDeleteConfirm(''); setDeleteError(''); }}
-                className="shrink-0 border border-red-300 text-red-600 px-3 py-2 rounded-md text-xs font-medium hover:bg-red-50 transition"
+                className="shrink-0 border border-red-300 dark:border-red-700 text-red-600 dark:text-red-400 px-3 py-2 rounded-md text-xs font-medium hover:bg-red-50 dark:hover:bg-red-950/40 transition"
               >
                 Delete profile
               </button>
             </div>
           ) : (
             <div>
-              <p className="text-sm text-gray-700 mb-2">
+              <p className="text-sm text-secondary mb-2">
                 This permanently deletes {athlete?.first_name ?? 'this athlete'}&apos;s profile,
                 posts, media, and login. <span className="font-medium">It cannot be undone.</span>
               </p>
-              <p className="text-xs text-gray-500 mb-3">
+              <p className="text-xs text-muted mb-3">
                 Signed consent records are retained as required for compliance.
               </p>
               {deleteError && (
-                <div role="alert" className="bg-red-50 border border-red-200 text-red-600 px-4 py-3 rounded-md text-sm mb-3">
+                <div role="alert" className="bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-800 text-red-600 dark:text-red-400 px-4 py-3 rounded-md text-sm mb-3">
                   {deleteError}
                 </div>
               )}
-              <label htmlFor="delete-confirm" className="block text-sm font-medium text-gray-700 mb-1">
-                Type <span className="font-mono text-red-700">{athlete?.handle ?? athlete?.first_name ?? ''}</span> to confirm
+              <label htmlFor="delete-confirm" className="block text-sm font-medium text-secondary mb-1">
+                Type <span className="font-mono text-red-700 dark:text-red-300">{athlete?.handle ?? athlete?.first_name ?? ''}</span> to confirm
               </label>
               <input
                 type="text"
@@ -233,7 +233,7 @@ export default function CredentialsPage() {
                 value={deleteConfirm}
                 onChange={e => setDeleteConfirm(e.target.value)}
                 autoComplete="off"
-                className="w-full px-4 py-3 text-sm text-gray-800 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-red-500 mb-3"
+                className="w-full px-4 py-3 text-sm text-primary border border-border-strong rounded-md focus:outline-none focus:ring-1 focus:ring-red-500 mb-3"
               />
               <div className="flex gap-3">
                 <button
@@ -248,7 +248,7 @@ export default function CredentialsPage() {
                   type="button"
                   onClick={() => setDeleteOpen(false)}
                   disabled={deleteBusy}
-                  className="border border-gray-300 text-gray-700 px-4 py-2 rounded-md text-sm font-medium hover:bg-gray-50 transition disabled:opacity-50"
+                  className="border border-border-strong text-secondary px-4 py-2 rounded-md text-sm font-medium hover:bg-surface-muted transition disabled:opacity-50"
                 >
                   Cancel
                 </button>

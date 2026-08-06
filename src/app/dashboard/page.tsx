@@ -134,10 +134,10 @@ export default function AdminDashboardPage() {
 
   if (authLoading || !user || authorized === null) {
     return (
-      <div className="min-h-screen bg-gray-50">
+      <div className="min-h-screen bg-canvas">
         <AppHeader showSearch={false} />
         <div className="flex items-center justify-center py-20">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-violet-600"></div>
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-brand"></div>
         </div>
       </div>
     );
@@ -145,13 +145,13 @@ export default function AdminDashboardPage() {
 
   if (!authorized) {
     return (
-      <div className="min-h-screen bg-gray-50">
+      <div className="min-h-screen bg-canvas">
         <AppHeader showSearch={false} />
         <div className="flex items-center justify-center py-20">
           <div className="text-center px-4">
             <i className="fas fa-lock text-4xl text-gray-300 mb-4"></i>
-            <h1 className="text-xl font-bold text-gray-900 mb-2">Admin access required</h1>
-            <p className="text-sm text-gray-600">This area is for Edge Athlete administrators.</p>
+            <h1 className="text-xl font-bold text-primary mb-2">Admin access required</h1>
+            <p className="text-sm text-tertiary">This area is for Edge Athlete administrators.</p>
           </div>
         </div>
       </div>
@@ -159,12 +159,12 @@ export default function AdminDashboardPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-canvas">
       <AppHeader showSearch={false} />
 
       <div className="max-w-4xl mx-auto px-4 py-6 space-y-8">
-        <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">
-          <i className="fas fa-shield-alt mr-2 text-violet-600"></i>
+        <h1 className="text-2xl sm:text-3xl font-bold text-primary">
+          <i className="fas fa-shield-alt mr-2 text-brand-fg"></i>
           Admin
         </h1>
 
@@ -173,38 +173,38 @@ export default function AdminDashboardPage() {
           <button
             type="button"
             onClick={() => router.push('/dashboard/consent')}
-            className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 text-left hover:border-violet-300 transition"
+            className="bg-surface rounded-lg shadow-sm border border-border p-4 text-left hover:border-violet-300 transition"
           >
-            <p className="text-sm font-semibold text-gray-900">
-              <i className="fas fa-file-signature text-violet-600 mr-2"></i>
+            <p className="text-sm font-semibold text-primary">
+              <i className="fas fa-file-signature text-brand-fg mr-2"></i>
               Consent reviews
             </p>
-            <p className="text-xs text-gray-500 mt-1">Signed parental-consent submissions awaiting review.</p>
+            <p className="text-xs text-muted mt-1">Signed parental-consent submissions awaiting review.</p>
           </button>
           <button
             type="button"
             onClick={() => router.push('/dashboard/guardians')}
-            className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 text-left hover:border-violet-300 transition"
+            className="bg-surface rounded-lg shadow-sm border border-border p-4 text-left hover:border-violet-300 transition"
           >
-            <p className="text-sm font-semibold text-gray-900">
-              <i className="fas fa-user-shield text-violet-600 mr-2"></i>
+            <p className="text-sm font-semibold text-primary">
+              <i className="fas fa-user-shield text-brand-fg mr-2"></i>
               Guardian support
             </p>
-            <p className="text-xs text-gray-500 mt-1">Orphaned supervised profiles — invite a guardian or delete.</p>
+            <p className="text-xs text-muted mt-1">Orphaned supervised profiles — invite a guardian or delete.</p>
           </button>
         </section>
 
         {/* Message reports queue */}
-        <section className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 sm:p-6">
+        <section className="bg-surface rounded-lg shadow-sm border border-border p-4 sm:p-6">
           <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
-            <h2 className="text-lg font-semibold text-gray-900">Message reports</h2>
+            <h2 className="text-lg font-semibold text-primary">Message reports</h2>
             <div className="flex flex-wrap gap-2">
               {STATUS_FILTERS.map(f => (
                 <button
                   key={f}
                   onClick={() => setStatusFilter(f)}
                   className={`px-3 py-1.5 min-h-[40px] rounded-md text-xs font-medium capitalize transition-colors ${
-                    statusFilter === f ? 'bg-violet-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                    statusFilter === f ? 'bg-brand text-white' : 'bg-surface-sunken text-secondary hover:bg-gray-200 dark:hover:bg-stone-800'
                   }`}
                 >
                   {f}
@@ -214,63 +214,63 @@ export default function AdminDashboardPage() {
           </div>
 
           {reportsLoading ? (
-            <p className="text-sm text-gray-500 py-6 text-center">Loading reports…</p>
+            <p className="text-sm text-muted py-6 text-center">Loading reports…</p>
           ) : reports.length === 0 ? (
-            <p className="text-sm text-gray-500 py-6 text-center">
+            <p className="text-sm text-muted py-6 text-center">
               No {statusFilter === 'all' ? '' : statusFilter} reports. 🎉
             </p>
           ) : (
             <div className="space-y-3">
               {reports.map(report => (
-                <div key={report.id} className="border border-gray-200 rounded-lg p-4">
+                <div key={report.id} className="border border-border rounded-lg p-4">
                   <div className="flex flex-wrap items-center gap-2 mb-2">
-                    <span className="px-2 py-0.5 bg-red-50 text-red-700 text-xs font-semibold rounded-full uppercase">
+                    <span className="px-2 py-0.5 bg-red-50 dark:bg-red-950/40 text-red-700 dark:text-red-300 text-xs font-semibold rounded-full uppercase">
                       {report.reason}
                     </span>
-                    <span className="px-2 py-0.5 bg-gray-100 text-gray-600 text-xs rounded-full capitalize">
+                    <span className="px-2 py-0.5 bg-surface-sunken text-tertiary text-xs rounded-full capitalize">
                       {report.status}
                     </span>
-                    <span className="text-xs text-gray-400">
+                    <span className="text-xs text-faint">
                       {new Date(report.created_at).toLocaleString()}
                     </span>
                   </div>
-                  <p className="text-sm text-gray-700 mb-1">
+                  <p className="text-sm text-secondary mb-1">
                     <span className="font-medium">{name(report.reporter)}</span>
                     {' reported '}
                     <span className="font-medium">{name(report.reported)}</span>
                   </p>
                   {report.message?.content && (
-                    <blockquote className="text-sm text-gray-600 bg-gray-50 border-l-2 border-gray-300 pl-3 py-1.5 my-2 break-words">
+                    <blockquote className="text-sm text-tertiary bg-surface-muted border-l-2 border-border-strong pl-3 py-1.5 my-2 break-words">
                       {report.message.content}
                     </blockquote>
                   )}
                   {report.details && (
-                    <p className="text-xs text-gray-500 mb-2 break-words">Reporter notes: {report.details}</p>
+                    <p className="text-xs text-muted mb-2 break-words">Reporter notes: {report.details}</p>
                   )}
                   <div className="flex flex-wrap gap-2 mt-3">
                     {report.reported && (
                       <button
                         onClick={() => router.push(`/athlete/${report.reported!.id}`)}
-                        className="px-3 py-1.5 min-h-[40px] text-xs font-medium bg-gray-100 text-gray-700 rounded-md hover:bg-gray-200"
+                        className="px-3 py-1.5 min-h-[40px] text-xs font-medium bg-surface-sunken text-secondary rounded-md hover:bg-gray-200 dark:hover:bg-stone-800"
                       >
                         View profile
                       </button>
                     )}
                     {report.status !== 'reviewing' && (
                       <button onClick={() => updateReport(report.id, 'reviewing')}
-                        className="px-3 py-1.5 min-h-[40px] text-xs font-medium bg-yellow-50 text-yellow-700 rounded-md hover:bg-yellow-100">
+                        className="px-3 py-1.5 min-h-[40px] text-xs font-medium bg-yellow-50 dark:bg-yellow-950/40 text-yellow-700 dark:text-yellow-300 rounded-md hover:bg-yellow-100 dark:hover:bg-yellow-950/60">
                         Mark reviewing
                       </button>
                     )}
                     {report.status !== 'resolved' && (
                       <button onClick={() => updateReport(report.id, 'resolved')}
-                        className="px-3 py-1.5 min-h-[40px] text-xs font-medium bg-green-50 text-green-700 rounded-md hover:bg-green-100">
+                        className="px-3 py-1.5 min-h-[40px] text-xs font-medium bg-green-50 dark:bg-green-950/40 text-green-700 dark:text-green-300 rounded-md hover:bg-green-100 dark:hover:bg-green-950/60">
                         Resolve
                       </button>
                     )}
                     {report.status !== 'dismissed' && (
                       <button onClick={() => updateReport(report.id, 'dismissed')}
-                        className="px-3 py-1.5 min-h-[40px] text-xs font-medium bg-gray-50 text-gray-600 rounded-md hover:bg-gray-100">
+                        className="px-3 py-1.5 min-h-[40px] text-xs font-medium bg-surface-muted text-tertiary rounded-md hover:bg-surface-sunken">
                         Dismiss
                       </button>
                     )}
@@ -282,22 +282,22 @@ export default function AdminDashboardPage() {
         </section>
 
         {/* User lookup */}
-        <section className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 sm:p-6">
-          <h2 className="text-lg font-semibold text-gray-900 mb-4">User lookup</h2>
+        <section className="bg-surface rounded-lg shadow-sm border border-border p-4 sm:p-6">
+          <h2 className="text-lg font-semibold text-primary mb-4">User lookup</h2>
           <input
             type="search"
             value={userQuery}
             onChange={e => setUserQuery(e.target.value)}
             placeholder="Search by name, email, or handle…"
-            className="w-full px-3 py-2 min-h-[44px] border border-gray-300 rounded-md text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-violet-500 mb-4"
+            className="w-full px-3 py-2 min-h-[44px] border border-border-strong rounded-md text-sm text-primary focus:outline-none focus:ring-2 focus:ring-violet-500 mb-4"
             aria-label="Search users"
           />
           {searching ? (
-            <p className="text-sm text-gray-500">Searching…</p>
+            <p className="text-sm text-muted">Searching…</p>
           ) : users.length > 0 ? (
             <div className="overflow-x-auto">
               <table className="min-w-full text-sm">
-                <thead className="bg-gray-50 text-xs text-gray-500 uppercase">
+                <thead className="bg-surface-muted text-xs text-muted uppercase">
                   <tr>
                     <th className="px-3 py-2 text-left">Name</th>
                     <th className="px-3 py-2 text-left">Email</th>
@@ -307,20 +307,20 @@ export default function AdminDashboardPage() {
                     <th className="px-3 py-2 text-left"></th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-gray-100">
+                <tbody className="divide-y divide-border-subtle">
                   {users.map(u => (
-                    <tr key={u.id} className="hover:bg-gray-50">
-                      <td className="px-3 py-2 font-medium text-gray-900 whitespace-nowrap">{name(u)}</td>
-                      <td className="px-3 py-2 text-gray-600">{u.email || '—'}</td>
-                      <td className="px-3 py-2 text-gray-600">{u.handle || '—'}</td>
-                      <td className="px-3 py-2 text-gray-600 capitalize">{u.user_type}{u.visibility === 'private' ? ' · private' : ''}</td>
-                      <td className="px-3 py-2 text-gray-500 whitespace-nowrap">
+                    <tr key={u.id} className="hover:bg-surface-muted">
+                      <td className="px-3 py-2 font-medium text-primary whitespace-nowrap">{name(u)}</td>
+                      <td className="px-3 py-2 text-tertiary">{u.email || '—'}</td>
+                      <td className="px-3 py-2 text-tertiary">{u.handle || '—'}</td>
+                      <td className="px-3 py-2 text-tertiary capitalize">{u.user_type}{u.visibility === 'private' ? ' · private' : ''}</td>
+                      <td className="px-3 py-2 text-muted whitespace-nowrap">
                         {new Date(u.created_at).toLocaleDateString()}
                       </td>
                       <td className="px-3 py-2">
                         <button
                           onClick={() => router.push(`/athlete/${u.id}`)}
-                          className="text-xs font-medium text-violet-600 hover:text-violet-700"
+                          className="text-xs font-medium text-brand-fg hover:text-brand-fg-strong"
                         >
                           View →
                         </button>
@@ -331,9 +331,9 @@ export default function AdminDashboardPage() {
               </table>
             </div>
           ) : userQuery.trim().length >= 2 ? (
-            <p className="text-sm text-gray-500">No users match.</p>
+            <p className="text-sm text-muted">No users match.</p>
           ) : (
-            <p className="text-xs text-gray-400">Type at least 2 characters to search.</p>
+            <p className="text-xs text-faint">Type at least 2 characters to search.</p>
           )}
         </section>
       </div>

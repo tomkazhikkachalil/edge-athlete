@@ -64,14 +64,14 @@ function FallbackBody({ item }: { item: TaggedItem }) {
     const summary = formatGolfStatsSummary(item.golf_round);
     if (summary) {
       return (
-        <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-gradient-to-br from-green-50 via-emerald-50 to-green-100 p-3">
+        <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-gradient-to-br from-green-50 via-emerald-50 to-green-100 dark:from-green-950/40 dark:via-emerald-950/40 dark:to-green-950/60 p-3">
           <span className="flex h-9 w-9 items-center justify-center rounded-full bg-green-600">
             <Flag className="w-4 h-4 text-white" aria-hidden="true" />
           </span>
           <div className="text-center">
-            <div className="text-sm font-bold text-gray-900 line-clamp-2">{summary.primaryLine}</div>
+            <div className="text-sm font-bold text-primary line-clamp-2">{summary.primaryLine}</div>
             {summary.secondaryLine && (
-              <div className="text-xs text-green-700 font-semibold line-clamp-1">{summary.secondaryLine}</div>
+              <div className="text-xs text-green-700 dark:text-green-300 font-semibold line-clamp-1">{summary.secondaryLine}</div>
             )}
           </div>
         </div>
@@ -82,14 +82,14 @@ function FallbackBody({ item }: { item: TaggedItem }) {
     const summary = formatGenericStatsSummary(item.stats_data);
     if (summary) {
       return (
-        <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-gradient-to-br from-violet-50 via-purple-50 to-violet-100 p-3">
-          <span className="flex h-9 w-9 items-center justify-center rounded-full bg-violet-600">
+        <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-gradient-to-br from-violet-50 via-purple-50 to-violet-100 dark:from-violet-950/40 dark:via-purple-950/40 dark:to-violet-950/60 p-3">
+          <span className="flex h-9 w-9 items-center justify-center rounded-full bg-brand">
             <TrendingUp className="w-4 h-4 text-white" aria-hidden="true" />
           </span>
           <div className="text-center">
-            <div className="text-sm font-bold text-gray-900 line-clamp-2">{summary.primaryLine}</div>
+            <div className="text-sm font-bold text-primary line-clamp-2">{summary.primaryLine}</div>
             {summary.secondaryLine && (
-              <div className="text-xs text-violet-700 font-semibold line-clamp-1">{summary.secondaryLine}</div>
+              <div className="text-xs text-brand-fg-strong font-semibold line-clamp-1">{summary.secondaryLine}</div>
             )}
           </div>
         </div>
@@ -97,8 +97,8 @@ function FallbackBody({ item }: { item: TaggedItem }) {
     }
   }
   return (
-    <div className="absolute inset-0 flex items-center justify-center bg-gradient-to-br from-gray-50 to-gray-100 p-4">
-      <p className="text-sm text-gray-700 line-clamp-4 text-center">{item.caption || 'Post'}</p>
+    <div className="absolute inset-0 flex items-center justify-center bg-gradient-to-br from-gray-50 to-gray-100 dark:from-stone-900 dark:to-stone-800 p-4">
+      <p className="text-sm text-secondary line-clamp-4 text-center">{item.caption || 'Post'}</p>
     </div>
   );
 }
@@ -115,7 +115,7 @@ export default function TaggedTile({ item, isOwnProfile, onClick, onUntag }: Tag
       <div className="absolute inset-0 bg-black/0 group-hover:bg-black/25 transition-colors">
         <div className="absolute top-2 right-2 flex gap-1">
           {hasStats && firstMedia && (
-            <span className="flex items-center gap-1 rounded-full bg-violet-600 px-2 py-0.5 text-[10px] font-semibold text-white">
+            <span className="flex items-center gap-1 rounded-full bg-brand px-2 py-0.5 text-[10px] font-semibold text-white">
               <BarChart3 className="w-3 h-3" aria-hidden="true" />
               Stats
             </span>
@@ -177,7 +177,7 @@ export default function TaggedTile({ item, isOwnProfile, onClick, onUntag }: Tag
           type="button"
           onClick={onClick}
           aria-label={item.caption || `Post by ${name}`}
-          className="relative block w-full aspect-square overflow-hidden rounded-lg bg-gray-100"
+          className="relative block w-full aspect-square overflow-hidden rounded-lg bg-surface-sunken"
         >
           <FallbackBody item={item} />
           {overlay}

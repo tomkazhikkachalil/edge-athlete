@@ -56,22 +56,22 @@ export default function WorkoutSessionPage() {
 
   if (authLoading || !user || loading) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-violet-600"></div>
+      <div className="min-h-screen bg-canvas flex items-center justify-center">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-brand"></div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-canvas">
       <AppHeader showSearch={false} />
       <main>
         {error || !session ? (
           <div className="max-w-md mx-auto px-4 py-16 text-center">
-            <p className="text-gray-600 mb-4">{error || 'Workout not found'}</p>
+            <p className="text-tertiary mb-4">{error || 'Workout not found'}</p>
             <button
               onClick={() => router.push('/athlete')}
-              className="px-4 py-2 bg-violet-600 text-white rounded-lg font-semibold text-sm hover:bg-violet-700 transition-colors"
+              className="px-4 py-2 bg-brand text-white rounded-lg font-semibold text-sm hover:bg-brand-hover transition-colors"
             >
               Back to profile
             </button>

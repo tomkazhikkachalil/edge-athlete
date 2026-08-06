@@ -323,16 +323,16 @@ export default function AddVitalModal({ isOpen, onClose, onSaved }: AddVitalModa
         onConfirm={confirmDiscard}
         onCancel={cancelDiscard}
       />
-      <div className="bg-white rounded-xl shadow-xl w-full max-w-md max-h-modal overflow-y-auto">
+      <div className="bg-surface-raised rounded-xl shadow-xl w-full max-w-md max-h-modal overflow-y-auto">
         {/* Header */}
-        <div className="flex items-center justify-between p-5 border-b border-gray-100">
+        <div className="flex items-center justify-between p-5 border-b border-border-subtle">
           <div>
-            <h2 className="text-lg font-bold text-gray-900">Add Vital Entry</h2>
-            <p className="text-xs text-gray-500 mt-0.5">Each entry is saved permanently as part of your development record.</p>
+            <h2 className="text-lg font-bold text-primary">Add Vital Entry</h2>
+            <p className="text-xs text-muted mt-0.5">Each entry is saved permanently as part of your development record.</p>
           </div>
           <button
             onClick={requestClose}
-            className="min-w-[44px] min-h-[44px] flex items-center justify-center rounded-full hover:bg-gray-100 text-gray-500 transition-colors"
+            className="min-w-[44px] min-h-[44px] flex items-center justify-center rounded-full hover:bg-surface-sunken text-muted transition-colors"
           >
             <i className="fas fa-times text-sm"></i>
           </button>
@@ -342,7 +342,7 @@ export default function AddVitalModal({ isOpen, onClose, onSaved }: AddVitalModa
         <form onSubmit={handleSubmit} className="p-5 space-y-4">
           {/* Category */}
           <div>
-            <label className="block text-sm font-semibold text-gray-700 mb-1.5">Category</label>
+            <label className="block text-sm font-semibold text-secondary mb-1.5">Category</label>
             <div className="grid grid-cols-2 gap-2">
               {VITAL_CATEGORIES.map(cat => (
                 <button
@@ -351,8 +351,8 @@ export default function AddVitalModal({ isOpen, onClose, onSaved }: AddVitalModa
                   onClick={() => handleCategoryChange(cat.key)}
                   className={`flex items-center gap-2 px-3 py-2.5 rounded-lg border text-sm font-medium transition-all ${
                     form.categoryKey === cat.key
-                      ? 'border-violet-500 bg-violet-50 text-violet-700'
-                      : 'border-gray-200 text-gray-600 hover:border-gray-300 hover:bg-gray-50'
+                      ? 'border-violet-500 bg-brand-soft text-brand-fg-strong'
+                      : 'border-border text-tertiary hover:border-border-strong hover:bg-surface-muted'
                   }`}
                 >
                   <i className={`${cat.icon} text-xs`}></i>
@@ -365,11 +365,11 @@ export default function AddVitalModal({ isOpen, onClose, onSaved }: AddVitalModa
           {/* Metric */}
           {selectedCategory && (
             <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-1.5">Metric</label>
+              <label className="block text-sm font-semibold text-secondary mb-1.5">Metric</label>
               <select
                 value={form.metricKey}
                 onChange={e => handleMetricChange(e.target.value)}
-                className="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-violet-500"
+                className="w-full px-3 py-2.5 border border-border-strong rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-violet-500"
               >
                 <option value="">Select a metric…</option>
                 {selectedCategory.metrics.map(m => (
@@ -382,23 +382,23 @@ export default function AddVitalModal({ isOpen, onClose, onSaved }: AddVitalModa
           {/* Value */}
           {selectedMetric && (
             <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-1.5">
+              <label className="block text-sm font-semibold text-secondary mb-1.5">
                 {selectedMetric.label}
-                <span className="font-normal text-gray-500 ml-1">({selectedMetric.unit})</span>
+                <span className="font-normal text-muted ml-1">({selectedMetric.unit})</span>
               </label>
               <input
                 type="text"
                 value={form.rawValue}
                 onChange={e => { setForm(prev => ({ ...prev, rawValue: e.target.value })); setError(''); }}
                 placeholder={selectedMetric.placeholder}
-                className="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-violet-500"
+                className="w-full px-3 py-2.5 border border-border-strong rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-violet-500"
                 autoFocus
               />
               {selectedMetric.time_format === 'mm:ss' && (
-                <p className="text-xs text-gray-400 mt-1">Enter as minutes:seconds (e.g. 4:32)</p>
+                <p className="text-xs text-faint mt-1">Enter as minutes:seconds (e.g. 4:32)</p>
               )}
               {selectedMetric.time_format === 'decimal_seconds' && (
-                <p className="text-xs text-gray-400 mt-1">Enter as decimal seconds (e.g. 4.95)</p>
+                <p className="text-xs text-faint mt-1">Enter as decimal seconds (e.g. 4.95)</p>
               )}
             </div>
           )}
@@ -406,30 +406,30 @@ export default function AddVitalModal({ isOpen, onClose, onSaved }: AddVitalModa
           {/* Date */}
           {selectedMetric && (
             <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-1.5">Date Recorded</label>
+              <label className="block text-sm font-semibold text-secondary mb-1.5">Date Recorded</label>
               <input
                 type="date"
                 value={form.recordedAt}
                 max={today()}
                 onChange={e => setForm(prev => ({ ...prev, recordedAt: e.target.value }))}
-                className="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-violet-500"
+                className="w-full px-3 py-2.5 border border-border-strong rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-violet-500"
               />
-              <p className="text-xs text-gray-400 mt-1">You can back-date entries to record historical results.</p>
+              <p className="text-xs text-faint mt-1">You can back-date entries to record historical results.</p>
             </div>
           )}
 
           {/* Notes */}
           {selectedMetric && (
             <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-1.5">
-                Notes <span className="font-normal text-gray-400">(optional)</span>
+              <label className="block text-sm font-semibold text-secondary mb-1.5">
+                Notes <span className="font-normal text-faint">(optional)</span>
               </label>
               <textarea
                 value={form.notes}
                 onChange={e => setForm(prev => ({ ...prev, notes: e.target.value }))}
                 placeholder="e.g. Pre-season combine, fresh legs, indoor track…"
                 rows={2}
-                className="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-violet-500 resize-none"
+                className="w-full px-3 py-2.5 border border-border-strong rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-violet-500 resize-none"
               />
             </div>
           )}
@@ -437,15 +437,15 @@ export default function AddVitalModal({ isOpen, onClose, onSaved }: AddVitalModa
           {/* Mode toggle */}
           {selectedMetric && (
             <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-1.5">Save as</label>
+              <label className="block text-sm font-semibold text-secondary mb-1.5">Save as</label>
               <div className="grid grid-cols-2 gap-2">
                 <button
                   type="button"
                   onClick={() => { setMode('metric_only'); setMediaFiles([]); setCaption(''); setError(''); }}
                   className={`flex items-center justify-center gap-2 px-3 py-2.5 rounded-lg border text-sm font-medium transition-all ${
                     mode === 'metric_only'
-                      ? 'border-violet-500 bg-violet-50 text-violet-700'
-                      : 'border-gray-200 text-gray-600 hover:border-gray-300 hover:bg-gray-50'
+                      ? 'border-violet-500 bg-brand-soft text-brand-fg-strong'
+                      : 'border-border text-tertiary hover:border-border-strong hover:bg-surface-muted'
                   }`}
                 >
                   <i className="fas fa-chart-line text-xs"></i>
@@ -456,8 +456,8 @@ export default function AddVitalModal({ isOpen, onClose, onSaved }: AddVitalModa
                   onClick={() => { setMode('with_post'); setError(''); }}
                   className={`flex items-center justify-center gap-2 px-3 py-2.5 rounded-lg border text-sm font-medium transition-all ${
                     mode === 'with_post'
-                      ? 'border-violet-500 bg-violet-50 text-violet-700'
-                      : 'border-gray-200 text-gray-600 hover:border-gray-300 hover:bg-gray-50'
+                      ? 'border-violet-500 bg-brand-soft text-brand-fg-strong'
+                      : 'border-border text-tertiary hover:border-border-strong hover:bg-surface-muted'
                   }`}
                 >
                   <i className="fas fa-camera text-xs"></i>
@@ -472,29 +472,29 @@ export default function AddVitalModal({ isOpen, onClose, onSaved }: AddVitalModa
             <>
               {/* Caption */}
               <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-1.5">
-                  Caption <span className="font-normal text-gray-400">(optional)</span>
+                <label className="block text-sm font-semibold text-secondary mb-1.5">
+                  Caption <span className="font-normal text-faint">(optional)</span>
                 </label>
                 <textarea
                   value={caption}
                   onChange={e => setCaption(e.target.value)}
                   placeholder={`${selectedMetric?.label} · ${form.rawValue || '…'}`}
                   rows={2}
-                  className="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-violet-500 resize-none"
+                  className="w-full px-3 py-2.5 border border-border-strong rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-violet-500 resize-none"
                 />
               </div>
 
               {/* Media upload */}
               <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-1.5">
-                  Media <span className="font-normal text-gray-400">(up to {MAX_MEDIA_FILES} files, 5MB each)</span>
+                <label className="block text-sm font-semibold text-secondary mb-1.5">
+                  Media <span className="font-normal text-faint">(up to {MAX_MEDIA_FILES} files, 5MB each)</span>
                 </label>
 
                 {/* Preview strip */}
                 {mediaFiles.length > 0 && (
                   <div className="flex gap-2 mb-2 flex-wrap">
                     {mediaFiles.map(f => (
-                      <div key={f.id} className="relative w-20 h-20 rounded-lg overflow-hidden border border-gray-200 bg-gray-100 shrink-0">
+                      <div key={f.id} className="relative w-20 h-20 rounded-lg overflow-hidden border border-border bg-surface-sunken shrink-0">
                         {f.type === 'image' ? (
                           // Raw <img>: blob: object URL. The optimizer fetches
                           // server-side and cannot read a client-only URL —
@@ -504,7 +504,7 @@ export default function AddVitalModal({ isOpen, onClose, onSaved }: AddVitalModa
                           <img src={f.preview} alt="" className="w-full h-full object-cover" />
                         ) : (
                           <div className="w-full h-full flex items-center justify-center">
-                            <i className="fas fa-play-circle text-2xl text-gray-400"></i>
+                            <i className="fas fa-play-circle text-2xl text-faint"></i>
                           </div>
                         )}
                         <button
@@ -524,7 +524,7 @@ export default function AddVitalModal({ isOpen, onClose, onSaved }: AddVitalModa
                   <button
                     type="button"
                     onClick={() => fileInputRef.current?.click()}
-                    className="w-full border-2 border-dashed border-gray-300 rounded-lg py-4 px-3 text-sm text-gray-500 hover:border-violet-400 hover:text-violet-600 transition-colors flex items-center justify-center gap-2"
+                    className="w-full border-2 border-dashed border-border-strong rounded-lg py-4 px-3 text-sm text-muted hover:border-violet-400 hover:text-brand-fg transition-colors flex items-center justify-center gap-2"
                   >
                     <i className="fas fa-cloud-upload-alt"></i>
                     {mediaFiles.length === 0 ? 'Add photos or video' : 'Add more'}
@@ -543,7 +543,7 @@ export default function AddVitalModal({ isOpen, onClose, onSaved }: AddVitalModa
 
               {/* Visibility */}
               <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-1.5">Visibility</label>
+                <label className="block text-sm font-semibold text-secondary mb-1.5">Visibility</label>
                 <div className="grid grid-cols-2 gap-2">
                   {(['public', 'private'] as const).map(v => (
                     <button
@@ -552,8 +552,8 @@ export default function AddVitalModal({ isOpen, onClose, onSaved }: AddVitalModa
                       onClick={() => setVisibility(v)}
                       className={`flex items-center justify-center gap-2 px-3 py-2.5 rounded-lg border text-sm font-medium transition-all ${
                         visibility === v
-                          ? 'border-violet-500 bg-violet-50 text-violet-700'
-                          : 'border-gray-200 text-gray-600 hover:border-gray-300 hover:bg-gray-50'
+                          ? 'border-violet-500 bg-brand-soft text-brand-fg-strong'
+                          : 'border-border text-tertiary hover:border-border-strong hover:bg-surface-muted'
                       }`}
                     >
                       <i className={`fas ${v === 'public' ? 'fa-globe' : 'fa-lock'} text-xs`}></i>
@@ -567,7 +567,7 @@ export default function AddVitalModal({ isOpen, onClose, onSaved }: AddVitalModa
 
           {/* Error */}
           {error && (
-            <div className="bg-red-50 border border-red-200 text-red-700 px-3 py-2 rounded-lg text-sm">
+            <div className="bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-300 px-3 py-2 rounded-lg text-sm">
               {error}
             </div>
           )}
@@ -577,14 +577,14 @@ export default function AddVitalModal({ isOpen, onClose, onSaved }: AddVitalModa
             <button
               type="button"
               onClick={requestClose}
-              className="flex-1 px-4 py-2.5 border border-gray-300 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-50 transition-colors"
+              className="flex-1 px-4 py-2.5 border border-border-strong text-secondary rounded-lg text-sm font-medium hover:bg-surface-muted transition-colors"
             >
               Cancel
             </button>
             <button
               type="submit"
               disabled={saving || !selectedMetric}
-              className="flex-1 px-4 py-2.5 bg-violet-600 text-white rounded-lg text-sm font-semibold hover:bg-violet-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              className="flex-1 px-4 py-2.5 bg-brand text-white rounded-lg text-sm font-semibold hover:bg-brand-hover transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {saving ? (
                 <><i className="fas fa-spinner fa-spin mr-1.5"></i>

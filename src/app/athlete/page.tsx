@@ -103,13 +103,13 @@ function InlineEdit({
               narrow screens (input's intrinsic min-width + two 44px buttons
               exceeded the max-w cap, so the buttons rendered OUTSIDE the
               bubble) — and would have floated mid-height beside a textarea. */}
-          <div className="bg-white border-2 border-violet-500 rounded-lg shadow-xl p-4 w-[min(320px,calc(100vw-2rem))]">
+          <div className="bg-surface border-2 border-violet-500 rounded-lg shadow-xl p-4 w-[min(320px,calc(100vw-2rem))]">
           <div className="flex flex-col gap-2">
             {multiline ? (
               <textarea
                 value={tempValues[field] || ''}
                 onChange={(e) => setTempValue(field, e.target.value)}
-                className="w-full min-w-0 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent resize-none min-h-[44px]"
+                className="w-full min-w-0 px-3 py-2 border border-border-strong rounded-md focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent resize-none min-h-[44px]"
                 style={{ direction: 'ltr', unicodeBidi: 'normal' }}
                 dir="ltr"
                 rows={3}
@@ -122,14 +122,14 @@ function InlineEdit({
                 type={inputType}
                 value={tempValues[field] || ''}
                 onChange={(e) => setTempValue(field, e.target.value)}
-                className="w-full min-w-0 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent min-h-[44px]"
+                className="w-full min-w-0 px-3 py-2 border border-border-strong rounded-md focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent min-h-[44px]"
                 autoFocus
                 aria-label={ariaLabel || `Edit ${field}`}
                 disabled={isSubmitting}
               />
             )}
             {error && (
-              <div className="text-red-600 text-sm px-2" role="alert">
+              <div className="text-red-600 dark:text-red-400 text-sm px-2" role="alert">
                 {error}
               </div>
             )}
@@ -166,8 +166,8 @@ function InlineEdit({
     <div className="relative">
       <button
         type="button"
-        className={`cursor-pointer hover:bg-violet-50 hover:outline hover:outline-2 hover:outline-violet-300 rounded-md px-2 py-1 min-h-[44px] text-left w-full focus:outline-none focus:ring-2 focus:ring-violet-500 transition-colors ${className} ${
-          isEmpty ? 'text-gray-500 italic' : ''
+        className={`cursor-pointer hover:bg-brand-soft hover:outline hover:outline-2 hover:outline-violet-300 rounded-md px-2 py-1 min-h-[44px] text-left w-full focus:outline-none focus:ring-2 focus:ring-violet-500 transition-colors ${className} ${
+          isEmpty ? 'text-muted italic' : ''
         }`}
         onClick={() => startEditing(field, value)}
         aria-label={ariaLabel || `Edit ${field}: ${displayValue}`}
@@ -541,11 +541,11 @@ export default function AthleteProfilePage() {
   // Show loading state during initial auth resolution
   if (loading || !initialAuthCheckComplete) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+      <div className="min-h-screen bg-canvas flex items-center justify-center">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-violet-600 mx-auto"></div>
-          <p className="mt-4 text-gray-700 font-medium">Checking your session...</p>
-          <p className="mt-1 text-sm text-gray-500">This should only take a moment</p>
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-brand mx-auto"></div>
+          <p className="mt-4 text-secondary font-medium">Checking your session...</p>
+          <p className="mt-1 text-sm text-muted">This should only take a moment</p>
         </div>
       </div>
     );
@@ -560,11 +560,11 @@ export default function AthleteProfilePage() {
   // Only show skeleton if we have no profile data at all
   if (dataLoading && !profile) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+      <div className="min-h-screen bg-canvas flex items-center justify-center">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-violet-600 mx-auto"></div>
-          <p className="mt-4 text-gray-700 font-medium">Loading your profile...</p>
-          <p className="mt-1 text-sm text-gray-500">Getting everything ready</p>
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-brand mx-auto"></div>
+          <p className="mt-4 text-secondary font-medium">Loading your profile...</p>
+          <p className="mt-1 text-sm text-muted">Getting everything ready</p>
         </div>
       </div>
     );
@@ -581,7 +581,7 @@ export default function AthleteProfilePage() {
       cancelEditing,
       saveInlineEdit,
     }}>
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-canvas">
       {/* Unified Header */}
       <AppHeader
         showSearch={false}
@@ -591,7 +591,7 @@ export default function AthleteProfilePage() {
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 py-4 sm:py-8">
         {/* Profile Header Section */}
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden mb-6 sm:mb-8">
+        <div className="bg-surface rounded-lg shadow-sm border border-border overflow-hidden mb-6 sm:mb-8">
           {/* Cover photo (3:1, cropped in the media editor; gradient until set) */}
           <div className="relative w-full aspect-[3/1] max-h-64">
             {profile?.cover_url ? (
@@ -642,11 +642,11 @@ export default function AthleteProfilePage() {
                   priority
                   fallback={
                     <div
-                      className="w-32 h-32 sm:w-40 sm:h-40 lg:w-48 lg:h-48 rounded-full bg-gray-200 flex items-center justify-center border-4 border-white shadow-lg"
+                      className="w-32 h-32 sm:w-40 sm:h-40 lg:w-48 lg:h-48 rounded-full bg-gray-200 dark:bg-stone-800 flex items-center justify-center border-4 border-white shadow-lg"
                       role="img"
                       aria-label={`${formatDisplayName(profile?.first_name, null, profile?.last_name, profile?.full_name)} avatar`}
                     >
-                      <span className="text-gray-600 font-semibold text-3xl sm:text-4xl lg:text-5xl" aria-hidden="true">
+                      <span className="text-tertiary font-semibold text-3xl sm:text-4xl lg:text-5xl" aria-hidden="true">
                         {getInitials(formatDisplayName(profile?.first_name, null, profile?.last_name, profile?.full_name))}
                       </span>
                     </div>
@@ -656,7 +656,7 @@ export default function AthleteProfilePage() {
                 {/* Rating Bubble */}
                 {athleticScore > 0 && (
                   <div
-                    className="absolute -top-2 -right-2 bg-violet-600 text-white text-lg font-bold px-3 py-2 rounded-full border-4 border-white shadow-lg"
+                    className="absolute -top-2 -right-2 bg-brand text-white text-lg font-bold px-3 py-2 rounded-full border-4 border-white shadow-lg"
                     role="img"
                     aria-label="Athlete rating"
                   >
@@ -674,7 +674,7 @@ export default function AthleteProfilePage() {
                         type="button"
                         onClick={open}
                         disabled={uploading}
-                        className={`w-14 h-14 bg-violet-600 rounded-full flex items-center justify-center cursor-pointer shadow-lg hover:bg-violet-700 focus:outline-none focus:ring-2 focus:ring-violet-500 focus:ring-offset-2 transition-colors ${
+                        className={`w-14 h-14 bg-brand rounded-full flex items-center justify-center cursor-pointer shadow-lg hover:bg-brand-hover focus:outline-none focus:ring-2 focus:ring-violet-500 focus:ring-offset-2 transition-colors ${
                           uploading ? 'opacity-50 cursor-not-allowed' : ''
                         }`}
                         aria-label={uploading ? 'Uploading avatar...' : 'Upload new avatar'}
@@ -696,11 +696,11 @@ export default function AthleteProfilePage() {
               {/* Profile Information */}
               <div className="flex-1 min-w-0">
                 <div className="mb-6">
-                  <h1 className="text-3xl sm:text-4xl font-bold text-gray-900 mb-2 break-words">
+                  <h1 className="text-3xl sm:text-4xl font-bold text-primary mb-2 break-words">
                     {formatDisplayName(profile?.first_name, null, profile?.last_name, profile?.full_name) || 'Add your name in Edit Profile'}
                   </h1>
                   {profile && getHandle(profile) && (
-                    <p className="text-xl text-gray-500 mb-2">
+                    <p className="text-xl text-muted mb-2">
                       {getHandle(profile)}
                     </p>
                   )}
@@ -718,37 +718,37 @@ export default function AthleteProfilePage() {
                   {/* Sport and Team Info. Single column below sm — two ~110px
                       columns truncated nothing and just collided; truncate on
                       each cell keeps "school • team" to one tidy line. */}
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-4 text-sm text-gray-600 mb-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-4 text-sm text-tertiary mb-4">
                     {profile?.sport && (
                       <div>
-                        <span className="font-medium text-gray-900">Sport:</span>
+                        <span className="font-medium text-primary">Sport:</span>
                         <span className="ml-1">{profile.sport}</span>
                       </div>
                     )}
                     {(profile?.school || profile?.team) && (
                       <div className="min-w-0 truncate">
-                        <span className="font-medium text-gray-900">Team:</span>
+                        <span className="font-medium text-primary">Team:</span>
                         <span className="ml-1">{[profile?.school, profile?.team].filter(Boolean).join(' • ')}</span>
                       </div>
                     )}
                     {profile?.position && (
                       <div>
-                        <span className="font-medium text-gray-900">Position:</span>
+                        <span className="font-medium text-primary">Position:</span>
                         <span className="ml-1">{profile.position}</span>
                       </div>
                     )}
                     {profile?.class_year && (
                       <div>
-                        <span className="font-medium text-gray-900">Class:</span>
+                        <span className="font-medium text-primary">Class:</span>
                         <span className="ml-1">{profile.class_year}</span>
                       </div>
                     )}
                   </div>
 
                   {/* Biography - View only, edit in modal */}
-                  <div className="text-gray-900 leading-relaxed mb-4 block">
+                  <div className="text-primary leading-relaxed mb-4 block">
                     {profile?.bio || (
-                      <span className="text-gray-800 italic">{getPlaceholder('ADD_BIO')}</span>
+                      <span className="text-primary italic">{getPlaceholder('ADD_BIO')}</span>
                     )}
                   </div>
                   
@@ -759,9 +759,9 @@ export default function AthleteProfilePage() {
                         setFollowersModalTab('followers');
                         setIsFollowersModalOpen(true);
                       }}
-                      className="flex items-center gap-1 text-gray-600 hover:text-violet-600 transition-colors"
+                      className="flex items-center gap-1 text-tertiary hover:text-brand-fg transition-colors"
                     >
-                      <span className="font-semibold text-gray-900">{followersCount}</span>
+                      <span className="font-semibold text-primary">{followersCount}</span>
                       <span>Fans</span>
                     </button>
                     <button
@@ -769,13 +769,13 @@ export default function AthleteProfilePage() {
                         setFollowersModalTab('following');
                         setIsFollowersModalOpen(true);
                       }}
-                      className="flex items-center gap-1 text-gray-600 hover:text-violet-600 transition-colors"
+                      className="flex items-center gap-1 text-tertiary hover:text-brand-fg transition-colors"
                     >
-                      <span className="font-semibold text-gray-900">{followingCount}</span>
+                      <span className="font-semibold text-primary">{followingCount}</span>
                       <span>Following</span>
                     </button>
-                    <div className="flex items-center gap-1 text-gray-600">
-                      <span className="font-semibold text-gray-900">{postsCount}</span>
+                    <div className="flex items-center gap-1 text-tertiary">
+                      <span className="font-semibold text-primary">{postsCount}</span>
                       <span>Posts</span>
                     </div>
                   </div>
@@ -785,12 +785,12 @@ export default function AthleteProfilePage() {
                       surfaces render these as outbound links. */}
                   <div className="flex flex-wrap items-center gap-4 sm:gap-6 mt-4" role="list" aria-label="Social media links">
                     <div className="flex items-center gap-2" role="listitem">
-                      <i className="fa-brands fa-x-twitter text-gray-900 text-lg" aria-hidden="true"></i>
+                      <i className="fa-brands fa-x-twitter text-primary text-lg" aria-hidden="true"></i>
                       <InlineEdit
                         field="social_twitter"
                         value={profile?.social_twitter ? formatSocialHandleDisplay(profile.social_twitter) : ''}
                         placeholder={getPlaceholder('ADD_TWITTER')}
-                        className="text-sm text-gray-600"
+                        className="text-sm text-tertiary"
                         ariaLabel="X handle"
                       />
                     </div>
@@ -800,27 +800,27 @@ export default function AthleteProfilePage() {
                         field="social_instagram"
                         value={profile?.social_instagram ? formatSocialHandleDisplay(profile.social_instagram) : ''}
                         placeholder={getPlaceholder('ADD_INSTAGRAM')}
-                        className="text-sm text-gray-600"
+                        className="text-sm text-tertiary"
                         ariaLabel="Instagram handle"
                       />
                     </div>
                     <div className="flex items-center gap-2" role="listitem">
-                      <i className="fa-brands fa-tiktok text-gray-900 text-lg" aria-hidden="true"></i>
+                      <i className="fa-brands fa-tiktok text-primary text-lg" aria-hidden="true"></i>
                       <InlineEdit
                         field="social_tiktok"
                         value={profile?.social_tiktok ? formatSocialHandleDisplay(profile.social_tiktok) : ''}
                         placeholder={getPlaceholder('ADD_TIKTOK')}
-                        className="text-sm text-gray-600"
+                        className="text-sm text-tertiary"
                         ariaLabel="TikTok handle"
                       />
                     </div>
                     <div className="flex items-center gap-2" role="listitem">
-                      <i className="fab fa-facebook text-violet-600 text-lg" aria-hidden="true"></i>
+                      <i className="fab fa-facebook text-brand-fg text-lg" aria-hidden="true"></i>
                       <InlineEdit
                         field="social_facebook"
                         value={profile?.social_facebook ? formatSocialHandleDisplay(profile.social_facebook) : ''}
                         placeholder="Add Facebook"
-                        className="text-sm text-gray-600"
+                        className="text-sm text-tertiary"
                         ariaLabel="Facebook handle"
                       />
                     </div>
@@ -834,13 +834,13 @@ export default function AthleteProfilePage() {
         {/* Main content */}
         <div className="space-y-8">
           {/* Media Tabs (scroll-mt clears the sticky AppHeader) */}
-          <div id="media-section" className="bg-white rounded-lg shadow-md p-4 sm:p-6 scroll-mt-20">
+          <div id="media-section" className="bg-surface rounded-lg shadow-md p-4 sm:p-6 scroll-mt-20">
             {/* flex-wrap: title + Create Post is ~340px, over a 320px screen */}
             <div className="flex flex-wrap justify-between items-center gap-3 mb-6">
-              <h2 className="text-2xl font-bold text-black">My Media</h2>
+              <h2 className="text-2xl font-bold text-black dark:text-primary">My Media</h2>
               <button
                 onClick={() => setIsCreatePostModalOpen(true)}
-                className="bg-violet-600 text-white px-4 py-2 rounded-lg hover:bg-violet-700 transition-colors flex items-center gap-2"
+                className="bg-brand text-white px-4 py-2 rounded-lg hover:bg-brand-hover transition-colors flex items-center gap-2"
               >
                 <i className="fas fa-plus"></i>
                 Create Post

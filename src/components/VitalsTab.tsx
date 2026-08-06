@@ -31,6 +31,7 @@ import PBShowcase from './vitals/PBShowcase';
 import ProgressSection from './vitals/ProgressSection';
 import SectionEmptyState from './SectionEmptyState';
 import { categoryAccent } from './vitals/category-colors';
+import { useTheme } from '@/lib/use-theme';
 import type { ServerWorkoutSession } from '@/lib/workouts/serialize';
 
 // ── Types ──────────────────────────────────────────────────────────────────
@@ -175,7 +176,7 @@ function MetricCard({ metricKey, entries, athleteBirthday, onOpenPost }: MetricC
 
   const yearsTracked = sorted.length >= 2 ? getYearsTracked(first.recorded_at, latest.recorded_at) : null;
   const trend = getTrendArrow(first.value, latest.value, metric.lower_is_better);
-  const trendColor = trend === '▲' ? 'text-emerald-600' : trend === '▼' ? 'text-red-500' : 'text-gray-400';
+  const trendColor = trend === '▲' ? 'text-emerald-600' : trend === '▼' ? 'text-red-500' : 'text-faint';
 
   // History grouped by year (newest first)
   const byYear: Record<string, VitalEntry[]> = {};
@@ -188,47 +189,47 @@ function MetricCard({ metricKey, entries, athleteBirthday, onOpenPost }: MetricC
   const oldestYear = years[years.length - 1];
 
   return (
-    <div className="border border-gray-200 rounded-xl overflow-hidden">
+    <div className="border border-border rounded-xl overflow-hidden">
       {/* Card header — clickable to expand/collapse */}
       <button
         type="button"
         onClick={() => setExpanded(prev => !prev)}
-        className="w-full text-left p-4 hover:bg-gray-50 transition-colors"
+        className="w-full text-left p-4 hover:bg-surface-muted transition-colors"
       >
         <div className="flex items-start justify-between gap-3">
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 mb-1">
-              <span className="text-sm font-semibold text-gray-700">{metric.label}</span>
-              <span className="text-xs text-gray-400">{metric.unit}</span>
+              <span className="text-sm font-semibold text-secondary">{metric.label}</span>
+              <span className="text-xs text-faint">{metric.unit}</span>
               {trend !== '—' && (
                 <span className={`text-xs font-bold ${trendColor}`}>{trend}</span>
               )}
             </div>
 
             {/* Current value — prominent */}
-            <div className="text-2xl font-bold text-gray-900 mb-1">
+            <div className="text-2xl font-bold text-primary mb-1">
               {formatEntryValue(latest)}
             </div>
 
             {/* PB badge */}
             {isCurrentBest ? (
-              <div className="inline-flex items-center gap-1 text-xs font-semibold text-amber-700 bg-amber-50 px-2 py-0.5 rounded-full mb-2">
+              <div className="inline-flex items-center gap-1 text-xs font-semibold text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/40 px-2 py-0.5 rounded-full mb-2">
                 <Star className="w-2.5 h-2.5 text-amber-500 inline" aria-hidden="true" />
                 Personal Best
               </div>
             ) : best.value !== null && (
-              <div className="text-xs text-gray-500 mb-2">
+              <div className="text-xs text-muted mb-2">
                 PB: <span className="font-semibold">{formatEntryValue(best)}</span>
-                <span className="text-gray-400 ml-1">({new Date(best.recorded_at).toLocaleDateString('en-US', { month: 'short', year: 'numeric' })})</span>
+                <span className="text-faint ml-1">({new Date(best.recorded_at).toLocaleDateString('en-US', { month: 'short', year: 'numeric' })})</span>
               </div>
             )}
 
             {/* First recorded + progression */}
             {sorted.length >= 2 && (
-              <div className="text-xs text-gray-500">
+              <div className="text-xs text-muted">
                 First: <span className="font-medium">{formatEntryValue(first)}</span>
                 {athleteBirthday && (
-                  <span className="text-gray-400 ml-1">· {getAgeAtDate(athleteBirthday, first.recorded_at)}</span>
+                  <span className="text-faint ml-1">· {getAgeAtDate(athleteBirthday, first.recorded_at)}</span>
                 )}
                 {deltaText && (
                   <span className={`ml-2 font-medium ${
@@ -236,7 +237,7 @@ function MetricCard({ metricKey, entries, athleteBirthday, onOpenPost }: MetricC
                       ? (latest.value! < first.value!) === metric.lower_is_better
                         ? 'text-emerald-600'
                         : 'text-red-500'
-                      : 'text-gray-600'
+                      : 'text-tertiary'
                   }`}>{deltaText}</span>
                 )}
               </div>
@@ -244,63 +245,63 @@ function MetricCard({ metricKey, entries, athleteBirthday, onOpenPost }: MetricC
 
             {/* Years tracked */}
             {yearsTracked && (
-              <div className="text-xs text-gray-400 mt-0.5">{yearsTracked}</div>
+              <div className="text-xs text-faint mt-0.5">{yearsTracked}</div>
             )}
           </div>
 
           <div className="flex flex-col items-end gap-2 shrink-0">
-            <div className="text-xs text-gray-400">
+            <div className="text-xs text-faint">
               {new Date(latest.recorded_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
             </div>
-            <ChevronDown className={`w-4 h-4 text-gray-400 transition-transform ${expanded ? 'rotate-180' : ''}`} aria-hidden="true" />
+            <ChevronDown className={`w-4 h-4 text-faint transition-transform ${expanded ? 'rotate-180' : ''}`} aria-hidden="true" />
           </div>
         </div>
       </button>
 
       {/* Inline history panel */}
       {expanded && (
-        <div className="border-t border-gray-100 bg-gray-50">
+        <div className="border-t border-border-subtle bg-surface-muted">
           <div className="px-4 py-3">
-            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">History</p>
+            <p className="text-xs font-semibold text-muted uppercase tracking-wider mb-3">History</p>
             {years.map(year => (
               <div key={year} className="mb-4 last:mb-0">
                 <div className="flex items-center gap-2 mb-2">
-                  <span className="text-xs font-bold text-gray-700">{year}</span>
+                  <span className="text-xs font-bold text-secondary">{year}</span>
                   {year === oldestYear && (
-                    <span className="text-xs text-gray-400">· First recorded</span>
+                    <span className="text-xs text-faint">· First recorded</span>
                   )}
                 </div>
                 <div className="space-y-2">
                   {byYear[year].map(entry => (
-                    <div key={entry.id} className="flex items-start justify-between text-sm py-2 px-3 bg-white rounded-lg border border-gray-100">
+                    <div key={entry.id} className="flex items-start justify-between text-sm py-2 px-3 bg-surface rounded-lg border border-border-subtle">
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2 flex-wrap">
-                          <span className="font-semibold text-gray-900">{formatEntryValue(entry)}</span>
+                          <span className="font-semibold text-primary">{formatEntryValue(entry)}</span>
                           {entry.id === best.id && (
                             <span className="text-xs text-amber-600 font-medium">
                               <Star className="w-2.5 h-2.5 text-amber-500 inline mr-0.5" aria-hidden="true" />PB
                             </span>
                           )}
                           {athleteBirthday && (
-                            <span className="text-xs text-gray-400">{getAgeAtDate(athleteBirthday, entry.recorded_at)}</span>
+                            <span className="text-xs text-faint">{getAgeAtDate(athleteBirthday, entry.recorded_at)}</span>
                           )}
                           {entry.source !== 'manual' && (
                             <span className="text-xs text-violet-500">{entry.source}</span>
                           )}
                         </div>
                         {entry.notes && (
-                          <p className="text-xs text-gray-500 mt-0.5 truncate">{entry.notes}</p>
+                          <p className="text-xs text-muted mt-0.5 truncate">{entry.notes}</p>
                         )}
                       </div>
                       <div className="flex items-center gap-2 ml-3 shrink-0">
-                        <span className="text-xs text-gray-400">
+                        <span className="text-xs text-faint">
                           {new Date(entry.recorded_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
                         </span>
                         {entry.linked_post_id && (
                           <button
                             type="button"
                             onClick={(e) => { e.stopPropagation(); onOpenPost(entry.linked_post_id!); }}
-                            className="text-violet-500 hover:text-violet-700 transition-colors"
+                            className="text-violet-500 hover:text-brand-fg-strong transition-colors"
                             title="View media post"
                           >
                             <Camera className="w-3.5 h-3.5" aria-hidden="true" />
@@ -323,6 +324,7 @@ function MetricCard({ metricKey, entries, athleteBirthday, onOpenPost }: MetricC
 
 export default function VitalsTab({ profileId, currentUserId, isOwnProfile = false }: VitalsTabProps) {
   const router = useRouter();
+  const { theme } = useTheme();
   const { showError } = useToast();
   const [vitals, setVitals] = useState<VitalEntry[]>([]);
   const [trainingPosts, setTrainingPosts] = useState<TrainingPost[]>([]);
@@ -473,14 +475,14 @@ export default function VitalsTab({ profileId, currentUserId, isOwnProfile = fal
   if (loading) {
     return (
       <div className="py-16 flex items-center justify-center">
-        <Loader2 className="w-7 h-7 text-gray-400 animate-spin" aria-label="Loading" />
+        <Loader2 className="w-7 h-7 text-faint animate-spin" aria-label="Loading" />
       </div>
     );
   }
 
   if (error) {
     return (
-      <div className="py-16 text-center text-gray-500">
+      <div className="py-16 text-center text-muted">
         <p>{error}</p>
       </div>
     );
@@ -492,8 +494,8 @@ export default function VitalsTab({ profileId, currentUserId, isOwnProfile = fal
       <div>
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
           <div>
-            <h2 className="text-h2 text-gray-900">Edge Vitals</h2>
-            <p className="text-sm text-gray-500 mt-0.5">
+            <h2 className="text-h2 text-primary">Edge Vitals</h2>
+            <p className="text-sm text-muted mt-0.5">
               Live workouts, performance metrics, and training history.
             </p>
           </div>
@@ -502,7 +504,7 @@ export default function VitalsTab({ profileId, currentUserId, isOwnProfile = fal
               <button
                 onClick={handleStartWorkout}
                 disabled={startingWorkout}
-                className="flex items-center gap-2 px-4 py-2.5 bg-violet-600 text-white rounded-lg font-bold text-sm hover:bg-violet-700 transition-colors shadow-sm disabled:opacity-60"
+                className="flex items-center gap-2 px-4 py-2.5 bg-brand text-white rounded-lg font-bold text-sm hover:bg-brand-hover transition-colors shadow-sm disabled:opacity-60"
               >
                 {startingWorkout ? (
                   <span className="animate-spin rounded-full h-3.5 w-3.5 border-b-2 border-white" aria-hidden="true" />
@@ -513,7 +515,7 @@ export default function VitalsTab({ profileId, currentUserId, isOwnProfile = fal
               </button>
               <button
                 onClick={() => router.push('/app/workout/new')}
-                className="flex items-center gap-1.5 px-4 py-2.5 border border-gray-300 text-gray-700 rounded-lg font-semibold text-sm hover:bg-gray-50 transition-colors"
+                className="flex items-center gap-1.5 px-4 py-2.5 border border-border-strong text-secondary rounded-lg font-semibold text-sm hover:bg-surface-muted transition-colors"
               >
                 <History className="w-3.5 h-3.5" aria-hidden="true" />
                 Log Past Workout
@@ -524,10 +526,10 @@ export default function VitalsTab({ profileId, currentUserId, isOwnProfile = fal
 
         {/* Resume banner — a live session is in progress */}
         {isOwnProfile && activeWorkout && !bannerDismissed && (
-          <div className="mt-4 flex items-center justify-between gap-3 px-4 py-3 bg-amber-50 border border-amber-200 rounded-xl">
+          <div className="mt-4 flex items-center justify-between gap-3 px-4 py-3 bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 rounded-xl">
             <div className="flex items-center gap-2 min-w-0">
               <span className="w-2 h-2 bg-red-500 rounded-full animate-pulse shrink-0" aria-hidden="true" />
-              <p className="text-sm text-amber-900 truncate">
+              <p className="text-sm text-amber-900 dark:text-amber-200 truncate">
                 <span className="font-bold">Workout in progress</span>
                 {activeWorkout.title ? ` — ${activeWorkout.title}` : ''}
               </p>
@@ -571,40 +573,40 @@ export default function VitalsTab({ profileId, currentUserId, isOwnProfile = fal
       {currentVitals && (
         <div>
           <div className="flex items-baseline justify-between mb-3">
-            <h3 className="text-base font-bold text-gray-900">Current Vitals</h3>
+            <h3 className="text-base font-bold text-primary">Current Vitals</h3>
             {isOwnProfile && (
-              <span className="text-xs text-gray-400">Edit in Edit Profile</span>
+              <span className="text-xs text-faint">Edit in Edit Profile</span>
             )}
           </div>
           <div className={`grid grid-cols-2 gap-4 ${isOwnProfile ? 'md:grid-cols-4' : 'md:grid-cols-3'}`}>
-            <div className="text-center bg-white rounded-lg border border-gray-200 p-4">
-              <div className="text-2xl font-bold text-gray-900 mb-1">
+            <div className="text-center bg-surface rounded-lg border border-border p-4">
+              <div className="text-2xl font-bold text-primary mb-1">
                 {formatHeight(currentVitals.heightCm)}
               </div>
-              <div className="text-xs text-gray-500 uppercase tracking-wide">Height</div>
+              <div className="text-xs text-muted uppercase tracking-wide">Height</div>
             </div>
-            <div className="text-center bg-white rounded-lg border border-gray-200 p-4">
-              <div className="text-2xl font-bold text-gray-900 mb-1">
+            <div className="text-center bg-surface rounded-lg border border-border p-4">
+              <div className="text-2xl font-bold text-primary mb-1">
                 {currentVitals.weightDisplay && currentVitals.weightUnit
                   ? `${currentVitals.weightDisplay} ${currentVitals.weightUnit}`
                   : formatWeightWithUnit(currentVitals.weightKg, currentVitals.weightUnit)}
               </div>
-              <div className="text-xs text-gray-500 uppercase tracking-wide">Weight</div>
+              <div className="text-xs text-muted uppercase tracking-wide">Weight</div>
             </div>
-            <div className="text-center bg-white rounded-lg border border-gray-200 p-4">
-              <div className="text-2xl font-bold text-gray-900 mb-1">
+            <div className="text-center bg-surface rounded-lg border border-border p-4">
+              <div className="text-2xl font-bold text-primary mb-1">
                 {formatAge(currentVitals.dob)}
               </div>
-              <div className="text-xs text-gray-500 uppercase tracking-wide">Age</div>
+              <div className="text-xs text-muted uppercase tracking-wide">Age</div>
             </div>
             {isOwnProfile && (
-              <div className="text-center bg-white rounded-lg border border-gray-200 p-4">
-                <div className="text-2xl font-bold text-gray-900 mb-1">
+              <div className="text-center bg-surface rounded-lg border border-border p-4">
+                <div className="text-2xl font-bold text-primary mb-1">
                   {/* T00:00:00 suffix → parsed as LOCAL midnight; a bare DATE
                       string parses as UTC and shows the previous day in the US */}
                   {currentVitals.dob ? formatDate(`${currentVitals.dob.slice(0, 10)}T00:00:00`) : '—'}
                 </div>
-                <div className="text-xs text-gray-500 uppercase tracking-wide">Date of Birth</div>
+                <div className="text-xs text-muted uppercase tracking-wide">Date of Birth</div>
               </div>
             )}
           </div>
@@ -649,15 +651,15 @@ export default function VitalsTab({ profileId, currentUserId, isOwnProfile = fal
       <div>
         <div className="flex items-center justify-between mb-5">
           <div>
-            <h3 className="text-base font-bold text-gray-900">Performance Metrics</h3>
+            <h3 className="text-base font-bold text-primary">Performance Metrics</h3>
             {totalMetrics > 0 && (
-              <p className="text-xs text-gray-500 mt-0.5">{totalMetrics} metric{totalMetrics !== 1 ? 's' : ''} tracked</p>
+              <p className="text-xs text-muted mt-0.5">{totalMetrics} metric{totalMetrics !== 1 ? 's' : ''} tracked</p>
             )}
           </div>
           {isOwnProfile && (
             <button
               onClick={() => setShowAddVital(true)}
-              className="flex items-center gap-1.5 px-3 py-2 bg-violet-600 text-white rounded-lg text-sm font-semibold hover:bg-violet-700 transition-colors"
+              className="flex items-center gap-1.5 px-3 py-2 bg-brand text-white rounded-lg text-sm font-semibold hover:bg-brand-hover transition-colors"
             >
               <Plus className="w-3.5 h-3.5" aria-hidden="true" />
               Add Metric
@@ -666,8 +668,8 @@ export default function VitalsTab({ profileId, currentUserId, isOwnProfile = fal
         </div>
 
         {totalMetrics === 0 && vitals.length > 0 ? (
-          <div className="text-center py-12 border border-dashed border-gray-200 rounded-lg">
-            <p className="text-sm text-gray-600">No metrics match your filters.</p>
+          <div className="text-center py-12 border border-dashed border-border rounded-lg">
+            <p className="text-sm text-tertiary">No metrics match your filters.</p>
           </div>
         ) : totalMetrics === 0 ? (
           <SectionEmptyState
@@ -689,7 +691,7 @@ export default function VitalsTab({ profileId, currentUserId, isOwnProfile = fal
                   <div className="flex items-center gap-2 mb-3">
                     <span
                       className="w-2.5 h-2.5 rounded-full"
-                      style={{ backgroundColor: categoryAccent(category.key).hex }}
+                      style={{ backgroundColor: theme === 'dark' ? categoryAccent(category.key).hexDark : categoryAccent(category.key).hex }}
                       aria-hidden="true"
                     />
                     <h4 className={`text-sm font-semibold ${categoryAccent(category.key).text}`}>{category.label}</h4>
@@ -716,9 +718,9 @@ export default function VitalsTab({ profileId, currentUserId, isOwnProfile = fal
       <div>
         <div className="flex items-center justify-between mb-5">
           <div>
-            <h3 className="text-base font-bold text-gray-900">Workouts</h3>
+            <h3 className="text-base font-bold text-primary">Workouts</h3>
             {visibleWorkouts.length > 0 && (
-              <p className="text-xs text-gray-500 mt-0.5">
+              <p className="text-xs text-muted mt-0.5">
                 {visibleWorkouts.length} session{visibleWorkouts.length !== 1 ? 's' : ''}
               </p>
             )}
@@ -726,8 +728,8 @@ export default function VitalsTab({ profileId, currentUserId, isOwnProfile = fal
         </div>
 
         {visibleWorkouts.length === 0 && workouts.some(s => s.status === 'completed') ? (
-          <div className="text-center py-12 border border-dashed border-gray-200 rounded-lg">
-            <p className="text-sm text-gray-600">No workouts match your filters.</p>
+          <div className="text-center py-12 border border-dashed border-border rounded-lg">
+            <p className="text-sm text-tertiary">No workouts match your filters.</p>
           </div>
         ) : visibleWorkouts.length === 0 ? (
           <SectionEmptyState
@@ -749,7 +751,7 @@ export default function VitalsTab({ profileId, currentUserId, isOwnProfile = fal
               return groups;
             }, []).map(group => (
               <div key={group.month}>
-                <h4 className="text-xs font-bold text-gray-500 uppercase tracking-wide mb-2">{group.month}</h4>
+                <h4 className="text-xs font-bold text-muted uppercase tracking-wide mb-2">{group.month}</h4>
                 <div className="space-y-2">
                   {group.sessions.map(session => (
                     <WorkoutCard
@@ -769,15 +771,15 @@ export default function VitalsTab({ profileId, currentUserId, isOwnProfile = fal
       <div>
         <div className="flex items-center justify-between mb-5">
           <div>
-            <h3 className="text-base font-bold text-gray-900">Training Activity</h3>
+            <h3 className="text-base font-bold text-primary">Training Activity</h3>
             {visibleTrainingPosts.length > 0 && (
-              <p className="text-xs text-gray-500 mt-0.5">{visibleTrainingPosts.length} session{visibleTrainingPosts.length !== 1 ? 's' : ''} logged</p>
+              <p className="text-xs text-muted mt-0.5">{visibleTrainingPosts.length} session{visibleTrainingPosts.length !== 1 ? 's' : ''} logged</p>
             )}
           </div>
           {isOwnProfile && (
             <button
               onClick={() => setShowCreatePost(true)}
-              className="flex items-center gap-1.5 px-3 py-2 border border-gray-300 text-gray-700 rounded-lg text-sm font-semibold hover:bg-gray-50 transition-colors"
+              className="flex items-center gap-1.5 px-3 py-2 border border-border-strong text-secondary rounded-lg text-sm font-semibold hover:bg-surface-muted transition-colors"
             >
               <Plus className="w-3.5 h-3.5" aria-hidden="true" />
               Log Training
@@ -786,8 +788,8 @@ export default function VitalsTab({ profileId, currentUserId, isOwnProfile = fal
         </div>
 
         {visibleTrainingPosts.length === 0 && trainingPosts.length > 0 ? (
-          <div className="text-center py-12 border border-dashed border-gray-200 rounded-lg">
-            <p className="text-sm text-gray-600">No sessions match your filters.</p>
+          <div className="text-center py-12 border border-dashed border-border rounded-lg">
+            <p className="text-sm text-tertiary">No sessions match your filters.</p>
           </div>
         ) : trainingPosts.length === 0 ? (
           <SectionEmptyState
@@ -808,7 +810,7 @@ export default function VitalsTab({ profileId, currentUserId, isOwnProfile = fal
             {!showAllActivity && visibleTrainingPosts.length > 3 && (
               <button
                 onClick={() => setShowAllActivity(true)}
-                className="ea-interactive w-full flex items-center justify-center gap-2 py-3 rounded-lg border border-gray-200 text-sm font-semibold text-violet-700"
+                className="ea-interactive w-full flex items-center justify-center gap-2 py-3 rounded-lg border border-border text-sm font-semibold text-brand-fg-strong"
               >
                 Show all {visibleTrainingPosts.length} posts
                 <ChevronDown className="w-4 h-4" aria-hidden="true" />
@@ -816,7 +818,7 @@ export default function VitalsTab({ profileId, currentUserId, isOwnProfile = fal
             )}
             {showAllActivity && trainingPosts.length >= 20 && (
               <div className="text-center py-4">
-                <p className="text-xs text-gray-400">Showing most recent 20 sessions</p>
+                <p className="text-xs text-faint">Showing most recent 20 sessions</p>
               </div>
             )}
           </div>

@@ -98,20 +98,20 @@ export default function PBShowcase({ vitals }: PBShowcaseProps) {
       {cards.map(card => {
         const accent = categoryAccent(card.category);
         return (
-          <div key={card.metricKey} className="bg-white rounded-lg border border-gray-200 p-4">
+          <div key={card.metricKey} className="bg-surface rounded-lg border border-border p-4">
             <div className="flex items-center gap-1.5 mb-1">
               <Star className={`w-3.5 h-3.5 ${accent.text}`} aria-hidden="true" />
-              <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide truncate">
+              <span className="text-xs font-semibold text-muted uppercase tracking-wide truncate">
                 {card.label}
               </span>
             </div>
             <div className="flex items-center gap-1.5">
-              <span className="text-xl font-bold text-gray-900 tabular-nums">{card.bestDisplay}</span>
+              <span className="text-xl font-bold text-primary tabular-nums">{card.bestDisplay}</span>
               {card.improved === true && <TrendingUp className="w-3.5 h-3.5 text-emerald-600" aria-label="improved since first recorded" />}
-              {card.improved === false && <Minus className="w-3.5 h-3.5 text-gray-400" aria-label="matches first recorded" />}
+              {card.improved === false && <Minus className="w-3.5 h-3.5 text-faint" aria-label="matches first recorded" />}
               {card.improved === null && <TrendingDown className="w-3.5 h-3.5 text-transparent" aria-hidden="true" />}
             </div>
-            <div className="text-xs text-gray-500 mt-0.5">
+            <div className="text-xs text-muted mt-0.5">
               {new Date(card.bestDate).toLocaleDateString('en-US', { month: 'short', year: 'numeric' })}
             </div>
           </div>

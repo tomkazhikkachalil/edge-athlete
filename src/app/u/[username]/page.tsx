@@ -155,12 +155,12 @@ export default function PublicProfilePage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-50">
+      <div className="min-h-screen bg-canvas">
         <AppHeader showSearch={false} />
         <div className="flex items-center justify-center py-20">
           <div className="text-center">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-violet-600 mx-auto"></div>
-            <p className="mt-3 text-gray-600">Loading profile...</p>
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-brand mx-auto"></div>
+            <p className="mt-3 text-tertiary">Loading profile...</p>
           </div>
         </div>
       </div>
@@ -169,20 +169,20 @@ export default function PublicProfilePage() {
 
   if (error) {
     return (
-      <div className="min-h-screen bg-gray-50">
+      <div className="min-h-screen bg-canvas">
         <AppHeader showSearch={false} />
         <div className="flex items-center justify-center py-20">
           <div className="text-center max-w-md mx-auto px-4">
-            <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
-              <Users className="w-8 h-8 text-gray-400" />
+            <div className="w-16 h-16 bg-surface-sunken rounded-full flex items-center justify-center mx-auto mb-4">
+              <Users className="w-8 h-8 text-faint" />
             </div>
-            <h1 className="text-2xl font-bold text-gray-900 mb-2">Profile Not Found</h1>
-            <p className="text-gray-600 mb-6">
+            <h1 className="text-2xl font-bold text-primary mb-2">Profile Not Found</h1>
+            <p className="text-tertiary mb-6">
               The profile @{username} does not exist.
             </p>
             <Link
               href="/"
-              className="inline-flex items-center px-4 py-2 bg-violet-600 text-white rounded-lg hover:bg-violet-700 transition-colors"
+              className="inline-flex items-center px-4 py-2 bg-brand text-white rounded-lg hover:bg-brand-hover transition-colors"
             >
               Go Home
             </Link>
@@ -194,28 +194,28 @@ export default function PublicProfilePage() {
 
   if (isPrivate) {
     return (
-      <div className="min-h-screen bg-gray-50">
+      <div className="min-h-screen bg-canvas">
         <AppHeader showSearch={false} />
         <div className="flex items-center justify-center py-20">
           <div className="text-center max-w-md mx-auto px-4">
-            <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
-              <Lock className="w-8 h-8 text-gray-400" />
+            <div className="w-16 h-16 bg-surface-sunken rounded-full flex items-center justify-center mx-auto mb-4">
+              <Lock className="w-8 h-8 text-faint" />
             </div>
-            <h1 className="text-2xl font-bold text-gray-900 mb-2">Private Profile</h1>
-            <p className="text-gray-600 mb-6">
+            <h1 className="text-2xl font-bold text-primary mb-2">Private Profile</h1>
+            <p className="text-tertiary mb-6">
               @{username} has a private profile. Become a fan to see their content.
             </p>
             {user && privateProfileId ? (
               <Link
                 href={`/athlete/${privateProfileId}`}
-                className="inline-flex items-center px-4 py-2 bg-violet-600 text-white rounded-lg hover:bg-violet-700 transition-colors"
+                className="inline-flex items-center px-4 py-2 bg-brand text-white rounded-lg hover:bg-brand-hover transition-colors"
               >
                 Become a Fan
               </Link>
             ) : (
               <Link
                 href="/"
-                className="inline-flex items-center px-4 py-2 bg-violet-600 text-white rounded-lg hover:bg-violet-700 transition-colors"
+                className="inline-flex items-center px-4 py-2 bg-brand text-white rounded-lg hover:bg-brand-hover transition-colors"
               >
                 Sign In to Become a Fan
               </Link>
@@ -235,12 +235,12 @@ export default function PublicProfilePage() {
   const displayName = formatDisplayName(profile.first_name, profile.middle_name, profile.last_name, profile.full_name);
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-canvas">
       <AppHeader showSearch={false} />
 
       <div className="max-w-4xl mx-auto px-4 sm:px-6 py-6">
         {/* Profile Header */}
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+        <div className="bg-surface rounded-xl shadow-sm border border-border overflow-hidden">
           {/* Cover area */}
           <div className="h-24 sm:h-32 bg-gradient-to-r from-violet-500 to-violet-600" />
 
@@ -248,7 +248,7 @@ export default function PublicProfilePage() {
           <div className="px-4 sm:px-6 pb-6">
             {/* Avatar */}
             <div className="-mt-12 sm:-mt-16 mb-4">
-              <div className="w-24 h-24 sm:w-32 sm:h-32 rounded-full border-4 border-white bg-white shadow-md overflow-hidden">
+              <div className="w-24 h-24 sm:w-32 sm:h-32 rounded-full border-4 border-white bg-surface shadow-md overflow-hidden">
                 {profile.avatar_url ? (
                   <LazyImage
                     src={profile.avatar_url}
@@ -268,16 +268,16 @@ export default function PublicProfilePage() {
             {/* Name and Handle */}
             <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
               <div>
-                <h1 className="text-2xl font-bold text-gray-900 break-words">{displayName}</h1>
-                <p className="text-gray-500">@{profile.handle}</p>
+                <h1 className="text-2xl font-bold text-primary break-words">{displayName}</h1>
+                <p className="text-muted">@{profile.handle}</p>
 
                 {/* Bio */}
                 {profile.bio && (
-                  <p className="mt-3 text-gray-700 max-w-xl">{profile.bio}</p>
+                  <p className="mt-3 text-secondary max-w-xl">{profile.bio}</p>
                 )}
 
                 {/* Meta info */}
-                <div className="mt-3 flex flex-wrap gap-x-4 gap-y-2 text-sm text-gray-600">
+                <div className="mt-3 flex flex-wrap gap-x-4 gap-y-2 text-sm text-tertiary">
                   {profile.sport && (
                     <span className="inline-flex items-center gap-1">
                       <Trophy className="w-4 h-4" />
@@ -307,7 +307,7 @@ export default function PublicProfilePage() {
 
                 {/* Physical stats */}
                 {(profile.height_cm || profile.weight_kg) && (
-                  <div className="mt-2 flex gap-3 text-sm text-gray-600">
+                  <div className="mt-2 flex gap-3 text-sm text-tertiary">
                     {profile.height_cm && (
                       <span>{formatHeight(profile.height_cm)}</span>
                     )}
@@ -327,7 +327,7 @@ export default function PublicProfilePage() {
                       href={`https://instagram.com/${profile.social_instagram.replace('@', '')}`}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="text-gray-500 hover:text-pink-500 transition-colors"
+                      className="text-muted hover:text-pink-500 transition-colors"
                       aria-label={`${displayName} on Instagram`}
                     >
                       <i className="fab fa-instagram text-xl" aria-hidden="true"></i>
@@ -338,7 +338,7 @@ export default function PublicProfilePage() {
                       href={`https://x.com/${profile.social_twitter.replace('@', '')}`}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="text-gray-500 hover:text-gray-900 transition-colors"
+                      className="text-muted hover:text-primary transition-colors"
                       aria-label={`${displayName} on X`}
                     >
                       <i className="fa-brands fa-x-twitter text-xl" aria-hidden="true"></i>
@@ -349,7 +349,7 @@ export default function PublicProfilePage() {
                       href={`https://www.tiktok.com/@${profile.social_tiktok.replace('@', '')}`}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="text-gray-500 hover:text-gray-900 transition-colors"
+                      className="text-muted hover:text-primary transition-colors"
                       aria-label={`${displayName} on TikTok`}
                     >
                       <i className="fa-brands fa-tiktok text-xl" aria-hidden="true"></i>
@@ -360,7 +360,7 @@ export default function PublicProfilePage() {
                       href={`https://facebook.com/${profile.social_facebook.replace('@', '')}`}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="text-gray-500 hover:text-violet-600 transition-colors"
+                      className="text-muted hover:text-brand-fg transition-colors"
                       aria-label={`${displayName} on Facebook`}
                     >
                       <i className="fab fa-facebook text-xl" aria-hidden="true"></i>
@@ -374,16 +374,16 @@ export default function PublicProfilePage() {
                 {/* Fan stats — Fans, Following, Posts (matches the athlete pages) */}
                 <div className="flex gap-6 text-sm">
                   <div className="text-center">
-                    <span className="block font-bold text-gray-900">{profile.followersCount}</span>
-                    <span className="text-gray-500">Fans</span>
+                    <span className="block font-bold text-primary">{profile.followersCount}</span>
+                    <span className="text-muted">Fans</span>
                   </div>
                   <div className="text-center">
-                    <span className="block font-bold text-gray-900">{profile.followingCount}</span>
-                    <span className="text-gray-500">Following</span>
+                    <span className="block font-bold text-primary">{profile.followingCount}</span>
+                    <span className="text-muted">Following</span>
                   </div>
                   <div className="text-center">
-                    <span className="block font-bold text-gray-900">{profile.postsCount}</span>
-                    <span className="text-gray-500">Posts</span>
+                    <span className="block font-bold text-primary">{profile.postsCount}</span>
+                    <span className="text-muted">Posts</span>
                   </div>
                 </div>
 
@@ -391,14 +391,14 @@ export default function PublicProfilePage() {
                 {user ? (
                   <Link
                     href={`/athlete/${profile.id}`}
-                    className="px-6 py-2 bg-violet-600 text-white rounded-lg hover:bg-violet-700 transition-colors text-sm font-medium"
+                    className="px-6 py-2 bg-brand text-white rounded-lg hover:bg-brand-hover transition-colors text-sm font-medium"
                   >
                     View Full Profile
                   </Link>
                 ) : (
                   <Link
                     href="/"
-                    className="px-6 py-2 bg-violet-600 text-white rounded-lg hover:bg-violet-700 transition-colors text-sm font-medium"
+                    className="px-6 py-2 bg-brand text-white rounded-lg hover:bg-brand-hover transition-colors text-sm font-medium"
                   >
                     Sign In to Connect
                   </Link>
@@ -410,23 +410,23 @@ export default function PublicProfilePage() {
 
         {/* Achievements — real athlete_achievements rows, podium-first */}
         {achievements.length > 0 && (
-          <div className="mt-4 bg-white rounded-xl shadow-sm border border-gray-200 p-4">
-            <h2 className="text-sm font-semibold text-gray-700 mb-3">Achievements</h2>
+          <div className="mt-4 bg-surface rounded-xl shadow-sm border border-border p-4">
+            <h2 className="text-sm font-semibold text-secondary mb-3">Achievements</h2>
             <AchievementPills pills={topPills(achievements, 8)} />
           </div>
         )}
 
         {/* Sport Stats — sport-aware (golf, ice hockey, volleyball, …) */}
         {sportStats && (
-          <div className="mt-4 bg-white rounded-xl shadow-sm border border-gray-200 p-4">
-            <h2 className="text-sm font-semibold text-gray-700 mb-3">{sportStats.label}</h2>
+          <div className="mt-4 bg-surface rounded-xl shadow-sm border border-border p-4">
+            <h2 className="text-sm font-semibold text-secondary mb-3">{sportStats.label}</h2>
             {/* 2-up below sm: three ~85px columns wrapped labels like
                 "Greens in Reg" to three lines and collided the values. */}
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
               {sportStats.tiles.map(tile => (
                 <div key={tile.label} className="text-center">
-                  <span className="block text-2xl font-bold text-gray-900">{tile.value}</span>
-                  <span className="text-xs text-gray-500">{tile.label}</span>
+                  <span className="block text-2xl font-bold text-primary">{tile.value}</span>
+                  <span className="text-xs text-muted">{tile.label}</span>
                 </div>
               ))}
             </div>
@@ -436,10 +436,10 @@ export default function PublicProfilePage() {
         {/* Declared per-sport details. Same card shell as Sport Stats above so
             the two surfaces cannot drift apart. */}
         {sportSettings.length > 0 && (
-          <div className="mt-4 bg-white rounded-xl shadow-sm border border-gray-200 p-4 space-y-4">
+          <div className="mt-4 bg-surface rounded-xl shadow-sm border border-border p-4 space-y-4">
             {sportSettings.map(group => (
               <div key={group.sportKey}>
-                <h2 className="text-sm font-semibold text-gray-700 mb-1">{group.sportLabel}</h2>
+                <h2 className="text-sm font-semibold text-secondary mb-1">{group.sportLabel}</h2>
                 <SportSettingsRow items={group.items} className="border-t-0 px-0 py-0" />
               </div>
             ))}
@@ -448,13 +448,13 @@ export default function PublicProfilePage() {
 
         {/* Recent Posts */}
         {recentPosts.length > 0 && (
-          <div className="mt-4 bg-white rounded-xl shadow-sm border border-gray-200 p-4">
-            <h2 className="text-sm font-semibold text-gray-700 mb-3">Recent Posts</h2>
+          <div className="mt-4 bg-surface rounded-xl shadow-sm border border-border p-4">
+            <h2 className="text-sm font-semibold text-secondary mb-3">Recent Posts</h2>
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
               {recentPosts.map((post) => (
                 <div
                   key={post.id}
-                  className="aspect-square rounded-lg overflow-hidden bg-gray-100 relative group"
+                  className="aspect-square rounded-lg overflow-hidden bg-surface-sunken relative group"
                 >
                   {post.post_media && post.post_media[0] ? (
                     <LazyImage
@@ -464,7 +464,7 @@ export default function PublicProfilePage() {
                     />
                   ) : (
                     <div className="w-full h-full flex items-center justify-center p-3">
-                      <p className="text-xs text-gray-500 text-center line-clamp-4">
+                      <p className="text-xs text-muted text-center line-clamp-4">
                         {post.caption || 'No content'}
                       </p>
                     </div>
@@ -491,7 +491,7 @@ export default function PublicProfilePage() {
               <div className="mt-4 text-center">
                 <Link
                   href={`/athlete/${profile.id}`}
-                  className="text-sm text-violet-600 hover:text-violet-700 font-medium"
+                  className="text-sm text-brand-fg hover:text-brand-fg-strong font-medium"
                 >
                   View All Posts
                 </Link>
@@ -502,8 +502,8 @@ export default function PublicProfilePage() {
 
         {/* Empty state for no posts */}
         {recentPosts.length === 0 && (
-          <div className="mt-4 bg-white rounded-xl shadow-sm border border-gray-200 p-8 text-center">
-            <p className="text-gray-500">No public posts yet</p>
+          <div className="mt-4 bg-surface rounded-xl shadow-sm border border-border p-8 text-center">
+            <p className="text-muted">No public posts yet</p>
           </div>
         )}
 

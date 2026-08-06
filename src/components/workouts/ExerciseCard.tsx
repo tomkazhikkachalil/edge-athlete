@@ -159,7 +159,7 @@ function SetRow({ set, inputMode, onChange, onDelete }: SetRowProps) {
       value={value ?? ''}
       onChange={e => onValue(numOrNull(e.target.value, max))}
       placeholder={placeholder}
-      className={`${width} px-1 py-2 min-h-[44px] border border-gray-300 rounded-lg text-base text-center focus:outline-none focus:ring-2 focus:ring-violet-500`}
+      className={`${width} px-1 py-2 min-h-[44px] border border-border-strong rounded-lg text-base text-center focus:outline-none focus:ring-2 focus:ring-violet-500`}
       aria-label={placeholder}
     />
   );
@@ -174,7 +174,7 @@ function SetRow({ set, inputMode, onChange, onDelete }: SetRowProps) {
         always fits one line even at 360px, where page+card padding leaves
         only ~300px for the whole row. */}
     <div className="flex items-start gap-1.5">
-      <span className="w-5 h-11 flex items-center justify-center text-sm font-semibold text-gray-400 shrink-0">
+      <span className="w-5 h-11 flex items-center justify-center text-sm font-semibold text-faint shrink-0">
         {set.setNumber}
       </span>
 
@@ -188,7 +188,7 @@ function SetRow({ set, inputMode, onChange, onDelete }: SetRowProps) {
             <button
               type="button"
               onClick={() => patch({ weightUnit: set.weightUnit === 'kg' ? 'lbs' : 'kg' })}
-              className="px-1 min-h-[44px] min-w-[36px] text-xs font-semibold text-gray-600 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors"
+              className="px-1 min-h-[44px] min-w-[36px] text-xs font-semibold text-tertiary bg-surface-sunken hover:bg-gray-200 dark:hover:bg-stone-800 rounded-lg transition-colors"
               aria-label="Toggle weight unit"
             >
               {set.weightUnit ?? 'lbs'}
@@ -199,7 +199,7 @@ function SetRow({ set, inputMode, onChange, onDelete }: SetRowProps) {
         {(inputMode === 'duration' || inputMode === 'distance_duration') && (
           <div className="flex items-center gap-1">
             {numberInput(durationMin, v => setDuration(v, durationSec), 'min', 1440, 'w-14')}
-            <span className="text-gray-400 text-sm">:</span>
+            <span className="text-faint text-sm">:</span>
             {numberInput(durationSec, v => setDuration(durationMin, v === null ? null : Math.min(v, 59)), 'sec', 59, 'w-14')}
           </div>
         )}
@@ -210,7 +210,7 @@ function SetRow({ set, inputMode, onChange, onDelete }: SetRowProps) {
             <select
               value={set.distanceUnit ?? 'mi'}
               onChange={e => patch({ distanceUnit: e.target.value as EntrySet['distanceUnit'] })}
-              className="px-1 py-2 min-h-[44px] border border-gray-300 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-violet-500"
+              className="px-1 py-2 min-h-[44px] border border-border-strong rounded-lg text-sm bg-surface focus:outline-none focus:ring-2 focus:ring-violet-500"
               aria-label="Distance unit"
             >
               <option value="mi">mi</option>
@@ -229,8 +229,8 @@ function SetRow({ set, inputMode, onChange, onDelete }: SetRowProps) {
         disabled={uploading || set.media.length >= MAX_MEDIA_PER_SET}
         className={`w-11 h-11 shrink-0 rounded-full flex items-center justify-center transition-colors ${
           set.media.length > 0
-            ? 'bg-violet-100 text-violet-600'
-            : 'bg-gray-100 text-gray-400 hover:bg-gray-200'
+            ? 'bg-violet-100 dark:bg-violet-950/60 text-brand-fg'
+            : 'bg-surface-sunken text-faint hover:bg-gray-200 dark:hover:bg-stone-800'
         } disabled:opacity-50`}
         aria-label="Attach photo or video to this set"
       >
@@ -254,7 +254,7 @@ function SetRow({ set, inputMode, onChange, onDelete }: SetRowProps) {
         type="button"
         onClick={() => patch({ completedAt: done ? null : new Date().toISOString() })}
         className={`w-11 h-11 shrink-0 rounded-full flex items-center justify-center transition-colors ${
-          done ? 'bg-emerald-500 text-white' : 'bg-gray-100 text-gray-400 hover:bg-gray-200'
+          done ? 'bg-emerald-500 text-white' : 'bg-surface-sunken text-faint hover:bg-gray-200 dark:hover:bg-stone-800'
         }`}
         aria-label={done ? 'Mark set incomplete' : 'Mark set complete'}
       >
@@ -264,7 +264,7 @@ function SetRow({ set, inputMode, onChange, onDelete }: SetRowProps) {
       <button
         type="button"
         onClick={onDelete}
-        className="w-6 h-11 shrink-0 flex items-center justify-center text-gray-300 hover:text-red-500 transition-colors"
+        className="w-6 h-11 shrink-0 flex items-center justify-center text-gray-300 dark:text-stone-600 hover:text-red-500 transition-colors"
         aria-label="Delete set"
       >
         <X className="w-4 h-4" />
@@ -275,7 +275,7 @@ function SetRow({ set, inputMode, onChange, onDelete }: SetRowProps) {
     {set.media.length > 0 && (
       <div className="flex items-center gap-2 mt-1.5 ml-8 flex-wrap">
         {set.media.map((media, index) => (
-          <div key={index} className="relative w-12 h-12 rounded-lg overflow-hidden bg-gray-100 group">
+          <div key={index} className="relative w-12 h-12 rounded-lg overflow-hidden bg-surface-sunken group">
             {media.type === 'video' ? (
               <>
                 <video src={media.url} muted playsInline preload="metadata" className="w-full h-full object-cover" />
@@ -344,15 +344,15 @@ export default function ExerciseCard({ exercise, onChange, onDelete }: ExerciseC
   };
 
   return (
-    <div className="bg-white rounded-xl border border-gray-200 p-3 sm:p-4">
+    <div className="bg-surface rounded-xl border border-border p-3 sm:p-4">
       <div className="flex items-center gap-2 mb-2">
         <span className="text-xl" aria-hidden="true">{CATEGORY_ICON[exercise.category]}</span>
-        <h3 className="text-base font-bold text-gray-900 flex-1 min-w-0 truncate">{exercise.name}</h3>
+        <h3 className="text-base font-bold text-primary flex-1 min-w-0 truncate">{exercise.name}</h3>
         <button
           type="button"
           onClick={() => onChange({ ...exercise, notes: showNotes ? null : '' })}
           className={`w-9 h-9 rounded-lg flex items-center justify-center transition-colors ${
-            showNotes ? 'bg-violet-100 text-violet-600' : 'text-gray-300 hover:text-gray-500'
+            showNotes ? 'bg-violet-100 dark:bg-violet-950/60 text-brand-fg' : 'text-gray-300 dark:text-stone-600 hover:text-muted'
           }`}
           aria-label="Toggle exercise notes"
         >
@@ -361,7 +361,7 @@ export default function ExerciseCard({ exercise, onChange, onDelete }: ExerciseC
         <button
           type="button"
           onClick={onDelete}
-          className="w-9 h-9 rounded-lg flex items-center justify-center text-gray-300 hover:text-red-500 transition-colors"
+          className="w-9 h-9 rounded-lg flex items-center justify-center text-gray-300 dark:text-stone-600 hover:text-red-500 transition-colors"
           aria-label={`Delete ${exercise.name}`}
         >
           <Trash2 className="w-4 h-4" />
@@ -374,11 +374,11 @@ export default function ExerciseCard({ exercise, onChange, onDelete }: ExerciseC
           value={exercise.notes ?? ''}
           onChange={e => onChange({ ...exercise, notes: e.target.value.slice(0, 500) })}
           placeholder="Notes (tempo, cues, how it felt…)"
-          className="w-full mb-2 px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-violet-500"
+          className="w-full mb-2 px-3 py-2 border border-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-violet-500"
         />
       )}
 
-      <div className="divide-y divide-gray-50">
+      <div className="divide-y divide-gray-50 dark:divide-stone-800">
         {exercise.sets.map((set, index) => (
           <SetRow
             key={index}
@@ -394,7 +394,7 @@ export default function ExerciseCard({ exercise, onChange, onDelete }: ExerciseC
         type="button"
         onClick={addSet}
         disabled={exercise.sets.length >= MAX_SETS_PER_EXERCISE}
-        className="mt-2 w-full flex items-center justify-center gap-1.5 px-3 py-2.5 bg-gray-50 hover:bg-gray-100 text-gray-700 rounded-lg text-sm font-semibold transition-colors disabled:opacity-50"
+        className="mt-2 w-full flex items-center justify-center gap-1.5 px-3 py-2.5 bg-surface-muted hover:bg-surface-sunken text-secondary rounded-lg text-sm font-semibold transition-colors disabled:opacity-50"
       >
         {exercise.sets.length > 0 ? <Copy className="w-3.5 h-3.5" /> : <Plus className="w-3.5 h-3.5" />}
         {exercise.sets.length > 0 ? 'Add set (copies last)' : 'Add first set'}

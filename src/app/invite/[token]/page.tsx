@@ -51,21 +51,21 @@ export default function InvitePage() {
   const isCoGuardian = inviteType === 'guardian_additional';
 
   return (
-    <div className="min-h-screen flex flex-col bg-violet-50">
+    <div className="min-h-screen flex flex-col bg-brand-soft">
       <BrandBar />
       <div className="flex-grow flex items-center justify-center p-4">
-        <div className="w-full max-w-lg bg-white rounded-lg shadow-lg p-6 sm:p-8">
+        <div className="w-full max-w-lg bg-surface rounded-lg shadow-lg p-6 sm:p-8">
           {state === 'loading' && (
             <div className="text-center py-8">
-              <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-violet-600 mx-auto"></div>
+              <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-brand mx-auto"></div>
             </div>
           )}
 
           {state === 'invalid' && (
             <div className="text-center py-4">
-              <i className="fas fa-link-slash text-gray-400 text-3xl mb-4"></i>
-              <h2 className="text-xl font-bold text-gray-900 mb-2">This link isn&apos;t valid anymore</h2>
-              <p className="text-sm text-gray-600 mb-6">
+              <i className="fas fa-link-slash text-faint text-3xl mb-4"></i>
+              <h2 className="text-xl font-bold text-primary mb-2">This link isn&apos;t valid anymore</h2>
+              <p className="text-sm text-tertiary mb-6">
                 Guardian invite links are single-use and expire after 7 days.
                 If you were expecting this, ask your athlete to send a new
                 request from the signup page.
@@ -73,7 +73,7 @@ export default function InvitePage() {
               <button
                 type="button"
                 onClick={() => router.push('/')}
-                className="text-sm text-violet-600 hover:underline"
+                className="text-sm text-brand-fg hover:underline"
               >
                 Go to Edge Athlete
               </button>
@@ -82,31 +82,31 @@ export default function InvitePage() {
 
           {state === 'valid' && (
             <>
-              <h2 className="text-xl sm:text-2xl font-bold text-violet-800 mb-2">
+              <h2 className="text-xl sm:text-2xl font-bold text-violet-800 dark:text-violet-200 mb-2">
                 {isCoGuardian
                   ? `You're invited to become ${athleteFirstName ?? 'a young athlete'}'s guardian`
                   : athleteFirstName
                     ? `${athleteFirstName} wants to join Edge Athlete`
                     : 'A young athlete wants to join Edge Athlete'}
               </h2>
-              <p className="text-sm text-gray-600 mb-4">
+              <p className="text-sm text-tertiary mb-4">
                 {isCoGuardian
                   ? `${athleteFirstName ?? 'This athlete'} already has a profile on Edge Athlete that needs a guardian. As their guardian you control the profile's privacy, approve what gets posted, and decide who can contact them.`
                   : 'Edge Athlete requires a parent or guardian to set up and manage accounts for young athletes. As their guardian you control the profile’s privacy, approve what gets posted, and decide who can contact them.'}
               </p>
-              <div className="bg-violet-50 border border-violet-100 rounded-md p-4 mb-6">
-                <p className="text-sm text-gray-700">
-                  <i className="fas fa-shield-halved text-violet-600 mr-2"></i>
+              <div className="bg-brand-soft border border-violet-100 dark:border-violet-900 rounded-md p-4 mb-6">
+                <p className="text-sm text-secondary">
+                  <i className="fas fa-shield-halved text-brand-fg mr-2"></i>
                   {isCoGuardian
                     ? 'Accepting adds the athlete to your account — you can review their profile, approve posts, and manage their settings right away.'
                     : "Setting this up takes a few minutes: create your own account (or log in), review your athlete's details, and give your consent. Nothing about your athlete is published until you approve it."}
                 </p>
               </div>
-              <p className="text-xs text-gray-500 mb-4">
+              <p className="text-xs text-muted mb-4">
                 This invite was sent to {invitedEmail}.
               </p>
               {claimError && (
-                <p className="text-sm text-red-600 mb-3" role="alert">{claimError}</p>
+                <p className="text-sm text-red-600 dark:text-red-400 mb-3" role="alert">{claimError}</p>
               )}
               <button
                 type="button"
@@ -150,7 +150,7 @@ export default function InvitePage() {
                     setClaiming(false);
                   }
                 }}
-                className="w-full bg-violet-600 text-white py-3 px-4 rounded-md hover:bg-violet-700 transition duration-300 text-sm font-medium disabled:opacity-50"
+                className="w-full bg-brand text-white py-3 px-4 rounded-md hover:bg-brand-hover transition duration-300 text-sm font-medium disabled:opacity-50"
               >
                 {claiming
                   ? 'One moment…'
@@ -160,7 +160,7 @@ export default function InvitePage() {
                       ? 'Log in to continue'
                       : 'Create your account'}
               </button>
-              <p className="text-xs text-gray-500 mt-3 text-center">
+              <p className="text-xs text-muted mt-3 text-center">
                 {isCoGuardian
                   ? 'Keep this email — accept the invite from your account.'
                   : 'Keep this email — you’ll finish your athlete’s setup from your account.'}

@@ -20,19 +20,19 @@ export default function NewWorkoutPage() {
 
   if (loading || !user) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-violet-600"></div>
+      <div className="min-h-screen bg-canvas flex items-center justify-center">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-brand"></div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-canvas">
       <AppHeader showSearch={false} />
       <main>
         <div className="max-w-md mx-auto px-4 pt-6">
-          <h1 className="text-xl font-bold text-gray-900">Log Past Workout</h1>
-          <p className="text-sm text-gray-500 mb-2">Record a session you already did.</p>
+          <h1 className="text-xl font-bold text-primary">Log Past Workout</h1>
+          <p className="text-sm text-muted mb-2">Record a session you already did.</p>
         </div>
         <WorkoutEditorScreen mode="manual" currentUserId={user.id} />
       </main>

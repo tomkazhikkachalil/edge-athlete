@@ -28,9 +28,9 @@ export default function YearTimeline({ achievements, isOwnProfile, onEdit, onDel
     <div className="space-y-6">
       {groups.map(group => (
         <div key={group.year}>
-          <h4 className="text-xs font-bold text-gray-500 uppercase tracking-wide mb-3">
+          <h4 className="text-xs font-bold text-muted uppercase tracking-wide mb-3">
             {group.year}
-            <span className="ml-2 font-medium text-gray-400 normal-case">
+            <span className="ml-2 font-medium text-faint normal-case">
               {group.items.length} {group.items.length === 1 ? 'achievement' : 'achievements'}
             </span>
           </h4>
@@ -66,35 +66,35 @@ function AchievementRow({
     .join(' · ');
 
   return (
-    <div className="bg-white rounded-lg border border-gray-200 p-4">
+    <div className="bg-surface rounded-lg border border-border p-4">
       <div className="flex items-start gap-3">
         <div className={`w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 ${accent.circle}`}>
           {tier ? (
             <Medal className={`w-5 h-5 ${accent.text}`} aria-hidden="true" />
           ) : (
-            <Trophy className="w-5 h-5 text-gray-400" aria-hidden="true" />
+            <Trophy className="w-5 h-5 text-faint" aria-hidden="true" />
           )}
         </div>
         <div className="min-w-0 flex-1">
           <div className="flex items-start justify-between gap-2">
             <div className="min-w-0">
-              <h5 className="text-base font-bold text-gray-900 leading-tight break-words">
+              <h5 className="text-base font-bold text-primary leading-tight break-words">
                 {achievement.title}
               </h5>
-              <p className="text-sm text-gray-500 mt-0.5">{meta}</p>
+              <p className="text-sm text-muted mt-0.5">{meta}</p>
             </div>
             {isOwnProfile && (
               <div className="flex items-center gap-1 flex-shrink-0">
                 <button
                   onClick={onEdit}
-                  className="ea-icon-btn ea-interactive flex items-center justify-center text-gray-500 hover:text-gray-700"
+                  className="ea-icon-btn ea-interactive flex items-center justify-center text-muted hover:text-secondary"
                   aria-label={`Edit ${achievement.title}`}
                 >
                   <Edit2 className="w-4 h-4" />
                 </button>
                 <button
                   onClick={onDelete}
-                  className="ea-icon-btn ea-interactive flex items-center justify-center text-gray-400 hover:text-red-600"
+                  className="ea-icon-btn ea-interactive flex items-center justify-center text-faint hover:text-red-600"
                   aria-label={`Delete ${achievement.title}`}
                 >
                   <Trash2 className="w-4 h-4" />
@@ -105,7 +105,7 @@ function AchievementRow({
           <div className="flex items-center gap-2 flex-wrap mt-2">
             <span
               className={`px-2 py-1 rounded-md text-xs font-semibold ${
-                achievement.sport_key ? 'bg-violet-100 text-violet-700' : 'bg-gray-100 text-gray-700'
+                achievement.sport_key ? 'bg-violet-100 dark:bg-violet-950/60 text-brand-fg-strong' : 'bg-surface-sunken text-secondary'
               }`}
             >
               {sportLabel}
@@ -118,7 +118,7 @@ function AchievementRow({
             )}
           </div>
           {achievement.description && (
-            <p className="text-sm text-gray-600 line-clamp-3 mt-2">{achievement.description}</p>
+            <p className="text-sm text-tertiary line-clamp-3 mt-2">{achievement.description}</p>
           )}
         </div>
       </div>

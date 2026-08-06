@@ -466,33 +466,33 @@ export default function WorkoutEditorScreen({ mode, session, currentUserId }: Wo
   return (
     <div className="max-w-md mx-auto px-4 pb-28">
       {/* Sticky header: timer / manual fields + finish */}
-      <div className="sticky top-0 z-10 bg-gray-50 pt-4 pb-3 border-b border-gray-200 mb-4">
+      <div className="sticky top-0 z-10 bg-canvas pt-4 pb-3 border-b border-border mb-4">
         <div className="flex items-center gap-2 mb-3">
           <input
             type="text"
             value={title}
             onChange={e => updateTitle(e.target.value.slice(0, 120))}
             placeholder="Workout title (e.g. Push Day)"
-            className="flex-1 min-w-0 px-3 py-2 border border-gray-300 rounded-lg text-base font-semibold focus:outline-none focus:ring-2 focus:ring-violet-500"
+            className="flex-1 min-w-0 px-3 py-2 border border-border-strong rounded-lg text-base font-semibold focus:outline-none focus:ring-2 focus:ring-violet-500"
           />
           <div className="relative">
             <button
               type="button"
               onClick={() => setMenuOpen(o => !o)}
-              className="w-11 h-11 flex items-center justify-center text-gray-400 hover:text-gray-600 rounded-lg transition-colors"
+              className="w-11 h-11 flex items-center justify-center text-faint hover:text-tertiary rounded-lg transition-colors"
               aria-label="Workout options"
             >
               <MoreVertical className="w-5 h-5" />
             </button>
             {menuOpen && (
-              <div className="absolute right-0 top-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg z-20 w-44">
+              <div className="absolute right-0 top-full mt-1 bg-surface-raised border border-border rounded-lg shadow-lg z-20 w-44">
                 <button
                   type="button"
                   onClick={() => {
                     setMenuOpen(false);
                     setDiscardOpen(true);
                   }}
-                  className="w-full flex items-center gap-2 px-3 py-2.5 text-sm text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                  className="w-full flex items-center gap-2 px-3 py-2.5 text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/40 rounded-lg transition-colors"
                 >
                   <Trash2 className="w-4 h-4" />
                   Discard workout
@@ -509,18 +509,18 @@ export default function WorkoutEditorScreen({ mode, session, currentUserId }: Wo
         <div className="flex flex-wrap items-center justify-between gap-3">
           {mode === 'live' ? (
             <div className="flex items-center gap-3 min-w-0">
-              <div className="flex items-center gap-1.5 text-violet-700">
+              <div className="flex items-center gap-1.5 text-brand-fg-strong">
                 <Timer className="w-5 h-5" aria-hidden="true" />
                 <span className="text-2xl font-bold tabular-nums">{formatElapsed(elapsedSeconds)}</span>
               </div>
               {restSeconds !== null && restSeconds < 3600 && (
-                <span className="text-xs text-gray-500 whitespace-nowrap">
+                <span className="text-xs text-muted whitespace-nowrap">
                   Rest {formatElapsed(restSeconds)}
                 </span>
               )}
-              {syncState === 'saving' && <span className="text-xs text-gray-400">Saving…</span>}
+              {syncState === 'saving' && <span className="text-xs text-faint">Saving…</span>}
               {syncState === 'saved' && <span className="text-xs text-emerald-600">Saved</span>}
-              {syncState === 'error' && <span className="text-xs text-amber-600">Offline — kept locally</span>}
+              {syncState === 'error' && <span className="text-xs text-amber-600 dark:text-amber-400">Offline — kept locally</span>}
             </div>
           ) : (
             <div className="flex items-center gap-2 flex-wrap">
@@ -529,7 +529,7 @@ export default function WorkoutEditorScreen({ mode, session, currentUserId }: Wo
                 value={manualDate}
                 onChange={e => setManualDate(e.target.value)}
                 max={new Date().toISOString().slice(0, 10)}
-                className="px-2 py-2 border border-gray-300 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-violet-500"
+                className="px-2 py-2 border border-border-strong rounded-lg text-sm bg-surface focus:outline-none focus:ring-2 focus:ring-violet-500"
                 aria-label="Workout date"
               />
               <input
@@ -540,7 +540,7 @@ export default function WorkoutEditorScreen({ mode, session, currentUserId }: Wo
                 value={manualDurationMin}
                 onChange={e => setManualDurationMin(e.target.value === '' ? '' : Number(e.target.value))}
                 placeholder="min"
-                className="w-20 px-2 py-2 border border-gray-300 rounded-lg text-sm text-center focus:outline-none focus:ring-2 focus:ring-violet-500"
+                className="w-20 px-2 py-2 border border-border-strong rounded-lg text-sm text-center focus:outline-none focus:ring-2 focus:ring-violet-500"
                 aria-label="Duration in minutes"
               />
             </div>
@@ -550,7 +550,7 @@ export default function WorkoutEditorScreen({ mode, session, currentUserId }: Wo
             type="button"
             onClick={mode === 'live' ? finishLive : saveManual}
             disabled={finishing}
-            className="flex items-center gap-1.5 px-4 py-2.5 bg-violet-600 text-white rounded-lg font-bold text-sm hover:bg-violet-700 transition-colors disabled:opacity-60 shrink-0"
+            className="flex items-center gap-1.5 px-4 py-2.5 bg-brand text-white rounded-lg font-bold text-sm hover:bg-brand-hover transition-colors disabled:opacity-60 shrink-0"
           >
             {finishing ? (
               <span className="animate-spin rounded-full h-4 w-4 border-b-2 border-white" aria-hidden="true" />
@@ -574,8 +574,8 @@ export default function WorkoutEditorScreen({ mode, session, currentUserId }: Wo
         ))}
 
         {exercises.length === 0 && (
-          <div className="text-center py-10 border border-dashed border-gray-300 rounded-xl">
-            <p className="text-sm text-gray-500">
+          <div className="text-center py-10 border border-dashed border-border-strong rounded-xl">
+            <p className="text-sm text-muted">
               {mode === 'live' ? 'Timer is running — add your first exercise.' : 'Add the exercises you did.'}
             </p>
           </div>
@@ -585,7 +585,7 @@ export default function WorkoutEditorScreen({ mode, session, currentUserId }: Wo
           type="button"
           onClick={() => setAddSheetOpen(true)}
           disabled={exercises.length >= MAX_EXERCISES}
-          className="w-full flex items-center justify-center gap-2 py-3.5 bg-white border-2 border-dashed border-violet-300 text-violet-700 rounded-xl font-bold text-base hover:bg-violet-50 transition-colors disabled:opacity-50"
+          className="w-full flex items-center justify-center gap-2 py-3.5 bg-surface border-2 border-dashed border-violet-300 dark:border-violet-700 text-brand-fg-strong rounded-xl font-bold text-base hover:bg-brand-soft transition-colors disabled:opacity-50"
         >
           <Plus className="w-5 h-5" />
           Add Exercise

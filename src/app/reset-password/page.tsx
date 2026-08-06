@@ -86,29 +86,29 @@ export default function ResetPasswordPage() {
   };
 
   return (
-    <div className="min-h-screen flex flex-col bg-violet-50">
+    <div className="min-h-screen flex flex-col bg-brand-soft">
       <BrandBar />
 
       <div className="flex-grow flex items-center justify-center p-4">
-        <div className="w-full max-w-md bg-white rounded-lg shadow-lg p-6 sm:p-8">
-          <h2 className="text-2xl font-bold text-violet-800 mb-6">Set a new password</h2>
+        <div className="w-full max-w-md bg-surface rounded-lg shadow-lg p-6 sm:p-8">
+          <h2 className="text-2xl font-bold text-violet-800 dark:text-violet-200 mb-6">Set a new password</h2>
 
           {ready === 'checking' && (
             <div className="text-center py-6">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-violet-600 mx-auto"></div>
-              <p className="mt-3 text-sm text-gray-600">Verifying your reset link…</p>
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-brand mx-auto"></div>
+              <p className="mt-3 text-sm text-tertiary">Verifying your reset link…</p>
             </div>
           )}
 
           {ready === 'invalid' && (
             <div>
-              <div className="bg-red-50 border border-red-200 text-red-600 px-4 py-3 rounded-md text-sm mb-6">
+              <div className="bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-800 text-red-600 dark:text-red-400 px-4 py-3 rounded-md text-sm mb-6">
                 This reset link is invalid or has expired. Reset links are single-use and must be
                 opened in the same browser you requested them from.
               </div>
               <Link
                 href="/forgot-password"
-                className="block w-full text-center bg-violet-600 text-white py-3 px-4 rounded-md hover:bg-violet-700 transition duration-300 font-medium"
+                className="block w-full text-center bg-brand text-white py-3 px-4 rounded-md hover:bg-brand-hover transition duration-300 font-medium"
               >
                 Request a new link
               </Link>
@@ -116,7 +116,7 @@ export default function ResetPasswordPage() {
           )}
 
           {ready === 'ok' && done && (
-            <div className="bg-green-50 border border-green-200 text-green-700 px-4 py-3 rounded-md text-sm">
+            <div className="bg-green-50 dark:bg-green-950/40 border border-green-200 dark:border-green-800 text-green-700 dark:text-green-300 px-4 py-3 rounded-md text-sm">
               Password updated! Taking you to your feed…
             </div>
           )}
@@ -124,18 +124,18 @@ export default function ResetPasswordPage() {
           {ready === 'ok' && !done && (
             <>
               {error && (
-                <div className="bg-red-50 border border-red-200 text-red-600 px-4 py-3 rounded-md text-sm mb-4">
+                <div className="bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-800 text-red-600 dark:text-red-400 px-4 py-3 rounded-md text-sm mb-4">
                   {error}
                   {/* A submit-time failure usually means the link expired —
                       offer the way out right where the user is looking. */}
-                  <Link href="/" className="block mt-2 text-violet-600 hover:underline font-medium">
+                  <Link href="/" className="block mt-2 text-brand-fg hover:underline font-medium">
                     Back to sign in
                   </Link>
                 </div>
               )}
               <form onSubmit={handleSubmit} className="space-y-4">
                 <div>
-                  <label htmlFor="new-password" className="block text-sm font-medium text-gray-700 mb-2">
+                  <label htmlFor="new-password" className="block text-sm font-medium text-secondary mb-2">
                     New password
                   </label>
                   <input
@@ -143,7 +143,7 @@ export default function ResetPasswordPage() {
                     type="password"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
-                    className="w-full px-3 py-3 sm:py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-violet-500 text-base text-gray-800"
+                    className="w-full px-3 py-3 sm:py-2 border border-border-strong rounded-md focus:outline-none focus:ring-2 focus:ring-violet-500 text-base text-primary"
                     placeholder="At least 6 characters"
                     autoComplete="new-password"
                     minLength={6}
@@ -151,7 +151,7 @@ export default function ResetPasswordPage() {
                   />
                 </div>
                 <div>
-                  <label htmlFor="confirm-password" className="block text-sm font-medium text-gray-700 mb-2">
+                  <label htmlFor="confirm-password" className="block text-sm font-medium text-secondary mb-2">
                     Confirm new password
                   </label>
                   <input
@@ -159,7 +159,7 @@ export default function ResetPasswordPage() {
                     type="password"
                     value={confirm}
                     onChange={(e) => setConfirm(e.target.value)}
-                    className="w-full px-3 py-3 sm:py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-violet-500 text-base text-gray-800"
+                    className="w-full px-3 py-3 sm:py-2 border border-border-strong rounded-md focus:outline-none focus:ring-2 focus:ring-violet-500 text-base text-primary"
                     placeholder="Repeat your new password"
                     autoComplete="new-password"
                     minLength={6}
@@ -169,7 +169,7 @@ export default function ResetPasswordPage() {
                 <button
                   type="submit"
                   disabled={submitting}
-                  className="w-full bg-violet-600 text-white py-3 px-4 rounded-md hover:bg-violet-700 transition duration-300 font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="w-full bg-brand text-white py-3 px-4 rounded-md hover:bg-brand-hover transition duration-300 font-medium disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   {submitting ? (
                     <><i className="fas fa-spinner fa-spin mr-2"></i> Updating…</>
@@ -179,7 +179,7 @@ export default function ResetPasswordPage() {
                 </button>
               </form>
               <p className="text-center mt-4">
-                <Link href="/" className="text-sm text-violet-600 hover:underline">
+                <Link href="/" className="text-sm text-brand-fg hover:underline">
                   Back to sign in
                 </Link>
               </p>

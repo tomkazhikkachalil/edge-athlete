@@ -108,25 +108,25 @@ export default function OnboardingPage() {
 
   if (loading || !user) {
     return (
-      <div className="min-h-screen bg-violet-50 flex items-center justify-center">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-violet-600"></div>
+      <div className="min-h-screen bg-brand-soft flex items-center justify-center">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-brand"></div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-violet-50 flex flex-col">
+    <div className="min-h-screen bg-brand-soft flex flex-col">
       <BrandBar />
 
       <div className="flex-grow flex items-center justify-center p-4">
-        <div className="w-full max-w-lg bg-white rounded-lg shadow-lg p-6 sm:p-8">
+        <div className="w-full max-w-lg bg-surface rounded-lg shadow-lg p-6 sm:p-8">
           {/* Progress dots */}
           <div className="flex items-center justify-center gap-2 mb-6" aria-label={`Step ${step} of 4`}>
             {[1, 2, 3, 4].map(s => (
               <span
                 key={s}
                 className={`h-2 rounded-full transition-all ${
-                  s === step ? 'w-8 bg-violet-600' : s < step ? 'w-2 bg-violet-300' : 'w-2 bg-gray-200'
+                  s === step ? 'w-8 bg-brand' : s < step ? 'w-2 bg-violet-300' : 'w-2 bg-gray-200 dark:bg-stone-800'
                 }`}
               />
             ))}
@@ -134,10 +134,10 @@ export default function OnboardingPage() {
 
           {step === 1 && (
             <div>
-              <h2 className="text-2xl font-bold text-gray-900 mb-2 text-center">
+              <h2 className="text-2xl font-bold text-primary mb-2 text-center">
                 Welcome{displayName ? `, ${displayName.split(' ')[0]}` : ''}!
               </h2>
-              <p className="text-sm text-gray-600 mb-6 text-center">
+              <p className="text-sm text-tertiary mb-6 text-center">
                 What do you play? This shapes your profile and feed.
               </p>
 
@@ -148,7 +148,7 @@ export default function OnboardingPage() {
               <button
                 onClick={saveSports}
                 disabled={savingSports || selectedSports.length === 0}
-                className="w-full bg-violet-600 text-white py-3 px-4 rounded-md hover:bg-violet-700 transition font-medium disabled:opacity-50 mb-3"
+                className="w-full bg-brand text-white py-3 px-4 rounded-md hover:bg-brand-hover transition font-medium disabled:opacity-50 mb-3"
               >
                 {savingSports ? (
                   <><i className="fas fa-spinner fa-spin mr-2"></i>Saving…</>
@@ -159,7 +159,7 @@ export default function OnboardingPage() {
               <div className="text-center">
                 <button
                   onClick={() => setStep(2)}
-                  className="text-sm text-gray-500 hover:text-gray-700 min-h-[44px]"
+                  className="text-sm text-muted hover:text-secondary min-h-[44px]"
                 >
                   Skip for now
                 </button>
@@ -169,10 +169,10 @@ export default function OnboardingPage() {
 
           {step === 2 && (
             <div className="text-center">
-              <h2 className="text-2xl font-bold text-gray-900 mb-2">
+              <h2 className="text-2xl font-bold text-primary mb-2">
                 Add a profile photo
               </h2>
-              <p className="text-sm text-gray-600 mb-6">
+              <p className="text-sm text-tertiary mb-6">
                 So other athletes recognize you.
               </p>
 
@@ -181,19 +181,19 @@ export default function OnboardingPage() {
                   <LazyImage
                     src={profile.avatar_url}
                     alt="Your profile photo"
-                    className="w-28 h-28 rounded-full object-cover border-4 border-violet-100"
+                    className="w-28 h-28 rounded-full object-cover border-4 border-violet-100 dark:border-violet-900"
                     width={112}
                     height={112}
                   />
                 ) : (
-                  <div className="w-28 h-28 rounded-full bg-violet-500 flex items-center justify-center text-white text-3xl font-bold border-4 border-violet-100">
+                  <div className="w-28 h-28 rounded-full bg-violet-500 flex items-center justify-center text-white text-3xl font-bold border-4 border-violet-100 dark:border-violet-900">
                     {getInitials(displayName) || '?'}
                   </div>
                 )}
               </div>
 
               {avatarError && (
-                <div className="bg-red-50 border border-red-200 text-red-600 px-4 py-2 rounded-md text-sm mb-4">
+                <div className="bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-800 text-red-600 dark:text-red-400 px-4 py-2 rounded-md text-sm mb-4">
                   {avatarError}
                 </div>
               )}
@@ -213,7 +213,7 @@ export default function OnboardingPage() {
                       open();
                     }}
                     disabled={uploading}
-                    className="w-full bg-violet-600 text-white py-3 px-4 rounded-md hover:bg-violet-700 transition font-medium disabled:opacity-50 mb-3"
+                    className="w-full bg-brand text-white py-3 px-4 rounded-md hover:bg-brand-hover transition font-medium disabled:opacity-50 mb-3"
                   >
                     {uploading ? (
                       <><i className="fas fa-spinner fa-spin mr-2"></i>Uploading…</>
@@ -229,14 +229,14 @@ export default function OnboardingPage() {
                 {profile?.avatar_url && (
                   <button
                     onClick={() => setStep(3)}
-                    className="text-sm font-medium text-violet-600 hover:text-violet-700 min-h-[44px]"
+                    className="text-sm font-medium text-brand-fg hover:text-brand-fg-strong min-h-[44px]"
                   >
                     Looks good — continue
                   </button>
                 )}
                 <button
                   onClick={() => setStep(3)}
-                  className="text-sm text-gray-500 hover:text-gray-700 min-h-[44px]"
+                  className="text-sm text-muted hover:text-secondary min-h-[44px]"
                 >
                   Skip for now
                 </button>
@@ -244,7 +244,7 @@ export default function OnboardingPage() {
               <div className="mt-2 text-center">
                 <button
                   onClick={() => setStep(1)}
-                  className="text-sm text-gray-500 hover:text-gray-700 min-h-[44px]"
+                  className="text-sm text-muted hover:text-secondary min-h-[44px]"
                 >
                   ← Back
                 </button>
@@ -254,8 +254,8 @@ export default function OnboardingPage() {
 
           {step === 3 && (
             <div>
-              <h2 className="text-2xl font-bold text-gray-900 mb-2 text-center">Find athletes to follow</h2>
-              <p className="text-sm text-gray-600 mb-4 text-center">
+              <h2 className="text-2xl font-bold text-primary mb-2 text-center">Find athletes to follow</h2>
+              <p className="text-sm text-tertiary mb-4 text-center">
                 Your feed comes alive when you follow a few people.
               </p>
 
@@ -266,13 +266,13 @@ export default function OnboardingPage() {
               <div className="flex items-center justify-between">
                 <button
                   onClick={() => setStep(2)}
-                  className="text-sm text-gray-500 hover:text-gray-700 min-h-[44px]"
+                  className="text-sm text-muted hover:text-secondary min-h-[44px]"
                 >
                   ← Back
                 </button>
                 <button
                   onClick={() => setStep(4)}
-                  className="bg-violet-600 text-white py-2.5 px-6 rounded-md hover:bg-violet-700 transition font-medium min-h-[44px]"
+                  className="bg-brand text-white py-2.5 px-6 rounded-md hover:bg-brand-hover transition font-medium min-h-[44px]"
                 >
                   Continue
                 </button>
@@ -282,11 +282,11 @@ export default function OnboardingPage() {
 
           {step === 4 && (
             <div className="text-center">
-              <div className="text-5xl mb-4 text-violet-600">
+              <div className="text-5xl mb-4 text-brand-fg">
                 <i className={primaryDef?.icon_id ?? 'fas fa-trophy'} aria-hidden="true"></i>
               </div>
-              <h2 className="text-2xl font-bold text-gray-900 mb-2">You&apos;re all set!</h2>
-              <p className="text-sm text-gray-600 mb-6">
+              <h2 className="text-2xl font-bold text-primary mb-2">You&apos;re all set!</h2>
+              <p className="text-sm text-tertiary mb-6">
                 {primaryDef
                   ? `The best way to start: log your most recent ${primaryDef.display_name.toLowerCase()} activity. Your stats and trends build from there.`
                   : 'The best way to start: share your first post. Your profile builds from there.'}
@@ -309,14 +309,14 @@ export default function OnboardingPage() {
               <button
                 onClick={() => finish('/feed')}
                 disabled={finishing}
-                className="w-full bg-gray-100 text-gray-700 py-3 px-4 rounded-md hover:bg-gray-200 transition font-medium disabled:opacity-50"
+                className="w-full bg-surface-sunken text-secondary py-3 px-4 rounded-md hover:bg-gray-200 dark:hover:bg-stone-800 transition font-medium disabled:opacity-50"
               >
                 Take me to my feed
               </button>
 
               <button
                 onClick={() => setStep(3)}
-                className="mt-4 text-sm text-gray-500 hover:text-gray-700 min-h-[44px]"
+                className="mt-4 text-sm text-muted hover:text-secondary min-h-[44px]"
               >
                 ← Back
               </button>
@@ -325,10 +325,10 @@ export default function OnboardingPage() {
 
           {/* Always-available exit — onboarding resumes on next sign-in,
               so leaving loses nothing that isn't already saved. */}
-          <div className="text-center mt-6 pt-4 border-t border-gray-100">
+          <div className="text-center mt-6 pt-4 border-t border-border-subtle">
             <button
               onClick={() => signOut()}
-              className="text-xs text-gray-400 hover:text-violet-600 hover:underline"
+              className="text-xs text-faint hover:text-brand-fg hover:underline"
             >
               Sign out — you can finish this later
             </button>
