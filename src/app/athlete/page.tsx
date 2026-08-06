@@ -752,18 +752,8 @@ export default function AthleteProfilePage() {
                     )}
                   </div>
                   
-                  {/* Stats Row */}
+                  {/* Stats Row — Fans, Following, Posts (Tom's order) */}
                   <div className="flex items-center gap-6 text-sm">
-                    <button
-                      onClick={() => {
-                        setFollowersModalTab('following');
-                        setIsFollowersModalOpen(true);
-                      }}
-                      className="flex items-center gap-1 text-gray-600 hover:text-violet-600 transition-colors"
-                    >
-                      <span className="font-semibold text-gray-900">{followingCount}</span>
-                      <span>Fan Of</span>
-                    </button>
                     <button
                       onClick={() => {
                         setFollowersModalTab('followers');
@@ -773,6 +763,16 @@ export default function AthleteProfilePage() {
                     >
                       <span className="font-semibold text-gray-900">{followersCount}</span>
                       <span>Fans</span>
+                    </button>
+                    <button
+                      onClick={() => {
+                        setFollowersModalTab('following');
+                        setIsFollowersModalOpen(true);
+                      }}
+                      className="flex items-center gap-1 text-gray-600 hover:text-violet-600 transition-colors"
+                    >
+                      <span className="font-semibold text-gray-900">{followingCount}</span>
+                      <span>Following</span>
                     </button>
                     <div className="flex items-center gap-1 text-gray-600">
                       <span className="font-semibold text-gray-900">{postsCount}</span>
