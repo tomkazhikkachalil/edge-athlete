@@ -55,6 +55,58 @@ test); dock-state already covered the two transitions the flow leans on
 `e2e/chat-dock.spec.ts` (3 tests: minimize-to-dock + un-hide, close-leaves-
 chats + labeled-pill round-trip, fresh-login restore) — all green alongside
 direct-message.spec.ts; screenshots verified the row layout visually.
+## August 5, 2026 — All/Stats owner-visibility hole closed (migration 068)
+
+Retires the backlog line 066 recorded ("the all/stats subqueries share the
+hole"). Investigating it showed the backlog undersold the problem twice over:
+
+**It was a content leak, not a count skew.** `get_profile_all_media` and
+`get_profile_stats_media` (last touched in 051) never checked the post
+author's profile visibility — a PRIVATE author's post tagging a public
+athlete rendered as real tiles, author name and avatar included, on that
+athlete's All/Stats tabs for anonymous viewers. The same class of leak 066
+closed for the Tagged tab. 068 gives both grid functions and the all/stats
+counts subqueries the identical owner clause (author public, or viewer is
+author / the tagged athlete / an accepted follower of the author), so badges
+always equal grid contents. Applied uniformly with no self-authored
+carve-out — for self-authored posts the owner IS the target, and every
+viewer the app-layer profile gate admits satisfies the clause, verified
+case-by-case. The all/stats membership predicates and `is_tagged` also
+switched to the containment form (`p.tags @> ARRAY[target::TEXT]`) so
+`idx_posts_tags_gin` (066) finally serves them — the asymmetry 066 noted.
+
+**And 066's header was wrong about the counts function's ACLs.** It claimed
+"040's REVOKEs survive" the CREATE OR REPLACE — true for the tagged
+function, false for `get_profile_media_counts`: 051 force-DROPPED it (DO
+loop over pg_proc), which reset its ACL to the Postgres default (EXECUTE
+granted to PUBLIC) and wiped 040's pinned search_path. Every definition
+since preserved the broken state, so the counts RPC has been directly
+callable via PostgREST by anon/authenticated with an arbitrary `viewer_id`,
+bypassing the app-layer privacy gate — a real, if small, exposure (counts
+only, no content). 068's tail re-pins search_path and re-REVOKEs all three
+functions (the two grid functions only as belt-and-braces; their ACLs were
+never dropped). The migration's pre-flight query shows the broken state,
+its VERIFY shows it closed.
+
+No app code changes — same signatures and shapes, the route already passes
+`viewer_id`, so 068 is order-independent with any deploy. e2e: tagged.spec
+seeds B's post with `stats_data` and pins the anonymous All/Stats grids and
+the badge==grid equality (exact equality leans on workers:1 — noted in the
+spec). The spec passes only once 068 has run against the target DB.
+
+✅ Migration 068 run by Tom (Aug 5) and verified live: direct PostgREST RPC to
+`get_profile_media_counts` and `get_profile_all_media` with the ANON key now
+returns 42501 permission-denied (pre-068 the counts call returned real rows);
+service-role calls still work. Full e2e suite 14/14 green against the
+migrated DB, including the new 068 pins.
+
+One assertion trap the pins surfaced: giving B's seed post `stats_data` makes
+its tile render the stat line instead of the caption — the caption survives
+only as the tile button's accessible name. The four caption `getByText`
+assertions became `getByRole('button', { name: caption })` (same family as
+the name-composition trap from the smoke-suite round).
+
+## August 5, 2026 — Tagged in-tab header cut
 
 Tom: the "Tagged / Posts and rounds other athletes tagged you in" header
 inside the tab is redundant — the tab pill already names the surface.
