@@ -137,11 +137,11 @@ export default function MultiSportActivity({ profileId, onEdit, onDelete }: Mult
         className={`px-4 py-2 text-sm font-medium rounded-md transition-colors ${
           isActive
             ? isEnabled
-              ? 'bg-violet-100 text-violet-700 border border-violet-200'
-              : 'bg-gray-100 text-gray-700 border border-gray-200'
+              ? 'bg-violet-100 dark:bg-violet-950/60 text-brand-fg-strong border border-violet-200 dark:border-violet-800'
+              : 'bg-surface-sunken text-secondary border border-border'
             : isEnabled
-              ? 'text-gray-500 hover:text-gray-700'
-              : 'text-gray-400 cursor-not-allowed'
+              ? 'text-muted hover:text-secondary'
+              : 'text-faint cursor-not-allowed'
         }`}
         disabled={!isEnabled && !isActive}
         title={!isEnabled ? COPY.COMING_SOON.SPORT_GENERAL : undefined}
@@ -165,16 +165,16 @@ export default function MultiSportActivity({ profileId, onEdit, onDelete }: Mult
     if (isLoading) {
       return (
         <div className="text-center py-8">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-violet-600 mx-auto"></div>
-          <p className="text-gray-500 mt-2">Loading...</p>
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-brand mx-auto"></div>
+          <p className="text-muted mt-2">Loading...</p>
         </div>
       );
     }
 
     if (rows.length === 0) {
       return (
-        <div className="text-center py-8 text-gray-500">
-          <i className={`${sportDef.icon_id} icon-header text-gray-300 mb-3`}></i>
+        <div className="text-center py-8 text-muted">
+          <i className={`${sportDef.icon_id} icon-header text-gray-300 dark:text-stone-600 mb-3`}></i>
           <p className="mb-2">
             {isEnabled 
               ? getPlaceholder('NO_PERFORMANCES') 
@@ -190,7 +190,7 @@ export default function MultiSportActivity({ profileId, onEdit, onDelete }: Mult
           {isEnabled && (
             <button
               onClick={handleAddActivity}
-              className="px-4 py-2 text-sm font-medium text-white bg-violet-600 border border-transparent rounded-md hover:bg-violet-700 transition-colors"
+              className="px-4 py-2 text-sm font-medium text-white bg-brand border border-transparent rounded-md hover:bg-brand-hover transition-colors"
             >
               {sportDef.primary_action}
             </button>
@@ -202,50 +202,50 @@ export default function MultiSportActivity({ profileId, onEdit, onDelete }: Mult
     return (
       <div className="overflow-x-auto">
         <table className="min-w-full">
-          <thead className="bg-gray-50">
+          <thead className="bg-surface-muted">
             <tr>
-              <th className="px-micro py-micro text-left text-chip text-gray-500 uppercase tracking-wider">
+              <th className="px-micro py-micro text-left text-chip text-muted uppercase tracking-wider">
                 <div className="flex items-center space-x-1">
                   <span>{sportDef.activity_columns.col1}</span>
-                  <i className="fas fa-chevron-down text-xs text-violet-600" title="Newest → Oldest"></i>
+                  <i className="fas fa-chevron-down text-xs text-brand-fg" title="Newest → Oldest"></i>
                 </div>
               </th>
-              <th className="px-micro py-micro text-left text-chip text-gray-500 uppercase tracking-wider">
+              <th className="px-micro py-micro text-left text-chip text-muted uppercase tracking-wider">
                 {sportDef.activity_columns.col2}
               </th>
-              <th className="px-micro py-micro text-left text-chip text-gray-500 uppercase tracking-wider">
+              <th className="px-micro py-micro text-left text-chip text-muted uppercase tracking-wider">
                 {sportDef.activity_columns.col3}
               </th>
-              <th className="px-micro py-micro text-left text-chip text-gray-500 uppercase tracking-wider">
+              <th className="px-micro py-micro text-left text-chip text-muted uppercase tracking-wider">
                 {sportDef.activity_columns.col4}
               </th>
               {sportDef.activity_columns.col5 && (
-                <th className="px-micro py-micro text-left text-chip text-gray-500 uppercase tracking-wider">
+                <th className="px-micro py-micro text-left text-chip text-muted uppercase tracking-wider">
                   {sportDef.activity_columns.col5}
                 </th>
               )}
-              <th className="px-micro py-micro text-right text-chip text-gray-500 uppercase tracking-wider">
+              <th className="px-micro py-micro text-right text-chip text-muted uppercase tracking-wider">
                 Actions
               </th>
             </tr>
           </thead>
-          <tbody className="bg-white divide-y divide-gray-200">
+          <tbody className="bg-surface divide-y divide-border">
             {rows.map((row) => (
               <tr key={row.id}>
-                <td className="px-micro py-micro whitespace-nowrap text-label text-gray-900">
+                <td className="px-micro py-micro whitespace-nowrap text-label text-primary">
                   {row.col1}
                 </td>
-                <td className="px-micro py-micro whitespace-nowrap text-label text-gray-900">
+                <td className="px-micro py-micro whitespace-nowrap text-label text-primary">
                   {row.col2}
                 </td>
-                <td className="px-micro py-micro whitespace-nowrap text-label text-gray-900">
+                <td className="px-micro py-micro whitespace-nowrap text-label text-primary">
                   {row.col3}
                 </td>
-                <td className="px-micro py-micro whitespace-nowrap text-label text-gray-900">
+                <td className="px-micro py-micro whitespace-nowrap text-label text-primary">
                   {row.col4}
                 </td>
                 {sportDef.activity_columns.col5 && (
-                  <td className="px-4 py-2 whitespace-nowrap text-label text-gray-500">
+                  <td className="px-4 py-2 whitespace-nowrap text-label text-muted">
                     {row.col5 || '—'}
                   </td>
                 )}
@@ -260,7 +260,7 @@ export default function MultiSportActivity({ profileId, onEdit, onDelete }: Mult
                         }
                         // Disabled sports: no-op (detail coming soon)
                       }}
-                      className="p-2 text-violet-600 hover:text-violet-800 transition-colors"
+                      className="p-2 text-brand-fg hover:text-violet-800 dark:hover:text-violet-200 transition-colors"
                       title={adapter.isEnabled() ? `View ${sportDef.activity_columns.col2.slice(0, -1)} Details` : 'Coming soon'}
                     >
                       <i className={`fas ${adapter.isEnabled() ? 'fa-eye' : 'fa-clock'} icon-edit`}></i>
@@ -268,7 +268,7 @@ export default function MultiSportActivity({ profileId, onEdit, onDelete }: Mult
                     {row.canEdit && adapter.isEnabled() && (
                       <button
                         onClick={() => handleEditActivity(row.id)}
-                        className="p-2 text-green-600 hover:text-green-800 transition-colors"
+                        className="p-2 text-green-600 dark:text-green-400 hover:text-green-800 dark:hover:text-green-200 transition-colors"
                         title={`Edit ${sportDef.activity_columns.col2.slice(0, -1)}`}
                       >
                         <i className="fas fa-edit icon-edit"></i>
@@ -277,7 +277,7 @@ export default function MultiSportActivity({ profileId, onEdit, onDelete }: Mult
                     {row.canDelete && (
                       <button
                         onClick={() => handleDeleteActivity(row.id)}
-                        className="p-2 text-red-600 hover:text-red-800 transition-colors"
+                        className="p-2 text-red-600 dark:text-red-400 hover:text-red-800 dark:hover:text-red-200 transition-colors"
                         title={`Delete ${sportDef.activity_columns.col2.slice(0, -1)}`}
                       >
                         <i className="fas fa-trash icon-edit"></i>
@@ -294,19 +294,19 @@ export default function MultiSportActivity({ profileId, onEdit, onDelete }: Mult
   };
 
   return (
-    <div className="bg-white rounded-lg shadow-sm p-base">
+    <div className="bg-surface rounded-lg shadow-sm p-base">
       <div className={`flex flex-col sm:flex-row sm:items-center sm:justify-between ${cssClasses.SPACING.MARGIN.BASE}`}>
         <div className="flex-1">
-          <h2 className={`${cssClasses.TYPOGRAPHY.H2} text-gray-900`}>{COPY.NAVIGATION.RECENT_ACTIVITY}</h2>
-          <p className={`${cssClasses.TYPOGRAPHY.CHIP} text-gray-500 mt-1`}>
+          <h2 className={`${cssClasses.TYPOGRAPHY.H2} text-primary`}>{COPY.NAVIGATION.RECENT_ACTIVITY}</h2>
+          <p className={`${cssClasses.TYPOGRAPHY.CHIP} text-muted mt-1`}>
             <i className={`fas fa-sort-amount-down ${cssClasses.TYPOGRAPHY.CHIP} mr-1`}></i>
             {COPY.SORTING.NEWEST_OLDEST}
             {activeSportKey === 'golf' && (
               <>
-                <Link href="/app/sport/golf/rounds" className="ml-3 text-violet-600 hover:text-violet-700 font-medium">
+                <Link href="/app/sport/golf/rounds" className="ml-3 text-brand-fg hover:text-brand-fg-strong font-medium">
                   View all rounds →
                 </Link>
-                <Link href="/app/sport/golf/trends" className="ml-3 text-violet-600 hover:text-violet-700 font-medium">
+                <Link href="/app/sport/golf/trends" className="ml-3 text-brand-fg hover:text-brand-fg-strong font-medium">
                   Trends →
                 </Link>
               </>
@@ -319,8 +319,8 @@ export default function MultiSportActivity({ profileId, onEdit, onDelete }: Mult
           onClick={handleAddActivity}
           className={`px-4 py-2 text-sm font-medium border border-transparent rounded-md transition-colors ${
             getSportAdapter(activeSportKey).isEnabled()
-              ? 'text-white bg-violet-600 hover:bg-violet-700'
-              : 'text-gray-500 bg-gray-100 cursor-not-allowed'
+              ? 'text-white bg-brand hover:bg-brand-hover'
+              : 'text-muted bg-surface-sunken cursor-not-allowed'
           }`}
           disabled={!getSportAdapter(activeSportKey).isEnabled()}
           title={getSportAdapter(activeSportKey).isEnabled() ? undefined : 'Coming soon'}

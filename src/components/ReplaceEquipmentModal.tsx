@@ -98,24 +98,24 @@ export default function ReplaceEquipmentModal({
       {/* Confirmation step */}
       {step === 'confirm' && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-xl max-w-lg w-full max-h-modal overflow-y-auto shadow-2xl">
+          <div className="bg-surface-raised rounded-xl max-w-lg w-full max-h-modal overflow-y-auto shadow-2xl">
             {/* Header */}
-            <div className="sticky top-0 bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between rounded-t-2xl">
+            <div className="sticky top-0 bg-surface-raised border-b border-border px-6 py-4 flex items-center justify-between rounded-t-2xl">
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-full bg-violet-100 flex items-center justify-center">
-                  <RefreshCw className="w-5 h-5 text-violet-600" />
+                <div className="w-10 h-10 rounded-full bg-violet-100 dark:bg-violet-950/60 flex items-center justify-center">
+                  <RefreshCw className="w-5 h-5 text-brand-fg" />
                 </div>
                 <div>
-                  <h2 className="text-xl font-bold text-gray-900">Replace Equipment</h2>
-                  <p className="text-sm text-gray-500">Retire old gear and add new</p>
+                  <h2 className="text-xl font-bold text-primary">Replace Equipment</h2>
+                  <p className="text-sm text-muted">Retire old gear and add new</p>
                 </div>
               </div>
               <button
                 onClick={handleClose}
                 aria-label="Close"
-                className="p-2 hover:bg-gray-100 rounded-full transition-colors"
+                className="p-2 hover:bg-surface-sunken rounded-full transition-colors"
               >
-                <X className="w-6 h-6 text-gray-500" />
+                <X className="w-6 h-6 text-muted" />
               </button>
             </div>
 
@@ -123,11 +123,11 @@ export default function ReplaceEquipmentModal({
             <div className="p-6 space-y-6">
               {/* Old equipment preview */}
               <div className="space-y-3">
-                <div className="flex items-center gap-2 text-sm font-semibold text-gray-700">
+                <div className="flex items-center gap-2 text-sm font-semibold text-secondary">
                   <Archive className="w-4 h-4" />
                   Equipment to retire:
                 </div>
-                <div className="bg-gray-50 rounded-lg p-4 border border-gray-200">
+                <div className="bg-surface-muted rounded-lg p-4 border border-border">
                   <div className="flex items-start gap-4">
                     {/* Image */}
                     {oldEquipment.image_url ? (
@@ -136,24 +136,24 @@ export default function ReplaceEquipmentModal({
                         alt={`${oldEquipment.brand} ${oldEquipment.model}`}
                         width={80}
                         height={80}
-                        className="w-20 h-20 object-contain rounded-lg bg-white"
+                        className="w-20 h-20 object-contain rounded-lg bg-surface"
                         unoptimized={!isOptimizableImageSrc(oldEquipment.image_url)}
                       />
                     ) : (
-                      <div className="w-20 h-20 bg-gray-200 rounded-lg flex items-center justify-center text-3xl">
+                      <div className="w-20 h-20 bg-gray-200 dark:bg-stone-800 rounded-lg flex items-center justify-center text-3xl">
                         {getCategoryConfig(oldEquipment.sport_key || 'general', oldEquipment.category).icon}
                       </div>
                     )}
 
                     {/* Details */}
                     <div className="flex-1 min-w-0">
-                      <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
+                      <p className="text-xs font-semibold text-muted uppercase tracking-wide">
                         {oldEquipment.category.replace(/_/g, ' ')}
                       </p>
-                      <h3 className="text-lg font-bold text-gray-900 mt-1">
+                      <h3 className="text-lg font-bold text-primary mt-1">
                         {oldEquipment.brand}
                       </h3>
-                      <p className="text-base font-semibold text-gray-700">
+                      <p className="text-base font-semibold text-secondary">
                         {oldEquipment.model}
                       </p>
                       {oldEquipment.specs && Object.keys(oldEquipment.specs).length > 0 && (
@@ -163,10 +163,10 @@ export default function ReplaceEquipmentModal({
                             .slice(0, 2)
                             .map(([key, value]) => (
                               <div key={key} className="flex items-center gap-2 text-xs">
-                                <span className="text-gray-500 capitalize">
+                                <span className="text-muted capitalize">
                                   {key.replace(/_/g, ' ')}:
                                 </span>
-                                <span className="text-gray-900 font-semibold">{value}</span>
+                                <span className="text-primary font-semibold">{value}</span>
                               </div>
                             ))}
                         </div>
@@ -177,14 +177,14 @@ export default function ReplaceEquipmentModal({
               </div>
 
               {/* Info message */}
-              <div className="bg-violet-50 border border-violet-200 rounded-lg p-4">
+              <div className="bg-brand-soft border border-violet-200 dark:border-violet-800 rounded-lg p-4">
                 <div className="flex items-start gap-3">
-                  <RefreshCw className="w-5 h-5 text-violet-600 flex-shrink-0 mt-0.5" />
+                  <RefreshCw className="w-5 h-5 text-brand-fg flex-shrink-0 mt-0.5" />
                   <div className="flex-1">
-                    <p className="text-sm font-semibold text-violet-900 mb-1">
+                    <p className="text-sm font-semibold text-violet-900 dark:text-violet-200 mb-1">
                       What happens next?
                     </p>
-                    <ul className="text-sm text-violet-700 space-y-1">
+                    <ul className="text-sm text-brand-fg-strong space-y-1">
                       <li>• Your current equipment is marked as &quot;retired&quot; once the new gear is added</li>
                       <li>• It will remain in your equipment history</li>
                       <li>• You can add the new replacement equipment</li>
@@ -196,8 +196,8 @@ export default function ReplaceEquipmentModal({
 
               {/* Error message */}
               {error && (
-                <div className="bg-red-50 border border-red-200 rounded-lg p-4">
-                  <p className="text-sm font-semibold text-red-900">{error}</p>
+                <div className="bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-800 rounded-lg p-4">
+                  <p className="text-sm font-semibold text-red-900 dark:text-red-200">{error}</p>
                 </div>
               )}
             </div>
@@ -205,10 +205,10 @@ export default function ReplaceEquipmentModal({
             {/* Footer. Stacked below sm (ConfirmModal pattern): "Cancel" +
                 "Continue to Add New" is ~260px of buttons in a 240px row at
                 320px — it overflowed or wrapped mid-phrase. */}
-            <div className="sticky bottom-0 bg-gray-50 border-t border-gray-200 px-4 sm:px-6 py-4 flex flex-col-reverse sm:flex-row sm:items-center sm:justify-end gap-3 rounded-b-2xl">
+            <div className="sticky bottom-0 bg-surface-muted border-t border-border px-4 sm:px-6 py-4 flex flex-col-reverse sm:flex-row sm:items-center sm:justify-end gap-3 rounded-b-2xl">
               <button
                 onClick={handleClose}
-                className="px-6 py-2.5 border border-gray-300 rounded-lg font-semibold text-gray-700 hover:bg-gray-100 transition-colors"
+                className="px-6 py-2.5 border border-border-strong rounded-lg font-semibold text-secondary hover:bg-surface-sunken transition-colors"
                 disabled={retiring}
               >
                 Cancel
@@ -216,7 +216,7 @@ export default function ReplaceEquipmentModal({
               <button
                 onClick={handleConfirmReplace}
                 disabled={retiring}
-                className="px-6 py-2.5 bg-violet-600 text-white rounded-lg font-semibold hover:bg-violet-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                className="px-6 py-2.5 bg-brand text-white rounded-lg font-semibold hover:bg-brand-hover transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
               >
                 <RefreshCw className="w-4 h-4" />
                 Continue to Add New

@@ -313,16 +313,16 @@ export default function MessageInput({ conversationId, currentUserId, onSend, di
     : null;
 
   return (
-    <div className="border-t border-gray-200 bg-white shrink-0 safe-bottom">
+    <div className="border-t border-border bg-surface shrink-0 safe-bottom">
       {/* Reply preview bar */}
       {replyingTo && (
-        <div className="flex items-center gap-2 px-4 py-2 bg-gray-50 border-b border-gray-200">
+        <div className="flex items-center gap-2 px-4 py-2 bg-surface-muted border-b border-border">
           <div className="w-1 h-8 bg-violet-500 rounded-full shrink-0" />
           <div className="flex-1 min-w-0">
-            <p className="text-xs font-semibold text-violet-600 truncate">
+            <p className="text-xs font-semibold text-brand-fg truncate">
               Replying to {replyingSenderName}
             </p>
-            <p className="text-xs text-gray-500 truncate">{replyPreviewText}</p>
+            <p className="text-xs text-muted truncate">{replyPreviewText}</p>
           </div>
           {replyThumbnailUrl && (
             // src is polymorphic — Supabase media/avatar, a Google OAuth
@@ -345,7 +345,7 @@ export default function MessageInput({ conversationId, currentUserId, onSend, di
           <button
             type="button"
             onClick={onCancelReply}
-            className="shrink-0 p-1 text-gray-400 hover:text-gray-600 transition-colors"
+            className="shrink-0 p-1 text-faint hover:text-tertiary transition-colors"
             title="Cancel reply"
           >
             <i className="fas fa-times text-sm"></i>
@@ -362,7 +362,7 @@ export default function MessageInput({ conversationId, currentUserId, onSend, di
             // attached). The optimizer fetches server-side and cannot read a
             // client-only URL; next/image force-sets unoptimized for these.
             // eslint-disable-next-line @next/next/no-img-element
-            <img src={attachedPreview} alt="Attachment" className="h-16 w-16 object-cover rounded-lg border border-gray-200" />
+            <img src={attachedPreview} alt="Attachment" className="h-16 w-16 object-cover rounded-lg border border-border" />
           ) : (
             <div className="h-16 w-16 bg-gray-800 rounded-lg flex items-center justify-center">
               <i className="fas fa-play-circle text-white text-2xl"></i>
@@ -380,7 +380,7 @@ export default function MessageInput({ conversationId, currentUserId, onSend, di
 
       {/* Error */}
       {error && (
-        <p role="alert" className="text-xs text-red-600 mb-2">{error}</p>
+        <p role="alert" className="text-xs text-red-600 dark:text-red-400 mb-2">{error}</p>
       )}
 
       <div className="flex items-end gap-1">
@@ -404,7 +404,7 @@ export default function MessageInput({ conversationId, currentUserId, onSend, di
               type="button"
               onClick={() => dispatchLeading({ type: 'TOGGLE' })}
               disabled={disabled || sending}
-              className="w-10 h-10 flex items-center justify-center text-gray-400 hover:text-violet-500 transition-colors disabled:opacity-40"
+              className="w-10 h-10 flex items-center justify-center text-faint hover:text-violet-500 transition-colors disabled:opacity-40"
               aria-label="Show attachment and GIF buttons"
               title="More options"
               aria-expanded={leadingOpen}
@@ -424,7 +424,7 @@ export default function MessageInput({ conversationId, currentUserId, onSend, di
               type="button"
               onClick={() => fileInputRef.current?.click()}
               disabled={disabled || sending}
-              className="w-10 h-10 shrink-0 flex items-center justify-center text-gray-400 hover:text-gray-600 transition-colors disabled:opacity-40"
+              className="w-10 h-10 shrink-0 flex items-center justify-center text-faint hover:text-tertiary transition-colors disabled:opacity-40"
               aria-label="Attach file"
               title="Attach a photo or video"
             >
@@ -436,7 +436,7 @@ export default function MessageInput({ conversationId, currentUserId, onSend, di
               onClick={() => setShowGifPicker(prev => !prev)}
               disabled={disabled || sending}
               data-gif-picker-toggle
-              className="w-10 h-10 shrink-0 flex items-center justify-center text-gray-400 hover:text-violet-500 transition-colors disabled:opacity-40 text-xs font-bold"
+              className="w-10 h-10 shrink-0 flex items-center justify-center text-faint hover:text-violet-500 transition-colors disabled:opacity-40 text-xs font-bold"
               aria-label="Send GIF"
               title="Send a GIF"
             >
@@ -457,7 +457,7 @@ export default function MessageInput({ conversationId, currentUserId, onSend, di
             placeholder={replyingTo ? 'Reply…' : 'Message…'}
             rows={1}
             disabled={disabled || sending}
-            className="w-full resize-none border border-gray-300 rounded-2xl pl-4 pr-12 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500 disabled:opacity-40 overflow-hidden block"
+            className="w-full resize-none border border-border-strong rounded-2xl pl-4 pr-12 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500 disabled:opacity-40 overflow-hidden block"
             style={{ minHeight: COMPOSER_MIN_HEIGHT, maxHeight: COMPOSER_MAX_HEIGHT }}
           />
           {/* Emoji stays pinned inside the field's trailing edge in every
@@ -505,7 +505,7 @@ export default function MessageInput({ conversationId, currentUserId, onSend, di
           type="button"
           onClick={handleSend}
           disabled={!canSend}
-          className="shrink-0 w-11 h-11 bg-violet-600 text-white rounded-full flex items-center justify-center hover:bg-violet-700 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+          className="shrink-0 w-11 h-11 bg-brand text-white rounded-full flex items-center justify-center hover:bg-brand-hover transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
           aria-label="Send message"
         >
           {sending ? (

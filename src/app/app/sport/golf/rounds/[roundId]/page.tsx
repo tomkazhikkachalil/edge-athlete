@@ -197,10 +197,10 @@ export default function GolfRoundDetailPage() {
 
   if (authLoading || loading) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+      <div className="min-h-screen bg-canvas flex items-center justify-center">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-violet-600 mx-auto"></div>
-          <p className="mt-2 text-gray-600">Loading round details...</p>
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-brand mx-auto"></div>
+          <p className="mt-2 text-tertiary">Loading round details...</p>
         </div>
       </div>
     );
@@ -210,15 +210,15 @@ export default function GolfRoundDetailPage() {
 
   if (notFound || !round) {
     return (
-      <div className="min-h-screen bg-gray-50">
+      <div className="min-h-screen bg-canvas">
         <AppHeader showSearch={false} />
         <div className="flex items-center justify-center py-20">
           <div className="text-center px-4">
-            <h1 className="text-2xl sm:text-4xl font-bold text-gray-900 mb-4">Round Not Found</h1>
-            <p className="text-gray-600 mb-8">This golf round does not exist or you don&apos;t have access to it.</p>
+            <h1 className="text-2xl sm:text-4xl font-bold text-primary mb-4">Round Not Found</h1>
+            <p className="text-tertiary mb-8">This golf round does not exist or you don&apos;t have access to it.</p>
             <button
               onClick={() => router.back()}
-              className="inline-flex items-center px-4 py-2 border border-transparent text-base font-medium rounded-md text-white bg-violet-600 hover:bg-violet-700 transition-colors"
+              className="inline-flex items-center px-4 py-2 border border-transparent text-base font-medium rounded-md text-white bg-brand hover:bg-brand-hover transition-colors"
             >
               <i className="fas fa-arrow-left mr-2"></i>
               Go Back
@@ -243,16 +243,16 @@ export default function GolfRoundDetailPage() {
     .join(' · ');
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-canvas">
       <AppHeader showSearch={false} />
 
       {/* Navigation + actions */}
-      <div className="bg-white border-b border-gray-200">
+      <div className="bg-surface border-b border-border">
         <div className="max-w-4xl mx-auto px-4 py-3">
           <div className="flex items-center justify-between gap-2">
             <button
               onClick={() => router.back()}
-              className="inline-flex items-center min-h-[44px] text-sm text-gray-600 hover:text-gray-900 transition-colors"
+              className="inline-flex items-center min-h-[44px] text-sm text-tertiary hover:text-primary transition-colors"
             >
               <i className="fas fa-arrow-left mr-2"></i>
               Back
@@ -261,14 +261,14 @@ export default function GolfRoundDetailPage() {
               <div className="flex items-center gap-2">
                 <button
                   onClick={startEditing}
-                  className="inline-flex items-center min-h-[44px] px-3 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 transition-colors"
+                  className="inline-flex items-center min-h-[44px] px-3 py-2 border border-border-strong rounded-md text-sm font-medium text-secondary bg-surface hover:bg-surface-muted transition-colors"
                 >
                   <i className="fas fa-edit mr-1"></i>
                   Edit
                 </button>
                 <button
                   onClick={() => setShowDeleteConfirm(true)}
-                  className="inline-flex items-center min-h-[44px] px-3 py-2 border border-red-300 rounded-md text-sm font-medium text-red-700 bg-white hover:bg-red-50 transition-colors"
+                  className="inline-flex items-center min-h-[44px] px-3 py-2 border border-red-300 dark:border-red-700 rounded-md text-sm font-medium text-red-700 dark:text-red-300 bg-surface hover:bg-red-50 dark:hover:bg-red-950/40 transition-colors"
                 >
                   <i className="fas fa-trash mr-1"></i>
                   Delete
@@ -280,14 +280,14 @@ export default function GolfRoundDetailPage() {
                 <button
                   onClick={() => setEditing(false)}
                   disabled={saving}
-                  className="inline-flex items-center min-h-[44px] px-3 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 transition-colors disabled:opacity-50"
+                  className="inline-flex items-center min-h-[44px] px-3 py-2 border border-border-strong rounded-md text-sm font-medium text-secondary bg-surface hover:bg-surface-muted transition-colors disabled:opacity-50"
                 >
                   Cancel
                 </button>
                 <button
                   onClick={handleSave}
                   disabled={saving}
-                  className="inline-flex items-center min-h-[44px] px-4 py-2 rounded-md text-sm font-medium text-white bg-violet-600 hover:bg-violet-700 transition-colors disabled:opacity-50"
+                  className="inline-flex items-center min-h-[44px] px-4 py-2 rounded-md text-sm font-medium text-white bg-brand hover:bg-brand-hover transition-colors disabled:opacity-50"
                 >
                   {saving ? (
                     <><i className="fas fa-spinner fa-spin mr-2"></i>Saving…</>
@@ -303,63 +303,63 @@ export default function GolfRoundDetailPage() {
 
       <div className="max-w-4xl mx-auto px-4 py-6 space-y-6">
         {/* Round header */}
-        <div className="bg-white rounded-lg shadow-sm p-4 sm:p-6">
+        <div className="bg-surface rounded-lg shadow-sm p-4 sm:p-6">
           <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4 mb-4">
             <div className="min-w-0">
-              <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 mb-1 break-words">{round.course}</h1>
+              <h1 className="text-2xl sm:text-3xl font-bold text-primary mb-1 break-words">{round.course}</h1>
               {round.course_location && (
-                <p className="text-sm text-gray-500 mb-1">{round.course_location}</p>
+                <p className="text-sm text-muted mb-1">{round.course_location}</p>
               )}
-              <p className="text-gray-600 text-sm">
+              <p className="text-tertiary text-sm">
                 <i className="fas fa-calendar mr-2"></i>
                 {new Date(round.date + 'T00:00:00').toLocaleDateString('en-US', {
                   weekday: 'long', year: 'numeric', month: 'long', day: 'numeric',
                 })}
               </p>
-              <div className="flex flex-wrap gap-2 mt-2 text-xs text-gray-600">
-                {round.tee && <span className="px-2 py-1 bg-gray-100 rounded-full">{round.tee} tees</span>}
-                <span className="px-2 py-1 bg-gray-100 rounded-full">{round.round_type === 'indoor' ? 'Indoor / Sim' : 'Outdoor'}</span>
-                <span className="px-2 py-1 bg-gray-100 rounded-full">{holesPlayed} holes</span>
-                {!round.is_complete && <span className="px-2 py-1 bg-yellow-100 text-yellow-700 rounded-full">Partial round</span>}
+              <div className="flex flex-wrap gap-2 mt-2 text-xs text-tertiary">
+                {round.tee && <span className="px-2 py-1 bg-surface-sunken rounded-full">{round.tee} tees</span>}
+                <span className="px-2 py-1 bg-surface-sunken rounded-full">{round.round_type === 'indoor' ? 'Indoor / Sim' : 'Outdoor'}</span>
+                <span className="px-2 py-1 bg-surface-sunken rounded-full">{holesPlayed} holes</span>
+                {!round.is_complete && <span className="px-2 py-1 bg-yellow-100 dark:bg-yellow-950/60 text-yellow-700 dark:text-yellow-300 rounded-full">Partial round</span>}
               </div>
             </div>
             <div className="text-left sm:text-right flex-shrink-0">
-              <div className="text-4xl font-bold text-gray-900">{grossScore}</div>
+              <div className="text-4xl font-bold text-primary">{grossScore}</div>
               <div className={`text-sm font-medium ${
-                scoreToPar === 0 ? 'text-violet-600' : scoreToPar > 0 ? 'text-red-600' : 'text-green-600'
+                scoreToPar === 0 ? 'text-brand-fg' : scoreToPar > 0 ? 'text-red-600 dark:text-red-400' : 'text-green-600 dark:text-green-400'
               }`}>
                 {scoreToPar === 0 ? 'E' : scoreToPar > 0 ? `+${scoreToPar}` : scoreToPar}
-                <span className="text-gray-400 font-normal"> · par {parPlayed}</span>
+                <span className="text-faint font-normal"> · par {parPlayed}</span>
               </div>
             </div>
           </div>
 
           {/* Stats */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 pt-4 border-t border-gray-200">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 pt-4 border-t border-border">
             <div className="text-center">
-              <div className="text-lg font-semibold text-gray-900">
+              <div className="text-lg font-semibold text-primary">
                 {fairwayEligible.length > 0 ? `${fairwaysHit}/${fairwayEligible.length}` : '—'}
               </div>
-              <div className="text-xs text-gray-500 uppercase">Fairways</div>
+              <div className="text-xs text-muted uppercase">Fairways</div>
             </div>
             <div className="text-center">
-              <div className="text-lg font-semibold text-gray-900">{girsHit}/{holesPlayed}</div>
-              <div className="text-xs text-gray-500 uppercase">GIR</div>
+              <div className="text-lg font-semibold text-primary">{girsHit}/{holesPlayed}</div>
+              <div className="text-xs text-muted uppercase">GIR</div>
             </div>
             <div className="text-center">
-              <div className="text-lg font-semibold text-gray-900">{totalPutts || '—'}</div>
-              <div className="text-xs text-gray-500 uppercase">Putts</div>
+              <div className="text-lg font-semibold text-primary">{totalPutts || '—'}</div>
+              <div className="text-xs text-muted uppercase">Putts</div>
             </div>
             <div className="text-center">
-              <div className="text-lg font-semibold text-gray-900">
+              <div className="text-lg font-semibold text-primary">
                 {totalPutts && holesPlayed ? (totalPutts / holesPlayed).toFixed(1) : '—'}
               </div>
-              <div className="text-xs text-gray-500 uppercase">Putts/Hole</div>
+              <div className="text-xs text-muted uppercase">Putts/Hole</div>
             </div>
           </div>
 
           {conditions && (
-            <p className="mt-4 pt-4 border-t border-gray-200 text-sm text-gray-600">
+            <p className="mt-4 pt-4 border-t border-border text-sm text-tertiary">
               <i className="fas fa-cloud-sun mr-2"></i>
               {conditions}
             </p>
@@ -367,35 +367,35 @@ export default function GolfRoundDetailPage() {
         </div>
 
         {/* Scorecard */}
-        <div className="bg-white rounded-lg shadow-sm p-4 sm:p-6">
-          <h2 className="text-xl font-bold text-gray-900 mb-4">
+        <div className="bg-surface rounded-lg shadow-sm p-4 sm:p-6">
+          <h2 className="text-xl font-bold text-primary mb-4">
             <i className="fas fa-golf-ball mr-2"></i>
             Scorecard
           </h2>
           {holes.length === 0 ? (
-            <p className="text-sm text-gray-500">No hole-by-hole data was recorded for this round.</p>
+            <p className="text-sm text-muted">No hole-by-hole data was recorded for this round.</p>
           ) : (
             <div className="overflow-x-auto -mx-4 sm:mx-0 px-4 sm:px-0">
               <table className="min-w-full">
-                <thead className="bg-gray-50">
+                <thead className="bg-surface-muted">
                   <tr>
-                    <th className="px-3 py-2 text-left text-xs text-gray-500 uppercase">Hole</th>
-                    <th className="px-3 py-2 text-center text-xs text-gray-500 uppercase">Par</th>
-                    <th className="px-3 py-2 text-center text-xs text-gray-500 uppercase">Score</th>
-                    <th className="px-3 py-2 text-center text-xs text-gray-500 uppercase">+/-</th>
-                    <th className="px-3 py-2 text-center text-xs text-gray-500 uppercase">FIR</th>
-                    <th className="px-3 py-2 text-center text-xs text-gray-500 uppercase">GIR</th>
-                    <th className="px-3 py-2 text-center text-xs text-gray-500 uppercase">Putts</th>
+                    <th className="px-3 py-2 text-left text-xs text-muted uppercase">Hole</th>
+                    <th className="px-3 py-2 text-center text-xs text-muted uppercase">Par</th>
+                    <th className="px-3 py-2 text-center text-xs text-muted uppercase">Score</th>
+                    <th className="px-3 py-2 text-center text-xs text-muted uppercase">+/-</th>
+                    <th className="px-3 py-2 text-center text-xs text-muted uppercase">FIR</th>
+                    <th className="px-3 py-2 text-center text-xs text-muted uppercase">GIR</th>
+                    <th className="px-3 py-2 text-center text-xs text-muted uppercase">Putts</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-gray-200">
+                <tbody className="divide-y divide-border">
                   {(editing ? editHoles : holes).map(hole => {
                     if (editing) {
                       const eh = hole as EditableHole;
                       return (
                         <tr key={eh.hole_number}>
-                          <td className="px-3 py-2 text-sm font-medium text-gray-900">{eh.hole_number}</td>
-                          <td className="px-3 py-2 text-sm text-gray-900 text-center">{eh.par ?? '—'}</td>
+                          <td className="px-3 py-2 text-sm font-medium text-primary">{eh.hole_number}</td>
+                          <td className="px-3 py-2 text-sm text-primary text-center">{eh.par ?? '—'}</td>
                           <td className="px-2 py-1 text-center">
                             <input
                               type="number"
@@ -404,11 +404,11 @@ export default function GolfRoundDetailPage() {
                               max={20}
                               value={eh.strokes}
                               onChange={e => updateEditHole(eh.hole_number, { strokes: e.target.value })}
-                              className="w-14 min-h-[40px] px-1 py-1 text-center border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-violet-500"
+                              className="w-14 min-h-[40px] px-1 py-1 text-center border border-border-strong rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-violet-500"
                               aria-label={`Hole ${eh.hole_number} score`}
                             />
                           </td>
-                          <td className="px-3 py-2 text-sm text-gray-400 text-center">—</td>
+                          <td className="px-3 py-2 text-sm text-faint text-center">—</td>
                           <td className="px-2 py-1 text-center">
                             {(eh.par ?? 4) > 3 ? (
                               <button
@@ -416,13 +416,13 @@ export default function GolfRoundDetailPage() {
                                 onClick={() => updateEditHole(eh.hole_number, {
                                   fairway_hit: eh.fairway_hit === true ? false : eh.fairway_hit === false ? null : true,
                                 })}
-                                className="min-w-[40px] min-h-[40px] rounded-md hover:bg-gray-100"
+                                className="min-w-[40px] min-h-[40px] rounded-md hover:bg-surface-sunken"
                                 title="Cycle: hit → missed → n/a"
                                 aria-label={`Hole ${eh.hole_number} fairway`}
                               >
-                                {eh.fairway_hit === true && <i className="fas fa-check text-green-600"></i>}
-                                {eh.fairway_hit === false && <i className="fas fa-times text-red-600"></i>}
-                                {eh.fairway_hit === null && <span className="text-gray-400 text-xs">n/a</span>}
+                                {eh.fairway_hit === true && <i className="fas fa-check text-green-600 dark:text-green-400"></i>}
+                                {eh.fairway_hit === false && <i className="fas fa-times text-red-600 dark:text-red-400"></i>}
+                                {eh.fairway_hit === null && <span className="text-faint text-xs">n/a</span>}
                               </button>
                             ) : (
                               <span className="text-gray-300">—</span>
@@ -432,10 +432,10 @@ export default function GolfRoundDetailPage() {
                             <button
                               type="button"
                               onClick={() => updateEditHole(eh.hole_number, { green_in_regulation: !eh.green_in_regulation })}
-                              className="min-w-[40px] min-h-[40px] rounded-md hover:bg-gray-100"
+                              className="min-w-[40px] min-h-[40px] rounded-md hover:bg-surface-sunken"
                               aria-label={`Hole ${eh.hole_number} green in regulation`}
                             >
-                              <i className={`fas ${eh.green_in_regulation ? 'fa-check text-green-600' : 'fa-times text-red-600'}`}></i>
+                              <i className={`fas ${eh.green_in_regulation ? 'fa-check text-green-600 dark:text-green-400' : 'fa-times text-red-600 dark:text-red-400'}`}></i>
                             </button>
                           </td>
                           <td className="px-2 py-1 text-center">
@@ -446,7 +446,7 @@ export default function GolfRoundDetailPage() {
                               max={10}
                               value={eh.putts}
                               onChange={e => updateEditHole(eh.hole_number, { putts: e.target.value })}
-                              className="w-14 min-h-[40px] px-1 py-1 text-center border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-violet-500"
+                              className="w-14 min-h-[40px] px-1 py-1 text-center border border-border-strong rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-violet-500"
                               aria-label={`Hole ${eh.hole_number} putts`}
                             />
                           </td>
@@ -457,32 +457,32 @@ export default function GolfRoundDetailPage() {
                     const h = hole as GolfHole;
                     const holeScore = h.par !== null ? h.strokes - h.par : null;
                     return (
-                      <tr key={h.hole_number} className="hover:bg-gray-50">
-                        <td className="px-3 py-2 text-sm font-medium text-gray-900">{h.hole_number}</td>
-                        <td className="px-3 py-2 text-sm text-gray-900 text-center">{h.par ?? '—'}</td>
-                        <td className="px-3 py-2 text-sm text-gray-900 text-center font-medium">{h.strokes}</td>
+                      <tr key={h.hole_number} className="hover:bg-surface-muted">
+                        <td className="px-3 py-2 text-sm font-medium text-primary">{h.hole_number}</td>
+                        <td className="px-3 py-2 text-sm text-primary text-center">{h.par ?? '—'}</td>
+                        <td className="px-3 py-2 text-sm text-primary text-center font-medium">{h.strokes}</td>
                         <td className={`px-3 py-2 text-sm text-center font-medium ${
-                          holeScore === null ? 'text-gray-400'
-                            : holeScore === 0 ? 'text-violet-600'
-                            : holeScore > 0 ? 'text-red-600' : 'text-green-600'
+                          holeScore === null ? 'text-faint'
+                            : holeScore === 0 ? 'text-brand-fg'
+                            : holeScore > 0 ? 'text-red-600 dark:text-red-400' : 'text-green-600 dark:text-green-400'
                         }`}>
                           {holeScore === null ? '—' : holeScore === 0 ? 'E' : holeScore > 0 ? `+${holeScore}` : holeScore}
                         </td>
                         <td className="px-3 py-2 text-center">
                           {(h.par ?? 4) > 3 ? (
                             h.fairway_hit === null ? (
-                              <span className="text-gray-400 text-xs">n/a</span>
+                              <span className="text-faint text-xs">n/a</span>
                             ) : (
-                              <i className={`fas ${h.fairway_hit ? 'fa-check text-green-600' : 'fa-times text-red-600'}`}></i>
+                              <i className={`fas ${h.fairway_hit ? 'fa-check text-green-600 dark:text-green-400' : 'fa-times text-red-600 dark:text-red-400'}`}></i>
                             )
                           ) : (
                             <span className="text-gray-300">—</span>
                           )}
                         </td>
                         <td className="px-3 py-2 text-center">
-                          <i className={`fas ${h.green_in_regulation ? 'fa-check text-green-600' : 'fa-times text-red-600'}`}></i>
+                          <i className={`fas ${h.green_in_regulation ? 'fa-check text-green-600 dark:text-green-400' : 'fa-times text-red-600 dark:text-red-400'}`}></i>
                         </td>
-                        <td className="px-3 py-2 text-sm text-gray-900 text-center">{h.putts ?? '—'}</td>
+                        <td className="px-3 py-2 text-sm text-primary text-center">{h.putts ?? '—'}</td>
                       </tr>
                     );
                   })}
@@ -494,12 +494,12 @@ export default function GolfRoundDetailPage() {
 
         {/* Notes */}
         {round.notes && (
-          <div className="bg-white rounded-lg shadow-sm p-4 sm:p-6">
-            <h2 className="text-xl font-bold text-gray-900 mb-4">
+          <div className="bg-surface rounded-lg shadow-sm p-4 sm:p-6">
+            <h2 className="text-xl font-bold text-primary mb-4">
               <i className="fas fa-sticky-note mr-2"></i>
               Round Notes
             </h2>
-            <p className="text-gray-700 leading-relaxed break-words">{round.notes}</p>
+            <p className="text-secondary leading-relaxed break-words">{round.notes}</p>
           </div>
         )}
       </div>

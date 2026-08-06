@@ -30,10 +30,10 @@ export default function QuickMessagesToggle() {
   const enabled = !hidden;
 
   return (
-    <div className="hidden lg:flex items-center justify-between gap-3 px-4 py-3 border-t border-gray-200 bg-gray-50">
+    <div className="hidden lg:flex items-center justify-between gap-3 px-4 py-3 border-t border-border bg-surface-muted">
       <div className="min-w-0">
-        <p className="text-sm font-semibold text-gray-900">Quick messages</p>
-        <p className="text-xs text-gray-500">Chat pill in the corner of every page</p>
+        <p className="text-sm font-semibold text-primary">Quick messages</p>
+        <p className="text-xs text-muted">Chat pill in the corner of every page</p>
       </div>
       <button
         type="button"
@@ -42,7 +42,7 @@ export default function QuickMessagesToggle() {
         aria-label="Quick messages"
         onClick={() => setChatDockHidden(enabled)}
         className={`relative shrink-0 w-11 h-6 rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-violet-500 focus:ring-offset-1 disabled:opacity-50 ${
-          enabled ? 'bg-violet-600' : 'bg-gray-300'
+          enabled ? 'bg-brand' : 'bg-gray-300 dark:bg-stone-700'
         }`}
       >
         <span

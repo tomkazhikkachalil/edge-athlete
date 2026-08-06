@@ -448,18 +448,18 @@ export default function FeedPage() {
   // Show loading state
   if (loading || !user) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+      <div className="min-h-screen bg-canvas flex items-center justify-center">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-violet-600 mx-auto"></div>
-          <p className="mt-4 text-gray-700 font-medium">Loading your feed...</p>
-          <p className="mt-1 text-sm text-gray-500">Getting everything ready</p>
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-brand mx-auto"></div>
+          <p className="mt-4 text-secondary font-medium">Loading your feed...</p>
+          <p className="mt-1 text-sm text-muted">Getting everything ready</p>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-canvas">
       {/* Unified Header */}
       <AppHeader
         showSearch={true}
@@ -496,7 +496,7 @@ export default function FeedPage() {
                 )}
                 <button
                   onClick={() => setIsCreatePostModalOpen(true)}
-                  className="ea-interactive flex-1 bg-gray-100 rounded-lg px-3 sm:px-4 py-2.5 text-left text-gray-500 text-sm sm:text-base"
+                  className="ea-interactive flex-1 bg-surface-sunken rounded-lg px-3 sm:px-4 py-2.5 text-left text-muted text-sm sm:text-base"
                 >
                   What&apos;s on your mind, {profile?.first_name || 'Athlete'}?
                 </button>
@@ -506,18 +506,18 @@ export default function FeedPage() {
                   were 20x16). The negative margin cancels the padding for
                   layout, so the row's height and spacing are unchanged — this
                   buys hit area, not visual weight. */}
-              <div className="flex items-center justify-between mt-3 pt-3 border-t border-gray-100">
+              <div className="flex items-center justify-between mt-3 pt-3 border-t border-border-subtle">
                 <div className="flex items-center gap-2 sm:gap-4">
-                  <button onClick={() => setIsCreatePostModalOpen(true)} className="ea-interactive group flex items-center gap-1.5 sm:gap-2 rounded-lg px-2.5 py-3.5 -my-1 text-gray-600 hover:text-gray-900">
-                    <i className="fas fa-image text-gray-400 transition-colors duration-[150ms] group-hover:text-green-600"></i>
+                  <button onClick={() => setIsCreatePostModalOpen(true)} className="ea-interactive group flex items-center gap-1.5 sm:gap-2 rounded-lg px-2.5 py-3.5 -my-1 text-tertiary hover:text-primary">
+                    <i className="fas fa-image text-faint transition-colors duration-[150ms] group-hover:text-green-600 dark:group-hover:text-green-400"></i>
                     <span className="text-xs sm:text-sm">Photo/Video</span>
                   </button>
-                  <button onClick={() => setIsCreatePostModalOpen(true)} aria-label="Add stats to a post" className="ea-interactive group flex items-center gap-1.5 sm:gap-2 rounded-lg px-2.5 py-3.5 -my-1 text-gray-600 hover:text-gray-900">
-                    <i className="fas fa-chart-line text-gray-400 transition-colors duration-[150ms] group-hover:text-violet-600"></i>
+                  <button onClick={() => setIsCreatePostModalOpen(true)} aria-label="Add stats to a post" className="ea-interactive group flex items-center gap-1.5 sm:gap-2 rounded-lg px-2.5 py-3.5 -my-1 text-tertiary hover:text-primary">
+                    <i className="fas fa-chart-line text-faint transition-colors duration-[150ms] group-hover:text-brand-fg"></i>
                     <span className="text-xs sm:text-sm hidden sm:inline">Stats</span>
                   </button>
-                  <button onClick={() => setIsCreatePostModalOpen(true)} aria-label="Add an achievement to a post" className="ea-interactive group flex items-center gap-1.5 sm:gap-2 rounded-lg px-2.5 py-3.5 -my-1 text-gray-600 hover:text-gray-900">
-                    <i className="fas fa-trophy text-gray-400 transition-colors duration-[150ms] group-hover:text-amber-500"></i>
+                  <button onClick={() => setIsCreatePostModalOpen(true)} aria-label="Add an achievement to a post" className="ea-interactive group flex items-center gap-1.5 sm:gap-2 rounded-lg px-2.5 py-3.5 -my-1 text-tertiary hover:text-primary">
+                    <i className="fas fa-trophy text-faint transition-colors duration-[150ms] group-hover:text-amber-500"></i>
                     <span className="text-xs sm:text-sm hidden sm:inline">Achievement</span>
                   </button>
                 </div>
@@ -555,36 +555,36 @@ export default function FeedPage() {
             <LiveNowStrip />
 
             {/* Posts Feed */}
-            <div className="space-y-4 sm:space-y-6 bg-white rounded-lg border-2 border-gray-300 p-3 sm:p-6">
+            <div className="space-y-4 sm:space-y-6 bg-surface rounded-lg border-2 border-border-strong p-3 sm:p-6">
               {feedLoading ? (
                 <div className="space-y-6">
                   {[1, 2, 3].map(i => (
-                    <div key={i} className="bg-white rounded-lg shadow-md border-2 border-gray-300 p-4 animate-pulse mb-6">
+                    <div key={i} className="bg-surface rounded-lg shadow-md border-2 border-border-strong p-4 animate-pulse mb-6">
                       <div className="flex items-center gap-3 mb-4">
-                        <div className="w-10 h-10 bg-gray-200 rounded-full"></div>
+                        <div className="w-10 h-10 bg-gray-200 dark:bg-stone-800 rounded-full"></div>
                         <div className="flex-1">
-                          <div className="h-4 bg-gray-200 rounded w-24 mb-1"></div>
-                          <div className="h-3 bg-gray-200 rounded w-16"></div>
+                          <div className="h-4 bg-gray-200 dark:bg-stone-800 rounded w-24 mb-1"></div>
+                          <div className="h-3 bg-gray-200 dark:bg-stone-800 rounded w-16"></div>
                         </div>
                       </div>
-                      <div className="aspect-video bg-gray-200 rounded-lg mb-4"></div>
-                      <div className="h-4 bg-gray-200 rounded w-3/4"></div>
+                      <div className="aspect-video bg-gray-200 dark:bg-stone-800 rounded-lg mb-4"></div>
+                      <div className="h-4 bg-gray-200 dark:bg-stone-800 rounded w-3/4"></div>
                     </div>
                   ))}
                 </div>
               ) : posts.length === 0 ? (
-                <div className="bg-white rounded-lg shadow-md border-2 border-gray-300 p-8 text-center">
+                <div className="bg-surface rounded-lg shadow-md border-2 border-border-strong p-8 text-center">
                   {/* Empty state follows the athlete's declared sport; fully
                       neutral when none is set */}
                   <div className={`mb-4 ${profileDefaultSport ? 'text-green-500' : 'text-violet-500'}`}>
                     <i className={`${profileDefaultSport ? getSportDefinition(profileDefaultSport).icon_id : 'fas fa-users'} text-4xl`}></i>
                   </div>
-                  <h3 className="text-lg font-medium text-gray-900 mb-2">
+                  <h3 className="text-lg font-medium text-primary mb-2">
                     {profileDefaultSport
                       ? getEmptyStateMessage(profileDefaultSport)
                       : 'Your feed starts with your first post'}
                   </h3>
-                  <p className="text-gray-600 mb-6">
+                  <p className="text-tertiary mb-6">
                     {profileDefaultSport
                       ? getActivityEncouragement(profileDefaultSport)
                       : 'Share what you’re working on.'}{' '}
@@ -609,7 +609,7 @@ export default function FeedPage() {
                     </button>
                     <button
                       onClick={() => setIsCreatePostModalOpen(true)}
-                      className="w-full sm:w-auto bg-gray-100 text-gray-700 px-6 py-3 rounded-lg hover:bg-gray-200 transition-colors font-medium"
+                      className="w-full sm:w-auto bg-surface-sunken text-secondary px-6 py-3 rounded-lg hover:bg-gray-200 dark:hover:bg-stone-800 transition-colors font-medium"
                     >
                       Create a post
                     </button>
@@ -635,7 +635,7 @@ export default function FeedPage() {
                     <div className="text-center py-4">
                       <button
                         onClick={() => loadFeed(true)}
-                        className="bg-white text-violet-600 border border-violet-600 px-6 py-2 min-h-[44px] rounded-lg hover:bg-violet-50 transition-colors font-medium"
+                        className="bg-surface text-brand-fg border border-brand px-6 py-2 min-h-[44px] rounded-lg hover:bg-brand-soft transition-colors font-medium"
                       >
                         Load More
                       </button>
@@ -658,31 +658,31 @@ export default function FeedPage() {
             {FEATURE_FLAGS.FEATURE_CALENDAR && user ? (
               <FeedCalendarWidget />
             ) : (
-              <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
+              <div className="bg-surface rounded-lg shadow-sm border border-border p-4">
                 <div className="flex items-center justify-between mb-3">
-                  <h3 className="font-bold text-gray-900">Upcoming Events</h3>
+                  <h3 className="font-bold text-primary">Upcoming Events</h3>
                 </div>
                 <div className="flex flex-col items-center justify-center py-6 text-center">
-                  <div className="w-10 h-10 bg-violet-50 rounded-full flex items-center justify-center mb-3">
+                  <div className="w-10 h-10 bg-brand-soft rounded-full flex items-center justify-center mb-3">
                     <i className="fas fa-calendar-days text-violet-400 text-lg"></i>
                   </div>
-                  <p className="text-sm font-medium text-gray-700 mb-1">No upcoming events</p>
-                  <p className="text-xs text-gray-400">Tournament and event scheduling is coming soon.</p>
+                  <p className="text-sm font-medium text-secondary mb-1">No upcoming events</p>
+                  <p className="text-xs text-faint">Tournament and event scheduling is coming soon.</p>
                 </div>
               </div>
             )}
 
             {/* Your Club */}
-            <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
+            <div className="bg-surface rounded-lg shadow-sm border border-border p-4">
               <div className="flex items-center justify-between mb-3">
-                <h3 className="font-bold text-gray-900">Your Club</h3>
+                <h3 className="font-bold text-primary">Your Club</h3>
               </div>
               <div className="flex flex-col items-center justify-center py-6 text-center">
-                <div className="w-10 h-10 bg-green-50 rounded-full flex items-center justify-center mb-3">
+                <div className="w-10 h-10 bg-green-50 dark:bg-green-950/40 rounded-full flex items-center justify-center mb-3">
                   <i className="fas fa-flag text-green-400 text-lg"></i>
                 </div>
-                <p className="text-sm font-medium text-gray-700 mb-1">No club linked</p>
-                <p className="text-xs text-gray-400">Club and team management is coming soon.</p>
+                <p className="text-sm font-medium text-secondary mb-1">No club linked</p>
+                <p className="text-xs text-faint">Club and team management is coming soon.</p>
               </div>
             </div>
           </div>

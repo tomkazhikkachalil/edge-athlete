@@ -4,8 +4,8 @@
 export default function GolfStatsSummaryCard({ statsData }: { statsData: Record<string, unknown> }) {
   return (
     <>
-    <div className="bg-gray-50 rounded-lg p-micro mt-micro">
-      <div className="text-xs text-gray-900 mb-1 font-bold">Golf Stats</div>
+    <div className="bg-surface-muted rounded-lg p-micro mt-micro">
+      <div className="text-xs text-primary mb-1 font-bold">Golf Stats</div>
       {statsData.type === 'round_recap' && (
         <div className="grid grid-cols-2 gap-2 text-xs">
           <div>

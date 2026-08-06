@@ -88,14 +88,14 @@ export default function EquipmentFilters({
         aria-expanded={isOpen}
         className={`px-3 py-2 border rounded-lg text-sm inline-flex items-center gap-2 transition-colors ${
           hasActive
-            ? 'border-violet-500 text-violet-700 bg-violet-50'
-            : 'border-gray-300 text-gray-700 bg-white hover:bg-gray-50'
+            ? 'border-violet-500 text-brand-fg-strong bg-brand-soft'
+            : 'border-border-strong text-secondary bg-surface hover:bg-surface-muted'
         }`}
       >
         <SlidersHorizontal className="w-4 h-4" aria-hidden="true" />
         <span>Filters</span>
         {hasActive && (
-          <span className="inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 rounded-full text-xs font-bold bg-violet-600 text-white">
+          <span className="inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 rounded-full text-xs font-bold bg-brand text-white">
             {activeCount}
           </span>
         )}
@@ -110,21 +110,21 @@ export default function EquipmentFilters({
           ref={panelRef}
           role="dialog"
           aria-label="Equipment filters"
-          className="absolute left-0 top-full mt-1 w-64 max-w-[calc(100vw-2rem)] bg-white border border-gray-200 rounded-lg shadow-lg z-20 flex flex-col"
+          className="absolute left-0 top-full mt-1 w-64 max-w-[calc(100vw-2rem)] bg-surface-raised border border-border rounded-lg shadow-lg z-20 flex flex-col"
         >
           <div className="max-h-[60vh] overflow-y-auto p-3 space-y-4">
             {/* Season — the time machine. A year shows that season's in-bag
                 setup, retired-since gear included. */}
             {years.length > 0 && (
               <fieldset>
-                <legend className="text-xs font-bold uppercase tracking-wide text-gray-500 mb-2">
+                <legend className="text-xs font-bold uppercase tracking-wide text-muted mb-2">
                   Season
                 </legend>
                 <div className="space-y-1">
                   {(['now', ...years] as EquipmentView[]).map(option => (
                     <label
                       key={String(option)}
-                      className="flex items-center gap-2 px-1 py-1 text-sm text-gray-700 rounded-lg hover:bg-gray-50 cursor-pointer"
+                      className="flex items-center gap-2 px-1 py-1 text-sm text-secondary rounded-lg hover:bg-surface-muted cursor-pointer"
                     >
                       <input
                         type="radio"
@@ -143,14 +143,14 @@ export default function EquipmentFilters({
             {/* Category */}
             {categoryOptions.length > 1 && (
               <fieldset>
-                <legend className="text-xs font-bold uppercase tracking-wide text-gray-500 mb-2">
+                <legend className="text-xs font-bold uppercase tracking-wide text-muted mb-2">
                   Category
                 </legend>
                 <div className="space-y-1">
                   {categoryOptions.map(option => (
                     <label
                       key={option.value}
-                      className="flex items-center gap-2 px-1 py-1 text-sm text-gray-700 rounded-lg hover:bg-gray-50 cursor-pointer"
+                      className="flex items-center gap-2 px-1 py-1 text-sm text-secondary rounded-lg hover:bg-surface-muted cursor-pointer"
                     >
                       <input
                         type="checkbox"
@@ -167,10 +167,10 @@ export default function EquipmentFilters({
 
             {/* Retired gear */}
             <fieldset>
-              <legend className="text-xs font-bold uppercase tracking-wide text-gray-500 mb-2">
+              <legend className="text-xs font-bold uppercase tracking-wide text-muted mb-2">
                 Retired gear
               </legend>
-              <label className="flex items-center gap-2 px-1 py-1 text-sm text-gray-700 rounded-lg hover:bg-gray-50 cursor-pointer">
+              <label className="flex items-center gap-2 px-1 py-1 text-sm text-secondary rounded-lg hover:bg-surface-muted cursor-pointer">
                 <input
                   type="checkbox"
                   checked={showHistory}
@@ -184,7 +184,7 @@ export default function EquipmentFilters({
 
           {hasActive && (
             <>
-              <div className="border-t border-gray-100" />
+              <div className="border-t border-border-subtle" />
               <button
                 type="button"
                 onClick={() => {
@@ -192,7 +192,7 @@ export default function EquipmentFilters({
                   onSelectedCategories([]);
                   onShowHistory(true);
                 }}
-                className="w-full text-left px-3 py-2 text-sm text-gray-500 hover:bg-gray-50 transition-colors rounded-b-lg"
+                className="w-full text-left px-3 py-2 text-sm text-muted hover:bg-surface-muted transition-colors rounded-b-lg"
               >
                 Reset filters
               </button>

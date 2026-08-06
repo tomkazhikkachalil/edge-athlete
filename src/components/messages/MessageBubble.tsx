@@ -2,7 +2,9 @@
 
 import { useState, useRef, useCallback } from 'react';
 import dynamic from 'next/dynamic';
+import { Theme } from 'emoji-picker-react';
 import type { EmojiClickData } from 'emoji-picker-react';
+import { useTheme } from '@/lib/use-theme';
 import LazyImage from '@/components/LazyImage';
 import { formatDisplayName, getInitials } from '@/lib/formatters';
 import SharedPostPreview from './SharedPostPreview';
@@ -57,6 +59,7 @@ export default function MessageBubble({
   onScrollToMessage,
   onMessageEdited,
 }: Props) {
+  const { theme } = useTheme();
   const [showMenu, setShowMenu] = useState(false);
   // Timestamp captured when the menu OPENS, not read during render.
   // Date.now() in render is impure (react-hooks/purity) and made the edit
@@ -86,7 +89,7 @@ export default function MessageBubble({
   if (message.deleted_at) {
     return (
       <div className={`flex ${isOwn ? 'justify-end' : 'justify-start'} mb-1`}>
-        <p className="text-sm italic text-gray-400 px-2">Message deleted</p>
+        <p className="text-sm italic text-faint px-2">Message deleted</p>
       </div>
     );
   }
@@ -99,8 +102,8 @@ export default function MessageBubble({
   );
 
   const bubbleBase = isOwn
-    ? 'bg-violet-600 text-white rounded-l-2xl rounded-tr-2xl'
-    : 'bg-gray-100 text-gray-900 rounded-r-2xl rounded-tl-2xl';
+    ? 'bg-brand text-white rounded-l-2xl rounded-tr-2xl'
+    : 'bg-surface-sunken text-primary rounded-r-2xl rounded-tl-2xl';
 
   const handleCopy = () => {
     if (message.content) navigator.clipboard.writeText(message.content);
@@ -175,7 +178,7 @@ export default function MessageBubble({
               {getInitials(senderName)}
             </div>
           )}
-          <span className="text-xs font-medium text-gray-600">{senderName}</span>
+          <span className="text-xs font-medium text-tertiary">{senderName}</span>
         </div>
       )}
 
@@ -234,7 +237,7 @@ export default function MessageBubble({
           )}
 
           {message.type === 'gif_reaction' && message.media_url && (
-            <div className="rounded-2xl overflow-hidden max-w-xs border border-gray-200">
+            <div className="rounded-2xl overflow-hidden max-w-xs border border-border">
               <LazyImage
                 src={message.media_url}
                 alt="GIF reply"
@@ -285,12 +288,12 @@ export default function MessageBubble({
               isOwn ? 'right-0' : 'left-0'
             } bottom-full mb-1`}
           >
-            <div className="hidden sm:flex items-center gap-0.5 bg-white border border-gray-200 rounded-full shadow-lg px-1.5 py-1">
+            <div className="hidden sm:flex items-center gap-0.5 bg-surface border border-border rounded-full shadow-lg px-1.5 py-1">
               {QUICK_EMOJIS.map((emoji) => (
                 <button
                   key={emoji}
                   onClick={() => handleQuickEmoji(emoji)}
-                  className="w-7 h-7 flex items-center justify-center rounded-full hover:bg-gray-100 transition-colors text-sm"
+                  className="w-7 h-7 flex items-center justify-center rounded-full hover:bg-surface-sunken transition-colors text-sm"
                   title={`React with ${emoji}`}
                 >
                   {emoji}
@@ -298,34 +301,34 @@ export default function MessageBubble({
               ))}
               <button
                 onClick={handleGifReactClick}
-                className="w-7 h-7 flex items-center justify-center rounded-full hover:bg-gray-100 transition-colors text-[10px] font-bold text-gray-500"
+                className="w-7 h-7 flex items-center justify-center rounded-full hover:bg-surface-sunken transition-colors text-[10px] font-bold text-muted"
                 title="React with GIF"
               >
                 GIF
               </button>
               <button
                 onClick={() => setShowFullPicker(prev => !prev)}
-                className="w-7 h-7 flex items-center justify-center rounded-full hover:bg-gray-100 transition-colors text-sm text-gray-400"
+                className="w-7 h-7 flex items-center justify-center rounded-full hover:bg-surface-sunken transition-colors text-sm text-faint"
                 title="More emojis"
               >
                 +
               </button>
-              <div className="w-px h-4 bg-gray-200 mx-0.5" />
+              <div className="w-px h-4 bg-gray-200 dark:bg-stone-800 mx-0.5" />
               <button
                 onClick={handleReply}
-                className="w-7 h-7 flex items-center justify-center rounded-full hover:bg-gray-100 transition-colors"
+                className="w-7 h-7 flex items-center justify-center rounded-full hover:bg-surface-sunken transition-colors"
                 title="Reply"
               >
-                <i className="fas fa-reply text-xs text-gray-400"></i>
+                <i className="fas fa-reply text-xs text-faint"></i>
               </button>
               {/* Context actions — always available so Report is reachable on every incoming message */}
-              <div className="w-px h-4 bg-gray-200 mx-0.5" />
+              <div className="w-px h-4 bg-gray-200 dark:bg-stone-800 mx-0.5" />
               <button
                 onClick={() => { setMenuOpenedAt(Date.now()); setShowMenu(prev => !prev); }}
-                className="w-7 h-7 flex items-center justify-center rounded-full hover:bg-gray-100 transition-colors"
+                className="w-7 h-7 flex items-center justify-center rounded-full hover:bg-surface-sunken transition-colors"
                 aria-label="More options"
               >
-                <i className="fas fa-ellipsis-h text-xs text-gray-400"></i>
+                <i className="fas fa-ellipsis-h text-xs text-faint"></i>
               </button>
             </div>
           </div>
@@ -339,43 +342,43 @@ export default function MessageBubble({
                   isOwn ? 'right-0' : 'left-0'
                 } bottom-full mb-1`}
               >
-                <div className="flex flex-wrap items-center gap-0.5 bg-white border border-gray-200 rounded-full shadow-lg px-1.5 py-1 max-w-[calc(100vw-3rem)]">
+                <div className="flex flex-wrap items-center gap-0.5 bg-surface-raised border border-border rounded-full shadow-lg px-1.5 py-1 max-w-[calc(100vw-3rem)]">
                   {QUICK_EMOJIS.map((emoji) => (
                     <button
                       key={emoji}
                       onClick={() => handleQuickEmoji(emoji)}
-                      className="w-9 h-9 flex items-center justify-center rounded-full hover:bg-gray-100 active:bg-gray-200 transition-colors text-base"
+                      className="w-9 h-9 flex items-center justify-center rounded-full hover:bg-surface-sunken active:bg-gray-200 dark:active:bg-stone-800 transition-colors text-base"
                     >
                       {emoji}
                     </button>
                   ))}
                   <button
                     onClick={handleGifReactClick}
-                    className="w-9 h-9 flex items-center justify-center rounded-full hover:bg-gray-100 active:bg-gray-200 transition-colors text-[10px] font-bold text-gray-500"
+                    className="w-9 h-9 flex items-center justify-center rounded-full hover:bg-surface-sunken active:bg-gray-200 dark:active:bg-stone-800 transition-colors text-[10px] font-bold text-muted"
                   >
                     GIF
                   </button>
                   <button
                     onClick={() => setShowFullPicker(prev => !prev)}
-                    className="w-9 h-9 flex items-center justify-center rounded-full hover:bg-gray-100 active:bg-gray-200 transition-colors text-base text-gray-400"
+                    className="w-9 h-9 flex items-center justify-center rounded-full hover:bg-surface-sunken active:bg-gray-200 dark:active:bg-stone-800 transition-colors text-base text-faint"
                     title="More emojis"
                   >
                     +
                   </button>
-                  <div className="w-px h-5 bg-gray-200 mx-0.5" />
+                  <div className="w-px h-5 bg-gray-200 dark:bg-stone-800 mx-0.5" />
                   <button
                     onClick={handleReply}
-                    className="w-9 h-9 flex items-center justify-center rounded-full hover:bg-gray-100 active:bg-gray-200 transition-colors"
+                    className="w-9 h-9 flex items-center justify-center rounded-full hover:bg-surface-sunken active:bg-gray-200 dark:active:bg-stone-800 transition-colors"
                     title="Reply"
                   >
-                    <i className="fas fa-reply text-xs text-gray-400"></i>
+                    <i className="fas fa-reply text-xs text-faint"></i>
                   </button>
-                  <div className="w-px h-5 bg-gray-200 mx-0.5" />
+                  <div className="w-px h-5 bg-gray-200 dark:bg-stone-800 mx-0.5" />
                   <button
                     onClick={() => { setShowQuickReact(false); setMenuOpenedAt(Date.now()); setShowMenu(true); }}
-                    className="w-9 h-9 flex items-center justify-center rounded-full hover:bg-gray-100 active:bg-gray-200 transition-colors"
+                    className="w-9 h-9 flex items-center justify-center rounded-full hover:bg-surface-sunken active:bg-gray-200 dark:active:bg-stone-800 transition-colors"
                   >
-                    <i className="fas fa-ellipsis-h text-xs text-gray-400"></i>
+                    <i className="fas fa-ellipsis-h text-xs text-faint"></i>
                   </button>
                 </div>
               </div>
@@ -393,6 +396,7 @@ export default function MessageBubble({
               >
                 <EmojiPicker
                   onEmojiClick={handleFullPickerEmoji}
+                  theme={theme === 'dark' ? Theme.DARK : Theme.LIGHT}
                   lazyLoadEmojis
                   height={350}
                   width="min(300px, calc(100vw - 2rem))"
@@ -407,13 +411,13 @@ export default function MessageBubble({
             <>
               <div className="fixed inset-0 z-10" onClick={() => setShowMenu(false)} />
               <div
-                className={`absolute z-20 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg py-1 min-w-[120px] ${
+                className={`absolute z-20 mt-1 bg-surface-raised border border-border rounded-lg shadow-lg py-1 min-w-[120px] ${
                   isOwn ? 'right-0' : 'left-0'
                 } top-full`}
               >
                 <button
                   onClick={handleReply}
-                  className="w-full text-left px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2"
+                  className="w-full text-left px-3 py-2 text-sm text-secondary hover:bg-surface-muted flex items-center gap-2"
                 >
                   <i className="fas fa-reply text-xs w-4"></i>
                   Reply
@@ -421,7 +425,7 @@ export default function MessageBubble({
                 {message.type === 'text' && (
                   <button
                     onClick={handleCopy}
-                    className="w-full text-left px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2"
+                    className="w-full text-left px-3 py-2 text-sm text-secondary hover:bg-surface-muted flex items-center gap-2"
                   >
                     <i className="fas fa-copy text-xs w-4"></i>
                     Copy
@@ -430,7 +434,7 @@ export default function MessageBubble({
                 {canEdit && (
                   <button
                     onClick={handleStartEdit}
-                    className="w-full text-left px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2"
+                    className="w-full text-left px-3 py-2 text-sm text-secondary hover:bg-surface-muted flex items-center gap-2"
                   >
                     <i className="fas fa-pen text-xs w-4"></i>
                     Edit
@@ -439,7 +443,7 @@ export default function MessageBubble({
                 {!isOwn && (
                   <button
                     onClick={handleReport}
-                    className="w-full text-left px-3 py-2 text-sm text-orange-600 hover:bg-orange-50 flex items-center gap-2"
+                    className="w-full text-left px-3 py-2 text-sm text-orange-600 dark:text-orange-400 hover:bg-orange-50 dark:hover:bg-orange-950/40 flex items-center gap-2"
                   >
                     <i className="fas fa-flag text-xs w-4"></i>
                     Report
@@ -448,7 +452,7 @@ export default function MessageBubble({
                 {isOwn && (
                   <button
                     onClick={handleDelete}
-                    className="w-full text-left px-3 py-2 text-sm text-red-600 hover:bg-red-50 flex items-center gap-2"
+                    className="w-full text-left px-3 py-2 text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/40 flex items-center gap-2"
                   >
                     <i className="fas fa-trash text-xs w-4"></i>
                     Delete
@@ -471,7 +475,7 @@ export default function MessageBubble({
       )}
 
       {/* Timestamp + edited indicator */}
-      <span className={`text-xs text-gray-400 mt-0.5 px-1 ${isOwn ? 'text-right' : 'text-left'}`}>
+      <span className={`text-xs text-faint mt-0.5 px-1 ${isOwn ? 'text-right' : 'text-left'}`}>
         {getRelativeTime(message.created_at)}
         {message.edited_at && (
           <span className="ml-1 italic" title={`Edited ${new Date(message.edited_at).toLocaleString()}`}>

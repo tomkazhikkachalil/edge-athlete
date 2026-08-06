@@ -64,12 +64,12 @@ export default function LiveNowStrip({ variant = 'strip', showEmptyState = false
   if (rounds.length === 0) {
     if (!showEmptyState) return null;
     return (
-      <div className="bg-white rounded-lg border-2 border-gray-200 p-8 text-center">
-        <div className="text-gray-400 mb-3">
+      <div className="bg-surface rounded-lg border-2 border-border p-8 text-center">
+        <div className="text-faint mb-3">
           <i className="fas fa-satellite-dish text-3xl"></i>
         </div>
-        <h3 className="text-lg font-semibold text-gray-900 mb-1">No live events right now</h3>
-        <p className="text-sm text-gray-600">
+        <h3 className="text-lg font-semibold text-primary mb-1">No live events right now</h3>
+        <p className="text-sm text-tertiary">
           When someone you follow goes live — a round, a game, a match — it shows up here.
         </p>
       </div>
@@ -91,7 +91,7 @@ export default function LiveNowStrip({ variant = 'strip', showEmptyState = false
       <button
         key={round.group_post_id}
         onClick={() => open(round.group_post_id)}
-        className={`text-left bg-white border-2 border-red-200 hover:border-red-400 rounded-lg p-3 transition-all hover:shadow-md ${
+        className={`text-left bg-surface border-2 border-red-200 dark:border-red-800 hover:border-red-400 rounded-lg p-3 transition-all hover:shadow-md ${
           variant === 'strip' ? 'min-w-[220px] flex-shrink-0' : 'w-full'
         }`}
       >
@@ -100,7 +100,7 @@ export default function LiveNowStrip({ variant = 'strip', showEmptyState = false
             <span className="w-1.5 h-1.5 bg-white rounded-full animate-pulse"></span>
             LIVE
           </span>
-          <span className="text-sm font-bold text-gray-900 truncate">{round.course_name}</span>
+          <span className="text-sm font-bold text-primary truncate">{round.course_name}</span>
         </div>
         <div className="flex items-center gap-2">
           <div className="flex -space-x-2">
@@ -118,14 +118,14 @@ export default function LiveNowStrip({ variant = 'strip', showEmptyState = false
               ) : (
                 <div
                   key={p.profile_id}
-                  className="w-7 h-7 rounded-full bg-gray-300 border-2 border-white flex items-center justify-center text-[10px] font-bold text-gray-700"
+                  className="w-7 h-7 rounded-full bg-gray-300 dark:bg-stone-700 border-2 border-white flex items-center justify-center text-[10px] font-bold text-secondary"
                 >
                   {getInitials(name)}
                 </div>
               );
             })}
           </div>
-          <div className="text-xs text-gray-600 min-w-0 truncate">
+          <div className="text-xs text-tertiary min-w-0 truncate">
             {leader
               ? `${formatDisplayName(leader.first_name, null, leader.last_name, leader.full_name)} · ${leader.total_score} thru ${leader.thru}`
               : `${round.players.length} playing`}
@@ -140,7 +140,7 @@ export default function LiveNowStrip({ variant = 'strip', showEmptyState = false
       {!hideHeading && (
         <div className="flex items-center gap-2 mb-2">
           <span className="w-2 h-2 bg-red-600 rounded-full animate-pulse"></span>
-          <h3 className="text-sm font-bold text-gray-900">Live Now</h3>
+          <h3 className="text-sm font-bold text-primary">Live Now</h3>
         </div>
       )}
       {/* Strip variant: hidden scrollbar + edge bleed below sm, so a cut-off

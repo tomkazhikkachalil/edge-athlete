@@ -27,24 +27,24 @@ function EventRow({ event, onClick }: { event: EventListItem; onClick: () => voi
     <button
       type="button"
       onClick={onClick}
-      className={`w-full flex items-center gap-2 px-2 py-1.5 rounded-md text-left transition hover:bg-violet-50 ${
+      className={`w-full flex items-center gap-2 px-2 py-1.5 rounded-md text-left transition hover:bg-brand-soft ${
         pending ? 'opacity-70' : ''
       }`}
     >
       <span
         className={`w-2 h-2 rounded-full shrink-0 ${
-          pending ? `border border-dashed ${color.border} bg-white` : color.dot
+          pending ? `border border-dashed ${color.border} bg-surface` : color.dot
         }`}
       />
       <span className="min-w-0 flex-grow">
-        <span className="block text-sm text-gray-900 truncate">
+        <span className="block text-sm text-primary truncate">
           {event.my_status === 'maybe' && <span className="font-bold mr-0.5">?</span>}
           {event.title}
-          {event.series_id && <i className="fas fa-arrows-rotate ml-1 text-[9px] text-gray-400"></i>}
+          {event.series_id && <i className="fas fa-arrows-rotate ml-1 text-[9px] text-faint"></i>}
         </span>
-        <span className="block text-xs text-gray-500">
+        <span className="block text-xs text-muted">
           {event.all_day ? format(start, 'EEE, MMM d') : format(start, 'EEE, MMM d · h:mm a')}
-          {pending && <span className="text-violet-600 ml-1">· needs reply</span>}
+          {pending && <span className="text-brand-fg ml-1">· needs reply</span>}
         </span>
       </span>
     </button>
@@ -123,25 +123,25 @@ export default function FeedCalendarWidget() {
   const today = new Date();
 
   return (
-    <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
+    <div className="bg-surface rounded-lg shadow-sm border border-border p-4">
       <div className="flex items-center justify-between mb-3">
-        <h3 className="font-bold text-gray-900">
-          <i className="fas fa-calendar-days text-violet-600 mr-2"></i>
+        <h3 className="font-bold text-primary">
+          <i className="fas fa-calendar-days text-brand-fg mr-2"></i>
           Upcoming Events
         </h3>
         <button
           type="button"
           onClick={() => router.push('/calendar')}
-          className="text-xs text-violet-600 hover:underline font-medium"
+          className="text-xs text-brand-fg hover:underline font-medium"
         >
           Open calendar
         </button>
       </div>
 
       {failed ? (
-        <p className="text-xs text-gray-400 py-3 text-center">
+        <p className="text-xs text-faint py-3 text-center">
           Couldn&apos;t load your events.{' '}
-          <button type="button" onClick={refetch} className="text-violet-600 hover:underline">
+          <button type="button" onClick={refetch} className="text-brand-fg hover:underline">
             Retry
           </button>
         </p>
@@ -150,11 +150,11 @@ export default function FeedCalendarWidget() {
           {/* Upcoming list */}
           {upcoming.length === 0 ? (
             <div className="py-3 text-center">
-              <p className="text-sm text-gray-500 mb-1">Nothing coming up.</p>
+              <p className="text-sm text-muted mb-1">Nothing coming up.</p>
               <button
                 type="button"
                 onClick={() => router.push('/calendar?new=1')}
-                className="text-xs text-violet-600 hover:underline font-medium"
+                className="text-xs text-brand-fg hover:underline font-medium"
               >
                 + New event
               </button>
@@ -171,7 +171,7 @@ export default function FeedCalendarWidget() {
           <button
             type="button"
             onClick={() => setGridOpen(o => !o)}
-            className="w-full flex items-center justify-center gap-1.5 text-xs text-gray-500 hover:text-violet-600 py-1.5 border-t border-gray-100"
+            className="w-full flex items-center justify-center gap-1.5 text-xs text-muted hover:text-brand-fg py-1.5 border-t border-border-subtle"
           >
             <i className={`fas fa-chevron-${gridOpen ? 'up' : 'down'} text-[10px]`}></i>
             {gridOpen ? 'Hide calendar' : 'Show calendar'}
@@ -184,23 +184,23 @@ export default function FeedCalendarWidget() {
                   type="button"
                   aria-label="Previous month"
                   onClick={() => { setFocusMonth(m => addMonths(m, -1)); setExpandedDay(null); }}
-                  className="w-7 h-7 rounded text-gray-400 hover:text-violet-600 hover:bg-violet-50"
+                  className="w-7 h-7 rounded text-faint hover:text-brand-fg hover:bg-brand-soft"
                 >
                   <i className="fas fa-chevron-left text-xs"></i>
                 </button>
-                <p className="text-sm font-semibold text-gray-900">{format(focusMonth, 'MMMM yyyy')}</p>
+                <p className="text-sm font-semibold text-primary">{format(focusMonth, 'MMMM yyyy')}</p>
                 <button
                   type="button"
                   aria-label="Next month"
                   onClick={() => { setFocusMonth(m => addMonths(m, 1)); setExpandedDay(null); }}
-                  className="w-7 h-7 rounded text-gray-400 hover:text-violet-600 hover:bg-violet-50"
+                  className="w-7 h-7 rounded text-faint hover:text-brand-fg hover:bg-brand-soft"
                 >
                   <i className="fas fa-chevron-right text-xs"></i>
                 </button>
               </div>
               <div className="grid grid-cols-7 mb-0.5">
                 {WEEKDAY_INITIALS.map((label, i) => (
-                  <div key={i} className="text-center text-[10px] font-semibold text-gray-400 py-0.5">
+                  <div key={i} className="text-center text-[10px] font-semibold text-faint py-0.5">
                     {label}
                   </div>
                 ))}
@@ -218,16 +218,16 @@ export default function FeedCalendarWidget() {
                         key={key}
                         type="button"
                         onClick={() => setExpandedDay(prev => (prev === key ? null : key))}
-                        className={`flex flex-col items-center py-1 rounded transition hover:bg-violet-50 ${
-                          isExpanded ? 'ring-1 ring-violet-400 bg-violet-50' : ''
+                        className={`flex flex-col items-center py-1 rounded transition hover:bg-brand-soft ${
+                          isExpanded ? 'ring-1 ring-violet-400 bg-brand-soft' : ''
                         }`}
                       >
                         <span
                           className={`w-5 h-5 flex items-center justify-center rounded-full text-[11px] ${
                             isToday
-                              ? 'bg-violet-600 text-white font-bold'
+                              ? 'bg-brand text-white font-bold'
                               : inMonth
-                                ? 'text-gray-800'
+                                ? 'text-primary'
                                 : 'text-gray-300'
                           }`}
                         >
@@ -239,7 +239,7 @@ export default function FeedCalendarWidget() {
                               key={e.id}
                               className={`w-1 h-1 rounded-full ${
                                 e.my_status === 'invited'
-                                  ? `border ${categoryColor(e.category).border} bg-white`
+                                  ? `border ${categoryColor(e.category).border} bg-surface`
                                   : categoryColor(e.category).dot
                               }`}
                             />
@@ -253,12 +253,12 @@ export default function FeedCalendarWidget() {
 
               {/* Quick view: the tapped day's events. */}
               {expandedDayDate && (
-                <div className="mt-2 border-t border-gray-100 pt-2">
-                  <p className="text-xs font-semibold text-gray-500 mb-1 px-2">
+                <div className="mt-2 border-t border-border-subtle pt-2">
+                  <p className="text-xs font-semibold text-muted mb-1 px-2">
                     {format(expandedDayDate, 'EEEE, MMMM d')}
                   </p>
                   {eventsForDay(expandedDayDate).length === 0 ? (
-                    <p className="text-xs text-gray-400 px-2 pb-1">Nothing on this day.</p>
+                    <p className="text-xs text-faint px-2 pb-1">Nothing on this day.</p>
                   ) : (
                     <div className="space-y-0.5">
                       {eventsForDay(expandedDayDate).map(e => (

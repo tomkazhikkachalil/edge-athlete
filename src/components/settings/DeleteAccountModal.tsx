@@ -171,23 +171,23 @@ export default function DeleteAccountModal({ isOpen, onClose }: DeleteAccountMod
       />
 
       {/* Modal */}
-      <div className="relative w-full max-w-2xl bg-white rounded-lg shadow-xl max-h-modal overflow-y-auto">
+      <div className="relative w-full max-w-2xl bg-surface-raised rounded-lg shadow-xl max-h-modal overflow-y-auto">
         {/* Header */}
-        <div className="sticky top-0 bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between">
+        <div className="sticky top-0 bg-surface-raised border-b border-border px-6 py-4 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-red-100 rounded-full flex items-center justify-center">
-              <i className="fas fa-exclamation-triangle text-red-600"></i>
+            <div className="w-10 h-10 bg-red-100 dark:bg-red-950/60 rounded-full flex items-center justify-center">
+              <i className="fas fa-exclamation-triangle text-red-600 dark:text-red-400"></i>
             </div>
             <div>
-              <h2 className="text-xl font-bold text-gray-900">Delete Account</h2>
-              <p className="text-sm text-gray-500">Step {step} of 2</p>
+              <h2 className="text-xl font-bold text-primary">Delete Account</h2>
+              <p className="text-sm text-muted">Step {step} of 2</p>
             </div>
           </div>
           <button
             onClick={handleClose}
             disabled={isDeleting}
             aria-label="Close"
-            className="ea-icon-btn inline-flex items-center justify-center text-gray-400 hover:text-gray-600 disabled:opacity-50"
+            className="ea-icon-btn inline-flex items-center justify-center text-faint hover:text-tertiary disabled:opacity-50"
           >
             <i className="fas fa-times text-xl"></i>
           </button>
@@ -197,14 +197,14 @@ export default function DeleteAccountModal({ isOpen, onClose }: DeleteAccountMod
         <div className="p-6">
           {/* Re-authentication Required */}
           {needsReauth && (
-            <div className="mb-6 bg-yellow-50 border-2 border-yellow-200 rounded-lg p-4">
+            <div className="mb-6 bg-yellow-50 dark:bg-yellow-950/40 border-2 border-yellow-200 dark:border-yellow-800 rounded-lg p-4">
               <div className="flex items-start gap-3 mb-4">
-                <i className="fas fa-shield-alt text-yellow-600 mt-1"></i>
+                <i className="fas fa-shield-alt text-yellow-600 dark:text-yellow-400 mt-1"></i>
                 <div>
-                  <h4 className="font-semibold text-yellow-900 mb-1">
+                  <h4 className="font-semibold text-yellow-900 dark:text-yellow-200 mb-1">
                     Security Check Required
                   </h4>
-                  <p className="text-sm text-yellow-800">
+                  <p className="text-sm text-yellow-800 dark:text-yellow-200">
                     Please re-enter your password to continue with account deletion.
                   </p>
                 </div>
@@ -215,7 +215,7 @@ export default function DeleteAccountModal({ isOpen, onClose }: DeleteAccountMod
                   value={reauthPassword}
                   onChange={(e) => setReauthPassword(e.target.value)}
                   placeholder="Enter your password"
-                  className="w-full px-4 py-2 border border-yellow-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-yellow-500"
+                  className="w-full px-4 py-2 border border-yellow-300 dark:border-yellow-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-yellow-500"
                   disabled={isReauthenticating}
                 />
                 <button
@@ -242,18 +242,18 @@ export default function DeleteAccountModal({ isOpen, onClose }: DeleteAccountMod
           {/* Step 1: Confirmation & Warning */}
           {step === 1 && (
             <div className="space-y-6">
-              <div className="bg-red-50 border border-red-200 rounded-lg p-4">
-                <h3 className="font-semibold text-red-900 mb-2">
+              <div className="bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-800 rounded-lg p-4">
+                <h3 className="font-semibold text-red-900 dark:text-red-200 mb-2">
                   ⚠️ This action cannot be undone
                 </h3>
-                <p className="text-red-800 text-sm">
+                <p className="text-red-800 dark:text-red-200 text-sm">
                   Deleting your account will permanently remove all your data from Edge Athlete.
                   This includes your profile, posts, stats, connections, and all other content.
                 </p>
               </div>
 
               <div>
-                <h4 className="font-semibold text-gray-900 mb-3">
+                <h4 className="font-semibold text-primary mb-3">
                   The following will be permanently deleted:
                 </h4>
                 <div className="space-y-2">
@@ -267,22 +267,22 @@ export default function DeleteAccountModal({ isOpen, onClose }: DeleteAccountMod
                     { icon: 'fa-bookmark', text: 'Your saved posts and bookmarks' },
                     { icon: 'fa-chart-line', text: 'All sport-specific data (rounds, games, etc.)' },
                   ].map((item, index) => (
-                    <div key={index} className="flex items-center gap-3 text-gray-700">
-                      <i className={`fas ${item.icon} text-red-600 w-5 text-center`}></i>
+                    <div key={index} className="flex items-center gap-3 text-secondary">
+                      <i className={`fas ${item.icon} text-red-600 dark:text-red-400 w-5 text-center`}></i>
                       <span className="text-sm">{item.text}</span>
                     </div>
                   ))}
                 </div>
               </div>
 
-              <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
-                <h4 className="font-medium text-gray-900 mb-2">Before you go...</h4>
-                <p className="text-sm text-gray-600 mb-3">
+              <div className="bg-surface-muted border border-border rounded-lg p-4">
+                <h4 className="font-medium text-primary mb-2">Before you go...</h4>
+                <p className="text-sm text-tertiary mb-3">
                   Is there something we could do better? Your feedback helps us improve Edge Athlete.
                 </p>
                 <a
                   href="mailto:support@edgeathlete.com"
-                  className="text-violet-600 hover:text-violet-700 text-sm font-medium"
+                  className="text-brand-fg hover:text-brand-fg-strong text-sm font-medium"
                 >
                   Send us feedback →
                 </a>
@@ -293,20 +293,20 @@ export default function DeleteAccountModal({ isOpen, onClose }: DeleteAccountMod
           {/* Step 2: Final Confirmation */}
           {step === 2 && (
             <div className="space-y-6">
-              <div className="bg-red-50 border-2 border-red-300 rounded-lg p-4">
-                <h3 className="font-bold text-red-900 mb-2 text-lg">
+              <div className="bg-red-50 dark:bg-red-950/40 border-2 border-red-300 dark:border-red-700 rounded-lg p-4">
+                <h3 className="font-bold text-red-900 dark:text-red-200 mb-2 text-lg">
                   Final Confirmation Required
                 </h3>
-                <p className="text-red-800 text-sm">
+                <p className="text-red-800 dark:text-red-200 text-sm">
                   This is your last chance to back out. Once you confirm, your account and all
                   associated data will be permanently deleted within 24 hours.
                 </p>
               </div>
 
               <div>
-                <label className="block text-sm font-semibold text-gray-900 mb-2">
+                <label className="block text-sm font-semibold text-primary mb-2">
                   Type your {profile?.full_name ? 'username' : 'email'} to confirm:
-                  <span className="ml-2 text-red-600">
+                  <span className="ml-2 text-red-600 dark:text-red-400">
                     {profile?.full_name || profile?.email}
                   </span>
                 </label>
@@ -315,13 +315,13 @@ export default function DeleteAccountModal({ isOpen, onClose }: DeleteAccountMod
                   value={confirmText}
                   onChange={(e) => setConfirmText(e.target.value)}
                   placeholder={profile?.full_name || profile?.email || ''}
-                  className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-red-500"
+                  className="w-full px-4 py-3 border-2 border-border-strong rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-red-500"
                   disabled={isDeleting || needsReauth}
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-semibold text-gray-900 mb-2">
+                <label className="block text-sm font-semibold text-primary mb-2">
                   Re-enter your password:
                 </label>
                 <input
@@ -329,10 +329,10 @@ export default function DeleteAccountModal({ isOpen, onClose }: DeleteAccountMod
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="Enter your password"
-                  className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-red-500"
+                  className="w-full px-4 py-3 border-2 border-border-strong rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-red-500"
                   disabled={isDeleting || needsReauth}
                 />
-                <p className="text-xs text-gray-500 mt-1">
+                <p className="text-xs text-muted mt-1">
                   For your security, we need to verify your identity before proceeding.
                 </p>
               </div>
@@ -341,13 +341,13 @@ export default function DeleteAccountModal({ isOpen, onClose }: DeleteAccountMod
         </div>
 
         {/* Footer */}
-        <div className="sticky bottom-0 bg-gray-50 border-t border-gray-200 px-6 py-4 flex items-center justify-between">
+        <div className="sticky bottom-0 bg-surface-muted border-t border-border px-6 py-4 flex items-center justify-between">
           <div className="flex items-center gap-3">
             {step === 2 && (
               <button
                 onClick={handleBack}
                 disabled={isDeleting}
-                className="px-4 py-2 text-gray-700 hover:text-gray-900 font-medium transition-colors disabled:opacity-50"
+                className="px-4 py-2 text-secondary hover:text-primary font-medium transition-colors disabled:opacity-50"
               >
                 <i className="fas fa-arrow-left mr-2"></i>
                 Back
@@ -356,7 +356,7 @@ export default function DeleteAccountModal({ isOpen, onClose }: DeleteAccountMod
             <button
               onClick={handleClose}
               disabled={isDeleting}
-              className="px-6 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors font-medium disabled:opacity-50"
+              className="px-6 py-2 bg-gray-200 dark:bg-stone-800 text-secondary rounded-lg hover:bg-gray-300 dark:hover:bg-stone-700 transition-colors font-medium disabled:opacity-50"
             >
               Cancel
             </button>

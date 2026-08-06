@@ -94,8 +94,8 @@ export default function EditMessageInline({
   };
 
   const bubbleBase = isOwn
-    ? 'bg-violet-600 text-white rounded-l-2xl rounded-tr-2xl'
-    : 'bg-gray-100 text-gray-900 rounded-r-2xl rounded-tl-2xl';
+    ? 'bg-brand text-white rounded-l-2xl rounded-tr-2xl'
+    : 'bg-surface-sunken text-primary rounded-r-2xl rounded-tl-2xl';
 
   return (
     <div className={`px-3 py-2 ${bubbleBase} max-w-full ea-edit-pulse`}>
@@ -107,12 +107,12 @@ export default function EditMessageInline({
         disabled={saving}
         rows={1}
         className={`w-full resize-none bg-transparent outline-none text-sm placeholder-white/60 ${
-          isOwn ? 'text-white' : 'text-gray-900'
+          isOwn ? 'text-white' : 'text-primary'
         }`}
         style={{ minHeight: 24, maxHeight: 160 }}
       />
       {error && (
-        <p className={`text-xs mt-1 ${isOwn ? 'text-red-100' : 'text-red-600'}`}>{error}</p>
+        <p className={`text-xs mt-1 ${isOwn ? 'text-red-100' : 'text-red-600 dark:text-red-400'}`}>{error}</p>
       )}
       <div className="flex items-center justify-end gap-2 mt-1.5">
         <button
@@ -121,8 +121,8 @@ export default function EditMessageInline({
           disabled={saving}
           className={`text-xs px-2 py-1 rounded-md transition-colors ${
             isOwn
-              ? 'text-white/80 hover:bg-white/10'
-              : 'text-gray-500 hover:bg-gray-200'
+              ? 'text-white/80 hover:bg-surface/10'
+              : 'text-muted hover:bg-gray-200 dark:hover:bg-stone-800'
           } disabled:opacity-50`}
         >
           Cancel
@@ -133,8 +133,8 @@ export default function EditMessageInline({
           disabled={saving || !text.trim()}
           className={`text-xs px-3 py-1 rounded-md font-semibold transition-colors ${
             isOwn
-              ? 'bg-white text-violet-700 hover:bg-violet-50'
-              : 'bg-violet-600 text-white hover:bg-violet-700'
+              ? 'bg-surface text-brand-fg-strong hover:bg-brand-soft'
+              : 'bg-brand text-white hover:bg-brand-hover'
           } disabled:opacity-50`}
         >
           {saving ? 'Saving…' : 'Save'}

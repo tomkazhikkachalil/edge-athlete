@@ -61,7 +61,7 @@ function Toggle({ on, disabled, onChange, label }: { on: boolean; disabled: bool
       disabled={disabled}
       onClick={onChange}
       className={`relative inline-flex h-6 w-11 flex-shrink-0 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-violet-500 focus:ring-offset-1 disabled:opacity-50 ${
-        on ? 'bg-violet-600' : 'bg-gray-300'
+        on ? 'bg-brand' : 'bg-gray-300 dark:bg-stone-700'
       }`}
     >
       <span
@@ -131,15 +131,15 @@ export default function NotificationSettings() {
   if (loading) {
     return (
       <div className="text-center py-12">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-violet-600 mx-auto"></div>
-        <p className="mt-3 text-sm text-gray-600">Loading preferences…</p>
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-brand mx-auto"></div>
+        <p className="mt-3 text-sm text-tertiary">Loading preferences…</p>
       </div>
     );
   }
 
   if (!prefs) {
     return (
-      <div className="text-center py-12 text-sm text-gray-600">
+      <div className="text-center py-12 text-sm text-tertiary">
         Could not load your preferences. Refresh the page to try again.
       </div>
     );
@@ -147,22 +147,22 @@ export default function NotificationSettings() {
 
   return (
     <div>
-      <h2 className="text-lg font-semibold text-gray-900 mb-1">Notification preferences</h2>
-      <p className="text-sm text-gray-500 mb-6">
+      <h2 className="text-lg font-semibold text-primary mb-1">Notification preferences</h2>
+      <p className="text-sm text-muted mb-6">
         Turn off any notification type you don&apos;t want. Changes apply to new notifications
         immediately.
       </p>
 
       {/* Email delivery — a separate channel from the in-app toggles below */}
       <div className="mb-8">
-        <h3 className="text-sm font-semibold text-gray-700 uppercase tracking-wide mb-3">
+        <h3 className="text-sm font-semibold text-secondary uppercase tracking-wide mb-3">
           Email
         </h3>
-        <div className="border border-gray-200 rounded-lg">
+        <div className="border border-border rounded-lg">
           <div className="flex items-center justify-between gap-4 p-4">
             <div className="min-w-0">
-              <p className="text-sm font-medium text-gray-900">Daily email digest</p>
-              <p className="text-xs text-gray-500">
+              <p className="text-sm font-medium text-primary">Daily email digest</p>
+              <p className="text-xs text-muted">
                 Once a day, get an email summary of your new notifications. Off by default.
               </p>
             </div>
@@ -179,15 +179,15 @@ export default function NotificationSettings() {
       <div className="space-y-8">
         {GROUPS.map(group => (
           <div key={group.title}>
-            <h3 className="text-sm font-semibold text-gray-700 uppercase tracking-wide mb-3">
+            <h3 className="text-sm font-semibold text-secondary uppercase tracking-wide mb-3">
               {group.title}
             </h3>
-            <div className="divide-y divide-gray-100 border border-gray-200 rounded-lg">
+            <div className="divide-y divide-border-subtle border border-border rounded-lg">
               {group.items.map(item => (
                 <div key={item.key} className="flex items-center justify-between gap-4 p-4">
                   <div className="min-w-0">
-                    <p className="text-sm font-medium text-gray-900">{item.label}</p>
-                    <p className="text-xs text-gray-500">{item.description}</p>
+                    <p className="text-sm font-medium text-primary">{item.label}</p>
+                    <p className="text-xs text-muted">{item.description}</p>
                   </div>
                   <Toggle
                     on={prefs[item.key]}

@@ -100,13 +100,13 @@ export default function LiveRoundPage() {
   }
 
   const shell = (body: React.ReactNode) => (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-canvas">
       <AppHeader />
       <main className="max-w-2xl mx-auto px-4 py-6">
         {/* Never a dead end — a way back exists in every state, including load. */}
         <Link
           href="/live"
-          className="inline-flex items-center gap-2 text-sm font-semibold text-violet-700 hover:text-violet-800 mb-4 min-h-[44px]"
+          className="inline-flex items-center gap-2 text-sm font-semibold text-brand-fg-strong hover:text-violet-800 dark:hover:text-violet-300 mb-4 min-h-[44px]"
         >
           <i className="fas fa-chevron-left text-xs"></i>
           Live Now
@@ -118,7 +118,7 @@ export default function LiveRoundPage() {
 
   const spinner = (
     <div className="flex items-center justify-center py-16">
-      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-violet-600"></div>
+      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-brand"></div>
     </div>
   );
 
@@ -127,21 +127,21 @@ export default function LiveRoundPage() {
 
   if (notFound || entry.mode === 'not-found') {
     return shell(
-      <div className="bg-white rounded-lg border border-gray-200 p-6 text-center">
-        <h1 className="text-h3 font-bold text-gray-900 mb-2">This round isn&apos;t available</h1>
-        <p className="text-gray-600 mb-4">
+      <div className="bg-surface rounded-lg border border-border p-6 text-center">
+        <h1 className="text-h3 font-bold text-primary mb-2">This round isn&apos;t available</h1>
+        <p className="text-tertiary mb-4">
           It may have been deleted, or it isn&apos;t shared with you.
         </p>
         <div className="flex items-center justify-center gap-3">
           <Link
             href="/live"
-            className="px-4 py-2 bg-violet-600 text-white rounded-lg font-semibold hover:bg-violet-700 min-h-[44px] inline-flex items-center"
+            className="px-4 py-2 bg-brand text-white rounded-lg font-semibold hover:bg-brand-hover min-h-[44px] inline-flex items-center"
           >
             Live Now
           </Link>
           <Link
             href="/feed"
-            className="px-4 py-2 border border-gray-300 rounded-lg font-semibold text-gray-700 hover:bg-gray-50 min-h-[44px] inline-flex items-center"
+            className="px-4 py-2 border border-border-strong rounded-lg font-semibold text-secondary hover:bg-surface-muted min-h-[44px] inline-flex items-center"
           >
             Back to feed
           </Link>
@@ -158,14 +158,14 @@ export default function LiveRoundPage() {
   return shell(
     <>
       {entry.mode === 'final' && (
-        <div className="mb-4 bg-white rounded-lg border border-gray-200 p-4 flex items-center justify-between gap-3">
+        <div className="mb-4 bg-surface rounded-lg border border-border p-4 flex items-center justify-between gap-3">
           <div>
-            <p className="font-bold text-gray-900">This round is final</p>
-            <p className="text-sm text-gray-600">Scoring is closed.</p>
+            <p className="font-bold text-primary">This round is final</p>
+            <p className="text-sm text-tertiary">Scoring is closed.</p>
           </div>
           <Link
             href={viewPostHref}
-            className="shrink-0 px-4 py-2 bg-violet-600 text-white rounded-lg font-semibold hover:bg-violet-700 min-h-[44px] inline-flex items-center"
+            className="shrink-0 px-4 py-2 bg-brand text-white rounded-lg font-semibold hover:bg-brand-hover min-h-[44px] inline-flex items-center"
           >
             View the post
           </Link>
@@ -191,14 +191,14 @@ export default function LiveRoundPage() {
         <button
           type="button"
           onClick={() => openScorer(entry.participantId)}
-          className="mt-4 w-full py-3 bg-violet-600 text-white rounded-lg font-bold hover:bg-violet-700 transition-colors min-h-[44px]"
+          className="mt-4 w-full py-3 bg-brand text-white rounded-lg font-bold hover:bg-brand-hover transition-colors min-h-[44px]"
         >
           Continue scoring
         </button>
       )}
 
       {entry.mode === 'watch' && entry.reason === 'card-complete' && (
-        <p className="mt-4 text-sm text-gray-600 text-center">
+        <p className="mt-4 text-sm text-tertiary text-center">
           Your card is complete — waiting on the rest of the group.
         </p>
       )}

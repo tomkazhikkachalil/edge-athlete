@@ -174,30 +174,30 @@ export default function SharePostModal({
   return (
     <div className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center z-50" onClick={onClose}>
       <div
-        className="bg-white rounded-t-2xl sm:rounded-2xl w-full sm:max-w-md max-h-modal flex flex-col overflow-hidden modal-sheet-bottom"
+        className="bg-surface-raised rounded-t-2xl sm:rounded-2xl w-full sm:max-w-md max-h-modal flex flex-col overflow-hidden modal-sheet-bottom"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200">
-          <h2 className="text-lg font-bold text-gray-900">Share Post</h2>
+        <div className="flex items-center justify-between px-4 py-3 border-b border-border">
+          <h2 className="text-lg font-bold text-primary">Share Post</h2>
           <button
             onClick={onClose}
-            className="p-2 text-gray-400 hover:text-gray-600 transition-colors"
+            className="p-2 text-faint hover:text-tertiary transition-colors"
           >
             <i className="fas fa-times text-lg"></i>
           </button>
         </div>
 
         {/* Search */}
-        <div className="px-4 py-3 border-b border-gray-100">
+        <div className="px-4 py-3 border-b border-border-subtle">
           <div className="relative">
-            <i className="fas fa-search absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm"></i>
+            <i className="fas fa-search absolute left-3 top-1/2 -translate-y-1/2 text-faint text-sm"></i>
             <input
               type="text"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Search conversations..."
-              className="w-full pl-9 pr-3 py-2 bg-gray-100 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-violet-500"
+              className="w-full pl-9 pr-3 py-2 bg-surface-sunken rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-violet-500"
             />
           </div>
         </div>
@@ -205,14 +205,14 @@ export default function SharePostModal({
         <div className="flex-1 overflow-y-auto">
           {loading ? (
             <div className="flex justify-center py-8">
-              <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-violet-600"></div>
+              <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-brand"></div>
             </div>
           ) : (
             <>
               {/* Frequent contacts row */}
               {frequentContacts.length > 0 && !search.trim() && (
-                <div className="px-4 py-3 border-b border-gray-100">
-                  <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">Quick Share</p>
+                <div className="px-4 py-3 border-b border-border-subtle">
+                  <p className="text-xs font-semibold text-muted uppercase tracking-wider mb-3">Quick Share</p>
                   <div className="flex gap-4 overflow-x-auto pb-1">
                     {frequentContacts.map((contact) => (
                       <button
@@ -241,12 +241,12 @@ export default function SharePostModal({
                             </div>
                           )}
                           {sending === contact.conversationId && (
-                            <div className="absolute inset-0 bg-white/60 rounded-full flex items-center justify-center">
-                              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-violet-600"></div>
+                            <div className="absolute inset-0 bg-surface/60 rounded-full flex items-center justify-center">
+                              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-brand"></div>
                             </div>
                           )}
                         </div>
-                        <span className="text-xs text-gray-700 truncate max-w-[60px]">
+                        <span className="text-xs text-secondary truncate max-w-[60px]">
                           {contact.name.split(' ')[0]}
                         </span>
                       </button>
@@ -259,7 +259,7 @@ export default function SharePostModal({
               {filteredConversations.length > 0 && (
                 <div className="px-4 py-3">
                   {!search.trim() && (
-                    <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">All Conversations</p>
+                    <p className="text-xs font-semibold text-muted uppercase tracking-wider mb-2">All Conversations</p>
                   )}
                   <div className="space-y-1">
                     {filteredConversations.map((conv) => {
@@ -272,7 +272,7 @@ export default function SharePostModal({
                           key={conv.id}
                           onClick={() => handleSendToConversation(conv.id)}
                           disabled={!!sending || isSent}
-                          className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-60"
+                          className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-surface-muted transition-colors disabled:opacity-60"
                         >
                           {/* Avatar */}
                           {display.avatarUrl ? (
@@ -291,21 +291,21 @@ export default function SharePostModal({
 
                           {/* Name + type */}
                           <div className="flex-1 min-w-0 text-left">
-                            <p className="text-sm font-medium text-gray-900 truncate">{display.name}</p>
+                            <p className="text-sm font-medium text-primary truncate">{display.name}</p>
                             {conv.type === 'group' && (
-                              <p className="text-xs text-gray-500">{conv.participants.length} members</p>
+                              <p className="text-xs text-muted">{conv.participants.length} members</p>
                             )}
                           </div>
 
                           {/* Send / Sent indicator */}
                           {isSent ? (
-                            <span className="text-xs font-medium text-green-600 flex items-center gap-1">
+                            <span className="text-xs font-medium text-green-600 dark:text-green-400 flex items-center gap-1">
                               <i className="fas fa-check"></i> Sent
                             </span>
                           ) : isSending ? (
-                            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-violet-600"></div>
+                            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-brand"></div>
                           ) : (
-                            <span className="text-xs font-medium text-violet-600">Send</span>
+                            <span className="text-xs font-medium text-brand-fg">Send</span>
                           )}
                         </button>
                       );
@@ -318,11 +318,11 @@ export default function SharePostModal({
               {!loading && filteredConversations.length === 0 && (
                 <div className="text-center py-8 px-4">
                   {search.trim() ? (
-                    <p className="text-sm text-gray-500">No conversations match &ldquo;{search}&rdquo;</p>
+                    <p className="text-sm text-muted">No conversations match &ldquo;{search}&rdquo;</p>
                   ) : (
                     <>
-                      <i className="fas fa-paper-plane text-3xl text-gray-300 mb-2"></i>
-                      <p className="text-sm text-gray-500">No conversations yet</p>
+                      <i className="fas fa-paper-plane text-3xl text-gray-300 dark:text-stone-600 mb-2"></i>
+                      <p className="text-sm text-muted">No conversations yet</p>
                     </>
                   )}
                 </div>
@@ -332,20 +332,20 @@ export default function SharePostModal({
         </div>
 
         {/* Secondary share options */}
-        <div className="border-t border-gray-200 px-4 py-3">
-          <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Other ways to share</p>
+        <div className="border-t border-border px-4 py-3">
+          <p className="text-xs font-semibold text-muted uppercase tracking-wider mb-2">Other ways to share</p>
           <div className="flex gap-3">
             <button
               onClick={handleCopyLink}
-              className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-gray-100 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-200 transition-colors"
+              className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-surface-sunken rounded-lg text-sm font-medium text-secondary hover:bg-gray-200 dark:hover:bg-stone-800 transition-colors"
             >
-              <i className={`fas ${copySuccess ? 'fa-check text-green-600' : 'fa-link'}`}></i>
+              <i className={`fas ${copySuccess ? 'fa-check text-green-600 dark:text-green-400' : 'fa-link'}`}></i>
               {copySuccess ? 'Copied!' : 'Copy Link'}
             </button>
             {typeof navigator !== 'undefined' && 'share' in navigator && (
               <button
                 onClick={handleNativeShare}
-                className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-gray-100 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-200 transition-colors"
+                className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-surface-sunken rounded-lg text-sm font-medium text-secondary hover:bg-gray-200 dark:hover:bg-stone-800 transition-colors"
               >
                 <i className="fas fa-share-alt"></i>
                 More

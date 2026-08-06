@@ -123,16 +123,16 @@ export default function EquipmentSettingsModal({
       className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4"
       onClick={e => { if (e.target === e.currentTarget) requestClose(); }}
     >
-      <div className="bg-white rounded-xl shadow-xl max-w-lg w-full max-h-modal flex flex-col">
+      <div className="bg-surface-raised rounded-xl shadow-xl max-w-lg w-full max-h-modal flex flex-col">
         {/* Header */}
-        <div className="shrink-0 flex items-center justify-between px-4 sm:px-6 py-4 border-b border-gray-200">
-          <h2 className="text-lg font-bold text-gray-900">Equipment display settings</h2>
+        <div className="shrink-0 flex items-center justify-between px-4 sm:px-6 py-4 border-b border-border">
+          <h2 className="text-lg font-bold text-primary">Equipment display settings</h2>
           <button
             onClick={requestClose}
             aria-label="Close"
             className="ea-icon-btn inline-flex items-center justify-center"
           >
-            <X className="w-5 h-5 text-gray-500" />
+            <X className="w-5 h-5 text-muted" />
           </button>
         </div>
 
@@ -140,17 +140,17 @@ export default function EquipmentSettingsModal({
         <div className="flex-1 min-h-0 overflow-y-auto px-4 sm:px-6 py-4 space-y-6">
           {/* Sport order */}
           <fieldset>
-            <legend className="text-sm font-semibold text-gray-900 mb-1">Sport order</legend>
-            <p className="text-xs text-gray-500 mb-3">
+            <legend className="text-sm font-semibold text-primary mb-1">Sport order</legend>
+            <p className="text-xs text-muted mb-3">
               First sport shows first and starts expanded in the side column.
             </p>
             <ul className="space-y-1">
               {sportOrder.map((key, index) => (
                 <li
                   key={key}
-                  className="flex items-center gap-2 rounded-lg border border-gray-200 px-3 py-2"
+                  className="flex items-center gap-2 rounded-lg border border-border px-3 py-2"
                 >
-                  <span className="flex-1 min-w-0 truncate text-sm font-medium text-gray-900">
+                  <span className="flex-1 min-w-0 truncate text-sm font-medium text-primary">
                     {labelFor(key)}
                   </span>
                   <button
@@ -159,7 +159,7 @@ export default function EquipmentSettingsModal({
                     aria-label={`Move ${labelFor(key)} up`}
                     className="ea-interactive flex h-8 w-8 items-center justify-center rounded-lg disabled:opacity-30"
                   >
-                    <ArrowUp className="w-4 h-4 text-gray-600" />
+                    <ArrowUp className="w-4 h-4 text-tertiary" />
                   </button>
                   <button
                     onClick={() => move(key, 1)}
@@ -167,7 +167,7 @@ export default function EquipmentSettingsModal({
                     aria-label={`Move ${labelFor(key)} down`}
                     className="ea-interactive flex h-8 w-8 items-center justify-center rounded-lg disabled:opacity-30"
                   >
-                    <ArrowDown className="w-4 h-4 text-gray-600" />
+                    <ArrowDown className="w-4 h-4 text-tertiary" />
                   </button>
                 </li>
               ))}
@@ -176,27 +176,27 @@ export default function EquipmentSettingsModal({
 
           {/* Defaults */}
           <fieldset>
-            <legend className="text-sm font-semibold text-gray-900 mb-3">Defaults</legend>
+            <legend className="text-sm font-semibold text-primary mb-3">Defaults</legend>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <label className="block">
-                <span className="block text-xs font-medium text-gray-600 mb-1">Sort</span>
+                <span className="block text-xs font-medium text-tertiary mb-1">Sort</span>
                 <select
                   value={defaultSort}
                   onChange={e => setDefaultSort(e.target.value as 'newest' | 'brand')}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white"
+                  className="w-full px-3 py-2 border border-border-strong rounded-lg text-sm bg-surface"
                 >
                   <option value="newest">Newest</option>
                   <option value="brand">Brand A–Z</option>
                 </select>
               </label>
               <label className="block">
-                <span className="block text-xs font-medium text-gray-600 mb-1">Opens on</span>
+                <span className="block text-xs font-medium text-tertiary mb-1">Opens on</span>
                 <select
                   value={String(defaultView)}
                   onChange={e =>
                     setDefaultView(e.target.value === 'now' ? 'now' : Number(e.target.value))
                   }
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white"
+                  className="w-full px-3 py-2 border border-border-strong rounded-lg text-sm bg-surface"
                 >
                   <option value="now">Now</option>
                   {years.map(year => (
@@ -209,12 +209,12 @@ export default function EquipmentSettingsModal({
 
           {/* Visibility */}
           <fieldset>
-            <legend className="text-sm font-semibold text-gray-900 mb-1">Visible to others</legend>
-            <p className="text-xs text-gray-500 mb-3">
+            <legend className="text-sm font-semibold text-primary mb-1">Visible to others</legend>
+            <p className="text-xs text-muted mb-3">
               You always see everything on your own profile.
             </p>
             <div className="space-y-2">
-              <label className="flex items-center gap-2 text-sm text-gray-700">
+              <label className="flex items-center gap-2 text-sm text-secondary">
                 <input
                   type="checkbox"
                   checked={!hideHistory}
@@ -224,7 +224,7 @@ export default function EquipmentSettingsModal({
                 Show my retired gear (History)
               </label>
               {sports.map(sport => (
-                <label key={sport.key} className="flex items-center gap-2 text-sm text-gray-700">
+                <label key={sport.key} className="flex items-center gap-2 text-sm text-secondary">
                   <input
                     type="checkbox"
                     checked={!hiddenSports.includes(sport.key)}
@@ -239,9 +239,9 @@ export default function EquipmentSettingsModal({
 
           {/* Card detail */}
           <fieldset>
-            <legend className="text-sm font-semibold text-gray-900 mb-3">Card detail</legend>
+            <legend className="text-sm font-semibold text-primary mb-3">Card detail</legend>
             <div className="space-y-2">
-              <label className="flex items-center gap-2 text-sm text-gray-700">
+              <label className="flex items-center gap-2 text-sm text-secondary">
                 <input
                   type="radio"
                   name="equipment-card-detail"
@@ -251,7 +251,7 @@ export default function EquipmentSettingsModal({
                 />
                 Detailed — specs and notes on cards
               </label>
-              <label className="flex items-center gap-2 text-sm text-gray-700">
+              <label className="flex items-center gap-2 text-sm text-secondary">
                 <input
                   type="radio"
                   name="equipment-card-detail"
@@ -266,17 +266,17 @@ export default function EquipmentSettingsModal({
         </div>
 
         {/* Footer */}
-        <div className="shrink-0 flex flex-col-reverse sm:flex-row sm:items-center sm:justify-end gap-3 px-4 sm:px-6 py-4 border-t border-gray-200 bg-gray-50">
+        <div className="shrink-0 flex flex-col-reverse sm:flex-row sm:items-center sm:justify-end gap-3 px-4 sm:px-6 py-4 border-t border-border bg-surface-muted">
           <button
             onClick={requestClose}
-            className="px-4 py-2 rounded-lg text-sm font-semibold text-gray-700 bg-white border border-gray-300 hover:bg-gray-50 transition-colors"
+            className="px-4 py-2 rounded-lg text-sm font-semibold text-secondary bg-surface border border-border-strong hover:bg-surface-muted transition-colors"
           >
             Cancel
           </button>
           <button
             onClick={handleSave}
             disabled={saving}
-            className="px-4 py-2 rounded-lg text-sm font-semibold text-white bg-violet-600 hover:bg-violet-700 transition-colors disabled:opacity-50"
+            className="px-4 py-2 rounded-lg text-sm font-semibold text-white bg-brand hover:bg-brand-hover transition-colors disabled:opacity-50"
           >
             {saving ? 'Saving…' : 'Save settings'}
           </button>

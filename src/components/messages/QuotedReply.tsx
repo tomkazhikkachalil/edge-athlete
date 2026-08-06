@@ -52,8 +52,8 @@ export default function QuotedReply({ replyTo, isOwn, onScrollToMessage }: Props
   const isDeleted = !!replyTo.deleted_at;
 
   const barStyle = isOwn
-    ? 'bg-violet-700/30 border-l-2 border-violet-300'
-    : 'bg-gray-100 border-l-2 border-gray-400';
+    ? 'bg-brand-hover/30 border-l-2 border-violet-300 dark:border-violet-700'
+    : 'bg-surface-sunken border-l-2 border-gray-400';
 
   return (
     <button
@@ -74,9 +74,9 @@ export default function QuotedReply({ replyTo, isOwn, onScrollToMessage }: Props
         />
       )}
       <span className="text-xs truncate min-w-0">
-        <span className="font-bold text-gray-700">{replyTo.sender_name}</span>
-        <span className="text-gray-500">: </span>
-        <span className={isDeleted ? 'italic text-gray-400' : 'text-gray-600'}>{snippet}</span>
+        <span className="font-bold text-secondary">{replyTo.sender_name}</span>
+        <span className="text-muted">: </span>
+        <span className={isDeleted ? 'italic text-faint' : 'text-tertiary'}>{snippet}</span>
       </span>
     </button>
   );

@@ -35,16 +35,16 @@ export default function MonthView({
       });
 
   return (
-    <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
-      <div className="grid grid-cols-7 border-b border-gray-200">
+    <div className="bg-surface rounded-lg shadow-sm border border-border overflow-hidden">
+      <div className="grid grid-cols-7 border-b border-border">
         {WEEKDAY_LABELS.map(label => (
-          <div key={label} className="py-2 text-center text-xs font-semibold text-gray-500">
+          <div key={label} className="py-2 text-center text-xs font-semibold text-muted">
             {label}
           </div>
         ))}
       </div>
       {weeks.map((week, wi) => (
-        <div key={wi} className="grid grid-cols-7 border-b border-gray-100 last:border-b-0">
+        <div key={wi} className="grid grid-cols-7 border-b border-border-subtle last:border-b-0">
           {week.map(day => {
             const dayEvents = eventsForDay(day);
             const inMonth = isSameMonth(day, focusDate);
@@ -52,8 +52,8 @@ export default function MonthView({
             return (
               <div
                 key={day.toISOString()}
-                className={`relative min-h-16 sm:min-h-24 border-r border-gray-100 last:border-r-0 p-1 ${
-                  inMonth ? 'bg-white' : 'bg-gray-50'
+                className={`relative min-h-16 sm:min-h-24 border-r border-border-subtle last:border-r-0 p-1 ${
+                  inMonth ? 'bg-surface' : 'bg-surface-muted'
                 }`}
               >
                 {/* The visible target is a 24px circle, well under the 44px
@@ -68,12 +68,12 @@ export default function MonthView({
                   type="button"
                   onClick={() => onSelectDay(day)}
                   aria-label={day.toDateString()}
-                  className={`w-6 h-6 sm:w-7 sm:h-7 flex items-center justify-center rounded-full text-xs sm:text-sm mb-0.5 hover:bg-violet-50 after:absolute after:inset-0 after:content-[''] sm:after:content-none ${
+                  className={`w-6 h-6 sm:w-7 sm:h-7 flex items-center justify-center rounded-full text-xs sm:text-sm mb-0.5 hover:bg-brand-soft after:absolute after:inset-0 after:content-[''] sm:after:content-none ${
                     isToday
-                      ? 'bg-violet-600 text-white font-bold hover:bg-violet-700'
+                      ? 'bg-brand text-white font-bold hover:bg-brand-hover'
                       : inMonth
-                        ? 'text-gray-900'
-                        : 'text-gray-400'
+                        ? 'text-primary'
+                        : 'text-faint'
                   }`}
                 >
                   {day.getDate()}
@@ -86,7 +86,7 @@ export default function MonthView({
                       key={e.id}
                       className={`w-1.5 h-1.5 rounded-full ${
                         e.my_status === 'invited'
-                          ? `border ${categoryColor(e.category).border} bg-white`
+                          ? `border ${categoryColor(e.category).border} bg-surface`
                           : categoryColor(e.category).dot
                       }`}
                     />
@@ -102,7 +102,7 @@ export default function MonthView({
                     <button
                       type="button"
                       onClick={() => onSelectDay(day)}
-                      className="text-left text-xs text-gray-500 hover:text-violet-600 px-1.5"
+                      className="text-left text-xs text-muted hover:text-brand-fg px-1.5"
                     >
                       +{dayEvents.length - MAX_CHIPS} more
                     </button>

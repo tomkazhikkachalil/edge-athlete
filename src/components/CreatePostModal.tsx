@@ -989,16 +989,16 @@ export default function CreatePostModal({
         onConfirm={confirmDiscard}
         onCancel={cancelDiscard}
       />
-      <div className="bg-white rounded-lg shadow-xl max-w-4xl w-full max-h-modal flex flex-col">
+      <div className="bg-surface-raised rounded-lg shadow-xl max-w-4xl w-full max-h-modal flex flex-col">
         {/* Header */}
-        <div className="flex items-center justify-between p-4 sm:p-6 border-b border-gray-200">
-          <h2 className="text-2xl font-bold text-gray-900">Create Post</h2>
+        <div className="flex items-center justify-between p-4 sm:p-6 border-b border-border">
+          <h2 className="text-2xl font-bold text-primary">Create Post</h2>
           <button
             onClick={requestClose}
             className="ea-icon-btn inline-flex items-center justify-center"
             aria-label="Close modal"
           >
-            <i className="fas fa-times text-gray-500 text-lg"></i>
+            <i className="fas fa-times text-muted text-lg"></i>
           </button>
         </div>
 
@@ -1006,30 +1006,30 @@ export default function CreatePostModal({
         <div className="flex-1 overflow-y-auto p-4 sm:p-6">
           {/* Sport/Post Type Selection */}
           <div className="mb-6">
-            <label className="block text-sm font-semibold text-gray-700 mb-3">Post Type</label>
+            <label className="block text-sm font-semibold text-secondary mb-3">Post Type</label>
             <button
               onClick={() => setShowSportSelector(true)}
-              className="w-full p-4 border-2 border-gray-300 rounded-lg text-left hover:border-violet-500 hover:bg-violet-50 transition-all group"
+              className="w-full p-4 border-2 border-border-strong rounded-lg text-left hover:border-violet-500 hover:bg-brand-soft transition-all group"
             >
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
-                  <div className="w-12 h-12 rounded-lg bg-gray-100 group-hover:bg-violet-100 flex items-center justify-center transition-colors">
+                  <div className="w-12 h-12 rounded-lg bg-surface-sunken group-hover:bg-violet-100 dark:group-hover:bg-violet-950/60 flex items-center justify-center transition-colors">
                     <i className={`${
                       postType === 'general'
                         ? 'fas fa-edit'
                         : getSportDefinition(postType as SportKey).icon_id
                     } text-xl ${
-                      postType === 'general' ? 'text-gray-500' : 'text-violet-600'
-                    } group-hover:text-violet-600`}></i>
+                      postType === 'general' ? 'text-muted' : 'text-brand-fg'
+                    } group-hover:text-brand-fg`}></i>
                   </div>
                   <div>
-                    <div className="font-semibold text-gray-900">
+                    <div className="font-semibold text-primary">
                       {postType === 'general'
                         ? 'General Post'
                         : getSportDefinition(postType as SportKey).display_name
                       }
                     </div>
-                    <div className="text-sm text-gray-500">
+                    <div className="text-sm text-muted">
                       {postType === 'general'
                         ? 'Text, photos, and hashtags'
                         : getSportDefinition(postType as SportKey).primary_action
@@ -1037,7 +1037,7 @@ export default function CreatePostModal({
                     </div>
                   </div>
                 </div>
-                <div className="flex items-center gap-2 text-violet-600">
+                <div className="flex items-center gap-2 text-brand-fg">
                   <span className="text-sm font-medium">Change</span>
                   <i className="fas fa-chevron-right"></i>
                 </div>
@@ -1060,7 +1060,7 @@ export default function CreatePostModal({
               with friends); "Already played" keeps individual/shared batch */}
           {postType === 'golf' && (
             <div className="mb-6">
-              <label className="block text-sm font-semibold text-gray-700 mb-3">When is this round?</label>
+              <label className="block text-sm font-semibold text-secondary mb-3">When is this round?</label>
               {/* Stacks below sm — "Already played" + icon wraps in a ~90px
                   half-column at 320px (same pattern as the holes row below) */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -1072,7 +1072,7 @@ export default function CreatePostModal({
                   className={`px-4 py-3 rounded-lg font-semibold transition-all ${
                     !sharedRoundDetails.alreadyPlayed
                       ? 'bg-red-600 text-white'
-                      : 'bg-white text-gray-700 border-2 border-gray-300 hover:border-red-300'
+                      : 'bg-surface text-secondary border-2 border-border-strong hover:border-red-300 dark:hover:border-red-700'
                   }`}
                 >
                   <span className={`inline-block w-2 h-2 rounded-full mr-2 ${!sharedRoundDetails.alreadyPlayed ? 'bg-white animate-pulse' : 'bg-red-500'}`}></span>
@@ -1086,14 +1086,14 @@ export default function CreatePostModal({
                   className={`px-4 py-3 rounded-lg font-semibold transition-all ${
                     sharedRoundDetails.alreadyPlayed
                       ? 'bg-gray-700 text-white'
-                      : 'bg-white text-gray-700 border-2 border-gray-300 hover:border-gray-400'
+                      : 'bg-surface text-secondary border-2 border-border-strong hover:border-gray-400'
                   }`}
                 >
                   <i className="fas fa-flag-checkered mr-2"></i>
                   Already played
                 </button>
               </div>
-              <p className="mt-1.5 text-xs text-gray-500">
+              <p className="mt-1.5 text-xs text-muted">
                 {sharedRoundDetails.alreadyPlayed
                   ? 'Log a finished round — full scorecard, solo or with friends.'
                   : 'Round goes LIVE — score hole by hole as you play, solo or with friends.'}
@@ -1105,7 +1105,7 @@ export default function CreatePostModal({
               flow where friends are optional) */}
           {postType === 'golf' && sharedRoundDetails.alreadyPlayed && (
             <div className="mb-6">
-              <label className="block text-sm font-semibold text-gray-700 mb-3">Round Type</label>
+              <label className="block text-sm font-semibold text-secondary mb-3">Round Type</label>
               {/* Stacks below sm — the icon + two-line copy had ~36px of text
                   width in a 320px half-column */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
@@ -1113,21 +1113,21 @@ export default function CreatePostModal({
                   onClick={() => setRoundType('individual')}
                   className={`p-4 border-2 rounded-lg text-left transition-all ${
                     roundType === 'individual'
-                      ? 'border-green-500 bg-green-50'
-                      : 'border-gray-300 hover:border-gray-400'
+                      ? 'border-green-500 bg-green-50 dark:bg-green-950/40'
+                      : 'border-border-strong hover:border-gray-400'
                   }`}
                 >
                   <div className="flex items-center gap-3">
                     <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${
-                      roundType === 'individual' ? 'bg-green-100' : 'bg-gray-100'
+                      roundType === 'individual' ? 'bg-green-100 dark:bg-green-950/60' : 'bg-surface-sunken'
                     }`}>
                       <i className={`fas fa-user text-lg ${
-                        roundType === 'individual' ? 'text-green-600' : 'text-gray-600'
+                        roundType === 'individual' ? 'text-green-600 dark:text-green-400' : 'text-tertiary'
                       }`}></i>
                     </div>
                     <div>
-                      <div className="font-semibold text-gray-900">Individual Round</div>
-                      <div className="text-sm text-gray-600">Track your own scorecard</div>
+                      <div className="font-semibold text-primary">Individual Round</div>
+                      <div className="text-sm text-tertiary">Track your own scorecard</div>
                     </div>
                   </div>
                 </button>
@@ -1136,21 +1136,21 @@ export default function CreatePostModal({
                   onClick={() => setRoundType('shared')}
                   className={`p-4 border-2 rounded-lg text-left transition-all ${
                     roundType === 'shared'
-                      ? 'border-green-500 bg-green-50'
-                      : 'border-gray-300 hover:border-gray-400'
+                      ? 'border-green-500 bg-green-50 dark:bg-green-950/40'
+                      : 'border-border-strong hover:border-gray-400'
                   }`}
                 >
                   <div className="flex items-center gap-3">
                     <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${
-                      roundType === 'shared' ? 'bg-green-100' : 'bg-gray-100'
+                      roundType === 'shared' ? 'bg-green-100 dark:bg-green-950/60' : 'bg-surface-sunken'
                     }`}>
                       <i className={`fas fa-users text-lg ${
-                        roundType === 'shared' ? 'text-green-600' : 'text-gray-600'
+                        roundType === 'shared' ? 'text-green-600 dark:text-green-400' : 'text-tertiary'
                       }`}></i>
                     </div>
                     <div>
-                      <div className="font-semibold text-gray-900">Shared Round</div>
-                      <div className="text-sm text-gray-600">Play with friends</div>
+                      <div className="font-semibold text-primary">Shared Round</div>
+                      <div className="text-sm text-tertiary">Play with friends</div>
                     </div>
                   </div>
                 </button>
@@ -1160,18 +1160,18 @@ export default function CreatePostModal({
 
           {/* Shared Round Details Form */}
           {postType === 'golf' && roundType === 'shared' && (
-            <div className="mb-6 bg-green-50 rounded-lg p-4 sm:p-6">
+            <div className="mb-6 bg-green-50 dark:bg-green-950/40 rounded-lg p-4 sm:p-6">
               <div className="space-y-6">
                 {/* Course Details - White Box */}
-              <div className="bg-white rounded-lg border border-gray-200 p-4">
-                <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
-                  <i className="fas fa-flag-checkered mr-2 text-green-600"></i>
+              <div className="bg-surface rounded-lg border border-border p-4">
+                <h3 className="text-lg font-semibold text-primary mb-4 flex items-center">
+                  <i className="fas fa-flag-checkered mr-2 text-green-600 dark:text-green-400"></i>
                   Course Details
                 </h3>
 
                 {/* Course Name with Search */}
                 <div className="mb-4 relative">
-                  <label className="block text-sm font-semibold text-gray-900 mb-2">
+                  <label className="block text-sm font-semibold text-primary mb-2">
                     Course Name *
                   </label>
                   <div className="relative">
@@ -1195,7 +1195,7 @@ export default function CreatePostModal({
                         }
                       }}
                       placeholder="Search for a golf course..."
-                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 pr-10"
+                      className="w-full px-4 py-2 border border-border-strong rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 pr-10"
                     />
                     {searchLoading && (
                       <div className="absolute right-3 top-1/2 transform -translate-y-1/2">
@@ -1203,7 +1203,7 @@ export default function CreatePostModal({
                       </div>
                     )}
                     {!searchLoading && sharedRoundDetails.courseName && (
-                      <i className="fas fa-search absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400"></i>
+                      <i className="fas fa-search absolute right-3 top-1/2 transform -translate-y-1/2 text-faint"></i>
                     )}
                   </div>
 
@@ -1219,20 +1219,20 @@ export default function CreatePostModal({
                         }}
                       />
                       {/* Dropdown */}
-                      <div className="absolute z-20 w-full mt-1 bg-white border border-gray-300 rounded-lg shadow-lg max-h-60 overflow-y-auto overscroll-contain">
+                      <div className="absolute z-20 w-full mt-1 bg-surface-raised border border-border-strong rounded-lg shadow-lg max-h-60 overflow-y-auto overscroll-contain">
                         {availableCourses.map((course) => (
                           <button
                             key={course.id}
                             onClick={() => selectCourse(course)}
-                            className="w-full px-4 py-3 text-left hover:bg-green-50 transition-colors border-b border-gray-100 last:border-b-0"
+                            className="w-full px-4 py-3 text-left hover:bg-green-50 dark:hover:bg-green-950/40 transition-colors border-b border-border-subtle last:border-b-0"
                           >
-                            <div className="font-semibold text-gray-900">{course.name}</div>
+                            <div className="font-semibold text-primary">{course.name}</div>
                             {course.city && course.state && (
-                              <div className="text-sm text-gray-600">
+                              <div className="text-sm text-tertiary">
                                 {course.city}, {course.state}
                               </div>
                             )}
-                            <div className="text-xs text-gray-500 mt-1">
+                            <div className="text-xs text-muted mt-1">
                               Par {course.totalPar} • {course.holes.length} holes
                             </div>
                           </button>
@@ -1243,7 +1243,7 @@ export default function CreatePostModal({
 
                   {/* Selected Course Badge */}
                   {selectedCourse && (
-                    <div className="mt-2 inline-flex items-center gap-2 px-3 py-1.5 bg-green-100 text-green-800 rounded-full text-sm font-medium border border-green-300">
+                    <div className="mt-2 inline-flex items-center gap-2 px-3 py-1.5 bg-green-100 dark:bg-green-950/60 text-green-800 dark:text-green-200 rounded-full text-sm font-medium border border-green-300 dark:border-green-700">
                       <i className="fas fa-check-circle text-xs"></i>
                       {selectedCourse.name}
                       {selectedCourse.city && selectedCourse.state && ` (${selectedCourse.city}, ${selectedCourse.state})`}
@@ -1252,9 +1252,9 @@ export default function CreatePostModal({
 
                   {/* Help text for manual entry */}
                   {!selectedCourse && sharedRoundDetails.courseName && (
-                    <div className="mt-2 flex items-start gap-2 p-3 bg-violet-50 border border-violet-200 rounded-lg">
-                      <i className="fas fa-info-circle text-violet-600 mt-0.5"></i>
-                      <p className="text-xs text-violet-800">
+                    <div className="mt-2 flex items-start gap-2 p-3 bg-brand-soft border border-violet-200 dark:border-violet-800 rounded-lg">
+                      <i className="fas fa-info-circle text-brand-fg mt-0.5"></i>
+                      <p className="text-xs text-violet-800 dark:text-violet-200">
                         <strong>Custom course detected.</strong> Since this course isn&apos;t in our database, you can manually enter par and yardage below (optional).
                       </p>
                     </div>
@@ -1263,7 +1263,7 @@ export default function CreatePostModal({
 
                 {/* Date */}
                 <div className="mb-4">
-                  <label className="block text-sm font-semibold text-gray-900 mb-2">
+                  <label className="block text-sm font-semibold text-primary mb-2">
                     Date *
                   </label>
                   <input
@@ -1281,13 +1281,13 @@ export default function CreatePostModal({
                           : { alreadyPlayed: date < new Date().toISOString().split('T')[0] }),
                       }));
                     }}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                    className="w-full px-4 py-2 border border-border-strong rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500"
                   />
                 </div>
 
                 {/* Indoor/Outdoor Selection */}
                 <div className="mb-4">
-                  <label className="block text-sm font-semibold text-gray-900 mb-2">
+                  <label className="block text-sm font-semibold text-primary mb-2">
                     Round Type *
                   </label>
                   <div className="grid grid-cols-2 gap-3">
@@ -1296,7 +1296,7 @@ export default function CreatePostModal({
                       className={`px-4 py-3 rounded-lg font-semibold transition-all ${
                         sharedRoundDetails.roundTypeIndoorOutdoor === 'outdoor'
                           ? 'bg-green-600 text-white'
-                          : 'bg-white text-gray-700 border-2 border-gray-300 hover:border-green-300'
+                          : 'bg-surface text-secondary border-2 border-border-strong hover:border-green-300 dark:hover:border-green-700'
                       }`}
                     >
                       <i className="fas fa-tree mr-2"></i>
@@ -1306,8 +1306,8 @@ export default function CreatePostModal({
                       onClick={() => setSharedRoundDetails(prev => ({ ...prev, roundTypeIndoorOutdoor: 'indoor' }))}
                       className={`px-4 py-3 rounded-lg font-semibold transition-all ${
                         sharedRoundDetails.roundTypeIndoorOutdoor === 'indoor'
-                          ? 'bg-violet-600 text-white'
-                          : 'bg-white text-gray-700 border-2 border-gray-300 hover:border-violet-300'
+                          ? 'bg-brand text-white'
+                          : 'bg-surface text-secondary border-2 border-border-strong hover:border-violet-300 dark:hover:border-violet-700'
                       }`}
                     >
                       <i className="fas fa-warehouse mr-2"></i>
@@ -1318,7 +1318,7 @@ export default function CreatePostModal({
 
                 {/* Game Format */}
                 <div className="mb-4">
-                  <label className="block text-sm font-semibold text-gray-900 mb-2">
+                  <label className="block text-sm font-semibold text-primary mb-2">
                     Game Format
                   </label>
                   {/* Stacks on phones — three ~100px columns wrap the two-word
@@ -1336,7 +1336,7 @@ export default function CreatePostModal({
                         className={`px-3 py-3 rounded-lg font-semibold text-sm transition-all ${
                           sharedRoundDetails.gameFormat === value
                             ? 'bg-green-600 text-white'
-                            : 'bg-white text-gray-700 border-2 border-gray-300 hover:border-green-300'
+                            : 'bg-surface text-secondary border-2 border-border-strong hover:border-green-300 dark:hover:border-green-700'
                         }`}
                       >
                         <i className={`fas ${icon} mr-1.5`}></i>
@@ -1345,12 +1345,12 @@ export default function CreatePostModal({
                     ))}
                   </div>
                   {sharedRoundDetails.gameFormat === 'stableford' && (
-                    <p className="mt-2 text-xs text-gray-600">
+                    <p className="mt-2 text-xs text-tertiary">
                       Points per hole — eagle 4, birdie 3, par 2, bogey 1. Highest points wins.
                     </p>
                   )}
                   {sharedRoundDetails.gameFormat === 'match' && (
-                    <p className="mt-2 text-xs text-gray-600">
+                    <p className="mt-2 text-xs text-tertiary">
                       Head-to-head holes won — best with exactly 2 players. Scores are still recorded per hole.
                     </p>
                   )}
@@ -1359,13 +1359,13 @@ export default function CreatePostModal({
                 {/* Tee Color (optional, outdoor only) */}
                 {sharedRoundDetails.roundTypeIndoorOutdoor === 'outdoor' && (
                   <div className="mb-4">
-                    <label className="block text-sm font-semibold text-gray-900 mb-2">
+                    <label className="block text-sm font-semibold text-primary mb-2">
                       Tee Color (optional)
                     </label>
                     <select
                       value={sharedRoundDetails.teeColor}
                       onChange={(e) => setSharedRoundDetails(prev => ({ ...prev, teeColor: e.target.value }))}
-                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                      className="w-full px-4 py-2 border border-border-strong rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500"
                     >
                       <option value="">Select tee color</option>
                       <option value="black">Black</option>
@@ -1380,14 +1380,14 @@ export default function CreatePostModal({
 
               {/* Manual Par & Yardage Entry - White Box (when course not in database) */}
               {!selectedCourse && sharedRoundDetails.courseName && (
-                <div className="bg-white rounded-lg border border-gray-200 p-4">
-                  <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
-                    <i className="fas fa-edit mr-2 text-violet-600"></i>
+                <div className="bg-surface rounded-lg border border-border p-4">
+                  <h3 className="text-lg font-semibold text-primary mb-4 flex items-center">
+                    <i className="fas fa-edit mr-2 text-brand-fg"></i>
                     Course Par & Yardage (Optional)
                   </h3>
-                  <div className="p-4 bg-gray-50 border border-gray-300 rounded-lg">
+                  <div className="p-4 bg-surface-muted border border-border-strong rounded-lg">
                     <div className="flex items-center justify-between mb-3">
-                      <span className="text-xs text-gray-600">Optional - adds Par & Yardage to scorecard</span>
+                      <span className="text-xs text-tertiary">Optional - adds Par & Yardage to scorecard</span>
                     </div>
 
                     <div className="max-h-64 overflow-y-auto overscroll-contain">
@@ -1395,11 +1395,11 @@ export default function CreatePostModal({
                         {Array.from({ length: sharedRoundDetails.holesPlayed }, (_, i) => {
                           const holeNum = i + 1;
                           return (
-                            <div key={holeNum} className="flex items-center gap-3 bg-white p-3 rounded border border-gray-200">
-                              <span className="text-sm font-semibold text-gray-700 w-16">Hole {holeNum}</span>
+                            <div key={holeNum} className="flex items-center gap-3 bg-surface p-3 rounded border border-border">
+                              <span className="text-sm font-semibold text-secondary w-16">Hole {holeNum}</span>
                               <div className="flex-1 flex gap-3">
                                 <div className="flex-1">
-                                  <label className="block text-xs text-gray-600 mb-1">Par</label>
+                                  <label className="block text-xs text-tertiary mb-1">Par</label>
                                   <select
                                     value={manualParEntry[i] || ''}
                                     onChange={(e) => {
@@ -1407,7 +1407,7 @@ export default function CreatePostModal({
                                       newPar[i] = parseInt(e.target.value) || 0;
                                       setManualParEntry(newPar);
                                     }}
-                                    className="w-full px-3 py-1.5 text-sm border border-gray-300 rounded focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                                    className="w-full px-3 py-1.5 text-sm border border-border-strong rounded focus:ring-2 focus:ring-green-500 focus:border-green-500"
                                   >
                                     <option value="">-</option>
                                     <option value="3">3</option>
@@ -1417,7 +1417,7 @@ export default function CreatePostModal({
                                   </select>
                                 </div>
                                 <div className="flex-1">
-                                  <label className="block text-xs text-gray-600 mb-1">Yardage</label>
+                                  <label className="block text-xs text-tertiary mb-1">Yardage</label>
                                   <input
                                     type="number"
                                     value={manualYardageEntry[i] || ''}
@@ -1429,7 +1429,7 @@ export default function CreatePostModal({
                                     placeholder="yards"
                                     min="50"
                                     max="700"
-                                    className="w-full px-3 py-1.5 text-sm border border-gray-300 rounded focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                                    className="w-full px-3 py-1.5 text-sm border border-border-strong rounded focus:ring-2 focus:ring-green-500 focus:border-green-500"
                                   />
                                 </div>
                               </div>
@@ -1439,7 +1439,7 @@ export default function CreatePostModal({
                       </div>
                     </div>
 
-                    <div className="mt-3 text-xs text-gray-600">
+                    <div className="mt-3 text-xs text-tertiary">
                       <i className="fas fa-info-circle mr-1"></i>
                       Entering par and yardage will display these values in the scorecard
                     </div>
@@ -1449,8 +1449,8 @@ export default function CreatePostModal({
 
               {/* Playing Conditions - White Box (outdoor only, required) */}
               {sharedRoundDetails.roundTypeIndoorOutdoor === 'outdoor' && (
-                <div className="bg-white rounded-lg border border-gray-200 p-4">
-                  <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
+                <div className="bg-surface rounded-lg border border-border p-4">
+                  <h3 className="text-lg font-semibold text-primary mb-4 flex items-center">
                     <i className="fas fa-cloud-sun mr-2 text-violet-500"></i>
                     Playing Conditions
                   </h3>
@@ -1458,13 +1458,13 @@ export default function CreatePostModal({
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
                       {/* Weather */}
                       <div>
-                        <label className="block text-xs font-semibold text-gray-700 mb-1.5">
+                        <label className="block text-xs font-semibold text-secondary mb-1.5">
                           Weather *
                         </label>
                         <select
                           value={sharedRoundDetails.weather}
                           onChange={(e) => setSharedRoundDetails(prev => ({ ...prev, weather: e.target.value }))}
-                          className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-violet-500 focus:border-violet-500"
+                          className="w-full px-3 py-2 text-sm border border-border-strong rounded-lg focus:ring-2 focus:ring-violet-500 focus:border-violet-500"
                           required
                         >
                           <option value="">Select weather</option>
@@ -1478,14 +1478,14 @@ export default function CreatePostModal({
 
                       {/* Temperature */}
                       <div>
-                        <label className="block text-xs font-semibold text-gray-700 mb-1.5">
+                        <label className="block text-xs font-semibold text-secondary mb-1.5">
                           Temperature (°F) *
                         </label>
                         <input
                           type="number"
                           value={sharedRoundDetails.temperature}
                           onChange={(e) => setSharedRoundDetails(prev => ({ ...prev, temperature: e.target.value }))}
-                          className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-violet-500 focus:border-violet-500"
+                          className="w-full px-3 py-2 text-sm border border-border-strong rounded-lg focus:ring-2 focus:ring-violet-500 focus:border-violet-500"
                           placeholder="72"
                           min="0"
                           max="120"
@@ -1495,13 +1495,13 @@ export default function CreatePostModal({
 
                       {/* Wind */}
                       <div>
-                        <label className="block text-xs font-semibold text-gray-700 mb-1.5">
+                        <label className="block text-xs font-semibold text-secondary mb-1.5">
                           Wind *
                         </label>
                         <select
                           value={sharedRoundDetails.wind}
                           onChange={(e) => setSharedRoundDetails(prev => ({ ...prev, wind: e.target.value }))}
-                          className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-violet-500 focus:border-violet-500"
+                          className="w-full px-3 py-2 text-sm border border-border-strong rounded-lg focus:ring-2 focus:ring-violet-500 focus:border-violet-500"
                           required
                         >
                           <option value="">Select wind</option>
@@ -1516,14 +1516,14 @@ export default function CreatePostModal({
               )}
 
               {/* Participants - White Box */}
-              <div className="bg-white rounded-lg border border-gray-200 p-4">
-                <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
-                  <i className="fas fa-users mr-2 text-green-600"></i>
+              <div className="bg-surface rounded-lg border border-border p-4">
+                <h3 className="text-lg font-semibold text-primary mb-4 flex items-center">
+                  <i className="fas fa-users mr-2 text-green-600 dark:text-green-400"></i>
                   {sharedRoundDetails.alreadyPlayed ? 'Round Participants' : 'Playing partners'}
                 </h3>
                 <div>
                   <div className="flex items-center justify-between mb-3">
-                    <label className="text-sm font-semibold text-gray-900">
+                    <label className="text-sm font-semibold text-primary">
                       {sharedRoundDetails.alreadyPlayed
                         ? `Participants * (${sharedRoundParticipants.length})`
                         : `Playing with anyone? Optional (${sharedRoundParticipants.length})`}
@@ -1567,8 +1567,8 @@ export default function CreatePostModal({
                         disabled={sharedRoundParticipants.includes(userId)}
                         className={`flex items-center gap-2 px-3 py-1.5 text-sm rounded-lg transition-colors font-semibold ${
                           sharedRoundParticipants.includes(userId)
-                            ? 'bg-green-100 text-green-700 cursor-not-allowed'
-                            : 'text-violet-700 hover:text-violet-800 hover:bg-violet-100'
+                            ? 'bg-green-100 dark:bg-green-950/60 text-green-700 dark:text-green-300 cursor-not-allowed'
+                            : 'text-brand-fg-strong hover:text-violet-800 dark:hover:text-violet-200 hover:bg-violet-100 dark:hover:bg-violet-950/60'
                         }`}
                       >
                         {sharedRoundParticipants.includes(userId) ? (
@@ -1586,7 +1586,7 @@ export default function CreatePostModal({
                       )}
                       <button
                         onClick={() => setShowParticipantModal(true)}
-                        className="flex items-center gap-2 px-3 py-1.5 text-sm text-green-700 hover:text-green-800 hover:bg-green-100 rounded-lg transition-colors font-semibold"
+                        className="flex items-center gap-2 px-3 py-1.5 text-sm text-green-700 dark:text-green-300 hover:text-green-800 dark:hover:text-green-200 hover:bg-green-100 dark:hover:bg-green-950/60 rounded-lg transition-colors font-semibold"
                       >
                         <i className="fas fa-users"></i>
                         Add Others
@@ -1600,13 +1600,13 @@ export default function CreatePostModal({
                       {sharedRoundParticipantsData.map(participant => (
                         <span
                           key={participant.id}
-                          className="inline-flex items-center gap-2 px-3 py-1.5 bg-green-100 text-green-800 rounded-full text-sm font-medium border border-green-300"
+                          className="inline-flex items-center gap-2 px-3 py-1.5 bg-green-100 dark:bg-green-950/60 text-green-800 dark:text-green-200 rounded-full text-sm font-medium border border-green-300 dark:border-green-700"
                         >
                           <i className="fas fa-user text-xs"></i>
                           {participant.name}
                           <button
                             onClick={() => removeParticipant(participant.id)}
-                            className="ml-1 hover:text-green-900 min-w-[32px] min-h-[32px] -my-1.5 -mr-2 flex items-center justify-center rounded-full hover:bg-green-200"
+                            className="ml-1 hover:text-green-900 dark:hover:text-green-200 min-w-[32px] min-h-[32px] -my-1.5 -mr-2 flex items-center justify-center rounded-full hover:bg-green-200"
                             aria-label={`Remove ${participant.name}`}
                           >
                             <i className="fas fa-times text-xs"></i>
@@ -1615,7 +1615,7 @@ export default function CreatePostModal({
                       ))}
                     </div>
                   ) : sharedRoundDetails.alreadyPlayed ? (
-                    <div className="text-sm text-gray-600 bg-white rounded-lg p-3 border border-gray-300">
+                    <div className="text-sm text-tertiary bg-surface rounded-lg p-3 border border-border-strong">
                       <i className="fas fa-info-circle mr-1"></i>
                       Add at least one participant to create a shared round
                     </div>
@@ -1623,7 +1623,7 @@ export default function CreatePostModal({
                     // Live rounds are solo by default — nothing here is
                     // required. The old copy said a participant was needed and
                     // read as a hard block even though Go Live was enabled.
-                    <div className="text-sm text-gray-600 bg-white rounded-lg p-3 border border-gray-300">
+                    <div className="text-sm text-tertiary bg-surface rounded-lg p-3 border border-border-strong">
                       <i className="fas fa-golf-ball-tee mr-1"></i>
                       Playing solo — just hit Go Live. Add partners any time if
                       someone joins you.
@@ -1638,12 +1638,12 @@ export default function CreatePostModal({
           {/* Score Entry Section (when shared round with participants) */}
           {postType === 'golf' && roundType === 'shared' && sharedRoundParticipantsData.length > 0 && (
             <div className="mb-6">
-              <div className="bg-white rounded-lg border border-gray-200 p-4">
-                <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
-                  <i className="fas fa-list-ol mr-2 text-green-600"></i>
+              <div className="bg-surface rounded-lg border border-border p-4">
+                <h3 className="text-lg font-semibold text-primary mb-4 flex items-center">
+                  <i className="fas fa-list-ol mr-2 text-green-600 dark:text-green-400"></i>
                   Score Entry
                 </h3>
-                <p className="text-sm text-gray-600 mb-4">
+                <p className="text-sm text-tertiary mb-4">
                   Enter scores below or leave blank - participants can add them later
                 </p>
 
@@ -1676,7 +1676,7 @@ export default function CreatePostModal({
           {/* Golf Scorecard (when individual round is selected) */}
           {postType === 'golf' && roundType === 'individual' && (
             <div className="mb-6">
-              <div className="bg-green-50 rounded-lg border border-green-200 p-4">
+              <div className="bg-green-50 dark:bg-green-950/40 rounded-lg border border-green-200 dark:border-green-800 p-4">
                 <GolfScorecardForm
                   onDataChange={(data) => setGolfRoundData(data)}
                 />
@@ -1686,7 +1686,7 @@ export default function CreatePostModal({
               {golfRoundData && (
                 <button
                   onClick={() => setCaption(generateGolfCaption())}
-                  className="mt-3 text-sm text-green-600 hover:text-green-700 font-medium"
+                  className="mt-3 text-sm text-green-600 dark:text-green-400 hover:text-green-700 dark:hover:text-green-300 font-medium"
                 >
                   <i className="fas fa-magic mr-1"></i>
                   Generate caption from scorecard
@@ -1698,11 +1698,11 @@ export default function CreatePostModal({
           {/* Caption */}
           <div className={isLiveSetup ? 'hidden' : 'mb-6'}>
             <div className="flex items-center justify-between mb-2">
-              <label className="text-sm font-semibold text-gray-700">
+              <label className="text-sm font-semibold text-secondary">
                 Caption
               </label>
               <span className={`text-xs ${
-                caption.length > MAX_CAPTION_LENGTH * 0.9 ? 'text-red-600' : 'text-gray-500'
+                caption.length > MAX_CAPTION_LENGTH * 0.9 ? 'text-red-600 dark:text-red-400' : 'text-muted'
               }`}>
                 {caption.length}/{MAX_CAPTION_LENGTH}
               </span>
@@ -1712,14 +1712,14 @@ export default function CreatePostModal({
               value={caption}
               onChange={(e) => setCaption(e.target.value.slice(0, MAX_CAPTION_LENGTH))}
               placeholder="Share your thoughts..."
-              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-violet-500 focus:border-violet-500 resize-none"
+              className="w-full px-4 py-3 border border-border-strong rounded-lg focus:ring-2 focus:ring-violet-500 focus:border-violet-500 resize-none"
               rows={4}
             />
           </div>
 
           {/* Tags */}
           <div className={isLiveSetup ? 'hidden' : 'mb-6'}>
-            <label className="block text-sm font-semibold text-gray-700 mb-3">Tags</label>
+            <label className="block text-sm font-semibold text-secondary mb-3">Tags</label>
             <div className="flex flex-wrap gap-2">
               {currentTags.map(tag => (
                 <button
@@ -1728,7 +1728,7 @@ export default function CreatePostModal({
                   className={`px-3 py-1.5 rounded-full text-sm font-medium transition-all ${
                     selectedTags.includes(tag.value)
                       ? `bg-${tag.color}-100 text-${tag.color}-800 border-2 border-${tag.color}-300`
-                      : 'bg-gray-100 text-gray-600 border-2 border-gray-200 hover:bg-gray-200'
+                      : 'bg-surface-sunken text-tertiary border-2 border-border hover:bg-gray-200 dark:hover:bg-stone-800'
                   }`}
                 >
                   {selectedTags.includes(tag.value) && (
@@ -1743,12 +1743,12 @@ export default function CreatePostModal({
           {/* Hashtags */}
           <div className={isLiveSetup ? 'hidden' : 'mb-6'}>
             <div className="flex items-center justify-between mb-3">
-              <label className="text-sm font-semibold text-gray-700">
+              <label className="text-sm font-semibold text-secondary">
                 Hashtags ({hashtags.length}/{MAX_HASHTAGS})
               </label>
               <button
                 onClick={() => setShowHashtagSuggestions(!showHashtagSuggestions)}
-                className="text-sm text-violet-600 hover:text-violet-700"
+                className="text-sm text-brand-fg hover:text-brand-fg-strong"
               >
                 {showHashtagSuggestions ? 'Hide' : 'Show'} suggestions
               </button>
@@ -1760,13 +1760,13 @@ export default function CreatePostModal({
                 {hashtags.map(hashtag => (
                   <span
                     key={hashtag}
-                    className="inline-flex items-center gap-1 px-3 py-1 bg-violet-100 text-violet-800 rounded-full text-sm"
+                    className="inline-flex items-center gap-1 px-3 py-1 bg-violet-100 dark:bg-violet-950/60 text-violet-800 dark:text-violet-200 rounded-full text-sm"
                   >
                     {hashtag}
                     <button
                       onClick={() => removeHashtag(hashtag)}
                       aria-label={`Remove ${hashtag}`}
-                      className="ml-0.5 -my-2 -mr-2 p-2 hover:text-violet-900 inline-flex items-center justify-center"
+                      className="ml-0.5 -my-2 -mr-2 p-2 hover:text-violet-900 dark:hover:text-violet-200 inline-flex items-center justify-center"
                     >
                       <i className="fas fa-times text-xs"></i>
                     </button>
@@ -1787,7 +1787,7 @@ export default function CreatePostModal({
                 onChange={(e) => setCustomHashtag(e.target.value)}
                 onKeyDown={handleCustomHashtagSubmit}
                 placeholder="Type a hashtag and press Enter"
-                className="flex-1 min-w-0 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-violet-500 focus:border-violet-500"
+                className="flex-1 min-w-0 px-3 py-2 border border-border-strong rounded-lg focus:ring-2 focus:ring-violet-500 focus:border-violet-500"
                 disabled={hashtags.length >= MAX_HASHTAGS}
               />
               <button
@@ -1798,7 +1798,7 @@ export default function CreatePostModal({
                   }
                 }}
                 disabled={!customHashtag.trim() || hashtags.length >= MAX_HASHTAGS}
-                className="px-4 py-2 bg-violet-600 text-white rounded-lg hover:bg-violet-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors"
+                className="px-4 py-2 bg-brand text-white rounded-lg hover:bg-brand-hover disabled:bg-gray-300 dark:disabled:bg-stone-700 disabled:cursor-not-allowed transition-colors"
               >
                 Add
               </button>
@@ -1814,7 +1814,7 @@ export default function CreatePostModal({
                       key={hashtag}
                       onClick={() => addHashtag(hashtag)}
                       disabled={hashtags.length >= MAX_HASHTAGS}
-                      className="px-2 py-1 text-xs bg-gray-100 text-gray-700 rounded-full hover:bg-violet-100 hover:text-violet-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                      className="px-2 py-1 text-xs bg-surface-sunken text-secondary rounded-full hover:bg-violet-100 dark:hover:bg-violet-950/60 hover:text-brand-fg-strong disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                     >
                       {hashtag}
                     </button>
@@ -1827,10 +1827,10 @@ export default function CreatePostModal({
           {/* Tag People */}
           <div className={isLiveSetup ? 'hidden' : 'mb-6'}>
             <div className="flex items-center justify-between mb-3">
-              <label className="text-sm font-semibold text-gray-700">Tag People</label>
+              <label className="text-sm font-semibold text-secondary">Tag People</label>
               <button
                 onClick={() => setShowTagModal(true)}
-                className="flex items-center gap-2 px-3 py-1.5 text-sm text-violet-600 hover:text-violet-700 hover:bg-violet-50 rounded-lg transition-colors"
+                className="flex items-center gap-2 px-3 py-1.5 text-sm text-brand-fg hover:text-brand-fg-strong hover:bg-brand-soft rounded-lg transition-colors"
               >
                 <i className="fas fa-user-tag"></i>
                 {taggedProfiles.length > 0 ? `Tagged (${taggedProfiles.length})` : 'Add Tags'}
@@ -1843,13 +1843,13 @@ export default function CreatePostModal({
                 {taggedProfilesData.map(profile => (
                   <span
                     key={profile.id}
-                    className="inline-flex items-center gap-2 px-3 py-1.5 bg-violet-100 text-violet-800 rounded-full text-sm font-medium border border-violet-300"
+                    className="inline-flex items-center gap-2 px-3 py-1.5 bg-violet-100 dark:bg-violet-950/60 text-violet-800 dark:text-violet-200 rounded-full text-sm font-medium border border-violet-300 dark:border-violet-700"
                   >
                     <i className="fas fa-user text-xs"></i>
                     {profile.name}
                     <button
                       onClick={() => removeTaggedPerson(profile.id)}
-                      className="ml-1 hover:text-violet-900"
+                      className="ml-1 hover:text-violet-900 dark:hover:text-violet-200"
                     >
                       <i className="fas fa-times text-xs"></i>
                     </button>
@@ -1859,7 +1859,7 @@ export default function CreatePostModal({
             )}
 
             {taggedProfilesData.length === 0 && (
-              <p className="text-sm text-gray-500">
+              <p className="text-sm text-muted">
                 <i className="fas fa-info-circle mr-1"></i>
                 Tag people who are in your photos or videos
               </p>
@@ -1868,7 +1868,7 @@ export default function CreatePostModal({
 
           {/* Media Upload */}
           <div className={isLiveSetup ? 'hidden' : 'mb-6'}>
-            <label className="block text-sm font-semibold text-gray-700 mb-3">
+            <label className="block text-sm font-semibold text-secondary mb-3">
               Media ({mediaFiles.length}/{MAX_MEDIA_FILES})
             </label>
 
@@ -1876,8 +1876,8 @@ export default function CreatePostModal({
             <div
               className={`border-2 border-dashed rounded-lg p-6 text-center transition-all ${
                 draggedOver
-                  ? 'border-violet-500 bg-violet-50'
-                  : 'border-gray-300 hover:border-gray-400'
+                  ? 'border-violet-500 bg-brand-soft'
+                  : 'border-border-strong hover:border-gray-400'
               }`}
               onDrop={(e) => {
                 e.preventDefault();
@@ -1901,17 +1901,17 @@ export default function CreatePostModal({
                 onChange={(e) => e.target.files && handleFileUpload(e.target.files)}
               />
 
-              <i className="fas fa-cloud-upload-alt text-4xl text-gray-400 mb-3"></i>
-              <p className="text-gray-600 mb-2">
+              <i className="fas fa-cloud-upload-alt text-4xl text-faint mb-3"></i>
+              <p className="text-tertiary mb-2">
                 Drag and drop files here, or{' '}
                 <button
                   onClick={() => fileInputRef.current?.click()}
-                  className="text-violet-600 hover:text-violet-700 font-medium"
+                  className="text-brand-fg hover:text-brand-fg-strong font-medium"
                 >
                   browse
                 </button>
               </p>
-              <p className="text-xs text-gray-500">
+              <p className="text-xs text-muted">
                 Images and videos up to 50MB each — crop, adjust, and filter before posting
               </p>
             </div>
@@ -1926,7 +1926,7 @@ export default function CreatePostModal({
                     onDragStart={() => handleDragStart(index)}
                     onDragOver={(e) => handleDragOver(e, index)}
                     onDragEnd={handleDragEnd}
-                    className={`relative aspect-square bg-gray-100 rounded-lg overflow-hidden cursor-move ${
+                    className={`relative aspect-square bg-surface-sunken rounded-lg overflow-hidden cursor-move ${
                       draggedIndex === index ? 'opacity-50' : ''
                     }`}
                   >
@@ -1986,7 +1986,7 @@ export default function CreatePostModal({
 
           {/* Visibility */}
           <div className="mb-6">
-            <label className="block text-sm font-semibold text-gray-700 mb-3">Visibility</label>
+            <label className="block text-sm font-semibold text-secondary mb-3">Visibility</label>
             <div className="flex gap-4">
               <label className="flex items-center cursor-pointer">
                 <input
@@ -1997,7 +1997,7 @@ export default function CreatePostModal({
                   className="mr-2"
                 />
                 <span className="text-sm">
-                  <i className="fas fa-globe mr-1 text-gray-500"></i>
+                  <i className="fas fa-globe mr-1 text-muted"></i>
                   Public
                 </span>
               </label>
@@ -2010,7 +2010,7 @@ export default function CreatePostModal({
                   className="mr-2"
                 />
                 <span className="text-sm">
-                  <i className="fas fa-lock mr-1 text-gray-500"></i>
+                  <i className="fas fa-lock mr-1 text-muted"></i>
                   Private
                 </span>
               </label>
@@ -2023,10 +2023,10 @@ export default function CreatePostModal({
             Preview + Create Post overflowed the modal on every phone width and
             clipped the primary submit button off the right edge (375px: the
             "Create Post" button ran to 424px in a 375px viewport). */}
-        <div className="flex flex-col gap-3 p-4 border-t border-gray-200 bg-gray-50 sm:flex-row sm:items-center sm:justify-between sm:p-6">
-          <div className="text-sm text-gray-600">
+        <div className="flex flex-col gap-3 p-4 border-t border-border bg-surface-muted sm:flex-row sm:items-center sm:justify-between sm:p-6">
+          <div className="text-sm text-tertiary">
             {!isValidForSubmission() && (
-              <span className="text-red-600">
+              <span className="text-red-600 dark:text-red-400">
                 <i className="fas fa-exclamation-circle mr-1"></i>
                 {postType === 'golf' && roundType === 'shared'
                   ? (() => {
@@ -2055,7 +2055,7 @@ export default function CreatePostModal({
           <div className="flex flex-wrap gap-3 w-full sm:w-auto sm:flex-nowrap">
             <button
               onClick={requestClose}
-              className="flex-1 min-w-[7.5rem] sm:flex-none whitespace-nowrap px-4 sm:px-6 py-2 text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+              className="flex-1 min-w-[7.5rem] sm:flex-none whitespace-nowrap px-4 sm:px-6 py-2 text-secondary bg-surface border border-border-strong rounded-lg hover:bg-surface-muted transition-colors"
             >
               Cancel
             </button>
@@ -2063,7 +2063,7 @@ export default function CreatePostModal({
             <button
               onClick={() => setShowPreview(true)}
               disabled={!isValidForSubmission()}
-              className="flex-1 min-w-[7.5rem] sm:flex-none whitespace-nowrap px-4 sm:px-6 py-2 text-gray-700 bg-gray-100 border border-gray-300 rounded-lg hover:bg-gray-200 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              className="flex-1 min-w-[7.5rem] sm:flex-none whitespace-nowrap px-4 sm:px-6 py-2 text-secondary bg-surface-sunken border border-border-strong rounded-lg hover:bg-gray-200 dark:hover:bg-stone-800 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
             >
               <i className="fas fa-eye mr-2"></i>
               Preview
@@ -2075,7 +2075,7 @@ export default function CreatePostModal({
               }}
               disabled={!isValidForSubmission() || isSubmitting}
               className={`flex-1 min-w-[7.5rem] sm:flex-none whitespace-nowrap px-4 sm:px-6 py-2 text-white rounded-lg disabled:opacity-50 disabled:cursor-not-allowed transition-colors ${
-                isLiveSetup ? 'bg-red-600 hover:bg-red-700' : 'bg-violet-600 hover:bg-violet-700'
+                isLiveSetup ? 'bg-red-600 hover:bg-red-700' : 'bg-brand hover:bg-brand-hover'
               }`}
             >
               {isSubmitting ? (
@@ -2085,7 +2085,7 @@ export default function CreatePostModal({
                 </>
               ) : isLiveSetup ? (
                 <>
-                  <span className="inline-block w-2 h-2 bg-white rounded-full mr-2 animate-pulse align-middle"></span>
+                  <span className="inline-block w-2 h-2 bg-surface rounded-full mr-2 animate-pulse align-middle"></span>
                   Go Live
                 </>
               ) : (
@@ -2315,28 +2315,28 @@ function PostPreview({
 
   return (
     <div className="fixed inset-0 bg-black/75 flex items-center justify-center z-[60] p-4">
-      <div className="bg-white rounded-lg shadow-2xl max-w-2xl w-full max-h-modal overflow-y-auto">
+      <div className="bg-surface-raised rounded-lg shadow-2xl max-w-2xl w-full max-h-modal overflow-y-auto">
         {/* Preview Header */}
-        <div className="flex items-center justify-between p-4 border-b border-gray-200 bg-gray-50">
-          <h3 className="text-lg font-semibold text-gray-800">Post Preview</h3>
+        <div className="flex items-center justify-between p-4 border-b border-border bg-surface-muted">
+          <h3 className="text-lg font-semibold text-primary">Post Preview</h3>
           <button
             onClick={onClose}
-            className="p-2 hover:bg-gray-200 rounded-lg transition-colors"
+            className="p-2 hover:bg-gray-200 dark:hover:bg-stone-800 rounded-lg transition-colors"
           >
-            <i className="fas fa-times text-gray-600"></i>
+            <i className="fas fa-times text-tertiary"></i>
           </button>
         </div>
 
         {/* Mock Post */}
         <div className="p-6">
-          <div className="bg-white border border-gray-200 rounded-lg">
+          <div className="bg-surface border border-border rounded-lg">
             {/* Post Header */}
-            <div className="p-4 border-b border-gray-100">
+            <div className="p-4 border-b border-border-subtle">
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 bg-gradient-to-br from-violet-500 to-purple-600 rounded-full"></div>
                 <div>
-                  <div className="font-semibold text-gray-900">Your Name</div>
-                  <div className="text-sm text-gray-500">
+                  <div className="font-semibold text-primary">Your Name</div>
+                  <div className="text-sm text-muted">
                     Just now • {visibility === 'public' ? '🌍 Public' : '🔒 Private'}
                   </div>
                 </div>
@@ -2347,14 +2347,14 @@ function PostPreview({
             <div className="p-4">
               {/* Caption */}
               {caption && (
-                <p className="text-gray-900 whitespace-pre-wrap mb-3">{caption}</p>
+                <p className="text-primary whitespace-pre-wrap mb-3">{caption}</p>
               )}
 
               {/* Hashtags */}
               {hashtags.length > 0 && (
                 <div className="flex flex-wrap gap-1 mb-3">
                   {hashtags.map((tag: string) => (
-                    <span key={tag} className="text-violet-600 hover:underline cursor-pointer">
+                    <span key={tag} className="text-brand-fg hover:underline cursor-pointer">
                       {tag}
                     </span>
                   ))}
@@ -2364,11 +2364,11 @@ function PostPreview({
               {/* Tagged People */}
               {taggedPeople.length > 0 && (
                 <div className="flex flex-wrap gap-2 mb-3 items-center">
-                  <span className="text-sm text-gray-600">with</span>
+                  <span className="text-sm text-tertiary">with</span>
                   {taggedPeople.map((person: {id: string; name: string}) => (
                     <span
                       key={person.id}
-                      className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-violet-50 text-violet-700 text-sm rounded-full font-semibold border border-violet-200"
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-brand-soft text-brand-fg-strong text-sm rounded-full font-semibold border border-violet-200 dark:border-violet-800"
                     >
                       <i className="fas fa-user text-xs"></i>
                       {person.name}
@@ -2397,14 +2397,14 @@ function PostPreview({
 
               {/* Golf Scorecard Summary */}
               {postType === 'golf' && (
-                <div className="mb-4 p-4 bg-green-50 rounded-lg border border-green-200">
+                <div className="mb-4 p-4 bg-green-50 dark:bg-green-950/40 rounded-lg border border-green-200 dark:border-green-800">
                   <div className="flex items-center gap-2 mb-2">
-                    <i className="fas fa-golf-ball text-green-600"></i>
-                    <span className="font-semibold text-green-800">
+                    <i className="fas fa-golf-ball text-green-600 dark:text-green-400"></i>
+                    <span className="font-semibold text-green-800 dark:text-green-200">
                       {roundType === 'shared' ? 'Shared Golf Round' : 'Golf Round'}
                     </span>
                   </div>
-                  <div className="text-sm text-green-700 space-y-1">
+                  <div className="text-sm text-green-700 dark:text-green-300 space-y-1">
                     {/* Individual Round */}
                     {roundType === 'individual' && golfData && (
                       <>
@@ -2452,7 +2452,7 @@ function PostPreview({
               {mediaFiles.length > 0 && (
                 <div className={`grid ${mediaFiles.length === 1 ? 'grid-cols-1' : 'grid-cols-2'} gap-2 rounded-lg overflow-hidden`}>
                   {mediaFiles.slice(0, 4).map((file: MediaFile, index: number) => (
-                    <div key={file.id} className="relative aspect-square bg-gray-100 p-1.5">
+                    <div key={file.id} className="relative aspect-square bg-surface-sunken p-1.5">
                       {/* Same fix as the upload grid above: fill the cell,
                           don't bake pixel dimensions into an inline style. */}
                       {file.type === 'image' ? (
@@ -2478,15 +2478,15 @@ function PostPreview({
             </div>
 
             {/* Mock Engagement */}
-            <div className="px-4 py-3 border-t border-gray-100 flex justify-between text-gray-500">
+            <div className="px-4 py-3 border-t border-border-subtle flex justify-between text-muted">
               <div className="flex gap-4">
-                <button className="hover:text-violet-600 transition-colors">
+                <button className="hover:text-brand-fg transition-colors">
                   <i className="far fa-heart mr-1"></i> Like
                 </button>
-                <button className="hover:text-violet-600 transition-colors">
+                <button className="hover:text-brand-fg transition-colors">
                   <i className="far fa-comment mr-1"></i> Comment
                 </button>
-                <button className="hover:text-violet-600 transition-colors">
+                <button className="hover:text-brand-fg transition-colors">
                   <i className="fas fa-share mr-1"></i> Share
                 </button>
               </div>
@@ -2495,16 +2495,16 @@ function PostPreview({
         </div>
 
         {/* Preview Actions */}
-        <div className="px-6 py-4 border-t border-gray-200 bg-gray-50 flex justify-between">
+        <div className="px-6 py-4 border-t border-border bg-surface-muted flex justify-between">
           <button
             onClick={onClose}
-            className="px-4 py-2 text-gray-600 hover:text-gray-800 transition-colors"
+            className="px-4 py-2 text-tertiary hover:text-primary transition-colors"
           >
             Edit Post
           </button>
           <button
             onClick={onPost}
-            className="px-6 py-2 bg-violet-600 text-white rounded-lg hover:bg-violet-700 transition-colors"
+            className="px-6 py-2 bg-brand text-white rounded-lg hover:bg-brand-hover transition-colors"
           >
             <i className="fas fa-paper-plane mr-2"></i>
             Post Now

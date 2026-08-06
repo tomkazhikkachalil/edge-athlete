@@ -65,19 +65,19 @@ export default function SecuritySettings() {
   };
 
   const inputClass =
-    'w-full px-3 py-2 min-h-[44px] border border-gray-300 rounded-md text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-violet-500';
+    'w-full px-3 py-2 min-h-[44px] border border-border-strong rounded-md text-sm text-primary focus:outline-none focus:ring-2 focus:ring-violet-500';
 
   return (
     <div>
-      <h2 className="text-lg font-semibold text-gray-900 mb-1">Change password</h2>
-      <p className="text-sm text-gray-500 mb-6">
+      <h2 className="text-lg font-semibold text-primary mb-1">Change password</h2>
+      <p className="text-sm text-muted mb-6">
         Forgot your current password? Log out and use{' '}
         <span className="font-medium">Forgot password</span> on the login screen instead.
       </p>
 
       <form onSubmit={handleSubmit} className="max-w-md space-y-4">
         <div>
-          <label htmlFor="current-password" className="block text-sm font-medium text-gray-700 mb-1">
+          <label htmlFor="current-password" className="block text-sm font-medium text-secondary mb-1">
             Current password
           </label>
           <input
@@ -91,7 +91,7 @@ export default function SecuritySettings() {
           />
         </div>
         <div>
-          <label htmlFor="new-password" className="block text-sm font-medium text-gray-700 mb-1">
+          <label htmlFor="new-password" className="block text-sm font-medium text-secondary mb-1">
             New password
           </label>
           <input
@@ -106,7 +106,7 @@ export default function SecuritySettings() {
           />
         </div>
         <div>
-          <label htmlFor="confirm-new-password" className="block text-sm font-medium text-gray-700 mb-1">
+          <label htmlFor="confirm-new-password" className="block text-sm font-medium text-secondary mb-1">
             Confirm new password
           </label>
           <input
@@ -123,7 +123,7 @@ export default function SecuritySettings() {
         <button
           type="submit"
           disabled={submitting}
-          className="bg-violet-600 text-white py-2.5 px-6 rounded-md hover:bg-violet-700 transition font-medium min-h-[44px] disabled:opacity-50"
+          className="bg-brand text-white py-2.5 px-6 rounded-md hover:bg-brand-hover transition font-medium min-h-[44px] disabled:opacity-50"
         >
           {submitting ? (
             <><i className="fas fa-spinner fa-spin mr-2"></i>Updating…</>

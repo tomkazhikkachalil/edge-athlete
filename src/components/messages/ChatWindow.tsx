@@ -567,20 +567,20 @@ export default function ChatWindow({ conversationId, onBack }: Props) {
 
   if (loading) {
     return (
-      <div className="flex flex-col h-full bg-white items-center justify-center">
-        <i className="fas fa-spinner fa-spin text-gray-400 text-2xl"></i>
+      <div className="flex flex-col h-full bg-surface items-center justify-center">
+        <i className="fas fa-spinner fa-spin text-faint text-2xl"></i>
       </div>
     );
   }
 
   if (error) {
     return (
-      <div className="flex flex-col h-full bg-white items-center justify-center px-4 text-center">
+      <div className="flex flex-col h-full bg-surface items-center justify-center px-4 text-center">
         <i className="fas fa-exclamation-circle text-red-400 text-3xl mb-3"></i>
-        <p className="text-sm text-gray-700 mb-4">{error}</p>
+        <p className="text-sm text-secondary mb-4">{error}</p>
         <button
           onClick={() => router.push('/messages')}
-          className="text-violet-600 text-sm hover:underline"
+          className="text-brand-fg text-sm hover:underline"
         >
           Back to messages
         </button>
@@ -589,14 +589,14 @@ export default function ChatWindow({ conversationId, onBack }: Props) {
   }
 
   return (
-    <div className="flex flex-col h-full bg-white">
+    <div className="flex flex-col h-full bg-surface">
       {/* Header */}
-      <div className="flex items-center gap-3 px-4 py-3 border-b border-gray-200 shrink-0">
+      <div className="flex items-center gap-3 px-4 py-3 border-b border-border shrink-0">
         {/* Back button (mobile) */}
         {onBack && (
           <button
             onClick={onBack}
-            className="shrink-0 text-gray-600 hover:text-gray-900 p-1 -ml-1 lg:hidden"
+            className="shrink-0 text-tertiary hover:text-primary p-1 -ml-1 lg:hidden"
             aria-label="Back"
           >
             <i className="fas fa-arrow-left text-lg"></i>
@@ -619,8 +619,8 @@ export default function ChatWindow({ conversationId, onBack }: Props) {
             </div>
           )}
           {conversation?.type === 'group' && (
-            <div className="absolute -bottom-0.5 -right-0.5 w-4 h-4 bg-gray-200 rounded-full flex items-center justify-center">
-              <i className="fas fa-users text-gray-600" style={{ fontSize: '7px' }}></i>
+            <div className="absolute -bottom-0.5 -right-0.5 w-4 h-4 bg-gray-200 dark:bg-stone-800 rounded-full flex items-center justify-center">
+              <i className="fas fa-users text-tertiary" style={{ fontSize: '7px' }}></i>
             </div>
           )}
         </div>
@@ -633,17 +633,17 @@ export default function ChatWindow({ conversationId, onBack }: Props) {
                 router.push(`/athlete/${otherParticipant.profile_id}`);
               }
             }}
-            className={`text-sm font-bold text-gray-900 truncate block text-left ${isDM ? 'hover:underline' : ''}`}
+            className={`text-sm font-bold text-primary truncate block text-left ${isDM ? 'hover:underline' : ''}`}
           >
             {getHeaderName()}
           </button>
           {conversation?.type === 'group' && (
-            <p className="text-xs text-gray-400 truncate">
+            <p className="text-xs text-faint truncate">
               {conversation.participants.filter(p => !p.left_at).length} members
             </p>
           )}
           {isMuted && (
-            <p className="text-xs text-gray-400 flex items-center gap-1">
+            <p className="text-xs text-faint flex items-center gap-1">
               <i className="fas fa-bell-slash" style={{ fontSize: '9px' }}></i>
               Muted
             </p>
@@ -657,7 +657,7 @@ export default function ChatWindow({ conversationId, onBack }: Props) {
             onClick={handleMinimizeToDock}
             aria-label="Minimize to chat dock"
             title="Minimize to dock"
-            className="hidden lg:flex shrink-0 p-2 text-gray-400 hover:text-gray-600 transition-colors items-center justify-center"
+            className="hidden lg:flex shrink-0 p-2 text-faint hover:text-tertiary transition-colors items-center justify-center"
           >
             <i className="fas fa-down-left-and-up-right-to-center"></i>
           </button>
@@ -667,7 +667,7 @@ export default function ChatWindow({ conversationId, onBack }: Props) {
         <div className="relative shrink-0" ref={menuRef}>
           <button
             onClick={() => setShowMenu(prev => !prev)}
-            className="p-2 text-gray-400 hover:text-gray-600 transition-colors"
+            className="p-2 text-faint hover:text-tertiary transition-colors"
             aria-label="Conversation options"
           >
             <i className="fas fa-ellipsis-v"></i>
@@ -676,10 +676,10 @@ export default function ChatWindow({ conversationId, onBack }: Props) {
           {showMenu && (
             <>
               <div className="fixed inset-0 z-10" onClick={() => setShowMenu(false)} />
-              <div className="absolute right-0 top-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg py-1 min-w-[180px] z-20">
+              <div className="absolute right-0 top-full mt-1 bg-surface-raised border border-border rounded-lg shadow-lg py-1 min-w-[180px] z-20">
                 <button
                   onClick={handleMuteToggle}
-                  className="w-full text-left px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-3"
+                  className="w-full text-left px-4 py-2.5 text-sm text-secondary hover:bg-surface-muted flex items-center gap-3"
                 >
                   <i className={`fas ${isMuted ? 'fa-bell' : 'fa-bell-slash'} w-4 text-center`}></i>
                   {isMuted ? 'Unmute' : 'Mute'}
@@ -691,7 +691,7 @@ export default function ChatWindow({ conversationId, onBack }: Props) {
                       router.push(`/athlete/${otherParticipant.profile_id}`);
                       setShowMenu(false);
                     }}
-                    className="w-full text-left px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-3"
+                    className="w-full text-left px-4 py-2.5 text-sm text-secondary hover:bg-surface-muted flex items-center gap-3"
                   >
                     <i className="fas fa-user w-4 text-center"></i>
                     View Profile
@@ -701,18 +701,18 @@ export default function ChatWindow({ conversationId, onBack }: Props) {
                 {!isDM && isAdmin && (
                   <button
                     onClick={() => { setShowGroupSettings(true); setShowMenu(false); }}
-                    className="w-full text-left px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-3"
+                    className="w-full text-left px-4 py-2.5 text-sm text-secondary hover:bg-surface-muted flex items-center gap-3"
                   >
                     <i className="fas fa-cog w-4 text-center"></i>
                     Group Settings
                   </button>
                 )}
 
-                <div className="border-t border-gray-100 my-1" />
+                <div className="border-t border-border-subtle my-1" />
 
                 <button
                   onClick={handleLeave}
-                  className="w-full text-left px-4 py-2.5 text-sm text-red-600 hover:bg-red-50 flex items-center gap-3"
+                  className="w-full text-left px-4 py-2.5 text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/40 flex items-center gap-3"
                 >
                   <i className="fas fa-sign-out-alt w-4 text-center"></i>
                   Leave Conversation
@@ -721,7 +721,7 @@ export default function ChatWindow({ conversationId, onBack }: Props) {
                 {isDM && (
                   <button
                     onClick={handleBlock}
-                    className="w-full text-left px-4 py-2.5 text-sm text-red-600 hover:bg-red-50 flex items-center gap-3"
+                    className="w-full text-left px-4 py-2.5 text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/40 flex items-center gap-3"
                   >
                     <i className="fas fa-ban w-4 text-center"></i>
                     Block User
@@ -743,7 +743,7 @@ export default function ChatWindow({ conversationId, onBack }: Props) {
               else messageRefsMap.current.delete(msg.id);
             }}
             className={`transition-colors duration-300 rounded-xl ${
-              replyingTo?.id === msg.id ? 'bg-violet-50 ring-1 ring-violet-200' : ''
+              replyingTo?.id === msg.id ? 'bg-brand-soft ring-1 ring-violet-200' : ''
             }`}
           >
             <MessageBubble
@@ -765,7 +765,7 @@ export default function ChatWindow({ conversationId, onBack }: Props) {
         {hasMore && (
           <div ref={sentinelRef} className="flex items-center justify-center py-4">
             {loadingMore ? (
-              <i className="fas fa-spinner fa-spin text-gray-400"></i>
+              <i className="fas fa-spinner fa-spin text-faint"></i>
             ) : (
               <div className="h-4" />
             )}
@@ -775,11 +775,11 @@ export default function ChatWindow({ conversationId, onBack }: Props) {
         {/* Empty state */}
         {messages.length === 0 && !loading && (
           <div className="flex flex-col items-center justify-center flex-1 text-center py-12">
-            <div className="w-14 h-14 bg-gray-100 rounded-full flex items-center justify-center mb-3">
-              <i className="fas fa-comment-alt text-gray-400 text-xl"></i>
+            <div className="w-14 h-14 bg-surface-sunken rounded-full flex items-center justify-center mb-3">
+              <i className="fas fa-comment-alt text-faint text-xl"></i>
             </div>
-            <p className="text-sm font-semibold text-gray-700 mb-1">No messages yet</p>
-            <p className="text-xs text-gray-400">Send the first message!</p>
+            <p className="text-sm font-semibold text-secondary mb-1">No messages yet</p>
+            <p className="text-xs text-faint">Send the first message!</p>
           </div>
         )}
       </div>

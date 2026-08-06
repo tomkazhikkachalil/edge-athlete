@@ -39,14 +39,14 @@ export default function CalendarRoute() {
 
   if (!FEATURE_FLAGS.FEATURE_CALENDAR || loading || !initialAuthCheckComplete || !user) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-violet-600"></div>
+      <div className="min-h-screen bg-canvas flex items-center justify-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-brand"></div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-canvas">
       <AppHeader showSearch={false} />
       <Suspense fallback={null}>
         <EventParamReader onEvent={setDeepLinkEventId} onNew={() => setAutoCreate(true)} />

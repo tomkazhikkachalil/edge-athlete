@@ -41,7 +41,7 @@ export default function FilterBar({
 
         <div className="flex items-center gap-3">
           {resultCount !== undefined && (
-            <div className="inline-flex items-center px-3 py-1 rounded-full bg-violet-50 text-violet-700 text-sm font-semibold whitespace-nowrap">
+            <div className="inline-flex items-center px-3 py-1 rounded-full bg-brand-soft text-brand-fg-strong text-sm font-semibold whitespace-nowrap">
               {resultCount} {resultCount === 1 ? resultNoun : resultNounPlural ?? `${resultNoun}s`}
             </div>
           )}
@@ -51,13 +51,13 @@ export default function FilterBar({
 
       {/* Filter status + clear-all — always visible so the reset affordance
           is discoverable. Muted when idle, brand-colored when active. */}
-      <div className="flex items-center justify-between gap-3 px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg">
+      <div className="flex items-center justify-between gap-3 px-3 py-2 bg-surface-muted border border-border rounded-lg">
         <div className="flex items-center gap-2 text-sm">
           <Filter
-            className={`w-4 h-4 ${hasActive ? 'text-violet-600' : 'text-gray-400'}`}
+            className={`w-4 h-4 ${hasActive ? 'text-brand-fg' : 'text-faint'}`}
             aria-hidden="true"
           />
-          <span className={hasActive ? 'font-medium text-gray-800' : 'text-gray-500'}>
+          <span className={hasActive ? 'font-medium text-primary' : 'text-muted'}>
             {hasActive
               ? `${activeCount} active filter${activeCount === 1 ? '' : 's'}`
               : 'No filters applied'}
@@ -69,8 +69,8 @@ export default function FilterBar({
           onClick={onClearAll}
           className={`inline-flex items-center gap-1 text-sm font-semibold transition-colors ${
             hasActive
-              ? 'text-violet-600 hover:text-violet-700 cursor-pointer'
-              : 'text-gray-400 cursor-not-allowed'
+              ? 'text-brand-fg hover:text-brand-fg-strong cursor-pointer'
+              : 'text-faint cursor-not-allowed'
           }`}
           aria-label="Clear all filters"
         >

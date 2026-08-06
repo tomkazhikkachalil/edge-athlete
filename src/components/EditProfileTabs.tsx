@@ -577,17 +577,17 @@ export default function EditProfileTabs({
           <LazyImage
             src={profile?.avatar_url}
             alt={`${basicForm.full_name || 'User'} avatar`}
-            className="w-20 h-20 rounded-full object-cover border-3 border-gray-300"
+            className="w-20 h-20 rounded-full object-cover border-3 border-border-strong"
             width={80}
             height={80}
             priority
             fallback={
               <div 
-                className="w-20 h-20 rounded-full bg-gray-200 flex items-center justify-center border-3 border-gray-300"
+                className="w-20 h-20 rounded-full bg-gray-200 dark:bg-stone-800 flex items-center justify-center border-3 border-border-strong"
                 role="img"
                 aria-label={`${basicForm.full_name || 'User'} avatar`}
               >
-                <span className="text-gray-600 font-semibold text-xl" aria-hidden="true">
+                <span className="text-tertiary font-semibold text-xl" aria-hidden="true">
                   {getInitials(basicForm.full_name)}
                 </span>
               </div>
@@ -602,14 +602,14 @@ export default function EditProfileTabs({
               <button
                 type="button"
                 onClick={open}
-                className="cursor-pointer inline-flex items-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-violet-500"
+                className="cursor-pointer inline-flex items-center px-4 py-2 border border-border-strong rounded-md shadow-sm text-sm font-medium text-secondary bg-surface hover:bg-surface-muted focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-violet-500"
               >
                 <i className="fas fa-upload mr-2" aria-hidden="true"></i>
                 {basicForm.avatar_file ? 'Avatar ready — saves with profile' : 'Change Avatar'}
               </button>
             )}
           />
-          <p className="mt-1 text-xs text-gray-500">
+          <p className="mt-1 text-xs text-muted">
             JPG, PNG, GIF or WebP. Max 5MB.
           </p>
         </div>
@@ -618,7 +618,7 @@ export default function EditProfileTabs({
       {/* Name Fields */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div>
-          <label htmlFor="first_name" className="block text-sm font-medium text-gray-700 mb-1">
+          <label htmlFor="first_name" className="block text-sm font-medium text-secondary mb-1">
             First Name <span className="text-red-500">*</span>
           </label>
           <input
@@ -626,14 +626,14 @@ export default function EditProfileTabs({
             type="text"
             value={basicForm.first_name || ''}
             onChange={(e) => setBasicForm(prev => ({ ...prev, first_name: e.target.value }))}
-            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent"
+            className="w-full px-3 py-2 border border-border-strong rounded-md focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent"
             placeholder="John"
             required
           />
         </div>
 
         <div>
-          <label htmlFor="last_name" className="block text-sm font-medium text-gray-700 mb-1">
+          <label htmlFor="last_name" className="block text-sm font-medium text-secondary mb-1">
             Last Name <span className="text-red-500">*</span>
           </label>
           <input
@@ -641,7 +641,7 @@ export default function EditProfileTabs({
             type="text"
             value={basicForm.last_name || ''}
             onChange={(e) => setBasicForm(prev => ({ ...prev, last_name: e.target.value }))}
-            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent"
+            className="w-full px-3 py-2 border border-border-strong rounded-md focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent"
             placeholder="Doe"
             required
           />
@@ -649,26 +649,26 @@ export default function EditProfileTabs({
       </div>
 
       <div>
-        <label htmlFor="middle_name" className="block text-sm font-medium text-gray-700 mb-1">
-          Middle Name <span className="text-gray-400 text-xs">(Optional)</span>
+        <label htmlFor="middle_name" className="block text-sm font-medium text-secondary mb-1">
+          Middle Name <span className="text-faint text-xs">(Optional)</span>
         </label>
         <input
           id="middle_name"
           type="text"
           value={basicForm.middle_name || ''}
           onChange={(e) => setBasicForm(prev => ({ ...prev, middle_name: e.target.value }))}
-          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent"
+          className="w-full px-3 py-2 border border-border-strong rounded-md focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent"
           placeholder="Michael"
         />
       </div>
 
       <div>
-        <label htmlFor="handle" className="block text-sm font-medium text-gray-700 mb-1">
+        <label htmlFor="handle" className="block text-sm font-medium text-secondary mb-1">
           Handle (Username) <span className="text-red-500">*</span>
         </label>
         <div className="relative">
           <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-            <span className="text-gray-500">@</span>
+            <span className="text-muted">@</span>
           </div>
           <input
             id="handle"
@@ -680,7 +680,7 @@ export default function EditProfileTabs({
               setBasicForm(prev => ({ ...prev, handle: value }));
             }}
             className={`w-full pl-8 pr-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent ${
-              errors.handle ? 'border-red-500' : 'border-gray-300'
+              errors.handle ? 'border-red-500' : 'border-border-strong'
             }`}
             placeholder="yourhandle"
             required
@@ -689,18 +689,18 @@ export default function EditProfileTabs({
             pattern="[a-z0-9][a-z0-9._]*[a-z0-9]"
           />
         </div>
-        <p className="mt-1 text-xs text-gray-500">
+        <p className="mt-1 text-xs text-muted">
           Your unique identifier (3-20 characters, letters/numbers/dots/underscores, no spaces)
         </p>
         {errors.handle && (
-          <p className="mt-1 text-sm text-red-600" role="alert">
+          <p className="mt-1 text-sm text-red-600 dark:text-red-400" role="alert">
             {errors.handle}
           </p>
         )}
       </div>
 
       <div>
-        <label htmlFor="bio" className="block text-sm font-medium text-gray-700 mb-1">
+        <label htmlFor="bio" className="block text-sm font-medium text-secondary mb-1">
           Bio
         </label>
         <textarea
@@ -709,20 +709,20 @@ export default function EditProfileTabs({
           maxLength={500}
           value={basicForm.bio || ''}
           onChange={(e) => setBasicForm(prev => ({ ...prev, bio: e.target.value }))}
-          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent resize-none"
+          className="w-full px-3 py-2 border border-border-strong rounded-md focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent resize-none"
           placeholder="Tell us about yourself..."
         />
-        <p className="mt-1 text-xs text-gray-500">
+        <p className="mt-1 text-xs text-muted">
           {basicForm.bio.length}/500 characters
         </p>
       </div>
 
       {/* Privacy Toggle */}
-      <div className="pt-4 border-t border-gray-200">
-        <label className="flex items-center justify-between p-4 border-2 border-gray-200 rounded-lg cursor-pointer hover:bg-gray-50 transition-colors">
+      <div className="pt-4 border-t border-border">
+        <label className="flex items-center justify-between p-4 border-2 border-border rounded-lg cursor-pointer hover:bg-surface-muted transition-colors">
           <div className="flex-1">
-            <div className="font-medium text-gray-900 mb-1">Profile Visibility</div>
-            <div className="text-sm text-gray-500">
+            <div className="font-medium text-primary mb-1">Profile Visibility</div>
+            <div className="text-sm text-muted">
               {basicForm.visibility === 'public'
                 ? 'Anyone can view your profile, posts, and stats'
                 : 'Only approved fans can view your profile, posts, and stats'
@@ -737,7 +737,7 @@ export default function EditProfileTabs({
                 visibility: prev.visibility === 'public' ? 'private' : 'public'
               }))}
               className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-violet-500 focus:ring-offset-2 ${
-                basicForm.visibility === 'public' ? 'bg-green-600' : 'bg-gray-300'
+                basicForm.visibility === 'public' ? 'bg-green-600' : 'bg-gray-300 dark:bg-stone-700'
               }`}
               aria-label={`Toggle profile visibility. Currently ${basicForm.visibility}`}
             >
@@ -752,8 +752,8 @@ export default function EditProfileTabs({
         <div className="mt-3 text-center">
           <span className={`inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-medium ${
             basicForm.visibility === 'public'
-              ? 'bg-green-100 text-green-700 border border-green-200'
-              : 'bg-orange-100 text-orange-700 border border-orange-200'
+              ? 'bg-green-100 dark:bg-green-950/60 text-green-700 dark:text-green-300 border border-green-200 dark:border-green-800'
+              : 'bg-orange-100 dark:bg-orange-950/60 text-orange-700 dark:text-orange-300 border border-orange-200 dark:border-orange-800'
           }`}>
             <i className={`fas fa-${basicForm.visibility === 'public' ? 'globe' : 'lock'}`}></i>
             {basicForm.visibility === 'public' ? 'Public Profile' : 'Private Profile'}
@@ -761,10 +761,10 @@ export default function EditProfileTabs({
         </div>
 
         {/* Explanation */}
-        <div className="mt-3 p-3 bg-violet-50 border border-violet-100 rounded-lg">
+        <div className="mt-3 p-3 bg-brand-soft border border-violet-100 dark:border-violet-900 rounded-lg">
           <div className="flex items-start gap-2">
-            <i className="fas fa-info-circle text-violet-600 mt-0.5"></i>
-            <div className="text-xs text-violet-900">
+            <i className="fas fa-info-circle text-brand-fg mt-0.5"></i>
+            <div className="text-xs text-violet-900 dark:text-violet-200">
               {basicForm.visibility === 'public' ? (
                 <>
                   <strong>Public profiles</strong> help you get discovered by coaches, scouts, and other athletes.
@@ -780,18 +780,18 @@ export default function EditProfileTabs({
           </div>
         </div>
 
-        <p className="mt-2 text-xs text-gray-500 text-center">
+        <p className="mt-2 text-xs text-muted text-center">
           You can change this setting anytime
         </p>
       </div>
 
       {/* Sports — primary drives profile/feed/composer defaults */}
       <div>
-        <label className="block text-sm font-medium text-gray-700 mb-2">
+        <label className="block text-sm font-medium text-secondary mb-2">
           Your sports
         </label>
         <SportMultiSelect selected={selectedSports} onChange={setSelectedSports} />
-        <p className="mt-2 text-xs text-gray-500">
+        <p className="mt-2 text-xs text-muted">
           Removing a sport clears its settings.
         </p>
       </div>
@@ -802,7 +802,7 @@ export default function EditProfileTabs({
     <div className="space-y-6">
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <div>
-          <label htmlFor="height" className="block text-sm font-medium text-gray-700 mb-1">
+          <label htmlFor="height" className="block text-sm font-medium text-secondary mb-1">
             Height
           </label>
           <input
@@ -810,16 +810,16 @@ export default function EditProfileTabs({
             type="text"
             value={vitalsForm.height_cm || ''}
             onChange={(e) => setVitalsForm(prev => ({ ...prev, height_cm: e.target.value }))}
-            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent"
+            className="w-full px-3 py-2 border border-border-strong rounded-md focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent"
             placeholder="5'10&quot;, 5 10, 510, or 5.10"
           />
-          <p className="mt-1 text-xs text-gray-500">
+          <p className="mt-1 text-xs text-muted">
             Multiple formats accepted: 5&apos;10&quot;, 5 10, 510, 5.10, 6 feet
           </p>
         </div>
 
         <div>
-          <label htmlFor="weight" className="block text-sm font-medium text-gray-700 mb-1">
+          <label htmlFor="weight" className="block text-sm font-medium text-secondary mb-1">
             Weight
           </label>
           <div className="flex space-x-2">
@@ -829,7 +829,7 @@ export default function EditProfileTabs({
               step="0.1"
               value={vitalsForm.weight_kg || ''}
               onChange={(e) => setVitalsForm(prev => ({ ...prev, weight_kg: e.target.value }))}
-              className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent"
+              className="flex-1 px-3 py-2 border border-border-strong rounded-md focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent"
               placeholder={vitalsForm.weight_unit === 'kg' ? '68' : vitalsForm.weight_unit === 'stone' ? '11.7' : '150'}
             />
             <select
@@ -842,14 +842,14 @@ export default function EditProfileTabs({
                   weight_unit: newUnit
                 }));
               }}
-              className="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent"
+              className="px-3 py-2 border border-border-strong rounded-md focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent"
             >
               <option value="lbs">lbs</option>
               <option value="kg">kg</option>
               <option value="stone">stone</option>
             </select>
           </div>
-          <p className="mt-1 text-xs text-gray-500">
+          <p className="mt-1 text-xs text-muted">
             {vitalsForm.weight_unit === 'stone' ? 'Enter as stone.pounds (e.g., 11.7 = 11 stone 7 lbs)' : 
              vitalsForm.weight_unit === 'kg' ? 'Enter weight in kilograms' : 
              'Enter weight in pounds'}
@@ -858,7 +858,7 @@ export default function EditProfileTabs({
       </div>
 
       <div>
-        <label htmlFor="dob" className="block text-sm font-medium text-gray-700 mb-1">
+        <label htmlFor="dob" className="block text-sm font-medium text-secondary mb-1">
           Date of Birth
         </label>
         <input
@@ -866,12 +866,12 @@ export default function EditProfileTabs({
           type="date"
           value={vitalsForm.dob || ''}
           onChange={(e) => setVitalsForm(prev => ({ ...prev, dob: e.target.value }))}
-          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent"
+          className="w-full px-3 py-2 border border-border-strong rounded-md focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent"
         />
       </div>
 
       <div>
-        <label htmlFor="location" className="block text-sm font-medium text-gray-700 mb-1">
+        <label htmlFor="location" className="block text-sm font-medium text-secondary mb-1">
           Location
         </label>
         <input
@@ -879,13 +879,13 @@ export default function EditProfileTabs({
           type="text"
           value={vitalsForm.location || ''}
           onChange={(e) => setVitalsForm(prev => ({ ...prev, location: e.target.value }))}
-          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent"
+          className="w-full px-3 py-2 border border-border-strong rounded-md focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent"
           placeholder="City, State"
         />
       </div>
 
       <div>
-        <label htmlFor="class_year" className="block text-sm font-medium text-gray-700 mb-1">
+        <label htmlFor="class_year" className="block text-sm font-medium text-secondary mb-1">
           Class Year
         </label>
         <input
@@ -895,7 +895,7 @@ export default function EditProfileTabs({
           max="2040"
           value={vitalsForm.class_year || ''}
           onChange={(e) => setVitalsForm(prev => ({ ...prev, class_year: e.target.value }))}
-          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent"
+          className="w-full px-3 py-2 border border-border-strong rounded-md focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent"
           placeholder="2025"
         />
       </div>
@@ -913,14 +913,14 @@ export default function EditProfileTabs({
 
     if (!schema) {
       return (
-        <div className="text-center py-12 text-gray-500">
+        <div className="text-center py-12 text-muted">
           <i className={`${sportDef.icon_id} text-4xl text-gray-300 mb-4`} aria-hidden="true"></i>
           <h3 className="text-lg font-medium mb-2">{label} Settings</h3>
           <p>{getComingSoonMessage(sportKey, 'settings')}</p>
-          <div className="mt-4 px-4 py-2 bg-amber-50 border border-amber-200 rounded-md inline-block">
+          <div className="mt-4 px-4 py-2 bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 rounded-md inline-block">
             <div className="flex items-center justify-center">
-              <i className="fas fa-clock text-amber-600 mr-2" aria-hidden="true"></i>
-              <span className="text-sm text-amber-800 font-medium">{COPY.TABS.COMING_SOON_INDICATOR}</span>
+              <i className="fas fa-clock text-amber-600 dark:text-amber-400 mr-2" aria-hidden="true"></i>
+              <span className="text-sm text-amber-800 dark:text-amber-200 font-medium">{COPY.TABS.COMING_SOON_INDICATOR}</span>
             </div>
           </div>
         </div>
@@ -941,72 +941,72 @@ export default function EditProfileTabs({
   const renderSocialsTab = () => (
     <div className="space-y-6">
       <div>
-        <label htmlFor="twitter" className="block text-sm font-medium text-gray-700 mb-1">
-          <i className="fa-brands fa-x-twitter text-gray-900 mr-2" aria-hidden="true"></i>
+        <label htmlFor="twitter" className="block text-sm font-medium text-secondary mb-1">
+          <i className="fa-brands fa-x-twitter text-primary mr-2" aria-hidden="true"></i>
           X Handle
         </label>
         <div className="relative">
-          <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500 text-sm">@</span>
+          <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted text-sm">@</span>
           <input
             id="twitter"
             type="text"
             value={socialsForm.social_twitter || ''}
             onChange={(e) => setSocialsForm(prev => ({ ...prev, social_twitter: e.target.value }))}
-            className="w-full pl-8 pr-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent"
+            className="w-full pl-8 pr-3 py-2 border border-border-strong rounded-md focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent"
             placeholder="username"
           />
         </div>
       </div>
 
       <div>
-        <label htmlFor="instagram" className="block text-sm font-medium text-gray-700 mb-1">
+        <label htmlFor="instagram" className="block text-sm font-medium text-secondary mb-1">
           <i className="fab fa-instagram text-pink-500 mr-2" aria-hidden="true"></i>
           Instagram Handle
         </label>
         <div className="relative">
-          <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500 text-sm">@</span>
+          <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted text-sm">@</span>
           <input
             id="instagram"
             type="text"
             value={socialsForm.social_instagram || ''}
             onChange={(e) => setSocialsForm(prev => ({ ...prev, social_instagram: e.target.value }))}
-            className="w-full pl-8 pr-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent"
+            className="w-full pl-8 pr-3 py-2 border border-border-strong rounded-md focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent"
             placeholder="username"
           />
         </div>
       </div>
 
       <div>
-        <label htmlFor="tiktok" className="block text-sm font-medium text-gray-700 mb-1">
-          <i className="fa-brands fa-tiktok text-gray-900 mr-2" aria-hidden="true"></i>
+        <label htmlFor="tiktok" className="block text-sm font-medium text-secondary mb-1">
+          <i className="fa-brands fa-tiktok text-primary mr-2" aria-hidden="true"></i>
           TikTok Handle
         </label>
         <div className="relative">
-          <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500 text-sm">@</span>
+          <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted text-sm">@</span>
           <input
             id="tiktok"
             type="text"
             value={socialsForm.social_tiktok || ''}
             onChange={(e) => setSocialsForm(prev => ({ ...prev, social_tiktok: e.target.value }))}
-            className="w-full pl-8 pr-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent"
+            className="w-full pl-8 pr-3 py-2 border border-border-strong rounded-md focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent"
             placeholder="username"
           />
         </div>
       </div>
 
       <div>
-        <label htmlFor="facebook" className="block text-sm font-medium text-gray-700 mb-1">
-          <i className="fab fa-facebook text-violet-600 mr-2" aria-hidden="true"></i>
+        <label htmlFor="facebook" className="block text-sm font-medium text-secondary mb-1">
+          <i className="fab fa-facebook text-brand-fg mr-2" aria-hidden="true"></i>
           Facebook Handle
         </label>
         <div className="relative">
-          <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500 text-sm">@</span>
+          <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted text-sm">@</span>
           <input
             id="facebook"
             type="text"
             value={socialsForm.social_facebook || ''}
             onChange={(e) => setSocialsForm(prev => ({ ...prev, social_facebook: e.target.value }))}
-            className="w-full pl-8 pr-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent"
+            className="w-full pl-8 pr-3 py-2 border border-border-strong rounded-md focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent"
             placeholder="username"
           />
         </div>
@@ -1067,18 +1067,18 @@ export default function EditProfileTabs({
 
           Do not remove without checking `document.elementFromPoint` over a tab.
         */}
-        <div className="relative z-10 flex w-full max-h-modal flex-col bg-white rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:max-w-4xl">
+        <div className="relative z-10 flex w-full max-h-modal flex-col bg-surface-raised rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:max-w-4xl">
           {/* Header */}
-          <div className="shrink-0 bg-white px-4 pt-5 pb-4 sm:px-6 sm:pt-6">
+          <div className="shrink-0 bg-surface-raised px-4 pt-5 pb-4 sm:px-6 sm:pt-6">
             <div className="flex items-center justify-between mb-4">
-              <h2 id="edit-profile-title" className="text-lg font-medium text-gray-900">
+              <h2 id="edit-profile-title" className="text-lg font-medium text-primary">
                 Edit Profile
               </h2>
               {/* No focus:ring override — the global :focus-visible ring owns
                   focus styling. */}
               <button
                 onClick={requestClose}
-                className="ea-icon-btn inline-flex items-center justify-center text-gray-400 hover:text-gray-500"
+                className="ea-icon-btn inline-flex items-center justify-center text-faint hover:text-muted"
                 aria-label="Close modal"
               >
                 <i className="fas fa-times text-lg" aria-hidden="true"></i>
@@ -1089,9 +1089,9 @@ export default function EditProfileTabs({
                 flex-wrap: 15 tabs wrapped to ~6 rows of chrome at 320px and
                 pushed the form below the fold. Edge fades signal the
                 off-screen tabs below md. */}
-            <div className="border-b border-gray-200 relative">
-              <div className="absolute left-0 top-0 bottom-0 w-8 bg-gradient-to-r from-white to-transparent z-10 pointer-events-none md:hidden" />
-              <div className="absolute right-0 top-0 bottom-0 w-8 bg-gradient-to-l from-white to-transparent z-10 pointer-events-none md:hidden" />
+            <div className="border-b border-border relative">
+              <div className="absolute left-0 top-0 bottom-0 w-8 bg-gradient-to-r from-surface-raised to-transparent z-10 pointer-events-none md:hidden" />
+              <div className="absolute right-0 top-0 bottom-0 w-8 bg-gradient-to-l from-surface-raised to-transparent z-10 pointer-events-none md:hidden" />
               <nav className="-mb-px flex gap-x-5 overflow-x-auto scrollbar-hide" aria-label="Profile sections">
                 {TABS.map((tab) => (
                   <button
@@ -1099,10 +1099,10 @@ export default function EditProfileTabs({
                     onClick={() => tab.enabled && setActiveTab(tab.id)}
                     className={`py-2 px-1 border-b-2 font-medium text-sm whitespace-nowrap shrink-0 transition-colors ${
                       !tab.enabled
-                        ? 'border-transparent text-gray-400 cursor-not-allowed'
+                        ? 'border-transparent text-faint cursor-not-allowed'
                         : activeTab === tab.id
-                        ? 'border-violet-500 text-violet-600'
-                        : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                        ? 'border-violet-500 text-brand-fg'
+                        : 'border-transparent text-muted hover:text-secondary hover:border-border-strong'
                     }`}
                     aria-current={activeTab === tab.id ? 'page' : undefined}
                     disabled={!tab.enabled}
@@ -1111,7 +1111,7 @@ export default function EditProfileTabs({
                     <i className={`${tab.icon} mr-2`} aria-hidden="true"></i>
                     {tab.label}
                     {tab.comingSoon && (
-                      <span className="ml-1 text-xs text-gray-400">{COPY.TABS.COMING_SOON_INDICATOR}</span>
+                      <span className="ml-1 text-xs text-faint">{COPY.TABS.COMING_SOON_INDICATOR}</span>
                     )}
                   </button>
                 ))}
@@ -1122,16 +1122,16 @@ export default function EditProfileTabs({
           {/* Tab Content — the panel's ONLY scroll area. It used to be a hard
               max-h-96 box, which pushed the footer below the fold on short
               phones; now the bounded panel keeps Save/Cancel always visible. */}
-          <div className="flex-1 min-h-0 overflow-y-auto bg-gray-50 px-4 py-6 sm:px-6">
+          <div className="flex-1 min-h-0 overflow-y-auto bg-surface-muted px-4 py-6 sm:px-6">
             {renderTabContent()}
           </div>
 
           {/* Footer */}
-          <div className="shrink-0 bg-gray-50 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse">
+          <div className="shrink-0 bg-surface-muted px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse">
             <button
               onClick={() => saveTab(activeTab)}
               disabled={isSubmitting}
-              className="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-violet-600 text-base font-medium text-white hover:bg-violet-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-violet-500 sm:ml-3 sm:w-auto sm:text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+              className="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-brand text-base font-medium text-white hover:bg-brand-hover focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-violet-500 sm:ml-3 sm:w-auto sm:text-sm disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {isSubmitting ? (
                 <>
@@ -1147,7 +1147,7 @@ export default function EditProfileTabs({
             </button>
             <button
               onClick={requestClose}
-              className="mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-violet-500 sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm"
+              className="mt-3 w-full inline-flex justify-center rounded-md border border-border-strong shadow-sm px-4 py-2 bg-surface text-base font-medium text-secondary hover:bg-surface-muted focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-violet-500 sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm"
             >
               Cancel
             </button>

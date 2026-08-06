@@ -149,20 +149,20 @@ export default function GifPicker({ onGifSelect, onClose, variant = 'popover' }:
           // composer's field wrapper, so they share an edge and both track the
           // field as it grows. max-w-[80vw] is the house pairing for a fixed
           // w-* popover (see ReactionDetails).
-          : 'absolute bottom-full mb-2 right-0 w-72 max-w-[80vw] bg-white rounded-xl shadow-xl border border-gray-200 z-50 flex flex-col overflow-hidden'
+          : 'absolute bottom-full mb-2 right-0 w-72 max-w-[80vw] bg-surface-raised rounded-xl shadow-xl border border-border z-50 flex flex-col overflow-hidden'
       }
       style={isModal ? undefined : { maxHeight: 360 }}
     >
       {/* Search */}
-      <div className="p-2 border-b border-gray-100 shrink-0">
+      <div className="p-2 border-b border-border-subtle shrink-0">
         <div className="relative">
-          <i className="fas fa-search absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400 text-xs"></i>
+          <i className="fas fa-search absolute left-2.5 top-1/2 -translate-y-1/2 text-faint text-xs"></i>
           <input
             type="text"
             value={query}
             onChange={e => setQuery(e.target.value)}
             placeholder="Search GIFs…"
-            className={`w-full pl-8 pr-3 bg-gray-100 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-violet-500 ${
+            className={`w-full pl-8 pr-3 bg-surface-sunken rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-violet-500 ${
               isModal ? 'py-2.5 text-base' : 'py-1.5'
             }`}
             autoFocus
@@ -175,8 +175,8 @@ export default function GifPicker({ onGifSelect, onClose, variant = 'popover' }:
         {/* Recent GIFs strip — only visible when there's no active search query.
             3 on mobile, 6 on sm+, with a clear divider before Popular. */}
         {!query.trim() && recents.length > 0 && (
-          <div className="mb-3 pb-3 border-b border-gray-200">
-            <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide mb-1.5 px-1">Recent</p>
+          <div className="mb-3 pb-3 border-b border-border">
+            <p className="text-[10px] font-semibold text-faint uppercase tracking-wide mb-1.5 px-1">Recent</p>
             <div className="grid grid-cols-3 gap-1.5">
               {recents.slice(0, RECENT_GIFS_SHOWN).map((gif, i) => (
                 <button
@@ -210,19 +210,19 @@ export default function GifPicker({ onGifSelect, onClose, variant = 'popover' }:
         )}
 
         {!query.trim() && recents.length > 0 && !loading && !error && gifs.length > 0 && (
-          <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide mb-1.5 px-1">Popular</p>
+          <p className="text-[10px] font-semibold text-faint uppercase tracking-wide mb-1.5 px-1">Popular</p>
         )}
 
         {loading ? (
           <div className={`grid ${cols} gap-1.5`}>
             {Array.from({ length: skeletonCount }).map((_, i) => (
-              <div key={i} className="bg-gray-100 rounded-lg animate-pulse" style={{ height: thumbH }} />
+              <div key={i} className="bg-surface-sunken rounded-lg animate-pulse" style={{ height: thumbH }} />
             ))}
           </div>
         ) : error ? (
           <p className="text-center text-sm text-red-500 py-8">{error}</p>
         ) : gifs.length === 0 ? (
-          <p className="text-center text-sm text-gray-400 py-8">No GIFs found</p>
+          <p className="text-center text-sm text-faint py-8">No GIFs found</p>
         ) : (
           <div className={`grid ${cols} gap-1.5`}>
             {gifs.map(gif => (
@@ -253,8 +253,8 @@ export default function GifPicker({ onGifSelect, onClose, variant = 'popover' }:
       </div>
 
       {/* Giphy attribution (required by Giphy TOS) */}
-      <div className="px-3 py-1.5 border-t border-gray-100 shrink-0">
-        <p className="text-xs text-gray-400 text-center">Powered by GIPHY</p>
+      <div className="px-3 py-1.5 border-t border-border-subtle shrink-0">
+        <p className="text-xs text-faint text-center">Powered by GIPHY</p>
       </div>
     </div>
   );

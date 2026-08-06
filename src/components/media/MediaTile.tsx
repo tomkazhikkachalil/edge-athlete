@@ -74,8 +74,8 @@ export default function MediaTile({
           className="object-cover"
         />
       ) : (
-        <div className="absolute inset-0 flex items-center justify-center bg-gray-200">
-          <i className="fas fa-video text-gray-400 text-lg" aria-hidden="true"></i>
+        <div className="absolute inset-0 flex items-center justify-center bg-gray-200 dark:bg-stone-800">
+          <i className="fas fa-video text-faint text-lg" aria-hidden="true"></i>
         </div>
       )}
 
@@ -101,7 +101,7 @@ export default function MediaTile({
     </>
   );
 
-  const boxClass = `relative overflow-hidden bg-gray-100 ${className}`;
+  const boxClass = `relative overflow-hidden bg-surface-sunken ${className}`;
 
   // Stable hook for verification. Browser checks have to assert on RENDERED
   // GEOMETRY (a crop bug is invisible to "is the image present?"), and matching

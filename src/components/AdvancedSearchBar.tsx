@@ -108,9 +108,9 @@ export default function AdvancedSearchBar() {
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           placeholder="Search athletes, posts, clubs..."
-          className="w-full px-4 py-2.5 pl-10 pr-14 sm:pr-32 border border-gray-300 rounded-lg focus:ring-2 focus:ring-violet-500 focus:border-violet-500 outline-none transition-all"
+          className="w-full px-4 py-2.5 pl-10 pr-14 sm:pr-32 border border-border-strong rounded-lg focus:ring-2 focus:ring-violet-500 focus:border-violet-500 outline-none transition-all"
         />
-        <i className="fas fa-search absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400"></i>
+        <i className="fas fa-search absolute left-3 top-1/2 transform -translate-y-1/2 text-faint"></i>
 
         {/* Filter Toggle Button - Positioned inside search bar */}
         <button
@@ -118,8 +118,8 @@ export default function AdvancedSearchBar() {
           style={{ right: '8px', top: '50%', transform: 'translateY(-50%)' }}
           className={`absolute px-3 py-1.5 rounded-md text-sm font-medium transition-all flex items-center gap-1.5 ${
             hasActiveFilters
-              ? 'bg-violet-600 text-white hover:bg-violet-700'
-              : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+              ? 'bg-brand text-white hover:bg-brand-hover'
+              : 'bg-surface-sunken text-secondary hover:bg-gray-200 dark:hover:bg-stone-800'
           }`}
         >
           {/* Icon-only on phones: the full label + pr-32 left ~150px of
@@ -135,20 +135,20 @@ export default function AdvancedSearchBar() {
 
         {loading && (
           <div className="absolute right-14 sm:right-32 top-1/2 transform -translate-y-1/2">
-            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-violet-600"></div>
+            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-brand"></div>
           </div>
         )}
       </div>
 
       {/* Advanced Filters Panel */}
       {showFilters && (
-        <div className="absolute top-full mt-2 w-full bg-white border border-gray-200 rounded-lg shadow-lg p-4 z-50">
+        <div className="absolute top-full mt-2 w-full bg-surface-raised border border-border rounded-lg shadow-lg p-4 z-50">
           <div className="flex items-center justify-between mb-4">
-            <h3 className="font-semibold text-gray-900">Advanced Filters</h3>
+            <h3 className="font-semibold text-primary">Advanced Filters</h3>
             {hasActiveFilters && (
               <button
                 onClick={clearFilters}
-                className="text-sm text-violet-600 hover:text-violet-700 font-medium"
+                className="text-sm text-brand-fg hover:text-brand-fg-strong font-medium"
               >
                 Clear All
               </button>
@@ -158,13 +158,13 @@ export default function AdvancedSearchBar() {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {/* Type Filter */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label className="block text-sm font-medium text-secondary mb-1">
                 Search Type
               </label>
               <select
                 value={filters.type}
                 onChange={(e) => setFilters({ ...filters, type: e.target.value as SearchFilters['type'] })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-violet-500 focus:border-violet-500"
+                className="w-full px-3 py-2 border border-border-strong rounded-md focus:ring-2 focus:ring-violet-500 focus:border-violet-500"
               >
                 <option value="all">All Results</option>
                 <option value="athletes">Athletes Only</option>
@@ -175,13 +175,13 @@ export default function AdvancedSearchBar() {
 
             {/* Sport Filter */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label className="block text-sm font-medium text-secondary mb-1">
                 Sport
               </label>
               <select
                 value={filters.sport || ''}
                 onChange={(e) => setFilters({ ...filters, sport: e.target.value || undefined })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-violet-500 focus:border-violet-500"
+                className="w-full px-3 py-2 border border-border-strong rounded-md focus:ring-2 focus:ring-violet-500 focus:border-violet-500"
               >
                 <option value="">All Sports</option>
                 {Object.values(SPORT_REGISTRY).map((sport) => (
@@ -194,7 +194,7 @@ export default function AdvancedSearchBar() {
 
             {/* School Filter */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label className="block text-sm font-medium text-secondary mb-1">
                 School
               </label>
               <input
@@ -202,13 +202,13 @@ export default function AdvancedSearchBar() {
                 value={filters.school || ''}
                 onChange={(e) => setFilters({ ...filters, school: e.target.value || undefined })}
                 placeholder="e.g., Stanford University"
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-violet-500 focus:border-violet-500"
+                className="w-full px-3 py-2 border border-border-strong rounded-md focus:ring-2 focus:ring-violet-500 focus:border-violet-500"
               />
             </div>
 
             {/* League Filter */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label className="block text-sm font-medium text-secondary mb-1">
                 League/Conference
               </label>
               <input
@@ -216,33 +216,33 @@ export default function AdvancedSearchBar() {
                 value={filters.league || ''}
                 onChange={(e) => setFilters({ ...filters, league: e.target.value || undefined })}
                 placeholder="e.g., NCAA D1, Big Ten"
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-violet-500 focus:border-violet-500"
+                className="w-full px-3 py-2 border border-border-strong rounded-md focus:ring-2 focus:ring-violet-500 focus:border-violet-500"
               />
             </div>
 
             {/* Date From */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label className="block text-sm font-medium text-secondary mb-1">
                 Date From
               </label>
               <input
                 type="date"
                 value={filters.dateFrom || ''}
                 onChange={(e) => setFilters({ ...filters, dateFrom: e.target.value || undefined })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-violet-500 focus:border-violet-500"
+                className="w-full px-3 py-2 border border-border-strong rounded-md focus:ring-2 focus:ring-violet-500 focus:border-violet-500"
               />
             </div>
 
             {/* Date To */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label className="block text-sm font-medium text-secondary mb-1">
                 Date To
               </label>
               <input
                 type="date"
                 value={filters.dateTo || ''}
                 onChange={(e) => setFilters({ ...filters, dateTo: e.target.value || undefined })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-violet-500 focus:border-violet-500"
+                className="w-full px-3 py-2 border border-border-strong rounded-md focus:ring-2 focus:ring-violet-500 focus:border-violet-500"
               />
             </div>
           </div>
@@ -251,9 +251,9 @@ export default function AdvancedSearchBar() {
 
       {/* Search Results Dropdown */}
       {showResults && query.length >= 2 && (
-        <div className="absolute top-full mt-2 w-full bg-white border border-gray-200 rounded-lg shadow-lg max-h-96 overflow-y-auto z-40">
+        <div className="absolute top-full mt-2 w-full bg-surface-raised border border-border rounded-lg shadow-lg max-h-96 overflow-y-auto z-40">
           {results.athletes.length === 0 && results.posts.length === 0 && results.clubs.length === 0 ? (
-            <div className="p-4 text-center text-gray-500">
+            <div className="p-4 text-center text-muted">
               <i className="fas fa-search text-2xl mb-2"></i>
               <p>No results found</p>
             </div>
@@ -261,9 +261,9 @@ export default function AdvancedSearchBar() {
             <>
               {/* Athletes Section */}
               {results.athletes.length > 0 && (
-                <div className="border-b border-gray-100">
-                  <div className="px-4 py-2 bg-gray-50 border-b border-gray-100">
-                    <h3 className="text-sm font-semibold text-gray-700">Athletes</h3>
+                <div className="border-b border-border-subtle">
+                  <div className="px-4 py-2 bg-surface-muted border-b border-border-subtle">
+                    <h3 className="text-sm font-semibold text-secondary">Athletes</h3>
                   </div>
                   {results.athletes.map((athlete: SearchAthleteResult) => (
                     <div
@@ -278,7 +278,7 @@ export default function AdvancedSearchBar() {
                         setShowResults(false);
                         setQuery('');
                       }}
-                      className="px-4 py-3 hover:bg-gray-50 cursor-pointer transition-colors flex items-center gap-3"
+                      className="px-4 py-3 hover:bg-surface-muted cursor-pointer transition-colors flex items-center gap-3"
                     >
                       {athlete.avatar_url ? (
                         <Image
@@ -296,10 +296,10 @@ export default function AdvancedSearchBar() {
                         </div>
                       )}
                       <div className="flex-1">
-                        <p className="font-medium text-gray-900">
+                        <p className="font-medium text-primary">
                           {formatDisplayName(athlete.first_name, null, athlete.last_name, athlete.full_name)}
                         </p>
-                        <div className="flex items-center gap-2 text-sm text-gray-500">
+                        <div className="flex items-center gap-2 text-sm text-muted">
                           {athlete.sport && (
                             <span className="capitalize">{athlete.sport}</span>
                           )}
@@ -312,7 +312,7 @@ export default function AdvancedSearchBar() {
                         </div>
                       </div>
                       {athlete.visibility === 'private' && (
-                        <i className="fas fa-lock text-gray-400 text-sm"></i>
+                        <i className="fas fa-lock text-faint text-sm"></i>
                       )}
                     </div>
                   ))}
@@ -321,9 +321,9 @@ export default function AdvancedSearchBar() {
 
               {/* Posts Section */}
               {results.posts.length > 0 && (
-                <div className="border-b border-gray-100">
-                  <div className="px-4 py-2 bg-gray-50 border-b border-gray-100">
-                    <h3 className="text-sm font-semibold text-gray-700">Posts</h3>
+                <div className="border-b border-border-subtle">
+                  <div className="px-4 py-2 bg-surface-muted border-b border-border-subtle">
+                    <h3 className="text-sm font-semibold text-secondary">Posts</h3>
                   </div>
                   {results.posts.map((post: SearchPostResult) => (
                     <div
@@ -333,7 +333,7 @@ export default function AdvancedSearchBar() {
                         setShowResults(false);
                         setQuery('');
                       }}
-                      className="px-4 py-3 hover:bg-gray-50 cursor-pointer transition-colors flex items-center gap-3"
+                      className="px-4 py-3 hover:bg-surface-muted cursor-pointer transition-colors flex items-center gap-3"
                     >
                       {post.post_media?.[0] && (
                         <Image
@@ -345,10 +345,10 @@ export default function AdvancedSearchBar() {
                         />
                       )}
                       <div className="flex-1">
-                        <p className="text-sm text-gray-900 line-clamp-2">
+                        <p className="text-sm text-primary line-clamp-2">
                           {post.caption || 'Post without caption'}
                         </p>
-                        <p className="text-xs text-gray-500 mt-1">
+                        <p className="text-xs text-muted mt-1">
                           by {formatDisplayName(post.profile?.first_name, null, post.profile?.last_name, post.profile?.full_name)}
                         </p>
                       </div>
@@ -360,8 +360,8 @@ export default function AdvancedSearchBar() {
               {/* Clubs Section */}
               {results.clubs.length > 0 && (
                 <div>
-                  <div className="px-4 py-2 bg-gray-50 border-b border-gray-100">
-                    <h3 className="text-sm font-semibold text-gray-700">Clubs</h3>
+                  <div className="px-4 py-2 bg-surface-muted border-b border-border-subtle">
+                    <h3 className="text-sm font-semibold text-secondary">Clubs</h3>
                   </div>
                   {/* Club rows are NOT clickable: they used to push to
                       /club/[id], a route that does not exist, so every club
@@ -372,8 +372,8 @@ export default function AdvancedSearchBar() {
                       key={club.id}
                       className="px-4 py-3"
                     >
-                      <p className="font-medium text-gray-900">{club.name}</p>
-                      <p className="text-sm text-gray-500 line-clamp-1">
+                      <p className="font-medium text-primary">{club.name}</p>
+                      <p className="text-sm text-muted line-clamp-1">
                         {club.location}
                       </p>
                     </div>

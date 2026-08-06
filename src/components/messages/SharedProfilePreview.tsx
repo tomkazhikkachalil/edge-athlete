@@ -33,9 +33,9 @@ export default function SharedProfilePreview({ profile, onClick }: Props) {
     <button
       type="button"
       onClick={handleClick}
-      className="w-full text-left rounded-lg border border-gray-200 bg-gray-50 hover:bg-gray-100 transition-colors p-3"
+      className="w-full text-left rounded-lg border border-border bg-surface-muted hover:bg-surface-sunken transition-colors p-3"
     >
-      <div className="flex items-center gap-1.5 text-xs text-gray-400 mb-2">
+      <div className="flex items-center gap-1.5 text-xs text-faint mb-2">
         <i className="fas fa-user-circle"></i>
         <span>Shared profile</span>
       </div>
@@ -54,17 +54,17 @@ export default function SharedProfilePreview({ profile, onClick }: Props) {
           </div>
         )}
         <div className="min-w-0">
-          <p className="font-semibold text-sm text-gray-900 truncate">{displayName}</p>
+          <p className="font-semibold text-sm text-primary truncate">{displayName}</p>
           {profile.handle && (
-            <p className="text-xs text-gray-500 truncate">@{profile.handle}</p>
+            <p className="text-xs text-muted truncate">@{profile.handle}</p>
           )}
           {profile.sport && (
-            <span className="inline-block text-xs bg-violet-50 text-violet-700 px-1.5 py-0.5 rounded mt-0.5">
+            <span className="inline-block text-xs bg-brand-soft text-brand-fg-strong px-1.5 py-0.5 rounded mt-0.5">
               {profile.sport}
             </span>
           )}
           {profile.bio && (
-            <p className="text-xs text-gray-600 line-clamp-1 mt-0.5">{profile.bio}</p>
+            <p className="text-xs text-tertiary line-clamp-1 mt-0.5">{profile.bio}</p>
           )}
         </div>
       </div>

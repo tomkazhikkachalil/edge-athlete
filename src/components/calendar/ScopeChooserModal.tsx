@@ -47,17 +47,17 @@ export default function ScopeChooserModal<T extends string>({
 
   return (
     <div className="fixed inset-0 bg-black/50 z-[70] flex items-center justify-center p-4">
-      <div className="bg-white rounded-lg shadow-xl max-w-sm w-full p-6">
-        <h3 className="text-base font-bold text-gray-900 mb-1">{title}</h3>
-        {message && <p className="text-sm text-gray-600 mb-3">{message}</p>}
+      <div className="bg-surface-raised rounded-lg shadow-xl max-w-sm w-full p-6">
+        <h3 className="text-base font-bold text-primary mb-1">{title}</h3>
+        {message && <p className="text-sm text-tertiary mb-3">{message}</p>}
         <div className="space-y-1 mb-5 mt-3">
           {options.map(opt => (
             <label
               key={opt.value}
               className={`flex items-start gap-3 p-2.5 rounded-lg border cursor-pointer transition ${
                 selected === opt.value
-                  ? 'border-violet-600 bg-violet-50'
-                  : 'border-gray-200 hover:border-violet-300'
+                  ? 'border-brand bg-brand-soft'
+                  : 'border-border hover:border-violet-300 dark:hover:border-violet-700'
               }`}
             >
               <input
@@ -68,8 +68,8 @@ export default function ScopeChooserModal<T extends string>({
                 className="mt-0.5 accent-violet-600"
               />
               <span className="text-sm">
-                <span className="text-gray-900 font-medium">{opt.label}</span>
-                {opt.description && <span className="block text-gray-500 text-xs">{opt.description}</span>}
+                <span className="text-primary font-medium">{opt.label}</span>
+                {opt.description && <span className="block text-muted text-xs">{opt.description}</span>}
               </span>
             </label>
           ))}
@@ -79,7 +79,7 @@ export default function ScopeChooserModal<T extends string>({
             type="button"
             onClick={() => onConfirm(selected)}
             className={`flex-1 py-2.5 rounded-lg text-sm font-medium text-white transition min-h-[44px] ${
-              destructive ? 'bg-red-600 hover:bg-red-700' : 'bg-violet-600 hover:bg-violet-700'
+              destructive ? 'bg-red-600 hover:bg-red-700' : 'bg-brand hover:bg-brand-hover'
             }`}
           >
             {confirmText}
@@ -87,7 +87,7 @@ export default function ScopeChooserModal<T extends string>({
           <button
             type="button"
             onClick={onCancel}
-            className="flex-1 py-2.5 rounded-lg text-sm font-medium border border-gray-300 text-gray-700 hover:bg-gray-50 transition min-h-[44px]"
+            className="flex-1 py-2.5 rounded-lg text-sm font-medium border border-border-strong text-secondary hover:bg-surface-muted transition min-h-[44px]"
           >
             Go back
           </button>

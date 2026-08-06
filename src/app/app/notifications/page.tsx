@@ -183,7 +183,7 @@ export default function NotificationsPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-canvas">
       {/* Unified Header */}
       <AppHeader
         showSearch={false}
@@ -191,12 +191,12 @@ export default function NotificationsPage() {
       />
 
       {/* Notifications Page Header */}
-      <div className="bg-white border-b border-gray-200">
+      <div className="bg-surface border-b border-border">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 py-4 sm:py-6">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-4">
             <div>
-              <h1 className="text-2xl font-bold text-gray-900">Notifications</h1>
-              <p className="text-sm text-gray-600 mt-1">
+              <h1 className="text-2xl font-bold text-primary">Notifications</h1>
+              <p className="text-sm text-tertiary mt-1">
                 {unreadCount > 0 ? `${unreadCount} unread notification${unreadCount !== 1 ? 's' : ''}` : 'All caught up!'}
               </p>
             </div>
@@ -206,7 +206,7 @@ export default function NotificationsPage() {
               {unreadCount > 0 && (
                 <button
                   onClick={markAllAsRead}
-                  className="px-4 py-2 text-sm font-medium text-violet-600 hover:text-violet-700 transition-colors"
+                  className="px-4 py-2 text-sm font-medium text-brand-fg hover:text-brand-fg-strong transition-colors"
                 >
                   Mark all read
                 </button>
@@ -214,7 +214,7 @@ export default function NotificationsPage() {
               {notifications.length > 0 && (
                 <button
                   onClick={() => setShowClearConfirm(true)}
-                  className="px-4 py-2 text-sm font-medium text-red-600 hover:text-red-700 transition-colors"
+                  className="px-4 py-2 text-sm font-medium text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 transition-colors"
                 >
                   Clear all
                 </button>
@@ -223,7 +223,7 @@ export default function NotificationsPage() {
           </div>
 
           {/* Tabs */}
-          <div className="flex items-center gap-1 mt-6 border-b border-gray-200 overflow-x-auto scrollbar-hide">
+          <div className="flex items-center gap-1 mt-6 border-b border-border overflow-x-auto scrollbar-hide">
             {[
               { id: 'all' as Tab, label: 'All', count: notifications.length },
               { id: 'unread' as Tab, label: 'Unread', count: unreadCount },
@@ -236,14 +236,14 @@ export default function NotificationsPage() {
                 onClick={() => setActiveTab(tab.id)}
                 className={`px-4 py-3 text-sm font-medium transition-colors relative whitespace-nowrap flex-shrink-0 ${
                   activeTab === tab.id
-                    ? 'text-violet-600 border-b-2 border-violet-600'
-                    : 'text-gray-600 hover:text-gray-900'
+                    ? 'text-brand-fg border-b-2 border-brand'
+                    : 'text-tertiary hover:text-primary'
                 }`}
               >
                 {tab.icon && <i className={`fas ${tab.icon} mr-2`}></i>}
                 {tab.label}
                 {tab.count !== undefined && tab.count > 0 && (
-                  <span className="ml-2 px-2 py-0.5 text-xs bg-violet-100 text-violet-600 rounded-full">
+                  <span className="ml-2 px-2 py-0.5 text-xs bg-violet-100 dark:bg-violet-950/60 text-brand-fg rounded-full">
                     {tab.count}
                   </span>
                 )}
@@ -257,13 +257,13 @@ export default function NotificationsPage() {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 py-6">
         {loading && notifications.length === 0 ? (
           <div className="flex justify-center py-12">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-violet-600"></div>
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-brand"></div>
           </div>
         ) : filteredNotifications.length === 0 ? (
           <div className="text-center py-12">
             <i className="fas fa-bell-slash text-5xl text-gray-300 mb-4"></i>
-            <h3 className="text-lg font-medium text-gray-900 mb-2">No notifications</h3>
-            <p className="text-gray-600">
+            <h3 className="text-lg font-medium text-primary mb-2">No notifications</h3>
+            <p className="text-tertiary">
               {activeTab === 'unread'
                 ? "You're all caught up! No unread notifications."
                 : "When you receive notifications, they'll appear here."}
@@ -274,15 +274,15 @@ export default function NotificationsPage() {
             {Object.entries(groupedNotifications).map(([group, groupNotifications]) =>
               groupNotifications.length > 0 ? (
                 <div key={group}>
-                  <h2 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">
+                  <h2 className="text-xs font-semibold text-muted uppercase tracking-wider mb-3">
                     {group}
                   </h2>
-                  <div className="bg-white rounded-lg shadow-sm border border-gray-200 divide-y divide-gray-100">
+                  <div className="bg-surface rounded-lg shadow-sm border border-border divide-y divide-border-subtle">
                     {groupNotifications.map((notification) => (
                       <div
                         key={notification.id}
-                        className={`p-4 hover:bg-gray-50 transition-colors cursor-pointer ${
-                          !notification.is_read ? 'bg-violet-50' : ''
+                        className={`p-4 hover:bg-surface-muted transition-colors cursor-pointer ${
+                          !notification.is_read ? 'bg-brand-soft' : ''
                         }`}
                         onClick={() => handleNotificationClick(notification)}
                       >
@@ -315,22 +315,22 @@ export default function NotificationsPage() {
                               </span>
                             </div>
                           ) : (
-                            <div className="w-12 h-12 bg-violet-100 rounded-full flex items-center justify-center flex-shrink-0">
-                              <i className={`fas ${getNotificationIcon(notification.type)} text-violet-600`}></i>
+                            <div className="w-12 h-12 bg-violet-100 dark:bg-violet-950/60 rounded-full flex items-center justify-center flex-shrink-0">
+                              <i className={`fas ${getNotificationIcon(notification.type)} text-brand-fg`}></i>
                             </div>
                           )}
 
                           {/* Content */}
                           <div className="flex-1 min-w-0">
-                            <p className="text-sm font-medium text-gray-900">
+                            <p className="text-sm font-medium text-primary">
                               {getNotificationText(notification)}
                             </p>
                             {notification.message && (
-                              <p className="text-sm text-gray-600 mt-1">
+                              <p className="text-sm text-tertiary mt-1">
                                 {notification.message}
                               </p>
                             )}
-                            <p className="text-xs text-gray-500 mt-2">
+                            <p className="text-xs text-muted mt-2">
                               {getRelativeTime(notification.created_at)}
                             </p>
                           </div>
@@ -338,14 +338,14 @@ export default function NotificationsPage() {
                           {/* Actions */}
                           <div className="flex items-center gap-2">
                             {!notification.is_read && (
-                              <div className="w-2 h-2 bg-violet-600 rounded-full"></div>
+                              <div className="w-2 h-2 bg-brand rounded-full"></div>
                             )}
                             <button
                               onClick={(e) => {
                                 e.stopPropagation();
                                 deleteNotification(notification.id);
                               }}
-                              className="p-2 text-gray-400 hover:text-red-600 transition-colors"
+                              className="p-2 text-faint hover:text-red-600 dark:hover:text-red-400 transition-colors"
                               title="Delete notification"
                             >
                               <i className="fas fa-trash text-sm"></i>
@@ -365,7 +365,7 @@ export default function NotificationsPage() {
                 <button
                   onClick={handleLoadMore}
                   disabled={loading}
-                  className="px-6 py-2 bg-white border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                  className="px-6 py-2 bg-surface border border-border-strong rounded-lg text-sm font-medium text-secondary hover:bg-surface-muted disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                 >
                   {loading ? (
                     <>
@@ -385,16 +385,16 @@ export default function NotificationsPage() {
       {/* Clear All Confirmation Modal */}
       {showClearConfirm && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-lg shadow-xl max-w-md w-full p-6">
-            <h3 className="text-xl font-bold text-gray-900 mb-2">Clear all notifications?</h3>
-            <p className="text-sm text-gray-600 mb-6">
+          <div className="bg-surface-raised rounded-lg shadow-xl max-w-md w-full p-6">
+            <h3 className="text-xl font-bold text-primary mb-2">Clear all notifications?</h3>
+            <p className="text-sm text-tertiary mb-6">
               This will permanently delete all your notifications. This action cannot be undone.
             </p>
 
             <div className="flex gap-3">
               <button
                 onClick={() => setShowClearConfirm(false)}
-                className="flex-1 px-4 py-2 bg-gray-200 text-gray-700 font-medium rounded-lg hover:bg-gray-300 transition-colors"
+                className="flex-1 px-4 py-2 bg-gray-200 dark:bg-stone-800 text-secondary font-medium rounded-lg hover:bg-gray-300 dark:hover:bg-stone-700 transition-colors"
               >
                 Cancel
               </button>

@@ -226,7 +226,7 @@ export default function PostDetailModal({
       />
 
       {/* Modal Content */}
-      <div className="relative w-full max-w-4xl max-h-modal bg-white rounded-lg shadow-xl overflow-hidden mx-4">
+      <div className="relative w-full max-w-4xl max-h-modal bg-surface-raised rounded-lg shadow-xl overflow-hidden mx-4">
         {/* Close Button */}
         <button
           onClick={onClose}
@@ -262,7 +262,7 @@ export default function PostDetailModal({
         <div className="overflow-y-auto max-h-modal p-4 pt-14 sm:p-6 sm:pt-14">
           {loading && (
             <div className="flex items-center justify-center py-12">
-              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-violet-600"></div>
+              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-brand"></div>
             </div>
           )}
 
@@ -271,10 +271,10 @@ export default function PostDetailModal({
               <div className="text-red-500 mb-4">
                 <i className="fas fa-exclamation-circle text-4xl"></i>
               </div>
-              <p className="text-gray-700">{error}</p>
+              <p className="text-secondary">{error}</p>
               <button
                 onClick={fetchPost}
-                className="mt-4 px-4 py-2 bg-violet-600 text-white rounded-lg hover:bg-violet-700"
+                className="mt-4 px-4 py-2 bg-brand text-white rounded-lg hover:bg-brand-hover"
               >
                 Try Again
               </button>

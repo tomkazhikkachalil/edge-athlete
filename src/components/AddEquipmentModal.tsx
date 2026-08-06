@@ -378,20 +378,20 @@ export default function AddEquipmentModal({
         onConfirm={confirmDiscard}
         onCancel={cancelDiscard}
       />
-      <div className="relative w-full max-w-2xl bg-white rounded-xl shadow-2xl max-h-modal overflow-hidden flex flex-col">
+      <div className="relative w-full max-w-2xl bg-surface-raised rounded-xl shadow-2xl max-h-modal overflow-hidden flex flex-col">
         {/* Header */}
-        <div className="flex items-center justify-between gap-3 px-4 sm:px-6 py-4 border-b border-gray-200">
+        <div className="flex items-center justify-between gap-3 px-4 sm:px-6 py-4 border-b border-border">
           <div className="min-w-0">
-            <h2 className="text-xl sm:text-2xl font-bold text-gray-900">
+            <h2 className="text-xl sm:text-2xl font-bold text-primary">
               {isEditMode ? 'Edit Equipment' : replacingEquipment ? 'Add Replacement Equipment' : 'Add Equipment'}
             </h2>
             {replacingEquipment && (
-              <p className="text-sm text-gray-500 mt-1 truncate">
+              <p className="text-sm text-muted mt-1 truncate">
                 Replacing: {replacingEquipment.brand} {replacingEquipment.model}
               </p>
             )}
             {isEditMode && (
-              <p className="text-sm text-gray-500 mt-1 truncate">
+              <p className="text-sm text-muted mt-1 truncate">
                 {initial.brand} {initial.model}
               </p>
             )}
@@ -399,7 +399,7 @@ export default function AddEquipmentModal({
           <button
             onClick={requestClose}
             aria-label="Close"
-            className="p-2 shrink-0 text-gray-400 hover:text-gray-600 rounded-lg hover:bg-gray-100 transition-colors"
+            className="p-2 shrink-0 text-faint hover:text-tertiary rounded-lg hover:bg-surface-sunken transition-colors"
           >
             <X className="w-6 h-6" />
           </button>
@@ -414,7 +414,7 @@ export default function AddEquipmentModal({
                 invalidates the category and wipes the specs — for a genuine
                 re-gear the Replace flow exists. */}
             <div>
-              <label className="block text-sm font-semibold text-gray-900 mb-2">
+              <label className="block text-sm font-semibold text-primary mb-2">
                 Sport *
               </label>
               <select
@@ -431,7 +431,7 @@ export default function AddEquipmentModal({
                   setShowBrandDropdown(false);
                   setShowModelDropdown(false);
                 }}
-                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-500 bg-white disabled:bg-gray-50 disabled:text-gray-500 disabled:cursor-not-allowed"
+                className="w-full px-4 py-3 border border-border-strong rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-500 bg-surface disabled:bg-surface-muted disabled:text-muted disabled:cursor-not-allowed"
                 required
               >
                 {SPORT_OPTIONS.map((sport) => (
@@ -446,13 +446,13 @@ export default function AddEquipmentModal({
                 free text otherwise (General / unknown sports) */}
             {getEquipmentCategories(sportKey).length > 0 ? (
               <div>
-                <label className="block text-sm font-semibold text-gray-900 mb-2">
+                <label className="block text-sm font-semibold text-primary mb-2">
                   Equipment Type *
                 </label>
                 <select
                   value={category}
                   onChange={(e) => setCategory(e.target.value)}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-500 bg-white"
+                  className="w-full px-4 py-3 border border-border-strong rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-500 bg-surface"
                   required
                 >
                   {getEquipmentCategories(sportKey).map((cat) => (
@@ -464,7 +464,7 @@ export default function AddEquipmentModal({
               </div>
             ) : (
               <div>
-                <label className="block text-sm font-semibold text-gray-900 mb-2">
+                <label className="block text-sm font-semibold text-primary mb-2">
                   Equipment Type *
                 </label>
                 <input
@@ -472,7 +472,7 @@ export default function AddEquipmentModal({
                   value={equipmentType}
                   onChange={(e) => setEquipmentType(e.target.value)}
                   placeholder="e.g., Running Shoes, Yoga Mat, Foam Roller"
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-500"
+                  className="w-full px-4 py-3 border border-border-strong rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-500"
                   required
                 />
               </div>
@@ -483,7 +483,7 @@ export default function AddEquipmentModal({
               {/* Brand — suggestions for every sport that has a seed list,
                   free text always. General has no list and so no dropdown. */}
               <div className="relative">
-                <label className="block text-sm font-semibold text-gray-900 mb-2">
+                <label className="block text-sm font-semibold text-primary mb-2">
                   Brand *
                 </label>
                 <div className="relative">
@@ -497,25 +497,25 @@ export default function AddEquipmentModal({
                     }}
                     onFocus={() => setShowBrandDropdown(true)}
                     placeholder={hasBrandCatalog ? 'Search brands...' : getBrandPlaceholder(sportKey)}
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-500"
+                    className="w-full px-4 py-3 border border-border-strong rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-500"
                     required
                     autoComplete="off"
                   />
                   {hasBrandCatalog && (
-                    <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400 pointer-events-none" />
+                    <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 text-faint pointer-events-none" />
                   )}
                 </div>
                 {showBrandDropdown && brandSuggestions.length > 0 && (
                   <div
                     ref={brandDropdownRef}
-                    className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-lg shadow-lg max-h-[min(15rem,40vh)] overflow-y-auto"
+                    className="absolute z-10 w-full mt-1 bg-surface-raised border border-border-strong rounded-lg shadow-lg max-h-[min(15rem,40vh)] overflow-y-auto"
                   >
                     {brandSuggestions.map((suggestion) => (
                       <button
                         key={suggestion.value}
                         type="button"
                         onClick={() => handleBrandSelect(suggestion.value)}
-                        className="w-full px-4 py-2.5 text-left text-sm text-gray-900 hover:bg-violet-50 hover:text-violet-700 transition-colors border-b border-gray-100 last:border-b-0 flex items-center gap-3"
+                        className="w-full px-4 py-2.5 text-left text-sm text-primary hover:bg-brand-soft hover:text-brand-fg-strong transition-colors border-b border-border-subtle last:border-b-0 flex items-center gap-3"
                       >
                         <BrandLogo domain={suggestion.domain} name={suggestion.value} />
                         <span className="flex-1">{suggestion.value}</span>
@@ -523,7 +523,7 @@ export default function AddEquipmentModal({
                     ))}
                   </div>
                 )}
-                <p className="mt-1 text-xs text-gray-500">
+                <p className="mt-1 text-xs text-muted">
                   {hasBrandCatalog
                     ? 'Pick a suggestion or type your own'
                     : 'Enter any brand name'}
@@ -541,7 +541,7 @@ export default function AddEquipmentModal({
 
               {/* Model Input with Autocomplete */}
               <div className="relative">
-                <label className="block text-sm font-semibold text-gray-900 mb-2">
+                <label className="block text-sm font-semibold text-primary mb-2">
                   Model *
                 </label>
                 <input
@@ -554,36 +554,36 @@ export default function AddEquipmentModal({
                   }}
                   onFocus={() => setShowModelDropdown(true)}
                   placeholder={getModelPlaceholder(sportKey)}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-500"
+                  className="w-full px-4 py-3 border border-border-strong rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-500"
                   required
                 />
                 {showModelDropdown && modelSuggestions.length > 0 && (
                   <div
                     ref={modelDropdownRef}
-                    className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-lg shadow-lg max-h-[min(15rem,40vh)] overflow-y-auto"
+                    className="absolute z-10 w-full mt-1 bg-surface-raised border border-border-strong rounded-lg shadow-lg max-h-[min(15rem,40vh)] overflow-y-auto"
                   >
                     {modelSuggestions.map((suggestion) => (
                       <button
                         key={suggestion.value}
                         type="button"
                         onClick={() => handleModelSelect(suggestion.value)}
-                        className="w-full px-4 py-2.5 text-left hover:bg-violet-50 transition-colors"
+                        className="w-full px-4 py-2.5 text-left hover:bg-brand-soft transition-colors"
                       >
-                        <div className="text-sm font-medium text-gray-900">{suggestion.value}</div>
+                        <div className="text-sm font-medium text-primary">{suggestion.value}</div>
                         {suggestion.year && (
-                          <div className="text-xs text-gray-500">Year: {suggestion.year}</div>
+                          <div className="text-xs text-muted">Year: {suggestion.year}</div>
                         )}
                       </button>
                     ))}
                   </div>
                 )}
-                <p className="mt-1 text-xs text-gray-500">Type any model name</p>
+                <p className="mt-1 text-xs text-muted">Type any model name</p>
               </div>
             </div>
 
             {/* Equipment Image Upload */}
             <div>
-              <label className="block text-sm font-semibold text-gray-900 mb-2">
+              <label className="block text-sm font-semibold text-primary mb-2">
                 Equipment Image (Optional)
               </label>
               <EquipmentImageUpload value={imageUrl} onChange={setImageUrl} />
@@ -591,7 +591,7 @@ export default function AddEquipmentModal({
 
             {/* Status */}
             <div>
-              <label className="block text-sm font-semibold text-gray-900 mb-2">
+              <label className="block text-sm font-semibold text-primary mb-2">
                 Status
               </label>
               {/* Stacked below sm: side by side, each label wrapped to ~3
@@ -603,9 +603,9 @@ export default function AddEquipmentModal({
                     value="active"
                     checked={status === 'active'}
                     onChange={(e) => setStatus(e.target.value as 'active' | 'retired')}
-                    className="w-4 h-4 shrink-0 text-violet-600"
+                    className="w-4 h-4 shrink-0 text-brand-fg"
                   />
-                  <span className="text-sm font-medium text-gray-900">Active (currently using)</span>
+                  <span className="text-sm font-medium text-primary">Active (currently using)</span>
                 </label>
                 <label className="flex items-center gap-2 cursor-pointer min-h-[44px] sm:min-h-0">
                   <input
@@ -613,9 +613,9 @@ export default function AddEquipmentModal({
                     value="retired"
                     checked={status === 'retired'}
                     onChange={(e) => setStatus(e.target.value as 'active' | 'retired')}
-                    className="w-4 h-4 shrink-0 text-gray-600"
+                    className="w-4 h-4 shrink-0 text-tertiary"
                   />
-                  <span className="text-sm font-medium text-gray-900">Retired (no longer using)</span>
+                  <span className="text-sm font-medium text-primary">Retired (no longer using)</span>
                 </label>
               </div>
             </div>
@@ -623,7 +623,7 @@ export default function AddEquipmentModal({
             {/* Dates — power the "in bag during year" filter */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
-                <label htmlFor="equipment-acquired-on" className="block text-sm font-semibold text-gray-900 mb-2">
+                <label htmlFor="equipment-acquired-on" className="block text-sm font-semibold text-primary mb-2">
                   Active since
                 </label>
                 <input
@@ -632,15 +632,15 @@ export default function AddEquipmentModal({
                   value={acquiredOn}
                   onChange={(e) => setAcquiredOn(e.target.value)}
                   max={todayStr()}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-500 text-base bg-white"
+                  className="w-full px-3 py-2 border border-border-strong rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-500 text-base bg-surface"
                 />
-                <p className="text-xs text-gray-500 mt-1">
+                <p className="text-xs text-muted mt-1">
                   Backdate gear you owned before joining Edge Athlete.
                 </p>
               </div>
               {status === 'retired' && (
                 <div>
-                  <label htmlFor="equipment-retired-on" className="block text-sm font-semibold text-gray-900 mb-2">
+                  <label htmlFor="equipment-retired-on" className="block text-sm font-semibold text-primary mb-2">
                     Retired on
                   </label>
                   <input
@@ -650,9 +650,9 @@ export default function AddEquipmentModal({
                     onChange={(e) => setRetiredOn(e.target.value)}
                     min={acquiredOn || undefined}
                     max={todayStr()}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-500 text-base bg-white"
+                    className="w-full px-3 py-2 border border-border-strong rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-500 text-base bg-surface"
                   />
-                  <p className="text-xs text-gray-500 mt-1">Defaults to today if left blank.</p>
+                  <p className="text-xs text-muted mt-1">Defaults to today if left blank.</p>
                 </div>
               )}
             </div>
@@ -661,8 +661,8 @@ export default function AddEquipmentModal({
                 sport AND category, so a hockey stick asks for blade curve and
                 a bat asks for weight drop. Absent for General. */}
             {specFields.length > 0 && (
-              <div className="pt-4 border-t border-gray-200">
-                <h3 className="text-lg font-bold text-gray-900 mb-4">
+              <div className="pt-4 border-t border-border">
+                <h3 className="text-lg font-bold text-primary mb-4">
                   Specifications (Optional)
                 </h3>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -670,7 +670,7 @@ export default function AddEquipmentModal({
                     <div key={field.key}>
                       <label
                         htmlFor={`spec-${field.key}`}
-                        className="block text-sm font-medium text-gray-700 mb-1"
+                        className="block text-sm font-medium text-secondary mb-1"
                       >
                         {field.label}
                       </label>
@@ -683,7 +683,7 @@ export default function AddEquipmentModal({
                         }
                         placeholder={field.placeholder}
                         list={field.options ? `spec-options-${field.key}` : undefined}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-500 text-sm"
+                        className="w-full px-3 py-2 border border-border-strong rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-500 text-sm"
                       />
                       {/* Suggestions only — the input stays free text */}
                       {field.options && (
@@ -701,7 +701,7 @@ export default function AddEquipmentModal({
 
             {/* Notes */}
             <div>
-              <label className="block text-sm font-semibold text-gray-900 mb-2">
+              <label className="block text-sm font-semibold text-primary mb-2">
                 Notes (Optional)
               </label>
               <textarea
@@ -709,7 +709,7 @@ export default function AddEquipmentModal({
                 onChange={(e) => setNotes(e.target.value)}
                 placeholder="Add any personal notes about this equipment..."
                 rows={3}
-                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-500 resize-none"
+                className="w-full px-4 py-3 border border-border-strong rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-500 resize-none"
               />
             </div>
 
@@ -717,7 +717,7 @@ export default function AddEquipmentModal({
                 bag"). Datalist steers toward existing labels so typos don't
                 fragment sets. */}
             <div>
-              <label htmlFor="equipment-group-label" className="block text-sm font-semibold text-gray-900 mb-2">
+              <label htmlFor="equipment-group-label" className="block text-sm font-semibold text-primary mb-2">
                 Set / Collection (Optional)
               </label>
               <input
@@ -728,7 +728,7 @@ export default function AddEquipmentModal({
                 maxLength={60}
                 list="equipment-group-labels"
                 placeholder='Group gear into a named set — e.g. "Tournament bag"'
-                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-500"
+                className="w-full px-4 py-3 border border-border-strong rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-500"
               />
               <datalist id="equipment-group-labels">
                 {existingGroupLabels.map(label => (
@@ -741,11 +741,11 @@ export default function AddEquipmentModal({
           {/* Footer. Stacked below sm (ConfirmModal pattern): "Cancel" +
               "Add Equipment" at px-6 overflowed a 320px row. col-reverse
               keeps the primary action on top of the stack. */}
-          <div className="shrink-0 flex flex-col-reverse sm:flex-row sm:items-center sm:justify-end gap-3 px-4 sm:px-6 py-4 border-t border-gray-200 bg-gray-50">
+          <div className="shrink-0 flex flex-col-reverse sm:flex-row sm:items-center sm:justify-end gap-3 px-4 sm:px-6 py-4 border-t border-border bg-surface-muted">
             <button
               type="button"
               onClick={requestClose}
-              className="px-6 py-2.5 text-gray-700 font-semibold rounded-lg hover:bg-gray-200 transition-colors"
+              className="px-6 py-2.5 text-secondary font-semibold rounded-lg hover:bg-gray-200 dark:hover:bg-stone-800 transition-colors"
               disabled={loading}
             >
               Cancel
@@ -753,7 +753,7 @@ export default function AddEquipmentModal({
             <button
               type="submit"
               disabled={loading}
-              className="px-6 py-2.5 bg-violet-600 text-white font-semibold rounded-lg hover:bg-violet-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+              className="px-6 py-2.5 bg-brand text-white font-semibold rounded-lg hover:bg-brand-hover transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
             >
               {loading ? (
                 <>

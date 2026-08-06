@@ -35,9 +35,9 @@ export default function AgendaView({
 
   if (groups.length === 0) {
     return (
-      <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-8 text-center">
-        <i className="fas fa-calendar-day text-gray-300 text-3xl mb-3 block"></i>
-        <p className="text-sm text-gray-500">
+      <div className="bg-surface rounded-lg shadow-sm border border-border p-8 text-center">
+        <i className="fas fa-calendar-day text-gray-300 dark:text-stone-600 text-3xl mb-3 block"></i>
+        <p className="text-sm text-muted">
           Nothing scheduled in {format(focusDate, 'MMMM yyyy')}.
         </p>
       </div>
@@ -45,14 +45,14 @@ export default function AgendaView({
   }
 
   return (
-    <div className="bg-white rounded-lg shadow-sm border border-gray-200 divide-y divide-gray-100">
+    <div className="bg-surface rounded-lg shadow-sm border border-border divide-y divide-border-subtle">
       {groups.map(({ day, events: dayEvents }) => (
         <div key={day.toISOString()} className="flex gap-3 p-3">
           <div className="w-14 shrink-0 text-center">
-            <p className="text-xs text-gray-500">{format(day, 'EEE')}</p>
+            <p className="text-xs text-muted">{format(day, 'EEE')}</p>
             <p
               className={`text-lg font-semibold inline-flex items-center justify-center w-8 h-8 rounded-full ${
-                isSameDay(day, today) ? 'bg-violet-600 text-white' : 'text-gray-900'
+                isSameDay(day, today) ? 'bg-brand text-white' : 'text-primary'
               }`}
             >
               {day.getDate()}

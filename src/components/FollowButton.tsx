@@ -225,7 +225,7 @@ export default function FollowButton({
             ${followStatus === 'pending'
               ? 'bg-yellow-100 text-yellow-700 hover:bg-yellow-200'
               : isFollowing
-                ? 'bg-gray-200 dark:bg-stone-800 text-secondary hover:bg-gray-300 dark:bg-stone-700'
+                ? 'bg-gray-200 dark:bg-stone-800 text-secondary hover:bg-gray-300 dark:hover:bg-stone-700'
                 : 'bg-brand text-white hover:bg-brand-hover'
             }
             ${sizeClasses[size]}
@@ -270,7 +270,7 @@ export default function FollowButton({
                   setShowMessageModal(false);
                   setFollowMessage('');
                 }}
-                className="flex-1 px-4 py-2 bg-gray-200 dark:bg-stone-800 text-secondary font-medium rounded-lg hover:bg-gray-300 dark:bg-stone-700 transition-colors"
+                className="flex-1 px-4 py-2 bg-gray-200 dark:bg-stone-800 text-secondary font-medium rounded-lg hover:bg-gray-300 dark:hover:bg-stone-700 transition-colors"
               >
                 Cancel
               </button>

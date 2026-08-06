@@ -128,14 +128,14 @@ export default function RoundMediaManager({
         type="button"
         onClick={() => inputRef.current?.click()}
         disabled={disabled || busy}
-        className="inline-flex min-h-[44px] items-center gap-2 rounded-lg bg-violet-600 px-4 py-2 font-bold text-white transition-colors hover:bg-violet-700 disabled:opacity-60"
+        className="inline-flex min-h-[44px] items-center gap-2 rounded-lg bg-brand px-4 py-2 font-bold text-white transition-colors hover:bg-brand-hover disabled:opacity-60"
       >
         <i className={`fas ${busy ? 'fa-spinner fa-spin' : 'fa-camera'}`} aria-hidden="true"></i>
         {busy ? 'Adding…' : 'Add photos or videos'}
       </button>
 
-      {notice && <p className="mt-2 text-xs font-semibold text-gray-600">{notice}</p>}
-      {error && <p className="mt-2 text-xs font-semibold text-red-600">{error}</p>}
+      {notice && <p className="mt-2 text-xs font-semibold text-tertiary">{notice}</p>}
+      {error && <p className="mt-2 text-xs font-semibold text-red-600 dark:text-red-400">{error}</p>}
     </div>
   );
 }
@@ -204,7 +204,7 @@ export function RoundMediaItemControls({
         onChange={e =>
           patch({ segment_number: e.target.value === '' ? null : Number(e.target.value) })
         }
-        className="min-w-0 w-full sm:flex-1 rounded border border-gray-300 px-1 py-0.5 text-[11px] focus:outline-none focus:ring-1 focus:ring-violet-500"
+        className="min-w-0 w-full sm:flex-1 rounded border border-border-strong px-1 py-0.5 text-[11px] focus:outline-none focus:ring-1 focus:ring-violet-500"
       >
         <option value="">Whole round</option>
         {options.map(n => (
@@ -222,7 +222,7 @@ export function RoundMediaItemControls({
           aria-pressed={isHighlight}
           title={isHighlight ? 'Remove as highlight' : 'Set as highlight'}
           className={`flex h-10 w-10 sm:h-7 sm:w-7 shrink-0 items-center justify-center rounded ${
-            isHighlight ? 'text-violet-600' : 'text-gray-400 hover:text-gray-700'
+            isHighlight ? 'text-brand-fg' : 'text-faint hover:text-secondary'
           }`}
         >
           <i className={`${isHighlight ? 'fas' : 'far'} fa-star text-xs`} aria-hidden="true"></i>
@@ -233,7 +233,7 @@ export function RoundMediaItemControls({
           onClick={remove}
           disabled={busy}
           title="Remove"
-          className="flex h-10 w-10 sm:h-7 sm:w-7 shrink-0 items-center justify-center rounded text-gray-400 hover:text-red-600"
+          className="flex h-10 w-10 sm:h-7 sm:w-7 shrink-0 items-center justify-center rounded text-faint hover:text-red-600 dark:hover:text-red-400"
         >
           <i className="fas fa-trash text-xs" aria-hidden="true"></i>
         </button>

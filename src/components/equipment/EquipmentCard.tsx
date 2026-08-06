@@ -56,8 +56,8 @@ export default function EquipmentCard({ item, isOwnProfile, compact = false, onE
     <div
       className={`relative rounded-lg overflow-hidden transition-all duration-200 ${
         isActive
-          ? 'bg-white border-2 border-gray-200 hover:border-violet-400 hover:shadow-lg'
-          : 'bg-gray-50 border-2 border-gray-200'
+          ? 'bg-surface border-2 border-border hover:border-violet-400 hover:shadow-lg'
+          : 'bg-surface-muted border-2 border-border'
       }`}
     >
       {/* Status badge */}
@@ -114,11 +114,11 @@ export default function EquipmentCard({ item, isOwnProfile, compact = false, onE
               {brandDomain && (
                 <BrandLogo domain={brandDomain} name={item.brand} size={16} fallback={null} />
               )}
-              <h4 className="text-sm font-semibold text-gray-900 leading-tight">{item.brand}</h4>
+              <h4 className="text-sm font-semibold text-primary leading-tight">{item.brand}</h4>
             </div>
-            <p className="text-lg font-bold text-gray-900 leading-tight mt-0.5">{item.model}</p>
+            <p className="text-lg font-bold text-primary leading-tight mt-0.5">{item.model}</p>
             {ownershipSpan && (
-              <p className="text-xs text-gray-500 mt-1">{ownershipSpan}</p>
+              <p className="text-xs text-muted mt-1">{ownershipSpan}</p>
             )}
           </div>
 
@@ -133,8 +133,8 @@ export default function EquipmentCard({ item, isOwnProfile, compact = false, onE
                     {/* /_/g, not '_': replace() with a string swaps only the
                         FIRST underscore, so a three-word spec key such as
                         batting_glove_size rendered as "Batting glove_size". */}
-                    <span className="text-gray-500 capitalize">{key.replace(/_/g, ' ')}</span>
-                    <span className="text-gray-900 font-semibold">{value}</span>
+                    <span className="text-muted capitalize">{key.replace(/_/g, ' ')}</span>
+                    <span className="text-primary font-semibold">{value}</span>
                   </div>
                 ))}
             </div>
@@ -142,18 +142,18 @@ export default function EquipmentCard({ item, isOwnProfile, compact = false, onE
 
           {/* Notes preview */}
           {!compact && item.notes && (
-            <p className="text-xs text-gray-600 line-clamp-2 italic">&quot;{item.notes}&quot;</p>
+            <p className="text-xs text-tertiary line-clamp-2 italic">&quot;{item.notes}&quot;</p>
           )}
         </div>
 
         {/* Actions (only for own profile) */}
         {isOwnProfile && (
-          <div className="space-y-2 pt-2 border-t border-gray-200">
+          <div className="space-y-2 pt-2 border-t border-border">
             {/* Primary actions row */}
             <div className="flex items-center gap-2">
               <button
                 onClick={onEdit}
-                className="flex-1 flex items-center justify-center gap-1 px-3 py-2 min-h-[40px] bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg text-xs font-semibold transition-colors"
+                className="flex-1 flex items-center justify-center gap-1 px-3 py-2 min-h-[40px] bg-surface-sunken hover:bg-gray-200 dark:hover:bg-stone-800 text-secondary rounded-lg text-xs font-semibold transition-colors"
               >
                 <Edit2 className="w-3 h-3" />
                 Edit
@@ -162,8 +162,8 @@ export default function EquipmentCard({ item, isOwnProfile, compact = false, onE
                 onClick={() => onToggleStatus(item.id)}
                 className={`flex-1 flex items-center justify-center gap-1 px-3 py-2 min-h-[40px] rounded-lg text-xs font-semibold transition-colors ${
                   isActive
-                    ? 'bg-gray-100 hover:bg-gray-200 text-gray-700'
-                    : 'bg-green-100 hover:bg-green-200 text-green-700'
+                    ? 'bg-surface-sunken hover:bg-gray-200 dark:hover:bg-stone-800 text-secondary'
+                    : 'bg-green-100 dark:bg-green-950/60 hover:bg-green-200 text-green-700 dark:text-green-300'
                 }`}
               >
                 {isActive ? (
@@ -181,7 +181,7 @@ export default function EquipmentCard({ item, isOwnProfile, compact = false, onE
               <button
                 onClick={() => onDelete(item.id)}
                 aria-label="Delete equipment"
-                className="px-3 py-2 min-h-[40px] min-w-[40px] flex items-center justify-center bg-red-50 hover:bg-red-100 text-red-600 rounded-lg text-xs font-semibold transition-colors"
+                className="px-3 py-2 min-h-[40px] min-w-[40px] flex items-center justify-center bg-red-50 dark:bg-red-950/40 hover:bg-red-100 dark:hover:bg-red-950/60 text-red-600 dark:text-red-400 rounded-lg text-xs font-semibold transition-colors"
               >
                 <Trash2 className="w-3 h-3" />
               </button>
@@ -191,7 +191,7 @@ export default function EquipmentCard({ item, isOwnProfile, compact = false, onE
             {isActive && (
               <button
                 onClick={onReplace}
-                className="w-full flex items-center justify-center gap-1 px-3 py-2 min-h-[40px] bg-violet-50 hover:bg-violet-100 text-violet-700 rounded-lg text-xs font-semibold transition-colors border border-violet-200"
+                className="w-full flex items-center justify-center gap-1 px-3 py-2 min-h-[40px] bg-brand-soft hover:bg-violet-100 dark:hover:bg-violet-950/60 text-brand-fg-strong rounded-lg text-xs font-semibold transition-colors border border-violet-200 dark:border-violet-800"
               >
                 <RefreshCw className="w-3 h-3" />
                 Replace / Upgrade

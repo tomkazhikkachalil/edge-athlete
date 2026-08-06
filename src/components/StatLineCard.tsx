@@ -23,13 +23,13 @@ export default function StatLineCard({ line }: { line: StatLineData }) {
   const result = formatResult(line);
 
   return (
-    <div className="bg-gradient-to-br from-violet-50 to-slate-100 rounded-lg p-3 mt-2 border border-violet-200">
+    <div className="bg-gradient-to-br from-violet-50 dark:from-violet-950/40 to-slate-100 dark:to-stone-900 rounded-lg p-3 mt-2 border border-violet-200 dark:border-violet-800">
       {/* Header: sport + opponent + result */}
       <div className="flex items-center justify-between gap-2 mb-2">
         <div className="flex items-center gap-2 min-w-0">
-          <i className={`${sportDef.icon_id} text-violet-700`} aria-hidden="true"></i>
+          <i className={`${sportDef.icon_id} text-brand-fg-strong`} aria-hidden="true"></i>
           <div className="min-w-0">
-            <div className="font-bold text-slate-900 text-sm truncate">
+            <div className="font-bold text-slate-900 dark:text-primary text-sm truncate">
               {line.opponent ? `vs ${line.opponent}` : `${sportDef.display_name} ${schema.activityNoun}`}
             </div>
             {(() => {
@@ -37,7 +37,7 @@ export default function StatLineCard({ line }: { line: StatLineData }) {
               const d = new Date(`${line.date}T00:00:00`);
               if (Number.isNaN(d.getTime())) return null; // guard malformed dates
               return (
-                <div className="text-xs text-slate-600">
+                <div className="text-xs text-slate-600 dark:text-tertiary">
                   {d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
                 </div>
               );
@@ -61,13 +61,13 @@ export default function StatLineCard({ line }: { line: StatLineData }) {
           {enteredFields.map(f => (
             <div
               key={f.key}
-              className="bg-white/90 border border-violet-200 rounded-lg px-2.5 py-1.5 text-center shadow-sm"
+              className="bg-surface/90 border border-violet-200 dark:border-violet-800 rounded-lg px-2.5 py-1.5 text-center shadow-sm"
               title={f.label}
             >
-              <div className="text-base font-black text-slate-900 leading-none">
+              <div className="text-base font-black text-slate-900 dark:text-primary leading-none">
                 {line.stats[f.key]}
               </div>
-              <div className="text-[10px] font-semibold text-slate-500 mt-0.5">
+              <div className="text-[10px] font-semibold text-slate-500 dark:text-muted mt-0.5">
                 {f.shortLabel}
               </div>
             </div>

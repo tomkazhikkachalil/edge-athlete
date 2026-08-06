@@ -53,13 +53,13 @@ export default function EquipmentToolbar({
         onChange={e => onSearch(e.target.value)}
         placeholder="Search gear — brand, model, notes…"
         aria-label="Search equipment"
-        className="order-1 flex-1 min-w-[10rem] px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white"
+        className="order-1 flex-1 min-w-[10rem] px-3 py-2 border border-border-strong rounded-lg text-sm bg-surface"
       />
       <select
         value={sort}
         onChange={e => onSort(e.target.value as EquipmentSort)}
         aria-label="Sort equipment"
-        className="order-2 shrink-0 px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white"
+        className="order-2 shrink-0 px-3 py-2 border border-border-strong rounded-lg text-sm bg-surface"
       >
         <option value="newest">Newest</option>
         <option value="brand">Brand A–Z</option>
@@ -68,7 +68,7 @@ export default function EquipmentToolbar({
         <button
           onClick={onAdd}
           aria-label="Add equipment"
-          className="order-3 lg:order-5 shrink-0 flex items-center gap-2 px-3 sm:px-4 py-2 bg-violet-600 text-white rounded-lg font-semibold text-sm hover:bg-violet-700 transition-colors shadow-sm"
+          className="order-3 lg:order-5 shrink-0 flex items-center gap-2 px-3 sm:px-4 py-2 bg-brand text-white rounded-lg font-semibold text-sm hover:bg-brand-hover transition-colors shadow-sm"
         >
           <Plus className="w-4 h-4" />
           <span className="hidden sm:inline">Add Equipment</span>
@@ -91,7 +91,7 @@ export default function EquipmentToolbar({
           onClick={onOpenSettings}
           aria-label="Equipment display settings"
           title="Equipment display settings"
-          className="order-6 shrink-0 flex h-9 w-9 items-center justify-center rounded-lg border border-gray-300 bg-white text-gray-600 hover:bg-gray-50 transition-colors"
+          className="order-6 shrink-0 flex h-9 w-9 items-center justify-center rounded-lg border border-border-strong bg-surface text-tertiary hover:bg-surface-muted transition-colors"
         >
           <Settings className="w-4 h-4" />
         </button>

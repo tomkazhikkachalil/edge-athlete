@@ -97,27 +97,27 @@ function MultiPlayerScorecardGrid({
           justify-between stretches to the table's scroll-width and the
           controls end up off-screen on phones. flex-wrap for 360px. */}
       <div className="mb-4 flex items-center justify-between flex-wrap gap-2">
-        <h3 className="text-lg font-bold text-gray-900">Scorecard</h3>
+        <h3 className="text-lg font-bold text-primary">Scorecard</h3>
         <div className="flex items-center gap-3 flex-wrap">
           {/* Front 9 / Back 9 Tabs (only for 18-hole rounds) */}
           {is18Holes && (
-            <div className="flex border border-gray-300 rounded-lg overflow-hidden">
+            <div className="flex border border-border-strong rounded-lg overflow-hidden">
               <button
                 onClick={() => setActiveTab('front9')}
                 className={`px-4 py-2 min-h-[36px] text-sm font-semibold transition-colors ${
                   activeTab === 'front9'
                     ? 'bg-green-600 text-white'
-                    : 'bg-white text-gray-700 hover:bg-gray-50'
+                    : 'bg-surface text-secondary hover:bg-surface-muted'
                 }`}
               >
                 Front 9
               </button>
               <button
                 onClick={() => setActiveTab('back9')}
-                className={`px-4 py-2 min-h-[36px] text-sm font-semibold transition-colors border-l border-gray-300 ${
+                className={`px-4 py-2 min-h-[36px] text-sm font-semibold transition-colors border-l border-border-strong ${
                   activeTab === 'back9'
                     ? 'bg-green-600 text-white'
-                    : 'bg-white text-gray-700 hover:bg-gray-50'
+                    : 'bg-surface text-secondary hover:bg-surface-muted'
                 }`}
               >
                 Back 9
@@ -126,7 +126,7 @@ function MultiPlayerScorecardGrid({
           )}
           <button
             onClick={() => setShowStats(!showStats)}
-            className="text-sm text-violet-600 hover:text-violet-700 font-medium py-2 px-2 -mx-2"
+            className="text-sm text-brand-fg hover:text-brand-fg-strong font-medium py-2 px-2 -mx-2"
           >
             {showStats ? 'Hide' : 'Show'} Detailed Stats
           </button>
@@ -136,64 +136,64 @@ function MultiPlayerScorecardGrid({
       {/* Scorecard Table — only the table scrolls horizontally. Just
           overflow-x-auto: the old `overflow-hidden overflow-x-auto` pair left
           overflow-y hidden, silently clipping the stats rows when they grow. */}
-      <div className="border border-gray-300 rounded-lg overflow-x-auto">
-        <table className="min-w-full divide-y divide-gray-300">
-          <thead className="bg-green-50">
+      <div className="border border-border-strong rounded-lg overflow-x-auto">
+        <table className="min-w-full divide-y divide-border-strong">
+          <thead className="bg-green-50 dark:bg-green-950/40">
             <tr>
-              <th className="sticky left-0 z-10 bg-green-50 px-2 sm:px-4 py-3 text-left text-xs font-semibold text-gray-900 uppercase tracking-wider border-r border-gray-300">
+              <th className="sticky left-0 z-10 bg-green-50 dark:bg-green-950/40 px-2 sm:px-4 py-3 text-left text-xs font-semibold text-primary uppercase tracking-wider border-r border-border-strong">
                 Player
               </th>
               {displayHoles.map(holeNum => (
                 <th
                   key={holeNum}
-                  className="px-3 py-3 text-center text-xs font-semibold text-gray-900 uppercase tracking-wider border-r border-gray-200"
+                  className="px-3 py-3 text-center text-xs font-semibold text-primary uppercase tracking-wider border-r border-border"
                 >
                   {holeNum}
                 </th>
               ))}
               {is18Holes && (
-                <th className="px-4 py-3 text-center text-xs font-semibold text-gray-900 uppercase tracking-wider bg-gray-100 border-l border-gray-400">
+                <th className="px-4 py-3 text-center text-xs font-semibold text-primary uppercase tracking-wider bg-surface-sunken border-l border-gray-400">
                   {activeTab === 'front9' ? 'Out' : 'In'}
                 </th>
               )}
-              <th className="px-4 py-3 text-center text-xs font-semibold text-gray-900 uppercase tracking-wider bg-gray-100">
+              <th className="px-4 py-3 text-center text-xs font-semibold text-primary uppercase tracking-wider bg-surface-sunken">
                 Total
               </th>
-              <th className="px-4 py-3 text-center text-xs font-semibold text-gray-900 uppercase tracking-wider bg-gray-100">
+              <th className="px-4 py-3 text-center text-xs font-semibold text-primary uppercase tracking-wider bg-surface-sunken">
                 +/-
               </th>
             </tr>
 
             {/* Par Row */}
             {holeData && holeData.length > 0 && (
-              <tr className="bg-violet-50 border-t border-gray-300">
-                <th className="sticky left-0 z-10 bg-violet-50 px-2 sm:px-4 py-2 text-left text-xs font-semibold text-gray-900 uppercase tracking-wider border-r border-gray-300">
+              <tr className="bg-brand-soft border-t border-border-strong">
+                <th className="sticky left-0 z-10 bg-brand-soft px-2 sm:px-4 py-2 text-left text-xs font-semibold text-primary uppercase tracking-wider border-r border-border-strong">
                   Par
                 </th>
                 {displayHoles.map(holeNum => (
                   <th
                     key={holeNum}
-                    className="px-3 py-2 text-center text-sm font-semibold text-gray-900 border-r border-gray-200"
+                    className="px-3 py-2 text-center text-sm font-semibold text-primary border-r border-border"
                   >
                     {getHolePar(holeNum)}
                   </th>
                 ))}
                 {is18Holes && (
-                  <th className="px-4 py-2 text-center text-sm font-semibold text-gray-900 bg-violet-100 border-l border-gray-400">
+                  <th className="px-4 py-2 text-center text-sm font-semibold text-primary bg-violet-100 dark:bg-violet-950/60 border-l border-gray-400">
                     {displayHoles.reduce((sum, h) => sum + getHolePar(h), 0)}
                   </th>
                 )}
-                <th className="px-4 py-2 text-center text-sm font-semibold text-gray-900 bg-violet-100">
+                <th className="px-4 py-2 text-center text-sm font-semibold text-primary bg-violet-100 dark:bg-violet-950/60">
                   {holeData.reduce((sum, h) => sum + h.par, 0)}
                 </th>
-                <th className="px-4 py-2 bg-violet-100"></th>
+                <th className="px-4 py-2 bg-violet-100 dark:bg-violet-950/60"></th>
               </tr>
             )}
 
             {/* Yardage Row */}
             {holeData && holeData.some(h => h.yardage) && (
-              <tr className="bg-gray-100 border-t border-gray-300">
-                <th className="sticky left-0 z-10 bg-gray-100 px-2 sm:px-4 py-2 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider border-r border-gray-300">
+              <tr className="bg-surface-sunken border-t border-border-strong">
+                <th className="sticky left-0 z-10 bg-surface-sunken px-2 sm:px-4 py-2 text-left text-xs font-semibold text-tertiary uppercase tracking-wider border-r border-border-strong">
                   Yardage
                 </th>
                 {displayHoles.map(holeNum => {
@@ -201,39 +201,39 @@ function MultiPlayerScorecardGrid({
                   return (
                     <th
                       key={holeNum}
-                      className="px-3 py-2 text-center text-xs text-gray-700 border-r border-gray-200"
+                      className="px-3 py-2 text-center text-xs text-secondary border-r border-border"
                     >
                       {hole?.yardage || '-'}
                     </th>
                   );
                 })}
                 {is18Holes && (
-                  <th className="px-4 py-2 text-center text-xs text-gray-700 bg-gray-200 border-l border-gray-400">
+                  <th className="px-4 py-2 text-center text-xs text-secondary bg-gray-200 dark:bg-stone-800 border-l border-gray-400">
                     {displayHoles.reduce((sum, h) => {
                       const hole = holeData.find(hd => hd.hole === h);
                       return sum + (hole?.yardage || 0);
                     }, 0)}
                   </th>
                 )}
-                <th className="px-4 py-2 text-center text-xs text-gray-700 bg-gray-200">
+                <th className="px-4 py-2 text-center text-xs text-secondary bg-gray-200 dark:bg-stone-800">
                   {holeData.reduce((sum, h) => sum + (h.yardage || 0), 0)}
                 </th>
-                <th className="px-4 py-2 bg-gray-200"></th>
+                <th className="px-4 py-2 bg-gray-200 dark:bg-stone-800"></th>
               </tr>
             )}
           </thead>
-          <tbody className="bg-white divide-y divide-gray-200">
+          <tbody className="bg-surface divide-y divide-border">
             {players.map((player) => {
               const totals = calculateTotals(player);
 
               return (
-                <tr key={player.participant_id} className="hover:bg-gray-50">
+                <tr key={player.participant_id} className="hover:bg-surface-muted">
                   {/* Player Name Column */}
                   {/* Narrow sticky column below sm: avatar + px-4 + a 140px
                       name was ~212px — wider than the whole scroll window
                       inside CreatePostModal at 320px, so ZERO hole columns
                       were visible. ~90px keeps ~4 hole columns on screen. */}
-                  <td className="sticky left-0 z-10 bg-white px-2 sm:px-4 py-3 whitespace-nowrap border-r border-gray-300">
+                  <td className="sticky left-0 z-10 bg-surface px-2 sm:px-4 py-3 whitespace-nowrap border-r border-border-strong">
                     <div className="flex items-center gap-2">
                       <span className="hidden sm:block shrink-0">
                         {player.profile.avatar_url ? (
@@ -253,7 +253,7 @@ function MultiPlayerScorecardGrid({
                         )}
                       </span>
                       <span
-                        className="text-sm font-medium text-gray-900 max-w-[72px] sm:max-w-[140px] truncate"
+                        className="text-sm font-medium text-primary max-w-[72px] sm:max-w-[140px] truncate"
                         title={formatDisplayName(player.profile.first_name, null, player.profile.last_name, player.profile.full_name)}
                       >
                         {formatShortName(player.profile.first_name, player.profile.last_name, player.profile.full_name, 18)}
@@ -269,7 +269,7 @@ function MultiPlayerScorecardGrid({
                     return (
                       <td
                         key={holeNum}
-                        className="px-2 py-2 text-center border-r border-gray-200"
+                        className="px-2 py-2 text-center border-r border-border"
                       >
                         {editable ? (
                           <input
@@ -278,7 +278,7 @@ function MultiPlayerScorecardGrid({
                             max="15"
                             value={strokes || ''}
                             onChange={(e) => handleScoreChange(player.participant_id, holeNum, 'strokes', e.target.value)}
-                            className={`w-12 h-10 text-center text-sm border border-gray-300 rounded focus:ring-2 focus:ring-green-500 focus:border-green-500 ${getScoreStyle(strokes, getHolePar(holeNum))}`}
+                            className={`w-12 h-10 text-center text-sm border border-border-strong rounded focus:ring-2 focus:ring-green-500 focus:border-green-500 ${getScoreStyle(strokes, getHolePar(holeNum))}`}
                             placeholder="-"
                           />
                         ) : (
@@ -297,24 +297,24 @@ function MultiPlayerScorecardGrid({
                                     type="checkbox"
                                     checked={holeScore?.fairway_hit || false}
                                     onChange={(e) => handleScoreChange(player.participant_id, holeNum, 'fairway_hit', e.target.checked)}
-                                    className="w-4 h-4 text-green-600 rounded"
+                                    className="w-4 h-4 text-green-600 dark:text-green-400 rounded"
                                   />
-                                  <span className="text-gray-600">F</span>
+                                  <span className="text-tertiary">F</span>
                                 </label>
                                 <label className="flex items-center gap-0.5 cursor-pointer">
                                   <input
                                     type="checkbox"
                                     checked={holeScore?.green_in_regulation || false}
                                     onChange={(e) => handleScoreChange(player.participant_id, holeNum, 'green_in_regulation', e.target.checked)}
-                                    className="w-4 h-4 text-green-600 rounded"
+                                    className="w-4 h-4 text-green-600 dark:text-green-400 rounded"
                                   />
-                                  <span className="text-gray-600">G</span>
+                                  <span className="text-tertiary">G</span>
                                 </label>
                               </>
                             ) : (
                               <>
-                                {holeScore?.fairway_hit && <span className="text-green-600">F</span>}
-                                {holeScore?.green_in_regulation && <span className="text-green-600">G</span>}
+                                {holeScore?.fairway_hit && <span className="text-green-600 dark:text-green-400">F</span>}
+                                {holeScore?.green_in_regulation && <span className="text-green-600 dark:text-green-400">G</span>}
                               </>
                             )}
                           </div>
@@ -330,11 +330,11 @@ function MultiPlayerScorecardGrid({
                                 max="5"
                                 value={holeScore?.putts || ''}
                                 onChange={(e) => handleScoreChange(player.participant_id, holeNum, 'putts', e.target.value)}
-                                className="w-12 h-6 text-center text-xs border border-gray-200 rounded focus:ring-1 focus:ring-green-400"
+                                className="w-12 h-6 text-center text-xs border border-border rounded focus:ring-1 focus:ring-green-400"
                                 placeholder="P"
                               />
                             ) : (
-                              <div className="text-xs text-gray-600">
+                              <div className="text-xs text-tertiary">
                                 {holeScore?.putts ? `${holeScore.putts}p` : ''}
                               </div>
                             )}
@@ -346,30 +346,30 @@ function MultiPlayerScorecardGrid({
 
                   {/* Totals Columns */}
                   {is18Holes && (
-                    <td className="px-4 py-3 text-center text-sm font-semibold text-gray-900 bg-gray-50 border-l border-gray-400">
+                    <td className="px-4 py-3 text-center text-sm font-semibold text-primary bg-surface-muted border-l border-gray-400">
                       {activeTab === 'front9' ? (totals.front9 || '-') : (totals.back9 || '-')}
                     </td>
                   )}
-                  <td className="px-4 py-3 text-center bg-gray-50">
-                    <div className="text-sm font-bold text-gray-900">
+                  <td className="px-4 py-3 text-center bg-surface-muted">
+                    <div className="text-sm font-bold text-primary">
                       {totals.total || '-'}
                     </div>
                     {totals.total > 0 && (
-                      <div className="text-xs text-gray-600 mt-0.5">
-                        {totals.eagles > 0 && <span className="text-violet-700 font-semibold">{totals.eagles}E</span>}
+                      <div className="text-xs text-tertiary mt-0.5">
+                        {totals.eagles > 0 && <span className="text-brand-fg-strong font-semibold">{totals.eagles}E</span>}
                         {totals.eagles > 0 && (totals.birdies > 0 || totals.pars > 0 || totals.bogeys > 0 || totals.doublePlus > 0) && '•'}
-                        {totals.birdies > 0 && <span className="text-violet-600">{totals.birdies}B</span>}
+                        {totals.birdies > 0 && <span className="text-brand-fg">{totals.birdies}B</span>}
                         {totals.birdies > 0 && (totals.pars > 0 || totals.bogeys > 0 || totals.doublePlus > 0) && '•'}
-                        {totals.pars > 0 && <span className="text-gray-700">{totals.pars}P</span>}
+                        {totals.pars > 0 && <span className="text-secondary">{totals.pars}P</span>}
                         {totals.pars > 0 && (totals.bogeys > 0 || totals.doublePlus > 0) && '•'}
-                        {totals.bogeys > 0 && <span className="text-red-600">{totals.bogeys}Bo</span>}
+                        {totals.bogeys > 0 && <span className="text-red-600 dark:text-red-400">{totals.bogeys}Bo</span>}
                         {totals.bogeys > 0 && totals.doublePlus > 0 && '•'}
-                        {totals.doublePlus > 0 && <span className="text-red-700 font-semibold">{totals.doublePlus}D+</span>}
+                        {totals.doublePlus > 0 && <span className="text-red-700 dark:text-red-300 font-semibold">{totals.doublePlus}D+</span>}
                       </div>
                     )}
                   </td>
-                  <td className={`px-4 py-3 text-center text-sm font-bold bg-gray-50 ${
-                    totals.toPar < 0 ? 'text-violet-600' : totals.toPar > 0 ? 'text-red-600' : 'text-gray-900'
+                  <td className={`px-4 py-3 text-center text-sm font-bold bg-surface-muted ${
+                    totals.toPar < 0 ? 'text-brand-fg' : totals.toPar > 0 ? 'text-red-600 dark:text-red-400' : 'text-primary'
                   }`}>
                     {totals.toPar > 0 ? `+${totals.toPar}` : totals.toPar || 'E'}
                   </td>
@@ -381,31 +381,31 @@ function MultiPlayerScorecardGrid({
       </div>
 
       {/* Legend */}
-      <div className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-2 text-xs text-gray-600">
+      <div className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-2 text-xs text-tertiary">
         <div className="flex items-center gap-2">
-          <div className="w-6 h-6 bg-violet-50 border-2 border-violet-300 rounded-full"></div>
+          <div className="w-6 h-6 bg-brand-soft border-2 border-violet-300 dark:border-violet-700 rounded-full"></div>
           <span>Birdie</span>
         </div>
         <div className="flex items-center gap-2">
-          <div className="w-6 h-6 border border-gray-300"></div>
+          <div className="w-6 h-6 border border-border-strong"></div>
           <span>Par</span>
         </div>
         <div className="flex items-center gap-2">
-          <div className="w-6 h-6 bg-red-50 border-2 border-red-300"></div>
+          <div className="w-6 h-6 bg-red-50 dark:bg-red-950/40 border-2 border-red-300 dark:border-red-700"></div>
           <span>Bogey</span>
         </div>
         <div className="flex items-center gap-2">
-          <div className="w-6 h-6 bg-violet-100 border-2 border-violet-400 rounded-full"></div>
+          <div className="w-6 h-6 bg-violet-100 dark:bg-violet-950/60 border-2 border-violet-400 dark:border-violet-600 rounded-full"></div>
           <span>Eagle</span>
         </div>
         {showStats && (
           <>
             <div className="flex items-center gap-1">
-              <span className="text-green-600 font-semibold">F</span>
+              <span className="text-green-600 dark:text-green-400 font-semibold">F</span>
               <span>= Fairway Hit</span>
             </div>
             <div className="flex items-center gap-1">
-              <span className="text-green-600 font-semibold">G</span>
+              <span className="text-green-600 dark:text-green-400 font-semibold">G</span>
               <span>= Green in Regulation</span>
             </div>
           </>

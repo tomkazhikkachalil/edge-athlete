@@ -62,67 +62,67 @@ export default function WorkoutPostCard({ statsData }: WorkoutPostCardProps) {
   };
 
   return (
-    <div className="rounded-xl border border-violet-100 bg-violet-50/60 overflow-hidden mb-2">
+    <div className="rounded-xl border border-violet-100 dark:border-violet-900 bg-brand-soft/60 overflow-hidden mb-2">
       {/* Collapsed summary — all from denormalized stats_data */}
       <div className="px-3.5 pt-3 pb-2.5">
         <div className="flex items-center gap-2.5 mb-2.5">
-          <div className="w-8 h-8 rounded-full bg-violet-600 flex items-center justify-center shrink-0">
+          <div className="w-8 h-8 rounded-full bg-brand flex items-center justify-center shrink-0">
             <Dumbbell className="w-4 h-4 text-white" aria-hidden="true" />
           </div>
           <div className="min-w-0 flex-1">
-            <p className="text-sm font-bold text-gray-900 truncate">{title}</p>
-            {topLine && <p className="text-xs text-violet-700 truncate">Top set: {topLine}</p>}
+            <p className="text-sm font-bold text-primary truncate">{title}</p>
+            {topLine && <p className="text-xs text-brand-fg-strong truncate">Top set: {topLine}</p>}
           </div>
         </div>
 
         <div className="grid grid-cols-3 gap-2">
-          <div className="bg-white rounded-lg px-2 py-1.5 text-center">
-            <div className="flex items-center justify-center gap-1 text-sm font-bold text-gray-900">
+          <div className="bg-surface rounded-lg px-2 py-1.5 text-center">
+            <div className="flex items-center justify-center gap-1 text-sm font-bold text-primary">
               <Timer className="w-3 h-3 text-violet-500" aria-hidden="true" />
               {formatDuration(durationSeconds)}
             </div>
-            <div className="text-[10px] font-semibold text-gray-500 uppercase tracking-wide">Duration</div>
+            <div className="text-[10px] font-semibold text-muted uppercase tracking-wide">Duration</div>
           </div>
-          <div className="bg-white rounded-lg px-2 py-1.5 text-center">
-            <div className="text-sm font-bold text-gray-900">
+          <div className="bg-surface rounded-lg px-2 py-1.5 text-center">
+            <div className="text-sm font-bold text-primary">
               {exerciseCount} · {totalSets}
             </div>
-            <div className="text-[10px] font-semibold text-gray-500 uppercase tracking-wide">Exercises · Sets</div>
+            <div className="text-[10px] font-semibold text-muted uppercase tracking-wide">Exercises · Sets</div>
           </div>
-          <div className="bg-white rounded-lg px-2 py-1.5 text-center">
-            <div className="flex items-center justify-center gap-1 text-sm font-bold text-gray-900">
+          <div className="bg-surface rounded-lg px-2 py-1.5 text-center">
+            <div className="flex items-center justify-center gap-1 text-sm font-bold text-primary">
               <TrendingUp className="w-3 h-3 text-violet-500" aria-hidden="true" />
               {totalVolumeLbs > 0 ? formatVolume(totalVolumeLbs) : '—'}
             </div>
-            <div className="text-[10px] font-semibold text-gray-500 uppercase tracking-wide">Volume</div>
+            <div className="text-[10px] font-semibold text-muted uppercase tracking-wide">Volume</div>
           </div>
         </div>
       </div>
 
       {/* Expanded details — lazy-fetched once */}
       {detail.status === 'loading' && (
-        <div className="flex justify-center py-4 border-t border-violet-100">
+        <div className="flex justify-center py-4 border-t border-violet-100 dark:border-violet-900">
           <span className="animate-spin rounded-full h-5 w-5 border-b-2 border-violet-500" aria-hidden="true" />
         </div>
       )}
       {detail.status === 'unavailable' && (
-        <p className="px-3.5 py-3 border-t border-violet-100 text-xs text-gray-500">
+        <p className="px-3.5 py-3 border-t border-violet-100 dark:border-violet-900 text-xs text-muted">
           Full details unavailable.
         </p>
       )}
       {detail.status === 'loaded' && (
-        <div className="px-3.5 py-3 border-t border-violet-100 bg-white/60 space-y-3">
+        <div className="px-3.5 py-3 border-t border-violet-100 dark:border-violet-900 bg-surface/60 space-y-3">
           {detail.exercises.length === 0 && (
-            <p className="text-xs text-gray-500">No exercises logged.</p>
+            <p className="text-xs text-muted">No exercises logged.</p>
           )}
           {detail.exercises.map((exercise, index) => (
             <div key={index}>
-              <p className="text-xs font-bold text-gray-800">{exercise.name}</p>
+              <p className="text-xs font-bold text-primary">{exercise.name}</p>
               <div className="mt-0.5 space-y-1">
                 {exercise.sets.map((set, setIndex) => (
                   <div key={setIndex}>
-                    <p className="text-xs text-gray-600">
-                      <span className="text-gray-400">Set {set.setNumber}</span> · {formatSetLine(set)}
+                    <p className="text-xs text-tertiary">
+                      <span className="text-faint">Set {set.setNumber}</span> · {formatSetLine(set)}
                     </p>
                     {set.media.length > 0 && <SetMediaStrip media={set.media} />}
                   </div>
@@ -136,7 +136,7 @@ export default function WorkoutPostCard({ statsData }: WorkoutPostCardProps) {
       <button
         type="button"
         onClick={toggle}
-        className="w-full flex items-center justify-center gap-1 py-1.5 border-t border-violet-100 text-xs font-semibold text-violet-700 hover:bg-violet-100/60 transition-colors"
+        className="w-full flex items-center justify-center gap-1 py-1.5 border-t border-violet-100 dark:border-violet-900 text-xs font-semibold text-brand-fg-strong hover:bg-violet-100/60 dark:hover:bg-violet-950/40 transition-colors"
       >
         {expanded ? (
           <>
