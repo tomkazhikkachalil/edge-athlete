@@ -14,6 +14,8 @@ import GroupSettingsModal from './GroupSettingsModal';
 import PostDetailModal from '@/components/PostDetailModal';
 import GifPickerModal from '@/components/GifPickerModal';
 import type { Message, Conversation, AggregatedReaction } from '@/types/messages';
+import { FEATURE_FLAGS } from '@/lib/features';
+import { requestDockConversation } from '@/lib/chat-dock-open';
 
 interface Props {
   conversationId: string;
@@ -511,6 +513,17 @@ export default function ChatWindow({ conversationId, onBack }: Props) {
     }
   }, [conversation, currentUserId, conversationId, removeConversation, router]);
 
+  // Minimize to the chat dock: hand the conversation to the always-mounted
+  // ChatDock (synchronous — state commits and persists first), then leave
+  // the dock-suppressed /messages route so the window is immediately
+  // visible. Known gap: at ≥1024px wide but <600px tall the button shows
+  // (lg: is width-only) while the dock's viewport gate holds it back — the
+  // window still persists and appears once the viewport qualifies.
+  const handleMinimizeToDock = useCallback(() => {
+    requestDockConversation(conversationId);
+    router.push('/feed');
+  }, [conversationId, router]);
+
   // Conversation header helpers
   const getHeaderName = () => {
     if (!conversation) return '';
@@ -636,6 +649,19 @@ export default function ChatWindow({ conversationId, onBack }: Props) {
             </p>
           )}
         </div>
+
+        {/* Minimize to dock — desktop-only (the dock is lg+) */}
+        {FEATURE_FLAGS.FEATURE_CHAT_DOCK && (
+          <button
+            type="button"
+            onClick={handleMinimizeToDock}
+            aria-label="Minimize to chat dock"
+            title="Minimize to dock"
+            className="hidden lg:flex shrink-0 p-2 text-gray-400 hover:text-gray-600 transition-colors items-center justify-center"
+          >
+            <i className="fas fa-down-left-and-up-right-to-center"></i>
+          </button>
+        )}
 
         {/* Context menu */}
         <div className="relative shrink-0" ref={menuRef}>
