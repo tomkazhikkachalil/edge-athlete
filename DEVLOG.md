@@ -2,6 +2,12 @@
 
 ## August 6, 2026 — Dark mode: token architecture, four-mode scheduler, ~150-file sweep
 
+**🚀 SHIPPED TO PRODUCTION Aug 6** (PR #67 squash-merged as `b21acd8`, 196
+files, +5516/−3699; Vercel production Ready). Post-deploy smoke on
+edge-athlete.vercel.app: pages 200, `/api/settings/theme` 405 on GET and 401
+unauthenticated, and the signed-in + signed-out no-swap checks both painting
+the right theme at `ready:interactive`.
+
 **The whole app now has a dark theme — colours only.** Layout, spacing, type
 and behaviour untouched; light mode is pixel-identical by construction
 (every token's light value is the exact hex of the utility it replaced).
