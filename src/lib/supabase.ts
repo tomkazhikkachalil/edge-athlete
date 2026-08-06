@@ -114,6 +114,9 @@ export interface Profile {
   // 'self' after the transfer of control completes.
   supervision_state?: 'self' | 'supervised' | string;
   dob_locked?: boolean;
+  // Account-level theme preference (migration 069). Deliberately `unknown`:
+  // always read through sanitizeThemePrefs (src/lib/theme-prefs.ts).
+  theme_prefs?: unknown;
   // Note: Sport-specific settings (golf, hockey, etc.) are now stored in the sport_settings table
 }
 
