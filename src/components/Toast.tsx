@@ -56,14 +56,14 @@ function Toast({ toast, onDismiss }: ToastProps) {
   const getBgColor = () => {
     switch (toast.type) {
       case 'success':
-        return 'bg-green-50 border-green-200';
+        return 'bg-success-soft border-success-border';
       case 'error':
-        return 'bg-red-50 border-red-200';
+        return 'bg-danger-soft border-danger-border';
       case 'warning':
-        return 'bg-yellow-50 border-yellow-200';
+        return 'bg-warning-soft border-warning-border';
       case 'info':
       default:
-        return 'bg-violet-50 border-violet-200';
+        return 'bg-brand-soft border-violet-200 dark:border-violet-800';
     }
   };
 
@@ -74,7 +74,7 @@ function Toast({ toast, onDismiss }: ToastProps) {
   return (
     <div
       className={`
-        w-full max-w-md bg-white border-2 rounded-lg shadow-lg pointer-events-auto
+        w-full max-w-md bg-surface border-2 rounded-lg shadow-lg pointer-events-auto
         transform transition-all duration-300 ease-in-out ${getBgColor()}
         ${isVisible && !isExiting ? 'translate-y-0 opacity-100' : '-translate-y-4 opacity-0'}
       `}
@@ -87,17 +87,17 @@ function Toast({ toast, onDismiss }: ToastProps) {
             {getIcon()}
           </div>
           <div className="ml-3 w-0 flex-1 pt-0.5">
-            <p className="text-base font-semibold text-gray-900">
+            <p className="text-base font-semibold text-primary">
               {toast.title}
             </p>
             {toast.message && (
-              <p className="mt-1 text-sm text-gray-600">
+              <p className="mt-1 text-sm text-tertiary">
                 {toast.message}
               </p>
             )}
           </div>
           <button
-            className="ml-2 -m-1.5 p-1.5 flex-shrink-0 w-9 h-9 flex items-center justify-center rounded-md text-gray-400 hover:text-gray-600 focus:outline-none focus:ring-2 focus:ring-violet-500"
+            className="ml-2 -m-1.5 p-1.5 flex-shrink-0 w-9 h-9 flex items-center justify-center rounded-md text-faint hover:text-tertiary focus:outline-none focus:ring-2 focus:ring-violet-500"
             onClick={handleDismiss}
             aria-label="Dismiss notification"
           >

@@ -79,16 +79,16 @@ export default function ConnectionSuggestions({
 
   if (loading) {
     return (
-      <div className={`bg-white rounded-lg shadow-sm border border-gray-200 ${compact ? 'p-4' : 'p-6'}`}>
+      <div className={`bg-surface rounded-lg shadow-sm border border-border ${compact ? 'p-4' : 'p-6'}`}>
         <div className="animate-pulse">
-          <div className="h-6 bg-gray-200 rounded w-3/4 mb-4"></div>
+          <div className="h-6 bg-gray-200 dark:bg-stone-800 rounded w-3/4 mb-4"></div>
           <div className="space-y-3">
             {[1, 2, 3].map(i => (
               <div key={i} className="flex items-center gap-3">
-                <div className="w-12 h-12 bg-gray-200 rounded-full"></div>
+                <div className="w-12 h-12 bg-gray-200 dark:bg-stone-800 rounded-full"></div>
                 <div className="flex-1">
-                  <div className="h-4 bg-gray-200 rounded w-3/4 mb-2"></div>
-                  <div className="h-3 bg-gray-200 rounded w-1/2"></div>
+                  <div className="h-4 bg-gray-200 dark:bg-stone-800 rounded w-3/4 mb-2"></div>
+                  <div className="h-3 bg-gray-200 dark:bg-stone-800 rounded w-1/2"></div>
                 </div>
               </div>
             ))}
@@ -103,11 +103,11 @@ export default function ConnectionSuggestions({
   }
 
   return (
-    <div className={`bg-white rounded-lg shadow-sm border border-gray-200 ${compact ? 'p-4' : 'p-6'}`}>
+    <div className={`bg-surface rounded-lg shadow-sm border border-border ${compact ? 'p-4' : 'p-6'}`}>
       {/* Header */}
       <div className="flex items-center justify-between mb-4">
-        <h3 className={`font-bold text-gray-900 ${compact ? 'text-base' : 'text-lg'}`}>
-          <i className="fas fa-user-friends text-violet-600 mr-2"></i>
+        <h3 className={`font-bold text-primary ${compact ? 'text-base' : 'text-lg'}`}>
+          <i className="fas fa-user-friends text-brand-fg mr-2"></i>
           Suggested Connections
         </h3>
       </div>
@@ -117,7 +117,7 @@ export default function ConnectionSuggestions({
         {visibleSuggestions.map(suggestion => (
           <div
             key={suggestion.suggested_id}
-            className="flex flex-wrap items-center gap-3 p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors min-h-[72px]"
+            className="flex flex-wrap items-center gap-3 p-3 bg-surface-muted rounded-lg hover:bg-surface-sunken transition-colors min-h-[72px]"
           >
             {/* Avatar */}
             <button
@@ -162,20 +162,20 @@ export default function ConnectionSuggestions({
                     router.push(`/athlete/${suggestion.suggested_id}`);
                   }
                 }}
-                className="font-semibold text-gray-900 hover:text-violet-600 truncate block text-sm w-full text-left"
+                className="font-semibold text-primary hover:text-brand-fg truncate block text-sm w-full text-left"
               >
                 {suggestion.suggested_name}
               </button>
 
               {(suggestion.suggested_sport || suggestion.suggested_school) && (
-                <p className="text-xs text-gray-600 truncate mt-0.5">
+                <p className="text-xs text-tertiary truncate mt-0.5">
                   {suggestion.suggested_sport}
                   {suggestion.suggested_sport && suggestion.suggested_school && ' • '}
                   {suggestion.suggested_school}
                 </p>
               )}
 
-              <p className="text-xs text-violet-600 mt-1 truncate">
+              <p className="text-xs text-brand-fg mt-1 truncate">
                 <i className="fas fa-lightbulb mr-1"></i>
                 {suggestion.reason}
               </p>
@@ -198,7 +198,7 @@ export default function ConnectionSuggestions({
               />
               <button
                 onClick={() => handleDismiss(suggestion.suggested_id)}
-                className="text-xs text-gray-500 hover:text-gray-700 min-w-[44px] min-h-[44px] flex items-center justify-center"
+                className="text-xs text-muted hover:text-secondary min-w-[44px] min-h-[44px] flex items-center justify-center"
                 aria-label="Dismiss suggestion"
               >
                 <i className="fas fa-times"></i>
@@ -212,7 +212,7 @@ export default function ConnectionSuggestions({
       {compact && visibleSuggestions.length >= limit && (
         <button
           onClick={() => router.push('/app/suggestions')}
-          className="w-full mt-4 text-sm text-violet-600 hover:text-violet-700 font-medium"
+          className="w-full mt-4 text-sm text-brand-fg hover:text-brand-fg-strong font-medium"
         >
           View all suggestions
         </button>

@@ -49,7 +49,7 @@ let lastPill: { x: number; width: number; visible: boolean } | null = null;
  * *below* the banner instead. No banner → the variable is unset → top:0.
  */
 const headerShell = (scrolled: boolean) =>
-  `sticky top-[var(--ea-banner-h,0px)] z-40 safe-top safe-x bg-white/80 backdrop-blur-md transition-[border-color,box-shadow] duration-200 border-b ${
+  `sticky top-[var(--ea-banner-h,0px)] z-40 safe-top safe-x bg-surface/80 backdrop-blur-md transition-[border-color,box-shadow] duration-200 border-b ${
     scrolled ? 'border-[color:var(--ea-hairline)] shadow-[var(--ea-shadow-rest)]' : 'border-transparent shadow-none'
   }`;
 
@@ -231,7 +231,7 @@ export default function AppHeader({ onCreatePost, onEditProfile }: AppHeaderProp
               width={140}
               height={35}
               preload
-              className="h-7 w-auto"
+              className="themed-logo h-7 w-auto"
             />
           </div>
         </div>
@@ -258,12 +258,12 @@ export default function AppHeader({ onCreatePost, onEditProfile }: AppHeaderProp
                 width={140}
                 height={35}
                 preload
-                className="h-7 w-auto"
+                className="themed-logo h-7 w-auto"
               />
             </Link>
             <div className="flex items-center gap-2 sm:gap-3">
               <HeaderSearch />
-              <Link href="/" className="ea-interactive text-sm font-medium text-gray-700 rounded-lg px-3 py-2">
+              <Link href="/" className="ea-interactive text-sm font-medium text-secondary rounded-lg px-3 py-2">
                 Log in
               </Link>
               <Link
@@ -301,7 +301,7 @@ export default function AppHeader({ onCreatePost, onEditProfile }: AppHeaderProp
                   alt="Edge Athlete"
                   width={64}
                   height={64}
-                  className="h-8 w-8 sm:hidden"
+                  className="themed-logo h-8 w-8 sm:hidden"
                 />
                 <Image
                   src="/logo.png"
@@ -309,7 +309,7 @@ export default function AppHeader({ onCreatePost, onEditProfile }: AppHeaderProp
                   width={140}
                   height={35}
                   preload
-                  className="hidden h-7 w-auto sm:block"
+                  className="themed-logo hidden h-7 w-auto sm:block"
                 />
               </button>
 
@@ -342,8 +342,8 @@ export default function AppHeader({ onCreatePost, onEditProfile }: AppHeaderProp
                       aria-current={active ? 'page' : undefined}
                       className={`relative z-10 rounded-lg px-3 py-2 text-sm font-medium transition-colors duration-[150ms] ${
                         active
-                          ? 'text-violet-700'
-                          : 'text-gray-700 hover:text-gray-900 hover:bg-[color:var(--ea-tint)]'
+                          ? 'text-brand-fg-strong'
+                          : 'text-secondary hover:text-primary hover:bg-[color:var(--ea-tint)]'
                       }`}
                     >
                       {link.accent === 'live' && (
@@ -404,7 +404,7 @@ export default function AppHeader({ onCreatePost, onEditProfile }: AppHeaderProp
               <div className="hidden lg:block relative">
                 <button
                   onClick={() => setIsProfileDropdownOpen(!isProfileDropdownOpen)}
-                  className="flex items-center gap-2 hover:bg-gray-100 rounded-lg p-1.5 transition-colors"
+                  className="flex items-center gap-2 hover:bg-surface-sunken rounded-lg p-1.5 transition-colors"
                   aria-label="Account menu"
                   aria-expanded={isProfileDropdownOpen}
                 >
@@ -416,7 +416,7 @@ export default function AppHeader({ onCreatePost, onEditProfile }: AppHeaderProp
                       formatDisplayName(profile?.first_name, null, profile?.last_name, profile?.full_name)
                     )}
                   />
-                  <i className={`fas fa-chevron-down text-xs text-gray-500 transition-transform ${isProfileDropdownOpen ? 'rotate-180' : ''}`}></i>
+                  <i className={`fas fa-chevron-down text-xs text-muted transition-transform ${isProfileDropdownOpen ? 'rotate-180' : ''}`}></i>
                 </button>
 
                 {/* Dropdown Menu */}
@@ -426,12 +426,12 @@ export default function AppHeader({ onCreatePost, onEditProfile }: AppHeaderProp
                       className="fixed inset-0 z-10"
                       onClick={() => setIsProfileDropdownOpen(false)}
                     />
-                    <div className="absolute right-0 mt-2 w-64 bg-white rounded-lg shadow-lg border border-gray-200 py-2 z-20">
-                      <div className="px-4 py-3 border-b border-gray-100">
-                        <p className="text-sm font-semibold text-gray-900">
+                    <div className="absolute right-0 mt-2 w-64 bg-surface-raised rounded-lg shadow-lg border border-border py-2 z-20">
+                      <div className="px-4 py-3 border-b border-border-subtle">
+                        <p className="text-sm font-semibold text-primary">
                           {formatDisplayName(profile?.first_name, null, profile?.last_name, profile?.full_name)}
                         </p>
-                        <p className="text-xs text-gray-500 mt-0.5">
+                        <p className="text-xs text-muted mt-0.5">
                           {getHandle(profile || {})}
                         </p>
                       </div>
@@ -440,8 +440,8 @@ export default function AppHeader({ onCreatePost, onEditProfile }: AppHeaderProp
                           athletes. Authorization is the profile_access row,
                           re-checked server-side on every write. */}
                       {FEATURE_FLAGS.FEATURE_GUARDIAN_PROFILES && (
-                        <div className="py-1 border-b border-gray-100">
-                          <p className="px-4 pt-1 pb-0.5 text-[10px] font-semibold text-gray-400 uppercase tracking-wide">
+                        <div className="py-1 border-b border-border-subtle">
+                          <p className="px-4 pt-1 pb-0.5 text-[10px] font-semibold text-faint uppercase tracking-wide">
                             Your athletes
                           </p>
                           {managedProfiles.map(mp => (
@@ -451,13 +451,13 @@ export default function AppHeader({ onCreatePost, onEditProfile }: AppHeaderProp
                                 setActiveProfile(activeProfile?.id === mp.id ? null : mp);
                                 setIsProfileDropdownOpen(false);
                               }}
-                              className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-3"
+                              className="w-full text-left px-4 py-2 text-sm text-secondary hover:bg-surface-muted flex items-center gap-3"
                             >
-                              <i className={`fas ${activeProfile?.id === mp.id ? 'fa-circle-check text-violet-600' : 'fa-child-reaching'} w-4`}></i>
+                              <i className={`fas ${activeProfile?.id === mp.id ? 'fa-circle-check text-brand-fg' : 'fa-child-reaching'} w-4`}></i>
                               <span>
                                 {formatDisplayName(mp.first_name, null, mp.last_name, mp.full_name)}
                                 {activeProfile?.id === mp.id && (
-                                  <span className="ml-1 text-xs text-violet-600">(active)</span>
+                                  <span className="ml-1 text-xs text-brand-fg">(active)</span>
                                 )}
                               </span>
                             </button>
@@ -469,7 +469,7 @@ export default function AppHeader({ onCreatePost, onEditProfile }: AppHeaderProp
                                   router.push('/app/guardian/approvals');
                                   setIsProfileDropdownOpen(false);
                                 }}
-                                className="w-full text-left px-4 py-2 text-sm text-violet-700 hover:bg-violet-50 flex items-center gap-3"
+                                className="w-full text-left px-4 py-2 text-sm text-brand-fg-strong hover:bg-brand-soft flex items-center gap-3"
                               >
                                 <i className="fas fa-list-check w-4"></i>
                                 <span>Approval queue</span>
@@ -479,7 +479,7 @@ export default function AppHeader({ onCreatePost, onEditProfile }: AppHeaderProp
                                   router.push('/app/guardian/transfers');
                                   setIsProfileDropdownOpen(false);
                                 }}
-                                className="w-full text-left px-4 py-2 text-sm text-violet-700 hover:bg-violet-50 flex items-center gap-3"
+                                className="w-full text-left px-4 py-2 text-sm text-brand-fg-strong hover:bg-brand-soft flex items-center gap-3"
                               >
                                 <i className="fas fa-right-left w-4"></i>
                                 <span>Account transfers</span>
@@ -491,7 +491,7 @@ export default function AppHeader({ onCreatePost, onEditProfile }: AppHeaderProp
                               router.push('/app/guardian/add-athlete');
                               setIsProfileDropdownOpen(false);
                             }}
-                            className="w-full text-left px-4 py-2 text-sm text-violet-700 hover:bg-violet-50 flex items-center gap-3"
+                            className="w-full text-left px-4 py-2 text-sm text-brand-fg-strong hover:bg-brand-soft flex items-center gap-3"
                           >
                             <i className="fas fa-plus w-4"></i>
                             <span>Add an athlete</span>
@@ -505,7 +505,7 @@ export default function AppHeader({ onCreatePost, onEditProfile }: AppHeaderProp
                             router.push('/athlete');
                             setIsProfileDropdownOpen(false);
                           }}
-                          className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-3"
+                          className="w-full text-left px-4 py-2 text-sm text-secondary hover:bg-surface-muted flex items-center gap-3"
                         >
                           <i className="fas fa-user w-4"></i>
                           <span>View Profile</span>
@@ -519,7 +519,7 @@ export default function AppHeader({ onCreatePost, onEditProfile }: AppHeaderProp
                             }
                             setIsProfileDropdownOpen(false);
                           }}
-                          className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-3"
+                          className="w-full text-left px-4 py-2 text-sm text-secondary hover:bg-surface-muted flex items-center gap-3"
                         >
                           <i className="fas fa-edit w-4"></i>
                           <span>Edit Profile</span>
@@ -529,7 +529,7 @@ export default function AppHeader({ onCreatePost, onEditProfile }: AppHeaderProp
                             router.push('/athlete/saved');
                             setIsProfileDropdownOpen(false);
                           }}
-                          className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-3"
+                          className="w-full text-left px-4 py-2 text-sm text-secondary hover:bg-surface-muted flex items-center gap-3"
                         >
                           <i className="fas fa-bookmark w-4"></i>
                           <span>Saved Posts</span>
@@ -539,7 +539,7 @@ export default function AppHeader({ onCreatePost, onEditProfile }: AppHeaderProp
                             router.push('/settings');
                             setIsProfileDropdownOpen(false);
                           }}
-                          className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-3"
+                          className="w-full text-left px-4 py-2 text-sm text-secondary hover:bg-surface-muted flex items-center gap-3"
                         >
                           <i className="fas fa-cog w-4"></i>
                           <span>Settings</span>
@@ -552,14 +552,14 @@ export default function AppHeader({ onCreatePost, onEditProfile }: AppHeaderProp
                           onClick={() => {
                             toggleTheme();
                           }}
-                          className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-3"
+                          className="w-full text-left px-4 py-2 text-sm text-secondary hover:bg-surface-muted flex items-center gap-3"
                         >
                           <i className={`fas ${theme === 'dark' ? 'fa-sun' : 'fa-moon'} w-4`}></i>
                           <span>{theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}</span>
                         </button>
                       </div>
 
-                      <div className="border-t border-gray-100 py-1">
+                      <div className="border-t border-border-subtle py-1">
                         <button
                           onClick={() => {
                             handleSignOut();
@@ -600,21 +600,21 @@ export default function AppHeader({ onCreatePost, onEditProfile }: AppHeaderProp
 
       {/* Mobile Menu Drawer */}
       <div
-        className={`fixed top-0 right-0 h-full w-72 max-w-[85vw] bg-white shadow-lg z-50 transform transition-transform duration-300 ease-in-out lg:hidden safe-top safe-bottom ${
+        className={`fixed top-0 right-0 h-full w-72 max-w-[85vw] bg-surface shadow-lg z-50 transform transition-transform duration-300 ease-in-out lg:hidden safe-top safe-bottom ${
           isMobileMenuOpen ? 'translate-x-0' : 'translate-x-full'
         }`}
       >
         <div className="flex flex-col h-full">
           {/* Header */}
-          <div className="p-4 border-b border-gray-200">
+          <div className="p-4 border-b border-border">
             <div className="flex items-center justify-between">
-              <h2 className="text-lg font-bold text-gray-900">
+              <h2 className="text-lg font-bold text-primary">
                 <span className="sr-only">Menu</span>
-                <Image src="/logo.png" alt="" width={120} height={30} className="h-6 w-auto" />
+                <Image src="/logo.png" alt="" width={120} height={30} className="themed-logo h-6 w-auto" />
               </h2>
               <button
                 onClick={() => setIsMobileMenuOpen(false)}
-                className="ea-icon-btn inline-flex items-center justify-center text-gray-500 hover:text-gray-700"
+                className="ea-icon-btn inline-flex items-center justify-center text-muted hover:text-secondary"
                 aria-label="Close menu"
               >
                 <i className="fas fa-times text-xl"></i>
@@ -623,13 +623,13 @@ export default function AppHeader({ onCreatePost, onEditProfile }: AppHeaderProp
           </div>
 
           {/* Profile Section */}
-          <div className="p-4 border-b border-gray-200">
+          <div className="p-4 border-b border-border">
             <button
               onClick={() => {
                 router.push('/athlete');
                 setIsMobileMenuOpen(false);
               }}
-              className="flex items-center gap-3 w-full hover:bg-gray-50 rounded-lg p-2 transition-colors"
+              className="flex items-center gap-3 w-full hover:bg-surface-muted rounded-lg p-2 transition-colors"
             >
               <AvatarImage
                 src={profile?.avatar_url}
@@ -643,10 +643,10 @@ export default function AppHeader({ onCreatePost, onEditProfile }: AppHeaderProp
                   the row past the 272px drawer (the classic min-width:auto
                   flex trap). */}
               <div className="flex-1 min-w-0 text-left">
-                <p className="font-semibold text-gray-900 truncate">
+                <p className="font-semibold text-primary truncate">
                   {formatDisplayName(profile?.first_name, null, profile?.last_name, profile?.full_name)}
                 </p>
-                <p className="text-sm text-gray-500">View Profile</p>
+                <p className="text-sm text-muted">View Profile</p>
               </div>
             </button>
           </div>
@@ -671,8 +671,8 @@ export default function AppHeader({ onCreatePost, onEditProfile }: AppHeaderProp
                   isActivePath(link.path)
                     ? link.accent === 'live'
                       ? 'bg-red-50 text-red-600'
-                      : 'bg-violet-50 text-violet-600'
-                    : 'text-gray-700 hover:bg-gray-50 hover:text-violet-600'
+                      : 'bg-brand-soft text-brand-fg'
+                    : 'text-secondary hover:bg-surface-muted hover:text-brand-fg'
                 }`}
               >
                 <i className={`fas ${link.icon} w-5 text-center ${link.accent === 'live' ? 'text-red-600 animate-pulse text-[10px]' : ''}`}></i>
@@ -687,8 +687,8 @@ export default function AppHeader({ onCreatePost, onEditProfile }: AppHeaderProp
                 The drawer has to be a superset of the dropdown, or raising the
                 breakpoint silently removes features. */}
             {FEATURE_FLAGS.FEATURE_GUARDIAN_PROFILES && (
-              <div className="pt-2 mt-2 border-t border-gray-200">
-                <p className="px-4 pb-1 text-[10px] font-semibold text-gray-400 uppercase tracking-wide">
+              <div className="pt-2 mt-2 border-t border-border">
+                <p className="px-4 pb-1 text-[10px] font-semibold text-faint uppercase tracking-wide">
                   Your athletes
                 </p>
                 {managedProfiles.map(mp => (
@@ -698,13 +698,13 @@ export default function AppHeader({ onCreatePost, onEditProfile }: AppHeaderProp
                       setActiveProfile(activeProfile?.id === mp.id ? null : mp);
                       setIsMobileMenuOpen(false);
                     }}
-                    className="flex items-center gap-3 w-full px-4 py-3 text-left text-gray-700 hover:bg-gray-50 rounded-lg transition-colors"
+                    className="flex items-center gap-3 w-full px-4 py-3 text-left text-secondary hover:bg-surface-muted rounded-lg transition-colors"
                   >
-                    <i className={`fas ${activeProfile?.id === mp.id ? 'fa-circle-check text-violet-600' : 'fa-child-reaching'} w-5 text-center shrink-0`}></i>
+                    <i className={`fas ${activeProfile?.id === mp.id ? 'fa-circle-check text-brand-fg' : 'fa-child-reaching'} w-5 text-center shrink-0`}></i>
                     <span className="font-medium flex-1 min-w-0 truncate">
                       {formatDisplayName(mp.first_name, null, mp.last_name, mp.full_name)}
                       {activeProfile?.id === mp.id && (
-                        <span className="ml-1 text-xs text-violet-600">(active)</span>
+                        <span className="ml-1 text-xs text-brand-fg">(active)</span>
                       )}
                     </span>
                   </button>
@@ -716,7 +716,7 @@ export default function AppHeader({ onCreatePost, onEditProfile }: AppHeaderProp
                         router.push('/app/guardian/approvals');
                         setIsMobileMenuOpen(false);
                       }}
-                      className="flex items-center gap-3 w-full px-4 py-3 text-left text-violet-700 hover:bg-violet-50 rounded-lg transition-colors"
+                      className="flex items-center gap-3 w-full px-4 py-3 text-left text-brand-fg-strong hover:bg-brand-soft rounded-lg transition-colors"
                     >
                       <i className="fas fa-list-check w-5 text-center"></i>
                       <span className="font-medium">Approval queue</span>
@@ -726,7 +726,7 @@ export default function AppHeader({ onCreatePost, onEditProfile }: AppHeaderProp
                         router.push('/app/guardian/transfers');
                         setIsMobileMenuOpen(false);
                       }}
-                      className="flex items-center gap-3 w-full px-4 py-3 text-left text-violet-700 hover:bg-violet-50 rounded-lg transition-colors"
+                      className="flex items-center gap-3 w-full px-4 py-3 text-left text-brand-fg-strong hover:bg-brand-soft rounded-lg transition-colors"
                     >
                       <i className="fas fa-right-left w-5 text-center"></i>
                       <span className="font-medium">Account transfers</span>
@@ -738,7 +738,7 @@ export default function AppHeader({ onCreatePost, onEditProfile }: AppHeaderProp
                     router.push('/app/guardian/add-athlete');
                     setIsMobileMenuOpen(false);
                   }}
-                  className="flex items-center gap-3 w-full px-4 py-3 text-left text-violet-700 hover:bg-violet-50 rounded-lg transition-colors"
+                  className="flex items-center gap-3 w-full px-4 py-3 text-left text-brand-fg-strong hover:bg-brand-soft rounded-lg transition-colors"
                 >
                   <i className="fas fa-plus w-5 text-center"></i>
                   <span className="font-medium">Add an athlete</span>
@@ -748,7 +748,7 @@ export default function AppHeader({ onCreatePost, onEditProfile }: AppHeaderProp
 
             <button
               onClick={handleCreatePost}
-              className="flex items-center gap-3 w-full px-4 py-3 text-left text-gray-700 hover:bg-violet-50 hover:text-violet-600 rounded-lg transition-colors"
+              className="flex items-center gap-3 w-full px-4 py-3 text-left text-secondary hover:bg-brand-soft hover:text-brand-fg rounded-lg transition-colors"
             >
               <i className="fas fa-plus w-5 text-center"></i>
               <span className="font-medium">Create Post</span>
@@ -763,7 +763,7 @@ export default function AppHeader({ onCreatePost, onEditProfile }: AppHeaderProp
                 }
                 setIsMobileMenuOpen(false);
               }}
-              className="flex items-center gap-3 w-full px-4 py-3 text-left text-gray-700 hover:bg-violet-50 hover:text-violet-600 rounded-lg transition-colors"
+              className="flex items-center gap-3 w-full px-4 py-3 text-left text-secondary hover:bg-brand-soft hover:text-brand-fg rounded-lg transition-colors"
             >
               <i className="fas fa-edit w-5 text-center"></i>
               <span className="font-medium">Edit Profile</span>
@@ -774,7 +774,7 @@ export default function AppHeader({ onCreatePost, onEditProfile }: AppHeaderProp
                 router.push('/athlete/saved');
                 setIsMobileMenuOpen(false);
               }}
-              className="flex items-center gap-3 w-full px-4 py-3 text-left text-gray-700 hover:bg-violet-50 hover:text-violet-600 rounded-lg transition-colors"
+              className="flex items-center gap-3 w-full px-4 py-3 text-left text-secondary hover:bg-brand-soft hover:text-brand-fg rounded-lg transition-colors"
             >
               <i className="fas fa-bookmark w-5 text-center"></i>
               <span className="font-medium">Saved Posts</span>
@@ -785,13 +785,13 @@ export default function AppHeader({ onCreatePost, onEditProfile }: AppHeaderProp
                 router.push('/settings');
                 setIsMobileMenuOpen(false);
               }}
-              className="flex items-center gap-3 w-full px-4 py-3 text-left text-gray-700 hover:bg-violet-50 hover:text-violet-600 rounded-lg transition-colors"
+              className="flex items-center gap-3 w-full px-4 py-3 text-left text-secondary hover:bg-brand-soft hover:text-brand-fg rounded-lg transition-colors"
             >
               <i className="fas fa-cog w-5 text-center"></i>
               <span className="font-medium">Settings</span>
             </button>
 
-            <div className="border-t border-gray-200 my-2"></div>
+            <div className="border-t border-border my-2"></div>
 
             <button
               onClick={() => {
@@ -806,17 +806,17 @@ export default function AppHeader({ onCreatePost, onEditProfile }: AppHeaderProp
           </nav>
 
           {/* Footer */}
-          <div className="p-4 border-t border-gray-200">
+          <div className="p-4 border-t border-border">
             {/* min-h grows the ~16px text rows to real touch targets without
                 changing the visual size of the links themselves. */}
             <div className="flex items-center justify-center gap-1 text-xs mb-2">
-              <Link href="/terms" className="text-gray-500 hover:text-gray-700 min-h-[44px] inline-flex items-center px-2">Terms</Link>
+              <Link href="/terms" className="text-muted hover:text-secondary min-h-[44px] inline-flex items-center px-2">Terms</Link>
               <span className="text-gray-300">·</span>
-              <Link href="/privacy" className="text-gray-500 hover:text-gray-700 min-h-[44px] inline-flex items-center px-2">Privacy</Link>
+              <Link href="/privacy" className="text-muted hover:text-secondary min-h-[44px] inline-flex items-center px-2">Privacy</Link>
               <span className="text-gray-300">·</span>
-              <Link href="/contact" className="text-gray-500 hover:text-gray-700 min-h-[44px] inline-flex items-center px-2">Contact</Link>
+              <Link href="/contact" className="text-muted hover:text-secondary min-h-[44px] inline-flex items-center px-2">Contact</Link>
             </div>
-            <p className="text-xs text-gray-500 text-center">
+            <p className="text-xs text-muted text-center">
               Edge Athlete &copy; {new Date().getFullYear()}
             </p>
           </div>

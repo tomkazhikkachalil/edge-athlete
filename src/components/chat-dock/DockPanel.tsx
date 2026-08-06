@@ -120,7 +120,7 @@ export default function DockPanel({
   }, [conversations, filter, currentUserId]);
 
   return (
-    <div data-testid="dock-panel" className="h-full flex flex-col bg-white">
+    <div data-testid="dock-panel" className="h-full flex flex-col bg-surface-raised">
       {mode === 'direct' ? (
         <DockComposer
           currentUserId={currentUserId}
@@ -140,37 +140,37 @@ export default function DockPanel({
         <>
           {/* Group chat is a first-class starting point, not something buried
               on the full board — so it leads the panel, above search. */}
-          <div className="px-3 py-2 border-b border-gray-100 shrink-0">
+          <div className="px-3 py-2 border-b border-border-subtle shrink-0">
             <button
               type="button"
               onClick={() => onModeChange('group')}
-              className="w-full flex items-center gap-2.5 rounded-lg px-2 py-1.5 text-left hover:bg-violet-50 transition-colors"
+              className="w-full flex items-center gap-2.5 rounded-lg px-2 py-1.5 text-left hover:bg-brand-soft transition-colors"
             >
-              <span className="w-8 h-8 rounded-full bg-violet-100 text-violet-700 flex items-center justify-center shrink-0">
+              <span className="w-8 h-8 rounded-full bg-violet-100 text-brand-fg-strong flex items-center justify-center shrink-0">
                 <i className="fas fa-users text-xs"></i>
               </span>
-              <span className="text-sm font-semibold text-gray-900">New group chat</span>
+              <span className="text-sm font-semibold text-primary">New group chat</span>
             </button>
           </div>
 
           {/* Search — same markup as the full messages page's list search. */}
-          <div className="px-3 py-2 border-b border-gray-100 shrink-0">
+          <div className="px-3 py-2 border-b border-border-subtle shrink-0">
             <div className="relative">
-              <i className="fas fa-search absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-xs"></i>
+              <i className="fas fa-search absolute left-3 top-1/2 -translate-y-1/2 text-faint text-xs"></i>
               <input
                 type="text"
                 value={filter}
                 onChange={e => setFilter(e.target.value)}
                 placeholder="Search conversations…"
                 aria-label="Search conversations"
-                className="w-full pl-8 pr-3 py-2 bg-gray-100 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-violet-500"
+                className="w-full pl-8 pr-3 py-2 bg-surface-sunken rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-violet-500"
               />
             </div>
           </div>
 
           {activeContacts.length > 0 && (
-            <div className="px-3 py-2 border-b border-gray-100 shrink-0">
-              <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide mb-1.5">
+            <div className="px-3 py-2 border-b border-border-subtle shrink-0">
+              <p className="text-[10px] font-semibold text-faint uppercase tracking-wide mb-1.5">
                 Active now
               </p>
               <div className="flex gap-2 overflow-x-auto scrollbar-hide">
@@ -199,7 +199,7 @@ export default function DockPanel({
                             className="w-full h-full object-cover"
                           />
                         ) : (
-                          <span className="w-full h-full flex items-center justify-center text-xs font-semibold text-violet-700">
+                          <span className="w-full h-full flex items-center justify-center text-xs font-semibold text-brand-fg-strong">
                             {getInitials(name)}
                           </span>
                         )}
@@ -212,29 +212,29 @@ export default function DockPanel({
             </div>
           )}
 
-          <div className="flex-1 overflow-y-auto divide-y divide-gray-100">
+          <div className="flex-1 overflow-y-auto divide-y divide-border-subtle">
             {filtered.length === 0 ? (
               <div className="px-4 py-8 text-center">
                 {filter ? (
                   <>
                     <i className="fas fa-search text-gray-300 text-2xl mb-2"></i>
-                    <p className="text-sm text-gray-500">
+                    <p className="text-sm text-muted">
                       No conversations match &ldquo;{filter}&rdquo;
                     </p>
                   </>
                 ) : (
                   <>
-                    <span className="w-12 h-12 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-3">
-                      <i className="fas fa-comment-alt text-gray-400 text-lg"></i>
+                    <span className="w-12 h-12 bg-surface-sunken rounded-full flex items-center justify-center mx-auto mb-3">
+                      <i className="fas fa-comment-alt text-faint text-lg"></i>
                     </span>
-                    <p className="text-sm font-semibold text-gray-700">No conversations yet</p>
-                    <p className="text-xs text-gray-500 mb-4">
+                    <p className="text-sm font-semibold text-secondary">No conversations yet</p>
+                    <p className="text-xs text-muted mb-4">
                       Start a conversation with another athlete.
                     </p>
                     <button
                       type="button"
                       onClick={() => onModeChange('direct')}
-                      className="inline-flex items-center gap-1.5 px-4 py-2 bg-violet-600 text-white rounded-lg text-sm font-semibold hover:bg-violet-700 transition-colors"
+                      className="inline-flex items-center gap-1.5 px-4 py-2 bg-brand text-white rounded-lg text-sm font-semibold hover:bg-brand-hover transition-colors"
                     >
                       <i className="fas fa-pen text-xs"></i>
                       New message

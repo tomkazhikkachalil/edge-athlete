@@ -257,7 +257,7 @@ export default function ChatDock() {
         {!hidden && (
         <div
           data-testid="chat-widget"
-          className={`pointer-events-auto shrink-0 max-h-[calc(100dvh-0.5rem)] bg-white rounded-t-lg shadow-2xl border border-gray-200 border-b-0 overflow-hidden flex flex-col transition-[width] duration-200 ease-out ${
+          className={`pointer-events-auto shrink-0 max-h-[calc(100dvh-0.5rem)] bg-surface-raised rounded-t-lg shadow-2xl border border-border border-b-0 overflow-hidden flex flex-col transition-[width] duration-200 ease-out ${
             open ? 'w-80' : 'w-44'
           }`}
         >
@@ -265,7 +265,7 @@ export default function ChatDock() {
               holds its own controls (buttons can't nest, so the element
               type differs by state even though the visuals don't). */}
           {open ? (
-            <div className="flex items-center gap-2 px-3 h-11 bg-violet-600 text-white shrink-0">
+            <div className="flex items-center gap-2 px-3 h-11 bg-brand text-white shrink-0">
               <span className="block w-7 h-7 rounded-full overflow-hidden bg-violet-400 shrink-0">
                 {profile?.avatar_url ? (
                   <LazyImage src={profile.avatar_url} alt={myName} className="w-full h-full object-cover" />
@@ -278,7 +278,7 @@ export default function ChatDock() {
               <span className="flex-1 min-w-0 flex items-center gap-1.5">
                 <span className="text-sm font-semibold truncate">Messages</span>
                 {totalUnreadCount > 0 && (
-                  <span className="shrink-0 bg-white text-violet-700 text-[10px] font-bold rounded-full min-w-4.5 h-4.5 px-1 flex items-center justify-center">
+                  <span className="shrink-0 bg-surface text-brand-fg-strong text-[10px] font-bold rounded-full min-w-4.5 h-4.5 px-1 flex items-center justify-center">
                     {totalUnreadCount > 99 ? '99+' : totalUnreadCount}
                   </span>
                 )}
@@ -290,7 +290,7 @@ export default function ChatDock() {
                 title="New message"
                 aria-pressed={mode === 'direct'}
                 className={`w-6 h-6 rounded flex items-center justify-center transition-colors ${
-                  mode === 'direct' ? 'bg-white text-violet-700' : 'hover:bg-violet-500'
+                  mode === 'direct' ? 'bg-surface text-brand-fg-strong' : 'hover:bg-violet-500'
                 }`}
               >
                 <i className="fas fa-pen text-[10px]"></i>
@@ -327,14 +327,14 @@ export default function ChatDock() {
             <button
               type="button"
               onClick={togglePanel}
-              className="flex items-center gap-2 px-3 h-11 bg-violet-600 text-white hover:bg-violet-700 transition-colors text-sm font-medium w-full"
+              className="flex items-center gap-2 px-3 h-11 bg-brand text-white hover:bg-brand-hover transition-colors text-sm font-medium w-full"
               aria-expanded={false}
               aria-label="Messages dock"
             >
               <i className="fas fa-comment-alt"></i>
               Messages
               {totalUnreadCount > 0 && (
-                <span className="bg-white text-violet-700 text-xs font-bold rounded-full min-w-5 h-5 px-1 flex items-center justify-center">
+                <span className="bg-surface text-brand-fg-strong text-xs font-bold rounded-full min-w-5 h-5 px-1 flex items-center justify-center">
                   {totalUnreadCount > 99 ? '99+' : totalUnreadCount}
                 </span>
               )}

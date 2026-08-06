@@ -176,8 +176,8 @@ export default function FollowButton({
   // Loading state
   if (statsLoading) {
     return (
-      <div className={`bg-gray-200 rounded-full animate-pulse ${sizeClasses[size]} ${className}`}>
-        <div className="bg-gray-300 h-4 rounded"></div>
+      <div className={`bg-gray-200 dark:bg-stone-800 rounded-full animate-pulse ${sizeClasses[size]} ${className}`}>
+        <div className="bg-gray-300 dark:bg-stone-700 h-4 rounded"></div>
       </div>
     );
   }
@@ -225,8 +225,8 @@ export default function FollowButton({
             ${followStatus === 'pending'
               ? 'bg-yellow-100 text-yellow-700 hover:bg-yellow-200'
               : isFollowing
-                ? 'bg-gray-200 text-gray-700 hover:bg-gray-300'
-                : 'bg-violet-600 text-white hover:bg-violet-700'
+                ? 'bg-gray-200 dark:bg-stone-800 text-secondary hover:bg-gray-300 dark:bg-stone-700'
+                : 'bg-brand text-white hover:bg-brand-hover'
             }
             ${sizeClasses[size]}
             ${className}
@@ -236,7 +236,7 @@ export default function FollowButton({
         </button>
 
         {showCount && (
-          <span className="text-sm text-gray-600">
+          <span className="text-sm text-tertiary">
             {followersCount} fan{followersCount !== 1 ? 's' : ''}
           </span>
         )}
@@ -245,9 +245,9 @@ export default function FollowButton({
       {/* Fan Request Modal */}
       {showMessageModal && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-lg shadow-xl max-w-md w-full p-6">
-            <h3 className="text-xl font-bold text-gray-900 mb-2">Become a Fan</h3>
-            <p className="text-sm text-gray-600 mb-4">
+          <div className="bg-surface rounded-lg shadow-xl max-w-md w-full p-6">
+            <h3 className="text-xl font-bold text-primary mb-2">Become a Fan</h3>
+            <p className="text-sm text-tertiary mb-4">
               Add an optional message to introduce yourself (optional)
             </p>
 
@@ -257,10 +257,10 @@ export default function FollowButton({
               placeholder="Hi! I'd love to connect..."
               maxLength={200}
               rows={3}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-500 resize-none text-black"
+              className="w-full px-3 py-2 border border-border-strong rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-500 resize-none text-black dark:text-primary"
             />
 
-            <div className="text-xs text-gray-500 mt-1 mb-4">
+            <div className="text-xs text-muted mt-1 mb-4">
               {followMessage.length}/200 characters
             </div>
 
@@ -270,13 +270,13 @@ export default function FollowButton({
                   setShowMessageModal(false);
                   setFollowMessage('');
                 }}
-                className="flex-1 px-4 py-2 bg-gray-200 text-gray-700 font-medium rounded-lg hover:bg-gray-300 transition-colors"
+                className="flex-1 px-4 py-2 bg-gray-200 dark:bg-stone-800 text-secondary font-medium rounded-lg hover:bg-gray-300 dark:bg-stone-700 transition-colors"
               >
                 Cancel
               </button>
               <button
                 onClick={handleFollow}
-                className="flex-1 px-4 py-2 bg-violet-600 text-white font-medium rounded-lg hover:bg-violet-700 transition-colors"
+                className="flex-1 px-4 py-2 bg-brand text-white font-medium rounded-lg hover:bg-brand-hover transition-colors"
               >
                 Send Request
               </button>

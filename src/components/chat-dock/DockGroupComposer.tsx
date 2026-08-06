@@ -94,7 +94,7 @@ export default function DockGroupComposer({
     // height with overflow-hidden, so without it the footer button is silently
     // clipped out of existence once the list has content.
     <div className="flex flex-col flex-1 min-h-0">
-      <div className="px-3 py-2 border-b border-gray-100 flex items-center gap-2 shrink-0">
+      <div className="px-3 py-2 border-b border-border-subtle flex items-center gap-2 shrink-0">
         <input
           type="text"
           autoFocus
@@ -103,12 +103,12 @@ export default function DockGroupComposer({
           placeholder="Group name…"
           maxLength={GROUP_NAME_MAX}
           aria-label="Group name"
-          className="flex-1 min-w-0 px-3 py-1.5 bg-gray-50 border border-gray-200 rounded-full text-sm focus:outline-none focus:ring-1 focus:ring-violet-500"
+          className="flex-1 min-w-0 px-3 py-1.5 bg-surface-muted border border-border rounded-full text-sm focus:outline-none focus:ring-1 focus:ring-violet-500"
         />
         <button
           type="button"
           onClick={onCancel}
-          className="text-xs text-gray-500 hover:text-gray-700 shrink-0"
+          className="text-xs text-muted hover:text-secondary shrink-0"
         >
           Cancel
         </button>
@@ -120,14 +120,14 @@ export default function DockGroupComposer({
           matter how many members are selected, and the count in the footer
           button means nothing is hidden. */}
       {members.length > 0 && (
-        <div className="px-3 py-1.5 border-b border-gray-100 shrink-0">
+        <div className="px-3 py-1.5 border-b border-border-subtle shrink-0">
           <div className="flex gap-1.5 overflow-x-auto scrollbar-hide">
             {members.map(m => {
               const mName = formatDisplayName(m.first_name, null, m.last_name, m.full_name);
               return (
                 <span
                   key={m.id}
-                  className="shrink-0 flex items-center gap-1 bg-violet-100 text-violet-700 rounded-full pl-2 pr-1 py-0.5 text-xs"
+                  className="shrink-0 flex items-center gap-1 bg-violet-100 text-brand-fg-strong rounded-full pl-2 pr-1 py-0.5 text-xs"
                 >
                   <span className="max-w-[7rem] truncate">{mName}</span>
                   <button
@@ -145,14 +145,14 @@ export default function DockGroupComposer({
         </div>
       )}
 
-      <div className="px-3 py-2 border-b border-gray-100 shrink-0">
+      <div className="px-3 py-2 border-b border-border-subtle shrink-0">
         <input
           type="text"
           value={query}
           onChange={e => setQuery(e.target.value)}
           placeholder="Add people…"
           aria-label="Search people to add"
-          className="w-full px-3 py-1.5 bg-gray-50 border border-gray-200 rounded-full text-sm focus:outline-none focus:ring-1 focus:ring-violet-500"
+          className="w-full px-3 py-1.5 bg-surface-muted border border-border rounded-full text-sm focus:outline-none focus:ring-1 focus:ring-violet-500"
         />
       </div>
 
@@ -164,9 +164,9 @@ export default function DockGroupComposer({
 
       <div className="flex-1 overflow-y-auto min-h-0">
         {searching && results.length === 0 ? (
-          <p className="text-sm text-gray-400 text-center py-6">Searching…</p>
+          <p className="text-sm text-faint text-center py-6">Searching…</p>
         ) : results.length === 0 ? (
-          <p className="text-sm text-gray-400 text-center py-6">
+          <p className="text-sm text-faint text-center py-6">
             {query.trim().length < 2 ? 'Search for people to add.' : 'No one found.'}
           </p>
         ) : (
@@ -184,7 +184,7 @@ export default function DockGroupComposer({
                 type="button"
                 onClick={() => toggle(profile)}
                 aria-pressed={selected}
-                className="w-full flex items-center gap-2.5 px-3 py-2 text-left hover:bg-violet-50"
+                className="w-full flex items-center gap-2.5 px-3 py-2 text-left hover:bg-brand-soft"
               >
                 <span className="w-8 h-8 rounded-full overflow-hidden bg-violet-100 shrink-0">
                   {profile.avatar_url ? (
@@ -194,20 +194,20 @@ export default function DockGroupComposer({
                       className="w-full h-full object-cover"
                     />
                   ) : (
-                    <span className="w-full h-full flex items-center justify-center text-xs font-semibold text-violet-700">
+                    <span className="w-full h-full flex items-center justify-center text-xs font-semibold text-brand-fg-strong">
                       {getInitials(pName)}
                     </span>
                   )}
                 </span>
                 <span className="min-w-0 flex-1">
-                  <span className="block text-sm text-gray-900 truncate">{pName}</span>
+                  <span className="block text-sm text-primary truncate">{pName}</span>
                   {profile.handle && (
-                    <span className="block text-xs text-gray-500 truncate">@{profile.handle}</span>
+                    <span className="block text-xs text-muted truncate">@{profile.handle}</span>
                   )}
                 </span>
                 <span
                   className={`w-5 h-5 rounded-full border flex items-center justify-center shrink-0 ${
-                    selected ? 'bg-violet-600 border-violet-600 text-white' : 'border-gray-300'
+                    selected ? 'bg-brand border-brand text-white' : 'border-border-strong'
                   }`}
                   aria-hidden="true"
                 >
@@ -219,12 +219,12 @@ export default function DockGroupComposer({
         )}
       </div>
 
-      <div className="px-3 py-2 border-t border-gray-100 shrink-0">
+      <div className="px-3 py-2 border-t border-border-subtle shrink-0">
         <button
           type="button"
           onClick={create}
           disabled={!canCreate}
-          className="w-full py-2 bg-violet-600 text-white rounded-lg text-sm font-semibold hover:bg-violet-700 disabled:opacity-40 transition-colors"
+          className="w-full py-2 bg-brand text-white rounded-lg text-sm font-semibold hover:bg-brand-hover disabled:opacity-40 transition-colors"
         >
           {creating ? (
             <>
