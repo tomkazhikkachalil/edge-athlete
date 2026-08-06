@@ -791,6 +791,27 @@ export default function AppHeader({ onCreatePost, onEditProfile }: AppHeaderProp
               <span className="font-medium">Settings</span>
             </button>
 
+            {/* The theme flip, mirroring the desktop dropdown. It shipped ONLY
+                there at first, and that dropdown is `hidden lg:block` — so
+                phones and iPad portrait had no way to switch themes short of
+                hunting through Settings. Same trap the guardian block above
+                documents: the drawer has to be a superset of the dropdown.
+
+                Deliberately does NOT close the drawer (the desktop item does
+                the same): the drawer itself re-themes under your finger, and
+                that is the feedback. Closing would hide the result. */}
+            <button
+              onClick={() => {
+                toggleTheme();
+              }}
+              className="flex items-center gap-3 w-full px-4 py-3 text-left text-secondary hover:bg-brand-soft hover:text-brand-fg rounded-lg transition-colors"
+            >
+              <i className={`fas ${theme === 'dark' ? 'fa-sun' : 'fa-moon'} w-5 text-center`}></i>
+              <span className="font-medium">
+                {theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
+              </span>
+            </button>
+
             <div className="border-t border-border my-2"></div>
 
             <button

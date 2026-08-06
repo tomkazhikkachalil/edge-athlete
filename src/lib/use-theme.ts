@@ -11,6 +11,7 @@ import {
 } from './theme-prefs';
 import { readStoredThemePrefs, writeStoredThemePrefs, subscribeThemePrefs } from './theme';
 import { writeThemeCookie } from './theme-cookie';
+import { THEME_COLOR } from './theme-colors';
 
 /**
  * The one theme evaluator. Module-level singleton, not a context provider,
@@ -57,6 +58,12 @@ function applyResolved() {
   try {
     if (next === 'dark') document.documentElement.dataset.theme = 'dark';
     else delete document.documentElement.dataset.theme;
+    // Browser chrome follows the app, not the OS. Both metas get the same
+    // colour so whichever one the OS media query matches agrees with us —
+    // otherwise a dark app on a light-OS phone keeps a violet address bar.
+    document
+      .querySelectorAll('meta[name="theme-color"]')
+      .forEach(meta => meta.setAttribute('content', THEME_COLOR[next]));
   } catch {
     // non-browser — nothing to stamp
   }

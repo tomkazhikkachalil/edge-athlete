@@ -9,6 +9,7 @@ import TransferBanner from "@/components/TransferBanner";
 import ChatDock from "@/components/chat-dock/ChatDock";
 import ThemeApplier from "@/components/ThemeApplier";
 import { THEME_INIT_SCRIPT } from "@/lib/theme-script";
+import { THEME_COLOR } from "@/lib/theme-colors";
 import "./globals.css";
 import "@fortawesome/fontawesome-free/css/all.min.css";
 
@@ -59,13 +60,14 @@ export const viewport: Viewport = {
   // Resize the layout viewport when the software keyboard opens (Android/
   // Chromium; iOS Safari ignores this — handled via visualViewport instead).
   interactiveWidget: 'resizes-content',
-  // Match the manifest theme so the mobile browser chrome / status bar
-  // tints to the app's brand purple when installed. Browsers key the media
-  // variants off the OS scheme (not our data-theme), so an in-app dark theme
-  // on a light OS keeps the violet chrome — known, acceptable.
+  // Mobile browser chrome / status bar tint. These media variants are only
+  // the SSR default — browsers evaluate them against the OS, not our
+  // data-theme, so the theme script and useTheme overwrite BOTH metas with
+  // the resolved colour (see src/lib/theme-colors.ts). Without that, a dark
+  // app on a light-OS phone kept a violet bar above dark content.
   themeColor: [
-    { media: '(prefers-color-scheme: light)', color: '#7c3aed' },
-    { media: '(prefers-color-scheme: dark)', color: '#171310' },
+    { media: '(prefers-color-scheme: light)', color: THEME_COLOR.light },
+    { media: '(prefers-color-scheme: dark)', color: THEME_COLOR.dark },
   ],
 };
 
