@@ -180,9 +180,13 @@ export default function AppearanceSettings() {
           <i className="fas fa-info-circle text-brand-fg mt-0.5 shrink-0"></i>
           <div>
             <h4 className="font-medium text-primary mb-1">Note</h4>
+            {/* "menu in the top bar" covers both surfaces: the avatar dropdown
+                on desktop and the hamburger drawer on mobile. Naming the
+                profile menu was wrong on phones, where it does not exist. */}
             <p className="text-sm text-secondary">
-              You can flip the theme any time from your profile menu. During a scheduled window,
-              a manual switch lasts until the next scheduled change, then the schedule resumes.
+              You can flip the theme any time from the menu in the top bar. During a scheduled
+              window, a manual switch lasts until the next scheduled change, then the schedule
+              resumes.
             </p>
           </div>
         </div>

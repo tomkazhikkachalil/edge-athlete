@@ -1,5 +1,47 @@
 # Development Log
 
+## August 6, 2026 — Dark mode follow-up: the mobile toggle was desktop-only
+
+**The bug Tom found on his phone: there was no way to switch themes.** The
+one-tap "Switch to dark/light mode" item went into the avatar dropdown in
+`AppHeader`, and that dropdown's wrapper is `hidden lg:block`. So on every
+phone — and iPad portrait, 768–1023px — the control was not rendered and not
+tappable, leaving Settings → Appearance as the only route, which nothing in
+the mobile UI points at. `toggleThemeNow` had exactly one UI call site and it
+was desktop-gated.
+
+This is the failure mode this file already warns about twice: **the drawer has
+to be a superset of the dropdown**, or raising a breakpoint silently removes
+features. Guardian profile switching was fixed for the same reason (see the
+comment at the guardian block). The theme flip now sits in the drawer between
+Settings and the Sign Out divider, and like its desktop twin it deliberately
+does NOT close the drawer — the drawer re-themes under your finger, and that
+is the feedback.
+
+**Browser chrome now follows the app, not the OS.** `viewport.themeColor`
+renders two metas scoped with `media="(prefers-color-scheme: …)"`, which
+browsers evaluate against the *operating system*. A dark app on a light-mode
+phone therefore kept a violet address bar above dark content. The theme script
+(pre-paint) and `useTheme.applyResolved` (on every change) now write the
+resolved colour into BOTH metas, so whichever one the OS matches agrees with
+us. Colours live in `src/lib/theme-colors.ts` — one source, imported by the
+layout, the script and the runtime, rather than a seventh copy of the brand
+hex.
+
+Also corrected `AppearanceSettings`' help text, which told phone users to flip
+the theme "from your profile menu" — a surface their device does not have.
+
+**Still light, deliberately:** `manifest.ts` `theme_color`/`background_color`
+are single static values, so an installed PWA's splash stays lavender, and
+`appleWebApp.statusBarStyle: 'default'` asks iOS for dark glyphs that read
+poorly on a dark app. Both need their own decision. The Settings tab strip
+(six tabs, horizontal scroll, `scrollbar-hide`, no fade or chevron) is also
+still undiscoverable on a phone — declined for now as it touches layout.
+
+Verified in headless Chrome at iPhone 13 (390px, touch), iPad portrait (768px)
+and desktop (1280px): toggle present with a 256×48px hit area, theme flips,
+both chrome metas flip, drawer stays open, desktop dropdown unregressed.
+
 ## August 6, 2026 — Dark mode: token architecture, four-mode scheduler, ~150-file sweep
 
 **🚀 SHIPPED TO PRODUCTION Aug 6** (PR #67 squash-merged as `b21acd8`, 196

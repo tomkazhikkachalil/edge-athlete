@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { THEME_INIT_SCRIPT } from '../theme-script';
 import { THEME_PREFS_KEY } from '../theme-storage-keys';
 import { THEME_COOKIE, encodeThemeCookie } from '../theme-cookie';
+import { THEME_COLOR } from '../theme-colors';
 import { resolveTheme, sanitizeThemePrefs, type ResolvedTheme } from '../theme-prefs';
 
 /**
@@ -28,6 +29,23 @@ interface RunResult {
   theme: ResolvedTheme;
   /** What the script left in the localStorage mirror. */
   mirror: string | null;
+  /** What it wrote into the theme-color metas (browser chrome). */
+  metaColors: string[];
+}
+
+interface MetaStub {
+  content: string;
+  setAttribute(name: string, value: string): void;
+}
+
+/** Stand-ins for the two media-scoped metas Next renders. */
+function makeMetaStubs(): MetaStub[] {
+  return [THEME_COLOR.light, THEME_COLOR.dark].map((initial): MetaStub => ({
+    content: initial,
+    setAttribute(_name, value) {
+      this.content = value;
+    },
+  }));
 }
 
 function run(opts: {
@@ -36,9 +54,11 @@ function run(opts: {
   now: Date;
   systemPrefersDark?: boolean;
 }): RunResult {
+  const metas = makeMetaStubs();
   const documentStub = {
     cookie: opts.cookie ? `${THEME_COOKIE}=${opts.cookie}` : '',
     documentElement: { dataset: {} as Record<string, string | undefined> },
+    querySelectorAll: () => metas,
   };
   let mirror = opts.stored ?? null;
   const localStorageStub = {
@@ -62,6 +82,7 @@ function run(opts: {
   return {
     theme: documentStub.documentElement.dataset.theme === 'dark' ? 'dark' : 'light',
     mirror,
+    metaColors: metas.map(m => m.content),
   };
 }
 
@@ -195,6 +216,19 @@ describe('THEME_INIT_SCRIPT agrees with resolveTheme', () => {
     }
   });
 
+  it('points the browser-chrome metas at the resolved theme, not the OS', () => {
+    // Both metas get the SAME colour: Next renders them scoped to
+    // prefers-color-scheme, which browsers match against the OS, so leaving
+    // one alone would let a light-OS phone keep a violet bar on a dark app.
+    const dark = run({ cookie: encodeThemeCookie({ mode: 'on' }), now: aug5(12) });
+    expect(dark.theme).toBe('dark');
+    expect(dark.metaColors).toEqual([THEME_COLOR.dark, THEME_COLOR.dark]);
+
+    const light = run({ cookie: encodeThemeCookie({ mode: 'off' }), now: aug5(23) });
+    expect(light.theme).toBe('light');
+    expect(light.metaColors).toEqual([THEME_COLOR.light, THEME_COLOR.light]);
+  });
+
   it('falls back to the mirror when the cookie is absent or corrupt', () => {
     const darkMirror = JSON.stringify({ mode: 'on' });
     expect(run({ stored: darkMirror, cookie: null, now: aug5(12) }).theme).toBe('dark');
@@ -211,6 +245,7 @@ describe('THEME_INIT_SCRIPT agrees with resolveTheme', () => {
     const documentStub = {
       cookie: `${THEME_COOKIE}=${encodeThemeCookie({ mode: 'off' })}`,
       documentElement: { dataset: { theme: 'dark' } as Record<string, string | undefined> },
+      querySelectorAll: () => makeMetaStubs(),
     };
     new Function('localStorage', 'window', 'document', 'Date', 'atob', THEME_INIT_SCRIPT)(
       { getItem: () => null, setItem: () => {} },
@@ -228,7 +263,7 @@ describe('THEME_INIT_SCRIPT agrees with resolveTheme', () => {
     expect(runScript('"a string"', aug5(23), true)).toBe('light');
     expect(runScript(JSON.stringify([1, 2]), aug5(23), true)).toBe('light');
 
-    const documentStub = { cookie: '', documentElement: { dataset: {} as Record<string, string | undefined> } };
+    const documentStub = { cookie: '', documentElement: { dataset: {} as Record<string, string | undefined> }, querySelectorAll: () => makeMetaStubs() };
     new Function('localStorage', 'window', 'document', 'Date', 'atob', THEME_INIT_SCRIPT)(
       { getItem: () => { throw new Error('storage disabled'); }, setItem: () => {} },
       { matchMedia: () => ({ matches: true }) },
