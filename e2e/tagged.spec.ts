@@ -5,9 +5,11 @@ import { request as pwRequest } from '@playwright/test';
 // The Tagged tab round-trip: B tags A in a post; A shares a round with B
 // (participants auto-tag); assert the dashboard (hero math, attribution),
 // the notification rules (round = invite only, never a duplicate 'tag'),
-// working untag, and the privacy pins migration 066 exists to hold:
-// a private author's posts stay OFF other people's tagged tabs for
-// anonymous viewers, and a private profile's badge counts read zero.
+// working untag, and the privacy pins migrations 066 AND 068 exist to hold:
+// a private author's posts stay OFF other people's tagged tabs (066) and
+// All/Stats tabs (068) for anonymous viewers, badge counts equal grid
+// contents (068), and a private profile's badge counts read zero.
+// Requires 068 applied to the target DB — the All/Stats pins fail pre-068.
 test('tagged: tag → round auto-tag → hero → untag → privacy pins', async ({ page, browser }) => {
   test.setTimeout(120_000);
   const userA = loadQaUser('user.json');
@@ -23,6 +25,9 @@ test('tagged: tag → round auto-tag → hero → untag → privacy pins', async
         caption: `Range session with a teammate ${stamp}`,
         visibility: 'public',
         sport_key: 'golf',
+        // Non-golf postType keeps stats_data, which puts this post in the
+        // Stats-tab queries — the 068 Stats pin below is non-vacuous.
+        stats_data: { score: 42 },
         taggedProfiles: [userA.id],
       },
     });
@@ -52,7 +57,9 @@ test('tagged: tag → round auto-tag → hero → untag → privacy pins', async
   // ── A's own tab: attribution + count pill ─────────────────────────────
   await page.goto('/athlete');
   await page.getByRole('button', { name: /tagged/i }).first().click();
-  await expect(page.getByText(`Range session with a teammate ${stamp}`).first())
+  // The seed post carries stats_data, so its tile renders the stat line, not
+  // the caption — the caption survives only as the tile's accessible name.
+  await expect(page.getByRole('button', { name: `Range session with a teammate ${stamp}` }).first())
     .toBeVisible({ timeout: 15_000 });
   await expect(page.getByText('by Edge Bravo').first()).toBeVisible();
 
@@ -110,6 +117,33 @@ test('tagged: tag → round auto-tag → hero → untag → privacy pins', async
     expect(sumRes.ok()).toBe(true);
     expect((await sumRes.json()).timesTagged).toBe(0);
 
+    // ── 068 pins: the same owner clause on All/Stats ──────────────────
+    // Private-B's tagging post must be off A's All grid for anonymous —
+    // pre-068 it rendered there as a real tile, author name included.
+    const allRes = await anonApi.get(`/api/profile/${userA.id}/media?tab=all&limit=50`);
+    expect(allRes.ok()).toBe(true);
+    const allList = await allRes.json();
+    const allCaptions = (allList.items ?? []).map((i: { caption: string | null }) => i.caption ?? '');
+    expect(allCaptions.join('|')).not.toContain(`Range session with a teammate ${stamp}`);
+
+    // ...and off the Stats grid (the seed post carries stats_data, so this
+    // pin is non-vacuous — pre-068 the post appears here too).
+    const statsRes = await anonApi.get(`/api/profile/${userA.id}/media?tab=stats&limit=50`);
+    expect(statsRes.ok()).toBe(true);
+    const statsList = await statsRes.json();
+    const statsCaptions = (statsList.items ?? []).map((i: { caption: string | null }) => i.caption ?? '');
+    expect(statsCaptions.join('|')).not.toContain(`Range session with a teammate ${stamp}`);
+
+    // Badges equal grid contents for the same anonymous viewer — the
+    // invariant 068 exists to restore. Exact equality is race-free only
+    // because the suite runs workers:1; if it ever goes parallel,
+    // downgrade these two to membership pins.
+    const aCountsRes = await anonApi.post(`/api/profile/${userA.id}/media`);
+    expect(aCountsRes.ok()).toBe(true);
+    const aCounts = await aCountsRes.json();
+    expect(aCounts.all).toBe((allList.items ?? []).length);
+    expect(aCounts.stats).toBe((statsList.items ?? []).length);
+
     // Private profile's badge counts read zero for anonymous viewers (the
     // hoisted counts gate) — B is private.
     const countsRes = await anonApi.post(`/api/profile/${userB.id}/media`);
@@ -124,15 +158,15 @@ test('tagged: tag → round auto-tag → hero → untag → privacy pins', async
   // A's own view is unchanged (viewer = tagged athlete grant).
   await page.reload();
   await page.getByRole('button', { name: /tagged/i }).first().click();
-  await expect(page.getByText(`Range session with a teammate ${stamp}`).first())
+  await expect(page.getByRole('button', { name: `Range session with a teammate ${stamp}` }).first())
     .toBeVisible({ timeout: 15_000 });
 
   // ── Untag: A removes B's tag of them; it sticks ───────────────────────
   await page.getByRole('button', { name: 'Remove tag from post by Edge Bravo' }).first().click();
   await page.getByRole('button', { name: 'Remove', exact: true }).click();
-  await expect(page.getByText(`Range session with a teammate ${stamp}`)).toHaveCount(0, { timeout: 10_000 });
+  await expect(page.getByRole('button', { name: `Range session with a teammate ${stamp}` })).toHaveCount(0, { timeout: 10_000 });
   await page.reload();
   await page.getByRole('button', { name: /tagged/i }).first().click();
   await expect(page.getByText('No tags yet')).toBeVisible({ timeout: 15_000 });
-  await expect(page.getByText(`Range session with a teammate ${stamp}`)).toHaveCount(0);
+  await expect(page.getByRole('button', { name: `Range session with a teammate ${stamp}` })).toHaveCount(0);
 });
