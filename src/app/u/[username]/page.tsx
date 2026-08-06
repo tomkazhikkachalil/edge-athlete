@@ -371,19 +371,19 @@ export default function PublicProfilePage() {
 
               {/* Stats and CTA */}
               <div className="flex flex-col items-start sm:items-end gap-3">
-                {/* Fan stats */}
+                {/* Fan stats — Fans, Following, Posts (matches the athlete pages) */}
                 <div className="flex gap-6 text-sm">
-                  <div className="text-center">
-                    <span className="block font-bold text-gray-900">{profile.postsCount}</span>
-                    <span className="text-gray-500">Posts</span>
-                  </div>
                   <div className="text-center">
                     <span className="block font-bold text-gray-900">{profile.followersCount}</span>
                     <span className="text-gray-500">Fans</span>
                   </div>
                   <div className="text-center">
                     <span className="block font-bold text-gray-900">{profile.followingCount}</span>
-                    <span className="text-gray-500">Fan Of</span>
+                    <span className="text-gray-500">Following</span>
+                  </div>
+                  <div className="text-center">
+                    <span className="block font-bold text-gray-900">{profile.postsCount}</span>
+                    <span className="text-gray-500">Posts</span>
                   </div>
                 </div>
 

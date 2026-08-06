@@ -27,6 +27,9 @@ export default function FollowButton({
 
   const [isFollowing, setIsFollowing] = useState(false);
   const [followStatus, setFollowStatus] = useState<string | null>(null);
+  // Default true (fail safe): unknown visibility gets the request modal,
+  // never a silent instant follow of a private profile.
+  const [isPrivate, setIsPrivate] = useState(true);
   const [followersCount, setFollowersCount] = useState(0);
   const [loading, setLoading] = useState(false);
   const [statsLoading, setStatsLoading] = useState(true);
@@ -60,6 +63,7 @@ export default function FollowButton({
         setFollowersCount(data.followersCount);
         setIsFollowing(data.isFollowing);
         setFollowStatus(data.followStatus);
+        setIsPrivate(data.isPrivate !== false);
         return data as { followersCount: number; isFollowing: boolean; followStatus: string | null };
       } else {
         // If the table doesn't exist yet, just show default values
@@ -98,9 +102,14 @@ export default function FollowButton({
     // If already following or pending, unfollow/cancel directly
     if (isFollowing) {
       handleFollow();
-    } else {
-      // Show message modal for new follow requests
+    } else if (isPrivate) {
+      // Private target: the request flow — modal with an optional message,
+      // the account accepts or declines as before.
       setShowMessageModal(true);
+    } else {
+      // Public target: one click, no modal — the server inserts an accepted
+      // follow and the new_follower trigger notifies them.
+      handleFollow();
     }
   };
 

@@ -55,6 +55,9 @@ export default function AthleteProfilePage() {
     isFollowing: false
   });
   const [hasAccess, setHasAccess] = useState(true); // Privacy check result
+  // Pushed up from ProfileMediaTabs (same pattern as the own page) — the
+  // stats row renders only for viewers with access, so no privacy concern.
+  const [postsCount, setPostsCount] = useState(0);
 
   // Followers Modal state
   const [isFollowersModalOpen, setIsFollowersModalOpen] = useState(false);
@@ -368,16 +371,6 @@ export default function AthleteProfilePage() {
               <div className="flex flex-wrap items-center gap-4 sm:gap-8">
                 <button
                   onClick={() => {
-                    setFollowersModalTab('following');
-                    setIsFollowersModalOpen(true);
-                  }}
-                  className="flex items-center gap-1 text-gray-900 font-bold hover:text-violet-600 transition-colors"
-                >
-                  <span className="font-bold">{followStats.followingCount}</span>
-                  <span>Fan Of</span>
-                </button>
-                <button
-                  onClick={() => {
                     setFollowersModalTab('followers');
                     setIsFollowersModalOpen(true);
                   }}
@@ -386,6 +379,20 @@ export default function AthleteProfilePage() {
                   <span className="font-bold">{followStats.followersCount}</span>
                   <span>Fans</span>
                 </button>
+                <button
+                  onClick={() => {
+                    setFollowersModalTab('following');
+                    setIsFollowersModalOpen(true);
+                  }}
+                  className="flex items-center gap-1 text-gray-900 font-bold hover:text-violet-600 transition-colors"
+                >
+                  <span className="font-bold">{followStats.followingCount}</span>
+                  <span>Following</span>
+                </button>
+                <div className="flex items-center gap-1 text-gray-900 font-bold">
+                  <span className="font-bold">{postsCount}</span>
+                  <span>Posts</span>
+                </div>
 
                 {/* Social links */}
                 {profile.social_twitter && (
@@ -459,6 +466,7 @@ export default function AthleteProfilePage() {
           profileId={athleteId}
           currentUserId={user?.id}
           isOwnProfile={isOwnProfile}
+          onCountsChange={(counts) => setPostsCount(counts.all)}
         />
       </div>
       </div>

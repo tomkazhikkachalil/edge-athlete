@@ -1,6 +1,39 @@
 # Development Log
 
-## August 5, 2026 — Tagged in-tab header cut
+## August 5, 2026 — Counter rows normalized + one-click follow for public profiles
+
+**"Fans, Following, Posts" — one order, one wording, three surfaces.** The
+row read "Fan Of, Fans, Posts" on the own page, "Fan Of, Fans" (no Posts!)
+on the visitor page, and "Posts, Fans, Fan Of" on /u/ — three surfaces,
+three orders. Now all three read Fans → Following → Posts, and the visitor
+page gained the missing Posts count (pushed up from ProfileMediaTabs via
+onCountsChange, the own page's existing pattern; the row only renders for
+viewers with access, so nothing leaks). "Fan Of" → "Following" wherever
+that LABEL appears: the three rows, FollowersModal's title + tab, and the
+Connections page tab. The deeper fan language ("Become a Fan", "fan
+request", notification copy) is deliberately untouched — Tom kept "Fans".
+
+**Public profiles follow in one click.** The surprise: the server has
+always done this — POST /api/follow inserts status 'accepted' for public
+targets and 'pending' for private ones, and the notify_new_follower
+trigger (WHEN status='accepted') already sends "X is now your fan". The
+bug was pure UI: FollowButton opened the "Become a Fan" message modal
+with a "Send Request" button for EVERY first-time follow because it never
+knew the target's visibility. /api/follow/stats now returns `isPrivate`
+(missing profile reads as private — fail-safe is the request flow), and
+the button branches: private → modal as before, public → straight to the
+follow. Free win: the feed's Suggested Connections rail (public-only by
+construction) became one-click too. No server-side follow changes, no
+migration, no notification work.
+
+**Recorded direction, NOT built:** follow requests should eventually carry
+context — same team, mutual connections, shared associations — so parents
+can judge who's asking. Needs the teams/orgs model that doesn't exist yet.
+
+e2e: follow-request.spec.ts gained a second test (B flipped public via
+adminClient, restored private in finally): one-click follow with the
+Send-Request modal pinned absent, the new_follower notification (and NO
+follow_request one), and the Fans→Following→Posts row order.
 
 Tom: the "Tagged / Posts and rounds other athletes tagged you in" header
 inside the tab is redundant — the tab pill already names the surface.

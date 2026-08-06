@@ -46,6 +46,15 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Failed to get following' }, { status: 500 });
     }
 
+    // Target's privacy, so FollowButton can pick the right flow: public →
+    // one-click follow, private → the request modal. Not sensitive —
+    // /api/privacy/check and the public-profile API already reveal it.
+    const { data: targetProfile } = await supabase
+      .from('profiles')
+      .select('visibility')
+      .eq('id', profileId)
+      .maybeSingle();
+
     // Check if current user follows this profile (any status)
     let isFollowing = false;
     let followStatus = null;
@@ -69,7 +78,10 @@ export async function GET(request: NextRequest) {
       followersCount: followers?.length || 0,
       followingCount: following?.length || 0,
       isFollowing,
-      followStatus
+      followStatus,
+      // Missing profile reads as private: the fail-safe direction is the
+      // request flow, never a silent instant follow.
+      isPrivate: targetProfile ? targetProfile.visibility === 'private' : true
     });
     
   } catch (error) {

@@ -307,7 +307,7 @@ function FollowersContent() {
                   : 'border-transparent text-gray-600 hover:text-gray-900'
               }`}
             >
-              Fan Of
+              Following
             </button>
             <button
               onClick={() => setActiveTab('requests')}

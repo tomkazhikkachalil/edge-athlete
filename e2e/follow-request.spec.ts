@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { loadQaUser } from './helpers/qa-user';
+import { adminClient, loadQaUser } from './helpers/qa-user';
 
 // Full follow-request loop between two PRIVATE users: A requests from B's
 // profile (reached by direct URL — athlete search is public-only, so private
@@ -36,4 +36,46 @@ test('follow request: A requests, B approves, A is notified', async ({ page, bro
   await page.goto('/app/notifications');
   await expect(page.getByText('Edge Bravo accepted your fan request').first())
     .toBeVisible({ timeout: 15_000 });
+});
+
+// Public profiles follow in ONE click: no request modal, straight to "Fan",
+// and the target gets the new_follower notification (DB trigger on the
+// accepted insert — the server has always written accepted for public
+// targets; the button just stopped forcing the request UI on them).
+// Runs AFTER the private test (workers: 1): A unfollowed nobody — the
+// accepted A→B follow from above is deleted here first so the click is a
+// fresh follow, not an unfollow toggle.
+test('public profile: one-click follow, no request modal', async ({ page, browser }) => {
+  const userA = loadQaUser('user.json');
+  const userB = loadQaUser('user-b.json');
+  await adminClient().from('follows').delete().eq('follower_id', userA.id).eq('following_id', userB.id);
+  await adminClient().from('profiles').update({ visibility: 'public' }).eq('id', userB.id);
+  try {
+    // A follows B in one click — the modal must never appear.
+    await page.goto(`/athlete/${userB.id}`);
+    await page.getByRole('button', { name: 'Become a Fan' }).click();
+    await expect(page.getByRole('button', { name: 'Fan', exact: true })).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByRole('button', { name: 'Send Request' })).toHaveCount(0);
+
+    // The counter row reads Fans → Following → Posts, in order (own page).
+    // The "N Fans" button's parent IS the stats row.
+    await page.goto('/athlete');
+    const statsRow = page.getByRole('button', { name: /Fans$/ }).first().locator('..');
+    await expect(statsRow).toContainText(/Fans[\s\S]*Following[\s\S]*Posts/);
+
+    // B was notified — the no-action new_follower type, not a request.
+    const ctxB = await browser.newContext({ storageState: 'e2e/.auth/state-b.json' });
+    try {
+      const pageB = await ctxB.newPage();
+      await pageB.goto('/app/notifications');
+      await expect(pageB.getByText('Edge Alpha is now your fan').first())
+        .toBeVisible({ timeout: 15_000 });
+      await expect(pageB.getByText('Edge Alpha sent you a follow request')).toHaveCount(0);
+    } finally {
+      await ctxB.close();
+    }
+  } finally {
+    // B back to private — later specs (and the QA default) rely on it.
+    await adminClient().from('profiles').update({ visibility: 'private' }).eq('id', userB.id);
+  }
 });
