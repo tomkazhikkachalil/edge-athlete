@@ -1,10 +1,13 @@
 'use client';
 
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { formatDistanceToNow } from 'date-fns';
 import { Camera, BarChart3, Tag, Dumbbell, Activity, Trophy } from 'lucide-react';
-import OptimizedImage from './OptimizedImage';
+import OptimizedImage, { AvatarImage } from './OptimizedImage';
 import PostDetailModal from './PostDetailModal';
+import { buildStatHighlights, type StatPlayer } from '@/lib/sports/post-stat-highlights';
+import { toParColorClass } from '@/lib/golf/scoring';
+import { getInitials } from '@/lib/formatters';
 import EditPostModal from './EditPostModal';
 import EquipmentSection from './EquipmentSection';
 import AchievementsTab from './AchievementsTab';
@@ -12,7 +15,7 @@ import TaggedTab from './TaggedTab';
 import SportYearFilter from './SportYearFilter';
 import FilterBar from './filters/FilterBar';
 import { useToast } from './Toast';
-import { formatGolfStatsSummary, formatGenericStatsSummary } from '@/lib/stats-summary';
+import { formatGenericStatsSummary } from '@/lib/stats-summary';
 import VitalsTab from './VitalsTab';
 import { getAllSports, SPORT_NAMES } from '@/lib/config/sports-config';
 
@@ -81,6 +84,11 @@ interface MediaItem {
     fir_percentage?: number | null;
     total_putts?: number | null;
   } | null;
+  /** Shared (multi-player) rounds: course + who scored what. Absent from this
+   *  endpoint until Aug 2026 — which is why those tiles used to show only a
+   *  caption. Same shape as the feed's scorecard, so buildStatHighlights
+   *  reads it unchanged. */
+  group_scorecard?: Record<string, unknown> | null;
 }
 
 interface TabCounts {
@@ -531,6 +539,7 @@ export default function ProfileMediaTabs({ profileId, currentUserId, isOwnProfil
             <MediaGridItem
               key={item.id}
               item={item}
+              viewerId={currentUserId}
               onClick={() => handleItemClick(index)}
             />
           ))}
@@ -582,17 +591,71 @@ export default function ProfileMediaTabs({ profileId, currentUserId, isOwnProfil
 }
 
 // Media grid item component
+/** Up to three faces, overlapped. Names never fit at 159px, so they are
+ *  deliberately omitted — the avatars answer "who was there", the score row
+ *  answers "how did it go". */
+function TilePlayerStack({ players, onDark }: { players: StatPlayer[]; onDark?: boolean }) {
+  if (players.length === 0) return null;
+  return (
+    <div className="flex -space-x-1.5">
+      {players.slice(0, 3).map((p, i) => (
+        <span
+          key={p.profileId ?? `${p.name}-${i}`}
+          className={`rounded-full ${onDark ? 'ring-1 ring-black/40' : 'ring-1 ring-surface'}`}
+        >
+          <AvatarImage src={p.avatarUrl} alt={p.name} size={18} fallbackInitials={getInitials(p.name)} />
+        </span>
+      ))}
+      {players.length > 3 && (
+        <span
+          className={`flex h-[18px] min-w-[18px] items-center justify-center rounded-full px-1 text-[9px] font-bold ${
+            onDark ? 'bg-black/60 text-white ring-1 ring-black/40' : 'bg-surface-sunken text-tertiary ring-1 ring-surface'
+          }`}
+        >
+          +{players.length - 3}
+        </span>
+      )}
+    </div>
+  );
+}
+
 interface MediaGridItemProps {
   item: MediaItem;
+  /** Whose score to lead with, matching the expanded card. */
+  viewerId?: string;
   onClick: () => void;
 }
 
-function MediaGridItem({ item, onClick }: MediaGridItemProps) {
+function MediaGridItem({ item, viewerId, onClick }: MediaGridItemProps) {
   const hasStats = item.stats_data && Object.keys(item.stats_data).length > 0;
   const hasMedia = item.media && item.media.length > 0;
   const firstMedia = hasMedia ? item.media![0] : null;
   const isVideo = firstMedia?.media_type === 'video';
   const mediaCount = item.media_count;
+
+  // The SAME selector the expanded post card uses, so a tile and the card it
+  // opens can never disagree about a round. Returns null when there is nothing
+  // worth showing, which is the "draw no stat overlay" signal.
+  const highlights = useMemo(
+    () =>
+      buildStatHighlights({
+        sportKey: item.sport_key,
+        statsData: item.stats_data,
+        golfRound: item.golf_round,
+        groupScorecard: item.group_scorecard,
+        viewerId,
+        author: {
+          id: item.profile_id,
+          first_name: item.profile_first_name,
+          last_name: item.profile_last_name,
+          full_name: item.profile_full_name,
+          avatar_url: item.profile_avatar_url,
+        },
+      }),
+    [item, viewerId]
+  );
+  const hasRound = !!item.golf_round || !!item.group_scorecard;
+  const players = highlights?.players ?? [];
 
   // Determine content to display for non-media tiles.
   //
@@ -603,77 +666,64 @@ function MediaGridItem({ item, onClick }: MediaGridItemProps) {
   // visitor clicks, so it has to lead with the number, not the sentence. The
   // caption is still the fallback for posts that have nothing else.
   const getTextContent = () => {
-    if (hasStats || item.golf_round) {
-      // Try golf round first
-      if (item.golf_round) {
-        const summary = formatGolfStatsSummary(item.golf_round);
-        if (summary) {
-          return (
-            <div className="flex flex-col h-full justify-between p-3">
-              {/* Golf icon badge */}
-              <div className="flex justify-center mb-2">
-                <div className="w-12 h-12 rounded-full bg-green-600 flex items-center justify-center shadow-md">
-                  <i className="fas fa-golf-ball text-white text-xl"></i>
-                </div>
-              </div>
-
-              {/* Score card */}
-              <div className="bg-surface/90 backdrop-blur-sm rounded-lg p-3 shadow-sm border border-green-200 dark:border-green-800">
-                <div className="text-center">
-                  <div className="text-sm font-bold text-primary line-clamp-2 mb-1">
-                    {summary.primaryLine}
-                  </div>
-                  {summary.secondaryLine && (
-                    <div className="text-xs text-green-700 dark:text-green-300 font-semibold line-clamp-1">
-                      {summary.secondaryLine}
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              {/* Bottom accent */}
-              <div className="mt-2 flex justify-center">
-                <div className="h-1 w-16 bg-green-600 rounded-full"></div>
-              </div>
+    // A ROUND: course, the number, and who played. Flat by necessity — the
+    // previous treatment stacked a 48px puck, a padded card and an accent bar,
+    // roughly 152px of fixed height inside a tile that is 159px at 390px wide.
+    if (highlights && hasRound) {
+      const toPar = highlights.heroToPar;
+      return (
+        <div className="flex h-full flex-col items-center justify-center gap-1.5 p-3">
+          <span className="flex h-8 w-8 items-center justify-center rounded-full bg-green-600 shrink-0">
+            <i className="fas fa-golf-ball text-white text-sm" aria-hidden="true"></i>
+          </span>
+          <div className="text-center min-w-0 w-full">
+            <div className="text-[11px] font-bold text-primary line-clamp-2 leading-tight">
+              {highlights.moment}
             </div>
-          );
-        }
-      }
-
-      // Fall back to generic stats
-      if (item.stats_data) {
-        const summary = formatGenericStatsSummary(item.stats_data);
-        if (summary) {
-          return (
-            <div className="flex flex-col h-full justify-between p-3">
-              {/* Generic stats icon */}
-              <div className="flex justify-center mb-2">
-                <div className="w-12 h-12 rounded-full bg-brand flex items-center justify-center shadow-md">
-                  <i className="fas fa-chart-line text-white text-xl"></i>
-                </div>
-              </div>
-
-              {/* Stats card */}
-              <div className="bg-surface/90 backdrop-blur-sm rounded-lg p-3 shadow-sm border border-violet-200 dark:border-violet-800">
-                <div className="text-center">
-                  <div className="text-sm font-bold text-primary line-clamp-2 mb-1">
-                    {summary.primaryLine}
-                  </div>
-                  {summary.secondaryLine && (
-                    <div className="text-xs text-brand-fg-strong font-semibold line-clamp-1">
-                      {summary.secondaryLine}
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              {/* Bottom accent */}
-              <div className="mt-2 flex justify-center">
-                <div className="h-1 w-16 bg-brand rounded-full"></div>
-              </div>
+            <div
+              className={`text-2xl font-black leading-none tabular-nums mt-1 ${
+                toPar !== undefined && toPar !== null ? toParColorClass(toPar) : 'text-primary'
+              }`}
+            >
+              {highlights.hero.value}
             </div>
-          );
-        }
+            <div className="text-[9px] font-semibold uppercase tracking-wide text-muted">
+              {highlights.hero.label}
+            </div>
+            {(players[0] || highlights.meta?.length) && (
+              <div className="text-[10px] text-tertiary font-medium mt-0.5 truncate">
+                {[players[0] ? String(players[0].score) : null, highlights.meta?.[0]]
+                  .filter(Boolean)
+                  .join(' · ')}
+              </div>
+            )}
+          </div>
+          {players.length > 0 && <TilePlayerStack players={players} />}
+        </div>
+      );
+    }
+
+    // Non-golf stat lines keep the schema-driven summary.
+    if (hasStats && item.stats_data) {
+      const summary = formatGenericStatsSummary(item.stats_data);
+      if (summary) {
+        return (
+          <div className="flex h-full flex-col items-center justify-center gap-1.5 p-3">
+            <span className="flex h-8 w-8 items-center justify-center rounded-full bg-brand shrink-0">
+              <i className="fas fa-chart-line text-white text-sm" aria-hidden="true"></i>
+            </span>
+            <div className="text-center">
+              <div className="text-[11px] font-bold text-primary line-clamp-2 leading-tight">
+                {summary.primaryLine}
+              </div>
+              {summary.secondaryLine && (
+                <div className="text-[10px] text-brand-fg-strong font-semibold line-clamp-1 mt-0.5">
+                  {summary.secondaryLine}
+                </div>
+              )}
+            </div>
+          </div>
+        );
       }
     }
 
@@ -723,7 +773,7 @@ function MediaGridItem({ item, onClick }: MediaGridItemProps) {
       ) : (
         // Text/stats post (no media)
         <div className={`w-full h-full flex items-center justify-center ${
-          item.golf_round
+          hasRound
             ? 'bg-gradient-to-br from-green-50 via-emerald-50 to-green-100 dark:from-green-950/40 dark:via-emerald-950/40 dark:to-green-950/60'
             : hasStats
             ? 'bg-gradient-to-br from-violet-50 via-purple-50 to-violet-100 dark:from-violet-950/40 dark:via-purple-950/40 dark:to-violet-950/60'
@@ -741,11 +791,35 @@ function MediaGridItem({ item, onClick }: MediaGridItemProps) {
         </div>
       )}
 
+      {/* Score band over a photo — MediaStatStrip at tile scale. The scrim is
+          always painted because the photo underneath is whatever the athlete
+          shot, and the band is always visible (not hover-gated) because the
+          grid is mostly viewed on a phone. */}
+      {hasMedia && highlights && (
+        <div className="pointer-events-none absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/80 via-black/45 to-transparent px-2 pb-1.5 pt-6">
+          <div className="flex items-end justify-between gap-1.5">
+            <span className="min-w-0 truncate text-[10px] font-semibold text-white/90 drop-shadow">
+              {highlights.moment}
+            </span>
+            <span className="shrink-0 text-lg font-black leading-none text-white drop-shadow tabular-nums">
+              {highlights.hero.value}
+            </span>
+          </div>
+          {players.length > 0 && (
+            <div className="mt-1">
+              <TilePlayerStack players={players} onDark />
+            </div>
+          )}
+        </div>
+      )}
+
       {/* Overlay with indicators */}
       <div className="absolute inset-0 bg-black/0 group-hover:bg-black/30 transition-all">
         {/* Top indicators */}
         <div className="absolute top-2 right-2 flex gap-1">
-          {hasStats && (
+          {/* Not on golf tiles: the score band/stat body already says it, and
+              two labels for one fact is noise at this size. */}
+          {hasStats && !hasRound && (
             <span className="px-2 py-1 bg-brand text-white text-xs font-semibold rounded-full">
               + Stats
             </span>
@@ -758,8 +832,11 @@ function MediaGridItem({ item, onClick }: MediaGridItemProps) {
           )}
         </div>
 
-        {/* Bottom info on hover */}
-        <div className="absolute bottom-0 left-0 right-0 p-2 bg-gradient-to-t from-black to-transparent opacity-0 group-hover:opacity-100 transition-opacity">
+        {/* Bottom info on hover. Lifted above the score band when there is one
+            — same nudge TaggedTile makes for its attribution strip. */}
+        <div className={`absolute left-0 right-0 p-2 bg-gradient-to-t from-black to-transparent opacity-0 group-hover:opacity-100 transition-opacity ${
+          hasMedia && highlights ? 'bottom-10' : 'bottom-0'
+        }`}>
           <div className="flex items-center justify-between text-white text-xs">
             <div className="flex items-center gap-2">
               <span>

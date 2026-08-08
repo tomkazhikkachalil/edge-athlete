@@ -25,6 +25,28 @@ interface MediaItem {
   is_tagged: boolean;
 }
 
+/** The slice of a shared round a TILE needs: course, and who scored what.
+ *  Deliberately not GROUP_SCORECARD_SELECT, which drags in every hole score
+ *  and all round media for a 159px thumbnail. Shaped to match what
+ *  transformGroupPostToScorecard produces so buildStatHighlights consumes it
+ *  unchanged, and a tile can never disagree with its own expanded card. */
+interface TileScorecard {
+  group_post: { id: string; date: string | null };
+  golf_data: { course_name: string | null; holes_played: number | null; game_format: string | null } | null;
+  participants: Array<{
+    participant: {
+      profile_id: string | null;
+      profile: {
+        first_name: string | null;
+        last_name: string | null;
+        full_name: string | null;
+        avatar_url: string | null;
+      } | null;
+    };
+    scores: { total_score: number | null; to_par: number | null } | null;
+  }>;
+}
+
 interface MediaAttachment {
   id: string;
   post_id: string;
@@ -310,11 +332,77 @@ export async function GET(
         }
       }
 
+      // SHARED rounds reach the grid through none of the above: they carry
+      // no stats_data and no round_id, and the RPC feeding this route does not
+      // return group_post_id — so a shared-round tile had literally nothing to
+      // draw but its caption. Reading the column for the ids the RPC already
+      // returned (and already visibility-vetted) gets there without new SQL.
+      const scorecardsByPostId = new Map<string, TileScorecard>();
+      const sharedLookupIds = items.map((item: MediaItem) => item.id);
+
+      if (sharedLookupIds.length > 0) {
+        const { data: groupLinks, error: linkError } = await supabaseAdmin
+          .from('posts')
+          .select('id, group_post_id')
+          .in('id', sharedLookupIds)
+          .not('group_post_id', 'is', null);
+
+        if (linkError) {
+          console.error('[PROFILE MEDIA API] Error fetching group post links:', linkError);
+        } else if (groupLinks && groupLinks.length > 0) {
+          const groupPostIds = [...new Set(groupLinks.map(l => l.group_post_id as string))];
+          const { data: groupRows, error: groupError } = await supabaseAdmin
+            .from('group_posts')
+            .select(`
+              id,
+              date,
+              golf_data:golf_scorecard_data ( course_name, holes_played, game_format ),
+              participants:group_post_participants (
+                profile_id,
+                profile:profiles ( first_name, last_name, full_name, avatar_url ),
+                scores:golf_participant_scores ( total_score, to_par )
+              )
+            `)
+            .in('id', groupPostIds);
+
+          if (groupError) {
+            console.error('[PROFILE MEDIA API] Error fetching shared rounds:', groupError);
+          } else {
+            const byGroupId = new Map<string, TileScorecard>();
+            for (const row of groupRows || []) {
+              // Supabase returns to-one embeds as arrays; normalise here so the
+              // shape matches the feed's scorecard contract exactly.
+              const golfData = Array.isArray(row.golf_data) ? row.golf_data[0] : row.golf_data;
+              byGroupId.set(row.id, {
+                group_post: { id: row.id, date: row.date ?? null },
+                golf_data: golfData ?? null,
+                participants: (row.participants || []).map((p: Record<string, unknown>) => {
+                  const profile = Array.isArray(p.profile) ? p.profile[0] : p.profile;
+                  const scores = Array.isArray(p.scores) ? p.scores[0] : p.scores;
+                  return {
+                    participant: {
+                      profile_id: (p.profile_id as string) ?? null,
+                      profile: (profile as TileScorecard['participants'][number]['participant']['profile']) ?? null,
+                    },
+                    scores: (scores as TileScorecard['participants'][number]['scores']) ?? null,
+                  };
+                }),
+              });
+            }
+            for (const link of groupLinks) {
+              const card = byGroupId.get(link.group_post_id as string);
+              if (card) scorecardsByPostId.set(link.id as string, card);
+            }
+          }
+        }
+      }
+
       items = items.map((item: MediaItem) => ({
         ...item,
         media: mediaMap.get(item.id) || [],
         tagged_profiles: taggedProfilesMap.get(item.id) || [],
-        golf_round: item.round_id ? golfRoundsMap.get(item.round_id) || null : null
+        golf_round: item.round_id ? golfRoundsMap.get(item.round_id) || null : null,
+        group_scorecard: scorecardsByPostId.get(item.id) || null
       }));
     }
 
