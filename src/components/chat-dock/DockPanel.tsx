@@ -146,7 +146,7 @@ export default function DockPanel({
               onClick={() => onModeChange('group')}
               className="w-full flex items-center gap-2.5 rounded-lg px-2 py-1.5 text-left hover:bg-brand-soft transition-colors"
             >
-              <span className="w-8 h-8 rounded-full bg-violet-100 text-brand-fg-strong flex items-center justify-center shrink-0">
+              <span className="w-8 h-8 rounded-full bg-violet-100 dark:bg-violet-950/60 text-brand-fg-strong flex items-center justify-center shrink-0">
                 <i className="fas fa-users text-xs"></i>
               </span>
               <span className="text-sm font-semibold text-primary">New group chat</span>
@@ -191,7 +191,7 @@ export default function DockPanel({
                       onClick={() => existing && onSelect(existing)}
                       className="relative shrink-0 rounded-full hover:ring-2 hover:ring-violet-300 transition"
                     >
-                      <span className="block w-9 h-9 rounded-full overflow-hidden bg-violet-100">
+                      <span className="block w-9 h-9 rounded-full overflow-hidden bg-violet-100 dark:bg-violet-950/60">
                         {contact.avatar_url ? (
                           <LazyImage
                             src={contact.avatar_url}
@@ -204,7 +204,7 @@ export default function DockPanel({
                           </span>
                         )}
                       </span>
-                      <span className="absolute bottom-0 right-0 w-2.5 h-2.5 bg-emerald-500 border-2 border-white rounded-full"></span>
+                      <span className="absolute bottom-0 right-0 w-2.5 h-2.5 bg-emerald-500 border-2 border-surface-raised rounded-full"></span>
                     </button>
                   );
                 })}

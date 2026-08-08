@@ -42,7 +42,7 @@ export default function DockConversationRow({
       }`}
     >
       <span className="relative shrink-0">
-        <span className="block w-9 h-9 rounded-full overflow-hidden bg-violet-100">
+        <span className="block w-9 h-9 rounded-full overflow-hidden bg-violet-100 dark:bg-violet-950/60">
           {identity.avatarUrl ? (
             <LazyImage
               src={identity.avatarUrl}
@@ -61,7 +61,7 @@ export default function DockConversationRow({
           </span>
         )}
         {online && (
-          <span className="absolute bottom-0 right-0 w-2.5 h-2.5 bg-emerald-500 border-2 border-white rounded-full"></span>
+          <span className="absolute bottom-0 right-0 w-2.5 h-2.5 bg-emerald-500 border-2 border-surface-raised rounded-full"></span>
         )}
       </span>
 

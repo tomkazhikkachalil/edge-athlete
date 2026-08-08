@@ -591,7 +591,7 @@ export default function ChatWindow({ conversationId, onBack }: Props) {
   return (
     <div className="flex flex-col h-full bg-surface">
       {/* Header */}
-      <div className="flex items-center gap-3 px-4 py-3 border-b border-border shrink-0">
+      <div className="relative ea-metal-underline flex items-center gap-3 px-4 py-3 border-b border-border shrink-0">
         {/* Back button (mobile) */}
         {onBack && (
           <button

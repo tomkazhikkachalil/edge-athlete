@@ -62,7 +62,10 @@ export default function MiniChatWindow({
       style={{ height: DOCK_SURFACE_HEIGHT }}
     >
       {/* Header */}
-      <div className="flex items-center gap-2 px-3 py-2 bg-brand text-white rounded-t-lg shrink-0">
+      {/* bg-brand-chrome, not bg-brand: own message bubbles ARE bg-brand, so a
+          brand-coloured bar let a bubble scrolled to the top merge into it.
+          The metal underline gives the seam a hard edge either way. */}
+      <div className="relative ea-metal-underline flex items-center gap-2 px-3 py-2 bg-brand-chrome text-white rounded-t-lg shrink-0">
         <span className="relative shrink-0">
           <span className="block w-7 h-7 rounded-full overflow-hidden bg-violet-400">
             {avatarUrl ? (

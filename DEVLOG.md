@@ -1,5 +1,59 @@
 # Development Log
 
+## August 7, 2026 — Chat: metal edging, because the violets were merging
+
+Tom, using dark mode: *"in the Mini chat the purples blend together — the
+messages fold into the header."* Two independent misses, both real:
+
+1. **The same hex on both sides.** `MiniChatWindow`'s header was `bg-brand`
+   and a user's OWN message bubble is `bg-brand`. `--brand` (`#7c3aed`) is the
+   one token that does NOT re-theme, so an own-bubble scrolled to the top of
+   the thread was literally the same colour as the bar above it.
+2. **No edge at all.** The mini header had no `border-b`, no shadow, no
+   z-index; the message list had no `border-t`. Telling, since the same
+   component's composer *does* get `border-t border-border-subtle`, and the
+   full Messages page header already had `border-b border-border` — the mini
+   header was the only undefined seam in the feature. (The full page never
+   showed the bug: its header is neutral, not violet.)
+
+**Fix, in two parts.** Chat headers move to a new `--brand-chrome`
+(`#5b21b6`, violet-800, same in both themes) so the bar is a visibly different
+violet from the bubbles rather than an identical one with a line drawn on it.
+Note the shade was chosen by measurement, not taste: violet-500 — the obvious
+"one step" — **fails WCAG for the white name text at 4.23:1**. violet-800
+gives 8.98:1 on white and 1.58 against the bubble violet.
+
+Then `.ea-metal-rim` / `.ea-metal-rim-brand` / `.ea-metal-underline` in
+`globals.css`. Two deliberate implementation choices:
+
+- The rim is **inset `box-shadow`, not `border`** — a real border adds 2px to
+  every bubble and reflows the whole thread.
+- The underline is an **`::after`, not `border-image`** — `border-image`
+  cancels `border-radius`, and the header is `rounded-t-lg`. Its gradient is
+  brighter in the middle so it catches light like a machined edge instead of
+  reading as a plain rule.
+
+These are the ONE sanctioned gradient *edge*, the same way `.ea-cta` is the
+ONE sanctioned gradient *fill*. `.ea-surface`'s hairline is still the default
+answer for defining a surface; don't scatter more metal.
+
+Applied to all three chat surfaces (mini window, dock header + collapsed pill,
+full Messages page header). The rim lands on `MessageBubble`, which both the
+dock and the full page share — intended, since it adds definition on the page
+too and avoids scoping via brittle descendant selectors.
+
+Swept up while in these files: seven `bg-violet-100` avatar wells that stayed
+pale lavender on a dark panel, and three `border-white` presence rings that
+punched a white hole out of a dark surface — leftovers the dark-mode sweep
+missed.
+
+Verified against a production build with a real two-party thread in both
+themes: header `rgb(91,33,182)` vs own bubble `rgb(124,58,237)`, rim and
+underline both present in computed styles, and eyeballed in screenshots.
+**Not done:** deepening the message well (`bg-surface-muted/50`, ~1 unit off
+the shell). Its obvious target, `surface-sunken`, is already the other party's
+bubble colour, so it would trade one blend for another.
+
 ## August 6, 2026 — Theme-aware PWA splash + Settings tabs stop hiding
 
 Two loose ends from the dark-mode work, both mobile-only.

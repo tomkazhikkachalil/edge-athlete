@@ -56,6 +56,13 @@
   --brand-soft: #f5f3ff;      /* violet-50 wash */
   --brand-fg: #7c3aed;        /* was text-violet-600 */
   --brand-fg-strong: #6d28d9; /* was text-violet-700 */
+  /* Chat header bars. Deliberately DEEPER than --brand and identical in both
+   * themes: own message bubbles are --brand, so a header painted --brand made
+   * a bubble scrolled to the top of the thread the same hex as the bar above
+   * it — one continuous violet mass. violet-800 keeps white name text at
+   * 8.98:1 (violet-500 would have failed at 4.23) and reads as a different
+   * violet from the bubbles rather than merely a darker edge. */
+  --brand-chrome: #5b21b6;    /* violet-800 */
 
   /* Status. Solids are theme-invariant (they always carry white text); the
    * fg/soft/border companions lighten + desaturate in dark. */
@@ -184,6 +191,7 @@
   --color-brand-soft: var(--brand-soft);
   --color-brand-fg: var(--brand-fg);
   --color-brand-fg-strong: var(--brand-fg-strong);
+  --color-brand-chrome: var(--brand-chrome);
 
   --color-success: var(--success);
   --color-success-fg: var(--success-fg);
@@ -275,6 +283,15 @@ body {
 
   /* Neutral hover wash for quiet controls. */
   --ea-tint: rgb(0 0 0 / 0.04);
+
+  /* Metal edging — see .ea-metal-rim / .ea-metal-underline below.
+   * rim/sheen sit on NEUTRAL surfaces and therefore flip with the theme;
+   * line/hi always sit on the violet header bar, so they stay white-alpha
+   * in both themes. */
+  --ea-metal-rim: rgb(0 0 0 / 0.12);
+  --ea-metal-sheen: rgb(255 255 255 / 0.55);
+  --ea-metal-line: rgb(255 255 255 / 0.20);
+  --ea-metal-hi: rgb(255 255 255 / 0.5);
 }
 
 /* ── DARK THEME ──────────────────────────────────────────────────────────────
@@ -335,6 +352,8 @@ body {
    * carried by the surface ramp above. */
   --ea-hairline: rgb(255 255 255 / 0.09);
   --ea-tint: rgb(255 255 255 / 0.06);
+  --ea-metal-rim: rgb(255 255 255 / 0.14);
+  --ea-metal-sheen: rgb(255 255 255 / 0.10);
   --ea-shadow-rest: 0 1px 2px rgb(0 0 0 / 0.4), 0 1px 3px rgb(0 0 0 / 0.3);
   --ea-shadow-raised: 0 2px 4px rgb(0 0 0 / 0.45), 0 4px 12px rgb(0 0 0 / 0.5);
 }
@@ -397,6 +416,59 @@ body {
 }
 .ea-icon-btn:active {
   transform: scale(0.97);
+}
+
+/* ── METAL EDGING ────────────────────────────────────────────────────────────
+ * Chat-specific edge vocabulary, added because chat had a real legibility bug:
+ * the mini-chat header and a user's OWN message bubbles are both violet, and
+ * neither had a border, so a bubble scrolled to the top of the thread merged
+ * into the header bar. Colour alone could not fix it — the bubbles have to
+ * stay brand violet — so the surfaces needed edges.
+ *
+ * Like `.ea-cta` is the ONE sanctioned gradient fill, these are the ONE
+ * sanctioned gradient edge. Do not scatter more; if a surface needs defining,
+ * `.ea-surface`'s hairline is still the default answer.
+ *
+ * Both are drawn WITHOUT affecting layout — no `border`, which would add 2px
+ * to every bubble and reflow the thread.
+ */
+
+/* Inset rim + a top sheen: reads as a lit metal edge rather than a drawn line.
+ * Inset shadows, so the element's box is untouched. */
+.ea-metal-rim {
+  box-shadow:
+    inset 0 0 0 1px var(--ea-metal-rim),
+    inset 0 1px 0 var(--ea-metal-sheen);
+}
+
+/* Same rim for elements sitting ON the brand violet (own message bubbles).
+ * Hardcoded white-alpha in both themes because --brand does not re-theme, so
+ * the surface underneath is the same violet in light and dark. */
+.ea-metal-rim-brand {
+  box-shadow:
+    inset 0 0 0 1px rgb(255 255 255 / 0.22),
+    inset 0 1px 0 rgb(255 255 255 / 0.28);
+}
+
+/* The hairline under a chat header. An ::after rather than `border-image`,
+ * which would cancel the header's border-radius. Brighter in the middle so it
+ * catches light like a machined edge instead of reading as a plain rule. */
+.ea-metal-underline::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 1px;
+  pointer-events: none;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    var(--ea-metal-line) 12%,
+    var(--ea-metal-hi) 50%,
+    var(--ea-metal-line) 88%,
+    transparent 100%
+  );
 }
 
 /* The ONE loud control. Gradient is deliberately shallow — it should read as
