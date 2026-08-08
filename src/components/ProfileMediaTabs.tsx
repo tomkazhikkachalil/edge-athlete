@@ -594,14 +594,15 @@ function MediaGridItem({ item, onClick }: MediaGridItemProps) {
   const isVideo = firstMedia?.media_type === 'video';
   const mediaCount = item.media_count;
 
-  // Determine content to display for non-media tiles
+  // Determine content to display for non-media tiles.
+  //
+  // STATS BEFORE CAPTION, deliberately. This used to return `item.caption`
+  // first, which meant the rich stat tiles below were unreachable for any post
+  // that had a caption — i.e. nearly all of them ("Golf at Eagle Creek…"
+  // rendered as prose where the score should be). A grid tile is the thing a
+  // visitor clicks, so it has to lead with the number, not the sentence. The
+  // caption is still the fallback for posts that have nothing else.
   const getTextContent = () => {
-    // If has caption, show that
-    if (item.caption) {
-      return item.caption;
-    }
-
-    // If stats-only (no caption, no media), show stats summary
     if (hasStats || item.golf_round) {
       // Try golf round first
       if (item.golf_round) {
@@ -674,6 +675,11 @@ function MediaGridItem({ item, onClick }: MediaGridItemProps) {
           );
         }
       }
+    }
+
+    // Text-only posts: the caption IS the content.
+    if (item.caption) {
+      return item.caption;
     }
 
     // Final fallback

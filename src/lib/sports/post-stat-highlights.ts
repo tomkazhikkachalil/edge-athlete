@@ -83,6 +83,51 @@ function golfSupport(round: GolfRoundLike | null | undefined): StatTile[] {
   return tiles.slice(0, 3);
 }
 
+interface SharedScores {
+  course: string;
+  total: number;
+  toPar: number | null;
+  holes?: number | null;
+  format?: string | null;
+}
+
+/**
+ * Pull the score to lead with out of a SHARED round: the viewer's own row if
+ * they played, else the leader — the same rule buildPostHeadline uses, so the
+ * hero and the media strip never disagree about whose round it is.
+ */
+function sharedRoundScores(
+  groupScorecard: Record<string, unknown> | null | undefined,
+  viewerId: string | null | undefined
+): SharedScores | null {
+  if (!groupScorecard) return null;
+  const golfData = groupScorecard.golf_data as
+    | { course_name?: string | null; holes_played?: number | null; game_format?: string | null }
+    | undefined;
+  if (!golfData) return null;
+
+  const participants = (groupScorecard.participants ?? []) as Array<{
+    participant?: { profile_id?: string | null } | null;
+    scores?: { total_score?: number | null; to_par?: number | null } | null;
+  }>;
+  const scored = participants.filter(p => typeof p.scores?.total_score === 'number');
+  if (scored.length === 0) return null;
+
+  const mine = viewerId ? scored.find(p => p.participant?.profile_id === viewerId) : undefined;
+  const best = scored.reduce((a, b) =>
+    (b.scores!.total_score ?? Infinity) < (a.scores!.total_score ?? Infinity) ? b : a
+  );
+  const chosen = mine ?? best;
+
+  return {
+    course: golfData.course_name?.trim() || 'Round',
+    total: chosen.scores!.total_score as number,
+    toPar: typeof chosen.scores?.to_par === 'number' ? chosen.scores.to_par : null,
+    holes: golfData.holes_played,
+    format: golfData.game_format,
+  };
+}
+
 /** Sum of pars, when the hole detail came back with the round. */
 function coursePar(round: GolfRoundLike | null | undefined): number | null {
   const holes = round?.golf_holes;
@@ -100,6 +145,31 @@ export function buildStatHighlights(input: BuildInput): StatHighlights | null {
 
   // ── Golf: deep tables, no stat schema ──────────────────────────────────
   if (sportKey === 'golf') {
+    // A SHARED round carries to_par and total_score on the participant rows,
+    // so read them directly rather than through buildPostHeadline — that
+    // flattens to-par into a LABEL string ("+3"), which would render the raw
+    // score as the hero with "+3" underneath it. Golf leads with to-par.
+    const shared = sharedRoundScores(groupScorecard, viewerId);
+    if (shared) {
+      const support: StatTile[] = [{ value: String(shared.total), label: 'Score' }];
+      if (typeof shared.holes === 'number') {
+        support.push({ value: String(shared.holes), label: 'Holes' });
+      }
+      if (shared.format) support.push({ value: shared.format, label: 'Format' });
+      return {
+        moment: shared.course,
+        hero:
+          shared.toPar === null
+            ? { value: String(shared.total), label: 'Score' }
+            : {
+                value: shared.toPar === 0 ? 'E' : shared.toPar > 0 ? `+${shared.toPar}` : String(shared.toPar),
+                label: 'To Par',
+              },
+        support: support.slice(0, 3),
+        heroToPar: shared.toPar,
+      };
+    }
+
     const headline = buildPostHeadline(sportKey, {
       golfRound,
       statsData,
