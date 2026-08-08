@@ -265,7 +265,7 @@ export default function ChatDock() {
               holds its own controls (buttons can't nest, so the element
               type differs by state even though the visuals don't). */}
           {open ? (
-            <div className="flex items-center gap-2 px-3 h-11 bg-brand text-white shrink-0">
+            <div className="relative ea-metal-underline flex items-center gap-2 px-3 h-11 bg-brand-chrome text-white shrink-0">
               <span className="block w-7 h-7 rounded-full overflow-hidden bg-violet-400 shrink-0">
                 {profile?.avatar_url ? (
                   <LazyImage src={profile.avatar_url} alt={myName} className="w-full h-full object-cover" />
@@ -327,7 +327,7 @@ export default function ChatDock() {
             <button
               type="button"
               onClick={togglePanel}
-              className="flex items-center gap-2 px-3 h-11 bg-brand text-white hover:bg-brand-hover transition-colors text-sm font-medium w-full"
+              className="flex items-center gap-2 px-3 h-11 bg-brand-chrome text-white hover:bg-brand transition-colors text-sm font-medium w-full"
               aria-expanded={false}
               aria-label="Messages dock"
             >

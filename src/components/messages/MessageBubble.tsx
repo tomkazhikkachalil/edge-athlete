@@ -101,9 +101,12 @@ export default function MessageBubble({
     message.sender?.full_name
   );
 
+  // The metal rim is what stops an own-bubble dissolving into the (also
+  // violet) chat header in the dock. Inset shadows, so bubble geometry is
+  // unchanged — a real border would add 2px to every bubble in the thread.
   const bubbleBase = isOwn
-    ? 'bg-brand text-white rounded-l-2xl rounded-tr-2xl'
-    : 'bg-surface-sunken text-primary rounded-r-2xl rounded-tl-2xl';
+    ? 'bg-brand text-white rounded-l-2xl rounded-tr-2xl ea-metal-rim-brand'
+    : 'bg-surface-sunken text-primary rounded-r-2xl rounded-tl-2xl ea-metal-rim';
 
   const handleCopy = () => {
     if (message.content) navigator.clipboard.writeText(message.content);

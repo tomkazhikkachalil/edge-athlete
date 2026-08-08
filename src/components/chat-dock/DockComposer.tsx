@@ -90,7 +90,7 @@ export default function DockComposer({
                 onClick={() => pick(profile)}
                 className="w-full flex items-center gap-2.5 px-3 py-2 text-left hover:bg-brand-soft disabled:opacity-50"
               >
-                <span className="w-8 h-8 rounded-full overflow-hidden bg-violet-100 shrink-0">
+                <span className="w-8 h-8 rounded-full overflow-hidden bg-violet-100 dark:bg-violet-950/60 shrink-0">
                   {profile.avatar_url ? (
                     <LazyImage src={profile.avatar_url} alt={name} className="w-full h-full object-cover" />
                   ) : (

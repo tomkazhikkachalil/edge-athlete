@@ -127,7 +127,7 @@ export default function DockGroupComposer({
               return (
                 <span
                   key={m.id}
-                  className="shrink-0 flex items-center gap-1 bg-violet-100 text-brand-fg-strong rounded-full pl-2 pr-1 py-0.5 text-xs"
+                  className="shrink-0 flex items-center gap-1 bg-violet-100 dark:bg-violet-950/60 text-brand-fg-strong rounded-full pl-2 pr-1 py-0.5 text-xs"
                 >
                   <span className="max-w-[7rem] truncate">{mName}</span>
                   <button
@@ -186,7 +186,7 @@ export default function DockGroupComposer({
                 aria-pressed={selected}
                 className="w-full flex items-center gap-2.5 px-3 py-2 text-left hover:bg-brand-soft"
               >
-                <span className="w-8 h-8 rounded-full overflow-hidden bg-violet-100 shrink-0">
+                <span className="w-8 h-8 rounded-full overflow-hidden bg-violet-100 dark:bg-violet-950/60 shrink-0">
                   {profile.avatar_url ? (
                     <LazyImage
                       src={profile.avatar_url}
