@@ -113,7 +113,6 @@ describe('buildStatHighlights — golf', () => {
     const h = buildStatHighlights({ sportKey: 'golf', golfRound: round() })!;
     expect(h.hero).toEqual({ value: '-3', label: 'To Par' });
     expect(h.heroToPar).toBe(-3);
-    expect(h.support[0]).toEqual({ value: '69', label: 'Score' });
     expect(h.moment).toBe('Ottawa Hunt');
   });
 
@@ -127,9 +126,8 @@ describe('buildStatHighlights — golf', () => {
       sportKey: 'golf',
       golfRound: round({ gir_percentage: 61.1, fir_percentage: 78.4, total_putts: 28 }),
     })!;
-    // Score first, then the highest-priority two that fit in three slots.
-    expect(h.support.map(t => t.label)).toEqual(['Score', 'GIR', 'Fairways']);
-    expect(h.support[1].value).toBe('61%');
+    expect(h.support.map(t => t.label)).toEqual(['GIR', 'Fairways', 'Putts']);
+    expect(h.support[0].value).toBe('61%');
   });
 
   it('still renders when hole detail is missing, falling back to the raw score', () => {
@@ -163,7 +161,9 @@ describe('buildStatHighlights — shared golf rounds', () => {
     })!;
     expect(h.hero).toEqual({ value: '+3', label: 'To Par' });
     expect(h.heroToPar).toBe(3);
-    expect(h.support[0]).toEqual({ value: '75', label: 'Score' });
+    // The score lives in the player row now, not a support tile.
+    expect(h.support).toEqual([]);
+    expect(h.players![0].score).toBe(75);
     expect(h.moment).toBe('Eagle Creek');
   });
 
@@ -174,14 +174,14 @@ describe('buildStatHighlights — shared golf rounds', () => {
     expect(buildStatHighlights({ sportKey: 'golf', groupScorecard: card, viewerId: 'someone-else' })!.hero.value).toBe('-4');
   });
 
-  it('renders level par as E and carries holes/format as support', () => {
+  it('renders level par as E and carries holes/format in the meta line', () => {
     const h = buildStatHighlights({
       sportKey: 'golf',
       groupScorecard: scorecard([row('u1', 72, 0)]),
       viewerId: 'u1',
     })!;
     expect(h.hero.value).toBe('E');
-    expect(h.support.map(t => t.label)).toEqual(['Score', 'Holes', 'Format']);
+    expect(h.meta).toEqual(['18 holes', 'Stroke Play']);
   });
 
   it('falls back to the score when a shared round has no to-par recorded', () => {
@@ -201,5 +201,104 @@ describe('buildStatHighlights — shared golf rounds', () => {
         groupScorecard: scorecard([{ participant: { profile_id: 'u1' }, scores: { total_score: null, to_par: null } }]),
       })
     ).toBeNull();
+  });
+});
+
+describe('buildStatHighlights — golf players and round metadata', () => {
+  const player = (id: string, first: string, last: string, avatar: string | null, total: number, toPar: number | null) => ({
+    participant: { profile_id: id, profile: { first_name: first, last_name: last, full_name: `${first} ${last}`, avatar_url: avatar } },
+    scores: { total_score: total, to_par: toPar },
+  });
+  const card = (participants: unknown[], golf = {}, groupPost = {}) => ({
+    group_post: { date: '2026-08-01', ...groupPost },
+    golf_data: { course_name: 'Eagle Creek Golf Club', holes_played: 18, game_format: 'stroke', ...golf },
+    participants,
+  });
+
+  it('returns every scorer, best first, with their avatar', () => {
+    const h = buildStatHighlights({
+      sportKey: 'golf',
+      groupScorecard: card([
+        player('tom', 'Tom', 'K', 'https://cdn/tom.jpg', 8, 4),
+        player('tp', 'Test', 'Partner', null, 5, 1),
+      ]),
+      viewerId: 'tom',
+    })!;
+    expect(h.players!.map(p => [p.name, p.score, p.toPar])).toEqual([
+      ['Test Partner', 5, 1],
+      ['Tom K', 8, 4],
+    ]);
+    expect(h.players![1].avatarUrl).toBe('https://cdn/tom.jpg');
+    expect(h.players![1].isViewer).toBe(true);
+    expect(h.players![0].avatarUrl).toBeNull(); // initials fallback in the card
+  });
+
+  it('excludes participants who never scored', () => {
+    const h = buildStatHighlights({
+      sportKey: 'golf',
+      groupScorecard: card([
+        player('a', 'A', 'One', null, 80, 8),
+        { participant: { profile_id: 'b', profile: { first_name: 'B', last_name: 'Two' } }, scores: { total_score: null, to_par: null } },
+      ]),
+    })!;
+    expect(h.players).toHaveLength(1);
+  });
+
+  it('labels the game format instead of leaking the raw column value', () => {
+    // Regression: the card used to print the literal "stroke".
+    expect(buildStatHighlights({ sportKey: 'golf', groupScorecard: card([player('a','A','One',null,72,0)]) })!.meta)
+      .toEqual(['18 holes', 'Stroke Play']);
+    expect(buildStatHighlights({ sportKey: 'golf', groupScorecard: card([player('a','A','One',null,72,0)], { game_format: 'match' }) })!.meta)
+      .toContain('Match Play');
+  });
+
+  it('carries the round date through for the card header', () => {
+    expect(buildStatHighlights({ sportKey: 'golf', groupScorecard: card([player('a','A','One',null,72,0)]) })!.date).toBe('2026-08-01');
+  });
+
+  it('drops the support tiles once players are shown — the roster says it already', () => {
+    expect(buildStatHighlights({ sportKey: 'golf', groupScorecard: card([player('a','A','One',null,72,0)]) })!.support).toEqual([]);
+  });
+
+  describe('solo rounds', () => {
+    const solo = (over = {}) => ({ course: 'St. Andrews Old Course', date: '2026-07-24', gross_score: 89, par: 72, holes: 18, ...over });
+    const author = { id: 'tom', first_name: 'Tom', last_name: 'K', full_name: 'Tom K', avatar_url: 'https://cdn/tom.jpg' };
+
+    it('reads par from the COLUMN, so to-par survives without joined holes', () => {
+      // Regression: par was only ever summed from golf_holes, so a payload
+      // without hole detail silently lost to-par.
+      const h = buildStatHighlights({ sportKey: 'golf', golfRound: solo(), author, viewerId: 'tom' })!;
+      expect(h.hero).toEqual({ value: '+17', label: 'To Par' });
+      expect(h.heroToPar).toBe(17);
+    });
+
+    it('uses `holes`, not `holes_played`, for the meta line', () => {
+      // Regression: GolfRoundLike named this holes_played, which golf_rounds
+      // does not have — so the holes never rendered for a solo round.
+      expect(buildStatHighlights({ sportKey: 'golf', golfRound: solo(), author })!.meta).toEqual(['18 holes']);
+    });
+
+    it('shows the post author as the single player', () => {
+      const h = buildStatHighlights({ sportKey: 'golf', golfRound: solo(), author, viewerId: 'tom' })!;
+      expect(h.players).toEqual([
+        { profileId: 'tom', name: 'Tom K', avatarUrl: 'https://cdn/tom.jpg', score: 89, toPar: 17, isViewer: true },
+      ]);
+    });
+
+    it('hides zero/unrecorded GIR, fairways and putts', () => {
+      // Tom's real rounds record 0% for both — "0% GIR · 0% FWY" reads broken.
+      const h = buildStatHighlights({
+        sportKey: 'golf',
+        golfRound: solo({ gir_percentage: 0, fir_percentage: 0, total_putts: null }),
+        author,
+      })!;
+      expect(h.support).toEqual([]);
+      const withStats = buildStatHighlights({
+        sportKey: 'golf',
+        golfRound: solo({ gir_percentage: 61.1, fir_percentage: 0, total_putts: 30 }),
+        author,
+      })!;
+      expect(withStats.support.map(t => t.label)).toEqual(['GIR', 'Putts']);
+    });
   });
 });

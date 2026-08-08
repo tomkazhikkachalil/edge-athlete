@@ -20,6 +20,11 @@ interface SportPostBodyProps {
   hasMedia?: boolean;
   groupScorecard?: Record<string, unknown> | null;
   viewerId?: string | null;
+  /** Post author — the single player on a solo golf round. */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  author?: any;
+  /** Opens the full scorecard from the golf card. */
+  onExpandScorecard?: () => void;
 }
 
 export default function SportPostBody({
@@ -29,29 +34,36 @@ export default function SportPostBody({
   hasMedia = false,
   groupScorecard,
   viewerId,
+  author,
+  onExpandScorecard,
 }: SportPostBodyProps) {
-  // No media → one big number instead of a row of equal-weight chips. Golf
-  // keeps its scorecard body; only the flat stats summary is replaced.
-  if (!hasMedia) {
-    const highlight = (
-      <StatHighlightCard
-        sportKey={sportKey}
-        statsData={statsData}
-        golfRound={golfRound}
-        groupScorecard={groupScorecard}
-        viewerId={viewerId}
-      />
+  const highlight = (
+    <StatHighlightCard
+      sportKey={sportKey}
+      statsData={statsData}
+      golfRound={golfRound}
+      groupScorecard={groupScorecard}
+      viewerId={viewerId}
+      author={author}
+      onExpand={onExpandScorecard}
+    />
+  );
+
+  // GOLF gets the complete card whether or not there is a photo: the course,
+  // the score and WHO PLAYED are the post, and the old summary rendered them
+  // as 12px label:value pairs. The solo scorecard body still follows it.
+  if (sportKey === 'golf') {
+    return (
+      <>
+        {golfRound && <GolfRoundCard round={golfRound} />}
+        {highlight}
+      </>
     );
-    if (sportKey === 'golf') {
-      return (
-        <>
-          {golfRound && <GolfRoundCard round={golfRound} />}
-          {highlight}
-        </>
-      );
-    }
-    if (isStatLineData(statsData)) return highlight;
   }
+
+  // Stat-line sports: only without media, since a photo post already leads
+  // with MediaStatStrip over the image.
+  if (!hasMedia && isStatLineData(statsData)) return highlight;
 
   switch (sportKey) {
     case 'golf':
