@@ -1,5 +1,73 @@
 # Development Log
 
+## August 8, 2026 — Phone QA pass: what looked fine at 390px was clipped at 320px
+
+Tom: *"check it on my phone, make sure the changes match and the phone is
+looking as good as the web."* Two weeks of work — dark mode, the chat metal
+edging, the stat cards, the My Media tiles — had each been checked on one phone
+viewport. Nobody had swept the whole thing on a phone in both themes.
+
+Page-level overflow was clean everywhere: `scrollWidth - clientWidth` measured 0
+on every surface at 320 / 375 / 390 / 430 in both themes. That is exactly why
+this needed more than an overflow check.
+
+**The tile body overflowed and nothing reported it.** `MediaGridItem` is a
+square that shrinks with the viewport — 159px at 390, but 152px at 375 and only
+124px at 320 (two columns inside `px-4` + `p-4`). The golf body was tuned at 390
+and needed 172px:
+
+```
+320px  tile 124px / content 172px   +48px over  (24 clipped off EACH end)
+375px  tile 152px / content 158px    +6px over
+390px  tile 159px / content 154px    fits
+```
+
+Because the tile is `overflow-hidden`, it clipped **silently and symmetrically**:
+the sport icon off the top, the player faces off the bottom, no scrollbar, no
+overflow, nothing a page-level assertion can see. You had to measure the child
+against its own parent.
+
+The fix drops the two decorative rows as the tile shrinks, in order of how little
+they carry — icon below 380px, faces below 360px. The course, the number and its
+label survive at every width, because those are the reason the tile exists.
+
+```
+320px  content 110px / tile 124px  ✓      375px  118px / 152px  ✓
+390px  content 154px / tile 159px  ✓      430px  154px / 179px  ✓
+```
+
+The non-golf stat body had the same problem plus one of its own: it is the only
+body that also wears the "+ Stats" badge, and in a 124px tile the
+vertically-centred icon landed underneath it. Same treatment.
+
+**"View full scorecard" was a 20px tap target.** At `text-xs` with `pt-1` it was
+a 20px-tall line sitting 8px under the last player row — a thumb aimed at it hit
+the player. Now `min-h-[44px]` with `flex items-center`, measured at 44px across
+all 8 instances. It also gained `active:` styling, because `hover:` does nothing
+on touch.
+
+**Three chat regressions from the metal edging, all mine.** `ChatWindow`'s header
+is neutral `bg-surface`, but I had given it `.ea-metal-underline`, whose tokens
+are white-alpha — invisible in light, a doubled border in dark. Removed.
+`.ea-metal-rim` listed the rim shadow before the sheen, and `box-shadow` paints
+the **first-listed shadow on top**, so 12% black sat over the 55% white highlight
+and cancelled the lit edge that makes it read as metal rather than as a border.
+Order swapped. And `MessageBubble`'s caption strips inherited the rim, whose
+square inset ring gets sliced diagonally by the `rounded-2xl overflow-hidden`
+parent — stripped there.
+
+**Reported, not fixed** (each is a decision, not a defect I should quietly make):
+tile engagement data is hover-only, so likes/comments/time are invisible on
+touch; `GolfRoundCard` and `StatHighlightCard` both render for solo rounds, which
+is two-plus screens of scroll on a phone; and a set of pre-existing sub-44px
+controls predating all of this (footer links ~16px, header buttons 40px, Log in /
+Sign up 36px, the `ChatWindow` back button ~24px). Touch-target guidance across
+the whole app is its own pass.
+
+`npm run verify` green — 1059 tests, 82 files, 44 warnings at a ratchet of
+exactly 44.
+
+
 ## August 8, 2026 — Golf photo posts said the course three times
 
 Measured, not eyeballed: one card rendered "Rideau View Golf Club" in the media

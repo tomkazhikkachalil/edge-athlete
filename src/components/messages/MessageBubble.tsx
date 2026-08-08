@@ -231,8 +231,11 @@ export default function MessageBubble({
                 width={300}
                 height={256}
               />
+              {/* Rim stripped: this caption strip is rounded-none inside a
+                  rounded-2xl overflow-hidden parent, so a square inset ring
+                  gets sliced diagonally at the bottom corners. */}
               {message.content && (
-                <div className={`px-3 py-2 ${bubbleBase} rounded-none`}>
+                <div className={`px-3 py-2 ${bubbleBase.replace(/ ea-metal-rim(-brand)?/, '')} rounded-none`}>
                   <p className="text-sm whitespace-pre-wrap break-words">{message.content}</p>
                 </div>
               )}
@@ -260,7 +263,7 @@ export default function MessageBubble({
                 style={{ maxWidth: 300 }}
               />
               {message.content && (
-                <div className={`px-3 py-2 ${bubbleBase} rounded-none`}>
+                <div className={`px-3 py-2 ${bubbleBase.replace(/ ea-metal-rim(-brand)?/, '')} rounded-none`}>
                   <p className="text-sm whitespace-pre-wrap break-words">{message.content}</p>
                 </div>
               )}

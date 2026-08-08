@@ -591,7 +591,11 @@ export default function ChatWindow({ conversationId, onBack }: Props) {
   return (
     <div className="flex flex-col h-full bg-surface">
       {/* Header */}
-      <div className="relative ea-metal-underline flex items-center gap-3 px-4 py-3 border-b border-border shrink-0">
+      {/* No ea-metal-underline here: that class paints a white-alpha sheen
+          designed to sit on the VIOLET dock header. This header is neutral
+          (bg-surface), so the sheen was invisible in light and doubled the
+          border in dark. border-b alone is the right edge for a neutral bar. */}
+      <div className="flex items-center gap-3 px-4 py-3 border-b border-border shrink-0">
         {/* Back button (mobile) */}
         {onBack && (
           <button
