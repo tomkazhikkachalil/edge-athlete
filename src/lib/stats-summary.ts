@@ -3,6 +3,7 @@
  */
 
 import { getStatSchema, isStatLineData, formatResult } from '@/lib/sports/stat-schemas';
+import { formatDuration, formatVolume } from '@/lib/workouts/summary';
 
 interface GolfRoundData {
   course?: string | null;
@@ -131,19 +132,58 @@ export function formatGenericStatsSummary(statsData: Record<string, unknown> | n
     return null;
   }
 
-  // Try to extract meaningful info from generic stats
-  // This is a simple implementation that can be expanded per sport
-  const entries = Object.entries(statsData);
+  // Workout sessions ship a pre-formatted headline ("Deadlift 300 lbs × 6")
+  // plus real aggregates. Without this branch the generic path below took the
+  // first two OBJECT KEYS and rendered "Type: workout_session • Title: Workout"
+  // — the payload's plumbing instead of the workout.
+  if (statsData.type === 'workout_session') {
+    const topLine = typeof statsData.top_line === 'string' ? statsData.top_line.trim() : '';
+    const title = typeof statsData.title === 'string' ? statsData.title.trim() : '';
+    const exercises = num(statsData.exercise_count);
+    const sets = num(statsData.total_sets);
+    const seconds = num(statsData.duration_seconds);
+    const volume = num(statsData.total_volume_lbs);
+
+    const detail = [
+      exercises ? `${exercises} exercise${exercises === 1 ? '' : 's'}` : null,
+      sets ? `${sets} set${sets === 1 ? '' : 's'}` : null,
+      seconds ? formatDuration(seconds) : null,
+      volume ? formatVolume(volume) : null,
+    ].filter(Boolean);
+
+    const primaryLine = topLine || title || (detail.length ? (detail.shift() as string) : '');
+    if (!primaryLine) return null;
+    return {
+      primaryLine,
+      // Three is what fits a tile; volume is the first to go.
+      secondaryLine: detail.length ? detail.slice(0, 3).join(' · ') : null,
+    };
+  }
+
+  // Generic fallback. Skips the payload's own plumbing — a discriminator and
+  // foreign keys are never what the athlete did.
+  const IGNORED = new Set(['type', 'sport_key', 'date']);
+  const entries = Object.entries(statsData).filter(
+    ([key, value]) =>
+      !IGNORED.has(key) &&
+      !key.endsWith('_id') &&
+      value !== null &&
+      value !== undefined &&
+      value !== '' &&
+      typeof value !== 'object'
+  );
 
   if (entries.length === 0) return null;
 
   // Take first few key stats
   const primaryStats = entries.slice(0, 2).map(([key, value]) => {
-    // Format key to be more readable (camelCase -> Title Case)
+    // snake_case / camelCase -> Title Case, capitalising EVERY word:
+    // uppercasing only the first left "Metric label" on the tile.
     const formattedKey = key
+      .replace(/_/g, ' ')
       .replace(/([A-Z])/g, ' $1')
-      .replace(/^./, (str) => str.toUpperCase())
-      .trim();
+      .trim()
+      .replace(/\b\w/g, c => c.toUpperCase());
     return `${formattedKey}: ${value}`;
   });
 
@@ -151,4 +191,9 @@ export function formatGenericStatsSummary(statsData: Record<string, unknown> | n
     primaryLine: primaryStats.join(' • '),
     secondaryLine: null
   };
+}
+
+/** Positive finite numbers only — 0 and junk read as "not recorded". */
+function num(value: unknown): number | null {
+  return typeof value === 'number' && Number.isFinite(value) && value > 0 ? value : null;
 }

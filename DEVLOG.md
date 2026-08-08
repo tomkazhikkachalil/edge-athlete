@@ -1,5 +1,31 @@
 # Development Log
 
+## August 8, 2026 — The workout tile was printing its own plumbing
+
+`formatGenericStatsSummary`'s catch-all took the **first two object keys** and
+rendered them as `Key: value`. For a workout session those keys are `type` and
+`title`, so the profile tile read `"Type: workout_session • Title: Workout"` —
+the payload's wiring instead of the workout. Meanwhile that same payload
+carried everything worth showing: a pre-formatted `top_line`
+("Deadlift 300 lbs × 6"), plus exercise count, sets, duration and volume.
+
+Now: the top line leads, with up to three aggregates beneath it
+("4 exercises · 10 sets · 13 min"), falling back to the title and then to a
+single aggregate when there is no top line, and returning null when nothing was
+recorded rather than printing "0 sets". Reuses `formatDuration` and
+`formatVolume` from `lib/workouts/summary.ts` rather than adding a third
+implementation of either.
+
+Two fixes to the generic path while in there, since any future `stats_data`
+shape falls through it: it now skips the discriminator, `*_id` foreign keys,
+empty values and nested objects — none of which is ever what the athlete did —
+and title-cases **every** word, so `metric_label` renders "Metric Label" rather
+than "Metric label".
+
+Nine unit tests, including a regression test pinning that the workout tile
+never again surfaces `type`/`title`.
+
+
 ## August 8, 2026 — The Stats tab was hiding every shared round (migration 070)
 
 The Stats predicate has always been `stats_data IS NOT NULL OR round_id IS NOT
