@@ -128,16 +128,17 @@ function FeaturedTile({
   const firstMedia = post.media && post.media.length > 0 ? post.media[0] : null;
   const isVideo = firstMedia?.media_type === 'video';
 
-  // Text fallback for media-less posts: caption, else a stats one-liner
-  // (same summary helpers the media grid uses)
-  let textContent: string | null = post.caption;
-  if (!textContent) {
-    if (post.golf_round) {
-      textContent = formatGolfStatsSummary(post.golf_round)?.primaryLine ?? null;
-    } else if (post.stats_data) {
-      textContent = formatGenericStatsSummary(post.stats_data)?.primaryLine ?? null;
-    }
+  // Text fallback for media-less posts: the STATS one-liner first, caption
+  // only when there are none. Caption-first meant a captioned stat post
+  // showed prose where its number should be — and a featured tile exists to
+  // make someone click. Same summary helpers the media grid uses.
+  let textContent: string | null = null;
+  if (post.golf_round) {
+    textContent = formatGolfStatsSummary(post.golf_round)?.primaryLine ?? null;
+  } else if (post.stats_data) {
+    textContent = formatGenericStatsSummary(post.stats_data)?.primaryLine ?? null;
   }
+  if (!textContent) textContent = post.caption;
 
   return (
     <div className="relative group">

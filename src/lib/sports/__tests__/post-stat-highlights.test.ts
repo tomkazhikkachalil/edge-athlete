@@ -142,3 +142,64 @@ describe('buildStatHighlights — golf', () => {
     expect(buildStatHighlights({ sportKey: 'golf' })).toBeNull();
   });
 });
+
+describe('buildStatHighlights — shared golf rounds', () => {
+  const scorecard = (participants: unknown[], golf = {}) => ({
+    golf_data: { course_name: 'Eagle Creek', holes_played: 18, game_format: 'stroke', ...golf },
+    participants,
+  });
+  const row = (profile_id: string, total_score: number, to_par: number | null) => ({
+    participant: { profile_id },
+    scores: { total_score, to_par },
+  });
+
+  it('leads with TO PAR, not the raw score with to-par as its label', () => {
+    // Regression: deferring to buildPostHeadline flattens to-par into the
+    // label, so the card rendered "75" big with "+3" underneath it.
+    const h = buildStatHighlights({
+      sportKey: 'golf',
+      groupScorecard: scorecard([row('u1', 75, 3)]),
+      viewerId: 'u1',
+    })!;
+    expect(h.hero).toEqual({ value: '+3', label: 'To Par' });
+    expect(h.heroToPar).toBe(3);
+    expect(h.support[0]).toEqual({ value: '75', label: 'Score' });
+    expect(h.moment).toBe('Eagle Creek');
+  });
+
+  it("uses the VIEWER's row when they played, not the leader's", () => {
+    const card = scorecard([row('leader', 68, -4), row('me', 82, 10)]);
+    expect(buildStatHighlights({ sportKey: 'golf', groupScorecard: card, viewerId: 'me' })!.hero.value).toBe('+10');
+    // …and the leader's when the viewer wasn't in the round
+    expect(buildStatHighlights({ sportKey: 'golf', groupScorecard: card, viewerId: 'someone-else' })!.hero.value).toBe('-4');
+  });
+
+  it('renders level par as E and carries holes/format as support', () => {
+    const h = buildStatHighlights({
+      sportKey: 'golf',
+      groupScorecard: scorecard([row('u1', 72, 0)]),
+      viewerId: 'u1',
+    })!;
+    expect(h.hero.value).toBe('E');
+    expect(h.support.map(t => t.label)).toEqual(['Score', 'Holes', 'Format']);
+  });
+
+  it('falls back to the score when a shared round has no to-par recorded', () => {
+    const h = buildStatHighlights({
+      sportKey: 'golf',
+      groupScorecard: scorecard([row('u1', 79, null)]),
+      viewerId: 'u1',
+    })!;
+    expect(h.hero).toEqual({ value: '79', label: 'Score' });
+    expect(h.heroToPar).toBeNull();
+  });
+
+  it('returns null when nobody in the shared round has scored yet', () => {
+    expect(
+      buildStatHighlights({
+        sportKey: 'golf',
+        groupScorecard: scorecard([{ participant: { profile_id: 'u1' }, scores: { total_score: null, to_par: null } }]),
+      })
+    ).toBeNull();
+  });
+});
