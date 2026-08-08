@@ -435,10 +435,13 @@ body {
 
 /* Inset rim + a top sheen: reads as a lit metal edge rather than a drawn line.
  * Inset shadows, so the element's box is untouched. */
+/* Sheen listed FIRST because box-shadow paints the first-listed shadow on
+ * top: with the rim first, its 12% black sat over the 55% white highlight and
+ * cancelled the lit edge that makes this read as metal rather than a border. */
 .ea-metal-rim {
   box-shadow:
-    inset 0 0 0 1px var(--ea-metal-rim),
-    inset 0 1px 0 var(--ea-metal-sheen);
+    inset 0 1px 0 var(--ea-metal-sheen),
+    inset 0 0 0 1px var(--ea-metal-rim);
 }
 
 /* Same rim for elements sitting ON the brand violet (own message bubbles).
@@ -446,8 +449,8 @@ body {
  * the surface underneath is the same violet in light and dark. */
 .ea-metal-rim-brand {
   box-shadow:
-    inset 0 0 0 1px rgb(255 255 255 / 0.22),
-    inset 0 1px 0 rgb(255 255 255 / 0.28);
+    inset 0 1px 0 rgb(255 255 255 / 0.28),
+    inset 0 0 0 1px rgb(255 255 255 / 0.22);
 }
 
 /* The hairline under a chat header. An ::after rather than `border-image`,

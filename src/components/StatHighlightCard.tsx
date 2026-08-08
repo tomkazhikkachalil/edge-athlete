@@ -158,10 +158,14 @@ export default function StatHighlightCard({
             </div>
           ))}
           {onExpand && (
+            /* min-h-[44px] + flex, not bare text: at text-xs + pt-1 this was a
+               20px-tall target sitting 8px under the last player row, so a
+               thumb aimed here landed on the player instead. active: because
+               hover: does nothing on touch. */
             <button
               type="button"
               onClick={onExpand}
-              className="w-full text-right text-xs font-semibold text-brand-fg hover:text-brand-fg-strong pt-1"
+              className="flex min-h-[44px] w-full items-center justify-end text-xs font-semibold text-brand-fg hover:text-brand-fg-strong active:text-brand-fg-strong"
             >
               View full scorecard ›
             </button>

@@ -672,8 +672,16 @@ function MediaGridItem({ item, viewerId, onClick }: MediaGridItemProps) {
     if (highlights && hasRound) {
       const toPar = highlights.heroToPar;
       return (
-        <div className="flex h-full flex-col items-center justify-center gap-1.5 p-3">
-          <span className="flex h-8 w-8 items-center justify-center rounded-full bg-green-600 shrink-0">
+        /* The tile is a SQUARE that shrinks with the viewport — 159px at
+           390px, but 152px at 375 and only 124px at 320 (two columns inside
+           px-4 + p-4). This body was tuned at 390 and overflowed 48px at 320,
+           and because the button is overflow-hidden it clipped silently at
+           BOTH ends: the icon off the top, the players off the bottom. So the
+           two decorative rows drop out as the tile gets smaller, in order of
+           how little they carry: the icon first, then the faces. The course,
+           the number and its label always survive. */
+        <div className="flex h-full flex-col items-center justify-center gap-1 p-3">
+          <span className="hidden min-[380px]:flex h-8 w-8 items-center justify-center rounded-full bg-green-600 shrink-0">
             <i className="fas fa-golf-ball text-white text-sm" aria-hidden="true"></i>
           </span>
           <div className="text-center min-w-0 w-full">
@@ -698,7 +706,11 @@ function MediaGridItem({ item, viewerId, onClick }: MediaGridItemProps) {
               </div>
             )}
           </div>
-          {players.length > 0 && <TilePlayerStack players={players} />}
+          {players.length > 0 && (
+            <div className="hidden min-[360px]:block">
+              <TilePlayerStack players={players} />
+            </div>
+          )}
         </div>
       );
     }
@@ -709,7 +721,12 @@ function MediaGridItem({ item, viewerId, onClick }: MediaGridItemProps) {
       if (summary) {
         return (
           <div className="flex h-full flex-col items-center justify-center gap-1.5 p-3">
-            <span className="flex h-8 w-8 items-center justify-center rounded-full bg-brand shrink-0">
+            {/* Dropped below 380px for the same reason as the golf branch, plus
+                one of its own: this is the only body that also wears the
+                "+ Stats" badge, and in a 124px tile the vertically-centred icon
+                lands under it. The summary text carries the content; the icon
+                is decoration. */}
+            <span className="hidden min-[380px]:flex h-8 w-8 items-center justify-center rounded-full bg-brand shrink-0">
               <i className="fas fa-chart-line text-white text-sm" aria-hidden="true"></i>
             </span>
             <div className="text-center">
