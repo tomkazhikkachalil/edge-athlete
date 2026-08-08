@@ -1,5 +1,35 @@
 # Development Log
 
+## August 8, 2026 — Golf photo posts said the course three times
+
+Measured, not eyeballed: one card rendered "Rideau View Golf Club" in the media
+strip, again as the caption, and again in the stat card — plus the to-par twice.
+Three independent sources, which is why it wasn't obvious:
+
+1. `PostCard` draws `MediaStatStrip` over the photo,
+2. `SportPostBody` draws the stat card below it, and
+3. the caption is **auto-generated at creation** — `CreatePostModal` sets
+   `title: \`Golf at ${courseName}\`` and `api/group-posts/route.ts:346` stores
+   `caption: description || title`. Nobody typed that sentence.
+
+Honest note: it used to be two. Extending the stat card to photo posts (#73)
+added the third, and that wasn't flagged at the time.
+
+The caption is the copy that carries no information — the strip earns its place
+(the number while your eye is still on the photo) and the card earns its place
+(players, holes, format). So `isAutoRoundCaption` drops it, display-only, which
+means existing posts are fixed without touching stored data.
+
+**Matches the template VERBATIM, deliberately.** "Golf at Eagle Creek with the
+boys" is the athlete's writing and must survive; only the composer's own string
+disappears. Case and repeated whitespace are ignored as typography, not
+authorship. Four unit tests, one of which walks a list of near-misses that must
+all still render.
+
+Verified against the real feed: all three auto-captions gone, "What a round",
+"What a game" and "Test mobile" all still present, course still on every card.
+
+
 ## August 8, 2026 — The workout tile was printing its own plumbing
 
 `formatGenericStatsSummary`'s catch-all took the **first two object keys** and

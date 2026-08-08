@@ -12,6 +12,7 @@ import ConfirmModal from './ConfirmModal';
 import CommentSection from './CommentSection';
 import SharePostModal from './SharePostModal';
 import SportPostBody from './SportPostBody';
+import { isAutoRoundCaption } from '@/lib/golf/round-caption';
 import SharedRoundQuickView from './golf/SharedRoundQuickView';
 import SharedRoundFullCard from './golf/SharedRoundFullCard';
 import ScoreEntryModal from './golf/ScoreEntryModal';
@@ -604,8 +605,12 @@ function PostCard({
 
       {/* Content */}
       <div className="px-4 sm:px-6 py-4">
-        {/* Caption */}
-        {post.caption && (
+        {/* Caption. Hidden when it is the composer's own "Golf at <course>"
+            template and the card already shows that course — otherwise a golf
+            photo post says the course three times (media strip, here, and the
+            stat card). Only the template verbatim is dropped; anything the
+            athlete typed survives. */}
+        {post.caption && !isAutoRoundCaption(post.caption, postHeadline?.moment) && (
           <p className="text-primary text-base font-medium leading-relaxed mb-3 break-words">{post.caption}</p>
         )}
 
