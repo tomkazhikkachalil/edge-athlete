@@ -1,5 +1,62 @@
 # Development Log
 
+## August 8, 2026 — Golf post cards show the round: course, players, scores
+
+Tom, on the new stat card: *"I do like how it looks, but it needs to be more
+complete"* — he wanted the course name, a golf icon, the score, and the faces
+of the players in the round.
+
+**The player data was already in the payload and being thrown away.**
+`GROUP_SCORECARD_SELECT` (`scorecard-transform.ts:57-64`) has always joined
+`profile:profiles(first_name, last_name, full_name, avatar_url, handle)` onto
+every participant. The card just never asked for it. So the roster costs no
+extra query — shared rounds now render every scorer, best first, with avatar
+(via `AvatarImage`, which owns the initials fallback), score, and per-player
+to-par in the app's under/over-par colours. Solo rounds show one row: the post
+author. The card also carries a context line — "18 holes · Stroke Play · Aug 1"
+— and a "View full scorecard ›" that reaches the same handler the quick view
+used.
+
+**Golf now gets this card whether or not the post has a photo**, replacing
+`GolfStatsSummaryCard`'s 12px label:value grid. Six of Tom's seven rounds have
+photos, so scoping it to no-media posts would have improved almost nothing.
+
+**`SharedRoundQuickView` is now LIVE-rounds only.** A finished round is fully
+described by the card above it, so rendering both said everything twice. A live
+round is genuinely different — score entry, the live badge, the creator's
+end-round control — none of which the card replicates, so it keeps the quick
+view.
+
+### Four schema bugs found by checking the code against the live tables
+
+Worth recording, because all four were silent:
+
+1. **`golf_rounds.holes_played` does not exist** — the column is `holes`. The
+   Holes tile therefore never rendered for a solo round.
+2. **`golf_rounds.par` is a real column** (72 on Tom's rounds), but to-par was
+   only ever derived by summing `golf_holes[].par`. When the hole detail wasn't
+   joined, to-par silently vanished. Column first, sum as fallback.
+3. **The game format leaked raw** — the card would have printed `"stroke"`
+   instead of "Stroke Play"; `GAME_FORMAT_LABELS` existed all along.
+4. **The date was never set on the golf path** though `group_post.date` and
+   `golf_round.date` are both in the payload.
+
+Zero-valued GIR/fairways/putts are now hidden. Tom's rounds record 0% for both,
+and "0% GIR · 0% FWY" on every card reads as broken rather than honest.
+
+### Team logos: not possible today, and not faked
+
+Tom also asked for a team logo "if it's a team". There is **no logo column
+anywhere in the database** — `grep -rniE "logo" database/` returns zero hits.
+The `clubs` table (`001_initial_setup.sql:24-31`) has no logo, no create path,
+and its search results are deliberately non-clickable; `user_type='club'` is
+blocked by `api/profile/route.ts:19`; `profiles.team` is not a column at all
+(and `athlete/page.tsx:728` reads it anyway — a latent bug). Nothing links a
+post to a team. Shipping individual avatars, which are real, rather than
+inventing an entity. A genuine team logo needs a `teams` table with
+`logo_url`, a storage bucket and upload flow, a writable membership model, and
+a `team_id` on `group_posts`.
+
 ## August 7, 2026 — Stat posts without media lead with one big number
 
 **The no-media path was strictly quieter than the media one, which is

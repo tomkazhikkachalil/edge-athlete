@@ -680,10 +680,18 @@ function PostCard({
           hasMedia={!!post.media && post.media.length > 0}
           groupScorecard={groupScorecard as Record<string, unknown> | null}
           viewerId={currentUserId}
+          author={post.profile}
+          onExpandScorecard={groupScorecard ? () => setShowFullScorecard(true) : undefined}
         />
 
-        {/* Shared Round Scorecard - Multi-Player */}
-        {groupScorecard && (
+        {/* Shared Round Scorecard — LIVE rounds only.
+            A finished round is fully described by the card above (course,
+            to-par, every player with their score, and a way into the full
+            scorecard), so rendering this too said everything twice. A live
+            round is different: this carries score entry, the live badge and
+            the creator's end-round control, none of which the card
+            replicates. */}
+        {groupScorecard && isRoundLive(groupScorecard.group_post) && (
           <SharedRoundQuickView
             scorecard={groupScorecard}
             onExpand={() => setShowFullScorecard(true)}
