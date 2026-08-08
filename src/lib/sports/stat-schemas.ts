@@ -66,6 +66,21 @@ export interface SportStatSchema {
    * feed cards and media tiles. Returns null when no stats were entered.
    */
   headline: (stats: Record<string, number>) => string | null;
+  /**
+   * The ONE number worth showing big on a feed card that has no media, and
+   * the stats that support it.
+   *
+   * Structured on purpose: `headline` above answers the same question but
+   * pre-joins its answer into a string ("2 G • 1 A"), which cannot be laid
+   * out as a hero number over supporting tiles. Both stay — headline still
+   * feeds post-headline.ts and the profile activity rows.
+   *
+   * `hero` may be COMPUTED (hockey points = goals + assists) rather than a
+   * plain field read, which is why it is a function and not a key.
+   */
+  heroStat: { label: string; compute: (stats: Record<string, number>) => number | null };
+  /** Ordered; the card renders the first 3 of these that were recorded. */
+  supportKeys: string[];
 }
 
 export interface StatLineData {
@@ -88,6 +103,21 @@ const compactLine = (
     .slice(0, max)
     .map(f => `${stats[f.key]} ${f.shortLabel}`);
   return parts.length > 0 ? parts.join(' • ') : null;
+};
+
+/** Points = goals + assists. Hockey/soccer record the parts, not the total,
+ *  so the headline number has to be derived. Returns null (not 0) when the
+ *  athlete recorded neither, so the card can fall back rather than shout "0". */
+const pointsFromGoalsAssists = (stats: Record<string, number>): number | null => {
+  const g = stats.goals ?? 0;
+  const a = stats.assists ?? 0;
+  return g > 0 || a > 0 ? g + a : null;
+};
+
+/** Reads one key, treating absent/zero as "nothing to headline". */
+const heroFromKey = (key: string) => (stats: Record<string, number>): number | null => {
+  const v = stats[key];
+  return typeof v === 'number' && v > 0 ? v : null;
 };
 
 /** Convention helper: "G + A" style headline for point-scoring sports. */
@@ -119,6 +149,8 @@ export const STAT_SCHEMAS: Partial<Record<SportKey, SportStatSchema>> = {
       { label: 'Games', compute: { kind: 'count' } },
     ],
     headline: goalsAssistsHeadline(() => STAT_SCHEMAS.ice_hockey!),
+    heroStat: { label: 'Points', compute: pointsFromGoalsAssists },
+    supportKeys: ['goals', 'assists', 'shots'],
   },
   volleyball: {
     sport_key: 'volleyball',
@@ -139,6 +171,11 @@ export const STAT_SCHEMAS: Partial<Record<SportKey, SportStatSchema>> = {
       { label: 'Matches', compute: { kind: 'count' } },
     ],
     headline: stats => compactLine(stats, STAT_SCHEMAS.volleyball!.fields),
+    // Kills/Digs/Aces, matching profileTiles above. `headline` here is the
+    // generic first-3-non-zero, which would surface setter ASSISTS over aces
+    // and contradict this sport's own profile tiles — hence the explicit set.
+    heroStat: { label: 'Kills', compute: heroFromKey('kills') },
+    supportKeys: ['digs', 'aces', 'blocks'],
   },
   basketball: {
     sport_key: 'basketball',
@@ -165,6 +202,8 @@ export const STAT_SCHEMAS: Partial<Record<SportKey, SportStatSchema>> = {
       if ((stats.assists ?? 0) > 0) parts.push(`${stats.assists} AST`);
       return parts.length > 0 ? parts.join(' • ') : null;
     },
+    heroStat: { label: 'Points', compute: heroFromKey('points') },
+    supportKeys: ['rebounds', 'assists', 'threes'],
   },
   soccer: {
     sport_key: 'soccer',
@@ -185,6 +224,10 @@ export const STAT_SCHEMAS: Partial<Record<SportKey, SportStatSchema>> = {
       { label: 'Matches', compute: { kind: 'count' } },
     ],
     headline: goalsAssistsHeadline(() => STAT_SCHEMAS.soccer!),
+    // Goals, not points: a soccer scoreline is about goals, and a keeper's
+    // line is carried by saves in the support row.
+    heroStat: { label: 'Goals', compute: heroFromKey('goals') },
+    supportKeys: ['assists', 'shots', 'saves'],
   },
   baseball: {
     sport_key: 'baseball',
@@ -214,6 +257,8 @@ export const STAT_SCHEMAS: Partial<Record<SportKey, SportStatSchema>> = {
       if ((stats.rbis ?? 0) > 0) parts.push(`${stats.rbis} RBI`);
       return parts.length > 0 ? parts.join(' • ') : null;
     },
+    heroStat: { label: 'Hits', compute: heroFromKey('hits') },
+    supportKeys: ['home_runs', 'rbis', 'runs'],
   },
 };
 

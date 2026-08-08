@@ -555,7 +555,13 @@ export default function FeedPage() {
             <LiveNowStrip />
 
             {/* Posts Feed */}
-            <div className="space-y-4 sm:space-y-6 bg-surface rounded-lg border-2 border-border-strong p-3 sm:p-6">
+            {/* No background or border of its own: each PostCard already draws
+                    border-2 border-border-strong, and wrapping them in a box with
+                    the SAME fill and the SAME border meant every card edge sat on
+                    an identical edge — so nothing read as a card. Letting them sit
+                    on the page canvas is what makes the border visible, and it
+                    applies to every post equally. */}
+            <div className="space-y-4 sm:space-y-6">
               {feedLoading ? (
                 <div className="space-y-6">
                   {[1, 2, 3].map(i => (

@@ -677,6 +677,9 @@ function PostCard({
           sportKey={post.sport_key}
           golfRound={post.golf_round}
           statsData={post.stats_data}
+          hasMedia={!!post.media && post.media.length > 0}
+          groupScorecard={groupScorecard as Record<string, unknown> | null}
+          viewerId={currentUserId}
         />
 
         {/* Shared Round Scorecard - Multi-Player */}
