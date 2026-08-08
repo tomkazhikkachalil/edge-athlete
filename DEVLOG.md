@@ -1,5 +1,35 @@
 # Development Log
 
+## August 8, 2026 — The Stats tab was hiding every shared round (migration 070)
+
+The Stats predicate has always been `stats_data IS NOT NULL OR round_id IS NOT
+NULL`, and **a shared round has neither**: a multi-player round posts with
+`group_post_id` set and both of those NULL (`api/group-posts/route.ts` writes
+neither), because its scores live in `golf_scorecard_data` +
+`golf_participant_scores`. So the richest stat posts in the product were the
+only ones the Stats tab excluded, while solo rounds showed up fine — which is
+why it read as a display bug rather than a filter.
+
+Migration 070 adds one disjunct, `OR p.group_post_id IS NOT NULL`, in **two**
+places: the grid (`get_profile_stats_media`) and the badge
+(`get_profile_media_counts`, stats subquery only). Both or neither — 068 exists
+precisely because those two drifted apart, and widening the grid alone would
+show a tab reading "Stats 4" above eight items.
+
+**`CREATE OR REPLACE`, never `DROP`.** 051 force-dropped
+`get_profile_media_counts` via a DO-loop over `pg_proc`, which silently reset
+its ACL to the Postgres default — EXECUTE granted to PUBLIC — and wiped 040's
+pinned `search_path`; 068 had to repair it. The signatures here are unchanged,
+so replace-in-place preserves both, and the ALTER/REVOKE block at the end is
+idempotent insurance rather than a repair.
+
+Verified against real data before writing the SQL: for the account with four
+shared rounds, the Stats tab goes **4 → 8 posts**, and all four newly-included
+posts have a real scorecard row, so none renders an empty tile. No application
+change was needed — the media route and the tiles already handle shared rounds
+(that shipped in #74); this only widens which posts the tab is allowed to
+return, so it is safe to run before or after any deploy.
+
 ## August 8, 2026 — "My Media" tiles carry the stats
 
 Tom: *"I want the changes made to how they show up on the My Media Posts, not
