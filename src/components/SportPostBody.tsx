@@ -7,6 +7,7 @@
 import GolfRoundCard from './golf/GolfRoundCard';
 import GolfStatsSummaryCard from './golf/GolfStatsSummaryCard';
 import StatLineCard from './StatLineCard';
+import StatHighlightCard from './StatHighlightCard';
 import { isStatLineData } from '@/lib/sports/stat-schemas';
 import type { GolfRound } from '@/types/golf';
 
@@ -14,9 +15,44 @@ interface SportPostBodyProps {
   sportKey: string | null | undefined;
   golfRound?: GolfRound | null;
   statsData?: Record<string, unknown> | null;
+  /** A post with media leads with MediaStatStrip over the image; one without
+   *  has nothing else to carry it, so it gets the hero-stat treatment. */
+  hasMedia?: boolean;
+  groupScorecard?: Record<string, unknown> | null;
+  viewerId?: string | null;
 }
 
-export default function SportPostBody({ sportKey, golfRound, statsData }: SportPostBodyProps) {
+export default function SportPostBody({
+  sportKey,
+  golfRound,
+  statsData,
+  hasMedia = false,
+  groupScorecard,
+  viewerId,
+}: SportPostBodyProps) {
+  // No media → one big number instead of a row of equal-weight chips. Golf
+  // keeps its scorecard body; only the flat stats summary is replaced.
+  if (!hasMedia) {
+    const highlight = (
+      <StatHighlightCard
+        sportKey={sportKey}
+        statsData={statsData}
+        golfRound={golfRound}
+        groupScorecard={groupScorecard}
+        viewerId={viewerId}
+      />
+    );
+    if (sportKey === 'golf') {
+      return (
+        <>
+          {golfRound && <GolfRoundCard round={golfRound} />}
+          {highlight}
+        </>
+      );
+    }
+    if (isStatLineData(statsData)) return highlight;
+  }
+
   switch (sportKey) {
     case 'golf':
       return (

@@ -683,13 +683,10 @@ function MediaGridItem({ item, onClick }: MediaGridItemProps) {
   return (
     <button
       onClick={onClick}
-      className={`relative aspect-square rounded-xl overflow-hidden transition-all duration-300 group ${
-        item.golf_round
-          ? 'bg-surface-sunken hover:shadow-xl hover:shadow-green-200/50 hover:scale-105 ring-2 ring-green-100'
-          : hasStats
-          ? 'bg-surface-sunken hover:shadow-xl hover:shadow-violet-200/50 hover:scale-105 ring-2 ring-violet-100'
-          : 'bg-surface-sunken hover:shadow-lg hover:scale-105'
-      }`}
+      /* One edge for EVERY tile. This used to ring only golf/stats tiles, in
+         pastels with no dark: variant — so in dark mode a stats tile wore a
+         near-white halo and a plain tile wore nothing. */
+      className="relative aspect-square rounded-xl overflow-hidden transition-all duration-300 group bg-surface-sunken border border-border hover:border-border-strong hover:shadow-lg hover:scale-105"
     >
       {/* Media thumbnail */}
       {hasMedia && firstMedia ? (

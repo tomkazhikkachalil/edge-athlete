@@ -1,5 +1,66 @@
 # Development Log
 
+## August 7, 2026 — Stat posts without media lead with one big number
+
+**The no-media path was strictly quieter than the media one, which is
+backwards.** A post with a photo gets `MediaStatStrip` — a 24px broadcast
+lower-third over the image. A post without one got either `StatLineCard`
+(every non-zero stat as an identical 16px chip, so a five-goal night looked
+exactly like two penalty minutes) or, for golf, `GolfStatsSummaryCard`: 12px
+`label: value` pairs with no edge at all. Those posts have nothing else to
+carry them, so they were the ones that needed the emphasis.
+
+Worth noting what was already there: `PostCard` has computed
+`buildPostHeadline(...)` for *every* post since the media strip shipped, but
+its only consumer sits inside the media block. A no-media stat post built a
+perfectly good headline and threw it away.
+
+**`heroStat` + `supportKeys` on each sport schema.** `headline()` already
+answered "which stats matter" but pre-joins its answer into a string
+(`"2 G • 1 A"`), which cannot be laid out as a hero over supporting tiles.
+Both now exist; `headline()` is untouched and still feeds `post-headline.ts`
+and the profile activity rows. Hockey's hero is **Points**, which no field
+stores — it is goals + assists, hence a `compute` function rather than a key.
+**Volleyball was the one live sport with no curated headline** (a bare
+`compactLine`, which surfaces setter *assists* ahead of aces and contradicts
+volleyball's own profile tiles); it now leads with Kills, matching those
+tiles. There's a regression test pinning exactly that.
+
+Selection lives in `post-stat-highlights.ts`, pure and dispatched there rather
+than in the component for the reason `post-headline.ts` already gives: there
+is no jsdom in this repo, so logic inside a component cannot be tested at all.
+Golf reuses `buildPostHeadline` (which already resolves solo rounds *and*
+shared scorecards, picking the viewer's score) plus golf's established
+GIR > Fairways > Putts priority, and keeps the gross score as a supporting
+tile so the number a golfer actually cares about never disappears behind
+to-par. `toParColorClass` keeps under-par green and over-par red; every other
+sport's hero is plain ink, because a bigger number is already the emphasis and
+colour would compete with it.
+
+Zero handling is the fiddly part and is fully tested: a 0-point, 8-rebound
+basketball line promotes rebounds to hero rather than headlining "0", and a
+line with nothing recorded returns null instead of rendering an empty card.
+
+**Posts WITH media are untouched.** That leaves the pre-existing oddity where
+a media post shows its stats twice — once over the photo, once again below —
+which is worth its own look later.
+
+## Borders: one treatment for every post
+
+The card shell was **already** unconditional (`border-2 border-border-strong`
+on every post). Two other things created the "only stats posts have borders"
+impression, and both were real:
+
+- **The feed wrapped its cards in a box with the same fill and the same
+  border** (`bg-surface border-2 border-border-strong`), so every card edge sat
+  on an identical edge and nothing read as a card. Removed the wrapper's fill
+  and border; cards now sit on the page canvas, which is what makes their own
+  border visible — and it applies to every post equally.
+- **Profile Media tiles ringed only golf/stats tiles** (`ring-2 ring-green-100`
+  / `ring-violet-100`) **with no `dark:` variant**, so in dark mode a stats tile
+  wore a near-white halo while a plain tile wore nothing. Same bug in
+  `FeaturedPosts` (`ring-amber-200`). All tiles now share one token border.
+
 ## August 7, 2026 — Chat: metal edging, because the violets were merging
 
 Tom, using dark mode: *"in the Mini chat the purples blend together — the

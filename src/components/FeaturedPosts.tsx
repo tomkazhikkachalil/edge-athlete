@@ -143,7 +143,7 @@ function FeaturedTile({
     <div className="relative group">
       <button
         onClick={onOpen}
-        className="relative w-full aspect-square rounded-xl overflow-hidden bg-surface-sunken ring-2 ring-amber-200 hover:shadow-lg hover:scale-105 transition-all duration-300"
+        className="relative w-full aspect-square rounded-xl overflow-hidden bg-surface-sunken border border-border hover:border-border-strong hover:shadow-lg hover:scale-105 transition-all duration-300"
         aria-label={post.caption || 'Featured post'}
       >
         {firstMedia ? (
