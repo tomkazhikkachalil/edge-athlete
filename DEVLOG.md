@@ -109,6 +109,31 @@ inventing an entity. A genuine team logo needs a `teams` table with
 `logo_url`, a storage bucket and upload flow, a writable membership model, and
 a `team_id` on `group_posts`.
 
+## August 7, 2026 — Tiles led with the caption; golf led with the wrong number
+
+Recorded late — this shipped as #72 without an entry, found during a
+maintenance sweep.
+
+Two reasons the previous round's stat card looked like it hadn't shipped:
+
+**Profile tiles returned `item.caption` first.** `MediaGridItem` already
+contained rich stat tiles — score badge, sport icon, accent bar — but the
+caption check sat above them, so those tiles were unreachable for any post that
+had one, i.e. nearly all of them. A golf post captioned "Golf at Eagle Creek"
+rendered that prose where its score belonged. Stats now come first; the caption
+remains the fallback for text-only posts, which is all they have. Same
+ordering fixed in `FeaturedPosts`. (`tagged/TaggedTile` already did it right
+and was the reference.) *Superseded on Aug 8 for golf by the tile rewrite, but
+the ordering principle and the FeaturedPosts fix stand.*
+
+**Shared golf rounds led with the raw score.** The golf branch of
+`buildStatHighlights` deferred wholly to `buildPostHeadline`, which flattens
+to-par into a **label** string — so a round rendered `75` big with `+3`
+underneath it. Shared rounds carry `to_par` and `total_score` on the
+participant rows, so those are now read directly: the viewer's row if they
+played, else the leader — the same rule `buildPostHeadline` uses, so the hero
+and the media strip can never disagree about whose round it is.
+
 ## August 7, 2026 — Stat posts without media lead with one big number
 
 **The no-media path was strictly quieter than the media one, which is
