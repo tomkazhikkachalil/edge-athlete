@@ -1,5 +1,57 @@
 # Development Log
 
+## August 8, 2026 — "My Media" tiles carry the stats
+
+Tom: *"I want the changes made to how they show up on the My Media Posts, not
+when you click in."* Previous rounds improved the expanded post card; the grid
+tiles are a different code path and for shared rounds they **could not** show
+stats — the data never reached them.
+
+**Proven against the live endpoint** rather than guessed: `/api/profile/[id]/media`
+returned, for all four shared rounds, `stats_data: null`, `round_id: null`,
+`golf_round: null`, and no `group_post_id` at all. `formatGolfStatsSummary`
+needs a `golf_round`; `formatGenericStatsSummary` needs `stats_data`; both
+returned null, so the tile fell through to the caption. Solo rounds *did* work,
+which is why the breakage looked arbitrary.
+
+**Reaching the data without a migration.** The grid is fed by an RPC
+(`get_profile_all_media`, migration 068) whose `RETURNS TABLE` has no
+`group_post_id`, so the route had no way to find the round. Rather than
+shipping new SQL for Tom to run, the route now reads that one column back for
+the ids the RPC already returned — those ids are visibility-vetted by the RPC
+itself — then batch-fetches the rounds. A **trimmed** select, not
+`GROUP_SCORECARD_SELECT`, which drags in every hole score and all round media
+for a 159px thumbnail. Two extra queries per page of 20.
+
+**Tiles use `buildStatHighlights`** — the same selector the expanded card uses
+— so a tile and the card it opens can never disagree about a round.
+
+- Photo tiles: an always-visible score band (`MediaStatStrip` at tile scale),
+  keeping the parts that carry it — a painted scrim so contrast never depends
+  on the photo, `drop-shadow`, `tabular-nums`, `truncate`.
+- Stat-only tiles: golf icon, course, big colour-coded to-par, `score · holes`.
+  Deliberately flat: the old treatment stacked a 48px puck, a padded card and
+  an accent bar — about 152px of fixed height inside a tile that is **159px**
+  at 390px wide, so it overflowed.
+- Both: up to three overlapping 18px player avatars. Names never fit at this
+  size, so the faces answer "who was there" and the numbers answer "how did it
+  go".
+
+Two collisions handled: the hover engagement row (likes/comments/time) moves to
+`bottom-10` when a score band is present — the same nudge `TaggedTile` makes —
+and the `+ Stats` badge no longer fires on golf tiles, where the score already
+says it. The gradient keys off "has a round" rather than `item.golf_round`, so
+shared rounds finally get the golf treatment rather than the grey one.
+
+**Still open, needs a migration:** the **Stats tab excludes shared rounds
+entirely**. Its RPC predicate is `stats_data IS NOT NULL OR round_id IS NOT
+NULL` (`068_all_stats_owner_visibility.sql:162-168`) and shared rounds have
+neither, so they only appear under Media. Widening it to
+`OR p.group_post_id IS NOT NULL` is a new migration and was left out on
+purpose. Also noted: the workout tile still renders
+`"Type: workout_session • Title: Workout"` from `formatGenericStatsSummary`
+dumping raw keys — ugly, pre-existing, and not golf.
+
 ## August 8, 2026 — Golf post cards show the round: course, players, scores
 
 Tom, on the new stat card: *"I do like how it looks, but it needs to be more
