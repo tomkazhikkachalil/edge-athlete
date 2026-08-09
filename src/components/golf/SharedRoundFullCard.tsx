@@ -737,8 +737,10 @@ export default function SharedRoundFullCard({
                             </button>
                           )}
 
-                          {/* Score — stableford leads with points, others with strokes */}
-                          <div className="text-right">
+                          {/* Score — stableford leads with points, others with
+                              strokes. shrink-0: with the medal in the row a
+                              long wrapped name must never squeeze the score. */}
+                          <div className="text-right shrink-0">
                             {gameFormat === 'stableford' ? (
                               <>
                                 <div className="text-3xl font-black text-primary">
