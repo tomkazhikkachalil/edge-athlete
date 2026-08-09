@@ -260,6 +260,38 @@ describe('buildStatHighlights — golf players and round metadata', () => {
     expect(buildStatHighlights({ sportKey: 'golf', groupScorecard: card([player('a','A','One',null,72,0)]) })!.support).toEqual([]);
   });
 
+  it('builds each player\'s hole preview from hole_scores with pars from hole_data', () => {
+    const p = player('a', 'A', 'One', null, 9, 1);
+    p.scores = {
+      ...p.scores,
+      // Unsorted on purpose — the strip must come out hole-ordered.
+      hole_scores: [
+        { hole_number: 2, strokes: 5 },
+        { hole_number: 1, strokes: 4 },
+      ],
+    } as typeof p.scores;
+    const h = buildStatHighlights({
+      sportKey: 'golf',
+      groupScorecard: card([p], { hole_data: [{ hole: 1, par: 3 }, { hole: 2, par: 4 }] }),
+    })!;
+    expect(h.players![0].holes).toEqual([
+      { hole: 1, strokes: 4, par: 3 },
+      { hole: 2, strokes: 5, par: 4 },
+    ]);
+  });
+
+  it('falls back to par 4 when a pre-039 round has no hole_data — same as the full card', () => {
+    const p = player('a', 'A', 'One', null, 5, 1);
+    p.scores = { ...p.scores, hole_scores: [{ hole_number: 1, strokes: 5 }] } as typeof p.scores;
+    const h = buildStatHighlights({ sportKey: 'golf', groupScorecard: card([p]) })!;
+    expect(h.players![0].holes).toEqual([{ hole: 1, strokes: 5, par: 4 }]);
+  });
+
+  it('score-only participants get an empty preview, not a crash', () => {
+    const h = buildStatHighlights({ sportKey: 'golf', groupScorecard: card([player('a','A','One',null,72,0)]) })!;
+    expect(h.players![0].holes).toEqual([]);
+  });
+
   describe('solo rounds', () => {
     const solo = (over = {}) => ({ course: 'St. Andrews Old Course', date: '2026-07-24', gross_score: 89, par: 72, holes: 18, ...over });
     const author = { id: 'tom', first_name: 'Tom', last_name: 'K', full_name: 'Tom K', avatar_url: 'https://cdn/tom.jpg' };
@@ -281,7 +313,27 @@ describe('buildStatHighlights — golf players and round metadata', () => {
     it('shows the post author as the single player', () => {
       const h = buildStatHighlights({ sportKey: 'golf', golfRound: solo(), author, viewerId: 'tom' })!;
       expect(h.players).toEqual([
-        { profileId: 'tom', name: 'Tom K', avatarUrl: 'https://cdn/tom.jpg', score: 89, toPar: 17, isViewer: true },
+        { profileId: 'tom', name: 'Tom K', avatarUrl: 'https://cdn/tom.jpg', score: 89, toPar: 17, isViewer: true, holes: [] },
+      ]);
+    });
+
+    it('carries a sorted hole-by-hole preview and drops strokes-less rows', () => {
+      // Unsorted input + one par-only row (hole entered but never scored):
+      // the strip must show only played holes, in order, with par attached.
+      const h = buildStatHighlights({
+        sportKey: 'golf',
+        golfRound: solo({
+          golf_holes: [
+            { hole_number: 3, par: 5, strokes: 4 },
+            { hole_number: 1, par: 4, strokes: 5 },
+            { hole_number: 2, par: 3 }, // no strokes — dropped
+          ],
+        }),
+        author,
+      })!;
+      expect(h.players![0].holes).toEqual([
+        { hole: 1, strokes: 5, par: 4 },
+        { hole: 3, strokes: 4, par: 5 },
       ]);
     });
 

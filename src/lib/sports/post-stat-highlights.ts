@@ -23,11 +23,20 @@
 import { getStatSchema, isStatLineData } from './stat-schemas';
 import { buildPostHeadline } from './post-headline';
 import { asGameFormat, GAME_FORMAT_LABELS } from '../golf/formats';
+import { holePar } from '../golf/scoring';
 import { formatDisplayName } from '../formatters';
 
 export interface StatTile {
   value: string;
   label: string;
+}
+
+/** One hole in a player's preview strip. Par rides along so the card can
+ *  colour the cell with classifyScore without re-deriving it. */
+export interface StatPlayerHole {
+  hole: number;
+  strokes: number;
+  par: number | null;
 }
 
 /** One athlete's line in a round. Avatars come free with the feed payload —
@@ -40,6 +49,9 @@ export interface StatPlayer {
   toPar: number | null;
   /** The viewer's own row, so the card can mark it. */
   isViewer: boolean;
+  /** Hole-by-hole preview, sorted by hole. Empty when nothing per-hole was
+   *  recorded (quick-entry rounds, score-only shared participants). */
+  holes: StatPlayerHole[];
 }
 
 export interface StatHighlights {
@@ -70,7 +82,11 @@ interface GolfRoundLike {
   /** Course par as a COLUMN (golf_rounds.par). Preferred over summing holes,
    *  which are only present when the round detail was joined. */
   par?: number | null;
-  golf_holes?: Array<{ par?: number | null }> | null;
+  golf_holes?: Array<{
+    hole_number?: number | null;
+    par?: number | null;
+    strokes?: number | null;
+  }> | null;
   gir_percentage?: number | null;
   fir_percentage?: number | null;
   total_putts?: number | null;
@@ -142,7 +158,14 @@ function sharedRoundScores(
 ): SharedScores | null {
   if (!groupScorecard) return null;
   const golfData = groupScorecard.golf_data as
-    | { course_name?: string | null; holes_played?: number | null; game_format?: string | null }
+    | {
+        course_name?: string | null;
+        holes_played?: number | null;
+        game_format?: string | null;
+        /** Real per-hole pars (migration 039); null for older rounds, where
+         *  holePar's par-4 fallback applies — same rule as the full card. */
+        hole_data?: { hole: number; par: number }[] | null;
+      }
     | undefined;
   if (!golfData) return null;
 
@@ -156,7 +179,11 @@ function sharedRoundScores(
         avatar_url?: string | null;
       } | null;
     } | null;
-    scores?: { total_score?: number | null; to_par?: number | null } | null;
+    scores?: {
+      total_score?: number | null;
+      to_par?: number | null;
+      hole_scores?: Array<{ hole_number?: number | null; strokes?: number | null }> | null;
+    } | null;
   }>;
   const scored = participants.filter(p => typeof p.scores?.total_score === 'number');
   if (scored.length === 0) return null;
@@ -169,6 +196,7 @@ function sharedRoundScores(
 
   // Everyone who scored, best first — the roster IS the story of a shared
   // round, and their profiles (avatar included) are already in the payload.
+  const holeData = golfData.hole_data ?? null;
   const players: StatPlayer[] = scored
     .map(p => {
       const prof = p.participant?.profile ?? null;
@@ -179,6 +207,14 @@ function sharedRoundScores(
         score: p.scores!.total_score as number,
         toPar: typeof p.scores?.to_par === 'number' ? p.scores.to_par : null,
         isViewer: !!viewerId && p.participant?.profile_id === viewerId,
+        holes: (p.scores?.hole_scores ?? [])
+          .filter(hs => typeof hs?.hole_number === 'number' && typeof hs?.strokes === 'number')
+          .map(hs => ({
+            hole: hs.hole_number as number,
+            strokes: hs.strokes as number,
+            par: holePar(hs.hole_number as number, holeData),
+          }))
+          .sort((a, b) => a.hole - b.hole),
       };
     })
     .sort((a, b) => a.score - b.score);
@@ -219,6 +255,21 @@ export function coursePar(round: GolfRoundLike | null | undefined): number | nul
     total += h.par;
   }
   return total > 0 ? total : null;
+}
+
+/** Hole-by-hole preview rows for a SOLO round: only holes actually scored,
+ *  sorted. Quick-entry rounds (gross only, no hole rows) yield []. */
+function soloPlayerHoles(round: GolfRoundLike | null | undefined): StatPlayerHole[] {
+  const rows = round?.golf_holes;
+  if (!Array.isArray(rows)) return [];
+  return rows
+    .filter(h => typeof h?.hole_number === 'number' && typeof h?.strokes === 'number')
+    .map(h => ({
+      hole: h.hole_number as number,
+      strokes: h.strokes as number,
+      par: typeof h.par === 'number' ? h.par : null,
+    }))
+    .sort((a, b) => a.hole - b.hole);
 }
 
 export function buildStatHighlights(input: BuildInput): StatHighlights | null {
@@ -282,6 +333,7 @@ export function buildStatHighlights(input: BuildInput): StatHighlights | null {
               score: gross,
               toPar,
               isViewer: !!viewerId && author.id === viewerId,
+              holes: soloPlayerHoles(golfRound),
             },
           ]
         : [];

@@ -11,8 +11,8 @@
  * between them.
  */
 
-import { buildStatHighlights } from '@/lib/sports/post-stat-highlights';
-import { toParColorClass } from '@/lib/golf/scoring';
+import { buildStatHighlights, type StatPlayerHole } from '@/lib/sports/post-stat-highlights';
+import { classifyScore, SCORE_CELL_RING, toParColorClass } from '@/lib/golf/scoring';
 import { getSportDefinition, type SportKey } from '@/lib/sports/SportRegistry';
 import { AvatarImage } from '@/components/OptimizedImage';
 import { getInitials } from '@/lib/formatters';
@@ -37,6 +37,32 @@ function formatCardDate(raw: string): string {
 
 function unitLabel(value: string, label: string): string {
   return value === '1' && label.endsWith('s') ? label.slice(0, -1) : label;
+}
+
+/** Glimpseable hole-by-hole strip inside a player row: the quick scan Tom
+ *  asked for without opening the full scorecard. Cells reuse the SEMANTIC
+ *  scorecard colours (classifyScore + SCORE_CELL_RING — never reinvent);
+ *  scrolls sideways past what fits. Cells are non-interactive, so the
+ *  overflow container's pseudo-element clipping rule doesn't apply. */
+function HoleStrip({ holes }: { holes: StatPlayerHole[] }) {
+  return (
+    <div className="flex-1 min-w-0 overflow-x-auto scrollbar-hide" aria-label="Hole by hole scores">
+      <div className="flex w-max items-center gap-0.5">
+        {holes.map(h => {
+          const cls = h.par !== null ? classifyScore(h.strokes, h.par) : null;
+          const style = cls ? SCORE_CELL_RING[cls] : SCORE_CELL_RING.par;
+          return (
+            <span
+              key={h.hole}
+              className={`flex h-6 w-6 shrink-0 items-center justify-center rounded bg-surface text-xs tabular-nums ${style.ring} ${style.text}`}
+            >
+              {h.strokes}
+            </span>
+          );
+        })}
+      </div>
+    </div>
+  );
 }
 
 interface StatHighlightCardProps {
@@ -153,13 +179,16 @@ export default function StatHighlightCard({
                 size={28}
                 fallbackInitials={getInitials(p.name)}
               />
+              {/* With a strip the name yields the middle of the row to it
+                  (capped, truncating); without one it stretches as before. */}
               <span
-                className={`flex-1 min-w-0 truncate text-sm ${
+                className={`${p.holes.length > 0 ? 'max-w-[35%]' : 'flex-1'} min-w-0 truncate text-sm ${
                   p.isViewer ? 'font-bold text-primary' : 'font-medium text-secondary'
                 }`}
               >
                 {p.name}
               </span>
+              {p.holes.length > 0 && <HoleStrip holes={p.holes} />}
               <span className="text-base font-black text-primary tabular-nums shrink-0">
                 {p.score}
               </span>

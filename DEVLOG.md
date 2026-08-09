@@ -1,5 +1,37 @@
 # Development Log
 
+## August 9, 2026 — Player rows get their glimpse back: the hole strip
+
+Tom, after course-first shipped: *"the bottom section should be athletes
+name, hole by hole preview that users can quickly glimpse and scroll through
+without going into the full card to get all the details, and then there
+final score and plus/min."* The per-hole view existed only inside the full
+scorecard; the card's player rows showed totals alone.
+
+Each player row is now **name · hole strip · score · to-par** on one line
+(Tom's pick over a full-width strip beneath the name — it matches the
+sentence he wrote). The strip is a horizontally scrollable row of 24px
+cells, `scrollbar-hide`, coloured by the CANONICAL scoring system —
+`classifyScore` + `SCORE_CELL_RING` from `lib/golf/scoring` — so a birdie
+ring in the preview is pixel-for-pixel the birdie ring in the tables. The
+name yields the middle of the row (`max-w-[35%]`, truncating) only when a
+strip renders; hole-less rounds (quick entry, score-only shared
+participants) keep today's layout exactly.
+
+Data was already in the feed payload for both round kinds — nothing new is
+fetched. `StatPlayer` gains `holes: {hole, strokes, par}[]` built in the
+pure layer (testable, per the no-jsdom rule): solo from `golf_holes` rows
+that were actually scored, shared from each participant's `hole_scores`
+with pars via `holePar(n, golf_data.hole_data)` — par-4 fallback for
+pre-039 rounds, the same rule `SharedRoundFullCard` applies, so preview and
+detail can never disagree. Unsorted input comes out hole-ordered; par-only
+rows (entered, never scored) are dropped.
+
+Noted while in there, NOT fixed: `GolfRoundCard` still hand-rolls its cell
+classification with violet rings instead of using `SCORE_CELL_RING`'s blue
+(and both full-card legends still say violet) — a pre-existing divergence
+worth its own sweep.
+
 ## August 9, 2026 — Feed cards: course first, actions last
 
 Tom, reviewing the feed after the one-card round: *"it should be the course
