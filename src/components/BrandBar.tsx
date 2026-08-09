@@ -38,7 +38,14 @@ export default function BrandBar({ hideEscape = false }: { hideEscape?: boolean 
         width={180}
         height={45}
         preload
-        className="themed-logo h-8 sm:h-9 w-auto shrink-0"
+        className="light-theme-only h-8 sm:h-9 w-auto shrink-0"
+      />
+      <Image
+        src="/logo-dark.png"
+        alt="Edge Athlete"
+        width={180}
+        height={45}
+        className="dark-theme-only h-8 sm:h-9 w-auto shrink-0"
       />
       {showEscape && (
         <Link
