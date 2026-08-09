@@ -121,15 +121,24 @@ export default function StatHighlightCard({
         )}
       </div>
 
-      {/* Hero: the one number worth reading from a scrolling feed */}
-      <div className="text-center py-1">
-        <div className={`text-4xl font-black leading-none tabular-nums ${heroColor}`}>
-          {hero.value}
+      {/* Hero: the one number worth reading from a scrolling feed — but ONLY
+          when no roster renders below. Player rows restate the exact same
+          numbers (gross + coloured to-par per athlete), so on golf posts the
+          big +/- was saying twice what the detail right under it already
+          says (Tom's call, Aug 9). The course carries those cards instead.
+          Stat-line sports have no roster and keep their hero. The grid
+          tiles' score band still consumes highlights.hero — builders are
+          untouched on purpose. */}
+      {!(players && players.length > 0) && (
+        <div className="text-center py-1">
+          <div className={`text-4xl font-black leading-none tabular-nums ${heroColor}`}>
+            {hero.value}
+          </div>
+          <div className="mt-1.5 text-xs font-bold uppercase tracking-wide text-muted">
+            {unitLabel(hero.value, hero.label)}
+          </div>
         </div>
-        <div className="mt-1.5 text-xs font-bold uppercase tracking-wide text-muted">
-          {unitLabel(hero.value, hero.label)}
-        </div>
-      </div>
+      )}
 
       {/* Who played. A shared round IS its roster, so the names and faces are
           the content — and their profiles (avatar included) already arrive
