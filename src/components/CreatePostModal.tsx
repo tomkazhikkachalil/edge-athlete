@@ -1814,7 +1814,7 @@ export default function CreatePostModal({
                       key={hashtag}
                       onClick={() => addHashtag(hashtag)}
                       disabled={hashtags.length >= MAX_HASHTAGS}
-                      className="px-2 py-1 text-xs bg-surface-sunken text-secondary rounded-full hover:bg-violet-100 dark:hover:bg-violet-950/60 hover:text-brand-fg-strong disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                      className="relative after:absolute after:content-[''] after:-inset-y-2.5 after:inset-x-0 px-2 py-1 text-xs bg-surface-sunken text-secondary rounded-full hover:bg-violet-100 dark:hover:bg-violet-950/60 hover:text-brand-fg-strong disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                     >
                       {hashtag}
                     </button>

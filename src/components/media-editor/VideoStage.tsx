@@ -146,7 +146,7 @@ export default function VideoStage({
               <button
                 type="button"
                 onClick={() => onPatch({ trim: null })}
-                className="underline hover:text-white min-h-[36px]"
+                className="inline-flex items-center underline hover:text-white active:text-white min-h-[44px]"
               >
                 Clear trim
               </button>
@@ -155,7 +155,7 @@ export default function VideoStage({
               type="button"
               disabled={!canSplit || !split}
               onClick={() => split && onSplit(split[0], split[1])}
-              className="ml-auto inline-flex items-center gap-1.5 px-3 min-h-[36px] rounded-full bg-white/10 text-white disabled:opacity-40 hover:bg-white/20"
+              className="ml-auto inline-flex items-center gap-1.5 px-3 min-h-[44px] rounded-full bg-white/10 text-white disabled:opacity-40 hover:bg-white/20"
               title={!canSplit ? 'Splitting unavailable' : !split ? 'Move the playhead inside the clip' : 'Split into two clips at the playhead'}
             >
               <Scissors className="w-4 h-4" /> Split

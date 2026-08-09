@@ -95,7 +95,7 @@ export default function ConsentReviewPage() {
                     href={item.evidenceUrl}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="inline-block mt-2 text-sm text-brand-fg hover:underline"
+                    className="inline-flex min-h-[44px] items-center mt-1 text-sm text-brand-fg hover:underline active:underline"
                   >
                     <i className="fas fa-file-signature mr-1"></i> View signed form
                   </a>

@@ -404,7 +404,7 @@ export default function GolfRoundDetailPage() {
                               max={20}
                               value={eh.strokes}
                               onChange={e => updateEditHole(eh.hole_number, { strokes: e.target.value })}
-                              className="w-14 min-h-[40px] px-1 py-1 text-center border border-border-strong rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-violet-500"
+                              className="w-14 min-h-[44px] px-1 py-1 text-center border border-border-strong rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-violet-500"
                               aria-label={`Hole ${eh.hole_number} score`}
                             />
                           </td>
@@ -416,7 +416,7 @@ export default function GolfRoundDetailPage() {
                                 onClick={() => updateEditHole(eh.hole_number, {
                                   fairway_hit: eh.fairway_hit === true ? false : eh.fairway_hit === false ? null : true,
                                 })}
-                                className="min-w-[40px] min-h-[40px] rounded-md hover:bg-surface-sunken"
+                                className="min-w-[44px] min-h-[44px] rounded-md hover:bg-surface-sunken active:bg-surface-sunken"
                                 title="Cycle: hit → missed → n/a"
                                 aria-label={`Hole ${eh.hole_number} fairway`}
                               >
@@ -432,7 +432,7 @@ export default function GolfRoundDetailPage() {
                             <button
                               type="button"
                               onClick={() => updateEditHole(eh.hole_number, { green_in_regulation: !eh.green_in_regulation })}
-                              className="min-w-[40px] min-h-[40px] rounded-md hover:bg-surface-sunken"
+                              className="min-w-[44px] min-h-[44px] rounded-md hover:bg-surface-sunken active:bg-surface-sunken"
                               aria-label={`Hole ${eh.hole_number} green in regulation`}
                             >
                               <i className={`fas ${eh.green_in_regulation ? 'fa-check text-green-600 dark:text-green-400' : 'fa-times text-red-600 dark:text-red-400'}`}></i>
@@ -446,7 +446,7 @@ export default function GolfRoundDetailPage() {
                               max={10}
                               value={eh.putts}
                               onChange={e => updateEditHole(eh.hole_number, { putts: e.target.value })}
-                              className="w-14 min-h-[40px] px-1 py-1 text-center border border-border-strong rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-violet-500"
+                              className="w-14 min-h-[44px] px-1 py-1 text-center border border-border-strong rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-violet-500"
                               aria-label={`Hole ${eh.hole_number} putts`}
                             />
                           </td>

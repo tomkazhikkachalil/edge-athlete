@@ -562,7 +562,7 @@ export default function EventFormModal({
             <button
               type="button"
               onClick={() => setMoreOpen(true)}
-              className="text-sm text-brand-fg hover:underline"
+              className="inline-flex min-h-[44px] items-center text-sm text-brand-fg hover:underline active:underline"
             >
               More options — guests, location, details…
             </button>

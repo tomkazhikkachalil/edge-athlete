@@ -40,7 +40,7 @@ export default function AdjustPanel({ adjustments, onChange }: AdjustPanelProps)
         <button
           type="button"
           onClick={() => onChange({ ...NEUTRAL_ADJUSTMENTS })}
-          className="px-3 min-h-[40px] rounded-full text-chip text-white/70 bg-white/10 hover:bg-white/20 hover:text-white"
+          className="px-3 min-h-[44px] rounded-full text-chip text-white/70 bg-white/10 hover:bg-white/20 hover:text-white"
         >
           Reset
         </button>

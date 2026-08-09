@@ -210,7 +210,7 @@ export default function EditPostModal({
               {customHashtag && (
                 <button
                   type="submit"
-                  className="absolute right-2 top-1/2 -translate-y-1/2 px-3 py-1 bg-violet-500 text-white rounded text-sm hover:bg-brand"
+                  className="absolute right-2 top-1/2 -translate-y-1/2 after:absolute after:content-[''] after:-inset-y-2 after:inset-x-0 px-3 py-1 bg-violet-500 text-white rounded text-sm hover:bg-brand active:bg-brand"
                 >
                   Add
                 </button>
@@ -228,7 +228,7 @@ export default function EditPostModal({
                       <button
                         key={tag}
                         onClick={() => addHashtag(tag)}
-                        className="px-2 py-1 bg-surface-sunken text-secondary rounded text-xs hover:bg-gray-200 dark:hover:bg-stone-800 transition-colors"
+                        className="relative after:absolute after:content-[''] after:-inset-y-2.5 after:inset-x-0 px-2 py-1 bg-surface-sunken text-secondary rounded text-xs hover:bg-gray-200 dark:hover:bg-stone-800 transition-colors"
                       >
                         {tag}
                       </button>

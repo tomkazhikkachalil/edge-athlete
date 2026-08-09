@@ -1,5 +1,52 @@
 # Development Log
 
+## August 9, 2026 — Touch-target pass, part 2: the long tail
+
+Same principle as part 1 (visuals unchanged, hit areas grow), applied to
+everything else a thumb reaches:
+
+- **ChatWindow header**: back button ~26px → 44px box with negative margins
+  holding its optical position; options and minimize likewise; the header
+  name button and the error-state "Back to messages" get M1. Minimize is
+  `lg`-only but included — 1024px iPads are coarse-pointer.
+- **Message composer**: the three `w-10` buttons (chevron, attach, GIF) take
+  **vertical-only extenders precisely so `w-10` survives** —
+  `composer-layout.ts` pins `CHEVRON_PX = 40` to those classes by test, and
+  growing the painted width would desync a documented invariant. Send was
+  already `w-11`. The emoji trigger (38px) gets the same extender — on the
+  inner button, not the anchor wrapper, which the picker-anchoring
+  architecture owns.
+- **Reactions**: chips, the ⊕ add-reaction, ReactionDetails tabs and all five
+  MessageBubble quick actions get vertical extenders (2px gaps forbid
+  horizontal growth — a conscious dense-cluster trade-off; they stay 28px
+  wide). The picker's floating close X lands at 40px effective, not 44 — full
+  size would swallow taps meant for the picker edge beside it.
+- **Tab strips**: EditProfileTabs (36px, the worst), YearSelect, explore
+  chips, ProfileMediaTabs grow to 44; MultiPlayerScorecardGrid's segmented
+  Front 9 / Back 9 keeps its joined-border design via extenders.
+- **Bare links**, all standalone (none prose-inline after audit):
+  RegistrationSteps' four back/edit links, FeedCalendarWidget, onboarding
+  sign-out, transfer page ×4, complete-profile ×2, guardian consent +
+  credentials, reset-password, invite, dashboard/consent, EventFormModal.
+- **Explicit min-h-36/40 controls** → 44 where the row absorbs it:
+  FollowersModal ×5, followers page ×4, HeaderSearch, CommentSection actions
+  (`-m-2` retuned to `-m-3`) and composer buttons, golf round steppers, the
+  media editor (it runs on phones), EditPostModal, CreatePostModal hashtag
+  chips, HandleSelector. FollowButton sm/md keep their pill sizes via
+  extenders (its comment now says so); EquipmentSection "See all" and the
+  TaggedTile untag dot (24px visual, 44px effective) likewise.
+
+**Deliberately skipped: the chat dock's w-6 window chrome.** The dock is
+gated to ≥1024×600 (the e2e specs pin a desktop viewport) — pointer-only in
+practice; disturbing dock geometry the specs exercise buys nothing. Revisit
+if the dock ever un-gates.
+
+**Reported, not fixed:** MessageBubble's quick-action strip is
+hover-revealed (`hidden sm:flex`) — on a coarse-pointer tablet at `sm`+ it
+has the same invisibility problem the tile overlays had. That's a Fix-2-shaped
+visibility decision (what should touch tablets get — long-press?), not a
+sizing fix, so it's held for its own look.
+
 ## August 9, 2026 — Touch-target pass, part 1: the mechanism + the chrome
 
 Third Aug 8 reported item, first half. The rule: 44px is the floor for

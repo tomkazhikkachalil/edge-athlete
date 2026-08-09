@@ -202,7 +202,7 @@ export default function TaggedTile({ item, isOwnProfile, onClick, onUntag }: Tag
             onUntag();
           }}
           aria-label={`Remove tag from post by ${name}`}
-          className="absolute top-2 left-2 z-10 flex h-6 w-6 items-center justify-center rounded-full bg-black/55 text-white opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100 pointer-coarse:opacity-100 hover:bg-black/75"
+          className="absolute top-2 left-2 z-10 flex h-6 w-6 after:absolute after:content-[''] after:-inset-2.5 items-center justify-center rounded-full bg-black/55 text-white opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100 pointer-coarse:opacity-100 hover:bg-black/75 active:bg-black/75"
         >
           <X className="w-3.5 h-3.5" aria-hidden="true" />
         </button>

@@ -88,7 +88,7 @@ export default function ReactionDetails({
           <button
             key={t.emoji}
             onClick={() => setActiveEmoji(t.emoji)}
-            className={`shrink-0 inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs transition-colors ${
+            className={`shrink-0 relative after:absolute after:content-[''] after:-inset-y-2.5 after:inset-x-0 inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs transition-colors ${
               t.emoji === activeEmoji
                 ? 'bg-brand-soft text-brand-fg-strong font-semibold'
                 : 'text-tertiary hover:bg-surface-muted'

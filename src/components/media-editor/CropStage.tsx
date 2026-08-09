@@ -84,7 +84,7 @@ export default function CropStage({ imageUrl, recipe, config, cssFilter, onPatch
                 interactedRef.current = true;
                 onPatch({ aspect: id });
               }}
-              className={`px-3 min-h-[36px] rounded-full text-chip font-medium whitespace-nowrap transition-colors ${
+              className={`px-3 min-h-[44px] rounded-full text-chip font-medium whitespace-nowrap transition-colors ${
                 recipe.aspect === id
                   ? 'bg-brand text-white'
                   : 'bg-white/10 text-white/80 hover:bg-white/20'

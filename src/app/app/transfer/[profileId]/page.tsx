@@ -222,7 +222,7 @@ export default function TransferPage() {
                   ? 'Nothing changes, and you can ask again whenever you&#39;re ready.'
                   : 'Nothing has changed — you can start again any time.'}
               </p>
-              <button type="button" onClick={() => router.push('/athlete')} className="text-sm text-brand-fg hover:underline">
+              <button type="button" onClick={() => router.push('/athlete')} className="inline-flex min-h-[44px] items-center text-sm text-brand-fg hover:underline active:underline">
                 Back to my account
               </button>
             </div>
@@ -324,7 +324,7 @@ export default function TransferPage() {
               <div className="text-center mt-4">
                 {editingEmail
                   ? (
-                    <button type="button" onClick={() => setEditingEmail(false)} className="text-sm text-brand-fg hover:underline">
+                    <button type="button" onClick={() => setEditingEmail(false)} className="inline-flex min-h-[44px] items-center text-sm text-brand-fg hover:underline active:underline">
                       Back to the code
                     </button>
                   )
@@ -365,13 +365,13 @@ export default function TransferPage() {
                 </button>
               </form>
               <div className="flex flex-col items-center gap-2 mt-4">
-                <button type="button" onClick={resendCode} disabled={acting} className="text-sm text-brand-fg hover:underline disabled:opacity-50">
+                <button type="button" onClick={resendCode} disabled={acting} className="inline-flex min-h-[44px] items-center text-sm text-brand-fg hover:underline active:underline disabled:opacity-50">
                   Send a new code
                 </button>
                 <button
                   type="button"
                   onClick={() => { setEditingEmail(true); setEmail(transfer?.athlete_contact_email ?? ''); }}
-                  className="text-sm text-brand-fg hover:underline"
+                  className="inline-flex min-h-[44px] items-center text-sm text-brand-fg hover:underline active:underline"
                 >
                   Use a different email
                 </button>

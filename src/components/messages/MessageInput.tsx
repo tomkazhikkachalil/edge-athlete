@@ -404,7 +404,7 @@ export default function MessageInput({ conversationId, currentUserId, onSend, di
               type="button"
               onClick={() => dispatchLeading({ type: 'TOGGLE' })}
               disabled={disabled || sending}
-              className="w-10 h-10 flex items-center justify-center text-faint hover:text-violet-500 transition-colors disabled:opacity-40"
+              className="relative after:absolute after:content-[''] after:-inset-y-1 after:inset-x-0 w-10 h-10 flex items-center justify-center text-faint hover:text-violet-500 active:text-violet-500 transition-colors disabled:opacity-40"
               aria-label="Show attachment and GIF buttons"
               title="More options"
               aria-expanded={leadingOpen}
@@ -424,7 +424,7 @@ export default function MessageInput({ conversationId, currentUserId, onSend, di
               type="button"
               onClick={() => fileInputRef.current?.click()}
               disabled={disabled || sending}
-              className="w-10 h-10 shrink-0 flex items-center justify-center text-faint hover:text-tertiary transition-colors disabled:opacity-40"
+              className="relative after:absolute after:content-[''] after:-inset-y-1 after:inset-x-0 w-10 h-10 shrink-0 flex items-center justify-center text-faint hover:text-tertiary active:text-tertiary transition-colors disabled:opacity-40"
               aria-label="Attach file"
               title="Attach a photo or video"
             >
@@ -436,7 +436,7 @@ export default function MessageInput({ conversationId, currentUserId, onSend, di
               onClick={() => setShowGifPicker(prev => !prev)}
               disabled={disabled || sending}
               data-gif-picker-toggle
-              className="w-10 h-10 shrink-0 flex items-center justify-center text-faint hover:text-violet-500 transition-colors disabled:opacity-40 text-xs font-bold"
+              className="relative after:absolute after:content-[''] after:-inset-y-1 after:inset-x-0 w-10 h-10 shrink-0 flex items-center justify-center text-faint hover:text-violet-500 active:text-violet-500 transition-colors disabled:opacity-40 text-xs font-bold"
               aria-label="Send GIF"
               title="Send a GIF"
             >

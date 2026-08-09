@@ -77,7 +77,7 @@ export default function HeaderSearch() {
         onClick={() => setOpen(true)}
         aria-label="Search"
         aria-haspopup="dialog"
-        className="ea-interactive inline-flex min-h-10 shrink-0 items-center gap-2 rounded-lg border border-[color:var(--ea-hairline)] bg-surface/60 py-2 pl-3 pr-2 text-sm text-muted lg:w-64 xl:w-80"
+        className="ea-interactive inline-flex min-h-[44px] shrink-0 items-center gap-2 rounded-lg border border-[color:var(--ea-hairline)] bg-surface/60 py-2 pl-3 pr-2 text-sm text-muted lg:w-64 xl:w-80"
       >
         <i className="fas fa-search text-xs" aria-hidden="true"></i>
         {/* Label and hint now appear at `lg`, which only became affordable

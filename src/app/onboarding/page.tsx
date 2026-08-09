@@ -328,7 +328,7 @@ export default function OnboardingPage() {
           <div className="text-center mt-6 pt-4 border-t border-border-subtle">
             <button
               onClick={() => signOut()}
-              className="text-xs text-faint hover:text-brand-fg hover:underline"
+              className="inline-flex min-h-[44px] items-center text-xs text-faint hover:text-brand-fg hover:underline active:underline"
             >
               Sign out — you can finish this later
             </button>

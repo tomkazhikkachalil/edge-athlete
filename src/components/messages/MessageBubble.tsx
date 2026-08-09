@@ -299,7 +299,7 @@ export default function MessageBubble({
                 <button
                   key={emoji}
                   onClick={() => handleQuickEmoji(emoji)}
-                  className="w-7 h-7 flex items-center justify-center rounded-full hover:bg-surface-sunken transition-colors text-sm"
+                  className="relative after:absolute after:content-[''] after:-inset-y-2 after:inset-x-0 w-7 h-7 flex items-center justify-center rounded-full hover:bg-surface-sunken transition-colors text-sm"
                   title={`React with ${emoji}`}
                 >
                   {emoji}
@@ -307,14 +307,14 @@ export default function MessageBubble({
               ))}
               <button
                 onClick={handleGifReactClick}
-                className="w-7 h-7 flex items-center justify-center rounded-full hover:bg-surface-sunken transition-colors text-[10px] font-bold text-muted"
+                className="relative after:absolute after:content-[''] after:-inset-y-2 after:inset-x-0 w-7 h-7 flex items-center justify-center rounded-full hover:bg-surface-sunken transition-colors text-[10px] font-bold text-muted"
                 title="React with GIF"
               >
                 GIF
               </button>
               <button
                 onClick={() => setShowFullPicker(prev => !prev)}
-                className="w-7 h-7 flex items-center justify-center rounded-full hover:bg-surface-sunken transition-colors text-sm text-faint"
+                className="relative after:absolute after:content-[''] after:-inset-y-2 after:inset-x-0 w-7 h-7 flex items-center justify-center rounded-full hover:bg-surface-sunken transition-colors text-sm text-faint"
                 title="More emojis"
               >
                 +
@@ -322,7 +322,7 @@ export default function MessageBubble({
               <div className="w-px h-4 bg-gray-200 dark:bg-stone-800 mx-0.5" />
               <button
                 onClick={handleReply}
-                className="w-7 h-7 flex items-center justify-center rounded-full hover:bg-surface-sunken transition-colors"
+                className="relative after:absolute after:content-[''] after:-inset-y-2 after:inset-x-0 w-7 h-7 flex items-center justify-center rounded-full hover:bg-surface-sunken transition-colors"
                 title="Reply"
               >
                 <i className="fas fa-reply text-xs text-faint"></i>
@@ -331,7 +331,7 @@ export default function MessageBubble({
               <div className="w-px h-4 bg-gray-200 dark:bg-stone-800 mx-0.5" />
               <button
                 onClick={() => { setMenuOpenedAt(Date.now()); setShowMenu(prev => !prev); }}
-                className="w-7 h-7 flex items-center justify-center rounded-full hover:bg-surface-sunken transition-colors"
+                className="relative after:absolute after:content-[''] after:-inset-y-2 after:inset-x-0 w-7 h-7 flex items-center justify-center rounded-full hover:bg-surface-sunken transition-colors"
                 aria-label="More options"
               >
                 <i className="fas fa-ellipsis-h text-xs text-faint"></i>

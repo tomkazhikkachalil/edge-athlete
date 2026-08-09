@@ -86,7 +86,7 @@ export default function EmojiPickerButton({
         type="button"
         onClick={() => setOpen(prev => !prev)}
         disabled={disabled}
-        className="shrink-0 p-2.5 text-faint hover:text-yellow-500 transition-colors disabled:opacity-40"
+        className="shrink-0 relative after:absolute after:content-[''] after:-inset-y-1 after:inset-x-0 p-2.5 text-faint hover:text-yellow-500 active:text-yellow-500 transition-colors disabled:opacity-40"
         aria-label="Add emoji"
         title="Add emoji"
       >

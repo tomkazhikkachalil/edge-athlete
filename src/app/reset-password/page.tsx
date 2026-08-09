@@ -179,7 +179,7 @@ export default function ResetPasswordPage() {
                 </button>
               </form>
               <p className="text-center mt-4">
-                <Link href="/" className="text-sm text-brand-fg hover:underline">
+                <Link href="/" className="inline-flex min-h-[44px] items-center text-sm text-brand-fg hover:underline active:underline">
                   Back to sign in
                 </Link>
               </p>
