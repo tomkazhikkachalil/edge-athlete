@@ -1,5 +1,51 @@
 # Development Log
 
+## August 9, 2026 — Replies to replies (three levels, then flat) — and a stale-closure submit bug
+
+Tom: you can only reply to top-level comments — replying to a reply should
+work and "keep it going." His chosen model (cap at three): roots, replies
+(as before), and one more slimmer indent; anything deeper stays at that
+third level, reading as directed because the composer auto-prefills
+`@handle` of the person being answered.
+
+- The DB already supported arbitrary depth (self-FK with CASCADE) — the cap
+  was pure UI. **Data keeps TRUE threading** (`parent_comment_id` = the real
+  target at any depth); the flatten is render-only, so a future "view
+  thread" needs no backfill. The policy is a pure module
+  (`src/lib/comment-thread.ts`, node-tested): `flattenReplies` walks the
+  existing parent→children index ITERATIVELY (a hostile-depth chain must
+  not blow the call stack) and emits everything below depth 1 at depth 2;
+  `collectDescendantIds` powers delete.
+- `renderComment` takes a real `depth` instead of the `isReply` boolean it
+  conflated with gates: pin stays `depth === 0`, Reply is on EVERY comment,
+  avatar/text cosmetics key off depth. The reply form now renders inside
+  the target comment's own content column (inherits the row's indent) —
+  replying to depth ≥ 1 prefills `@handle ` (plain text today; becomes a
+  real mention when the mentions PR lands). Rows carry `data-depth` for
+  structural QA.
+- Local delete now drops the whole subtree (`collectDescendantIds`) — the
+  DB cascade always did; the one-level filter left grandchildren on screen
+  until refetch.
+- **Migration 072** (`072_comment_parent_index.sql`): partial index on
+  `post_comments(parent_comment_id)` — the self-FK was unindexed (the
+  index existed only in an archived legacy script). Order-independent with
+  the deploy.
+
+**The bug the probe caught: submit read STALE STATE.** Both submit handlers
+guarded on `replyText`/`newComment` from the render closure. An Enter that
+lands in the same frame as the last input event (fast typing; Playwright
+every time) sees the pre-keystroke value — the guard silently no-ops (or
+posts one keystroke short) and the form just sits there. The handlers now
+read the LIVE value from the textarea ref. The failure mode was nasty to
+diagnose because `getByText` matched the typed text INSIDE the open
+textarea (React renders the value as the element's DOM text), so the probe
+"saw" the comment that was never posted — comment-row assertions now go
+through `[data-depth]` rows, never bare text.
+
+Verified live: reply→reply→reply chain renders 3 visual levels with the
+third flattened (`data-depth` 1/2/2), prefill exact (`@handle `), mid-chain
+delete removes the subtree, root survives.
+
 ## August 9, 2026 — The comment box grows like the message box
 
 Tom: typing a comment keeps everything on one line scrolling sideways — it
