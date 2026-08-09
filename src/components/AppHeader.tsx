@@ -15,6 +15,7 @@ import { FEATURE_FLAGS } from '@/lib/features';
 import { useLiveNow } from '@/hooks/useLiveNow';
 import { useTheme } from '@/lib/use-theme';
 import { useBodyScrollLock } from '@/hooks/useBodyScrollLock';
+import { usePopoverDismiss } from '@/hooks/usePopoverDismiss';
 import { pillGeometry, activeNavIndex, type ItemBox } from '@/lib/nav-pill';
 
 /**
@@ -81,6 +82,9 @@ export default function AppHeader({ onCreatePost, onEditProfile }: AppHeaderProp
   const { theme, toggleNow: toggleTheme } = useTheme();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isProfileDropdownOpen, setIsProfileDropdownOpen] = useState(false);
+  const profileMenuRef = useRef<HTMLDivElement | null>(null);
+  const closeProfileDropdown = useCallback(() => setIsProfileDropdownOpen(false), []);
+  usePopoverDismiss(profileMenuRef, isProfileDropdownOpen, closeProfileDropdown);
   const [scrolled, setScrolled] = useState(false);
 
   // Passive listener reading only scrollY — no getBoundingClientRect, so this
@@ -411,7 +415,14 @@ export default function AppHeader({ onCreatePost, onEditProfile }: AppHeaderProp
               </button>
 
               {/* Desktop Profile Dropdown — `lg` to match the nav above. */}
-              <div className="hidden lg:block relative">
+              {/* Dismissal via usePopoverDismiss, NOT an invisible backdrop:
+                  a fixed backdrop inside this backdrop-blur header covers only
+                  the 64px strip (containing-block trap), so page-body clicks
+                  never closed the menu — and it ate the first click on
+                  sibling controls. The hook closes on any outside press AND
+                  Escape, and lets the pressed sibling still receive its
+                  click. */}
+              <div ref={profileMenuRef} className="hidden lg:block relative">
                 <button
                   onClick={() => setIsProfileDropdownOpen(!isProfileDropdownOpen)}
                   className="flex items-center gap-2 hover:bg-surface-sunken rounded-lg p-1.5 transition-colors"
@@ -432,10 +443,6 @@ export default function AppHeader({ onCreatePost, onEditProfile }: AppHeaderProp
                 {/* Dropdown Menu */}
                 {isProfileDropdownOpen && (
                   <>
-                    <div
-                      className="fixed inset-0 z-10"
-                      onClick={() => setIsProfileDropdownOpen(false)}
-                    />
                     <div className="absolute right-0 mt-2 w-64 bg-surface-raised rounded-lg shadow-lg border border-border py-2 z-20">
                       <div className="px-4 py-3 border-b border-border-subtle">
                         <p className="text-sm font-semibold text-primary">

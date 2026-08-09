@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useNotifications, getNotificationText } from '@/lib/notifications';
 import { formatDisplayName, getInitials } from '@/lib/formatters';
 import { AvatarImage } from '@/components/OptimizedImage';
+import { usePopoverDismiss } from '@/hooks/usePopoverDismiss';
 
 export default function NotificationBell() {
   const router = useRouter();
@@ -15,17 +16,11 @@ export default function NotificationBell() {
   const notificationRefs = useRef<Map<string, HTMLDivElement>>(new Map());
   const visibilityTimers = useRef<Map<string, NodeJS.Timeout>>(new Map());
 
-  // Close dropdown when clicking outside
-  useEffect(() => {
-    function handleClickOutside(event: MouseEvent) {
-      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
-        setShowDropdown(false);
-      }
-    }
-
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, []);
+  // Outside press or Escape closes — the shared popover pattern (this
+  // component's document-listener approach is where the hook came from;
+  // adopting it scopes the listener to the open state and adds Escape).
+  const closeDropdown = useCallback(() => setShowDropdown(false), []);
+  usePopoverDismiss(dropdownRef, showDropdown, closeDropdown);
 
   // Callback ref to track notification elements
   const setNotificationRef = useCallback((notificationId: string, element: HTMLDivElement | null) => {

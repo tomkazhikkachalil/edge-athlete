@@ -1,5 +1,51 @@
 # Development Log
 
+## August 9, 2026 — The search you couldn't leave (backdrop-filter is a containing block)
+
+Tom: Escape barely works on search, mobile search requires a page refresh
+to escape, and the avatar dropdown needs its own close click instead of
+closing when you click anywhere else. Three symptoms, one mechanism:
+
+**`backdrop-blur` on the `<header>` makes it the CONTAINING BLOCK for
+`position: fixed` descendants.** Every "full-screen" overlay rendered
+inside the header — the search dialog's dim backdrop, the avatar menu's
+invisible click-off backdrop — actually covered the **64px header strip**,
+not the viewport. Desktop search only appeared to work because the panel
+happens to hang below the strip. On a phone the panel covers the strip
+entirely: no backdrop pixels to tap, no X, no Esc key on a touch keyboard
+→ refresh was genuinely the only exit. The avatar menu never closed from
+page-body clicks for the same reason. This is the same trap family as
+Tailwind v4's `transform` stacking surprise; the diagnostic tell is a
+"full-screen" dim that only darkens the header row.
+
+Fixes, each the smallest correct mechanism:
+
+- **The search dialog is now PORTALED to `document.body`** — the repo's
+  first `createPortal` (SSR-safe: it renders only when open, which is never
+  on the server). The dim truly spans the viewport, so click-off works
+  everywhere on every device. It also gained a real **X close button**
+  (`.ea-icon-btn`, 44px effective) — Esc doesn't exist on a phone keyboard
+  and a text hint saying "Press Esc" was the only affordance. The hint is
+  now `sm:`-gated.
+- **Escape's flakiness** was the browser autofill popup over the search
+  input (no `autoComplete`): the popup eats the first Esc. `autoComplete="off"`
+  + a `name` fixes the double-press. (Esc inside a native `<select>`/date
+  picker still goes to the control first — that's platform behavior.)
+- **`usePopoverDismiss` (new hook)** is now the house pattern for
+  lightweight popovers: a `document` mousedown + ref-contains test (the
+  mechanism NotificationBell already used — the only popover that worked)
+  plus Escape. Crucially it is NOT a backdrop div: a backdrop eats the
+  first click, so tapping the bell while the avatar menu was open closed
+  the menu and swallowed the tap. With mousedown-based dismissal the menu
+  closes AND the sibling receives the same click — one gesture. Adopted by
+  the avatar dropdown (which also gains Escape) and NotificationBell
+  (which gains Escape and an open-scoped listener). The hook's header
+  documents the containing-block trap so the backdrop idiom doesn't creep
+  back into the header.
+
+Modal surfaces with a dimmed backdrop (search, real modals) keep
+swallow-on-dismiss — that's dialog semantics — but must be portaled.
+
 ## August 9, 2026 — One player order, a fixed name column, and medals (migration 071)
 
 Tom: the names came out in a different order on the feed than in the

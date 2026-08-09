@@ -105,6 +105,8 @@ export default function AdvancedSearchBar() {
       <div className="relative flex items-center">
         <input
           type="text"
+          name="ea-search"
+          autoComplete="off"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           placeholder="Search athletes, posts, clubs..."
