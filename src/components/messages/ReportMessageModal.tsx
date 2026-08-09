@@ -97,7 +97,7 @@ export default function ReportMessageModal({
             <button
               type="button"
               onClick={() => !submitting && onClose()}
-              className="p-1 -m-1 text-faint hover:text-tertiary"
+              className="ea-icon-btn inline-flex items-center justify-center -my-2 -mr-2"
               aria-label="Close"
             >
               <i className="fas fa-times text-base"></i>

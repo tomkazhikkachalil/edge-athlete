@@ -88,7 +88,7 @@ export default function CalendarSyncModal({
             </span>
             <h2 className="text-lg font-bold text-primary">Sync to another calendar</h2>
           </div>
-          <button type="button" onClick={onClose} aria-label="Close" className="text-faint hover:text-tertiary">
+          <button type="button" onClick={onClose} aria-label="Close" className="ea-icon-btn inline-flex items-center justify-center shrink-0">
             <X className="w-5 h-5" />
           </button>
         </div>
