@@ -147,6 +147,7 @@ export default function MessageInput({ conversationId, currentUserId, onSend, di
   // call) — free-form @names of non-members stay inert by design. Drafts
   // observe every setText via the effect above, so the splice path needs no
   // extra plumbing.
+  const fieldWrapRef = useRef<HTMLDivElement | null>(null);
   const mentionTypeahead = useMentionTypeahead({
     value: text,
     setValue: (next) => {
@@ -510,11 +511,12 @@ export default function MessageInput({ conversationId, currentUserId, onSend, di
             so it must never get overflow-hidden — that would clip the picker
             panel. `pr-12` reserves the button's gutter on EVERY line, which is
             why text can't run underneath it at any height. */}
-        <div className="relative flex-1 min-w-0">
+        <div ref={fieldWrapRef} className="relative flex-1 min-w-0">
           <MentionSuggestions
             open={mentionTypeahead.open}
             candidates={mentionTypeahead.candidates}
             activeIndex={mentionTypeahead.activeIndex}
+            anchorRef={fieldWrapRef}
             onHover={mentionTypeahead.setActiveIndex}
             onSelect={mentionTypeahead.select}
             onClose={mentionTypeahead.close}
@@ -527,7 +529,7 @@ export default function MessageInput({ conversationId, currentUserId, onSend, di
             placeholder={replyingTo ? 'Reply…' : 'Message…'}
             rows={1}
             disabled={disabled || sending}
-            className="w-full resize-none border border-border-strong rounded-2xl pl-4 pr-12 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500 disabled:opacity-40 overflow-hidden block"
+            className="w-full resize-none border border-border-strong rounded-2xl pl-4 pr-12 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500 disabled:opacity-40 overflow-y-auto block"
             style={{ minHeight: COMPOSER_MIN_HEIGHT, maxHeight: COMPOSER_MAX_HEIGHT }}
           />
           {/* Emoji stays pinned inside the field's trailing edge in every
