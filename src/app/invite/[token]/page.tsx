@@ -73,7 +73,7 @@ export default function InvitePage() {
               <button
                 type="button"
                 onClick={() => router.push('/')}
-                className="text-sm text-brand-fg hover:underline"
+                className="inline-flex min-h-[44px] items-center text-sm text-brand-fg hover:underline active:underline"
               >
                 Go to Edge Athlete
               </button>

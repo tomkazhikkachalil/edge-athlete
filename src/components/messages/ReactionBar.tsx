@@ -108,7 +108,7 @@ export default function ReactionBar({
           onTouchEnd={cancelLongPress}
           onTouchCancel={cancelLongPress}
           onTouchMove={cancelLongPress}
-          className={`ea-reaction-chip inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs transition-colors border ${
+          className={`ea-reaction-chip relative after:absolute after:content-[''] after:-inset-y-2.5 after:inset-x-0 inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs transition-colors border ${
             r.reacted
               ? 'bg-brand-soft border-violet-300 dark:border-violet-700 text-brand-fg-strong'
               : 'bg-surface-muted border-border text-tertiary hover:bg-surface-sunken'
@@ -146,7 +146,7 @@ export default function ReactionBar({
             <button
               type="button"
               onClick={() => setShowPicker(false)}
-              className="absolute -top-1 -right-1 w-5 h-5 bg-surface border border-border text-faint hover:text-tertiary rounded-full flex items-center justify-center text-[10px] shadow-sm"
+              className="absolute -top-1 -right-1 w-5 h-5 after:absolute after:content-[''] after:-inset-2.5 bg-surface border border-border text-faint hover:text-tertiary active:text-tertiary rounded-full flex items-center justify-center text-[10px] shadow-sm"
               aria-label="Close"
             >
               <i className="fas fa-times"></i>
@@ -155,7 +155,7 @@ export default function ReactionBar({
         ) : (
           <button
             onClick={() => setShowPicker(true)}
-            className="inline-flex items-center justify-center w-7 h-7 rounded-full bg-surface-muted border border-border text-faint hover:bg-surface-sunken hover:text-tertiary transition-colors text-xs"
+            className="relative after:absolute after:content-[''] after:-inset-y-2 after:-inset-x-1 inline-flex items-center justify-center w-7 h-7 rounded-full bg-surface-muted border border-border text-faint hover:bg-surface-sunken hover:text-tertiary active:text-tertiary transition-colors text-xs"
             title="Add reaction"
             aria-label="Add reaction"
           >

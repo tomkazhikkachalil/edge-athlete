@@ -247,7 +247,7 @@ function FollowersContent() {
           {showRemoveButton && (
             <button
               onClick={() => handleRemoveFollower(profile.id)}
-              className="px-4 py-2 min-h-[40px] text-sm font-medium text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-950/40 rounded-lg hover:bg-red-100 dark:hover:bg-red-950/60 transition-colors shrink-0"
+              className="px-4 py-2 min-h-[44px] text-sm font-medium text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-950/40 rounded-lg hover:bg-red-100 dark:hover:bg-red-950/60 transition-colors shrink-0"
             >
               Remove
             </button>
@@ -256,7 +256,7 @@ function FollowersContent() {
           {showUnfollowButton && (
             <button
               onClick={() => handleUnfollow(profile.id)}
-              className="px-4 py-2 min-h-[40px] text-sm font-medium text-secondary bg-surface-sunken rounded-lg hover:bg-gray-200 dark:hover:bg-stone-800 transition-colors shrink-0"
+              className="px-4 py-2 min-h-[44px] text-sm font-medium text-secondary bg-surface-sunken rounded-lg hover:bg-gray-200 dark:hover:bg-stone-800 transition-colors shrink-0"
             >
               Remove
             </button>
@@ -456,13 +456,13 @@ function FollowersContent() {
                             <div className="flex gap-2 mt-3">
                               <button
                                 onClick={() => handleAcceptRequest(request.id)}
-                                className="flex-1 sm:flex-none px-4 py-2 min-h-[40px] bg-brand text-white text-sm font-medium rounded-lg hover:bg-brand-hover transition-colors"
+                                className="flex-1 sm:flex-none px-4 py-2 min-h-[44px] bg-brand text-white text-sm font-medium rounded-lg hover:bg-brand-hover transition-colors"
                               >
                                 Accept
                               </button>
                               <button
                                 onClick={() => handleRejectRequest(request.id)}
-                                className="flex-1 sm:flex-none px-4 py-2 min-h-[40px] bg-gray-200 dark:bg-stone-800 text-secondary text-sm font-medium rounded-lg hover:bg-gray-300 dark:hover:bg-stone-700 transition-colors"
+                                className="flex-1 sm:flex-none px-4 py-2 min-h-[44px] bg-gray-200 dark:bg-stone-800 text-secondary text-sm font-medium rounded-lg hover:bg-gray-300 dark:hover:bg-stone-700 transition-colors"
                               >
                                 Decline
                               </button>

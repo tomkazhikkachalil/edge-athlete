@@ -119,7 +119,7 @@ export default function ExplorePage() {
             role="tab"
             aria-selected={selectedSport === null}
             onClick={() => setSelectedSport(null)}
-            className={`shrink-0 min-h-[40px] px-4 py-2 rounded-full text-sm font-semibold border transition-colors ${
+            className={`shrink-0 min-h-[44px] px-4 py-2 rounded-full text-sm font-semibold border transition-colors ${
               selectedSport === null
                 ? 'bg-brand text-white border-brand'
                 : 'bg-surface text-secondary border-border-strong hover:bg-surface-sunken'
@@ -137,7 +137,7 @@ export default function ExplorePage() {
                   selectedSport === sport.sport_key ? null : sport.sport_key
                 )
               }
-              className={`shrink-0 min-h-[40px] inline-flex items-center gap-2 px-4 py-2 rounded-full text-sm font-semibold border transition-colors ${
+              className={`shrink-0 min-h-[44px] inline-flex items-center gap-2 px-4 py-2 rounded-full text-sm font-semibold border transition-colors ${
                 selectedSport === sport.sport_key
                   ? 'bg-brand text-white border-brand'
                   : enabledKeys.has(sport.sport_key)

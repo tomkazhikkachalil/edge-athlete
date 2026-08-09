@@ -104,7 +104,7 @@ function MultiPlayerScorecardGrid({
             <div className="flex border border-border-strong rounded-lg overflow-hidden">
               <button
                 onClick={() => setActiveTab('front9')}
-                className={`px-4 py-2 min-h-[36px] text-sm font-semibold transition-colors ${
+                className={`px-4 py-2 min-h-[44px] text-sm font-semibold transition-colors ${
                   activeTab === 'front9'
                     ? 'bg-green-600 text-white'
                     : 'bg-surface text-secondary hover:bg-surface-muted'
@@ -114,7 +114,7 @@ function MultiPlayerScorecardGrid({
               </button>
               <button
                 onClick={() => setActiveTab('back9')}
-                className={`px-4 py-2 min-h-[36px] text-sm font-semibold transition-colors border-l border-border-strong ${
+                className={`px-4 py-2 min-h-[44px] text-sm font-semibold transition-colors border-l border-border-strong ${
                   activeTab === 'back9'
                     ? 'bg-green-600 text-white'
                     : 'bg-surface text-secondary hover:bg-surface-muted'

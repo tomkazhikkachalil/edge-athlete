@@ -145,7 +145,7 @@ export default function CompleteProfilePage() {
             <button
               type="button"
               onClick={() => signOut()}
-              className="text-sm text-brand-fg hover:underline"
+              className="inline-flex min-h-[44px] items-center text-sm text-brand-fg hover:underline active:underline"
             >
               Done — sign out
             </button>
@@ -297,7 +297,7 @@ export default function CompleteProfilePage() {
             <button
               type="button"
               onClick={() => signOut()}
-              className="text-sm text-muted hover:text-brand-fg hover:underline text-center"
+              className="inline-flex min-h-[44px] items-center justify-center text-sm text-muted hover:text-brand-fg hover:underline active:underline"
             >
               Sign out and return to login
             </button>

@@ -382,7 +382,7 @@ export default function ProfileMediaTabs({ profileId, currentUserId, isOwnProfil
                     key={tab.id}
                     onClick={() => handleTabChange(tab.id)}
                     className={`
-                      relative flex items-center gap-2 px-4 py-2.5 rounded-lg
+                      relative flex min-h-[44px] items-center gap-2 px-4 py-2.5 rounded-lg
                       font-semibold text-sm transition-all duration-200
                       whitespace-nowrap flex-shrink-0
                       ${isActive

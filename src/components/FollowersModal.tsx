@@ -417,7 +417,7 @@ export default function FollowersModal({ isOpen, onClose, profileId, initialTab 
                               <button
                                 onClick={(e) => handleUnfollow(profile.id, e)}
                                 disabled={isLoadingThis}
-                                className="px-3 py-2 min-h-[36px] text-xs font-medium text-secondary bg-gray-200 dark:bg-stone-800 rounded-full hover:bg-gray-300 dark:hover:bg-stone-700 transition-colors disabled:opacity-50 whitespace-nowrap"
+                                className="px-3 py-2 min-h-[44px] text-xs font-medium text-secondary bg-gray-200 dark:bg-stone-800 rounded-full hover:bg-gray-300 dark:hover:bg-stone-700 transition-colors disabled:opacity-50 whitespace-nowrap"
                               >
                                 {isLoadingThis ? (
                                   <i className="fas fa-spinner fa-spin"></i>
@@ -429,7 +429,7 @@ export default function FollowersModal({ isOpen, onClose, profileId, initialTab 
                               <button
                                 onClick={(e) => handleBecomeFan(profile.id, e)}
                                 disabled={isLoadingThis}
-                                className={`px-3 py-2 min-h-[36px] text-xs font-medium rounded-full transition-colors disabled:opacity-50 whitespace-nowrap ${
+                                className={`px-3 py-2 min-h-[44px] text-xs font-medium rounded-full transition-colors disabled:opacity-50 whitespace-nowrap ${
                                   requestedThem
                                     ? 'text-secondary bg-gray-200 dark:bg-stone-800 hover:bg-gray-300 dark:hover:bg-stone-700'
                                     : 'text-white bg-brand hover:bg-brand-hover'
@@ -450,7 +450,7 @@ export default function FollowersModal({ isOpen, onClose, profileId, initialTab 
                               <button
                                 onClick={(e) => handleRemoveFan(profile.id, e)}
                                 disabled={isLoadingThis}
-                                className="px-3 py-2 min-h-[36px] text-xs font-medium text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-950/40 rounded-full hover:bg-red-100 dark:hover:bg-red-950/60 transition-colors disabled:opacity-50 whitespace-nowrap"
+                                className="px-3 py-2 min-h-[44px] text-xs font-medium text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-950/40 rounded-full hover:bg-red-100 dark:hover:bg-red-950/60 transition-colors disabled:opacity-50 whitespace-nowrap"
                               >
                                 Remove Fan
                               </button>
@@ -465,7 +465,7 @@ export default function FollowersModal({ isOpen, onClose, profileId, initialTab 
                               <button
                                 onClick={(e) => handleUnfollow(profile.id, e)}
                                 disabled={isLoadingThis}
-                                className="px-3 py-2 min-h-[36px] text-xs font-medium text-secondary bg-gray-200 dark:bg-stone-800 rounded-full hover:bg-gray-300 dark:hover:bg-stone-700 transition-colors disabled:opacity-50 whitespace-nowrap"
+                                className="px-3 py-2 min-h-[44px] text-xs font-medium text-secondary bg-gray-200 dark:bg-stone-800 rounded-full hover:bg-gray-300 dark:hover:bg-stone-700 transition-colors disabled:opacity-50 whitespace-nowrap"
                               >
                                 {isLoadingThis ? (
                                   <i className="fas fa-spinner fa-spin"></i>
@@ -477,7 +477,7 @@ export default function FollowersModal({ isOpen, onClose, profileId, initialTab 
                               <button
                                 onClick={(e) => handleBecomeFan(profile.id, e)}
                                 disabled={isLoadingThis}
-                                className={`px-3 py-2 min-h-[36px] text-xs font-medium rounded-full transition-colors disabled:opacity-50 whitespace-nowrap ${
+                                className={`px-3 py-2 min-h-[44px] text-xs font-medium rounded-full transition-colors disabled:opacity-50 whitespace-nowrap ${
                                   requestedThem
                                     ? 'text-secondary bg-gray-200 dark:bg-stone-800 hover:bg-gray-300 dark:hover:bg-stone-700'
                                     : 'text-white bg-brand hover:bg-brand-hover'

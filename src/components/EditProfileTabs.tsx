@@ -1097,7 +1097,7 @@ export default function EditProfileTabs({
                   <button
                     key={tab.id}
                     onClick={() => tab.enabled && setActiveTab(tab.id)}
-                    className={`py-2 px-1 border-b-2 font-medium text-sm whitespace-nowrap shrink-0 transition-colors ${
+                    className={`min-h-[44px] py-2 px-1 border-b-2 font-medium text-sm whitespace-nowrap shrink-0 transition-colors ${
                       !tab.enabled
                         ? 'border-transparent text-faint cursor-not-allowed'
                         : activeTab === tab.id

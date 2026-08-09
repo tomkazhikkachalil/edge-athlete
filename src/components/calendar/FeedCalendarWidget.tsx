@@ -132,7 +132,7 @@ export default function FeedCalendarWidget() {
         <button
           type="button"
           onClick={() => router.push('/calendar')}
-          className="text-xs text-brand-fg hover:underline font-medium"
+          className="inline-flex min-h-[44px] items-center text-xs text-brand-fg hover:underline active:underline font-medium"
         >
           Open calendar
         </button>
@@ -154,7 +154,7 @@ export default function FeedCalendarWidget() {
               <button
                 type="button"
                 onClick={() => router.push('/calendar?new=1')}
-                className="text-xs text-brand-fg hover:underline font-medium"
+                className="inline-flex min-h-[44px] items-center text-xs text-brand-fg hover:underline active:underline font-medium"
               >
                 + New event
               </button>

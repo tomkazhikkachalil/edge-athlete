@@ -55,7 +55,7 @@ export default function YearSelect({
         onClick={() => setIsOpen(o => !o)}
         aria-haspopup="listbox"
         aria-expanded={isOpen}
-        className={`inline-flex items-center min-h-[40px] px-3 py-1 rounded-md border text-label font-bold transition-colors ${
+        className={`inline-flex items-center min-h-[44px] px-3 py-1 rounded-md border text-label font-bold transition-colors ${
           value !== null
             ? 'bg-brand-soft border-violet-500 text-brand-fg-strong'
             : 'bg-surface-muted border-border text-primary hover:bg-surface-sunken'

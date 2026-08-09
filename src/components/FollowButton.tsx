@@ -40,11 +40,12 @@ export default function FollowButton({
   // The fan-request modal is an overlay; lock the page behind it.
   useBodyScrollLock(showMessageModal);
 
-  // Size classes. min-heights lift the touch targets toward the 40-44px
-  // floor without changing horizontal density in the rows that use them.
+  // Size classes. sm/md keep their painted pill size (dense rows) and reach
+  // the 44px floor via the invisible after: extender — see the recipes next
+  // to .ea-icon-btn in globals.css.
   const sizeClasses = {
-    sm: 'px-3 py-1 text-xs min-h-[36px]',
-    md: 'px-4 py-2 text-sm min-h-[40px]',
+    sm: "relative after:absolute after:content-[''] after:-inset-y-1 after:inset-x-0 px-3 py-1 text-xs min-h-[36px]",
+    md: "relative after:absolute after:content-[''] after:-inset-y-0.5 after:inset-x-0 px-4 py-2 text-sm min-h-[40px]",
     lg: 'px-6 py-3 text-base min-h-[44px]'
   };
 

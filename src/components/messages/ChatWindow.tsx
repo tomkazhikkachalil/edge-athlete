@@ -580,7 +580,7 @@ export default function ChatWindow({ conversationId, onBack }: Props) {
         <p className="text-sm text-secondary mb-4">{error}</p>
         <button
           onClick={() => router.push('/messages')}
-          className="text-brand-fg text-sm hover:underline"
+          className="inline-flex min-h-[44px] items-center px-3 text-brand-fg text-sm hover:underline active:underline"
         >
           Back to messages
         </button>
@@ -596,11 +596,12 @@ export default function ChatWindow({ conversationId, onBack }: Props) {
           (bg-surface), so the sheen was invisible in light and doubled the
           border in dark. border-b alone is the right edge for a neutral bar. */}
       <div className="flex items-center gap-3 px-4 py-3 border-b border-border shrink-0">
-        {/* Back button (mobile) */}
+        {/* Back button (mobile) — 44px box, negative margins keep the icon's
+            optical position against px-4 py-3 (was a ~26px target). */}
         {onBack && (
           <button
             onClick={onBack}
-            className="shrink-0 text-tertiary hover:text-primary p-1 -ml-1 lg:hidden"
+            className="shrink-0 flex min-w-[44px] min-h-[44px] -my-2 -ml-3 items-center justify-center text-tertiary hover:text-primary active:text-primary lg:hidden"
             aria-label="Back"
           >
             <i className="fas fa-arrow-left text-lg"></i>
@@ -631,15 +632,17 @@ export default function ChatWindow({ conversationId, onBack }: Props) {
 
         {/* Name + subtitle */}
         <div className="flex-1 min-w-0">
+          {/* min-h + -my grow the tap box without moving the header; the
+              extension only overlaps the passive subtitle text below. */}
           <button
             onClick={() => {
               if (isDM && otherParticipant) {
                 router.push(`/athlete/${otherParticipant.profile_id}`);
               }
             }}
-            className={`text-sm font-bold text-primary truncate block text-left ${isDM ? 'hover:underline' : ''}`}
+            className={`flex min-h-[44px] -my-2 w-full items-center text-sm font-bold text-primary text-left ${isDM ? 'hover:underline active:underline' : ''}`}
           >
-            {getHeaderName()}
+            <span className="truncate">{getHeaderName()}</span>
           </button>
           {conversation?.type === 'group' && (
             <p className="text-xs text-faint truncate">
@@ -661,7 +664,7 @@ export default function ChatWindow({ conversationId, onBack }: Props) {
             onClick={handleMinimizeToDock}
             aria-label="Minimize to chat dock"
             title="Minimize to dock"
-            className="hidden lg:flex shrink-0 p-2 text-faint hover:text-tertiary transition-colors items-center justify-center"
+            className="hidden lg:flex shrink-0 min-w-[44px] min-h-[44px] -my-2 text-faint hover:text-tertiary transition-colors items-center justify-center"
           >
             <i className="fas fa-down-left-and-up-right-to-center"></i>
           </button>
@@ -671,7 +674,7 @@ export default function ChatWindow({ conversationId, onBack }: Props) {
         <div className="relative shrink-0" ref={menuRef}>
           <button
             onClick={() => setShowMenu(prev => !prev)}
-            className="p-2 text-faint hover:text-tertiary transition-colors"
+            className="flex min-w-[44px] min-h-[44px] -my-2 -mr-2 items-center justify-center text-faint hover:text-tertiary active:text-tertiary transition-colors"
             aria-label="Conversation options"
           >
             <i className="fas fa-ellipsis-v"></i>

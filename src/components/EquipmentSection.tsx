@@ -459,7 +459,7 @@ export default function EquipmentSection({ profileId, isOwnProfile = false }: Eq
                                 onClick={() =>
                                   setExpandedShelves(prev => ({ ...prev, [set.anchorId]: !expanded }))
                                 }
-                                className="ea-interactive hidden lg:inline-flex items-center gap-1 ml-auto rounded-lg px-2 py-1 text-sm font-semibold text-brand-fg"
+                                className="ea-interactive relative after:absolute after:content-[''] after:-inset-y-2 after:inset-x-0 hidden lg:inline-flex items-center gap-1 ml-auto rounded-lg px-2 py-1 text-sm font-semibold text-brand-fg"
                               >
                                 {expanded ? 'Collapse' : `See all ${set.items.length}`}
                                 <ChevronRight
@@ -512,7 +512,7 @@ export default function EquipmentSection({ profileId, isOwnProfile = false }: Eq
                                     onClick={() =>
                                       setExpandedShelves(prev => ({ ...prev, [anchorId]: !expanded }))
                                     }
-                                    className="ea-interactive hidden lg:inline-flex items-center gap-1 ml-auto rounded-lg px-2 py-1 text-sm font-semibold text-brand-fg"
+                                    className="ea-interactive relative after:absolute after:content-[''] after:-inset-y-2 after:inset-x-0 hidden lg:inline-flex items-center gap-1 ml-auto rounded-lg px-2 py-1 text-sm font-semibold text-brand-fg"
                                   >
                                     {expanded ? 'Collapse' : `See all ${shelf.items.length}`}
                                     <ChevronRight
@@ -570,7 +570,7 @@ export default function EquipmentSection({ profileId, isOwnProfile = false }: Eq
                                     onClick={() =>
                                       setExpandedShelves(prev => ({ ...prev, [bucketAnchor]: !expanded }))
                                     }
-                                    className="ea-interactive hidden lg:inline-flex items-center gap-1 ml-auto rounded-lg px-2 py-1 text-sm font-semibold text-brand-fg"
+                                    className="ea-interactive relative after:absolute after:content-[''] after:-inset-y-2 after:inset-x-0 hidden lg:inline-flex items-center gap-1 ml-auto rounded-lg px-2 py-1 text-sm font-semibold text-brand-fg"
                                   >
                                     {expanded ? 'Collapse' : `See all ${bucket.items.length}`}
                                     <ChevronRight
