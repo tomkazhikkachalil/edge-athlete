@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import AdvancedSearchBar from '@/components/AdvancedSearchBar';
 import { useBodyScrollLock } from '@/hooks/useBodyScrollLock';
 import { isTypingTarget, matchesSearchShortcut } from '@/lib/keyboard';
@@ -47,14 +48,12 @@ export default function HeaderSearch() {
   }, []);
 
   // Escape closes. Scoped to the panel's lifetime so it cannot interfere with
-  // anything else's Escape handling.
+  // anything else's Escape handling. (No stopPropagation — window is the last
+  // bubble target, so it was a no-op that only read like protection.)
   useEffect(() => {
     if (!open) return;
     const onKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        e.stopPropagation();
-        close();
-      }
+      if (e.key === 'Escape') close();
     };
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
@@ -92,33 +91,56 @@ export default function HeaderSearch() {
         </kbd>
       </button>
 
-      {open && (
-        <>
-          <div
-            className="fixed inset-0 z-[60] bg-black/30"
-            onClick={close}
-            aria-hidden="true"
-          />
-          <div
-            ref={panelRef}
-            role="dialog"
-            aria-modal="true"
-            aria-label="Search"
-            className="fixed inset-x-0 top-0 z-[61] mx-auto mt-4 flex max-h-[calc(100dvh-2rem)] w-[min(42rem,calc(100vw-2rem))] flex-col rounded-xl bg-surface-raised p-4 shadow-[var(--ea-shadow-raised)] sm:mt-[10vh] sm:max-h-[80dvh]"
-          >
-            {/* The filters panel AdvancedSearchBar opens is ~500px tall — on a
-                phone with the keyboard up that ran straight off the bottom of
-                the screen with nothing to scroll. Bounding the panel and
-                scrolling this wrapper keeps every field reachable. */}
-            <div className="min-h-0 flex-1 overflow-y-auto">
-              <AdvancedSearchBar />
+      {/* PORTALED to document.body — the header's backdrop-blur makes the
+          <header> the CONTAINING BLOCK for fixed descendants, so rendered
+          in place this backdrop covered only the 64px header strip: on a
+          phone the panel hid that strip entirely and there was NO way to
+          close the search short of refreshing (Aug 9 report). Out here,
+          fixed means the viewport and z-[60] stands above the header's
+          z-40. SSR-safe: open is always false on the server. */}
+      {open &&
+        createPortal(
+          <>
+            <div
+              className="fixed inset-0 z-[60] bg-black/30"
+              onClick={close}
+              aria-hidden="true"
+            />
+            <div
+              ref={panelRef}
+              role="dialog"
+              aria-modal="true"
+              aria-label="Search"
+              className="fixed inset-x-0 top-0 z-[61] mx-auto mt-4 flex max-h-[calc(100dvh-2rem)] w-[min(42rem,calc(100vw-2rem))] flex-col rounded-xl bg-surface-raised p-4 shadow-[var(--ea-shadow-raised)] sm:mt-[10vh] sm:max-h-[80dvh]"
+            >
+              {/* A real close affordance: Esc doesn't exist on a phone
+                  keyboard and the backdrop is easy to miss — the X is the
+                  guaranteed exit on every device. */}
+              <div className="mb-2 flex shrink-0 items-center justify-between">
+                <span className="text-sm font-semibold text-secondary">Search</span>
+                <button
+                  type="button"
+                  onClick={close}
+                  aria-label="Close search"
+                  className="ea-icon-btn inline-flex items-center justify-center -my-1 -mr-1"
+                >
+                  <i className="fas fa-times" aria-hidden="true"></i>
+                </button>
+              </div>
+              {/* The filters panel AdvancedSearchBar opens is ~500px tall — on a
+                  phone with the keyboard up that ran straight off the bottom of
+                  the screen with nothing to scroll. Bounding the panel and
+                  scrolling this wrapper keeps every field reachable. */}
+              <div className="min-h-0 flex-1 overflow-y-auto">
+                <AdvancedSearchBar />
+              </div>
+              <p className="mt-3 hidden shrink-0 text-center text-xs text-faint sm:block">
+                Press <span className="font-semibold">Esc</span> to close
+              </p>
             </div>
-            <p className="mt-3 shrink-0 text-center text-xs text-faint">
-              Press <span className="font-semibold">Esc</span> to close
-            </p>
-          </div>
-        </>
-      )}
+          </>,
+          document.body
+        )}
     </>
   );
 }
