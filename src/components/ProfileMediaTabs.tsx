@@ -698,9 +698,21 @@ function MediaGridItem({ item, viewerId, onClick }: MediaGridItemProps) {
             <div className="text-[9px] font-semibold uppercase tracking-wide text-muted">
               {highlights.hero.label}
             </div>
-            {(players[0] || highlights.meta?.length) && (
+            {(players.length > 0 || highlights.meta?.length) && (
               <div className="text-[10px] text-tertiary font-medium mt-0.5 truncate">
-                {[players[0] ? String(players[0].score) : null, highlights.meta?.[0]]
+                {/* players[] is CREATION order now — the gross under the hero
+                    must belong to the same athlete the hero describes
+                    (viewer's row, else the leader), not whoever was entered
+                    first. Same pick rule as buildPostHeadline. */}
+                {[
+                  players.length > 0
+                    ? String(
+                        (players.find(p => p.isViewer) ??
+                          players.reduce((a, b) => (b.score < a.score ? b : a))).score
+                      )
+                    : null,
+                  highlights.meta?.[0],
+                ]
                   .filter(Boolean)
                   .join(' · ')}
               </div>

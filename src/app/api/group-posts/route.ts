@@ -258,6 +258,15 @@ export async function POST(request: NextRequest) {
       );
     };
 
+    // Creation-order positions (migration 071): the client's participant_ids
+    // array IS the input order. The creator may appear anywhere in it ("Add
+    // Myself" appends), or not at all (live flow, creator implicit → first).
+    // Every surface orders by position, so what the creator saw while
+    // building the round is what everyone sees everywhere after.
+    const rawIds = Array.isArray(participant_ids) ? [...new Set(participant_ids as string[])] : [];
+    const orderedIds = rawIds.includes(user.id) ? rawIds : [user.id, ...rawIds];
+    const positionOf = (id: string) => orderedIds.indexOf(id);
+
     // Add creator as participant with 'creator' role
     const { error: creatorError } = await supabase
       .from('group_post_participants')
@@ -267,6 +276,7 @@ export async function POST(request: NextRequest) {
         role: 'creator',
         status: 'confirmed', // Creator is auto-confirmed
         attested_at: new Date().toISOString(),
+        position: positionOf(user.id),
       });
 
     if (creatorError) {
@@ -285,9 +295,7 @@ export async function POST(request: NextRequest) {
     // inserted above — re-inserting hits UNIQUE(group_post_id, profile_id)
     // and aborted EVERY round created via that button (found in the July 25
     // two-phone test).
-    const inviteeIds = Array.isArray(participant_ids)
-      ? [...new Set(participant_ids as string[])].filter(id => id !== user.id)
-      : [];
+    const inviteeIds = rawIds.filter(id => id !== user.id);
     if (inviteeIds.length > 0) {
       const participantInserts = inviteeIds.map((profile_id: string) => ({
         group_post_id: groupPost.id,
@@ -295,6 +303,7 @@ export async function POST(request: NextRequest) {
         role: 'participant',
         status: 'confirmed', // auto-confirm (see comment above)
         attested_at: new Date().toISOString(),
+        position: positionOf(profile_id),
       }));
 
       const { error: participantsError } = await supabase

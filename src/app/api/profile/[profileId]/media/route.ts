@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseAdmin, getServerAuth } from '@/lib/auth-server';
 import { canViewProfile } from '@/lib/privacy';
+import { participantOrder } from '@/lib/golf/scorecard-transform';
 
 interface MediaItem {
   id: string;
@@ -358,7 +359,10 @@ export async function GET(
               date,
               golf_data:golf_scorecard_data ( course_name, holes_played, game_format ),
               participants:group_post_participants (
+                id,
                 profile_id,
+                position,
+                created_at,
                 profile:profiles ( first_name, last_name, full_name, avatar_url ),
                 scores:golf_participant_scores ( total_score, to_par )
               )
@@ -376,7 +380,9 @@ export async function GET(
               byGroupId.set(row.id, {
                 group_post: { id: row.id, date: row.date ?? null },
                 golf_data: golfData ?? null,
-                participants: (row.participants || []).map((p: Record<string, unknown>) => {
+                // Canonical creation order — same comparator as the feed's
+                // scorecard transform, so tiles and cards agree.
+                participants: (row.participants || []).slice().sort(participantOrder).map((p: Record<string, unknown>) => {
                   const profile = Array.isArray(p.profile) ? p.profile[0] : p.profile;
                   const scores = Array.isArray(p.scores) ? p.scores[0] : p.scores;
                   return {

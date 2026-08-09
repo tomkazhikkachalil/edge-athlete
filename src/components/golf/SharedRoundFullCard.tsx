@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from 'react';
 import { formatDisplayName, getInitials } from '@/lib/formatters';
-import { classifyScore, SCORE_CELL_RING, holePar, bestHoleFor } from '@/lib/golf/scoring';
+import { classifyScore, SCORE_CELL_RING, holePar, bestHoleFor, placements, ordinalLabel } from '@/lib/golf/scoring';
 import { pickOverviewMedia } from '@/lib/media/hero';
 import { isRoundLive, isActiveParticipant, effectiveRoundStatus } from '@/lib/golf/round-status';
 import { useBodyScrollLock } from '@/hooks/useBodyScrollLock';
@@ -43,6 +43,34 @@ interface SharedRoundFullCardProps {
    * when someone just corrected a photo's hole.
    */
   onMediaChanged?: () => void;
+}
+
+/** Shiny placement chip for the leaderboard. Gold/silver/bronze for the
+ *  podium, a graphite tier for 4th and beyond (golf rounds go to four
+ *  players), so every rank gets a medal-grade treatment. Ties share a rank
+ *  (placements()). Pure CSS "metal": vertical gradient + a soft top
+ *  highlight; the medal colours stay literal in dark mode — metal is metal,
+ *  same rule as white pills on brand solids. */
+const PLACEMENT_TIERS: Record<number, string> = {
+  1: 'bg-gradient-to-b from-amber-200 via-yellow-400 to-amber-600 text-amber-950 ring-amber-500/70',
+  2: 'bg-gradient-to-b from-gray-100 via-gray-300 to-gray-500 text-gray-800 ring-gray-400/70',
+  3: 'bg-gradient-to-b from-orange-200 via-amber-500 to-orange-800 text-orange-950 ring-orange-700/70',
+};
+const PLACEMENT_DEFAULT =
+  'bg-gradient-to-b from-slate-200 via-slate-300 to-slate-500 text-slate-800 ring-slate-400/70 ' +
+  'dark:from-stone-400 dark:via-stone-500 dark:to-stone-700 dark:text-stone-950 dark:ring-stone-400/70';
+
+function PlacementBadge({ rank }: { rank: number }) {
+  return (
+    <span
+      className={`relative inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full ring-2 ring-inset shadow-md text-[11px] font-black tracking-tight ${
+        PLACEMENT_TIERS[rank] ?? PLACEMENT_DEFAULT
+      }`}
+    >
+      <span aria-hidden className="pointer-events-none absolute inset-x-1.5 top-1 h-2.5 rounded-full bg-white/55 blur-[1.5px]" />
+      <span className="relative drop-shadow-sm">{ordinalLabel(rank)}</span>
+    </span>
+  );
 }
 
 export default function SharedRoundFullCard({
@@ -632,14 +660,24 @@ export default function SharedRoundFullCard({
                   </h3>
                 </div>
                 <div className="divide-y divide-border">
-                  {participants
+                  {(() => {
+                  const ranked = participants
                     .filter(p => isActiveParticipant(p.participant.status) && p.scores.total_score !== null)
                     .sort((a, b) =>
                       gameFormat === 'stableford'
                         ? stablefordPointsFor(b.scores.hole_scores) - stablefordPointsFor(a.scores.hole_scores)
                         : (a.scores.total_score || Infinity) - (b.scores.total_score || Infinity)
+                    );
+                  // Tie-aware competition ranking (1, 1, 3, ...) over the same
+                  // metric the sort used — equal rounds share a medal.
+                  const ranks = placements(
+                    ranked.map(p =>
+                      gameFormat === 'stableford'
+                        ? stablefordPointsFor(p.scores.hole_scores)
+                        : (p.scores.total_score || Infinity)
                     )
-                    .map(({ participant, scores }, index) => {
+                  );
+                  return ranked.map(({ participant, scores }, index) => {
                       const profile = participant.profile!;
                       const displayName = formatDisplayName(
                         profile.first_name,
@@ -651,16 +689,8 @@ export default function SharedRoundFullCard({
 
                       return (
                         <div key={participant.id} className={`flex items-center gap-4 p-4 ${isCurrentUser ? 'bg-brand-soft' : 'hover:bg-surface-muted'}`}>
-                          {/* Position */}
-                          <div className="w-10 h-10 flex-shrink-0 flex items-center justify-center">
-                            {index === 0 ? (
-                              <div className="w-10 h-10 bg-gray-900 rounded-full flex items-center justify-center">
-                                <i className="fas fa-trophy text-white text-sm"></i>
-                              </div>
-                            ) : (
-                              <span className="text-2xl font-black text-faint">{index + 1}</span>
-                            )}
-                          </div>
+                          {/* Placement medal — ties share a rank */}
+                          <PlacementBadge rank={ranks[index]} />
 
                           {/* Avatar */}
                           {profile.avatar_url ? (
@@ -731,7 +761,8 @@ export default function SharedRoundFullCard({
                           </div>
                         </div>
                       );
-                    })}
+                  });
+                  })()}
 
                   {/* Players without scores */}
                   {participants

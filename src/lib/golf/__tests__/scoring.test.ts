@@ -7,6 +7,8 @@ import {
   calcPlayerTotals,
   buildDefaultHoles,
   STANDARD_PARS_18,
+  placements,
+  ordinalLabel,
 } from '../scoring';
 
 describe('buildDefaultHoles', () => {
@@ -159,5 +161,27 @@ describe('calcPlayerTotals', () => {
     expect(t.bogeys).toBe(1);  // 4 on par 3
     expect(t.actualPar).toBe(8); // 5 + 3
     expect(t.toPar).toBe(0);     // 8 strokes vs par 8
+  });
+});
+
+describe('placements — competition ranking with ties', () => {
+  it('ranks a pre-sorted list 1..n', () => {
+    expect(placements([70, 75, 80, 84])).toEqual([1, 2, 3, 4]);
+  });
+  it('ties share a rank and skip the next (1,1,3)', () => {
+    expect(placements([72, 72, 75])).toEqual([1, 1, 3]);
+    expect(placements([70, 72, 72, 72])).toEqual([1, 2, 2, 2]);
+  });
+  it('single player and empty are fine', () => {
+    expect(placements([88])).toEqual([1]);
+    expect(placements([])).toEqual([]);
+  });
+});
+
+describe('ordinalLabel', () => {
+  it('handles the podium and beyond', () => {
+    expect([1, 2, 3, 4, 11, 12, 13, 21].map(ordinalLabel)).toEqual([
+      '1st', '2nd', '3rd', '4th', '11th', '12th', '13th', '21st',
+    ]);
   });
 });

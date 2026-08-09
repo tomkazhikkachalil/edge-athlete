@@ -215,7 +215,10 @@ describe('buildStatHighlights — golf players and round metadata', () => {
     participants,
   });
 
-  it('returns every scorer, best first, with their avatar', () => {
+  it('keeps CREATION order — never re-sorts by score', () => {
+    // Tom's rule: the order players were entered at creation holds on every
+    // surface. The payload arrives pre-sorted by participantOrder; a worse
+    // score entered first stays first.
     const h = buildStatHighlights({
       sportKey: 'golf',
       groupScorecard: card([
@@ -225,12 +228,13 @@ describe('buildStatHighlights — golf players and round metadata', () => {
       viewerId: 'tom',
     })!;
     expect(h.players!.map(p => [p.name, p.score, p.toPar])).toEqual([
-      ['Test Partner', 5, 1],
       ['Tom K', 8, 4],
+      ['Test Partner', 5, 1],
     ]);
-    expect(h.players![1].avatarUrl).toBe('https://cdn/tom.jpg');
-    expect(h.players![1].isViewer).toBe(true);
-    expect(h.players![0].avatarUrl).toBeNull(); // initials fallback in the card
+    expect(h.players![0].avatarUrl).toBe('https://cdn/tom.jpg');
+    expect(h.players![0].isViewer).toBe(true);
+    expect(h.players![1].avatarUrl).toBeNull(); // initials fallback in the card
+    expect(h.players![0].shortName).toBe('Tom K');
   });
 
   it('excludes participants who never scored', () => {
@@ -313,7 +317,7 @@ describe('buildStatHighlights — golf players and round metadata', () => {
     it('shows the post author as the single player', () => {
       const h = buildStatHighlights({ sportKey: 'golf', golfRound: solo(), author, viewerId: 'tom' })!;
       expect(h.players).toEqual([
-        { profileId: 'tom', name: 'Tom K', avatarUrl: 'https://cdn/tom.jpg', score: 89, toPar: 17, isViewer: true, holes: [] },
+        { profileId: 'tom', name: 'Tom K', shortName: 'Tom K', avatarUrl: 'https://cdn/tom.jpg', score: 89, toPar: 17, isViewer: true, holes: [] },
       ]);
     });
 

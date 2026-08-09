@@ -102,6 +102,29 @@ export function toParColorClass(toPar: number | null | undefined): string {
   return 'text-tertiary';
 }
 
+/** Competition ranking with ties (1, 1, 3, …) over a PRE-SORTED metric list
+ *  (ascending for stroke play, descending for stableford — the caller owns
+ *  the sort; this only compares adjacent equality). */
+export function placements(sortedMetrics: number[]): number[] {
+  const ranks: number[] = [];
+  for (let i = 0; i < sortedMetrics.length; i++) {
+    ranks.push(i > 0 && sortedMetrics[i] === sortedMetrics[i - 1] ? ranks[i - 1] : i + 1);
+  }
+  return ranks;
+}
+
+/** "1st", "2nd", "3rd", "4th", … (11th–13th handled). */
+export function ordinalLabel(rank: number): string {
+  const mod100 = rank % 100;
+  if (mod100 >= 11 && mod100 <= 13) return `${rank}th`;
+  switch (rank % 10) {
+    case 1: return `${rank}st`;
+    case 2: return `${rank}nd`;
+    case 3: return `${rank}rd`;
+    default: return `${rank}th`;
+  }
+}
+
 /** Filled-chip cell styling (used by editable grids). */
 export const SCORE_CELL_FILL: Record<Exclude<ScoreClass, null>, string> = {
   eagle: 'bg-violet-100 text-violet-800 font-bold border-2 border-violet-400 rounded-full dark:bg-violet-950/50 dark:text-violet-300 dark:border-violet-600',

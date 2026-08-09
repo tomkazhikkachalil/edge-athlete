@@ -54,6 +54,8 @@ export const GROUP_SCORECARD_SELECT = `
     status,
     role,
     attested_at,
+    position,
+    created_at,
     profile:profiles (
       id,
       first_name,
@@ -81,10 +83,44 @@ export const GROUP_SCORECARD_SELECT = `
   )
 `;
 
+/** A participant row's ordering fields — the canonical creation order. */
+export interface ParticipantOrderFields {
+  position?: number | null;
+  created_at?: string | null;
+  id?: string | null;
+}
+
+/**
+ * THE canonical participant order: the sequence players were entered when
+ * the round was created (Tom's rule — same order on the feed card, the
+ * detail scorecard, the live view and score entry).
+ *
+ * position ASC nulls-last (migration 071 captures true input order), then
+ * created_at ASC (legacy rounds: the creator's row is a separate, strictly
+ * earlier transaction, so the creator comes first), then id ASC (stable
+ * tiebreak — the initial invitee batch shares one created_at).
+ *
+ * PostgREST returns embeds in UNSPECIFIED order (and UPDATEs shuffle the
+ * physical order), so every reader must sort — do it via this comparator,
+ * never ad hoc.
+ */
+export function participantOrder(a: ParticipantOrderFields, b: ParticipantOrderFields): number {
+  const ap = typeof a.position === 'number' ? a.position : Infinity;
+  const bp = typeof b.position === 'number' ? b.position : Infinity;
+  if (ap !== bp) return ap - bp;
+  const ac = a.created_at ?? '';
+  const bc = b.created_at ?? '';
+  if (ac !== bc) return ac < bc ? -1 : 1;
+  const ai = a.id ?? '';
+  const bi = b.id ?? '';
+  return ai < bi ? -1 : ai > bi ? 1 : 0;
+}
+
 /**
  * Transform a raw group_posts row (from GROUP_SCORECARD_SELECT) into the
  * CompleteGolfScorecard shape. Returns null when the row has no golf data
  * (scorecard creation failed) — callers render nothing rather than crash.
+ * Participants come out in the canonical creation order (participantOrder).
  */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function transformGroupPostToScorecard(groupData: any): any | null {
@@ -99,7 +135,7 @@ export function transformGroupPostToScorecard(groupData: any): any | null {
   let lastActivityAt: string | null = null;
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const transformedParticipants = (participants || []).map((p: any) => {
+  const transformedParticipants = (participants || []).slice().sort(participantOrder).map((p: any) => {
     const { scores, profile, ...participantFields } = p;
     const scoreRec = Array.isArray(scores) ? scores[0] : scores;
     if (scoreRec?.updated_at && (!lastActivityAt || scoreRec.updated_at > lastActivityAt)) {
