@@ -235,7 +235,14 @@ export default function AppHeader({ onCreatePost, onEditProfile }: AppHeaderProp
               width={140}
               height={35}
               preload
-              className="themed-logo h-7 w-auto"
+              className="light-theme-only h-7 w-auto"
+            />
+            <Image
+              src="/logo-dark.png"
+              alt="Edge Athlete"
+              width={140}
+              height={35}
+              className="dark-theme-only h-7 w-auto"
             />
           </div>
         </div>
@@ -262,7 +269,14 @@ export default function AppHeader({ onCreatePost, onEditProfile }: AppHeaderProp
                 width={140}
                 height={35}
                 preload
-                className="themed-logo h-7 w-auto"
+                className="light-theme-only h-7 w-auto"
+              />
+              <Image
+                src="/logo-dark.png"
+                alt="Edge Athlete"
+                width={140}
+                height={35}
+                className="dark-theme-only h-7 w-auto"
               />
             </Link>
             <div className="flex items-center gap-2 sm:gap-3">
@@ -309,7 +323,7 @@ export default function AppHeader({ onCreatePost, onEditProfile }: AppHeaderProp
                   alt="Edge Athlete"
                   width={64}
                   height={64}
-                  className="themed-logo h-8 w-8 sm:hidden"
+                  className="h-8 w-8 sm:hidden"
                 />
                 <Image
                   src="/logo.png"
@@ -317,7 +331,14 @@ export default function AppHeader({ onCreatePost, onEditProfile }: AppHeaderProp
                   width={140}
                   height={35}
                   preload
-                  className="themed-logo hidden h-7 w-auto sm:block"
+                  className="light-theme-only hidden h-7 w-auto sm:block"
+                />
+                <Image
+                  src="/logo-dark.png"
+                  alt="Edge Athlete"
+                  width={140}
+                  height={35}
+                  className="dark-theme-only hidden h-7 w-auto sm:block"
                 />
               </button>
 
@@ -627,7 +648,8 @@ export default function AppHeader({ onCreatePost, onEditProfile }: AppHeaderProp
             <div className="flex items-center justify-between">
               <h2 className="text-lg font-bold text-primary">
                 <span className="sr-only">Menu</span>
-                <Image src="/logo.png" alt="" width={120} height={30} className="themed-logo h-6 w-auto" />
+                <Image src="/logo.png" alt="" width={120} height={30} className="light-theme-only h-6 w-auto" />
+                <Image src="/logo-dark.png" alt="" width={120} height={30} className="dark-theme-only h-6 w-auto" />
               </h2>
               <button
                 onClick={() => setIsMobileMenuOpen(false)}

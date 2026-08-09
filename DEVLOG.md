@@ -1,5 +1,38 @@
 # Development Log
 
+## August 9, 2026 — A real dark logo replaces the invert filter
+
+The dark-mode logo was `filter: invert(1) hue-rotate(180deg)` on
+`.themed-logo` — self-described in the CSS as interim until a real
+`logo-dark.png` existed. It made the wordmark legible but only *approximated*
+the brand violet on the "e" mark (brand-is-brand: the mark should be its
+exact color in both themes).
+
+- **`public/logo-dark.png`** now exists: generated from `logo.png` with a
+  region-scoped recolor — every wordmark pixel (right of the x=147–161 empty
+  gap between mark and wordmark) gets RGB `#e9e5e1` (dark `--text-primary`,
+  so the wordmark matches all dark body text) with alpha untouched, keeping
+  anti-aliased edges. The violet mark region is byte-identical to the light
+  asset.
+- **Swap is CSS visibility, not a runtime src swap**: two helpers in
+  globals.css — `[data-theme="dark"] .light-theme-only { display: none }`
+  and `html:not([data-theme="dark"]) .dark-theme-only { display: none }` —
+  replace the filter rule. The pre-paint `data-theme` stamp decides before
+  hydration (no flash, no mismatch), and attribute+class specificity beats
+  bare display utilities (`hidden sm:block`) deterministically — stacked
+  `sm:dark:` display variants would fall into the stylesheet-order
+  precedence trap.
+- Each wordmark `<Image>` (BrandBar ×1, AppHeader ×4) became a light/dark
+  pair; `preload` stays on the light one only. **`logo-mark.png` needs no
+  pair** — the violet mark is legible on both themes, and dropping the
+  filter actually *restores* its true color in dark. `.themed-logo` is gone.
+- Trade-off accepted: both variants download in either theme (display:none
+  imgs still fetch) — small, cached, and the alternative (JS src swap) costs
+  a hydration flash.
+
+Verified in headless Chrome: light/dark on the signed-out header and a
+BrandBar page — correct variant visible, `filter: none` everywhere.
+
 ## August 9, 2026 — End-of-day maintenance sweep
 
 Requested checklist after the day's fourteen PRs (#76–#77, #81–#89):

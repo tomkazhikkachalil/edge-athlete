@@ -590,12 +590,18 @@ input:-webkit-autofill:focus {
   transition: background-color 600000s 0s;
 }
 
-/* The brand wordmark is near-black on transparency — invisible on dark.
- * Interim treatment until a real logo-dark.png exists: invert flips it to
- * near-white, hue-rotate round-trips the violet glyph to roughly itself.
- * Scoped to this class ONLY — user media must never be filtered. */
-[data-theme="dark"] .themed-logo {
-  filter: invert(1) hue-rotate(180deg);
+/* Theme-paired assets (the brand wordmark): light/dark PNG siblings where
+ * one is display:none per theme. CSS visibility (not a runtime src swap) so
+ * the pre-paint data-theme stamp decides before hydration — no flash, no
+ * mismatch. Attribute+class specificity beats bare display utilities
+ * (`hidden sm:block`) deterministically, which stacked dark: display
+ * variants would not (Tailwind precedence is stylesheet order).
+ * logo-mark.png needs no pair — the violet mark is legible on both themes. */
+[data-theme="dark"] .light-theme-only {
+  display: none;
+}
+html:not([data-theme="dark"]) .dark-theme-only {
+  display: none;
 }
 
 /* Vertical Rhythm Utility Classes */
