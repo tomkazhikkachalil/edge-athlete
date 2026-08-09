@@ -694,15 +694,17 @@ export default function Home() {
         </div>
       </div>
       
-      <footer className="py-4 px-4">
-        <div className="flex flex-wrap items-center justify-center gap-4 text-xs text-muted">
-          <Link href="/terms" className="hover:text-secondary">Terms</Link>
-          <Link href="/privacy" className="hover:text-secondary">Privacy</Link>
-          <Link href="/contact" className="hover:text-secondary">Contact</Link>
+      <footer className="py-2 px-4">
+        {/* min-h grows the ~16px text rows to real touch targets without
+            changing the visual size — the drawer-footer idiom (AppHeader). */}
+        <div className="flex flex-wrap items-center justify-center gap-x-2 gap-y-0 text-xs text-muted">
+          <Link href="/terms" className="inline-flex min-h-[44px] items-center px-2 hover:text-secondary active:text-secondary">Terms</Link>
+          <Link href="/privacy" className="inline-flex min-h-[44px] items-center px-2 hover:text-secondary active:text-secondary">Privacy</Link>
+          <Link href="/contact" className="inline-flex min-h-[44px] items-center px-2 hover:text-secondary active:text-secondary">Contact</Link>
           {/* Logo.dev's free plan requires a PUBLICLY reachable credit; the
               equipment picker that shows their logos is behind login, so the
               verifiable copy lives here. Renders nothing without a token. */}
-          <LogoDevAttribution />
+          <LogoDevAttribution className="inline-flex min-h-[44px] items-center px-2" />
           <span>&copy; {new Date().getFullYear()} Edge Athlete</span>
         </div>
       </footer>

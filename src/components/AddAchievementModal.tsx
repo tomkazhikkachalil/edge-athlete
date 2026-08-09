@@ -150,7 +150,7 @@ export default function AddAchievementModal({
           <button
             type="button"
             onClick={onClose}
-            className="p-2 text-faint hover:text-tertiary transition-colors"
+            className="ea-icon-btn inline-flex items-center justify-center shrink-0"
             aria-label="Close"
           >
             <X className="w-5 h-5" />

@@ -417,6 +417,30 @@ body {
 .ea-icon-btn:active {
   transform: scale(0.97);
 }
+/* Invisible hit-area extender: 40px visual circle, 44px effective target.
+ * Pseudo-elements hit-test to their originating element, so taps in the ring
+ * still land on the button (and its :hover/:active). Zero layout change —
+ * AppHeader's width budget is computed against 40px circles and must stay
+ * true. Safe because the class already sets position:relative and no call
+ * site uses before:/after: utilities (badges are positioned child spans).
+ *
+ * TOUCH-TARGET RECIPES for controls that can't take a straight min-h bump
+ * (44px is the floor for anything a thumb aims at — hover: is invisible on
+ * touch, so pair state changes with active:):
+ *  - bare text link:      inline-flex min-h-[44px] items-center  (+ -my-2
+ *                         when the row's height must not grow)
+ *  - roomy icon button:   p-2 min-w-[44px] min-h-[44px] rounded-full flex
+ *                         items-center justify-center
+ *  - visually locked pill/dense cluster: relative after:absolute
+ *    after:content-[''] after:-inset-y-1.5 after:inset-x-0  (vertical-only
+ *    where horizontal neighbours are close — overlapping extenders make
+ *    mis-taps worse, not better) */
+.ea-icon-btn::after {
+  content: '';
+  position: absolute;
+  inset: -2px;
+  border-radius: inherit;
+}
 
 /* ── METAL EDGING ────────────────────────────────────────────────────────────
  * Chat-specific edge vocabulary, added because chat had a real legibility bug:

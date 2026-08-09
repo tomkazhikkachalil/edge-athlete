@@ -113,9 +113,9 @@ export default function ReplaceEquipmentModal({
               <button
                 onClick={handleClose}
                 aria-label="Close"
-                className="p-2 hover:bg-surface-sunken rounded-full transition-colors"
+                className="ea-icon-btn inline-flex items-center justify-center shrink-0"
               >
-                <X className="w-6 h-6 text-muted" />
+                <X className="w-6 h-6" />
               </button>
             </div>
 

@@ -249,7 +249,7 @@ export default function AppHeader({ onCreatePost, onEditProfile }: AppHeaderProp
           <div className="flex items-center justify-between h-16 gap-4">
             <Link
               href="/"
-              className="flex items-center hover:opacity-80 transition-opacity whitespace-nowrap"
+              className="flex items-center min-h-[44px] hover:opacity-80 transition-opacity whitespace-nowrap"
               aria-label="Edge Athlete — go to sign in"
             >
               <Image
@@ -263,12 +263,16 @@ export default function AppHeader({ onCreatePost, onEditProfile }: AppHeaderProp
             </Link>
             <div className="flex items-center gap-2 sm:gap-3">
               <HeaderSearch />
-              <Link href="/" className="ea-interactive text-sm font-medium text-secondary rounded-lg px-3 py-2">
+              {/* 36px pills in a 64px header: min-h grows Log in's hit box
+                  outright; Sign up's painted gradient must stay 36px, so it
+                  gets the invisible extender instead (recipes in globals.css
+                  next to .ea-icon-btn). */}
+              <Link href="/" className="ea-interactive inline-flex min-h-[44px] items-center text-sm font-medium text-secondary rounded-lg px-3 py-2">
                 Log in
               </Link>
               <Link
                 href="/"
-                className="ea-cta text-white px-3 sm:px-4 py-2 rounded-lg text-sm font-medium"
+                className="ea-cta relative after:absolute after:content-[''] after:-inset-y-1 after:inset-x-0 text-white px-3 sm:px-4 py-2 rounded-lg text-sm font-medium"
               >
                 Sign up
               </Link>
@@ -289,7 +293,7 @@ export default function AppHeader({ onCreatePost, onEditProfile }: AppHeaderProp
             <div className="flex items-center gap-6 flex-1 min-w-0">
               <button
                 onClick={() => router.push('/feed')}
-                className="flex items-center shrink-0 hover:opacity-80 transition-opacity whitespace-nowrap"
+                className="flex items-center min-h-[44px] shrink-0 hover:opacity-80 transition-opacity whitespace-nowrap"
                 aria-label="Edge Athlete — go to feed"
               >
                 {/* The wordmark is a hard 112px at h-7 — over a third of a
@@ -333,6 +337,8 @@ export default function AppHeader({ onCreatePost, onEditProfile }: AppHeaderProp
                 />
                 {desktopNavLinks.map((link, index) => {
                   const active = isActivePath(link.path);
+                  // after: extender, not padding: the h-9 sliding pill and the
+                  // hover bg are sized to the painted 36px link.
                   return (
                     <Link
                       key={link.path}
@@ -340,7 +346,7 @@ export default function AppHeader({ onCreatePost, onEditProfile }: AppHeaderProp
                       ref={(el: HTMLAnchorElement | null) => { itemRefs.current[index] = el; }}
                       onClick={() => setIsProfileDropdownOpen(false)}
                       aria-current={active ? 'page' : undefined}
-                      className={`relative z-10 rounded-lg px-3 py-2 text-sm font-medium transition-colors duration-[150ms] ${
+                      className={`relative z-10 after:absolute after:content-[''] after:-inset-y-1 after:inset-x-0 rounded-lg px-3 py-2 text-sm font-medium transition-colors duration-[150ms] ${
                         active
                           ? 'text-brand-fg-strong'
                           : 'text-secondary hover:text-primary hover:bg-[color:var(--ea-tint)]'
@@ -391,9 +397,13 @@ export default function AppHeader({ onCreatePost, onEditProfile }: AppHeaderProp
                 <i className="fas fa-user-friends text-lg"></i>
               </button>
 
+              {/* Painted pill stays small (width budget above) — the invisible
+                  after: extender carries the 44px target. -inset-y-2, not -1:
+                  icon-only below sm this paints at 30px, so it needs 8px per
+                  side to clear 44. */}
               <button
                 onClick={handleCreatePost}
-                className="ea-cta text-white px-3 sm:px-4 py-2 rounded-lg flex shrink-0 items-center gap-2 text-sm font-medium"
+                className="ea-cta relative after:absolute after:content-[''] after:-inset-y-2 after:inset-x-0 text-white px-3 sm:px-4 py-2 rounded-lg flex shrink-0 items-center gap-2 text-sm font-medium"
                 aria-label="Create new post"
               >
                 <i className="fas fa-plus"></i>

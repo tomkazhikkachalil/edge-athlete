@@ -173,7 +173,7 @@ export default function GroupSettingsModal({ conversation, currentUserId, onClos
         {/* Header */}
         <div className="flex items-center justify-between px-5 py-4 border-b border-border">
           <h2 className="text-lg font-bold text-primary">Group Settings</h2>
-          <button onClick={onClose} className="text-faint hover:text-tertiary p-1">
+          <button onClick={onClose} aria-label="Close" className="ea-icon-btn inline-flex items-center justify-center shrink-0">
             <i className="fas fa-times"></i>
           </button>
         </div>
@@ -246,10 +246,13 @@ export default function GroupSettingsModal({ conversation, currentUserId, onClos
                         Admin
                       </span>
                     )}
+                    {/* Not .ea-icon-btn: its tertiary/brand colours would
+                        override the destructive red (unlayered CSS beats
+                        Tailwind's layered utilities). Extender instead. */}
                     {isAdmin && !isMe && (
                       <button
                         onClick={() => handleRemoveMember(p)}
-                        className="text-red-400 hover:text-red-600 dark:hover:text-red-400 p-1 shrink-0"
+                        className="relative after:absolute after:content-[''] after:-inset-2.5 text-red-400 hover:text-red-600 active:text-red-600 dark:hover:text-red-400 p-1 shrink-0"
                         title="Remove from group"
                       >
                         <i className="fas fa-times text-xs"></i>

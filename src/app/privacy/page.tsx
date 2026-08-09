@@ -85,10 +85,10 @@ export default function PrivacyPage() {
             </section>
           </div>
 
-          <div className="mt-10 pt-6 border-t border-border flex flex-wrap gap-4 text-sm">
-            <Link href="/terms" className="text-brand-fg hover:text-brand-fg-strong font-medium">Terms of Service</Link>
-            <Link href="/contact" className="text-brand-fg hover:text-brand-fg-strong font-medium">Contact</Link>
-            <Link href="/" className="text-brand-fg hover:text-brand-fg-strong font-medium">← Back to Edge Athlete</Link>
+          <div className="mt-8 pt-4 border-t border-border flex flex-wrap gap-x-4 text-sm">
+            <Link href="/terms" className="inline-flex min-h-[44px] items-center text-brand-fg hover:text-brand-fg-strong active:text-brand-fg-strong font-medium">Terms of Service</Link>
+            <Link href="/contact" className="inline-flex min-h-[44px] items-center text-brand-fg hover:text-brand-fg-strong active:text-brand-fg-strong font-medium">Contact</Link>
+            <Link href="/" className="inline-flex min-h-[44px] items-center text-brand-fg hover:text-brand-fg-strong active:text-brand-fg-strong font-medium">← Back to Edge Athlete</Link>
           </div>
         </div>
       </div>
