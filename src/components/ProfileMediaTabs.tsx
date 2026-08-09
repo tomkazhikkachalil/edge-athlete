@@ -849,9 +849,12 @@ function MediaGridItem({ item, viewerId, onClick }: MediaGridItemProps) {
           )}
         </div>
 
-        {/* Bottom info on hover. Lifted above the score band when there is one
-            — same nudge TaggedTile makes for its attribution strip. */}
-        <div className={`absolute left-0 right-0 p-2 bg-gradient-to-t from-black to-transparent opacity-0 group-hover:opacity-100 transition-opacity ${
+        {/* Bottom info: hover-revealed on fine pointers, ALWAYS visible on
+            coarse ones — touch has no hover, so without pointer-coarse: this
+            row simply did not exist on phones. Lifted above the score band
+            when there is one — same nudge TaggedTile makes for its
+            attribution strip. */}
+        <div className={`absolute left-0 right-0 p-2 bg-gradient-to-t from-black to-transparent opacity-0 group-hover:opacity-100 pointer-coarse:opacity-100 transition-opacity ${
           hasMedia && highlights ? 'bottom-10' : 'bottom-0'
         }`}>
           <div className="flex items-center justify-between text-white text-xs">
@@ -865,7 +868,10 @@ function MediaGridItem({ item, viewerId, onClick }: MediaGridItemProps) {
                 {item.comments_count}
               </span>
             </div>
-            <span className="text-gray-200">
+            {/* Counts always fit; the relative time does not — a 124px tile
+                (two cols at 320px) can't hold "about 2 hours ago" beside
+                them. Same width gate as the decorative rows above. */}
+            <span className="text-gray-200 hidden min-[380px]:inline">
               {formatDistanceToNow(new Date(item.created_at), { addSuffix: true })}
             </span>
           </div>
