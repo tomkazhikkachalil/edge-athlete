@@ -166,7 +166,7 @@ export default function NewConversationModal({ onClose }: Props) {
         {/* Header */}
         <div className="flex items-center justify-between px-5 py-4 border-b border-border shrink-0">
           <h2 className="text-lg font-bold text-primary">New Message</h2>
-          <button onClick={requestClose} className="text-faint hover:text-tertiary p-1">
+          <button onClick={requestClose} aria-label="Close" className="ea-icon-btn inline-flex items-center justify-center shrink-0">
             <i className="fas fa-times"></i>
           </button>
         </div>

@@ -1,5 +1,41 @@
 # Development Log
 
+## August 9, 2026 — Touch-target pass, part 1: the mechanism + the chrome
+
+Third Aug 8 reported item, first half. The rule: 44px is the floor for
+anything a thumb aims at; **visual sizes don't change — hit areas grow.**
+Four mechanisms, documented as recipes next to `.ea-icon-btn` in globals.css
+so the next control uses one instead of inventing a fifth:
+
+- **M1** bare text link → `inline-flex min-h-[44px] items-center` (the #75 /
+  drawer-footer idiom), `-my-*` when the row must not grow.
+- **M2** roomy icon button → `p-2 min-w/h-[44px] rounded-full flex` (PostCard).
+- **M3** visually-locked control → invisible `after:` extender, vertical-only
+  in dense clusters (overlapping extenders make mis-taps worse).
+- **M4** `.ea-icon-btn::after { inset: -2px }` — the 40px circle keeps its
+  size and gains a 44px effective target at **all 21 call sites in one CSS
+  edit**. Pseudo-elements hit-test to their originating element, so taps in
+  the ring land on the button; zero layout change, which matters because
+  AppHeader's 320px width budget is computed against 40px circles. Safe
+  because the class already sets `position:relative`, no call site uses
+  `after:` utilities, and the bell badges are positioned child spans.
+
+Applied to the chrome: AppHeader (Log in M1; Sign up/Post CTA and the desktop
+nav links M3 — the gradient pill and the h-9 sliding pill must keep their
+painted size; both logos min-h; **the avatar trigger needed nothing** — p-1.5
++ 32px avatar is already 44px, the report overcounted), the landing footer +
+legal-page footers (M1 with `px-2`, the drawer-footer precedent; prose-inline
+links exempt — a 44px block inside a sentence wrecks it), and **modal close
+X's standardized on `.ea-icon-btn`** (GroupSettings, NewConversation,
+ReportMessage, AddAchievement, SharePost, ReplaceEquipment, AddEquipment,
+CalendarSync — the last had no padding at all, a ~20px target). One deliberate
+exception: GroupSettings' remove-member X keeps its destructive red with an M3
+extender, because `.ea-icon-btn`'s colours are unlayered CSS and would beat
+the red Tailwind utility.
+
+Part 2 (chat surfaces, tab strips, bare links, the min-h-36/40 long tail) is
+the next PR.
+
 ## August 9, 2026 — Tile engagement visible on touch (first `pointer-coarse:` use)
 
 Second of the Aug 8 reported items. Likes/comments/time on media-grid tiles

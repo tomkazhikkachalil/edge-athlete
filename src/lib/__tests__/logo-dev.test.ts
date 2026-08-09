@@ -59,7 +59,9 @@ describe('attribution placement', () => {
   const read = (p: string) => readFileSync(join(process.cwd(), p), 'utf8');
 
   it('appears on a public page — the picker is behind login', () => {
-    expect(read('src/app/page.tsx')).toContain('<LogoDevAttribution />');
+    // Presence, not exact JSX — the call site may pass className (it does,
+    // since the touch-target pass grew the footer link to a 44px row).
+    expect(read('src/app/page.tsx')).toContain('<LogoDevAttribution');
   });
 
   it('appears on a page rendered WITHOUT JavaScript', () => {

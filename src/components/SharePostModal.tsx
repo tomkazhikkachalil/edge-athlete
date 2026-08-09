@@ -182,7 +182,8 @@ export default function SharePostModal({
           <h2 className="text-lg font-bold text-primary">Share Post</h2>
           <button
             onClick={onClose}
-            className="p-2 text-faint hover:text-tertiary transition-colors"
+            aria-label="Close"
+            className="ea-icon-btn inline-flex items-center justify-center shrink-0"
           >
             <i className="fas fa-times text-lg"></i>
           </button>

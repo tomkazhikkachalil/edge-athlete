@@ -399,7 +399,7 @@ export default function AddEquipmentModal({
           <button
             onClick={requestClose}
             aria-label="Close"
-            className="p-2 shrink-0 text-faint hover:text-tertiary rounded-lg hover:bg-surface-sunken transition-colors"
+            className="ea-icon-btn inline-flex items-center justify-center shrink-0"
           >
             <X className="w-6 h-6" />
           </button>
