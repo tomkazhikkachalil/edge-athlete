@@ -180,6 +180,8 @@ export interface Comment {
   updated_at: string;
   likes_count?: number;
   is_pinned?: boolean;
+  /** Profile ids @mentioned in content, resolved server-side (migration 073). */
+  mentions?: string[];
   profile?: Profile;
   comment_likes?: { profile_id: string }[];
 }

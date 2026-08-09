@@ -3,12 +3,17 @@
 import LazyImage from '@/components/LazyImage';
 import SharedPostPreview from './SharedPostPreview';
 import SharedProfilePreview from './SharedProfilePreview';
-import type { Message } from '@/types/messages';
+import MentionText from '@/components/MentionText';
+import type { Message, ParticipantProfile } from '@/types/messages';
 
 interface Props {
   message: Message;
   isOwn: boolean;
   onViewPost?: (postId: string) => void;
+  /** Active members — @tokens matching a member's handle become profile
+   *  links; everything else renders as inert styled emphasis (deliberate
+   *  "dummy" mentions of people outside the room). */
+  participants?: ParticipantProfile[];
 }
 
 /**
@@ -18,7 +23,16 @@ interface Props {
  * sheet's replica; the replica wraps this in `pointer-events-none`, which is
  * what neutralises SharedPostPreview's <button> and <video controls> there.
  */
-export default function MessageBubbleContent({ message, isOwn, onViewPost }: Props) {
+export default function MessageBubbleContent({ message, isOwn, onViewPost, participants }: Props) {
+  const resolveMention = (handle: string) => {
+    const p = participants?.find(
+      (x) => x.handle && x.handle.toLowerCase() === handle
+    );
+    return p?.handle ? { id: p.id, handle: p.handle } : null;
+  };
+  const renderText = (content: string) => (
+    <MentionText text={content} resolve={resolveMention} styleUnresolved />
+  );
   // The metal rim is what stops an own-bubble dissolving into the (also
   // violet) chat header in the dock. Inset shadows, so bubble geometry is
   // unchanged — a real border would add 2px to every bubble in the thread.
@@ -30,7 +44,7 @@ export default function MessageBubbleContent({ message, isOwn, onViewPost }: Pro
     <>
       {message.type === 'text' && (
         <div className={`px-4 py-2.5 ${bubbleBase} max-w-full`}>
-          <p className="text-sm whitespace-pre-wrap break-words">{message.content}</p>
+          <p className="text-sm whitespace-pre-wrap break-words">{message.content && renderText(message.content)}</p>
         </div>
       )}
 
@@ -48,7 +62,7 @@ export default function MessageBubbleContent({ message, isOwn, onViewPost }: Pro
               gets sliced diagonally at the bottom corners. */}
           {message.content && (
             <div className={`px-3 py-2 ${bubbleBase.replace(/ ea-metal-rim(-brand)?/, '')} rounded-none`}>
-              <p className="text-sm whitespace-pre-wrap break-words">{message.content}</p>
+              <p className="text-sm whitespace-pre-wrap break-words">{renderText(message.content)}</p>
             </div>
           )}
         </div>
@@ -76,7 +90,7 @@ export default function MessageBubbleContent({ message, isOwn, onViewPost }: Pro
           />
           {message.content && (
             <div className={`px-3 py-2 ${bubbleBase.replace(/ ea-metal-rim(-brand)?/, '')} rounded-none`}>
-              <p className="text-sm whitespace-pre-wrap break-words">{message.content}</p>
+              <p className="text-sm whitespace-pre-wrap break-words">{renderText(message.content)}</p>
             </div>
           )}
         </div>

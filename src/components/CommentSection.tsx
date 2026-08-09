@@ -13,6 +13,22 @@ import {
   composerTextareaHeight,
 } from '@/components/messages/composer-layout';
 import { flattenReplies, collectDescendantIds } from '@/lib/comment-thread';
+import MentionText from '@/components/MentionText';
+import MentionSuggestions from '@/components/MentionSuggestions';
+import { useMentionTypeahead, type MentionCandidate } from '@/hooks/useMentionTypeahead';
+
+/** Comments' typeahead source: public ∪ my accepted follows (server-gated). */
+async function searchMentionCandidates(query: string): Promise<MentionCandidate[]> {
+  if (query.length < 1) return [];
+  try {
+    const res = await fetch(`/api/mentions/search?q=${encodeURIComponent(query)}`);
+    if (!res.ok) return [];
+    const data = await res.json();
+    return (data.profiles ?? []) as MentionCandidate[];
+  } catch {
+    return [];
+  }
+}
 
 interface CommentSectionProps {
   postId: string;
@@ -46,6 +62,40 @@ export default function CommentSection({
   const [showReplyGifPicker, setShowReplyGifPicker] = useState(false);
   const commentInputRef = useRef<HTMLTextAreaElement>(null);
   const replyInputRef = useRef<HTMLTextAreaElement>(null);
+  // handle → {id, handle} for every mention hydrated from the API; grows as
+  // new comments post. MentionText renders only tokens found here.
+  const [mentionMap, setMentionMap] = useState<Record<string, { id: string; handle: string }>>({});
+
+  const mergeMentionProfiles = useCallback(
+    (profiles?: { id: string; handle: string }[]) => {
+      if (!profiles || profiles.length === 0) return;
+      setMentionMap(prev => {
+        const next = { ...prev };
+        for (const p of profiles) next[p.handle.toLowerCase()] = p;
+        return next;
+      });
+    },
+    []
+  );
+
+  const resolveMention = useCallback(
+    (handle: string) => mentionMap[handle] ?? null,
+    [mentionMap]
+  );
+
+  const mentionTypeahead = useMentionTypeahead({
+    value: newComment,
+    setValue: setNewComment,
+    textareaRef: commentInputRef,
+    getCandidates: searchMentionCandidates,
+  });
+
+  const replyMentionTypeahead = useMentionTypeahead({
+    value: replyText,
+    setValue: setReplyText,
+    textareaRef: replyInputRef,
+    getCandidates: searchMentionCandidates,
+  });
 
   // Organize comments into threads
   const { rootComments, repliesByParent } = useMemo(() => {
@@ -89,13 +139,14 @@ export default function CommentSection({
 
       const data = await response.json();
       setComments(data.comments || []);
+      mergeMentionProfiles(data.mentionProfiles);
     } catch (e) {
       console.error('Failed to load comments:', e);
       setError('Failed to load comments');
     } finally {
       setIsLoading(false);
     }
-  }, [postId]);
+  }, [postId, mergeMentionProfiles]);
 
   useEffect(() => {
     if (showComments) {
@@ -196,6 +247,7 @@ export default function CommentSection({
 
       const data = await response.json();
       setComments(prev => [...prev, data.comment]);
+      mergeMentionProfiles(data.mentionProfiles);
       setNewComment('');
       setGifUrl(null);
 
@@ -234,6 +286,7 @@ export default function CommentSection({
 
       const data = await response.json();
       setComments(prev => [...prev, data.comment]);
+      mergeMentionProfiles(data.mentionProfiles);
       setReplyText('');
       setReplyGifUrl(null);
       setReplyingTo(null);
@@ -442,7 +495,7 @@ export default function CommentSection({
             </div>
             {comment.content && (
               <p className="text-sm text-primary whitespace-pre-wrap break-words">
-                {comment.content}
+                <MentionText text={comment.content} resolve={resolveMention} />
               </p>
             )}
             {comment.gif_url && (
@@ -560,24 +613,36 @@ export default function CommentSection({
             onClose={() => setShowReplyGifPicker(false)}
           />
         )}
-        <textarea
-          ref={replyInputRef}
-          rows={1}
-          value={replyText}
-          onChange={(e) => setReplyText(e.target.value)}
-          onKeyDown={(e) => {
-            // isComposing guard: Enter that COMMITS an IME composition must
-            // not send the half-composed text (MessageInput's rule).
-            if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) {
-              e.preventDefault();
-              handleSubmitReply(parentCommentId);
-            }
-          }}
-          placeholder="Write a reply..."
-          className="flex-1 min-w-0 px-3 py-1.5 border border-border-strong rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-500 text-sm resize-none overflow-hidden block"
-          style={{ minHeight: COMPOSER_MIN_HEIGHT, maxHeight: COMPOSER_MAX_HEIGHT }}
-          disabled={isSubmitting}
-        />
+        <div className="relative flex-1 min-w-0">
+          <MentionSuggestions
+            open={replyMentionTypeahead.open}
+            candidates={replyMentionTypeahead.candidates}
+            activeIndex={replyMentionTypeahead.activeIndex}
+            onHover={replyMentionTypeahead.setActiveIndex}
+            onSelect={replyMentionTypeahead.select}
+            onClose={replyMentionTypeahead.close}
+          />
+          <textarea
+            ref={replyInputRef}
+            rows={1}
+            value={replyText}
+            onChange={(e) => setReplyText(e.target.value)}
+            onKeyDown={(e) => {
+              // The mention dropdown owns arrows/Enter/Tab/Escape while open.
+              if (replyMentionTypeahead.onKeyDown(e)) return;
+              // isComposing guard: Enter that COMMITS an IME composition must
+              // not send the half-composed text (MessageInput's rule).
+              if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) {
+                e.preventDefault();
+                handleSubmitReply(parentCommentId);
+              }
+            }}
+            placeholder="Write a reply..."
+            className="w-full px-3 py-1.5 border border-border-strong rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-500 text-sm resize-none overflow-hidden block"
+            style={{ minHeight: COMPOSER_MIN_HEIGHT, maxHeight: COMPOSER_MAX_HEIGHT }}
+            disabled={isSubmitting}
+          />
+        </div>
         <button
           type="button"
           onClick={() => handleSubmitReply(parentCommentId)}
@@ -660,27 +725,41 @@ export default function CommentSection({
                 {/* min-w-0: a text field's intrinsic min-width is ~177px, so
                     without this the flex row refuses to shrink and overflows
                     the card sideways on phones (same trap as the hashtag
-                    composer in CreatePostModal). */}
-                <textarea
-                  ref={commentInputRef}
-                  rows={1}
-                  value={newComment}
-                  onChange={(e) => setNewComment(e.target.value)}
-                  onKeyDown={(e) => {
-                    // A textarea doesn't implicitly submit its form the way
-                    // the old single-line input did — Enter must be wired
-                    // explicitly (Shift+Enter = newline; isComposing per
-                    // MessageInput's IME rule).
-                    if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) {
-                      e.preventDefault();
-                      handleSubmitComment();
-                    }
-                  }}
-                  placeholder="Write a comment..."
-                  className="flex-1 min-w-0 px-3 py-2 border border-border-strong rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-500 text-sm resize-none overflow-hidden block"
-                  style={{ minHeight: COMPOSER_MIN_HEIGHT, maxHeight: COMPOSER_MAX_HEIGHT }}
-                  disabled={isSubmitting}
-                />
+                    composer in CreatePostModal). The relative wrapper is the
+                    mention dropdown's anchor — it tracks the growing field. */}
+                <div className="relative flex-1 min-w-0">
+                  <MentionSuggestions
+                    open={mentionTypeahead.open}
+                    candidates={mentionTypeahead.candidates}
+                    activeIndex={mentionTypeahead.activeIndex}
+                    onHover={mentionTypeahead.setActiveIndex}
+                    onSelect={mentionTypeahead.select}
+                    onClose={mentionTypeahead.close}
+                  />
+                  <textarea
+                    ref={commentInputRef}
+                    rows={1}
+                    value={newComment}
+                    onChange={(e) => setNewComment(e.target.value)}
+                    onKeyDown={(e) => {
+                      // The mention dropdown owns arrows/Enter/Tab/Escape
+                      // while open.
+                      if (mentionTypeahead.onKeyDown(e)) return;
+                      // A textarea doesn't implicitly submit its form the way
+                      // the old single-line input did — Enter must be wired
+                      // explicitly (Shift+Enter = newline; isComposing per
+                      // MessageInput's IME rule).
+                      if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) {
+                        e.preventDefault();
+                        handleSubmitComment();
+                      }
+                    }}
+                    placeholder="Write a comment..."
+                    className="w-full px-3 py-2 border border-border-strong rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-500 text-sm resize-none overflow-hidden block"
+                    style={{ minHeight: COMPOSER_MIN_HEIGHT, maxHeight: COMPOSER_MAX_HEIGHT }}
+                    disabled={isSubmitting}
+                  />
+                </div>
                 <button
                   type="submit"
                   disabled={(!newComment.trim() && !gifUrl) || isSubmitting}

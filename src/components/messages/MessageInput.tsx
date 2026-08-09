@@ -6,7 +6,9 @@ import { supabase } from '@/lib/supabase';
 import EmojiPickerButton from '@/components/EmojiPickerButton';
 import GifPickerModal from '@/components/GifPickerModal';
 import { formatDisplayName } from '@/lib/formatters';
-import type { Message } from '@/types/messages';
+import type { Message, ParticipantProfile } from '@/types/messages';
+import MentionSuggestions from '@/components/MentionSuggestions';
+import { useMentionTypeahead, type MentionCandidate } from '@/hooks/useMentionTypeahead';
 import { MediaEditor } from '@/components/media-editor';
 import { validateFiles } from '@/lib/media/validation';
 import { isOptimizableImageSrc } from '@/lib/media/image-src';
@@ -37,6 +39,12 @@ interface Props {
   // Behavior is unchanged when these props are absent.
   initialText?: string;
   onTextChange?: (text: string) => void;
+  /**
+   * Active members of the conversation — the @mention typeahead source
+   * (members only, filtered locally; free-form @names of non-members are
+   * deliberately allowed as inert text). Absent = no typeahead.
+   */
+  participants?: ParticipantProfile[];
 }
 
 const MESSAGE_EDITOR_CONFIG: EditorConfig = {
@@ -48,7 +56,7 @@ const MESSAGE_EDITOR_CONFIG: EditorConfig = {
 
 const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50MB
 
-export default function MessageInput({ conversationId, currentUserId, onSend, disabled = false, replyingTo, onCancelReply, initialText, onTextChange }: Props) {
+export default function MessageInput({ conversationId, currentUserId, onSend, disabled = false, replyingTo, onCancelReply, initialText, onTextChange, participants }: Props) {
   const [text, setText] = useState(initialText ?? '');
   // iMessage-style leading cluster. One-way latch: typing collapses it,
   // emptying the field does NOT re-expand (see composer-layout for why).
@@ -135,6 +143,52 @@ export default function MessageInput({ conversationId, currentUserId, onSend, di
     }
   };
 
+  // @mention typeahead: MEMBERS ONLY, filtered locally (never a network
+  // call) — free-form @names of non-members stay inert by design. Drafts
+  // observe every setText via the effect above, so the splice path needs no
+  // extra plumbing.
+  const mentionTypeahead = useMentionTypeahead({
+    value: text,
+    setValue: (next) => {
+      setText(next);
+      dispatchLeading({ type: 'TEXT_CHANGED', text: next });
+      requestAnimationFrame(() => {
+        const ta = textareaRef.current;
+        if (ta) {
+          ta.style.height = 'auto';
+          ta.style.height = composerTextareaHeight(ta.scrollHeight) + 'px';
+        }
+      });
+    },
+    textareaRef,
+    sync: true,
+    getCandidates: (query: string): MentionCandidate[] => {
+      if (!participants || participants.length === 0) return [];
+      const q = query.toLowerCase();
+      return participants
+        .filter((p): p is ParticipantProfile & { handle: string } =>
+          !!p.handle && p.id !== currentUserId
+        )
+        .filter(
+          (p) =>
+            q.length === 0 ||
+            p.handle.toLowerCase().includes(q) ||
+            (p.full_name ?? '').toLowerCase().includes(q) ||
+            (p.first_name ?? '').toLowerCase().includes(q) ||
+            (p.last_name ?? '').toLowerCase().includes(q)
+        )
+        .slice(0, 8)
+        .map((p) => ({
+          id: p.id,
+          handle: p.handle,
+          full_name: p.full_name,
+          first_name: p.first_name,
+          last_name: p.last_name,
+          avatar_url: p.avatar_url,
+        }));
+    },
+  });
+
   // Insert emoji at cursor position
   const handleEmojiSelect = (emoji: string) => {
     const ta = textareaRef.current;
@@ -211,6 +265,9 @@ export default function MessageInput({ conversationId, currentUserId, onSend, di
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    // The mention dropdown owns arrows/Enter/Tab/Escape while open — Enter
+    // must select the highlighted member, not send the message.
+    if (mentionTypeahead.onKeyDown(e)) return;
     // isComposing guard: without it, pressing Enter to COMMIT a Japanese or
     // Chinese IME composition sends the half-composed text instead.
     if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) {
@@ -454,6 +511,14 @@ export default function MessageInput({ conversationId, currentUserId, onSend, di
             panel. `pr-12` reserves the button's gutter on EVERY line, which is
             why text can't run underneath it at any height. */}
         <div className="relative flex-1 min-w-0">
+          <MentionSuggestions
+            open={mentionTypeahead.open}
+            candidates={mentionTypeahead.candidates}
+            activeIndex={mentionTypeahead.activeIndex}
+            onHover={mentionTypeahead.setActiveIndex}
+            onSelect={mentionTypeahead.select}
+            onClose={mentionTypeahead.close}
+          />
           <textarea
             ref={textareaRef}
             value={text}

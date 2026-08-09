@@ -11,7 +11,7 @@ import MessageBubbleContent from './MessageBubbleContent';
 import QuotedReply from './QuotedReply';
 import { clampSheetTop, SHEET_VIEWPORT_MARGIN_PX } from './action-sheet-layout';
 import { EMOJI_PANEL_WIDTH_PX, EMOJI_PANEL_HEIGHT_PX } from './composer-layout';
-import type { Message } from '@/types/messages';
+import type { Message, ParticipantProfile } from '@/types/messages';
 
 const EmojiPicker = dynamic(() => import('emoji-picker-react'), {
   ssr: false,
@@ -33,6 +33,7 @@ interface Props {
   message: Message;
   isOwn: boolean;
   canEdit: boolean;
+  participants?: ParticipantProfile[];
   quickEmojis: string[];
   anchorRect: SheetAnchor;
   onClose: () => void;
@@ -69,6 +70,7 @@ export default function MessageActionSheet({
   message,
   isOwn,
   canEdit,
+  participants,
   quickEmojis,
   anchorRect,
   onClose,
@@ -200,7 +202,7 @@ export default function MessageActionSheet({
               {message.reply_to && (
                 <QuotedReply replyTo={message.reply_to} isOwn={isOwn} />
               )}
-              <MessageBubbleContent message={message} isOwn={isOwn} />
+              <MessageBubbleContent message={message} isOwn={isOwn} participants={participants} />
             </div>
 
             <div className="bg-surface-raised border border-border rounded-xl shadow-lg py-1 min-w-[180px]">

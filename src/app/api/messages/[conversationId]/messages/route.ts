@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAuth, getSupabaseAdmin } from '@/lib/auth-server';
+import { extractHandles } from '@/lib/mentions';
+import { notifyChatMentions } from '@/lib/mentions/notify';
 
 // ── POST /api/messages/[conversationId]/messages ──────────────────────────────
 // Send a message. Media must be pre-uploaded via /api/upload/post-media.
@@ -188,6 +190,38 @@ export async function POST(
 
       if (notifications.length > 0) {
         await supabase.from('notifications').insert(notifications);
+      }
+    }
+
+    // @mention notifications: tokens matching an ACTIVE member's handle get
+    // a distinct 'mention' row on top of new_message. Deliberately NOT
+    // filtered by is_muted — mute silences the room, a direct mention is
+    // personal (Slack/Discord semantics). Non-member @names notify no one
+    // by construction. Best-effort; never fails the send.
+    if (type === 'text' && content) {
+      const handles = extractHandles(content);
+      if (handles.length > 0) {
+        const { data: mentionables } = await supabase
+          .from('conversation_participants')
+          .select('profile_id, profile:profiles(id, handle)')
+          .eq('conversation_id', conversationId)
+          .neq('profile_id', user.id)
+          .is('left_at', null);
+        const handleSet = new Set(handles);
+        const mentionedIds = (mentionables ?? [])
+          .filter(r => {
+            const prof = r.profile as unknown as { handle: string | null } | null;
+            return prof?.handle && handleSet.has(prof.handle.toLowerCase());
+          })
+          .map(r => r.profile_id);
+        if (mentionedIds.length > 0) {
+          await notifyChatMentions(supabase, {
+            conversationId,
+            messageId: message.id,
+            senderId: user.id,
+            mentionedIds,
+          });
+        }
       }
     }
 

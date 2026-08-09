@@ -1,5 +1,60 @@
 # Development Log
 
+## August 9, 2026 — @mentions in comments and chat (migration 073)
+
+The third leg of the comments round. Typing `@` opens a typeahead; chosen
+mentions render as violet profile links and notify the mentioned user
+(both surfaces, per Tom). The `'mention'` notification type was already
+fully wired READ-side (type constraint, `mentions_enabled` pref + settings
+toggle, bell icon, text, tab filter) — this ships the missing producers.
+
+**Who is taggable — two different sources, one deliberate asymmetry:**
+- Comments: `/api/mentions/search` (new) = public profiles ∪ my accepted
+  follows, ONE-directional (`follower_id = me` — canViewProfile's "you
+  know them" rule, NOT invite-search's bidirectional set: someone following
+  me must not make their private profile taggable by me). Runs on the admin
+  client, so the TS filter IS the privacy boundary (the migration-021
+  lesson). Pinned by probe: anonymous → 401; a private non-followed
+  profile absent; the same profile appears after an accepted follow.
+- Chat: members only, filtered CLIENT-side from `conversation.participants`
+  (no network). Free-form `@names` of non-members render as inert violet
+  emphasis and never notify — Tom's "dummy mention" spec.
+
+**Storage (migration 073):** `post_comments.mentions uuid[]`, derived
+SERVER-side by re-parsing the content on POST (client sends nothing —
+unforgeable), filtered to the author's taggable set. One store, hydrated in
+the GET as `mentionProfiles` (id + handle ONLY — the handle is already in
+the text; no names/avatars of possibly-private users leak). A renamed
+handle stops matching and degrades to plain text by design. Messages get
+NO schema: tokens resolve against participants at render and at POST.
+
+**Pieces:** pure `src/lib/mentions.ts` (token grammar from
+handle-validation; parse/extract/findActiveMentionToken/spliceMention —
+19 node tests incl. the email@domain and trailing-dot boundaries);
+`MentionText` (token renderer, `styleUnresolved` for chat);
+`useMentionTypeahead` (caret-token detection, debounce + seq race guard,
+Arrow/Enter/Tab/Escape interceptor that runs BEFORE send-on-Enter, sync
+mode for the chat's local source) + `MentionSuggestions` (44px rows,
+`usePopoverDismiss` — never a backdrop; anchored `absolute bottom-full`
+inside the field's relative wrapper so it tracks the growing textarea and
+fits the 320px dock by construction; selection on MOUSEDOWN so the
+textarea doesn't blur first).
+
+**Notifications** (`src/lib/mentions/notify.ts`, direct-insert per the
+calendar/messages precedent, best-effort): recipient ≠ author,
+`mentions_enabled` (missing row = allow), `user_blocks` both directions,
+and for comments `canViewProfile(postOwner, mentioned)` so nobody gets a
+dead-link notification to an invisible post. Chat mentions deliberately
+BYPASS `is_muted` (mute silences the room; a direct mention is personal —
+Slack semantics) and fire on top of `new_message`. Probe pinned: exactly
+one mention row for a "@member and @ghost.name" message — the member,
+never the ghost, never the sender.
+
+MessageInput/MessageBubble/MessageBubbleContent/MessageActionSheet gained
+an optional `participants` prop (threaded from ChatWindow + MiniChatWindow,
+which already held the full conversation — zero new fetches).
+
+## August 9, 2026 — Replies to replies (three levels, then flat) — and a stale-closure submit bug
 ## August 9, 2026 — Replies to replies (three levels, then flat) — and a stale-closure submit bug
 
 Tom: you can only reply to top-level comments — replying to a reply should

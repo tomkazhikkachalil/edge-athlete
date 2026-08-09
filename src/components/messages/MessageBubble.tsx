@@ -14,7 +14,7 @@ import ReportMessageModal from './ReportMessageModal';
 import MessageBubbleContent from './MessageBubbleContent';
 import MessageActionSheet, { type SheetAnchor } from './MessageActionSheet';
 import { haptic } from '@/lib/haptics';
-import type { Message } from '@/types/messages';
+import type { Message, ParticipantProfile } from '@/types/messages';
 
 const EDIT_WINDOW_MS = 15 * 60 * 1000; // mirror server-side window for UI gating
 
@@ -36,6 +36,8 @@ interface Props {
   onReply: (message: Message) => void;
   onScrollToMessage?: (messageId: string) => void;
   onMessageEdited?: (messageId: string, content: string, edited_at: string) => void;
+  /** Active members, for @mention rendering + the action sheet replica. */
+  participants?: ParticipantProfile[];
 }
 
 function getRelativeTime(dateStr: string): string {
@@ -59,6 +61,7 @@ export default function MessageBubble({
   onReply,
   onScrollToMessage,
   onMessageEdited,
+  participants,
 }: Props) {
   const { theme } = useTheme();
   const [showMenu, setShowMenu] = useState(false);
@@ -255,7 +258,7 @@ export default function MessageBubble({
               }}
             />
           ) : (
-            <MessageBubbleContent message={message} isOwn={isOwn} onViewPost={onViewPost} />
+            <MessageBubbleContent message={message} isOwn={isOwn} onViewPost={onViewPost} participants={participants} />
           )}
 
           {/* Quick-reaction bar — hover/fine-pointer ONLY (sm:pointer-fine:).
@@ -428,6 +431,7 @@ export default function MessageBubble({
           message={message}
           isOwn={isOwn}
           canEdit={canEdit}
+          participants={participants}
           quickEmojis={QUICK_EMOJIS}
           anchorRect={sheetAnchor}
           onClose={() => setSheetOpen(false)}
