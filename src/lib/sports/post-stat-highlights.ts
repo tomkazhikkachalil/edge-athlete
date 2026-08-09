@@ -199,11 +199,20 @@ function sharedRoundScores(
 /** Course par. The COLUMN (golf_rounds.par) is authoritative and always
  *  present; summing golf_holes is the fallback for payloads that joined the
  *  hole detail but predate the column being populated. Relying on the sum
- *  alone meant to-par silently vanished whenever holes weren't joined. */
-function coursePar(round: GolfRoundLike | null | undefined): number | null {
-  if (typeof round?.par === 'number' && round.par > 0) return round.par;
+ *  alone meant to-par silently vanished whenever holes weren't joined.
+ *
+ *  EXCEPT for a partially recorded round — fewer golf_holes rows than the
+ *  round's configured holes. There the gross score is itself a partial sum,
+ *  so to-par must come from the pars of the holes actually played; the column
+ *  would compare 12 holes of strokes against 18 holes of par. Exported so
+ *  GolfRoundCard's score badge derives to-par by the same rule as the hero. */
+export function coursePar(round: GolfRoundLike | null | undefined): number | null {
   const holes = round?.golf_holes;
-  if (!Array.isArray(holes) || holes.length === 0) return null;
+  const holesJoined = Array.isArray(holes) && holes.length > 0;
+  const partiallyRecorded =
+    holesJoined && typeof round?.holes === 'number' && holes.length < round.holes;
+  if (!partiallyRecorded && typeof round?.par === 'number' && round.par > 0) return round.par;
+  if (!holesJoined) return null;
   let total = 0;
   for (const h of holes) {
     if (typeof h?.par !== 'number') return null;

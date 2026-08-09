@@ -1,5 +1,48 @@
 # Development Log
 
+## August 9, 2026 — Solo rounds: one card, not two
+
+First of the three items the Aug 8 phone pass reported instead of fixing. A
+solo golf round rendered `GolfRoundCard` **and** `StatHighlightCard` stacked —
+course, date, score, to-par and putts/FIR/GIR each said twice, two-plus
+screens of scroll on a phone. Shared rounds had already solved this exact
+problem in #73 by keeping one card, so solo rounds now match: the highlight
+card (to-par hero, author row) is the post body, and "View full scorecard ›"
+discloses the full `GolfRoundCard` — conditions row, hole tables — inline
+beneath it, with the scorecard `<details>` auto-opened, because the user just
+asked for the scorecard and landing them on another collapsed toggle is a
+dead step.
+
+Three details that were each one wrong assumption away from a regression:
+
+- **The `<details>` is state-backed, not attribute-driven.** PostCard
+  re-renders on every like and comment; a bare `open={defaultOpen}` would be
+  re-asserted each time and snap a user-closed scorecard back open. `useState`
+  + `onToggle` sync, so the DOM owns the gesture and React owns the default.
+- **Score-less rounds keep their old body.** `buildStatHighlights` returns
+  null when `gross_score` isn't a number, and the highlight card renders
+  nothing — without an explicit fallback those posts would have lost their
+  body entirely. They still get the classic `GolfRoundCard`.
+- **The two cards now derive to-par by the same rule.** `GolfRoundCard` summed
+  recorded-hole pars; the hero preferred the `par` column (#73). Both were
+  right in different cases: the column is authoritative for a complete round,
+  but for a partially recorded one the gross is a partial sum and must be
+  compared against the pars of the holes actually played — the column would
+  score 12 holes of strokes against 18 holes of par. `coursePar` (exported,
+  tested) now gates the column on completeness, and both cards call it.
+  Verified in the browser: a 12-of-18 round shows +12 in the hero, the player
+  row and the expanded badge; column-first would have shown −12.
+
+Cleanup while in the seam: `SportPostBody`'s `case 'golf'` switch arm was dead
+code (unreachable behind the golf early-return since #73) and
+`GolfStatsSummaryCard` had no reachable call site — both deleted. The
+scorecard `<summary>` also picked up `min-h-[44px]` + `active:` (the #75
+idiom) since the whole file was open.
+
+Browser-verified against the production build with a disposable user (both
+themes, 390px): one card by default, expand/collapse round-trips, label and
+`aria-expanded` flip, shared rounds still open their modal untouched.
+
 ## August 8, 2026 — Phone QA pass: what looked fine at 390px was clipped at 320px
 
 Tom: *"check it on my phone, make sure the changes match and the phone is

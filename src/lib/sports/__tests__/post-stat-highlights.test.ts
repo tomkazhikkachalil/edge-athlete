@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { buildStatHighlights } from '../post-stat-highlights';
+import { buildStatHighlights, coursePar } from '../post-stat-highlights';
 import { STAT_SCHEMAS } from '../stat-schemas';
 
 const statLine = (sport_key: string, stats: Record<string, number>, extra = {}) => ({
@@ -285,6 +285,22 @@ describe('buildStatHighlights — golf players and round metadata', () => {
       ]);
     });
 
+    it('sums recorded-hole pars for a PARTIALLY recorded round', () => {
+      // An 18-hole round abandoned after 12 holes: gross is a 12-hole sum, so
+      // to-par must compare against 12 holes of par, not the column's 72 —
+      // otherwise every partial round reads absurdly under par.
+      const h = buildStatHighlights({
+        sportKey: 'golf',
+        golfRound: solo({
+          gross_score: 50,
+          golf_holes: Array.from({ length: 12 }, () => ({ par: 4 })), // par 48
+        }),
+        author,
+      })!;
+      expect(h.hero).toEqual({ value: '+2', label: 'To Par' });
+      expect(h.heroToPar).toBe(2);
+    });
+
     it('hides zero/unrecorded GIR, fairways and putts', () => {
       // Tom's real rounds record 0% for both — "0% GIR · 0% FWY" reads broken.
       const h = buildStatHighlights({
@@ -300,5 +316,44 @@ describe('buildStatHighlights — golf players and round metadata', () => {
       })!;
       expect(withStats.support.map(t => t.label)).toEqual(['GIR', 'Putts']);
     });
+  });
+});
+
+describe('coursePar', () => {
+  const holes = (n: number, par = 4) => Array.from({ length: n }, () => ({ par }));
+
+  it('prefers the column when hole detail is absent', () => {
+    expect(coursePar({ par: 72 })).toBe(72);
+    expect(coursePar({ par: 72, golf_holes: null })).toBe(72);
+    expect(coursePar({ par: 72, golf_holes: [] })).toBe(72);
+  });
+
+  it('prefers the column for a fully recorded round', () => {
+    // Column beats the sum on complete rounds — the #73 rule: the column is
+    // authoritative, holes are a fallback for pre-column payloads.
+    expect(coursePar({ par: 70, holes: 18, golf_holes: holes(18) })).toBe(70);
+  });
+
+  it('sums recorded pars for a partially recorded round', () => {
+    // 12 of 18 holes recorded: gross is a partial sum, so par must be too.
+    expect(coursePar({ par: 72, holes: 18, golf_holes: holes(12) })).toBe(48);
+  });
+
+  it('falls back to the sum when the column is missing or zero', () => {
+    expect(coursePar({ golf_holes: holes(18) })).toBe(72);
+    expect(coursePar({ par: 0, golf_holes: holes(9, 4) })).toBe(36);
+  });
+
+  it('keeps the column when completeness is unknowable (no holes count)', () => {
+    // golf_holes joined but the round row carries no `holes` column: we can't
+    // tell partial from complete, so the authoritative column wins.
+    expect(coursePar({ par: 72, golf_holes: holes(12) })).toBe(72);
+  });
+
+  it('returns null when nothing usable is present', () => {
+    expect(coursePar(null)).toBeNull();
+    expect(coursePar(undefined)).toBeNull();
+    expect(coursePar({})).toBeNull();
+    expect(coursePar({ par: null, golf_holes: [{ par: 4 }, { par: null }] })).toBeNull();
   });
 });
