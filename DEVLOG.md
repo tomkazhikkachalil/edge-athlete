@@ -1,5 +1,32 @@
 # Development Log
 
+## August 9, 2026 — Feed cards: course first, actions last
+
+Tom, reviewing the feed after the one-card round: *"it should be the course
+name and then you see the stats underneath. I don't think it's necessary to
+have the + or - number. Reason being you see it in more detail right under
+it."* And: move Like/Comment/Share/Save *"to right above the comments
+section at the bottom."*
+
+**The hero is now roster-gated, not deleted.** StatHighlightCard skips the
+4xl number exactly when player rows render below — because those rows
+restate the same numbers (gross + coloured to-par per athlete), which is
+Tom's stated reason encoded as the condition. In effect: golf posts (solo
+and shared) lead with the course; stat-line sports keep their hero, since a
+hockey card has no roster restating anything. Confirmed with Tom before
+building: the photo strip (course + "75 +3" over the image) **stays**, and
+the profile grid tiles' score band **stays** — `buildStatHighlights` is
+untouched, so the tiles keep consuming `hero` and every builder test stays
+green without edits.
+
+**The action row moved from mid-card to the bottom** — after caption and
+stat cards, directly above CommentSection's "View Comments (N)" bar
+(`border-b` flipped to `border-t`; the row is otherwise byte-identical,
+44px targets included). It applies to every PostCard surface — feed, saved,
+vitals shared posts, and PostDetailModal — because they all render the same
+component. `handleComment`'s open-and-scroll still works; its target now
+sits directly below the button.
+
 ## August 9, 2026 — Touch-target pass, part 2: the long tail
 
 Same principle as part 1 (visuals unchanged, hit areas grow), applied to

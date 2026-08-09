@@ -556,53 +556,6 @@ function PostCard({
         </div>
       )}
 
-      {/* Actions */}
-      {showActions && (
-        <div className="px-base py-micro border-b border-border-subtle">
-          <div className="flex items-center gap-base">
-            <button
-              onClick={handleLike}
-              className={`flex items-center gap-2 text-base font-bold transition-colors min-h-[44px] ${
-                isLiked ? 'text-red-600 dark:text-red-400' : 'text-primary hover:text-red-600'
-              }`}
-            >
-              <i className={`${isLiked ? 'fas' : 'far'} fa-heart text-lg`}></i>
-              <span>{localLikesCount}</span>
-            </button>
-
-            <button
-              onClick={handleComment}
-              className="flex items-center gap-2 text-base font-bold text-primary hover:text-brand-fg transition-colors min-h-[44px]"
-            >
-              <i className="far fa-comment text-lg"></i>
-              <span>{localCommentsCount}</span>
-            </button>
-
-            {/* Icon-only actions: min-w so the tap target isn't just the
-                ~20px glyph (like/comment get width from their counts) */}
-            <button
-              onClick={handleShare}
-              className="flex items-center justify-center text-base font-bold text-primary hover:text-green-600 transition-colors min-h-[44px] min-w-[44px]"
-              title="Share post"
-              aria-label="Share post"
-            >
-              <i className="far fa-share-square text-lg"></i>
-            </button>
-
-            <button
-              onClick={handleSave}
-              className={`flex items-center justify-center text-base font-bold transition-colors ml-auto min-h-[44px] min-w-[44px] ${
-                isSaved ? 'text-yellow-600 dark:text-yellow-400' : 'text-primary hover:text-yellow-600'
-              }`}
-              title={isSaved ? 'Unsave post' : 'Save post'}
-              aria-label={isSaved ? 'Unsave post' : 'Save post'}
-            >
-              <i className={`${isSaved ? 'fas' : 'far'} fa-bookmark text-lg`}></i>
-            </button>
-          </div>
-        </div>
-      )}
-
       {/* Content */}
       <div className="px-4 sm:px-6 py-4">
         {/* Caption. Hidden when it is the composer's own "Golf at <course>"
@@ -726,6 +679,57 @@ function PostCard({
         )}
 
       </div>
+
+      {/* Actions — at the BOTTOM of the card, directly above the comments
+          bar (Tom's call, Aug 9: engage after you've seen the whole post).
+          border-t here + CommentSection's own border-t sandwich the row in
+          hairlines. The row deliberately isn't tied to the media — it closes
+          whatever the post contains. */}
+      {showActions && (
+        <div className="px-base py-micro border-t border-border-subtle">
+          <div className="flex items-center gap-base">
+            <button
+              onClick={handleLike}
+              className={`flex items-center gap-2 text-base font-bold transition-colors min-h-[44px] ${
+                isLiked ? 'text-red-600 dark:text-red-400' : 'text-primary hover:text-red-600'
+              }`}
+            >
+              <i className={`${isLiked ? 'fas' : 'far'} fa-heart text-lg`}></i>
+              <span>{localLikesCount}</span>
+            </button>
+
+            <button
+              onClick={handleComment}
+              className="flex items-center gap-2 text-base font-bold text-primary hover:text-brand-fg transition-colors min-h-[44px]"
+            >
+              <i className="far fa-comment text-lg"></i>
+              <span>{localCommentsCount}</span>
+            </button>
+
+            {/* Icon-only actions: min-w so the tap target isn't just the
+                ~20px glyph (like/comment get width from their counts) */}
+            <button
+              onClick={handleShare}
+              className="flex items-center justify-center text-base font-bold text-primary hover:text-green-600 transition-colors min-h-[44px] min-w-[44px]"
+              title="Share post"
+              aria-label="Share post"
+            >
+              <i className="far fa-share-square text-lg"></i>
+            </button>
+
+            <button
+              onClick={handleSave}
+              className={`flex items-center justify-center text-base font-bold transition-colors ml-auto min-h-[44px] min-w-[44px] ${
+                isSaved ? 'text-yellow-600 dark:text-yellow-400' : 'text-primary hover:text-yellow-600'
+              }`}
+              title={isSaved ? 'Unsave post' : 'Save post'}
+              aria-label={isSaved ? 'Unsave post' : 'Save post'}
+            >
+              <i className={`${isSaved ? 'fas' : 'far'} fa-bookmark text-lg`}></i>
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Comments Section */}
       <div ref={commentSectionRef}>
