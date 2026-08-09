@@ -45,29 +45,44 @@ interface SharedRoundFullCardProps {
   onMediaChanged?: () => void;
 }
 
-/** Shiny placement chip for the leaderboard. Gold/silver/bronze for the
- *  podium, a graphite tier for 4th and beyond (golf rounds go to four
- *  players), so every rank gets a medal-grade treatment. Ties share a rank
- *  (placements()). Pure CSS "metal": vertical gradient + a soft top
- *  highlight; the medal colours stay literal in dark mode — metal is metal,
- *  same rule as white pills on brand solids. */
-const PLACEMENT_TIERS: Record<number, string> = {
-  1: 'bg-gradient-to-b from-amber-200 via-yellow-400 to-amber-600 text-amber-950 ring-amber-500/70',
-  2: 'bg-gradient-to-b from-gray-100 via-gray-300 to-gray-500 text-gray-800 ring-gray-400/70',
-  3: 'bg-gradient-to-b from-orange-200 via-amber-500 to-orange-800 text-orange-950 ring-orange-700/70',
+/** Placement chip for the leaderboard, in BRAND VIOLET (Tom's call — the
+ *  gold/silver/bronze first cut read "cartoony" against the app). Rank is
+ *  expressed as a descending ramp of brightness AND polish: 1st is the
+ *  lightest violet with the strongest shine and an outer glow; each step
+ *  down is darker with less shine; 4th+ is matte with none. Ties share a
+ *  rank (placements()). One literal ramp for both themes — brand is brand,
+ *  same rule as metal medals and white pills. */
+const PLACEMENT_TIERS: Record<number, { chip: string; shine: string | null }> = {
+  1: {
+    chip: 'bg-gradient-to-b from-violet-300 via-violet-500 to-violet-700 text-white ring-violet-300/80 shadow-lg shadow-violet-500/50',
+    shine: 'bg-white/60',
+  },
+  2: {
+    chip: 'bg-gradient-to-b from-violet-500 via-violet-600 to-violet-800 text-white ring-violet-400/60 shadow-md shadow-violet-700/30',
+    shine: 'bg-white/35',
+  },
+  3: {
+    chip: 'bg-gradient-to-b from-violet-700 via-violet-800 to-violet-950 text-violet-100 ring-violet-600/50 shadow-sm',
+    shine: 'bg-white/20',
+  },
 };
-const PLACEMENT_DEFAULT =
-  'bg-gradient-to-b from-slate-200 via-slate-300 to-slate-500 text-slate-800 ring-slate-400/70 ' +
-  'dark:from-stone-400 dark:via-stone-500 dark:to-stone-700 dark:text-stone-950 dark:ring-stone-400/70';
+const PLACEMENT_DEFAULT: { chip: string; shine: string | null } = {
+  chip: 'bg-violet-950 text-violet-300 ring-violet-800/60',
+  shine: null, // matte — no polish left at 4th and beyond
+};
 
 function PlacementBadge({ rank }: { rank: number }) {
+  const tier = PLACEMENT_TIERS[rank] ?? PLACEMENT_DEFAULT;
   return (
     <span
-      className={`relative inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full ring-2 ring-inset shadow-md text-[11px] font-black tracking-tight ${
-        PLACEMENT_TIERS[rank] ?? PLACEMENT_DEFAULT
-      }`}
+      className={`relative inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full ring-2 ring-inset text-[11px] font-black tracking-tight ${tier.chip}`}
     >
-      <span aria-hidden className="pointer-events-none absolute inset-x-1.5 top-1 h-2.5 rounded-full bg-white/55 blur-[1.5px]" />
+      {tier.shine && (
+        <span
+          aria-hidden
+          className={`pointer-events-none absolute inset-x-1.5 top-1 h-2.5 rounded-full blur-[1.5px] ${tier.shine}`}
+        />
+      )}
       <span className="relative drop-shadow-sm">{ordinalLabel(rank)}</span>
     </span>
   );
@@ -354,7 +369,7 @@ export default function SharedRoundFullCard({
                             </span>
                             <span className={`font-bold text-primary text-xs min-w-0 truncate ${isCurrentUser ? 'text-brand-fg' : ''}`} title={displayName}>
                               {displayName}
-                              {isCurrentUser && <span className="ml-1">(You)</span>}
+                              {isCurrentUser && <span className="ml-1 inline-block">(You)</span>}
                             </span>
                           </div>
                         </td>
@@ -429,7 +444,7 @@ export default function SharedRoundFullCard({
                             )}
                             <span className={`font-bold text-tertiary text-xs truncate ${isCurrentUser ? 'text-brand-fg' : ''}`}>
                               {displayName}
-                              {isCurrentUser && <span className="ml-1">(You)</span>}
+                              {isCurrentUser && <span className="ml-1 inline-block">(You)</span>}
                             </span>
                           </div>
                         </td>
@@ -713,7 +728,7 @@ export default function SharedRoundFullCard({
                           <div className="flex-1 min-w-0">
                             <div className={`font-black text-base ${isCurrentUser ? 'text-brand-fg-strong' : 'text-primary'}`}>
                               {displayName}
-                              {isCurrentUser && <span className="ml-2 text-sm">(You)</span>}
+                              {isCurrentUser && <span className="ml-2 text-sm inline-block">(You)</span>}
                             </div>
                             <div className="text-sm text-tertiary">
                               {scores.holes_completed} of {golf_data.holes_played} holes
@@ -804,7 +819,7 @@ export default function SharedRoundFullCard({
                           <div className="flex-1 min-w-0">
                             <div className={`font-bold text-base ${isCurrentUser ? 'text-brand-fg-strong' : 'text-tertiary'}`}>
                               {displayName}
-                              {isCurrentUser && <span className="ml-2 text-sm">(You)</span>}
+                              {isCurrentUser && <span className="ml-2 text-sm inline-block">(You)</span>}
                             </div>
                             <div className="text-sm text-muted italic">
                               {isCurrentUser && onAddScores ? 'Tap to add your scores' : 'Awaiting scores'}
