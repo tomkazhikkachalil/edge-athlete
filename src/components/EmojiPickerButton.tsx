@@ -1,6 +1,7 @@
 'use client';
 
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useLayoutEffect } from 'react';
+import { createPortal } from 'react-dom';
 import dynamic from 'next/dynamic';
 import { Theme } from 'emoji-picker-react';
 import type { EmojiClickData } from 'emoji-picker-react';
@@ -11,6 +12,8 @@ const EmojiPicker = dynamic(() => import('emoji-picker-react'), {
   ssr: false,
   loading: () => null,
 });
+
+const PANEL_WIDTH_PX = 300;
 
 interface Props {
   onEmojiSelect: (emoji: string) => void;
@@ -31,6 +34,14 @@ interface Props {
    *  bottom edge. Outside-click is unaffected either way — the panel stays a
    *  DOM descendant of containerRef regardless of what it positions against. */
   anchor?: 'trigger' | 'container';
+  /** Render the open panel through a PORTAL to document.body, fixed-positioned
+   *  above the trigger. Required wherever a clipping ancestor would eat an
+   *  in-flow panel — the comment composer's collapsing cluster is
+   *  overflow-hidden, and PostCard's rounded root clips anything that leaves
+   *  the card (the globals.css CLIPPING RULE). Scrolling closes the panel
+   *  rather than letting it detach. Default off: in-flow call sites are
+   *  byte-identical to before. */
+  portal?: boolean;
 }
 
 export default function EmojiPickerButton({
@@ -39,9 +50,11 @@ export default function EmojiPickerButton({
   align = 'left',
   disabled = false,
   anchor = 'trigger',
+  portal = false,
 }: Props) {
   const [open, setOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
+  const panelRef = useRef<HTMLDivElement>(null);
   const { theme } = useTheme();
 
   // A panel left open while the button goes disabled (a send starting, say)
@@ -53,13 +66,15 @@ export default function EmojiPickerButton({
     if (disabled) setOpen(false);
   }
 
-  // Close on outside click or Escape
+  // Close on outside click or Escape. The portaled panel is NOT a DOM
+  // descendant of containerRef, so the outside test must consult both refs.
   useEffect(() => {
     if (!open) return;
     function handleClick(e: MouseEvent) {
-      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
-        setOpen(false);
-      }
+      const t = e.target as Node;
+      if (containerRef.current?.contains(t)) return;
+      if (panelRef.current?.contains(t)) return;
+      setOpen(false);
     }
     function handleKey(e: KeyboardEvent) {
       if (e.key === 'Escape') setOpen(false);
@@ -72,14 +87,58 @@ export default function EmojiPickerButton({
     };
   }, [open]);
 
+  // Portal mode: position above the trigger before paint (clamped to the
+  // viewport), close on any scroll instead of visually detaching.
+  useLayoutEffect(() => {
+    if (!portal || !open) return;
+    const trigger = containerRef.current;
+    const panel = panelRef.current;
+    if (!trigger || !panel) return;
+    const r = trigger.getBoundingClientRect();
+    const left = Math.max(8, Math.min(r.left, window.innerWidth - PANEL_WIDTH_PX - 8));
+    panel.style.left = `${left}px`;
+    panel.style.bottom = `${window.innerHeight - r.top + 8}px`;
+  }, [portal, open]);
+
+  useEffect(() => {
+    if (!portal || !open) return;
+    // capture:true sees scrolls from EVERY scroller — including the panel's
+    // own internal list, which fires on mount. Only outside scrolls close.
+    const onScroll = (e: Event) => {
+      if (panelRef.current?.contains(e.target as Node)) return;
+      setOpen(false);
+    };
+    // Grace before arming: the open-click's own auto-scroll can deliver a
+    // trailing scroll event a few ms after mount and instantly close the
+    // panel (observed at +11ms).
+    const t = setTimeout(() => {
+      window.addEventListener('scroll', onScroll, { capture: true, passive: true });
+    }, 150);
+    return () => {
+      clearTimeout(t);
+      window.removeEventListener('scroll', onScroll, { capture: true });
+    };
+  }, [portal, open]);
+
   const handleEmojiClick = (data: EmojiClickData) => {
     onEmojiSelect(data.emoji);
     setOpen(false);
   };
 
+  const panel = (
+    <EmojiPicker
+      onEmojiClick={handleEmojiClick}
+      theme={theme === 'dark' ? Theme.DARK : Theme.LIGHT}
+      lazyLoadEmojis
+      height={350}
+      width={`min(${PANEL_WIDTH_PX}px, calc(100vw - 2rem))`}
+      searchPlaceholder="Search emoji…"
+    />
+  );
+
   return (
     <div
-      className={`${anchor === 'trigger' ? 'relative ' : ''}${className}`}
+      className={`${anchor === 'trigger' && !portal ? 'relative ' : ''}${className}`}
       ref={containerRef}
     >
       <button
@@ -93,18 +152,18 @@ export default function EmojiPickerButton({
         <i className="fas fa-smile text-lg"></i>
       </button>
 
-      {open && (
+      {open && !portal && (
         <div className={`absolute bottom-full mb-2 z-50 ${align === 'right' ? 'right-0' : 'left-0'}`}>
-          <EmojiPicker
-            onEmojiClick={handleEmojiClick}
-            theme={theme === 'dark' ? Theme.DARK : Theme.LIGHT}
-            lazyLoadEmojis
-            height={350}
-            width="min(300px, calc(100vw - 2rem))"
-            searchPlaceholder="Search emoji…"
-          />
+          {panel}
         </div>
       )}
+      {open && portal &&
+        createPortal(
+          <div ref={panelRef} style={{ position: 'fixed' }} className="z-[70]">
+            {panel}
+          </div>,
+          document.body
+        )}
     </div>
   );
 }

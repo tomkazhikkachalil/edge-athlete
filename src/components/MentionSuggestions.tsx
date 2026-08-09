@@ -1,6 +1,7 @@
 'use client';
 
-import { useRef } from 'react';
+import { useLayoutEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import Image from 'next/image';
 import { formatDisplayName, getInitials } from '@/lib/formatters';
 import { usePopoverDismiss } from '@/hooks/usePopoverDismiss';
@@ -10,38 +11,86 @@ interface Props {
   open: boolean;
   candidates: MentionCandidate[];
   activeIndex: number;
+  /** The composer row / field wrapper the dropdown should span. */
+  anchorRef: React.RefObject<HTMLElement | null>;
   onHover: (index: number) => void;
   onSelect: (candidate: MentionCandidate) => void;
   onClose: () => void;
 }
 
 /**
- * The @mention dropdown. Rendered INSIDE the composer field's
- * `relative flex-1 min-w-0` wrapper as `absolute bottom-full` — it tracks
- * the growing textarea the same way the emoji panel does, and full field
- * width means it fits the 320px chat dock by construction. Dismissal is
- * usePopoverDismiss (mousedown + Escape), never a backdrop — an
- * autocomplete must not eat the click that dismisses it.
+ * The @mention dropdown — PORTALED to document.body and fixed-positioned
+ * over its anchor. Rendered in place it kept getting clipped: PostCard's
+ * rounded `overflow-hidden` root cut the upward panel exactly when the
+ * composer sat high in the card (wide screens — "works on mobile, broken
+ * on desktop" with zero breakpoint code), the post-detail modal stacks
+ * three clippers, and the chat dock caps everything at z-[45]. The portal
+ * escapes all of them with one mechanism.
+ *
+ * The rect re-measures on every render while open (each keystroke
+ * re-renders, so it tracks the growing textarea) and any scroll CLOSES the
+ * dropdown rather than letting it visually detach — the next keystroke
+ * reopens it. Dismissal is usePopoverDismiss on the PANEL ref (mousedown +
+ * Escape), never a backdrop; selection fires on MOUSEDOWN so the textarea
+ * doesn't blur first.
  */
 export default function MentionSuggestions({
   open,
   candidates,
   activeIndex,
+  anchorRef,
   onHover,
   onSelect,
   onClose,
 }: Props) {
-  const ref = useRef<HTMLDivElement | null>(null);
-  usePopoverDismiss(ref, open, onClose);
+  const panelRef = useRef<HTMLDivElement | null>(null);
+  usePopoverDismiss(panelRef, open, onClose);
+
+  // Deliberately no dependency array: re-measure after every render while
+  // open — the anchor grows/moves as the user types. Positions are written
+  // straight to the panel's style (before paint, so no flash) rather than
+  // through state: no re-render loop, nothing for the set-state-in-effect
+  // rule to object to.
+  useLayoutEffect(() => {
+    if (!open) return;
+    const anchor = anchorRef.current;
+    const panel = panelRef.current;
+    if (!anchor || !panel) return;
+    const r = anchor.getBoundingClientRect();
+    panel.style.left = `${r.left}px`;
+    panel.style.width = `${r.width}px`;
+    panel.style.bottom = `${window.innerHeight - r.top + 8}px`;
+  });
+
+  useLayoutEffect(() => {
+    if (!open) return;
+    // capture:true sees scrolls from EVERY scroller — including this panel's
+    // own overflow-y-auto list. Only scrolls OUTSIDE the panel close it.
+    const onScroll = (e: Event) => {
+      if (panelRef.current?.contains(e.target as Node)) return;
+      onClose();
+    };
+    // Grace before arming: the open-click's own auto-scroll can deliver a
+    // trailing scroll event a few ms after mount and instantly close the
+    // panel (observed at +11ms).
+    const t = setTimeout(() => {
+      window.addEventListener('scroll', onScroll, { capture: true, passive: true });
+    }, 150);
+    return () => {
+      clearTimeout(t);
+      window.removeEventListener('scroll', onScroll, { capture: true });
+    };
+  }, [open, onClose]);
 
   if (!open || candidates.length === 0) return null;
 
-  return (
+  return createPortal(
     <div
-      ref={ref}
+      ref={panelRef}
       role="listbox"
       aria-label="Mention suggestions"
-      className="absolute bottom-full left-0 right-0 mb-2 z-30 bg-surface-raised rounded-xl shadow-xl border border-border py-1 max-h-72 overflow-y-auto overscroll-contain"
+      style={{ position: 'fixed' }}
+      className="z-[70] bg-surface-raised rounded-xl shadow-xl border border-border py-1 max-h-72 overflow-y-auto overscroll-contain"
     >
       {candidates.map((c, i) => {
         const name = formatDisplayName(c.first_name, null, c.last_name, c.full_name);
@@ -84,6 +133,7 @@ export default function MentionSuggestions({
           </button>
         );
       })}
-    </div>
+    </div>,
+    document.body
   );
 }

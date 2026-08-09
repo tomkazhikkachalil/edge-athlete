@@ -1,5 +1,53 @@
 # Development Log
 
+## August 9, 2026 — The clipping rule bites twice more; the panels go portal
+
+Tom's cross-device pass: emoji picker dead in comments (every width), the
+@ typeahead dead on DESKTOP only, and long text unscrollable in every
+composer. All three were self-inflicted or latent geometry:
+
+- **Emoji**: the #97 collapsing cluster is an 80px `overflow-hidden` box —
+  and the 300×350 emoji panel rendered inside it. This is the documented
+  CLIPPING RULE, and MessageInput even carries the warning comment ("the
+  wrapper must never get overflow-hidden — that would clip the picker
+  panel"); the comments port didn't carry the rule across.
+- **Desktop @**: PostCard's root is `rounded-lg overflow-hidden`. The
+  dropdown opens UPWARD; on a wide screen the composer sits higher in the
+  card (less content above it), so the dropdown crossed the card's top
+  edge and was clipped — on a phone the same dropdown fit inside the card.
+  Viewport-sensitive with zero breakpoint code, which is why it read as
+  "works mobile, broken desktop". The post-detail modal stacks THREE
+  clippers on the same path; the sticky header (z-40) out-painted the
+  z-30 panel besides.
+- **Scroll**: all three composer textareas had `overflow-hidden`; past the
+  120px clamp there was no way to scroll back up or select. Now
+  `overflow-y-auto` — measurement (height→auto, scrollHeight) is
+  overflow-agnostic, and below the clamp nothing changes.
+
+**The durable fix is the house portal idiom, applied to both floating
+panels**: `MentionSuggestions` is now PORTALED to document.body, fixed-
+positioned over an `anchorRef` (the composer row / field wrapper),
+re-measured before paint on every keystroke so it tracks the growing
+textarea; `EmojiPickerButton` gains an opt-in `portal` prop (default off —
+in-flow call sites byte-identical) used by the comment composers. One
+mechanism survives every container: feed card, post-detail modal, chat
+dock's z-[45] cap.
+
+**Two portal lessons for the file:**
+- A portaled panel is no longer a DOM descendant of its trigger — the
+  outside-mousedown dismissal must consult BOTH refs.
+- Scroll-close listeners at `capture: true` hear scrolls from EVERYWHERE —
+  including the panel's OWN internal scroller (the emoji list fires one on
+  mount; observed closing the panel at +11ms) and the open-click's trailing
+  auto-scroll. Guard: ignore scrolls originating inside the panel, and arm
+  the listener after a 150ms grace.
+
+Verified with a cross-viewport parity probe (390×844 AND 1280×800): emoji
+opens, is hit-testable via elementFromPoint (the assertion that catches
+clipping AND z-order burial), and inserts; @ dropdown hit-testable + splices
+at both widths, inside the post-detail modal, and in messages; textareas
+scroll at the clamp. direct-message + chat-dock green.
+
 ## August 9, 2026 — The send button tucks inside the field on phones
 
 Tom's last nit on the composer polish: on phones the send button beside

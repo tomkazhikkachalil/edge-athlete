@@ -66,6 +66,9 @@ export default function CommentSection({
   const [showReplyGifPicker, setShowReplyGifPicker] = useState(false);
   const commentInputRef = useRef<HTMLTextAreaElement>(null);
   const replyInputRef = useRef<HTMLTextAreaElement>(null);
+  // Anchors for the portaled mention dropdown (spans the composer row).
+  const mainRowRef = useRef<HTMLDivElement>(null);
+  const replyRowRef = useRef<HTMLDivElement>(null);
   // handle → {id, handle} for every mention hydrated from the API; grows as
   // new comments post. MentionText renders only tokens found here.
   const [mentionMap, setMentionMap] = useState<Record<string, { id: string; handle: string }>>({});
@@ -614,13 +617,13 @@ export default function CommentSection({
           </button>
         </div>
       )}
-      <div className="relative flex items-end gap-1">
-        {/* Dropdown anchors to the ROW, not the field wrapper — full
-            composer width, so long names + handles fit on phones. */}
+      <div ref={replyRowRef} className="relative flex items-end gap-1">
+        {/* Portaled dropdown spans this row (full composer width). */}
         <MentionSuggestions
           open={replyMentionTypeahead.open}
           candidates={replyMentionTypeahead.candidates}
           activeIndex={replyMentionTypeahead.activeIndex}
+          anchorRef={replyRowRef}
           onHover={replyMentionTypeahead.setActiveIndex}
           onSelect={replyMentionTypeahead.select}
           onClose={replyMentionTypeahead.close}
@@ -652,8 +655,8 @@ export default function CommentSection({
             inert={!replyLeadingOpen}
             aria-hidden={!replyLeadingOpen}
           >
-            <div className="relative w-10 shrink-0 flex justify-center">
-              <EmojiPickerButton onEmojiSelect={handleReplyEmojiSelect} />
+            <div className="w-10 shrink-0 flex justify-center">
+              <EmojiPickerButton onEmojiSelect={handleReplyEmojiSelect} portal />
             </div>
             <button
               type="button"
@@ -693,7 +696,7 @@ export default function CommentSection({
               }
             }}
             placeholder="Write a reply..."
-            className="w-full pl-3 pr-10 sm:pr-3 py-1.5 border border-border-strong rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-500 text-sm resize-none overflow-hidden block"
+            className="w-full pl-3 pr-10 sm:pr-3 py-1.5 border border-border-strong rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-500 text-sm resize-none overflow-y-auto block"
             style={{ minHeight: COMPOSER_MIN_HEIGHT, maxHeight: COMPOSER_MAX_HEIGHT }}
             disabled={isSubmitting}
           />
@@ -769,12 +772,13 @@ export default function CommentSection({
                   </button>
                 </div>
               )}
-              <div className="relative flex items-end gap-1">
-                {/* Dropdown anchors to the ROW — full composer width. */}
+              <div ref={mainRowRef} className="relative flex items-end gap-1">
+                {/* Portaled dropdown spans this row (full composer width). */}
                 <MentionSuggestions
                   open={mentionTypeahead.open}
                   candidates={mentionTypeahead.candidates}
                   activeIndex={mentionTypeahead.activeIndex}
+                  anchorRef={mainRowRef}
                   onHover={mentionTypeahead.setActiveIndex}
                   onSelect={mentionTypeahead.select}
                   onClose={mentionTypeahead.close}
@@ -807,8 +811,8 @@ export default function CommentSection({
                     inert={!mainLeadingOpen}
                     aria-hidden={!mainLeadingOpen}
                   >
-                    <div className="relative w-10 shrink-0 flex justify-center">
-                      <EmojiPickerButton onEmojiSelect={handleEmojiSelect} />
+                    <div className="w-10 shrink-0 flex justify-center">
+                      <EmojiPickerButton onEmojiSelect={handleEmojiSelect} portal />
                     </div>
                     <button
                       type="button"
@@ -856,7 +860,7 @@ export default function CommentSection({
                       }
                     }}
                     placeholder="Write a comment..."
-                    className="w-full pl-3 pr-10 sm:pr-3 py-2 border border-border-strong rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-500 text-sm resize-none overflow-hidden block"
+                    className="w-full pl-3 pr-10 sm:pr-3 py-2 border border-border-strong rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-500 text-sm resize-none overflow-y-auto block"
                     style={{ minHeight: COMPOSER_MIN_HEIGHT, maxHeight: COMPOSER_MAX_HEIGHT }}
                     disabled={isSubmitting}
                   />
