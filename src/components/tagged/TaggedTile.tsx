@@ -127,13 +127,19 @@ export default function TaggedTile({ item, isOwnProfile, onClick, onUntag }: Tag
             </span>
           )}
         </div>
-        <div className="absolute inset-x-0 bottom-8 px-2 pb-1 opacity-0 group-hover:opacity-100 transition-opacity">
+        {/* Engagement row: hover on fine pointers, always on coarse — touch
+            has no hover. It needs its own scrim (the hover tint above stays
+            hover-only): always-visible white 11px text straight on an
+            arbitrary photo is unreadable. */}
+        <div className="absolute inset-x-0 bottom-8 bg-gradient-to-t from-black/60 to-transparent px-2 pb-1 pt-4 opacity-0 group-hover:opacity-100 pointer-coarse:opacity-100 transition-opacity">
           <div className="flex items-center justify-between text-[11px] text-white">
             <span className="flex items-center gap-2">
               <span className="flex items-center gap-1"><Heart className="w-3 h-3" aria-hidden="true" />{item.likes_count}</span>
               <span className="flex items-center gap-1"><MessageCircle className="w-3 h-3" aria-hidden="true" />{item.comments_count}</span>
             </span>
-            <span className="text-gray-200">
+            {/* A 124px tile at 320px can't fit "about 2 hours ago" beside the
+                counts — same gate MediaGridItem uses. */}
+            <span className="text-gray-200 hidden min-[380px]:inline">
               {formatDistanceToNow(new Date(item.created_at), { addSuffix: true })}
             </span>
           </div>
@@ -185,7 +191,9 @@ export default function TaggedTile({ item, isOwnProfile, onClick, onUntag }: Tag
       )}
 
       {/* Owner-only untag — outside the tile button (nested buttons are
-          invalid HTML and break click targets). */}
+          invalid HTML and break click targets). pointer-coarse: because this
+          is the ONLY untag affordance on the surface — hover-revealed meant
+          it did not exist on touch at all. */}
       {isOwnProfile && (
         <button
           type="button"
@@ -194,7 +202,7 @@ export default function TaggedTile({ item, isOwnProfile, onClick, onUntag }: Tag
             onUntag();
           }}
           aria-label={`Remove tag from post by ${name}`}
-          className="absolute top-2 left-2 z-10 flex h-6 w-6 items-center justify-center rounded-full bg-black/55 text-white opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100 hover:bg-black/75"
+          className="absolute top-2 left-2 z-10 flex h-6 w-6 items-center justify-center rounded-full bg-black/55 text-white opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100 pointer-coarse:opacity-100 hover:bg-black/75"
         >
           <X className="w-3.5 h-3.5" aria-hidden="true" />
         </button>
