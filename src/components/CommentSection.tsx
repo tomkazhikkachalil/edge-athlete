@@ -693,10 +693,22 @@ export default function CommentSection({
               }
             }}
             placeholder="Write a reply..."
-            className="w-full px-3 py-1.5 border border-border-strong rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-500 text-sm resize-none overflow-hidden block"
+            className="w-full pl-3 pr-10 sm:pr-3 py-1.5 border border-border-strong rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-500 text-sm resize-none overflow-hidden block"
             style={{ minHeight: COMPOSER_MIN_HEIGHT, maxHeight: COMPOSER_MAX_HEIGHT }}
             disabled={isSubmitting}
           />
+          {/* In-field send (phones only): beside the field it cost ~48px of
+              text box; the pr-10 gutter above keeps text clear of it. */}
+          <button
+            type="button"
+            onClick={() => handleSubmitReply(parentCommentId)}
+            disabled={(!replyText.trim() && !replyGifUrl) || isSubmitting}
+            aria-label="Post reply"
+            title="Post reply"
+            className="sm:hidden absolute right-1 bottom-1 w-8 h-8 flex items-center justify-center bg-brand text-white rounded-full hover:bg-brand-hover disabled:opacity-50 transition-colors"
+          >
+            <i className={isSubmitting ? 'fas fa-spinner fa-spin text-xs' : 'fas fa-paper-plane text-xs'}></i>
+          </button>
         </div>
         <button
           type="button"
@@ -704,7 +716,7 @@ export default function CommentSection({
           disabled={(!replyText.trim() && !replyGifUrl) || isSubmitting}
           aria-label="Post reply"
           title="Post reply"
-          className="w-10 h-10 shrink-0 flex items-center justify-center bg-brand text-white rounded-full hover:bg-brand-hover disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+          className="hidden w-10 h-10 shrink-0 sm:flex items-center justify-center bg-brand text-white rounded-full hover:bg-brand-hover disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
         >
           <i className={isSubmitting ? 'fas fa-spinner fa-spin text-sm' : 'fas fa-paper-plane text-sm'}></i>
         </button>
@@ -844,15 +856,27 @@ export default function CommentSection({
                       }
                     }}
                     placeholder="Write a comment..."
-                    className="w-full px-3 py-2 border border-border-strong rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-500 text-sm resize-none overflow-hidden block"
+                    className="w-full pl-3 pr-10 sm:pr-3 py-2 border border-border-strong rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-500 text-sm resize-none overflow-hidden block"
                     style={{ minHeight: COMPOSER_MIN_HEIGHT, maxHeight: COMPOSER_MAX_HEIGHT }}
                     disabled={isSubmitting}
                   />
+                  {/* In-field send (phones only) — the "Post" pill beside
+                      the field cost ~70px of text box there. */}
+                  <button
+                    type="button"
+                    onClick={() => handleSubmitComment()}
+                    disabled={(!newComment.trim() && !gifUrl) || isSubmitting}
+                    aria-label="Post comment"
+                    title="Post comment"
+                    className="sm:hidden absolute right-1 bottom-1.5 w-8 h-8 flex items-center justify-center bg-brand text-white rounded-full hover:bg-brand-hover disabled:opacity-50 transition-colors"
+                  >
+                    <i className={isSubmitting ? 'fas fa-spinner fa-spin text-xs' : 'fas fa-paper-plane text-xs'}></i>
+                  </button>
                 </div>
                 <button
                   type="submit"
                   disabled={(!newComment.trim() && !gifUrl) || isSubmitting}
-                  className="px-4 py-2 bg-brand text-white rounded-lg text-sm font-medium hover:bg-brand-hover disabled:opacity-50 disabled:cursor-not-allowed transition-colors shrink-0"
+                  className="hidden sm:block px-4 py-2 bg-brand text-white rounded-lg text-sm font-medium hover:bg-brand-hover disabled:opacity-50 disabled:cursor-not-allowed transition-colors shrink-0"
                 >
                   {isSubmitting ? 'Posting...' : 'Post'}
                 </button>

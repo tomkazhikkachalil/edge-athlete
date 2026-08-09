@@ -1,5 +1,21 @@
 # Development Log
 
+## August 9, 2026 — The send button tucks inside the field on phones
+
+Tom's last nit on the composer polish: on phones the send button beside
+the text box still cost width; on bigger screens there's plenty of room.
+Below `sm`, both comment composers now put an icon send INSIDE the field's
+trailing edge (`absolute right-1 bottom-*` in the already-relative field
+wrapper, with a `pr-10 sm:pr-3` gutter so text never runs under it —
+MessageInput's in-field-emoji idiom). The outer controls (the "Post" pill,
+the round reply send) become `hidden sm:*` — desktop is untouched. Two
+buttons per composer sharing one handler; exactly one visible per
+breakpoint. Nets ~70px (main) / ~48px (reply) more text box at 390px.
+
+Verified at 390×844 (in-field send inside the textarea's bounds, tap posts,
+Enter posts, main box 238px vs ~168 before) and 1280×800 (the pill is the
+visible send; in-field hidden).
+
 ## August 9, 2026 — Comment composer earns its width on phones
 
 Tom's device pass on the comments round: replies and @ work, but the reply
