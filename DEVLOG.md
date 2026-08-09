@@ -1,5 +1,34 @@
 # Development Log
 
+## August 9, 2026 — Message quick-actions: strip is fine-pointer-only; scroll no longer misfires long-press
+
+Closes the open decision from the touch-target round: MessageBubble's
+quick-action strip was hover-revealed and `hidden sm:flex`, so on a
+coarse-pointer tablet ≥640px it rendered but could never appear — violating
+the #77 rule (a hover-revealed overlay must declare its coarse-pointer
+state). The audit reframed it: touch users were never actionless — the
+long-press overlay (a superset of the strip: same emoji + GIF + more +
+Reply + ellipsis, at 36px targets) already works at EVERY width, and both
+overlays share the same `bottom-full` anchor, so an always-on strip would
+have stacked under it with 28px thumb targets. Tom's call: **long-press is
+the one touch affordance.**
+
+- Strip gate: `hidden sm:flex` → `hidden sm:pointer-fine:flex` (Tailwind
+  v4.3 built-in, sibling of the `pointer-coarse:` we already use). The
+  compound variant avoids any `sm:flex` vs `pointer-coarse:hidden` cascade
+  ambiguity.
+- `focus-within:opacity-100` on the strip positioner: its 8 buttons were
+  tabbable but invisible (the gap TaggedTile solved with `focus-visible:`).
+- **Long-press scroll misfire fixed**: the 400ms timer had no `onTouchMove`
+  cancel, so touch-scrolling a thread with a finger starting on a bubble
+  opened the overlay mid-scroll. Now wired to the same clear-timer handler
+  as end/cancel — the rule ReactionBar's chip long-press already followed.
+
+Verified with a coarse-pointer (iPad-emulated) probe on the real UI:
+strip `display: none` under `pointer: coarse`, long-press opens the
+overlay, touchstart+touchmove does NOT; fine-pointer hover still reveals
+the strip; direct-message + chat-dock specs green.
+
 ## August 9, 2026 — A real dark logo replaces the invert filter
 
 The dark-mode logo was `filter: invert(1) hue-rotate(180deg)` on

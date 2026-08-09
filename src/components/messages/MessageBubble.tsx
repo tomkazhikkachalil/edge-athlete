@@ -79,6 +79,9 @@ export default function MessageBubble({
     }, 400);
   }, []);
 
+  // Also wired to onTouchMove: a scroll that starts with a finger on a
+  // bubble must cancel the press, not open the overlay 400ms into the
+  // scroll (same rule as ReactionBar's chip long-press).
   const handleTouchEnd = useCallback(() => {
     if (longPressTimer.current) {
       clearTimeout(longPressTimer.current);
@@ -192,6 +195,7 @@ export default function MessageBubble({
           onTouchStart={handleTouchStart}
           onTouchEnd={handleTouchEnd}
           onTouchCancel={handleTouchEnd}
+          onTouchMove={handleTouchEnd}
         >
           {/* Quoted reply preview */}
           {message.reply_to && (
@@ -288,13 +292,17 @@ export default function MessageBubble({
             </div>
           )}
 
-          {/* Quick-reaction bar — desktop hover */}
+          {/* Quick-reaction bar — hover/fine-pointer ONLY (sm:pointer-fine:).
+              Touch gets the long-press overlay below at every width instead:
+              an always-on strip would put 28px targets under thumbs and stack
+              with that overlay at this same bottom-full anchor. focus-within
+              reveals it for keyboard users tabbing into its buttons. */}
           <div
-            className={`absolute z-10 opacity-0 group-hover:opacity-100 transition-opacity ${
+            className={`absolute z-10 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity ${
               isOwn ? 'right-0' : 'left-0'
             } bottom-full mb-1`}
           >
-            <div className="hidden sm:flex items-center gap-0.5 bg-surface border border-border rounded-full shadow-lg px-1.5 py-1">
+            <div className="hidden sm:pointer-fine:flex items-center gap-0.5 bg-surface border border-border rounded-full shadow-lg px-1.5 py-1">
               {QUICK_EMOJIS.map((emoji) => (
                 <button
                   key={emoji}
