@@ -4,11 +4,14 @@
 // body lives in its own component (e.g. golf/GolfRoundCard); adding a sport
 // means adding a case here + a component, with zero edits to PostCard.
 // See docs/MULTI_SPORT_ROADMAP.md ("Feed rendering" seam).
+'use client';
+
+import { useState } from 'react';
 import GolfRoundCard from './golf/GolfRoundCard';
-import GolfStatsSummaryCard from './golf/GolfStatsSummaryCard';
 import StatLineCard from './StatLineCard';
 import StatHighlightCard from './StatHighlightCard';
 import { isStatLineData } from '@/lib/sports/stat-schemas';
+import { buildStatHighlights } from '@/lib/sports/post-stat-highlights';
 import type { GolfRound } from '@/types/golf';
 
 interface SportPostBodyProps {
@@ -37,47 +40,77 @@ export default function SportPostBody({
   author,
   onExpandScorecard,
 }: SportPostBodyProps) {
-  const highlight = (
-    <StatHighlightCard
-      sportKey={sportKey}
-      statsData={statsData}
-      golfRound={golfRound}
-      groupScorecard={groupScorecard}
-      viewerId={viewerId}
-      author={author}
-      onExpand={onExpandScorecard}
-    />
-  );
+  // Solo rounds disclose their scorecard inline (shared rounds open a modal
+  // owned by PostCard instead). Unconditional: hooks can't sit behind the
+  // sport dispatch below.
+  const [scorecardExpanded, setScorecardExpanded] = useState(false);
 
-  // GOLF gets the complete card whether or not there is a photo: the course,
-  // the score and WHO PLAYED are the post, and the old summary rendered them
-  // as 12px label:value pairs. The solo scorecard body still follows it.
+  // GOLF leads with ONE card — the highlight (course, to-par hero, who
+  // played). The classic GolfRoundCard (hole tables, conditions) used to
+  // stack under it, repeating course/score/to-par on every post; now it is
+  // the card's expanded state instead, behind "View full scorecard".
   if (sportKey === 'golf') {
+    // Pure and cheap — ask the card's own builder whether it will render
+    // rather than duplicating its rules here.
+    const highlights = buildStatHighlights({
+      sportKey,
+      statsData,
+      golfRound,
+      groupScorecard,
+      viewerId,
+      author,
+    });
+
+    // A score-less round gives the highlight card nothing to lead with; the
+    // classic round card is the whole body, exactly as before.
+    if (!highlights) {
+      return golfRound ? <GolfRoundCard round={golfRound} /> : null;
+    }
+
+    const soloExpandable = !groupScorecard && !!golfRound;
     return (
       <>
-        {golfRound && <GolfRoundCard round={golfRound} />}
-        {highlight}
+        <StatHighlightCard
+          sportKey={sportKey}
+          statsData={statsData}
+          golfRound={golfRound}
+          groupScorecard={groupScorecard}
+          viewerId={viewerId}
+          author={author}
+          onExpand={
+            groupScorecard
+              ? onExpandScorecard
+              : soloExpandable
+                ? () => setScorecardExpanded(v => !v)
+                : undefined
+          }
+          expanded={soloExpandable ? scorecardExpanded : undefined}
+        />
+        {soloExpandable && scorecardExpanded && golfRound && (
+          <GolfRoundCard round={golfRound} defaultOpenScorecard />
+        )}
       </>
     );
   }
 
-  // Stat-line sports: only without media, since a photo post already leads
-  // with MediaStatStrip over the image.
-  if (!hasMedia && isStatLineData(statsData)) return highlight;
-
-  switch (sportKey) {
-    case 'golf':
-      return (
-        <>
-          {golfRound && <GolfRoundCard round={golfRound} />}
-          {statsData && <GolfStatsSummaryCard statsData={statsData} />}
-        </>
-      );
-    default:
-      // Stat-line sports (ice hockey, volleyball, …) — schema-driven card
-      if (isStatLineData(statsData)) {
-        return <StatLineCard line={statsData} />;
-      }
-      return null;
+  // Stat-line sports: hero treatment only without media, since a photo post
+  // already leads with MediaStatStrip over the image.
+  if (!hasMedia && isStatLineData(statsData)) {
+    return (
+      <StatHighlightCard
+        sportKey={sportKey}
+        statsData={statsData}
+        golfRound={golfRound}
+        groupScorecard={groupScorecard}
+        viewerId={viewerId}
+        author={author}
+      />
+    );
   }
+
+  // Stat-line sports with media — schema-driven card below the photo.
+  if (isStatLineData(statsData)) {
+    return <StatLineCard line={statsData} />;
+  }
+  return null;
 }

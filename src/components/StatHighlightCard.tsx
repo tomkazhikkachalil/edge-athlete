@@ -52,6 +52,10 @@ interface StatHighlightCardProps {
   /** Opens the full scorecard. Same handler the quick view uses, so this card
    *  can replace it without losing the way through to the detail. */
   onExpand?: () => void;
+  /** Solo rounds toggle an inline disclosure, so the button reflects state.
+   *  Shared rounds open a modal instead and never pass this — aria-expanded
+   *  stays absent there, where it would be wrong. */
+  expanded?: boolean;
 }
 
 export default function StatHighlightCard({
@@ -62,6 +66,7 @@ export default function StatHighlightCard({
   viewerId,
   author,
   onExpand,
+  expanded,
 }: StatHighlightCardProps) {
   const highlights = buildStatHighlights({
     sportKey,
@@ -165,9 +170,10 @@ export default function StatHighlightCard({
             <button
               type="button"
               onClick={onExpand}
+              aria-expanded={expanded}
               className="flex min-h-[44px] w-full items-center justify-end text-xs font-semibold text-brand-fg hover:text-brand-fg-strong active:text-brand-fg-strong"
             >
-              View full scorecard ›
+              {expanded ? 'Hide scorecard ‹' : 'View full scorecard ›'}
             </button>
           )}
         </div>

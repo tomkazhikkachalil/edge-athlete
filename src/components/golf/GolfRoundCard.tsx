@@ -1,10 +1,27 @@
 // GolfRoundCard — sport-specific post body for golf round recaps.
 // Extracted verbatim from PostCard.tsx (Phase B seam: sport post bodies are
 // dispatched by sport_key via SportPostBody instead of inlined in the shared
-// feed card). Pure render, no state — expansion uses native <details>.
-import type { GolfRound } from '@/types/golf';
+// feed card). Scorecard expansion is a <details> backed by state so a parent
+// re-render (PostCard re-renders on every like/comment) can't re-assert the
+// open attribute and snap a user-closed scorecard back open.
+'use client';
 
-export default function GolfRoundCard({ round }: { round: GolfRound }) {
+import { useState } from 'react';
+import type { GolfRound } from '@/types/golf';
+import { coursePar } from '@/lib/sports/post-stat-highlights';
+
+export default function GolfRoundCard({
+  round,
+  defaultOpenScorecard = false,
+}: {
+  round: GolfRound;
+  /** When the card is revealed by "View full scorecard", the user already
+   *  asked for the scorecard — landing them on another collapsed toggle
+   *  would be a dead step. */
+  defaultOpenScorecard?: boolean;
+}) {
+  const [scorecardOpen, setScorecardOpen] = useState(defaultOpenScorecard);
+
   return (
     <>
     <div className="bg-gradient-to-br from-green-50 to-green-100 dark:from-green-950/40 dark:to-green-950/60 rounded-lg p-3 mt-2 border border-green-200 dark:border-green-800">
@@ -40,10 +57,12 @@ export default function GolfRoundCard({ round }: { round: GolfRound }) {
 
         {/* Large Score Badge */}
         {round.gross_score !== null && round.gross_score !== undefined && (() => {
-          // Calculate actual par from recorded holes
-          const actualPar = round.golf_holes?.reduce((sum: number, hole) => sum + (hole.par || 0), 0) || 0;
+          // Same to-par rule as the highlight card's hero (coursePar): the
+          // par COLUMN for a complete round, recorded-hole pars for a partial
+          // one — the two cards must never disagree about the same round.
+          const par = coursePar(round);
           const holesPlayed = round.golf_holes?.length || 0;
-          const toPar = actualPar > 0 ? round.gross_score - actualPar : null;
+          const toPar = par !== null ? round.gross_score - par : null;
 
           return (
             <div className="text-right ml-3">
@@ -127,8 +146,12 @@ export default function GolfRoundCard({ round }: { round: GolfRound }) {
 
       {/* Collapsible Traditional Scorecard */}
       {round.golf_holes && round.golf_holes.length > 0 && (
-        <details className="group">
-          <summary className="cursor-pointer text-xs font-medium text-green-700 dark:text-green-300 hover:text-green-900 dark:text-green-100 flex items-center gap-1 py-1">
+        <details
+          className="group"
+          open={scorecardOpen}
+          onToggle={(e) => setScorecardOpen(e.currentTarget.open)}
+        >
+          <summary className="cursor-pointer text-xs font-medium text-green-700 dark:text-green-300 hover:text-green-900 dark:text-green-100 active:text-green-900 dark:active:text-green-100 flex items-center gap-1 min-h-[44px]">
             <i className="fas fa-chevron-right group-open:rotate-90 transition-transform text-[10px]"></i>
             View Scorecard ({round.golf_holes.length} holes)
           </summary>
