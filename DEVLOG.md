@@ -1,5 +1,45 @@
 # Development Log
 
+## August 9, 2026 — One player order, a fixed name column, and medals (migration 071)
+
+Tom: the names came out in a different order on the feed than in the
+details. The audit found it was worse than inconsistent sorting — it was
+**unspecified**: the feed card sorted best-first, the detail scorecard
+rendered the raw PostgREST embed order (which has NO order clause anywhere
+and physically shuffles when rows are UPDATEd), and creation input order
+was never captured at rest at all — the invitee batch is one INSERT, so
+every invitee shares a byte-identical `created_at`.
+
+**Migration 071** adds `group_post_participants.position` (creation input
+order, creator's slot included — "Add Myself" can put the creator anywhere)
+and both write paths populate it (late additions append `max+1`). **One
+comparator** — `participantOrder` in scorecard-transform: `position` asc
+nulls-last, `created_at` asc, `id` asc — applied in the transform itself,
+so every consumer inherits: feed card, detail scorecard, live quick view,
+score entry chips, profile tiles (the media route imports the same
+comparator). Legacy rounds come out creator-first (their creator row IS an
+earlier transaction) with a stable id tiebreak. `buildStatHighlights`'
+best-first sort is deleted; the tile sub-line, which quietly relied on
+`players[0]` being the leader, now picks viewer-else-leader explicitly —
+the same rule as the hero above it.
+
+**Fixed name column** (Tom: rows must stack aligned): the feed card's
+player rows show `shortName` ("Tom K.", the existing `formatShortName`) in
+a `w-[84px] sm:w-24` column when a hole strip renders, so every strip and
+every score starts at the same x. Full names stay in the detail card;
+`title=` carries the full name on the short one.
+
+**Leaderboard medals** (Tom: keep it ranked, add polished placement
+badges that survive four players): gold/silver/bronze gradients plus a
+graphite tier for 4th+, pure CSS with a top-highlight shine, medal colours
+literal in dark (metal is metal — the white-pill rule). Ranks are
+tie-aware competition ranking (`placements`: 1, 1, 3) over the same metric
+the sort used, so equal rounds share a medal. Replaces the old
+trophy-for-first/big-number-for-rest slot.
+
+**Ship gate:** migration 071 runs BEFORE this deploys — the participants
+select now names `position`, which 42703s without it.
+
 ## August 9, 2026 — Under par is violet, everywhere
 
 Tom's call, closing the divergence the hole strip surfaced: *"Fix the birdie

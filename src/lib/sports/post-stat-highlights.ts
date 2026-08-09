@@ -24,7 +24,7 @@ import { getStatSchema, isStatLineData } from './stat-schemas';
 import { buildPostHeadline } from './post-headline';
 import { asGameFormat, GAME_FORMAT_LABELS } from '../golf/formats';
 import { holePar } from '../golf/scoring';
-import { formatDisplayName } from '../formatters';
+import { formatDisplayName, formatShortName } from '../formatters';
 
 export interface StatTile {
   value: string;
@@ -39,11 +39,15 @@ export interface StatPlayerHole {
   par: number | null;
 }
 
-/** One athlete's line in a round. Avatars come free with the feed payload —
- *  GROUP_SCORECARD_SELECT already joins the participant's profile. */
+/** One athlete's line in a round, in CREATION ORDER (the payload arrives
+ *  pre-sorted by participantOrder — never re-sort by score here; Tom's rule
+ *  is that the input order holds on every surface). Avatars come free with
+ *  the feed payload — GROUP_SCORECARD_SELECT already joins the profile. */
 export interface StatPlayer {
   profileId: string | null;
   name: string;
+  /** "Tom K." — fits the card's fixed name column; full name is for details. */
+  shortName: string;
   avatarUrl: string | null;
   score: number;
   toPar: number | null;
@@ -69,7 +73,7 @@ export interface StatHighlights {
   support: StatTile[];
   /** Golf to-par drives semantic colour (under par green, over par red). */
   heroToPar?: number | null;
-  /** Everyone who scored, best first. Empty for sports without a roster. */
+  /** Everyone who scored, in creation order. Empty without a roster. */
   players?: StatPlayer[];
   /** "18 holes", "Stroke play" — the round's context line. */
   meta?: string[];
@@ -194,8 +198,10 @@ function sharedRoundScores(
   );
   const chosen = mine ?? best;
 
-  // Everyone who scored, best first — the roster IS the story of a shared
-  // round, and their profiles (avatar included) are already in the payload.
+  // Everyone who scored, in CREATION ORDER — the payload arrives pre-sorted
+  // by participantOrder (scorecard-transform), and the roster must match the
+  // detail card and score entry exactly. The hero still picks viewer-else-
+  // leader independently of this order.
   const holeData = golfData.hole_data ?? null;
   const players: StatPlayer[] = scored
     .map(p => {
@@ -203,6 +209,7 @@ function sharedRoundScores(
       return {
         profileId: p.participant?.profile_id ?? null,
         name: formatDisplayName(prof?.first_name, null, prof?.last_name, prof?.full_name),
+        shortName: formatShortName(prof?.first_name, prof?.last_name, prof?.full_name, 12),
         avatarUrl: prof?.avatar_url ?? null,
         score: p.scores!.total_score as number,
         toPar: typeof p.scores?.to_par === 'number' ? p.scores.to_par : null,
@@ -216,8 +223,7 @@ function sharedRoundScores(
           }))
           .sort((a, b) => a.hole - b.hole),
       };
-    })
-    .sort((a, b) => a.score - b.score);
+    });
 
   const groupPost = groupScorecard.group_post as { date?: string | null } | undefined;
 
@@ -329,6 +335,7 @@ export function buildStatHighlights(input: BuildInput): StatHighlights | null {
             {
               profileId: author.id ?? null,
               name: formatDisplayName(author.first_name, null, author.last_name, author.full_name),
+              shortName: formatShortName(author.first_name, author.last_name, author.full_name, 12),
               avatarUrl: author.avatar_url ?? null,
               score: gross,
               toPar,

@@ -113,14 +113,26 @@ export async function POST(
       );
     }
 
+    // Late additions append to the canonical creation order (migration 071):
+    // next position after the current max, in the order they're added now.
+    const { data: maxRow } = await supabase
+      .from('group_post_participants')
+      .select('position')
+      .eq('group_post_id', id)
+      .order('position', { ascending: false, nullsFirst: false })
+      .limit(1)
+      .maybeSingle();
+    const nextPosition = (maxRow?.position ?? -1) + 1;
+
     // Add participants — AUTO-CONFIRMED (same model as creation-time invites:
     // anyone invited can score immediately; only an explicit decline excludes)
-    const participantInserts = participant_ids.map((profile_id: string) => ({
+    const participantInserts = participant_ids.map((profile_id: string, i: number) => ({
       group_post_id: id,
       profile_id,
       role: role || 'participant',
       status: 'confirmed',
       attested_at: new Date().toISOString(),
+      position: nextPosition + i,
     }));
 
     const { data: newParticipants, error: insertError } = await supabase

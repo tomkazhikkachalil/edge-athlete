@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { GROUP_SCORECARD_SELECT, transformGroupPostToScorecard } from '../scorecard-transform';
+import { GROUP_SCORECARD_SELECT, transformGroupPostToScorecard, participantOrder } from '../scorecard-transform';
 
 const raw = (participants: unknown[]) => ({
   id: 'gp1',
@@ -62,5 +62,40 @@ describe('GROUP_SCORECARD_SELECT', () => {
       participants: [],
     });
     expect(out?.group_post.post_id).toBe('feed-post-1');
+  });
+});
+
+describe('participantOrder — the canonical creation order', () => {
+  it('position wins, ascending', () => {
+    const rows = [{ position: 2, id: 'a' }, { position: 0, id: 'b' }, { position: 1, id: 'c' }];
+    expect(rows.sort(participantOrder).map(r => r.id)).toEqual(['b', 'c', 'a']);
+  });
+
+  it('null positions sort AFTER positioned rows (legacy mixed with new)', () => {
+    const rows = [{ position: null, id: 'legacy' }, { position: 0, id: 'new' }];
+    expect(rows.sort(participantOrder).map(r => r.id)).toEqual(['new', 'legacy']);
+  });
+
+  it('legacy rounds: created_at puts the creator first, id breaks the invitee tie', () => {
+    // The invitee batch is one INSERT — identical created_at; the creator row
+    // is a separate, earlier transaction.
+    const rows = [
+      { position: null, created_at: '2026-08-01T10:00:05Z', id: 'z-invitee' },
+      { position: null, created_at: '2026-08-01T10:00:05Z', id: 'a-invitee' },
+      { position: null, created_at: '2026-08-01T10:00:01Z', id: 'creator' },
+    ];
+    expect(rows.sort(participantOrder).map(r => r.id)).toEqual(['creator', 'a-invitee', 'z-invitee']);
+  });
+
+  it('the transform emits participants in canonical order', () => {
+    const rows = [
+      { ...participant('late', null), position: null, created_at: '2026-08-02T09:00:00Z' },
+      { ...participant('second', null), position: 1, created_at: '2026-08-01T10:00:00Z' },
+      { ...participant('first', null), position: 0, created_at: '2026-08-01T10:00:00Z' },
+    ];
+    const out = transformGroupPostToScorecard(raw(rows))!;
+    expect(out.participants.map((p: { participant: { id: string } }) => p.participant.id)).toEqual([
+      'first', 'second', 'late',
+    ]);
   });
 });

@@ -179,14 +179,18 @@ export default function StatHighlightCard({
                 size={28}
                 fallbackInitials={getInitials(p.name)}
               />
-              {/* With a strip the name yields the middle of the row to it
-                  (capped, truncating); without one it stretches as before. */}
+              {/* FIXED name column when a strip renders (Tom: rows must stack
+                  aligned — variable name widths made every strip and score
+                  start at a different x). shortName ("Tom K.") fits the
+                  budget; the full name lives in the detail card. title=
+                  carries the full name for hover/long-press. */}
               <span
-                className={`${p.holes.length > 0 ? 'max-w-[35%]' : 'flex-1'} min-w-0 truncate text-sm ${
+                title={p.name}
+                className={`${p.holes.length > 0 ? 'w-[84px] sm:w-24 shrink-0' : 'flex-1 min-w-0'} truncate text-sm ${
                   p.isViewer ? 'font-bold text-primary' : 'font-medium text-secondary'
                 }`}
               >
-                {p.name}
+                {p.shortName}
               </span>
               {p.holes.length > 0 && <HoleStrip holes={p.holes} />}
               <span className="text-base font-black text-primary tabular-nums shrink-0">
