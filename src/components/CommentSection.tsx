@@ -12,6 +12,7 @@ import {
   COMPOSER_MAX_HEIGHT,
   composerTextareaHeight,
 } from '@/components/messages/composer-layout';
+import { flattenReplies, collectDescendantIds } from '@/lib/comment-thread';
 
 interface CommentSectionProps {
   postId: string;
@@ -171,7 +172,11 @@ export default function CommentSection({
 
   const handleSubmitComment = async (e?: React.FormEvent) => {
     e?.preventDefault();
-    if (!newComment.trim() && !gifUrl) return;
+    // Read the LIVE value, not the render closure: an Enter that lands in
+    // the same frame as the last input event sees stale state — the guard
+    // below would silently no-op (or post one keystroke short).
+    const text = commentInputRef.current?.value ?? newComment;
+    if (!text.trim() && !gifUrl) return;
     if (!user) return;
 
     setIsSubmitting(true);
@@ -182,7 +187,7 @@ export default function CommentSection({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           postId,
-          content: newComment.trim() || null,
+          content: text.trim() || null,
           gif_url: gifUrl || null,
         })
       });
@@ -206,7 +211,9 @@ export default function CommentSection({
   };
 
   const handleSubmitReply = async (parentCommentId: string) => {
-    if (!replyText.trim() && !replyGifUrl) return;
+    // Live value for the same stale-closure reason as handleSubmitComment.
+    const text = replyInputRef.current?.value ?? replyText;
+    if (!text.trim() && !replyGifUrl) return;
     if (!user) return;
 
     setIsSubmitting(true);
@@ -217,7 +224,7 @@ export default function CommentSection({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           postId,
-          content: replyText.trim() || null,
+          content: text.trim() || null,
           gif_url: replyGifUrl || null,
           parentCommentId,
         })
@@ -254,7 +261,10 @@ export default function CommentSection({
 
       const data = await response.json();
       // Remove the comment and any replies to it
-      setComments(prev => prev.filter(c => c.id !== commentId && c.parent_comment_id !== commentId));
+      // Drop the whole subtree locally — the DB cascade already deleted it;
+      // a one-level filter left grandchildren lingering until refetch.
+      const descendants = collectDescendantIds(commentId, repliesByParent);
+      setComments(prev => prev.filter(c => c.id !== commentId && !descendants.has(c.id)));
 
       const newCount = data.commentsCount ?? Math.max(0, comments.length - 1);
       setCommentsCount(newCount);
@@ -352,8 +362,10 @@ export default function CommentSection({
 
   const isPostOwner = user?.id === postOwnerId;
 
-  // Render a single comment (used for both root and reply)
-  const renderComment = (comment: Comment, isReply: boolean = false) => {
+  // Render a single comment at a visual depth (0 root, 1 reply, 2 = the
+  // flattened cap — see src/lib/comment-thread.ts for the policy).
+  const renderComment = (comment: Comment, depth: number = 0) => {
+    const isReply = depth > 0;
     const avatarSize = isReply ? 24 : 32;
     const avatarClass = isReply
       ? 'w-6 h-6 rounded-full'
@@ -368,7 +380,7 @@ export default function CommentSection({
     const replyCount = repliesByParent[comment.id]?.length || 0;
 
     return (
-      <div key={comment.id} className="flex gap-3">
+      <div key={comment.id} data-depth={depth} className="flex gap-3">
         {/* Avatar */}
         <div className="flex-shrink-0">
           {comment.profile?.avatar_url ? (
@@ -403,7 +415,7 @@ export default function CommentSection({
               </div>
               <div className="flex items-center gap-2">
                 {/* Pin/Unpin button (post owner only, root comments only) */}
-                {isPostOwner && !isReply && (
+                {isPostOwner && depth === 0 && (
                   <button
                     onClick={() => handlePinComment(comment.id, !!comment.is_pinned)}
                     className={`text-xs transition-colors min-w-[44px] min-h-[44px] -m-3 inline-flex items-center justify-center ${
@@ -471,12 +483,19 @@ export default function CommentSection({
               </button>
             )}
 
-            {/* Reply button (only on root comments) */}
-            {user && !isReply && (
+            {/* Reply — on every comment, any depth. Answering a reply
+                prefills @handle so the flattened thread reads as directed
+                (visual depth caps at 2; data keeps the true parent). */}
+            {user && (
               <button
                 onClick={() => {
-                  setReplyingTo(replyingTo === comment.id ? null : comment.id);
-                  setReplyText('');
+                  const closing = replyingTo === comment.id;
+                  setReplyingTo(closing ? null : comment.id);
+                  setReplyText(
+                    !closing && depth >= 1 && comment.profile?.handle
+                      ? `@${comment.profile.handle} `
+                      : ''
+                  );
                   setReplyGifUrl(null);
                   requestAnimationFrame(() => replyInputRef.current?.focus());
                 }}
@@ -486,15 +505,20 @@ export default function CommentSection({
               </button>
             )}
           </div>
+
+          {/* Reply form, directly under whichever comment is being answered
+              — it inherits this row's indent. */}
+          {replyingTo === comment.id && renderReplyForm(comment.id)}
         </div>
       </div>
     );
   };
 
-  // Render the reply input form. The indent steps down below `sm`: 40px of
-  // indent plus five row controls overflowed a 320px card.
+  // Render the reply input form. Rendered INSIDE the target comment's
+  // content column (renderComment), so it inherits that row's indent — no
+  // extra margin of its own.
   const renderReplyForm = (parentCommentId: string) => (
-    <div className="ml-6 sm:ml-10 mt-2">
+    <div className="mt-2">
       {/* Reply GIF preview */}
       {replyGifUrl && (
         <div className="relative inline-block mb-2">
@@ -694,19 +718,24 @@ export default function CommentSection({
               {rootComments.map((comment) => (
                 <div key={comment.id}>
                   {/* Root comment */}
-                  {renderComment(comment, false)}
+                  {renderComment(comment, 0)}
 
-                  {/* Replies */}
+                  {/* Replies: flattened walk, capped at depth 2. Depth-2 rows
+                      get one extra, slimmer indent so three levels still fit
+                      a 320px card. */}
                   {repliesByParent[comment.id] && repliesByParent[comment.id].length > 0 && (
                     <div className="ml-10 mt-2 space-y-2 border-l-2 border-border pl-3">
-                      {repliesByParent[comment.id].map((reply) => (
-                        renderComment(reply, true)
-                      ))}
+                      {flattenReplies(comment.id, repliesByParent).map(({ comment: reply, depth }) =>
+                        depth >= 2 ? (
+                          <div key={reply.id} className="ml-4 pl-2 border-l-2 border-border">
+                            {renderComment(reply, depth)}
+                          </div>
+                        ) : (
+                          renderComment(reply, depth)
+                        )
+                      )}
                     </div>
                   )}
-
-                  {/* Reply form */}
-                  {replyingTo === comment.id && renderReplyForm(comment.id)}
                 </div>
               ))}
             </div>
