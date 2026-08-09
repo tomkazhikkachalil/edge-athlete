@@ -9,6 +9,7 @@
 import { useState } from 'react';
 import type { GolfRound } from '@/types/golf';
 import { coursePar } from '@/lib/sports/post-stat-highlights';
+import { classifyScore, SCORE_CELL_RING } from '@/lib/golf/scoring';
 
 export default function GolfRoundCard({
   round,
@@ -214,30 +215,16 @@ export default function GolfRoundCard({
                         {round.golf_holes
                           .filter((h) => h.hole_number <= 9)
                           .map((hole) => {
-                            const diff = (hole.strokes ?? 0) - hole.par;
-                            const bgColor = 'bg-surface';
-                            let textColor = 'text-primary';
-                            let border = '';
-
-                            if (diff === -2) { // Eagle
-                              border = 'ring-2 ring-violet-500 ring-inset';
-                              textColor = 'text-brand-fg font-black';
-                            } else if (diff === -1) { // Birdie
-                              border = 'ring-1 ring-violet-400 ring-inset';
-                              textColor = 'text-brand-fg font-bold';
-                            } else if (diff === 1) { // Bogey
-                              border = 'border border-red-400 dark:border-red-600';
-                              textColor = 'text-red-600 dark:text-red-400 font-semibold';
-                            } else if (diff >= 2) { // Double+
-                              border = 'ring-2 ring-red-500 ring-inset';
-                              textColor = 'text-red-600 dark:text-red-400 font-bold';
-                            } else { // Par
-                              textColor = 'text-primary font-semibold';
-                            }
-
+                            // Canonical semantics + colours (classifyScore /
+                            // SCORE_CELL_RING) — this used to hand-roll both,
+                            // which drifted from every other scorecard (and
+                            // called an albatross a nothing: diff === -2
+                            // missed <= -3).
+                            const cls = classifyScore(hole.strokes, hole.par);
+                            const style = cls ? SCORE_CELL_RING[cls] : SCORE_CELL_RING.par;
                             return (
                               <td key={hole.hole_number} className="text-center py-1.5 px-1">
-                                <div className={`${bgColor} ${textColor} ${border} rounded mx-auto w-7 h-7 flex items-center justify-center text-sm`}>
+                                <div className={`bg-surface ${style.text} ${style.ring} rounded mx-auto w-7 h-7 flex items-center justify-center text-sm`}>
                                   {hole.strokes}
                                 </div>
                               </td>
@@ -328,29 +315,16 @@ export default function GolfRoundCard({
                         {round.golf_holes
                           .filter((h) => h.hole_number > 9)
                           .map((hole) => {
-                            const diff = (hole.strokes ?? 0) - hole.par;
-                            let textColor = 'text-primary';
-                            let border = '';
-
-                            if (diff === -2) {
-                              border = 'ring-2 ring-violet-500 ring-inset';
-                              textColor = 'text-brand-fg font-black';
-                            } else if (diff === -1) {
-                              border = 'ring-1 ring-violet-400 ring-inset';
-                              textColor = 'text-brand-fg font-bold';
-                            } else if (diff === 1) {
-                              border = 'border border-red-400 dark:border-red-600';
-                              textColor = 'text-red-600 dark:text-red-400 font-semibold';
-                            } else if (diff >= 2) {
-                              border = 'ring-2 ring-red-500 ring-inset';
-                              textColor = 'text-red-600 dark:text-red-400 font-bold';
-                            } else {
-                              textColor = 'text-primary font-semibold';
-                            }
-
+                            // Canonical semantics + colours (classifyScore /
+                            // SCORE_CELL_RING) — this used to hand-roll both,
+                            // which drifted from every other scorecard (and
+                            // called an albatross a nothing: diff === -2
+                            // missed <= -3).
+                            const cls = classifyScore(hole.strokes, hole.par);
+                            const style = cls ? SCORE_CELL_RING[cls] : SCORE_CELL_RING.par;
                             return (
                               <td key={hole.hole_number} className="text-center py-1.5 px-1">
-                                <div className={`bg-surface ${textColor} ${border} rounded mx-auto w-7 h-7 flex items-center justify-center text-sm`}>
+                                <div className={`bg-surface ${style.text} ${style.ring} rounded mx-auto w-7 h-7 flex items-center justify-center text-sm`}>
                                   {hole.strokes}
                                 </div>
                               </td>

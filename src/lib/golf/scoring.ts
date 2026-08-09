@@ -104,8 +104,8 @@ export function toParColorClass(toPar: number | null | undefined): string {
 
 /** Filled-chip cell styling (used by editable grids). */
 export const SCORE_CELL_FILL: Record<Exclude<ScoreClass, null>, string> = {
-  eagle: 'bg-blue-100 text-blue-800 font-bold border-2 border-blue-400 rounded-full dark:bg-blue-950/50 dark:text-blue-300 dark:border-blue-600',
-  birdie: 'bg-blue-50 text-blue-700 font-semibold border-2 border-blue-300 rounded-full dark:bg-blue-950/30 dark:text-blue-300 dark:border-blue-800',
+  eagle: 'bg-violet-100 text-violet-800 font-bold border-2 border-violet-400 rounded-full dark:bg-violet-950/50 dark:text-violet-300 dark:border-violet-600',
+  birdie: 'bg-violet-50 text-violet-700 font-semibold border-2 border-violet-300 rounded-full dark:bg-violet-950/30 dark:text-violet-300 dark:border-violet-800',
   par: 'text-primary',
   bogey: 'bg-red-50 text-red-700 font-semibold border-2 border-red-300 dark:bg-red-950/30 dark:text-red-300 dark:border-red-800',
   double: 'bg-red-100 text-red-800 font-bold border-2 border-red-400 dark:bg-red-950/50 dark:text-red-300 dark:border-red-600',
@@ -113,8 +113,8 @@ export const SCORE_CELL_FILL: Record<Exclude<ScoreClass, null>, string> = {
 
 /** Ring-style cell styling (used by read-only scorecard tables). */
 export const SCORE_CELL_RING: Record<Exclude<ScoreClass, null>, { ring: string; text: string }> = {
-  eagle: { ring: 'ring-2 ring-blue-500 ring-inset dark:ring-blue-400', text: 'text-blue-600 font-black dark:text-blue-400' },
-  birdie: { ring: 'ring-1 ring-blue-400 ring-inset dark:ring-blue-400', text: 'text-blue-600 font-bold dark:text-blue-400' },
+  eagle: { ring: 'ring-2 ring-violet-500 ring-inset dark:ring-violet-400', text: 'text-violet-600 font-black dark:text-violet-400' },
+  birdie: { ring: 'ring-1 ring-violet-400 ring-inset dark:ring-violet-400', text: 'text-violet-600 font-bold dark:text-violet-400' },
   par: { ring: '', text: 'text-primary font-semibold' },
   bogey: { ring: 'border border-red-400 dark:border-red-500', text: 'text-red-600 font-semibold dark:text-red-400' },
   double: { ring: 'ring-2 ring-red-500 ring-inset dark:ring-red-400', text: 'text-red-600 font-bold dark:text-red-400' },
