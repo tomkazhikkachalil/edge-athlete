@@ -207,7 +207,11 @@ export default function MessageBubble({
         {/* Message content */}
         <div
           ref={wrapperRef}
-          className="relative group ea-no-touch-select"
+          // min-w-0 is load-bearing: QuotedReply's truncate line is nowrap,
+          // so without it this flex item's min-content floor is the FULL
+          // one-line snippet — the bubble blows past the row's max-w-xs and
+          // off the screen edge on phones.
+          className="relative group ea-no-touch-select min-w-0"
           onTouchStart={handleTouchStart}
           onTouchEnd={handleTouchEnd}
           onTouchCancel={handleTouchEnd}
