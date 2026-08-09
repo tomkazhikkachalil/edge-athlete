@@ -41,7 +41,7 @@ export default function MentionSuggestions({
       ref={ref}
       role="listbox"
       aria-label="Mention suggestions"
-      className="absolute bottom-full left-0 right-0 mb-2 z-30 bg-surface-raised rounded-xl shadow-xl border border-border py-1 max-h-56 overflow-y-auto overscroll-contain"
+      className="absolute bottom-full left-0 right-0 mb-2 z-30 bg-surface-raised rounded-xl shadow-xl border border-border py-1 max-h-72 overflow-y-auto overscroll-contain"
     >
       {candidates.map((c, i) => {
         const name = formatDisplayName(c.first_name, null, c.last_name, c.full_name);
@@ -75,9 +75,11 @@ export default function MentionSuggestions({
                 {getInitials(name)}
               </span>
             )}
-            <span className="min-w-0 flex-1 truncate">
-              <span className="font-medium text-primary">{name}</span>{' '}
-              <span className="text-muted">@{c.handle}</span>
+            {/* The @handle is the thing being inserted — it must NEVER
+                truncate; the display name gives way instead. */}
+            <span className="min-w-0 flex-1 flex items-baseline gap-1.5">
+              <span className="font-medium text-primary truncate min-w-0">{name}</span>
+              <span className="text-muted shrink-0">@{c.handle}</span>
             </span>
           </button>
         );
