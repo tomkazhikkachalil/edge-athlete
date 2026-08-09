@@ -1,5 +1,43 @@
 # Development Log
 
+## August 9, 2026 — Tile engagement visible on touch (first `pointer-coarse:` use)
+
+Second of the Aug 8 reported items. Likes/comments/time on media-grid tiles
+were `opacity-0 group-hover:opacity-100` — and touch has no hover, so on
+phones the row simply did not exist. The grid the score band's own comment
+calls "mostly viewed on a phone" was hiding its engagement data from exactly
+that audience.
+
+The fix is one class: `pointer-coarse:opacity-100`, Tailwind's built-in
+`@media (pointer: coarse)` variant (first use in this repo — v4.3 ships it,
+nothing custom in globals.css). Coarse pointers see the row always; desktop
+keeps today's clean-until-hover look. **The rule this establishes: a
+hover-revealed overlay must also declare its coarse-pointer state, because
+`hover:`/`group-hover:` are invisible on touch.** The full-tile hover *tint*
+stays hover-only everywhere — an always-on tint would darken every thumbnail.
+
+Three surfaces, each with one extra wrinkle:
+
+- **MediaGridItem** (ProfileMediaTabs): the row already had its own gradient,
+  so only the variant was needed — plus the timestamp is now width-gated
+  (`hidden min-[380px]:inline`): a 124px tile at 320px can't fit counts AND
+  "about 2 hours ago"; counts always survive. Same gate the Aug 8 pass used
+  for the decorative rows.
+- **TaggedTile**: its row had NO background of its own — it borrowed the hover
+  tint, which stays hover-only, and always-visible white 11px text straight on
+  an arbitrary photo is unreadable. It now carries the same gradient scrim as
+  MediaGridItem. Found while in there: the owner-only **untag button** was
+  hover-revealed too, and it is the only untag affordance on the surface — it
+  literally did not exist on touch. Now `pointer-coarse:opacity-100` (its
+  24px size is the touch-target pass's problem, next PR).
+- **/u/ public grid**: the crudest variant — a full-tile 50% center overlay,
+  which cannot be always-on. Restyled to the bottom-scrim pattern for BOTH
+  pointer types: one pattern across all three grids beats maintaining a
+  center-overlay for desktop plus a scrim for touch on the same element.
+
+No data plumbing anywhere — counts were already in every tile's props; the
+overlays were just never shown to the people holding the post in their hand.
+
 ## August 9, 2026 — Solo rounds: one card, not two
 
 First of the three items the Aug 8 phone pass reported instead of fixing. A
