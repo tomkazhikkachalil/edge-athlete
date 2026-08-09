@@ -30,12 +30,15 @@ every score starts at the same x. Full names stay in the detail card;
 `title=` carries the full name on the short one.
 
 **Leaderboard medals** (Tom: keep it ranked, add polished placement
-badges that survive four players): gold/silver/bronze gradients plus a
-graphite tier for 4th+, pure CSS with a top-highlight shine, medal colours
-literal in dark (metal is metal — the white-pill rule). Ranks are
-tie-aware competition ranking (`placements`: 1, 1, 3) over the same metric
-the sort used, so equal rounds share a medal. Replaces the old
-trophy-for-first/big-number-for-rest slot.
+badges that survive four players): pure CSS chips with a top-highlight
+shine, tie-aware competition ranking (`placements`: 1, 1, 3) over the same
+metric the sort used, so equal rounds share a medal. Replaces the old
+trophy-for-first/big-number-for-rest slot. First cut was gold/silver/
+bronze; Tom called it cartoony, so the palette is now a **brand-violet
+ramp** — rank expressed as descending brightness AND polish: 1st is the
+lightest violet with the strongest shine and an outer glow, each step down
+darker with less shine, 4th+ matte with none. One literal ramp for both
+themes (brand is brand — the metal-is-metal rule).
 
 **Ship gate:** migration 071 runs BEFORE this deploys — the participants
 select now names `position`, which 42703s without it.
