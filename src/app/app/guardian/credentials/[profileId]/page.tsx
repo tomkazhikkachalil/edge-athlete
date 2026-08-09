@@ -111,7 +111,7 @@ export default function CredentialsPage() {
                 email needed. If they ever forget it, come back here and set a
                 new one (their other sessions are signed out automatically).
               </p>
-              <button type="button" onClick={() => router.push('/athlete')} className="text-sm text-brand-fg hover:underline">
+              <button type="button" onClick={() => router.push('/athlete')} className="inline-flex min-h-[44px] items-center text-sm text-brand-fg hover:underline active:underline">
                 Done
               </button>
             </div>

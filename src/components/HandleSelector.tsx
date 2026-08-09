@@ -192,7 +192,7 @@ export default function HandleSelector({
                 key={suggestion}
                 type="button"
                 onClick={() => handleSuggestionClick(suggestion)}
-                className="px-3 py-1 bg-surface border border-border-strong rounded-full text-sm hover:bg-brand-soft hover:border-violet-500 transition-colors"
+                className="relative after:absolute after:content-[''] after:-inset-y-2 after:inset-x-0 px-3 py-1 bg-surface border border-border-strong rounded-full text-sm hover:bg-brand-soft hover:border-violet-500 transition-colors"
               >
                 @{suggestion}
               </button>

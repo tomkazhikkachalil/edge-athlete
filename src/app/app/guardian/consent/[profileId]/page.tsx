@@ -98,7 +98,7 @@ export default function ConsentPage() {
                   Set up their login
                 </button>
               )}
-              <button type="button" onClick={() => router.push('/athlete')} className="text-sm text-brand-fg hover:underline">
+              <button type="button" onClick={() => router.push('/athlete')} className="inline-flex min-h-[44px] items-center text-sm text-brand-fg hover:underline active:underline">
                 Back to my account
               </button>
             </div>

@@ -381,7 +381,7 @@ export default function CommentSection({
                 {isPostOwner && !isReply && (
                   <button
                     onClick={() => handlePinComment(comment.id, !!comment.is_pinned)}
-                    className={`text-xs transition-colors min-w-[40px] min-h-[40px] -m-2 inline-flex items-center justify-center ${
+                    className={`text-xs transition-colors min-w-[44px] min-h-[44px] -m-3 inline-flex items-center justify-center ${
                       comment.is_pinned
                         ? 'text-amber-600 dark:text-amber-400 hover:text-amber-700'
                         : 'text-faint hover:text-amber-600'
@@ -395,7 +395,7 @@ export default function CommentSection({
                 {user?.id === comment.profile_id && (
                   <button
                     onClick={() => handleDeleteComment(comment.id)}
-                    className="text-xs text-red-600 dark:text-red-400 hover:text-red-700 min-w-[40px] min-h-[40px] -m-2 inline-flex items-center justify-center"
+                    className="text-xs text-red-600 dark:text-red-400 hover:text-red-700 min-w-[44px] min-h-[44px] -m-3 inline-flex items-center justify-center"
                     title="Delete comment"
                   >
                     <i className="fas fa-trash" />
@@ -483,7 +483,7 @@ export default function CommentSection({
             type="button"
             onClick={() => setReplyGifUrl(null)}
             aria-label="Remove GIF"
-            className="absolute -top-4 -right-4 p-2.5 group"
+            className="absolute -top-4 -right-4 p-3 group"
           >
             <span className="w-5 h-5 bg-red-500 text-white rounded-full flex items-center justify-center group-hover:bg-red-600">
               <i className="fas fa-times text-xs"></i>
@@ -499,7 +499,7 @@ export default function CommentSection({
           type="button"
           onClick={() => setShowReplyGifPicker(prev => !prev)}
           disabled={isSubmitting}
-          className="shrink-0 p-2 text-faint hover:text-violet-500 transition-colors disabled:opacity-40 text-xs font-bold"
+          className="shrink-0 relative after:absolute after:content-[''] after:-inset-y-2 after:inset-x-0 p-2 text-faint hover:text-violet-500 active:text-violet-500 transition-colors disabled:opacity-40 text-xs font-bold"
           title="Add a GIF"
         >
           GIF
@@ -530,14 +530,14 @@ export default function CommentSection({
           type="button"
           onClick={() => handleSubmitReply(parentCommentId)}
           disabled={(!replyText.trim() && !replyGifUrl) || isSubmitting}
-          className="px-3 py-1.5 bg-brand text-white rounded-lg text-sm font-medium hover:bg-brand-hover disabled:opacity-50 disabled:cursor-not-allowed transition-colors shrink-0"
+          className="relative after:absolute after:content-[''] after:-inset-y-1.5 after:inset-x-0 px-3 py-1.5 bg-brand text-white rounded-lg text-sm font-medium hover:bg-brand-hover disabled:opacity-50 disabled:cursor-not-allowed transition-colors shrink-0"
         >
           {isSubmitting ? '...' : 'Reply'}
         </button>
         <button
           type="button"
           onClick={() => { setReplyingTo(null); setReplyText(''); setReplyGifUrl(null); }}
-          className="p-1.5 text-faint hover:text-tertiary transition-colors shrink-0"
+          className="relative after:absolute after:content-[''] after:-inset-y-2 after:inset-x-0 p-1.5 text-faint hover:text-tertiary active:text-tertiary transition-colors shrink-0"
           title="Cancel"
         >
           <i className="fas fa-times text-sm"></i>
@@ -575,7 +575,7 @@ export default function CommentSection({
                     type="button"
                     onClick={() => setGifUrl(null)}
                     aria-label="Remove GIF"
-                    className="absolute -top-4 -right-4 p-2.5 group"
+                    className="absolute -top-4 -right-4 p-3 group"
                   >
                     <span className="w-5 h-5 bg-red-500 text-white rounded-full flex items-center justify-center group-hover:bg-red-600">
                       <i className="fas fa-times text-xs"></i>
@@ -593,7 +593,7 @@ export default function CommentSection({
                   type="button"
                   onClick={() => setShowGifPicker(prev => !prev)}
                   disabled={isSubmitting}
-                  className="shrink-0 p-2 text-faint hover:text-violet-500 transition-colors disabled:opacity-40 text-xs font-bold"
+                  className="shrink-0 relative after:absolute after:content-[''] after:-inset-y-2 after:inset-x-0 p-2 text-faint hover:text-violet-500 active:text-violet-500 transition-colors disabled:opacity-40 text-xs font-bold"
                   title="Add a GIF"
                 >
                   GIF

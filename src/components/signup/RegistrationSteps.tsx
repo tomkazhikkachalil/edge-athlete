@@ -227,7 +227,7 @@ export default function RegistrationSteps({ onBackToLogin }: { onBackToLogin: ()
                   <p className="text-sm text-tertiary mt-1">I&apos;m setting this up for my athlete.</p>
                 </button>
               </div>
-              <button type="button" onClick={onBackToLogin} className="mt-4 text-xs text-brand-fg hover:underline">
+              <button type="button" onClick={onBackToLogin} className="inline-flex min-h-[44px] items-center mt-4 text-xs text-brand-fg hover:underline active:underline">
                 Back to login
               </button>
             </>
@@ -257,7 +257,7 @@ export default function RegistrationSteps({ onBackToLogin }: { onBackToLogin: ()
                   />
                 </div>
                 <button type="submit" className={primaryBtn}>Continue</button>
-                <button type="button" onClick={() => setStep('role')} className="text-xs text-brand-fg hover:underline">
+                <button type="button" onClick={() => setStep('role')} className="inline-flex min-h-[44px] items-center text-xs text-brand-fg hover:underline active:underline">
                   Back
                 </button>
               </form>
@@ -302,7 +302,7 @@ export default function RegistrationSteps({ onBackToLogin }: { onBackToLogin: ()
                   )}
                 </button>
                 <div className="flex items-center justify-between">
-                  <button type="button" onClick={() => setStep('dob')} className="text-xs text-brand-fg hover:underline">
+                  <button type="button" onClick={() => setStep('dob')} className="inline-flex min-h-[44px] items-center text-xs text-brand-fg hover:underline active:underline">
                     Back
                   </button>
                   <p className="text-xs text-tertiary">
@@ -419,7 +419,7 @@ export default function RegistrationSteps({ onBackToLogin }: { onBackToLogin: ()
                 </button>
               </form>
               <div className="mt-4 flex items-center justify-between">
-                <button type="button" onClick={() => setStep('dob')} className="text-xs text-brand-fg hover:underline">
+                <button type="button" onClick={() => setStep('dob')} className="inline-flex min-h-[44px] items-center text-xs text-brand-fg hover:underline active:underline">
                   Back
                 </button>
                 <p className="text-xs text-tertiary">
