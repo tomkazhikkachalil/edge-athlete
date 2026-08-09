@@ -555,6 +555,39 @@ body {
   animation: ea-edit-pulse 600ms ease-out;
 }
 
+/* Message action sheet (long-press): the pressed bubble "pops" forward.
+ * transform-origin follows the pressed side so growth reads as coming out
+ * of the bubble, not from screen center. CSS-only, so the reduced-motion
+ * block below neutralises it without a per-component guard. */
+@keyframes ea-sheet-pop {
+  0%   { opacity: 0; transform: scale(0.92); }
+  60%  { transform: scale(1.02); }
+  100% { opacity: 1; transform: scale(1); }
+}
+
+.ea-sheet-pop { animation: ea-sheet-pop 180ms var(--ea-ease); }
+.ea-sheet-pop-right { transform-origin: top right; }
+.ea-sheet-pop-left  { transform-origin: top left; }
+
+@keyframes ea-fade-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+.ea-backdrop-fade { animation: ea-fade-in var(--ea-hover-ms) ease-out; }
+
+/* Long-press targets: a 400ms press must open OUR surface, not the OS text
+ * selection (iOS loupe/callout) — the two fight, and selection wins ugly.
+ * Coarse-scoped so desktop mouse selection (and copy) is untouched; on
+ * touch, Copy lives in the action sheet instead. */
+@media (pointer: coarse) {
+  .ea-no-touch-select {
+    -webkit-user-select: none;
+    user-select: none;
+    -webkit-touch-callout: none;
+  }
+}
+
 /* Respect reduced-motion preference — disables animations for users
  * who have motion sensitivity set at the OS level. */
 @media (prefers-reduced-motion: reduce) {

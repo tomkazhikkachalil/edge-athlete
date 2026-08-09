@@ -7,12 +7,13 @@ import type { EmojiClickData } from 'emoji-picker-react';
 import { useTheme } from '@/lib/use-theme';
 import LazyImage from '@/components/LazyImage';
 import { formatDisplayName, getInitials } from '@/lib/formatters';
-import SharedPostPreview from './SharedPostPreview';
-import SharedProfilePreview from './SharedProfilePreview';
 import ReactionBar, { rememberRecentEmoji } from './ReactionBar';
 import QuotedReply from './QuotedReply';
 import EditMessageInline from './EditMessageInline';
 import ReportMessageModal from './ReportMessageModal';
+import MessageBubbleContent from './MessageBubbleContent';
+import MessageActionSheet, { type SheetAnchor } from './MessageActionSheet';
+import { haptic } from '@/lib/haptics';
 import type { Message } from '@/types/messages';
 
 const EDIT_WINDOW_MS = 15 * 60 * 1000; // mirror server-side window for UI gating
@@ -22,7 +23,7 @@ const EmojiPicker = dynamic(() => import('emoji-picker-react'), {
   loading: () => null,
 });
 
-const QUICK_EMOJIS = ['👍', '❤️', '😂', '😮', '🔥'];
+export const QUICK_EMOJIS = ['👍', '❤️', '😂', '😮', '🔥'];
 
 interface Props {
   message: Message;
@@ -66,21 +67,46 @@ export default function MessageBubble({
   // window depend on whenever React happened to re-render this bubble.
   // Evaluating it at open time is what the check actually means.
   const [menuOpenedAt, setMenuOpenedAt] = useState(0);
-  const [showQuickReact, setShowQuickReact] = useState(false);
+  const [sheetOpen, setSheetOpen] = useState(false);
+  const [sheetAnchor, setSheetAnchor] = useState<SheetAnchor | null>(null);
   const [showFullPicker, setShowFullPicker] = useState(false);
   const [editing, setEditing] = useState(false);
   const [showReportModal, setShowReportModal] = useState(false);
   const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const wrapperRef = useRef<HTMLDivElement | null>(null);
+  // A completed long-press must not ALSO deliver the tap underneath it
+  // (SharedPostPreview's button, video controls) — ReactionBar's
+  // suppressClickRef pattern.
+  const suppressClickRef = useRef(false);
 
-  // Long-press handlers for mobile — must be before any early return
+  // Long-press opens the action sheet — the ONE touch path to reactions and
+  // message actions. Must be before any early return. Arming bails while
+  // editing: the sheet's replica would show stale non-editing content over
+  // the live textarea.
   const handleTouchStart = useCallback(() => {
+    if (editing) return;
     longPressTimer.current = setTimeout(() => {
-      setShowQuickReact(true);
+      longPressTimer.current = null;
+      // Armed for the ghost click the press-release synthesizes; expires on
+      // its own because not every browser fires one — without the timeout
+      // the flag would eat the user's next genuine tap on this bubble.
+      suppressClickRef.current = true;
+      setTimeout(() => { suppressClickRef.current = false; }, 600);
+      haptic();
+      // Stamp the edit-window gate exactly like the ⋯ menu does: canEdit
+      // derives from menuOpenedAt, and an unstamped open would make the
+      // age negative — Edit would show forever.
+      setMenuOpenedAt(Date.now());
+      const rect = wrapperRef.current?.getBoundingClientRect();
+      if (rect) {
+        setSheetAnchor({ top: rect.top, left: rect.left, right: rect.right });
+        setSheetOpen(true);
+      }
     }, 400);
-  }, []);
+  }, [editing]);
 
   // Also wired to onTouchMove: a scroll that starts with a finger on a
-  // bubble must cancel the press, not open the overlay 400ms into the
+  // bubble must cancel the press, not open the sheet 400ms into the
   // scroll (same rule as ReactionBar's chip long-press).
   const handleTouchEnd = useCallback(() => {
     if (longPressTimer.current) {
@@ -104,13 +130,6 @@ export default function MessageBubble({
     message.sender?.full_name
   );
 
-  // The metal rim is what stops an own-bubble dissolving into the (also
-  // violet) chat header in the dock. Inset shadows, so bubble geometry is
-  // unchanged — a real border would add 2px to every bubble in the thread.
-  const bubbleBase = isOwn
-    ? 'bg-brand text-white rounded-l-2xl rounded-tr-2xl ea-metal-rim-brand'
-    : 'bg-surface-sunken text-primary rounded-r-2xl rounded-tl-2xl ea-metal-rim';
-
   const handleCopy = () => {
     if (message.content) navigator.clipboard.writeText(message.content);
     setShowMenu(false);
@@ -124,24 +143,20 @@ export default function MessageBubble({
   const handleQuickEmoji = (emoji: string) => {
     rememberRecentEmoji(emoji);
     onToggleReaction(message.id, emoji);
-    setShowQuickReact(false);
   };
 
   const handleGifReactClick = () => {
     onGifReact(message.id);
-    setShowQuickReact(false);
   };
 
   const handleFullPickerEmoji = (data: EmojiClickData) => {
     rememberRecentEmoji(data.emoji);
     onToggleReaction(message.id, data.emoji);
     setShowFullPicker(false);
-    setShowQuickReact(false);
   };
 
   const handleReply = () => {
     onReply(message);
-    setShowQuickReact(false);
     setShowMenu(false);
   };
 
@@ -191,11 +206,28 @@ export default function MessageBubble({
       <div className={`flex items-end gap-2 max-w-xs sm:max-w-sm md:max-w-md ${isOwn ? 'flex-row-reverse' : 'flex-row'}`}>
         {/* Message content */}
         <div
-          className="relative group"
+          ref={wrapperRef}
+          className="relative group ea-no-touch-select"
           onTouchStart={handleTouchStart}
           onTouchEnd={handleTouchEnd}
           onTouchCancel={handleTouchEnd}
           onTouchMove={handleTouchEnd}
+          onClickCapture={(e) => {
+            // Swallow the ghost click a completed long-press synthesizes.
+            if (suppressClickRef.current) {
+              suppressClickRef.current = false;
+              e.preventDefault();
+              e.stopPropagation();
+            }
+          }}
+          onContextMenu={(e) => {
+            // Gesture-scoped, not device-scoped: Android's native long-press
+            // menu (~500ms) fires after our 400ms timer set these flags, so
+            // it's suppressed — while desktop right-click stays native.
+            if (sheetOpen || longPressTimer.current || suppressClickRef.current) {
+              e.preventDefault();
+            }
+          }}
         >
           {/* Quoted reply preview */}
           {message.reply_to && (
@@ -206,90 +238,20 @@ export default function MessageBubble({
             />
           )}
 
-          {message.type === 'text' && (
-            editing ? (
-              <EditMessageInline
-                conversationId={message.conversation_id}
-                messageId={message.id}
-                initialContent={message.content || ''}
-                isOwn={isOwn}
-                onCancel={() => setEditing(false)}
-                onUpdated={(fields) => {
-                  setEditing(false);
-                  onMessageEdited?.(message.id, fields.content, fields.edited_at);
-                }}
-              />
-            ) : (
-              <div className={`px-4 py-2.5 ${bubbleBase} max-w-full`}>
-                <p className="text-sm whitespace-pre-wrap break-words">{message.content}</p>
-              </div>
-            )
-          )}
-
-          {message.type === 'image' && message.media_url && (
-            <div className="rounded-2xl overflow-hidden max-w-xs">
-              <LazyImage
-                src={message.media_url}
-                alt="Sent image"
-                className="w-full max-h-64 object-cover"
-                width={300}
-                height={256}
-              />
-              {/* Rim stripped: this caption strip is rounded-none inside a
-                  rounded-2xl overflow-hidden parent, so a square inset ring
-                  gets sliced diagonally at the bottom corners. */}
-              {message.content && (
-                <div className={`px-3 py-2 ${bubbleBase.replace(/ ea-metal-rim(-brand)?/, '')} rounded-none`}>
-                  <p className="text-sm whitespace-pre-wrap break-words">{message.content}</p>
-                </div>
-              )}
-            </div>
-          )}
-
-          {message.type === 'gif_reaction' && message.media_url && (
-            <div className="rounded-2xl overflow-hidden max-w-xs border border-border">
-              <LazyImage
-                src={message.media_url}
-                alt="GIF reply"
-                className="w-full max-h-64 object-contain"
-                width={300}
-                height={256}
-              />
-            </div>
-          )}
-
-          {message.type === 'video' && message.media_url && (
-            <div className="rounded-2xl overflow-hidden max-w-xs">
-              <video
-                src={message.media_url}
-                controls
-                className="w-full max-h-64"
-                style={{ maxWidth: 300 }}
-              />
-              {message.content && (
-                <div className={`px-3 py-2 ${bubbleBase.replace(/ ea-metal-rim(-brand)?/, '')} rounded-none`}>
-                  <p className="text-sm whitespace-pre-wrap break-words">{message.content}</p>
-                </div>
-              )}
-            </div>
-          )}
-
-          {message.type === 'shared_post' && message.shared_post && (
-            <div className="max-w-xs">
-              <SharedPostPreview
-                post={message.shared_post}
-                onClick={message.shared_post_id && onViewPost
-                  ? () => onViewPost(message.shared_post_id!)
-                  : undefined
-                }
-              />
-            </div>
-          )}
-
-          {message.type === 'shared_profile' && message.shared_profile && (
-            <div className="max-w-xs">
-              <SharedProfilePreview profile={message.shared_profile} />
-            </div>
+          {message.type === 'text' && editing ? (
+            <EditMessageInline
+              conversationId={message.conversation_id}
+              messageId={message.id}
+              initialContent={message.content || ''}
+              isOwn={isOwn}
+              onCancel={() => setEditing(false)}
+              onUpdated={(fields) => {
+                setEditing(false);
+                onMessageEdited?.(message.id, fields.content, fields.edited_at);
+              }}
+            />
+          ) : (
+            <MessageBubbleContent message={message} isOwn={isOwn} onViewPost={onViewPost} />
           )}
 
           {/* Quick-reaction bar — hover/fine-pointer ONLY (sm:pointer-fine:).
@@ -346,58 +308,6 @@ export default function MessageBubble({
               </button>
             </div>
           </div>
-
-          {/* Mobile: long-press quick reaction overlay */}
-          {showQuickReact && (
-            <>
-              <div className="fixed inset-0 z-10" onClick={() => setShowQuickReact(false)} />
-              <div
-                className={`absolute z-20 ${
-                  isOwn ? 'right-0' : 'left-0'
-                } bottom-full mb-1`}
-              >
-                <div className="flex flex-wrap items-center gap-0.5 bg-surface-raised border border-border rounded-full shadow-lg px-1.5 py-1 max-w-[calc(100vw-3rem)]">
-                  {QUICK_EMOJIS.map((emoji) => (
-                    <button
-                      key={emoji}
-                      onClick={() => handleQuickEmoji(emoji)}
-                      className="w-9 h-9 flex items-center justify-center rounded-full hover:bg-surface-sunken active:bg-gray-200 dark:active:bg-stone-800 transition-colors text-base"
-                    >
-                      {emoji}
-                    </button>
-                  ))}
-                  <button
-                    onClick={handleGifReactClick}
-                    className="w-9 h-9 flex items-center justify-center rounded-full hover:bg-surface-sunken active:bg-gray-200 dark:active:bg-stone-800 transition-colors text-[10px] font-bold text-muted"
-                  >
-                    GIF
-                  </button>
-                  <button
-                    onClick={() => setShowFullPicker(prev => !prev)}
-                    className="w-9 h-9 flex items-center justify-center rounded-full hover:bg-surface-sunken active:bg-gray-200 dark:active:bg-stone-800 transition-colors text-base text-faint"
-                    title="More emojis"
-                  >
-                    +
-                  </button>
-                  <div className="w-px h-5 bg-gray-200 dark:bg-stone-800 mx-0.5" />
-                  <button
-                    onClick={handleReply}
-                    className="w-9 h-9 flex items-center justify-center rounded-full hover:bg-surface-sunken active:bg-gray-200 dark:active:bg-stone-800 transition-colors"
-                    title="Reply"
-                  >
-                    <i className="fas fa-reply text-xs text-faint"></i>
-                  </button>
-                  <div className="w-px h-5 bg-gray-200 dark:bg-stone-800 mx-0.5" />
-                  <button
-                    onClick={() => { setShowQuickReact(false); setMenuOpenedAt(Date.now()); setShowMenu(true); }}
-                    className="w-9 h-9 flex items-center justify-center rounded-full hover:bg-surface-sunken active:bg-gray-200 dark:active:bg-stone-800 transition-colors"
-                  >
-                    <i className="fas fa-ellipsis-h text-xs text-faint"></i>
-                  </button>
-                </div>
-              </div>
-            </>
-          )}
 
           {/* Full emoji picker */}
           {showFullPicker && (
@@ -502,6 +412,28 @@ export default function MessageBubble({
         <ReportMessageModal
           messageId={message.id}
           onClose={() => setShowReportModal(false)}
+        />
+      )}
+
+      {/* Long-press action sheet (touch). Every callback closes the sheet
+          FIRST, then invokes: GifPickerModal and ReportMessageModal sit at
+          z-50, below the sheet's z-[60] backdrop — React batches the pair,
+          so the sheet unmounts in the same commit the modal mounts. */}
+      {sheetOpen && sheetAnchor && (
+        <MessageActionSheet
+          message={message}
+          isOwn={isOwn}
+          canEdit={canEdit}
+          quickEmojis={QUICK_EMOJIS}
+          anchorRect={sheetAnchor}
+          onClose={() => setSheetOpen(false)}
+          onEmoji={(emoji) => { setSheetOpen(false); handleQuickEmoji(emoji); }}
+          onGif={() => { setSheetOpen(false); handleGifReactClick(); }}
+          onReply={() => { setSheetOpen(false); handleReply(); }}
+          onCopy={() => { setSheetOpen(false); if (message.content) navigator.clipboard.writeText(message.content); }}
+          onEdit={() => { setSheetOpen(false); setEditing(true); }}
+          onReport={() => { setSheetOpen(false); setShowReportModal(true); }}
+          onDelete={() => { setSheetOpen(false); onDelete?.(message.id); }}
         />
       )}
     </div>

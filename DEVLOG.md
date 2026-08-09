@@ -1,5 +1,62 @@
 # Development Log
 
+## August 9, 2026 — Long-press becomes a real action sheet (and stops fighting iOS text selection)
+
+Tom device-tested #91's long-press and reported the truth about it: the OS
+text-selection loupe takes over right after the overlay appears, there's no
+haptic, and the overlay is a static pill with the real actions still hidden
+behind a second ⋯ tap. The ask: the iMessage model — press, buzz, the
+message pops forward, everything on one surface.
+
+**`MessageActionSheet` (new)** is now the one touch surface: dimmed
+`backdrop-blur` scrim, emoji row (👍❤️😂😮🔥 · GIF · +), a replica of the
+pressed message, and the full action list (Reply / Copy / Edit / Report /
+Delete) — the ⋯ hop is gone on touch. Desktop keeps the hover strip + ⋯
+menu untouched. Mechanics that matter:
+
+- **PORTALED to document.body** (the HeaderSearch idiom): the chat dock row
+  is a `z-[45]` stacking context and both thread panes are `overflow-y-auto`
+  scrollers — rendered in place the sheet would z-trap under real modals and
+  clip. Backdrop z-[60]/panel z-[61]; every action closes the sheet FIRST so
+  the z-50 GifPickerModal/ReportMessageModal it can open aren't buried.
+- **Anchored, not centered**: rect captured at press time, panel pinned to
+  the bubble's side, vertical position clamped into the VISUAL viewport
+  (`clampSheetTop` in `action-sheet-layout.ts` — pure, node-tested, the
+  composer-layout pattern; reads `window.visualViewport` because `--vvh`
+  exists only on /messages). Entrance is `ea-sheet-pop` (CSS-only, so the
+  global reduced-motion block neutralises it).
+- **Selection fix**: `.ea-no-touch-select` (globals.css, `pointer: coarse`
+  scoped) sets `user-select: none` + `-webkit-touch-callout: none` on bubble
+  wrappers — the OS loupe never starts; desktop selection untouched. Copy
+  lives in the sheet.
+- **Haptic**: `src/lib/haptics.ts` — `navigator.vibrate(10)` (Android), else
+  the iOS 17.4+ hidden `<input type="checkbox" switch>` toggle trick;
+  try/catch, best-effort, never load-bearing.
+- **Ghost-click armor, both directions**: the backdrop ignores clicks for
+  400ms after open (the press-release can synthesize a click that would
+  close the sheet instantly), and the bubble wrapper swallows one
+  post-longpress click via a `suppressClickRef` that self-expires (600ms) so
+  it can't eat a later genuine tap. `onContextMenu` is suppressed
+  gesture-scoped (timer armed / sheet open / suppress armed) — Android's
+  ~500ms native menu loses, desktop right-click stays native.
+- **Edit-window trap closed**: the long-press stamps `menuOpenedAt` exactly
+  like the ⋯ menu — `canEdit` ages from a real timestamp (unstamped, the
+  age goes negative and Edit would show forever).
+- **`MessageBubbleContent` (new)** extracts the six content branches out of
+  MessageBubble so the sheet's replica and the real bubble render from one
+  source; the replica wraps it in `pointer-events-none` (neutralises
+  SharedPostPreview's button and `<video controls>`). `EditMessageInline`
+  stays in MessageBubble — live form state exists once; long-press arming
+  bails while editing.
+
+The old in-place long-press pill (#91's `showQuickReact`) is deleted.
+
+Verified with a coarse-pointer probe on the real UI (phone geometry + the
+chat dock at 1280): sheet portaled (parent === body), ownership gating
+(Edit/Delete own, Report incoming), 👍 → chip round-trip, GIF opens with the
+sheet already gone, touchmove still cancels, dock reaction works above
+z-[45]. chat-dock + direct-message specs green; full gate green.
+
 ## August 9, 2026 — Message quick-actions: strip is fine-pointer-only; scroll no longer misfires long-press
 
 Closes the open decision from the touch-target round: MessageBubble's
