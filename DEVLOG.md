@@ -1,5 +1,36 @@
 # Development Log
 
+## August 9, 2026 — Comment composer earns its width on phones
+
+Tom's device pass on the comments round: replies and @ work, but the reply
+box was squeezed (~140px usable on a 390px phone), the @ dropdown was a
+sliver, and the always-visible emoji/GIF buttons ate composer width. Three
+fixes, all in CommentSection + MentionSuggestions:
+
+- **The reply form breaks out of the indent.** It rendered inside the
+  target comment's content column, inheriting avatar + band indents. Now
+  the reply band uses PER-ROW indent wrappers (`ml-10`/`ml-14` + `pl-3
+  border-l-2` — one border per row, replacing the depth-2 double-border
+  nesting) and the form renders BETWEEN rows at full card width, still
+  directly under the message it answers — the drop-under position ties it
+  to its target, not the indent.
+- **Emoji + GIF collapse behind a chevron** — MessageInput's leading
+  cluster, ported verbatim (same `composerLeadingReducer`, same
+  CHEVRON/LEADING_OPEN constants — the latch rules are never forked):
+  typing collapses, the chevron reopens, posting resets. The REPLY
+  composer always mounts collapsed (fresh reply = user came to type;
+  with the cluster open plus send/cancel the box measured ~140px), and
+  its send button became the icon send.
+- **The @ dropdown anchors to the composer ROW, not the field wrapper** —
+  full composer width (~360px on a phone, was ~198). Row layout guarantees
+  the @handle NEVER truncates (the display name gives way instead — the
+  handle is the thing being inserted); max-height up to ~7 rows.
+
+Verified at 390×844 on the real UI: reply box > half the card width at
+every depth (was ~40%), cluster collapse/reopen + collapsed-on-prefill,
+depth cap and @prefill intact (`data-depth` 1/2/2), dropdown option >200px
+with `scrollWidth === clientWidth` on the handle span.
+
 ## August 9, 2026 — @mentions in comments and chat (migration 073)
 
 The third leg of the comments round. Typing `@` opens a typeahead; chosen

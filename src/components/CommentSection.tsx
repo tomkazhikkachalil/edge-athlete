@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
+import { useState, useEffect, useCallback, useRef, useMemo, useReducer } from 'react';
 import Image from 'next/image';
 import { Comment } from '@/lib/supabase';
 import { useAuth } from '@/lib/auth';
@@ -8,9 +8,13 @@ import { formatDisplayName, getInitials } from '@/lib/formatters';
 import EmojiPickerButton from '@/components/EmojiPickerButton';
 import GifPickerModal from '@/components/GifPickerModal';
 import {
+  CHEVRON_PX,
   COMPOSER_MIN_HEIGHT,
   COMPOSER_MAX_HEIGHT,
+  LEADING_OPEN_PX,
+  composerLeadingReducer,
   composerTextareaHeight,
+  initialLeadingOpen,
 } from '@/components/messages/composer-layout';
 import { flattenReplies, collectDescendantIds } from '@/lib/comment-thread';
 import MentionText from '@/components/MentionText';
@@ -65,6 +69,19 @@ export default function CommentSection({
   // handle → {id, handle} for every mention hydrated from the API; grows as
   // new comments post. MentionText renders only tokens found here.
   const [mentionMap, setMentionMap] = useState<Record<string, { id: string; handle: string }>>({});
+  // iMessage-style leading cluster (emoji + GIF), one per composer: typing
+  // collapses it to a chevron; the chevron brings it back; posting reopens.
+  // Same tested reducer as MessageInput — never fork the latch rules.
+  const [{ leadingOpen: mainLeadingOpen }, dispatchMainLeading] = useReducer(
+    composerLeadingReducer,
+    undefined,
+    initialLeadingOpen
+  );
+  const [{ leadingOpen: replyLeadingOpen }, dispatchReplyLeading] = useReducer(
+    composerLeadingReducer,
+    undefined,
+    initialLeadingOpen
+  );
 
   const mergeMentionProfiles = useCallback(
     (profiles?: { id: string; handle: string }[]) => {
@@ -250,6 +267,7 @@ export default function CommentSection({
       mergeMentionProfiles(data.mentionProfiles);
       setNewComment('');
       setGifUrl(null);
+      dispatchMainLeading({ type: 'SENT' });
 
       const newCount = data.commentsCount ?? comments.length + 1;
       setCommentsCount(newCount);
@@ -543,13 +561,18 @@ export default function CommentSection({
               <button
                 onClick={() => {
                   const closing = replyingTo === comment.id;
-                  setReplyingTo(closing ? null : comment.id);
-                  setReplyText(
+                  const prefill =
                     !closing && depth >= 1 && comment.profile?.handle
                       ? `@${comment.profile.handle} `
-                      : ''
-                  );
+                      : '';
+                  setReplyingTo(closing ? null : comment.id);
+                  setReplyText(prefill);
                   setReplyGifUrl(null);
+                  // Fresh reply form always mounts with the cluster
+                  // collapsed — on a phone the open cluster + send/cancel
+                  // squeezed the box to ~140px; emoji/GIF are one chevron
+                  // tap away (Messages' own tradeoff).
+                  dispatchReplyLeading({ type: 'TEXT_CHANGED', text: 'collapse' });
                   requestAnimationFrame(() => replyInputRef.current?.focus());
                 }}
                 className="text-muted hover:text-brand-fg transition-colors font-medium py-2 px-2 -mx-1"
@@ -558,18 +581,16 @@ export default function CommentSection({
               </button>
             )}
           </div>
-
-          {/* Reply form, directly under whichever comment is being answered
-              — it inherits this row's indent. */}
-          {replyingTo === comment.id && renderReplyForm(comment.id)}
         </div>
       </div>
     );
   };
 
-  // Render the reply input form. Rendered INSIDE the target comment's
-  // content column (renderComment), so it inherits that row's indent — no
-  // extra margin of its own.
+  // Render the reply input form. Rendered at the LIST level, directly under
+  // the target comment's row but OUTSIDE every indent wrapper — on a phone
+  // the accumulated indents left the box ~half the card wide (Tom's report);
+  // a composer earns full width, the drop-under position is what ties it to
+  // its target.
   const renderReplyForm = (parentCommentId: string) => (
     <div className="mt-2">
       {/* Reply GIF preview */}
@@ -593,19 +614,58 @@ export default function CommentSection({
           </button>
         </div>
       )}
-      <div className="flex items-end gap-1">
-        <div className="relative shrink-0">
-          <EmojiPickerButton onEmojiSelect={handleReplyEmojiSelect} />
+      <div className="relative flex items-end gap-1">
+        {/* Dropdown anchors to the ROW, not the field wrapper — full
+            composer width, so long names + handles fit on phones. */}
+        <MentionSuggestions
+          open={replyMentionTypeahead.open}
+          candidates={replyMentionTypeahead.candidates}
+          activeIndex={replyMentionTypeahead.activeIndex}
+          onHover={replyMentionTypeahead.setActiveIndex}
+          onSelect={replyMentionTypeahead.select}
+          onClose={replyMentionTypeahead.close}
+        />
+        {/* Leading cluster (emoji + GIF): collapses to a chevron while
+            typing so the text box keeps the width (MessageInput's latch). */}
+        <div className="shrink-0 flex items-end">
+          <div
+            className="overflow-hidden transition-[width,opacity] duration-200 ease-out"
+            style={{ width: replyLeadingOpen ? 0 : CHEVRON_PX, opacity: replyLeadingOpen ? 0 : 1 }}
+            inert={replyLeadingOpen}
+            aria-hidden={replyLeadingOpen}
+          >
+            <button
+              type="button"
+              onClick={() => dispatchReplyLeading({ type: 'TOGGLE' })}
+              disabled={isSubmitting}
+              className="w-10 h-10 flex items-center justify-center text-faint hover:text-violet-500 active:text-violet-500 transition-colors disabled:opacity-40"
+              aria-label="Show emoji and GIF buttons"
+              title="More options"
+              aria-expanded={replyLeadingOpen}
+            >
+              <i className="fas fa-chevron-right text-sm"></i>
+            </button>
+          </div>
+          <div
+            className="overflow-hidden transition-[width,opacity] duration-200 ease-out flex items-end"
+            style={{ width: replyLeadingOpen ? LEADING_OPEN_PX : 0, opacity: replyLeadingOpen ? 1 : 0 }}
+            inert={!replyLeadingOpen}
+            aria-hidden={!replyLeadingOpen}
+          >
+            <div className="relative w-10 shrink-0 flex justify-center">
+              <EmojiPickerButton onEmojiSelect={handleReplyEmojiSelect} />
+            </div>
+            <button
+              type="button"
+              onClick={() => setShowReplyGifPicker(prev => !prev)}
+              disabled={isSubmitting}
+              className="w-10 h-10 shrink-0 flex items-center justify-center text-faint hover:text-violet-500 active:text-violet-500 transition-colors disabled:opacity-40 text-xs font-bold"
+              title="Add a GIF"
+            >
+              GIF
+            </button>
+          </div>
         </div>
-        <button
-          type="button"
-          onClick={() => setShowReplyGifPicker(prev => !prev)}
-          disabled={isSubmitting}
-          className="shrink-0 relative after:absolute after:content-[''] after:-inset-y-2 after:inset-x-0 p-2 text-faint hover:text-violet-500 active:text-violet-500 transition-colors disabled:opacity-40 text-xs font-bold"
-          title="Add a GIF"
-        >
-          GIF
-        </button>
         {showReplyGifPicker && (
           <GifPickerModal
             title="Add a GIF"
@@ -614,19 +674,14 @@ export default function CommentSection({
           />
         )}
         <div className="relative flex-1 min-w-0">
-          <MentionSuggestions
-            open={replyMentionTypeahead.open}
-            candidates={replyMentionTypeahead.candidates}
-            activeIndex={replyMentionTypeahead.activeIndex}
-            onHover={replyMentionTypeahead.setActiveIndex}
-            onSelect={replyMentionTypeahead.select}
-            onClose={replyMentionTypeahead.close}
-          />
           <textarea
             ref={replyInputRef}
             rows={1}
             value={replyText}
-            onChange={(e) => setReplyText(e.target.value)}
+            onChange={(e) => {
+              setReplyText(e.target.value);
+              dispatchReplyLeading({ type: 'TEXT_CHANGED', text: e.target.value });
+            }}
             onKeyDown={(e) => {
               // The mention dropdown owns arrows/Enter/Tab/Escape while open.
               if (replyMentionTypeahead.onKeyDown(e)) return;
@@ -647,9 +702,11 @@ export default function CommentSection({
           type="button"
           onClick={() => handleSubmitReply(parentCommentId)}
           disabled={(!replyText.trim() && !replyGifUrl) || isSubmitting}
-          className="relative after:absolute after:content-[''] after:-inset-y-1.5 after:inset-x-0 px-3 py-1.5 bg-brand text-white rounded-lg text-sm font-medium hover:bg-brand-hover disabled:opacity-50 disabled:cursor-not-allowed transition-colors shrink-0"
+          aria-label="Post reply"
+          title="Post reply"
+          className="w-10 h-10 shrink-0 flex items-center justify-center bg-brand text-white rounded-full hover:bg-brand-hover disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
         >
-          {isSubmitting ? '...' : 'Reply'}
+          <i className={isSubmitting ? 'fas fa-spinner fa-spin text-sm' : 'fas fa-paper-plane text-sm'}></i>
         </button>
         <button
           type="button"
@@ -700,21 +757,58 @@ export default function CommentSection({
                   </button>
                 </div>
               )}
-              <div className="flex items-end gap-1">
-                {/* Emoji picker */}
-                <div className="relative shrink-0">
-                  <EmojiPickerButton onEmojiSelect={handleEmojiSelect} />
+              <div className="relative flex items-end gap-1">
+                {/* Dropdown anchors to the ROW — full composer width. */}
+                <MentionSuggestions
+                  open={mentionTypeahead.open}
+                  candidates={mentionTypeahead.candidates}
+                  activeIndex={mentionTypeahead.activeIndex}
+                  onHover={mentionTypeahead.setActiveIndex}
+                  onSelect={mentionTypeahead.select}
+                  onClose={mentionTypeahead.close}
+                />
+                {/* Leading cluster (emoji + GIF): collapses to a chevron
+                    while typing (MessageInput's latch — typing collapses,
+                    chevron reopens, posting resets). */}
+                <div className="shrink-0 flex items-end">
+                  <div
+                    className="overflow-hidden transition-[width,opacity] duration-200 ease-out"
+                    style={{ width: mainLeadingOpen ? 0 : CHEVRON_PX, opacity: mainLeadingOpen ? 0 : 1 }}
+                    inert={mainLeadingOpen}
+                    aria-hidden={mainLeadingOpen}
+                  >
+                    <button
+                      type="button"
+                      onClick={() => dispatchMainLeading({ type: 'TOGGLE' })}
+                      disabled={isSubmitting}
+                      className="w-10 h-10 flex items-center justify-center text-faint hover:text-violet-500 active:text-violet-500 transition-colors disabled:opacity-40"
+                      aria-label="Show emoji and GIF buttons"
+                      title="More options"
+                      aria-expanded={mainLeadingOpen}
+                    >
+                      <i className="fas fa-chevron-right text-sm"></i>
+                    </button>
+                  </div>
+                  <div
+                    className="overflow-hidden transition-[width,opacity] duration-200 ease-out flex items-end"
+                    style={{ width: mainLeadingOpen ? LEADING_OPEN_PX : 0, opacity: mainLeadingOpen ? 1 : 0 }}
+                    inert={!mainLeadingOpen}
+                    aria-hidden={!mainLeadingOpen}
+                  >
+                    <div className="relative w-10 shrink-0 flex justify-center">
+                      <EmojiPickerButton onEmojiSelect={handleEmojiSelect} />
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setShowGifPicker(prev => !prev)}
+                      disabled={isSubmitting}
+                      className="w-10 h-10 shrink-0 flex items-center justify-center text-faint hover:text-violet-500 active:text-violet-500 transition-colors disabled:opacity-40 text-xs font-bold"
+                      title="Add a GIF"
+                    >
+                      GIF
+                    </button>
+                  </div>
                 </div>
-                {/* GIF picker */}
-                <button
-                  type="button"
-                  onClick={() => setShowGifPicker(prev => !prev)}
-                  disabled={isSubmitting}
-                  className="shrink-0 relative after:absolute after:content-[''] after:-inset-y-2 after:inset-x-0 p-2 text-faint hover:text-violet-500 active:text-violet-500 transition-colors disabled:opacity-40 text-xs font-bold"
-                  title="Add a GIF"
-                >
-                  GIF
-                </button>
                 {showGifPicker && (
                   <GifPickerModal
                     title="Add a GIF"
@@ -728,19 +822,14 @@ export default function CommentSection({
                     composer in CreatePostModal). The relative wrapper is the
                     mention dropdown's anchor — it tracks the growing field. */}
                 <div className="relative flex-1 min-w-0">
-                  <MentionSuggestions
-                    open={mentionTypeahead.open}
-                    candidates={mentionTypeahead.candidates}
-                    activeIndex={mentionTypeahead.activeIndex}
-                    onHover={mentionTypeahead.setActiveIndex}
-                    onSelect={mentionTypeahead.select}
-                    onClose={mentionTypeahead.close}
-                  />
                   <textarea
                     ref={commentInputRef}
                     rows={1}
                     value={newComment}
-                    onChange={(e) => setNewComment(e.target.value)}
+                    onChange={(e) => {
+                      setNewComment(e.target.value);
+                      dispatchMainLeading({ type: 'TEXT_CHANGED', text: e.target.value });
+                    }}
                     onKeyDown={(e) => {
                       // The mention dropdown owns arrows/Enter/Tab/Escape
                       // while open.
@@ -798,21 +887,25 @@ export default function CommentSection({
                 <div key={comment.id}>
                   {/* Root comment */}
                   {renderComment(comment, 0)}
+                  {replyingTo === comment.id && renderReplyForm(comment.id)}
 
-                  {/* Replies: flattened walk, capped at depth 2. Depth-2 rows
-                      get one extra, slimmer indent so three levels still fit
-                      a 320px card. */}
+                  {/* Replies: flattened walk, capped at depth 2. PER-ROW
+                      indent wrappers (not one band) so the reply form can
+                      sit between rows at FULL width; depth-2 rows step one
+                      further in. The thread line is per-row segments by
+                      design. */}
                   {repliesByParent[comment.id] && repliesByParent[comment.id].length > 0 && (
-                    <div className="ml-10 mt-2 space-y-2 border-l-2 border-border pl-3">
-                      {flattenReplies(comment.id, repliesByParent).map(({ comment: reply, depth }) =>
-                        depth >= 2 ? (
-                          <div key={reply.id} className="ml-4 pl-2 border-l-2 border-border">
+                    <div className="mt-2 space-y-2">
+                      {flattenReplies(comment.id, repliesByParent).map(({ comment: reply, depth }) => (
+                        <div key={reply.id}>
+                          <div
+                            className={`${depth >= 2 ? 'ml-14' : 'ml-10'} pl-3 border-l-2 border-border`}
+                          >
                             {renderComment(reply, depth)}
                           </div>
-                        ) : (
-                          renderComment(reply, depth)
-                        )
-                      )}
+                          {replyingTo === reply.id && renderReplyForm(reply.id)}
+                        </div>
+                      ))}
                     </div>
                   )}
                 </div>
