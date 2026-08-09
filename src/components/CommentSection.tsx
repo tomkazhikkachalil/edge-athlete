@@ -7,6 +7,11 @@ import { useAuth } from '@/lib/auth';
 import { formatDisplayName, getInitials } from '@/lib/formatters';
 import EmojiPickerButton from '@/components/EmojiPickerButton';
 import GifPickerModal from '@/components/GifPickerModal';
+import {
+  COMPOSER_MIN_HEIGHT,
+  COMPOSER_MAX_HEIGHT,
+  composerTextareaHeight,
+} from '@/components/messages/composer-layout';
 
 interface CommentSectionProps {
   postId: string;
@@ -38,8 +43,8 @@ export default function CommentSection({
   const [replyText, setReplyText] = useState('');
   const [replyGifUrl, setReplyGifUrl] = useState<string | null>(null);
   const [showReplyGifPicker, setShowReplyGifPicker] = useState(false);
-  const commentInputRef = useRef<HTMLInputElement>(null);
-  const replyInputRef = useRef<HTMLInputElement>(null);
+  const commentInputRef = useRef<HTMLTextAreaElement>(null);
+  const replyInputRef = useRef<HTMLTextAreaElement>(null);
 
   // Organize comments into threads
   const { rootComments, repliesByParent } = useMemo(() => {
@@ -108,6 +113,26 @@ export default function CommentSection({
     setCommentsCount(initialCommentsCount);
   }
 
+  // Auto-grow: measure with height reset to auto so shrinking works too.
+  // Bounds come from composer-layout so comments and messages can't drift.
+  const resizeTextarea = (ta: HTMLTextAreaElement | null) => {
+    if (!ta) return;
+    ta.style.height = 'auto';
+    ta.style.height = composerTextareaHeight(ta.scrollHeight) + 'px';
+  };
+
+  // Height is derived from the COMMITTED value, not from event timing: the
+  // post-submit clear happens in an async continuation, and a rAF-scheduled
+  // re-measure raced React's commit and froze the box at its grown height.
+  // An effect keyed on the value always measures what's actually rendered.
+  useEffect(() => {
+    resizeTextarea(commentInputRef.current);
+  }, [newComment]);
+
+  useEffect(() => {
+    if (replyingTo) resizeTextarea(replyInputRef.current);
+  }, [replyText, replyingTo]);
+
   const handleEmojiSelect = (emoji: string) => {
     const input = commentInputRef.current;
     const pos = input?.selectionStart ?? newComment.length;
@@ -144,8 +169,8 @@ export default function CommentSection({
     setShowReplyGifPicker(false);
   };
 
-  const handleSubmitComment = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleSubmitComment = async (e?: React.FormEvent) => {
+    e?.preventDefault();
     if (!newComment.trim() && !gifUrl) return;
     if (!user) return;
 
@@ -491,7 +516,7 @@ export default function CommentSection({
           </button>
         </div>
       )}
-      <div className="flex items-center gap-1">
+      <div className="flex items-end gap-1">
         <div className="relative shrink-0">
           <EmojiPickerButton onEmojiSelect={handleReplyEmojiSelect} />
         </div>
@@ -511,19 +536,22 @@ export default function CommentSection({
             onClose={() => setShowReplyGifPicker(false)}
           />
         )}
-        <input
+        <textarea
           ref={replyInputRef}
-          type="text"
+          rows={1}
           value={replyText}
           onChange={(e) => setReplyText(e.target.value)}
           onKeyDown={(e) => {
-            if (e.key === 'Enter' && !e.shiftKey) {
+            // isComposing guard: Enter that COMMITS an IME composition must
+            // not send the half-composed text (MessageInput's rule).
+            if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) {
               e.preventDefault();
               handleSubmitReply(parentCommentId);
             }
           }}
           placeholder="Write a reply..."
-          className="flex-1 min-w-0 px-3 py-1.5 border border-border-strong rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-500 text-sm"
+          className="flex-1 min-w-0 px-3 py-1.5 border border-border-strong rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-500 text-sm resize-none overflow-hidden block"
+          style={{ minHeight: COMPOSER_MIN_HEIGHT, maxHeight: COMPOSER_MAX_HEIGHT }}
           disabled={isSubmitting}
         />
         <button
@@ -583,7 +611,7 @@ export default function CommentSection({
                   </button>
                 </div>
               )}
-              <div className="flex items-center gap-1">
+              <div className="flex items-end gap-1">
                 {/* Emoji picker */}
                 <div className="relative shrink-0">
                   <EmojiPickerButton onEmojiSelect={handleEmojiSelect} />
@@ -605,17 +633,28 @@ export default function CommentSection({
                     onClose={() => setShowGifPicker(false)}
                   />
                 )}
-                {/* min-w-0: a text input's intrinsic min-width is ~177px, so
+                {/* min-w-0: a text field's intrinsic min-width is ~177px, so
                     without this the flex row refuses to shrink and overflows
                     the card sideways on phones (same trap as the hashtag
                     composer in CreatePostModal). */}
-                <input
+                <textarea
                   ref={commentInputRef}
-                  type="text"
+                  rows={1}
                   value={newComment}
                   onChange={(e) => setNewComment(e.target.value)}
+                  onKeyDown={(e) => {
+                    // A textarea doesn't implicitly submit its form the way
+                    // the old single-line input did — Enter must be wired
+                    // explicitly (Shift+Enter = newline; isComposing per
+                    // MessageInput's IME rule).
+                    if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) {
+                      e.preventDefault();
+                      handleSubmitComment();
+                    }
+                  }}
                   placeholder="Write a comment..."
-                  className="flex-1 min-w-0 px-3 py-2 border border-border-strong rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-500 text-sm"
+                  className="flex-1 min-w-0 px-3 py-2 border border-border-strong rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-500 text-sm resize-none overflow-hidden block"
+                  style={{ minHeight: COMPOSER_MIN_HEIGHT, maxHeight: COMPOSER_MAX_HEIGHT }}
                   disabled={isSubmitting}
                 />
                 <button

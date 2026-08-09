@@ -1,5 +1,34 @@
 # Development Log
 
+## August 9, 2026 — The comment box grows like the message box
+
+Tom: typing a comment keeps everything on one line scrolling sideways — it
+should expand like Messages and show the whole comment. Both comment
+composers (main + reply) were single-line `<input type="text">`.
+
+Now they're the same growing textarea the messages composer uses — same
+bounds, same tested clamp (`COMPOSER_MIN/MAX_HEIGHT` +
+`composerTextareaHeight` imported from `messages/composer-layout`; no new
+constants, the two composers can't drift). Enter sends, Shift+Enter
+newlines, and both handlers carry the `isComposing` IME guard (the main
+composer previously relied on implicit form submission, which a textarea
+doesn't do; the reply composer had Enter handling but no IME guard).
+Rows switch `items-center` → `items-end` so the buttons pin to the bottom
+as the field grows. Comment bodies already render `whitespace-pre-wrap`,
+so multi-line comments display correctly with zero render changes.
+
+**The trap this fixed en route:** resizing from event handlers, the
+post-submit "collapse back to one line" raced React — the clear happens in
+an async continuation, and a rAF re-measure ran before the commit,
+freezing the box at its grown height with the old content's measurement.
+Height is now derived in an EFFECT keyed on the committed value: every
+path (typing, emoji insert, submit-clear) re-measures exactly what's
+rendered, and the event-time resize calls are gone.
+
+Verified with a live probe (real post, both composers): grows past 60px on
+multi-line, clamps at 120, Enter posts, box returns to 40px, reply
+composer behaves identically.
+
 ## August 9, 2026 — Replies stop escaping the screen; the keyboard stops launching the composer
 
 Tom's iPhone pass over the new sheet found two more, both in Messages:
