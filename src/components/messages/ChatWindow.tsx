@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/lib/auth';
@@ -28,6 +28,12 @@ export default function ChatWindow({ conversationId, onBack }: Props) {
   const { markConversationRead, addOptimisticMessage, removeConversation } = useMessages();
 
   const [conversation, setConversation] = useState<Conversation | null>(null);
+  // Active members' profiles — the @mention source for the composer and the
+  // resolve set for rendering mention links in bubbles.
+  const activeParticipantProfiles = useMemo(
+    () => (conversation?.participants ?? []).filter(p => !p.left_at).map(p => p.profile),
+    [conversation]
+  );
   const [messages, setMessages] = useState<Message[]>([]); // newest first
   const [hasMore, setHasMore] = useState(false);
   const [nextCursor, setNextCursor] = useState<string | null>(null);
@@ -764,6 +770,7 @@ export default function ChatWindow({ conversationId, onBack }: Props) {
               onReply={handleReply}
               onScrollToMessage={handleScrollToMessage}
               onMessageEdited={handleMessageEdited}
+              participants={activeParticipantProfiles}
             />
           </div>
         ))}
@@ -801,6 +808,7 @@ export default function ChatWindow({ conversationId, onBack }: Props) {
         onSend={handleSend}
         replyingTo={replyingTo}
         onCancelReply={handleCancelReply}
+        participants={activeParticipantProfiles}
       />
 
       {/* Group Settings Modal */}

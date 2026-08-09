@@ -40,6 +40,11 @@ export default function MiniChatWindow({
   const initialDraft = useMemo(() => loadDraft(conversation.id), [conversation.id]);
 
   const identity = conversationIdentity(conversation, currentUserId);
+  // Active members' profiles — @mention source + render resolve set.
+  const activeParticipantProfiles = useMemo(
+    () => (conversation.participants ?? []).filter(p => !p.left_at).map(p => p.profile),
+    [conversation]
+  );
   const { title, avatarUrl, initials, isGroup } = identity;
   const online = isConversationPartnerOnline(identity, onlineIds);
 
@@ -131,6 +136,7 @@ export default function MiniChatWindow({
                 onGifReact={thread.setGifReactingMessageId}
                 onReply={thread.handleReply}
                 onMessageEdited={thread.handleMessageEdited}
+                participants={activeParticipantProfiles}
               />
             ))}
             {thread.hasMore && (
@@ -158,6 +164,7 @@ export default function MiniChatWindow({
           onCancelReply={thread.handleCancelReply}
           initialText={initialDraft}
           onTextChange={handleTextChange}
+          participants={activeParticipantProfiles}
         />
       </div>
 

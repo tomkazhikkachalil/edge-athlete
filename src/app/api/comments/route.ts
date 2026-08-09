@@ -1,5 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseAdmin, getServerClient, getServerAuth } from '@/lib/auth-server';
+import { extractHandles } from '@/lib/mentions';
+import { notifyCommentMentions } from '@/lib/mentions/notify';
+import { canViewProfile } from '@/lib/privacy';
 
 // GET - Fetch comments for a post
 export async function GET(request: NextRequest) {
@@ -57,10 +60,29 @@ export async function GET(request: NextRequest) {
 
     const rows = comments || [];
     const hasMore = rows.length > limit;
+    const pageRows = hasMore ? rows.slice(0, limit) : rows;
+
+    // Hydrate mentioned profiles: id + handle ONLY. The handle is already in
+    // the comment text; this just confirms which tokens are real mentions —
+    // no names/avatars of possibly-private users are exposed.
+    const mentionIds = [
+      ...new Set(pageRows.flatMap((c: { mentions?: string[] }) => c.mentions ?? [])),
+    ];
+    let mentionProfiles: { id: string; handle: string }[] = [];
+    if (mentionIds.length > 0) {
+      const { data: profs } = await getSupabaseAdmin()
+        .from('profiles')
+        .select('id, handle')
+        .in('id', mentionIds)
+        .not('handle', 'is', null);
+      mentionProfiles = (profs ?? []) as { id: string; handle: string }[];
+    }
+
     return NextResponse.json({
-      comments: hasMore ? rows.slice(0, limit) : rows,
+      comments: pageRows,
       hasMore,
-      nextOffset: offset + Math.min(rows.length, limit)
+      nextOffset: offset + Math.min(rows.length, limit),
+      mentionProfiles
     });
   } catch (error) {
     console.error('Error in GET /api/comments:', error);
@@ -121,15 +143,50 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    // Resolve @mentions SERVER-SIDE from the text (unforgeable — the client
+    // sends nothing extra). Taggable by the author = public OR someone the
+    // author follows (accepted, one-directional: canViewProfile semantics).
+    // The admin client bypasses RLS, so this filter IS the privacy boundary.
+    const trimmedContent: string | null = content?.trim() || null;
+    const admin = getSupabaseAdmin();
+    let mentionProfiles: { id: string; handle: string }[] = [];
+    if (trimmedContent) {
+      const handles = extractHandles(trimmedContent);
+      if (handles.length > 0) {
+        const { data: profs } = await admin
+          .from('profiles')
+          .select('id, handle, visibility')
+          .in('handle', handles)
+          .neq('id', profile.id);
+        if (profs && profs.length > 0) {
+          const privateIds = profs.filter(p => p.visibility !== 'public').map(p => p.id);
+          let followed = new Set<string>();
+          if (privateIds.length > 0) {
+            const { data: fRows } = await admin
+              .from('follows')
+              .select('following_id')
+              .eq('follower_id', profile.id)
+              .eq('status', 'accepted')
+              .in('following_id', privateIds);
+            followed = new Set((fRows ?? []).map(r => r.following_id));
+          }
+          mentionProfiles = profs
+            .filter(p => p.visibility === 'public' || followed.has(p.id))
+            .map(p => ({ id: p.id, handle: p.handle as string }));
+        }
+      }
+    }
+
     // Create comment
     const { data: comment, error: commentError } = await supabase
       .from('post_comments')
       .insert({
         post_id: postId,
         profile_id: profile.id,
-        content: content?.trim() || null,
+        content: trimmedContent,
         gif_url: gif_url || null,
-        parent_comment_id: parentCommentId || null
+        parent_comment_id: parentCommentId || null,
+        mentions: mentionProfiles.map(m => m.id)
       })
       .select(`
         *,
@@ -155,7 +212,6 @@ export async function POST(request: NextRequest) {
     }
 
     // Count actual rows and sync cached column
-    const admin = getSupabaseAdmin();
     const { count } = await admin
       .from('post_comments')
       .select('id', { count: 'exact', head: true })
@@ -164,7 +220,35 @@ export async function POST(request: NextRequest) {
     const trueCount = count ?? 0;
     await admin.from('posts').update({ comments_count: trueCount }).eq('id', postId);
 
-    return NextResponse.json({ comment, commentsCount: trueCount }, { status: 201 });
+    // Mention notifications — best-effort, and only to people who can see
+    // the post's owner (never mint a dead-link notification for someone the
+    // post is invisible to).
+    if (mentionProfiles.length > 0) {
+      const { data: post } = await admin
+        .from('posts')
+        .select('profile_id')
+        .eq('id', postId)
+        .maybeSingle();
+      if (post) {
+        const visible: string[] = [];
+        for (const m of mentionProfiles) {
+          const { canView } = await canViewProfile(post.profile_id, m.id);
+          if (canView) visible.push(m.id);
+        }
+        await notifyCommentMentions(admin, {
+          postId,
+          commentId: comment.id,
+          authorId: profile.id,
+          mentionedIds: visible,
+          content: trimmedContent,
+        });
+      }
+    }
+
+    return NextResponse.json(
+      { comment, commentsCount: trueCount, mentionProfiles },
+      { status: 201 }
+    );
   } catch (error) {
     console.error('Error in POST /api/comments:', error);
     return NextResponse.json(
