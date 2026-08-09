@@ -1,5 +1,29 @@
 # Development Log
 
+## August 9, 2026 — Under par is violet, everywhere
+
+Tom's call, closing the divergence the hole strip surfaced: *"Fix the birdie
+colors to all match the violet."* The July 27 rebrand deliberately left
+`SCORE_CELL_RING`/`SCORE_CELL_FILL` blue as a "scoring convention" while the
+sweep turned everything else violet — but `GolfRoundCard`'s hand-rolled
+cells and BOTH scorecard legends already said violet, so blue was the
+minority and the legends were lying about the tables next to them.
+
+- `scoring.ts`: eagle/birdie in both maps blue → violet (light + dark
+  variants together — the maps stay the single source of truth). Bogey/
+  double stay red; under-par GREEN for to-par totals stays green (that's a
+  different axis: relative-to-par total, not per-hole result).
+- `GolfRoundCard`'s two hand-rolled classification blocks now call
+  `classifyScore` + `SCORE_CELL_RING` like every other surface — the
+  duplicate is gone, and with it a real bug: `diff === -2` called an
+  albatross (−3) a plain par; `classifyScore` uses `<= -2`.
+- The strip (#84), `SharedRoundFullCard`, `MultiPlayerScorecardGrid` and
+  both legends now render from one palette; nothing else changed.
+
+The rebrand memory's "intentional remaining blues" list shrinks by one
+entry; sport/league/equipment colour maps and the Training chips remain
+deliberately blue.
+
 ## August 9, 2026 — Player rows get their glimpse back: the hole strip
 
 Tom, after course-first shipped: *"the bottom section should be athletes
