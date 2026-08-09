@@ -434,7 +434,12 @@ body {
  *  - visually locked pill/dense cluster: relative after:absolute
  *    after:content-[''] after:-inset-y-1.5 after:inset-x-0  (vertical-only
  *    where horizontal neighbours are close — overlapping extenders make
- *    mis-taps worse, not better) */
+ *    mis-taps worse, not better)
+ *
+ * CLIPPING RULE: an after: extender is DEAD under any overflow-hidden /
+ * overflow-auto ancestor — the pseudo-element is clipped, hit area included,
+ * with no visual warning. Verify with elementFromPoint just outside the
+ * painted box, or grow the control for real (min-h/h) instead. */
 .ea-icon-btn::after {
   content: '';
   position: absolute;

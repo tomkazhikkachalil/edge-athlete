@@ -9,21 +9,34 @@ everything else a thumb reaches:
   holding its optical position; options and minimize likewise; the header
   name button and the error-state "Back to messages" get M1. Minimize is
   `lg`-only but included — 1024px iPads are coarse-pointer.
-- **Message composer**: the three `w-10` buttons (chevron, attach, GIF) take
-  **vertical-only extenders precisely so `w-10` survives** —
-  `composer-layout.ts` pins `CHEVRON_PX = 40` to those classes by test, and
-  growing the painted width would desync a documented invariant. Send was
-  already `w-11`. The emoji trigger (38px) gets the same extender — on the
+- **Message composer**: the three `w-10` buttons (chevron, attach, GIF)
+  become `w-10 h-11` — width untouched (`composer-layout.ts` pins
+  `CHEVRON_PX = 40` to those classes by test), height grown to 44 because
+  the send button already makes the row that tall. The first attempt used
+  the usual `after:` extender and **hit-testing proved it dead**: these
+  buttons live inside the collapse animation's `overflow-hidden` wrappers,
+  which clip pseudo-elements — hit area included. If a control sits under
+  `overflow-hidden`, extenders are not an option. Send was already `w-11`.
+  The emoji trigger gets a real extender — its holder isn't clipped — on the
   inner button, not the anchor wrapper, which the picker-anchoring
   architecture owns.
-- **Reactions**: chips, the ⊕ add-reaction, ReactionDetails tabs and all five
-  MessageBubble quick actions get vertical extenders (2px gaps forbid
-  horizontal growth — a conscious dense-cluster trade-off; they stay 28px
-  wide). The picker's floating close X lands at 40px effective, not 44 — full
-  size would swallow taps meant for the picker edge beside it.
+- **Reactions**: chips, the ⊕ add-reaction and all five MessageBubble quick
+  actions get vertical extenders (2px gaps forbid horizontal growth — a
+  conscious dense-cluster trade-off; they stay 28px wide). The picker's
+  floating close X lands at 40px effective, not 44 — full size would swallow
+  taps meant for the picker edge beside it. ReactionDetails' tabs could NOT
+  take an extender — their row is `overflow-x-auto`, which clips
+  pseudo-elements (see below) — so they grow to 44 like the other tab strips.
 - **Tab strips**: EditProfileTabs (36px, the worst), YearSelect, explore
-  chips, ProfileMediaTabs grow to 44; MultiPlayerScorecardGrid's segmented
-  Front 9 / Back 9 keeps its joined-border design via extenders.
+  chips, ProfileMediaTabs, and MultiPlayerScorecardGrid's segmented
+  Front 9 / Back 9 all grow to 44 — the segmented control's
+  `overflow-hidden` container clips extenders, so both segments grow
+  together and the joined-border design survives.
+- **THE CLIPPING RULE, learned by a failed hit-test, now in the globals.css
+  recipes: an `after:` extender is DEAD under any `overflow-hidden` /
+  `overflow-auto` ancestor** — the pseudo-element is clipped, hit area
+  included, and nothing visual warns you. The composer buttons (below) hit
+  the same wall. If a control sits in a clipping context, grow it for real.
 - **Bare links**, all standalone (none prose-inline after audit):
   RegistrationSteps' four back/edit links, FeedCalendarWidget, onboarding
   sign-out, transfer page ×4, complete-profile ×2, guardian consent +
