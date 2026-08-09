@@ -1,5 +1,52 @@
 # Development Log
 
+## August 9, 2026 — Replies stop escaping the screen; the keyboard stops launching the composer
+
+Tom's iPhone pass over the new sheet found two more, both in Messages:
+
+**1. Reply and GIF-reaction bubbles ran off the screen edge.** Root cause is
+the repo's documented min-w-0 trap, in the bubble itself: `QuotedReply`'s
+snippet is a `truncate` (nowrap) line, so its min-content is the FULL
+one-line string (~450px+ for a 60-char snippet); the `.group` bubble wrapper
+had no `min-w-0`, so flex-shrink couldn't take it below that, the row's
+`max-w-xs` clamped only the row box, and the thread scroller's
+`overflow-y-auto` made the spill horizontally pannable. Only replies and GIF
+reactions show it because only they carry a QuotedReply (GIF reactions
+synthesize `reply_to`). **Pre-existing since QuotedReply shipped** — not a
+#92 regression — but #92's sheet replica added a second surface with no
+width cap at all (and a `fixed` panel, so its overflow left the viewport
+unrecoverable). MessageInput's reply banner was already correct
+(`flex-1 min-w-0` + truncate) — the reference implementation. Fixes:
+- `min-w-0` on the `.group` wrapper (fixes thread AND dock; the class now
+  carries a comment naming the trap).
+- Sheet replica: `max-w-[calc(100vw-2rem)]` — a viewport-based DEFINITE cap,
+  because `max-w-full` would resolve circularly against the fit-content
+  panel. Emoji row regains `flex-wrap` (the pre-#92 pill had it; ≤360px
+  viewports need it).
+
+**2. Focusing the composer shot the layout to the top (iOS).** The missing
+half of the July 27 keyboard fix: on focus, iOS pans the DOCUMENT to "bring
+the input into view" BEFORE visualViewport's resize fires — a ~400px scroll
+against the still-full-height shell. Then `--vvh` shrinks the shell to
+keyboard height and nothing undoes the pan: the user faces the bottom edge
+of a 360px app, composer parked at the top (Tom's workaround — dragging the
+page down — is literally the missing clamp). `useVisualViewportHeight` now:
+- clamps the pan (`scrollTo(0,0)` when `scrollY`/`vv.offsetTop` > 0) on
+  both `resize` and `scroll` — pages using the hook are exactly
+  viewport-height, so ANY document offset is the artifact;
+- rewrites `--vvh` on `resize` only (the old code re-laid-out the shell from
+  the `scroll` event mid-pan-gesture);
+- documents why the composer must never get scrollIntoView (it would race
+  iOS's own focus scroll). Android no-ops by design
+  (`interactiveWidget: 'resizes-content'` keeps scrollY at 0).
+
+Verified at phone geometry on the real UI: thread scroller has zero
+horizontal overflow with a long-snippet reply + GIF reaction seeded, the
+snippet actually ellipses, the sheet panel fits the viewport, and composer
+focus leaves `--vvh` set with scrollY 0. direct-message + chat-dock green.
+The keyboard clamp itself is iOS-hardware behavior — Tom's device retest is
+the real gate.
+
 ## August 9, 2026 — Long-press becomes a real action sheet (and stops fighting iOS text selection)
 
 Tom device-tested #91's long-press and reported the truth about it: the OS

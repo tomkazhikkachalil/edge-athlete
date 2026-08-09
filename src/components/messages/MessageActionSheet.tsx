@@ -163,7 +163,7 @@ export default function MessageActionSheet({
           <>
             <div
               ref={emojiRowRef}
-              className="flex items-center gap-0.5 bg-surface-raised border border-border rounded-full shadow-lg px-1.5 py-1 max-w-full"
+              className="flex flex-wrap items-center gap-0.5 bg-surface-raised border border-border rounded-full shadow-lg px-1.5 py-1 max-w-full"
             >
               {quickEmojis.map((emoji) => (
                 <button
@@ -191,8 +191,12 @@ export default function MessageActionSheet({
 
             {/* Replica of the pressed message. pointer-events-none is what
                 neutralises the nested interactive bits (SharedPostPreview's
-                <button>, <video controls>) — this is a preview, not a target. */}
-            <div className="pointer-events-none max-h-[40vh] overflow-hidden">
+                <button>, <video controls>) — this is a preview, not a target.
+                The max-w must be a VIEWPORT-based definite cap: a max-w-full
+                would resolve circularly against the fit-content panel, and
+                QuotedReply's nowrap truncate line needs a definite containing
+                block to actually ellipse. */}
+            <div className="pointer-events-none max-h-[40vh] max-w-[calc(100vw-2rem)] overflow-hidden">
               {message.reply_to && (
                 <QuotedReply replyTo={message.reply_to} isOwn={isOwn} />
               )}
