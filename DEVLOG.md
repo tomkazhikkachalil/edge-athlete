@@ -1,5 +1,25 @@
 # Development Log
 
+## August 9, 2026 — End-of-day maintenance sweep
+
+Requested checklist after the day's fourteen PRs (#76–#77, #81–#89):
+
+- **`npm audit` had grown 3 high advisories** since the Aug 6 sweep —
+  fast-uri (host confusion), js-yaml (quadratic CPU in `!!omap`), nanoid
+  (infinite loop on size 0), all transitive. `npm audit fix` resolved all
+  three with in-range updates; lockfile-only change, **0 vulnerabilities
+  after**. Advisories drift in on their own schedule — the maintenance
+  sweep is what catches them, not feature work.
+- Full gate green after the bumps: tsc clean, lint at the 44 ratchet
+  exactly, all tests, production build. `npm ci --dry-run` resolves.
+- Recording **#87** here (shipped without an entry): with the placement
+  medal in the leaderboard row, a long wrapped name could squeeze the
+  score column — `shrink-0` on the score container. Its sibling fix (the
+  JSX-whitespace `(You)` overflow) is described under #88's entry.
+- Tree clean on main, synced with origin; Vercel deploy for the final
+  merge verified green; prod `/api/health` ok. Tom device-tested the #89
+  search/dropdown fixes on his phone: "everything works now."
+
 ## August 9, 2026 — The search you couldn't leave (backdrop-filter is a containing block)
 
 Tom: Escape barely works on search, mobile search requires a page refresh
