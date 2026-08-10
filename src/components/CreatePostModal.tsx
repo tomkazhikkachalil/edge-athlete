@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback, useRef, useEffect } from 'react';
+import { useState, useCallback, useRef, useEffect, type ComponentType } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth';
 import { shouldEnterScorerAfterCreate } from '@/lib/golf/round-route';
@@ -8,15 +8,17 @@ import { calcPlayerTotals } from '@/lib/golf/scoring';
 import { useToast } from '@/components/Toast';
 import { getTagOptions, getHashtagSuggestions } from '@/lib/sports/post-tags';
 import MediaTile from '@/components/media/MediaTile';
-import GolfScorecardForm from '@/components/GolfScorecardForm';
 import TagPeopleModal from '@/components/TagPeopleModal';
 import SportSelector from '@/components/SportSelector';
-import MultiPlayerScorecardGrid, { type PlayerScoreData, type PlayerHoleScore } from '@/components/golf/MultiPlayerScorecardGrid';
+import { type PlayerScoreData } from '@/components/golf/MultiPlayerScorecardGrid';
 import SharedRoundQuickView from '@/components/golf/SharedRoundQuickView';
+import { defaultGolfComposerValue, type GolfComposerValue, type GolfRoundData } from '@/components/golf/GolfComposerSection';
+import { submitSharedRound } from '@/components/golf/shared-round-submit';
+import { SPORT_COMPOSER_EXTRAS, type SportComposerExtraProps } from '@/components/sport-composer-extras';
 import { getSportDefinition, type SportKey } from '@/lib/sports/SportRegistry';
 import StatLineForm, { emptyStatLine, statLineHasContent } from '@/components/StatLineForm';
 import { getStatSchema, type StatLineData } from '@/lib/sports/stat-schemas';
-import type { HoleData, GolfCourse } from '@/types/golf';
+import type { HoleData } from '@/types/golf';
 import type { CompleteGolfScorecard, ParticipantRole } from '@/types/group-posts';
 import { useBodyScrollLock } from '@/hooks/useBodyScrollLock';
 import { useDirtyClose } from '@/hooks/useDirtyClose';
@@ -53,10 +55,8 @@ interface MediaFile {
   posterBlob?: Blob;
 }
 
-interface GolfRoundData {
-  courseName?: string;
-  holesData?: HoleData[];
-}
+// GolfRoundData moved to src/components/golf/GolfComposerSection.tsx with the
+// rest of the golf composer state (sport-cleanup D-2).
 
 interface ProfileData {
   id: string;
@@ -111,6 +111,14 @@ interface PostPreviewProps {
 // Tag chips + hashtag suggestions are registry-driven — see
 // src/lib/sports/post-tags.ts (per-sport lists live on SportDefinition).
 
+// Sport composer slot entries, resolved once at module scope so the section
+// components are identity-stable across renders (a new array per render would
+// still reuse elements by key, but there is no reason to rebuild it).
+const SPORT_COMPOSER_ENTRIES = Object.entries(SPORT_COMPOSER_EXTRAS) as [
+  SportKey,
+  ComponentType<SportComposerExtraProps>
+][];
+
 export default function CreatePostModal({
   isOpen,
   onClose,
@@ -154,54 +162,15 @@ export default function CreatePostModal({
   const [draggedOver, setDraggedOver] = useState(false);
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
 
-  // Golf specific data
-  const [golfRoundData, setGolfRoundData] = useState<GolfRoundData | null>(null);
-
-  // Shared round specific data
-  const [roundType, setRoundType] = useState<'individual' | 'shared'>('individual');
-  const [sharedRoundParticipants, setSharedRoundParticipants] = useState<string[]>([]);
-  const [sharedRoundParticipantsData, setSharedRoundParticipantsData] = useState<{id: string; name: string; avatar_url?: string}[]>([]);
-  const [showParticipantModal, setShowParticipantModal] = useState(false);
-  const [sharedRoundDetails, setSharedRoundDetails] = useState({
-    courseName: '',
-    date: new Date().toISOString().split('T')[0], // Today's date
-    holesPlayed: 18,
-    roundTypeIndoorOutdoor: 'outdoor' as 'outdoor' | 'indoor',
-    gameFormat: 'stroke' as 'stroke' | 'stableford' | 'match',
-    teeColor: '',
-    weather: '',
-    temperature: '',
-    wind: '',
-    // "Already played" rounds post as FINAL immediately (no LIVE badge, no
-    // resume banner) — for logging rounds after the fact
-    alreadyPlayed: false,
-  });
-  // Smart default: picking a past date implies "already played" — but an
-  // explicit tap on the toggle wins and stops the auto-flip
-  const roundTimingTouchedRef = useRef(false);
-
-  // "Playing now" is ONE flow (live round, friends optional) — it always
-  // runs on the shared-round rails, solo just means zero invitees.
-  // A constraint on the current state, not a side effect: apply it during
-  // render so an invalid roundType never reaches the UI for a frame.
-  if (postType === 'golf' && !sharedRoundDetails.alreadyPlayed && roundType !== 'shared') {
-    setRoundType('shared');
-  }
-
-  // Golf course search for shared rounds
-  const [courseSearchOpen, setCourseSearchOpen] = useState(false);
-  const [courseSearchQuery, setCourseSearchQuery] = useState('');
-  const [availableCourses, setAvailableCourses] = useState<GolfCourse[]>([]);
-  const [searchLoading, setSearchLoading] = useState(false);
-  const [selectedCourse, setSelectedCourse] = useState<GolfCourse | null>(null);
-
-  // Course hole data (par and yardage per hole)
-  const [courseHoleData, setCourseHoleData] = useState<{ hole: number; par: number; yardage?: number }[]>([]);
-  const [manualParEntry, setManualParEntry] = useState<number[]>([]);
-  const [manualYardageEntry, setManualYardageEntry] = useState<number[]>([]);
-
-  // Shared round score entry
-  const [playerScores, setPlayerScores] = useState<PlayerScoreData[]>([]);
+  // Golf specific data lives in GolfComposerSection (see the sport slot in
+  // the JSX below); the section reports its full value up on every internal
+  // change, and this snapshot is all the submit, validation, footer-hint and
+  // preview paths read.
+  const [golfValue, setGolfValue] = useState<GolfComposerValue>(() => defaultGolfComposerValue());
+  // Bumped by reset() — remounts the sport sections so their internal state
+  // clears at exactly the moments the old inline golf state was reset
+  // (confirmed discard / post success).
+  const [sportSectionResetKey, setSportSectionResetKey] = useState(0);
 
   // Visibility and submission
   const [visibility, setVisibility] = useState<'public' | 'private'>('public');
@@ -230,106 +199,6 @@ export default function CreatePostModal({
     output: { maxDimension: 2048, mime: 'image/jpeg', quality: 0.9 },
   };
 
-  // Search for golf courses (for shared rounds)
-  const searchCourses = useCallback(async (query: string) => {
-    if (query.length < 2) {
-      setAvailableCourses([]);
-      return;
-    }
-
-    setSearchLoading(true);
-    try {
-      const response = await fetch(`/api/golf/courses?q=${encodeURIComponent(query)}&limit=8`);
-      if (response.ok) {
-        const data = await response.json();
-        setAvailableCourses(data.courses || []);
-      } else {
-        console.error('Failed to search golf courses — status:', response.status);
-      }
-    } catch (e) {
-      console.error('Failed to search golf courses:', e);
-      setAvailableCourses([]);
-    } finally {
-      setSearchLoading(false);
-    }
-  }, []);
-
-  // Select a course from search results (for shared rounds)
-  const selectCourse = useCallback((course: GolfCourse) => {
-    setSelectedCourse(course);
-    setSharedRoundDetails(prev => ({
-      ...prev,
-      courseName: course.name
-    }));
-    setCourseSearchOpen(false);
-    setCourseSearchQuery('');
-    setAvailableCourses([]);
-
-    // Auto-populate par and yardage from course data
-    const teeKey = (sharedRoundDetails.teeColor || 'white') as keyof typeof course.holes[0]['yardage'];
-    const holeData = course.holes
-      .filter(hole => hole.number <= sharedRoundDetails.holesPlayed)
-      .map(hole => ({
-        hole: hole.number,
-        par: hole.par,
-        yardage: hole.yardage[teeKey] || hole.yardage.white || hole.yardage.blue || 400
-      }));
-    setCourseHoleData(holeData);
-
-    // Clear manual entry since we have course data
-    setManualParEntry([]);
-    setManualYardageEntry([]);
-  }, [sharedRoundDetails.teeColor, sharedRoundDetails.holesPlayed]);
-
-  // Initialize player scores when participants are added
-  const initializePlayerScores = useCallback((participants: {id: string; name: string; avatar_url?: string}[], holes: number) => {
-    setPlayerScores(prev => {
-      // Get existing player IDs to avoid duplicates
-      const existingIds = new Set(prev.map(p => p.participant_id));
-
-      // Only initialize scores for NEW players
-      const newPlayers = participants
-        .filter(p => !existingIds.has(p.id))
-        .map(participant => ({
-          participant_id: participant.id,
-          profile: {
-            id: participant.id,
-            full_name: participant.name,
-            avatar_url: participant.avatar_url
-          },
-          hole_scores: Array.from({ length: holes }, (_, i) => ({
-            hole_number: i + 1,
-            strokes: undefined,
-            putts: undefined,
-            fairway_hit: undefined,
-            green_in_regulation: undefined
-          }))
-        }));
-
-      // Merge with existing players
-      return [...prev, ...newPlayers];
-    });
-  }, []);
-
-  // Handle score change for a specific player and hole
-  const handlePlayerScoreChange = useCallback((playerId: string, holeNum: number, data: Partial<PlayerHoleScore>) => {
-    setPlayerScores(prevScores =>
-      prevScores.map(playerScore => {
-        if (playerScore.participant_id === playerId) {
-          return {
-            ...playerScore,
-            hole_scores: playerScore.hole_scores.map(holeScore =>
-              holeScore.hole_number === holeNum
-                ? { ...holeScore, ...data }
-                : holeScore
-            )
-          };
-        }
-        return playerScore;
-      })
-    );
-  }, []);
-
   // Reset form (back to the caller's default sport, not hardcoded 'general' —
   // resetting to 'general' silently dropped every caller's defaultSportKey
   // after the first post)
@@ -339,7 +208,6 @@ export default function CreatePostModal({
     setSelectedTags([]);
     setHashtags([]);
     setMediaFiles([]);
-    setGolfRoundData(null);
     setStatLineData(null);
     setVisibility('public');
     setShowHashtagSuggestions(false);
@@ -348,36 +216,11 @@ export default function CreatePostModal({
     setTaggedProfiles([]);
     setTaggedProfilesData([]);
     setShowTagModal(false);
-    // Reset shared round data
-    setRoundType('individual');
-    setSharedRoundParticipants([]);
-    setSharedRoundParticipantsData([]);
-    setShowParticipantModal(false);
-    setSharedRoundDetails({
-      courseName: '',
-      date: new Date().toISOString().split('T')[0],
-      holesPlayed: 18,
-      roundTypeIndoorOutdoor: 'outdoor',
-      gameFormat: 'stroke',
-      teeColor: '',
-      weather: '',
-      temperature: '',
-      wind: '',
-      alreadyPlayed: false,
-    });
-    roundTimingTouchedRef.current = false;
-    // Reset course search
-    setCourseSearchOpen(false);
-    setCourseSearchQuery('');
-    setAvailableCourses([]);
-    setSearchLoading(false);
-    setSelectedCourse(null);
-    // Reset course hole data
-    setCourseHoleData([]);
-    setManualParEntry([]);
-    setManualYardageEntry([]);
-    // Reset score entry
-    setPlayerScores([]);
+    // Reset ALL golf state (shared round data, course search, hole data,
+    // score entry): restore the reported snapshot to its default and remount
+    // the sport sections so their internal state starts fresh.
+    setGolfValue(defaultGolfComposerValue());
+    setSportSectionResetKey(k => k + 1);
   };
 
   // Close-and-reset, used directly by post-success paths (never confirm
@@ -397,19 +240,10 @@ export default function CreatePostModal({
     hashtags.length > 0 ||
     customHashtag.trim() !== '' ||
     taggedProfiles.length > 0 ||
-    golfRoundData !== null ||
     statLineData !== null ||
-    // NOT roundType: a live golf round pins it to 'shared' during render
-    // (solo is a shared round with zero invitees), so counting it here made
-    // the composer dirty the instant it opened and every close prompted to
-    // discard work the user had not started. The fields below are the real
-    // signal that something was entered.
-    sharedRoundParticipants.length > 0 ||
-    selectedCourse !== null ||
-    sharedRoundDetails.courseName.trim() !== '' ||
-    manualParEntry.length > 0 ||
-    manualYardageEntry.length > 0 ||
-    playerScores.length > 0;
+    // Golf's share (scorecard, course, participants, manual pars, scores) is
+    // computed in GolfComposerSection — see the roundType note there.
+    golfValue.isDirty;
 
   const { requestClose, confirmOpen, confirmDiscard, cancelDiscard } = useDirtyClose(isDirty, closeAndReset);
 
@@ -549,48 +383,6 @@ export default function CreatePostModal({
     setTaggedProfilesData(prev => prev.filter(p => p.id !== profileId));
   };
 
-  // Handle shared round participant selection
-  const handleParticipantSelection = (selectedIds: string[], selectedProfiles?: ProfileData[]) => {
-    // Merge new selections with existing participants (don't replace)
-    setSharedRoundParticipants(prev => {
-      const newIds = selectedIds.filter(id => !prev.includes(id));
-      return [...prev, ...newIds];
-    });
-
-    if (selectedProfiles && selectedProfiles.length > 0) {
-      const profilesData = selectedProfiles.map(profile => {
-        const name = profile.first_name && profile.last_name
-          ? `${profile.first_name} ${profile.last_name}`
-          : profile.full_name || profile.name || 'Unknown User';
-        return { id: profile.id, name, avatar_url: profile.avatar_url };
-      });
-
-      // Merge new profiles with existing participant data (don't replace)
-      setSharedRoundParticipantsData(prev => {
-        const existingIds = new Set(prev.map(p => p.id));
-        const newProfiles = profilesData.filter(p => !existingIds.has(p.id));
-        return [...prev, ...newProfiles];
-      });
-
-      // Score initialization is now handled by useEffect
-    }
-  };
-
-  // Remove participant
-  const removeParticipant = (profileId: string) => {
-    setSharedRoundParticipants(prev => prev.filter(id => id !== profileId));
-    setSharedRoundParticipantsData(prev => prev.filter(p => p.id !== profileId));
-    // Also remove from scores
-    setPlayerScores(prev => prev.filter(p => p.participant_id !== profileId));
-  };
-
-  // Initialize scores when participants are added or holes change
-  useEffect(() => {
-    if (sharedRoundParticipantsData.length > 0) {
-      initializePlayerScores(sharedRoundParticipantsData, sharedRoundDetails.holesPlayed);
-    }
-  }, [sharedRoundDetails.holesPlayed, sharedRoundParticipantsData, initializePlayerScores]);
-
   // Handle custom hashtag input
   const handleCustomHashtagSubmit = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && customHashtag.trim()) {
@@ -598,36 +390,6 @@ export default function CreatePostModal({
       addHashtag(customHashtag.trim());
       setCustomHashtag('');
     }
-  };
-
-  // Generate golf caption from stats
-  const generateGolfCaption = () => {
-    if (!golfRoundData || postType !== 'golf') return '';
-
-    const { holesData, courseName } = golfRoundData;
-    const scoredHoles = holesData?.filter((h: HoleData) => h.score !== undefined) || [];
-
-    if (scoredHoles.length === 0) return '';
-
-    const totalScore = scoredHoles.reduce((sum: number, h: HoleData) => sum + (h.score || 0), 0);
-    const totalPar = scoredHoles.reduce((sum: number, h: HoleData) => sum + h.par, 0);
-    const differential = totalScore - totalPar;
-
-    let caption = `Shot ${totalScore}`;
-    if (differential === 0) caption += ' (Even)';
-    else if (differential > 0) caption += ` (+${differential})`;
-    else caption += ` (${differential})`;
-
-    if (courseName) caption += ` at ${courseName}`;
-
-    // Add some stats if available
-    const putts = scoredHoles.reduce((sum: number, h: HoleData) => sum + (h.putts || 0), 0);
-    if (putts > 0) caption += ` | ${putts} putts`;
-
-    const birdies = scoredHoles.filter((h: HoleData) => h.score === h.par - 1).length;
-    if (birdies > 0) caption += ` | ${birdies} ${birdies === 1 ? 'birdie' : 'birdies'}`;
-
-    return caption;
   };
 
   // Upload one media file (+ its video poster frame, when the editor made one)
@@ -664,22 +426,11 @@ export default function CreatePostModal({
       );
     }
 
-    // Golf posts
+    // Golf posts — the branch details (individual scorecard vs shared round
+    // requirements) moved verbatim into GolfComposerSection, which reports
+    // the same result up as `isValid`
     if (postType === 'golf') {
-      if (roundType === 'individual') {
-        // Individual rounds need scorecard data
-        return golfRoundData && golfRoundData.courseName && golfRoundData.holesData?.some((h: HoleData) => h.score !== undefined);
-      } else {
-        // Shared rounds need at least course name, date, and at least one participant
-        // Weather fields are optional - can be added later or left blank
-        return (
-          sharedRoundDetails.courseName.trim().length > 0 &&
-          sharedRoundDetails.date &&
-          // Live ("playing now") rounds can be solo; batch shared rounds
-          // need at least one other player
-          (sharedRoundParticipants.length > 0 || !sharedRoundDetails.alreadyPlayed)
-        );
-      }
+      return golfValue.isValid;
     }
 
     return false;
@@ -689,7 +440,8 @@ export default function CreatePostModal({
   const handleSubmit = async () => {
     if (!isValidForSubmission()) {
       // Provide specific error message based on post type
-      if (postType === 'golf' && roundType === 'shared') {
+      if (postType === 'golf' && golfValue.roundType === 'shared') {
+        const { sharedRoundDetails, sharedRoundParticipants } = golfValue;
         const missing: string[] = [];
         if (!sharedRoundDetails.courseName.trim()) missing.push('course name');
         if (!sharedRoundDetails.date) missing.push('date');
@@ -711,151 +463,24 @@ export default function CreatePostModal({
     try {
 
       // Handle shared golf rounds differently
-      if (postType === 'golf' && roundType === 'shared') {
-
-        // Step 1: Create the round ATOMICALLY — group post, participants,
-        // scorecard, and feed post in one server request. If any piece fails
-        // the server rolls the whole thing back (no more rounds whose card
-        // renders nothing because a follow-up scorecard call died).
-        const groupPostResponse = await fetch('/api/group-posts', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          credentials: 'include',
-          body: JSON.stringify({
-            type: 'golf_round',
-            title: `Golf at ${sharedRoundDetails.courseName}`,
-            description: caption.trim() || undefined,
-            date: sharedRoundDetails.date,
-            location: sharedRoundDetails.courseName,
-            visibility: visibility,
-            participant_ids: sharedRoundParticipants,
-            already_played: sharedRoundDetails.alreadyPlayed || undefined,
-            golf_data: {
-              course_name: sharedRoundDetails.courseName,
-              round_type: sharedRoundDetails.roundTypeIndoorOutdoor,
-              game_format: sharedRoundDetails.gameFormat,
-              holes_played: sharedRoundDetails.holesPlayed,
-              // Real per-hole pars (course search or manual entry) — powers
-              // honest to-par + the score-entry modal's par display
-              hole_data:
-                courseHoleData.length > 0
-                  ? courseHoleData
-                  : manualParEntry.length > 0 || manualYardageEntry.length > 0
-                  ? Array.from({ length: sharedRoundDetails.holesPlayed }, (_, i) => ({
-                      hole: i + 1,
-                      par: manualParEntry[i] || 4,
-                      yardage: manualYardageEntry[i] || undefined,
-                    }))
-                  : undefined,
-              tee_color: sharedRoundDetails.teeColor || undefined,
-              weather_conditions: sharedRoundDetails.weather || undefined,
-              temperature: sharedRoundDetails.temperature ? parseInt(sharedRoundDetails.temperature) : undefined,
-              wind_speed: sharedRoundDetails.wind === 'calm' ? 0 :
-                          sharedRoundDetails.wind === 'light' ? 7 :
-                          sharedRoundDetails.wind === 'moderate' ? 15 :
-                          sharedRoundDetails.wind === 'strong' ? 25 : undefined,
-            },
-          }),
+      if (postType === 'golf' && golfValue.roundType === 'shared') {
+        // The whole fork — atomic round create, initial scores, media attach,
+        // success toasts — lives in shared-round-submit.ts (sport-cleanup
+        // D-2); the request bodies it sends are unchanged. Throws on
+        // round-create failure, landing in the catch below as before.
+        const groupPost = await submitSharedRound(golfValue, {
+          caption,
+          visibility,
+          mediaFiles,
+          uploadMediaWithPoster,
+          showSuccess,
+          showError,
         });
-
-        if (!groupPostResponse.ok) {
-          const errorData = await groupPostResponse.json();
-          throw new Error(errorData.error || 'Failed to create shared round');
-        }
-
-        const groupPostResult = await groupPostResponse.json();
-        const groupPostId = groupPostResult.group_post.id;
-
-        // Step 2: initial scores, if any were entered in the modal (the
-        // scorecard itself was created atomically in step 1).
-        const hasScores = playerScores.length > 0 && playerScores.some(p =>
-          p.hole_scores.some(h => h.strokes !== undefined && h.strokes > 0)
-        );
-
-        const scoresPromise = hasScores
-          ? fetch('/api/golf/participant-scores', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              credentials: 'include',
-              body: JSON.stringify({
-                group_post_id: groupPostId,
-                participant_scores: playerScores.map(player => ({
-                  participant_id: player.participant_id,
-                  hole_scores: player.hole_scores
-                    .filter(hole => hole.strokes !== undefined && hole.strokes > 0)
-                    .map(hole => {
-                      // Add par and yardage from course data if available
-                      const holeInfo = courseHoleData.find(h => h.hole === hole.hole_number) ||
-                        (manualParEntry.length > 0 || manualYardageEntry.length > 0
-                          ? {
-                              par: manualParEntry[hole.hole_number - 1] || undefined,
-                              yardage: manualYardageEntry[hole.hole_number - 1] || undefined
-                            }
-                          : {});
-
-                      return {
-                        ...hole,
-                        par: holeInfo.par,
-                        yardage: holeInfo.yardage
-                      };
-                    })
-                }))
-              }),
-            })
-          : Promise.resolve(null);
-
-        const [scoresResult] = await Promise.allSettled([scoresPromise]);
-
-        if (hasScores && (scoresResult.status === 'rejected' || (scoresResult.status === 'fulfilled' && scoresResult.value && !scoresResult.value.ok))) {
-          // Surface it — silently losing entered scores erodes trust. The
-          // round itself is fine; scores are re-enterable from the post.
-          console.error('Failed to save participant scores');
-          showError('Round created, but some scores could not be saved. You can re-enter them from the post.');
-        }
-
-        // Attach any composer media to the ROUND. This branch used to return
-        // before the media upload further down, so photos added to an
-        // already-played shared round were silently discarded — no error, no
-        // upload, just gone. Routing them through the round's media endpoint
-        // also means the round->post mirror carries them onto the feed card,
-        // and that endpoint re-mirrors when the round is already 'completed'
-        // (which every already-played round is).
-        if (mediaFiles.length > 0) {
-          const attached = await Promise.allSettled(
-            mediaFiles.map(async file => {
-              const { url, thumbnailUrl } = await uploadMediaWithPoster(file);
-              const res = await fetch(`/api/group-posts/${groupPostId}/media`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                credentials: 'include',
-                body: JSON.stringify({
-                  media_url: url,
-                  media_type: file.type === 'video' ? 'video' : 'image',
-                  thumbnail_url: thumbnailUrl,
-                }),
-              });
-              if (!res.ok) throw new Error('attach failed');
-            })
-          );
-          if (attached.some(r => r.status === 'rejected')) {
-            showError('Round posted, but some photos could not be attached.');
-          }
-        }
-
-        if (!sharedRoundDetails.alreadyPlayed) {
-          showSuccess(
-            sharedRoundParticipants.length > 0
-              ? 'Round is LIVE! Scores stream to your group as you play. 🔴'
-              : 'Round is LIVE! 🔴'
-          );
-        } else {
-          showSuccess('Round posted! Participants will be notified. 🎉');
-        }
 
         // Parents still do their refresh work — the user comes back to that
         // page later, and an abandoned refetch is harmless.
         if (onPostCreated) {
-          onPostCreated(groupPostResult.group_post);
+          onPostCreated(groupPost);
         }
 
         closeAndReset();
@@ -866,7 +491,7 @@ export default function CreatePostModal({
         // pages mount this composer and the app header funnels most routes to
         // /athlete, whose handler never got it. router.push does not care which
         // page mounted us, so all three are fixed and a fourth cannot drift.
-        const scorerPath = shouldEnterScorerAfterCreate(groupPostResult.group_post);
+        const scorerPath = shouldEnterScorerAfterCreate(groupPost);
         if (scorerPath) router.push(scorerPath);
         return;
       }
@@ -893,7 +518,7 @@ export default function CreatePostModal({
           // server persists as post_media.thumbnail_url (posts/route.ts)
           thumbnailUrl: file.thumbnailUrl
         })),
-        golfData: postType === 'golf' ? golfRoundData : undefined,
+        golfData: postType === 'golf' ? golfValue.golfRoundData : undefined,
         stats_data:
           isStatLineSport && statLineData && statLineHasContent(statLineData)
             ? statLineData
@@ -962,7 +587,7 @@ export default function CreatePostModal({
   // "Playing now" is round SETUP, not a post: course, partners, conditions,
   // then Go Live. Caption/media/tags belong to the story told when the round
   // completes — hidden during setup (see the section wrappers below).
-  const isLiveSetup = postType === 'golf' && !sharedRoundDetails.alreadyPlayed;
+  const isLiveSetup = postType === 'golf' && !golfValue.sharedRoundDetails.alreadyPlayed;
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
@@ -1042,644 +667,22 @@ export default function CreatePostModal({
             </div>
           )}
 
-          {/* Golf: timing first — "Playing now" IS the live path (solo or
-              with friends); "Already played" keeps individual/shared batch */}
-          {postType === 'golf' && (
-            <div className="mb-6">
-              <label className="block text-sm font-semibold text-secondary mb-3">When is this round?</label>
-              {/* Stacks below sm — "Already played" + icon wraps in a ~90px
-                  half-column at 320px (same pattern as the holes row below) */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <button
-                  onClick={() => {
-                    roundTimingTouchedRef.current = true;
-                    setSharedRoundDetails(prev => ({ ...prev, alreadyPlayed: false }));
-                  }}
-                  className={`px-4 py-3 rounded-lg font-semibold transition-all ${
-                    !sharedRoundDetails.alreadyPlayed
-                      ? 'bg-red-600 text-white'
-                      : 'bg-surface text-secondary border-2 border-border-strong hover:border-red-300 dark:hover:border-red-700'
-                  }`}
-                >
-                  <span className={`inline-block w-2 h-2 rounded-full mr-2 ${!sharedRoundDetails.alreadyPlayed ? 'bg-white animate-pulse' : 'bg-red-500'}`}></span>
-                  Playing now
-                </button>
-                <button
-                  onClick={() => {
-                    roundTimingTouchedRef.current = true;
-                    setSharedRoundDetails(prev => ({ ...prev, alreadyPlayed: true }));
-                  }}
-                  className={`px-4 py-3 rounded-lg font-semibold transition-all ${
-                    sharedRoundDetails.alreadyPlayed
-                      ? 'bg-gray-700 text-white'
-                      : 'bg-surface text-secondary border-2 border-border-strong hover:border-gray-400'
-                  }`}
-                >
-                  <i className="fas fa-flag-checkered mr-2"></i>
-                  Already played
-                </button>
-              </div>
-              <p className="mt-1.5 text-xs text-muted">
-                {sharedRoundDetails.alreadyPlayed
-                  ? 'Log a finished round — full scorecard, solo or with friends.'
-                  : 'Round goes LIVE — score hole by hole as you play, solo or with friends.'}
-              </p>
-            </div>
-          )}
-
-          {/* Golf Round Type Selection (batch entry only — a live round is one
-              flow where friends are optional) */}
-          {postType === 'golf' && sharedRoundDetails.alreadyPlayed && (
-            <div className="mb-6">
-              <label className="block text-sm font-semibold text-secondary mb-3">Round Type</label>
-              {/* Stacks below sm — the icon + two-line copy had ~36px of text
-                  width in a 320px half-column */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
-                <button
-                  onClick={() => setRoundType('individual')}
-                  className={`p-4 border-2 rounded-lg text-left transition-all ${
-                    roundType === 'individual'
-                      ? 'border-green-500 bg-green-50 dark:bg-green-950/40'
-                      : 'border-border-strong hover:border-gray-400'
-                  }`}
-                >
-                  <div className="flex items-center gap-3">
-                    <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${
-                      roundType === 'individual' ? 'bg-green-100 dark:bg-green-950/60' : 'bg-surface-sunken'
-                    }`}>
-                      <i className={`fas fa-user text-lg ${
-                        roundType === 'individual' ? 'text-green-600 dark:text-green-400' : 'text-tertiary'
-                      }`}></i>
-                    </div>
-                    <div>
-                      <div className="font-semibold text-primary">Individual Round</div>
-                      <div className="text-sm text-tertiary">Track your own scorecard</div>
-                    </div>
-                  </div>
-                </button>
-
-                <button
-                  onClick={() => setRoundType('shared')}
-                  className={`p-4 border-2 rounded-lg text-left transition-all ${
-                    roundType === 'shared'
-                      ? 'border-green-500 bg-green-50 dark:bg-green-950/40'
-                      : 'border-border-strong hover:border-gray-400'
-                  }`}
-                >
-                  <div className="flex items-center gap-3">
-                    <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${
-                      roundType === 'shared' ? 'bg-green-100 dark:bg-green-950/60' : 'bg-surface-sunken'
-                    }`}>
-                      <i className={`fas fa-users text-lg ${
-                        roundType === 'shared' ? 'text-green-600 dark:text-green-400' : 'text-tertiary'
-                      }`}></i>
-                    </div>
-                    <div>
-                      <div className="font-semibold text-primary">Shared Round</div>
-                      <div className="text-sm text-tertiary">Play with friends</div>
-                    </div>
-                  </div>
-                </button>
-              </div>
-            </div>
-          )}
-
-          {/* Shared Round Details Form */}
-          {postType === 'golf' && roundType === 'shared' && (
-            <div className="mb-6 bg-green-50 dark:bg-green-950/40 rounded-lg p-4 sm:p-6">
-              <div className="space-y-6">
-                {/* Course Details - White Box */}
-              <div className="bg-surface rounded-lg border border-border p-4">
-                <h3 className="text-lg font-semibold text-primary mb-4 flex items-center">
-                  <i className="fas fa-flag-checkered mr-2 text-green-600 dark:text-green-400"></i>
-                  Course Details
-                </h3>
-
-                {/* Course Name with Search */}
-                <div className="mb-4 relative">
-                  <label className="block text-sm font-semibold text-primary mb-2">
-                    Course Name *
-                  </label>
-                  <div className="relative">
-                    <input
-                      type="text"
-                      value={sharedRoundDetails.courseName}
-                      onChange={(e) => {
-                        setSharedRoundDetails(prev => ({ ...prev, courseName: e.target.value }));
-                        setCourseSearchQuery(e.target.value);
-                        searchCourses(e.target.value);
-                        setCourseSearchOpen(true);
-                        // Clear selected course if user types manually
-                        if (selectedCourse && e.target.value !== selectedCourse.name) {
-                          setSelectedCourse(null);
-                        }
-                      }}
-                      onFocus={() => {
-                        setCourseSearchOpen(true);
-                        if (courseSearchQuery.length >= 2) {
-                          searchCourses(courseSearchQuery);
-                        }
-                      }}
-                      placeholder="Search for a golf course..."
-                      className="w-full px-4 py-2 border border-border-strong rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 pr-10"
-                    />
-                    {searchLoading && (
-                      <div className="absolute right-3 top-1/2 transform -translate-y-1/2">
-                        <div className="animate-spin h-5 w-5 border-2 border-green-500 border-t-transparent rounded-full"></div>
-                      </div>
-                    )}
-                    {!searchLoading && sharedRoundDetails.courseName && (
-                      <i className="fas fa-search absolute right-3 top-1/2 transform -translate-y-1/2 text-faint"></i>
-                    )}
-                  </div>
-
-                  {/* Course Search Results Dropdown */}
-                  {courseSearchOpen && availableCourses.length > 0 && (
-                    <>
-                      {/* Backdrop to close dropdown */}
-                      <div
-                        className="fixed inset-0 z-10"
-                        onClick={() => {
-                          setCourseSearchOpen(false);
-                          setAvailableCourses([]);
-                        }}
-                      />
-                      {/* Dropdown */}
-                      <div className="absolute z-20 w-full mt-1 bg-surface-raised border border-border-strong rounded-lg shadow-lg max-h-60 overflow-y-auto overscroll-contain">
-                        {availableCourses.map((course) => (
-                          <button
-                            key={course.id}
-                            onClick={() => selectCourse(course)}
-                            className="w-full px-4 py-3 text-left hover:bg-green-50 dark:hover:bg-green-950/40 transition-colors border-b border-border-subtle last:border-b-0"
-                          >
-                            <div className="font-semibold text-primary">{course.name}</div>
-                            {course.city && course.state && (
-                              <div className="text-sm text-tertiary">
-                                {course.city}, {course.state}
-                              </div>
-                            )}
-                            <div className="text-xs text-muted mt-1">
-                              Par {course.totalPar} • {course.holes.length} holes
-                            </div>
-                          </button>
-                        ))}
-                      </div>
-                    </>
-                  )}
-
-                  {/* Selected Course Badge */}
-                  {selectedCourse && (
-                    <div className="mt-2 inline-flex items-center gap-2 px-3 py-1.5 bg-green-100 dark:bg-green-950/60 text-green-800 dark:text-green-200 rounded-full text-sm font-medium border border-green-300 dark:border-green-700">
-                      <i className="fas fa-check-circle text-xs"></i>
-                      {selectedCourse.name}
-                      {selectedCourse.city && selectedCourse.state && ` (${selectedCourse.city}, ${selectedCourse.state})`}
-                    </div>
-                  )}
-
-                  {/* Help text for manual entry */}
-                  {!selectedCourse && sharedRoundDetails.courseName && (
-                    <div className="mt-2 flex items-start gap-2 p-3 bg-brand-soft border border-violet-200 dark:border-violet-800 rounded-lg">
-                      <i className="fas fa-info-circle text-brand-fg mt-0.5"></i>
-                      <p className="text-xs text-violet-800 dark:text-violet-200">
-                        <strong>Custom course detected.</strong> Since this course isn&apos;t in our database, you can manually enter par and yardage below (optional).
-                      </p>
-                    </div>
-                  )}
-                </div>
-
-                {/* Date */}
-                <div className="mb-4">
-                  <label className="block text-sm font-semibold text-primary mb-2">
-                    Date *
-                  </label>
-                  <input
-                    type="date"
-                    value={sharedRoundDetails.date}
-                    onChange={(e) => {
-                      const date = e.target.value;
-                      setSharedRoundDetails(prev => ({
-                        ...prev,
-                        date,
-                        // Past date → assume already played, unless the user
-                        // explicitly chose a timing
-                        ...(roundTimingTouchedRef.current
-                          ? {}
-                          : { alreadyPlayed: date < new Date().toISOString().split('T')[0] }),
-                      }));
-                    }}
-                    className="w-full px-4 py-2 border border-border-strong rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500"
-                  />
-                </div>
-
-                {/* Indoor/Outdoor Selection */}
-                <div className="mb-4">
-                  <label className="block text-sm font-semibold text-primary mb-2">
-                    Round Type *
-                  </label>
-                  <div className="grid grid-cols-2 gap-3">
-                    <button
-                      onClick={() => setSharedRoundDetails(prev => ({ ...prev, roundTypeIndoorOutdoor: 'outdoor' }))}
-                      className={`px-4 py-3 rounded-lg font-semibold transition-all ${
-                        sharedRoundDetails.roundTypeIndoorOutdoor === 'outdoor'
-                          ? 'bg-green-600 text-white'
-                          : 'bg-surface text-secondary border-2 border-border-strong hover:border-green-300 dark:hover:border-green-700'
-                      }`}
-                    >
-                      <i className="fas fa-tree mr-2"></i>
-                      Outdoor
-                    </button>
-                    <button
-                      onClick={() => setSharedRoundDetails(prev => ({ ...prev, roundTypeIndoorOutdoor: 'indoor' }))}
-                      className={`px-4 py-3 rounded-lg font-semibold transition-all ${
-                        sharedRoundDetails.roundTypeIndoorOutdoor === 'indoor'
-                          ? 'bg-brand text-white'
-                          : 'bg-surface text-secondary border-2 border-border-strong hover:border-violet-300 dark:hover:border-violet-700'
-                      }`}
-                    >
-                      <i className="fas fa-warehouse mr-2"></i>
-                      Indoor
-                    </button>
-                  </div>
-                </div>
-
-                {/* Game Format */}
-                <div className="mb-4">
-                  <label className="block text-sm font-semibold text-primary mb-2">
-                    Game Format
-                  </label>
-                  {/* Stacks on phones — three ~100px columns wrap the two-word
-                      labels badly at 360px */}
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 sm:gap-3">
-                    {([
-                      { value: 'stroke', label: 'Stroke Play', icon: 'fa-golf-ball' },
-                      { value: 'stableford', label: 'Stableford', icon: 'fa-star' },
-                      { value: 'match', label: 'Match Play', icon: 'fa-people-arrows' },
-                    ] as const).map(({ value, label, icon }) => (
-                      <button
-                        key={value}
-                        type="button"
-                        onClick={() => setSharedRoundDetails(prev => ({ ...prev, gameFormat: value }))}
-                        className={`px-3 py-3 rounded-lg font-semibold text-sm transition-all ${
-                          sharedRoundDetails.gameFormat === value
-                            ? 'bg-green-600 text-white'
-                            : 'bg-surface text-secondary border-2 border-border-strong hover:border-green-300 dark:hover:border-green-700'
-                        }`}
-                      >
-                        <i className={`fas ${icon} mr-1.5`}></i>
-                        {label}
-                      </button>
-                    ))}
-                  </div>
-                  {sharedRoundDetails.gameFormat === 'stableford' && (
-                    <p className="mt-2 text-xs text-tertiary">
-                      Points per hole — eagle 4, birdie 3, par 2, bogey 1. Highest points wins.
-                    </p>
-                  )}
-                  {sharedRoundDetails.gameFormat === 'match' && (
-                    <p className="mt-2 text-xs text-tertiary">
-                      Head-to-head holes won — best with exactly 2 players. Scores are still recorded per hole.
-                    </p>
-                  )}
-                </div>
-
-                {/* Tee Color (optional, outdoor only) */}
-                {sharedRoundDetails.roundTypeIndoorOutdoor === 'outdoor' && (
-                  <div className="mb-4">
-                    <label className="block text-sm font-semibold text-primary mb-2">
-                      Tee Color (optional)
-                    </label>
-                    <select
-                      value={sharedRoundDetails.teeColor}
-                      onChange={(e) => setSharedRoundDetails(prev => ({ ...prev, teeColor: e.target.value }))}
-                      className="w-full px-4 py-2 border border-border-strong rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500"
-                    >
-                      <option value="">Select tee color</option>
-                      <option value="black">Black</option>
-                      <option value="blue">Blue</option>
-                      <option value="white">White</option>
-                      <option value="red">Red</option>
-                      <option value="gold">Gold</option>
-                    </select>
-                  </div>
-                )}
-              </div>
-
-              {/* Manual Par & Yardage Entry - White Box (when course not in database) */}
-              {!selectedCourse && sharedRoundDetails.courseName && (
-                <div className="bg-surface rounded-lg border border-border p-4">
-                  <h3 className="text-lg font-semibold text-primary mb-4 flex items-center">
-                    <i className="fas fa-edit mr-2 text-brand-fg"></i>
-                    Course Par & Yardage (Optional)
-                  </h3>
-                  <div className="p-4 bg-surface-muted border border-border-strong rounded-lg">
-                    <div className="flex items-center justify-between mb-3">
-                      <span className="text-xs text-tertiary">Optional - adds Par & Yardage to scorecard</span>
-                    </div>
-
-                    <div className="max-h-64 overflow-y-auto overscroll-contain">
-                      <div className="grid grid-cols-1 gap-3">
-                        {Array.from({ length: sharedRoundDetails.holesPlayed }, (_, i) => {
-                          const holeNum = i + 1;
-                          return (
-                            <div key={holeNum} className="flex items-center gap-3 bg-surface p-3 rounded border border-border">
-                              <span className="text-sm font-semibold text-secondary w-16">Hole {holeNum}</span>
-                              <div className="flex-1 flex gap-3">
-                                <div className="flex-1">
-                                  <label className="block text-xs text-tertiary mb-1">Par</label>
-                                  <select
-                                    value={manualParEntry[i] || ''}
-                                    onChange={(e) => {
-                                      const newPar = [...manualParEntry];
-                                      newPar[i] = parseInt(e.target.value) || 0;
-                                      setManualParEntry(newPar);
-                                    }}
-                                    className="w-full px-3 py-1.5 text-sm border border-border-strong rounded focus:ring-2 focus:ring-green-500 focus:border-green-500"
-                                  >
-                                    <option value="">-</option>
-                                    <option value="3">3</option>
-                                    <option value="4">4</option>
-                                    <option value="5">5</option>
-                                    <option value="6">6</option>
-                                  </select>
-                                </div>
-                                <div className="flex-1">
-                                  <label className="block text-xs text-tertiary mb-1">Yardage</label>
-                                  <input
-                                    type="number"
-                                    value={manualYardageEntry[i] || ''}
-                                    onChange={(e) => {
-                                      const newYardage = [...manualYardageEntry];
-                                      newYardage[i] = parseInt(e.target.value) || 0;
-                                      setManualYardageEntry(newYardage);
-                                    }}
-                                    placeholder="yards"
-                                    min="50"
-                                    max="700"
-                                    className="w-full px-3 py-1.5 text-sm border border-border-strong rounded focus:ring-2 focus:ring-green-500 focus:border-green-500"
-                                  />
-                                </div>
-                              </div>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    </div>
-
-                    <div className="mt-3 text-xs text-tertiary">
-                      <i className="fas fa-info-circle mr-1"></i>
-                      Entering par and yardage will display these values in the scorecard
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {/* Playing Conditions - White Box (outdoor only, required) */}
-              {sharedRoundDetails.roundTypeIndoorOutdoor === 'outdoor' && (
-                <div className="bg-surface rounded-lg border border-border p-4">
-                  <h3 className="text-lg font-semibold text-primary mb-4 flex items-center">
-                    <i className="fas fa-cloud-sun mr-2 text-violet-500"></i>
-                    Playing Conditions
-                  </h3>
-
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
-                      {/* Weather */}
-                      <div>
-                        <label className="block text-xs font-semibold text-secondary mb-1.5">
-                          Weather *
-                        </label>
-                        <select
-                          value={sharedRoundDetails.weather}
-                          onChange={(e) => setSharedRoundDetails(prev => ({ ...prev, weather: e.target.value }))}
-                          className="w-full px-3 py-2 text-sm border border-border-strong rounded-lg focus:ring-2 focus:ring-violet-500 focus:border-violet-500"
-                          required
-                        >
-                          <option value="">Select weather</option>
-                          <option value="sunny">☀️ Sunny</option>
-                          <option value="partly-cloudy">⛅ Partly Cloudy</option>
-                          <option value="cloudy">☁️ Cloudy</option>
-                          <option value="rainy">🌧️ Rainy</option>
-                          <option value="windy">💨 Windy</option>
-                        </select>
-                      </div>
-
-                      {/* Temperature */}
-                      <div>
-                        <label className="block text-xs font-semibold text-secondary mb-1.5">
-                          Temperature (°F) *
-                        </label>
-                        <input
-                          type="number"
-                          value={sharedRoundDetails.temperature}
-                          onChange={(e) => setSharedRoundDetails(prev => ({ ...prev, temperature: e.target.value }))}
-                          className="w-full px-3 py-2 text-sm border border-border-strong rounded-lg focus:ring-2 focus:ring-violet-500 focus:border-violet-500"
-                          placeholder="72"
-                          min="0"
-                          max="120"
-                          required
-                        />
-                      </div>
-
-                      {/* Wind */}
-                      <div>
-                        <label className="block text-xs font-semibold text-secondary mb-1.5">
-                          Wind *
-                        </label>
-                        <select
-                          value={sharedRoundDetails.wind}
-                          onChange={(e) => setSharedRoundDetails(prev => ({ ...prev, wind: e.target.value }))}
-                          className="w-full px-3 py-2 text-sm border border-border-strong rounded-lg focus:ring-2 focus:ring-violet-500 focus:border-violet-500"
-                          required
-                        >
-                          <option value="">Select wind</option>
-                          <option value="calm">Calm (0-5 mph)</option>
-                          <option value="light">Light (5-10 mph)</option>
-                          <option value="moderate">Moderate (10-20 mph)</option>
-                          <option value="strong">Strong (20+ mph)</option>
-                        </select>
-                      </div>
-                    </div>
-                </div>
-              )}
-
-              {/* Participants - White Box */}
-              <div className="bg-surface rounded-lg border border-border p-4">
-                <h3 className="text-lg font-semibold text-primary mb-4 flex items-center">
-                  <i className="fas fa-users mr-2 text-green-600 dark:text-green-400"></i>
-                  {sharedRoundDetails.alreadyPlayed ? 'Round Participants' : 'Playing partners'}
-                </h3>
-                <div>
-                  <div className="flex items-center justify-between mb-3">
-                    <label className="text-sm font-semibold text-primary">
-                      {sharedRoundDetails.alreadyPlayed
-                        ? `Participants * (${sharedRoundParticipants.length})`
-                        : `Playing with anyone? Optional (${sharedRoundParticipants.length})`}
-                    </label>
-                    <div className="flex items-center gap-2">
-                      {/* Only meaningful for an already-played round, where it
-                          adds you to the in-composer score grid. On a live
-                          round the server inserts the creator regardless, so
-                          the button did nothing except imply partners are
-                          expected. */}
-                      {sharedRoundDetails.alreadyPlayed && (
-                      <button
-                        onClick={async () => {
-                          // Check if user already added
-                          if (sharedRoundParticipants.includes(userId)) {
-                            return;
-                          }
-
-                          // Fetch current user's profile
-                          try {
-                            const response = await fetch(`/api/profile?id=${userId}`);
-                            if (response.ok) {
-                              const { profile } = await response.json();
-                              const userName = profile.first_name && profile.last_name
-                                ? `${profile.first_name} ${profile.last_name}`
-                                : profile.full_name || 'Me';
-
-                              // Add to participants - useEffect will handle score initialization
-                              setSharedRoundParticipants(prev => [...prev, userId]);
-                              setSharedRoundParticipantsData(prev => [...prev, { id: userId, name: userName, avatar_url: profile.avatar_url }]);
-                            } else {
-                              const errorData = await response.json();
-                              console.error('Failed to add yourself to round:', errorData.error);
-                              showError('Failed to add yourself to the round. Please try again.');
-                            }
-                          } catch (error) {
-                            console.error('Error adding yourself to round:', error);
-                            showError('Failed to add yourself to the round. Please try again.');
-                          }
-                        }}
-                        disabled={sharedRoundParticipants.includes(userId)}
-                        className={`flex items-center gap-2 px-3 py-1.5 text-sm rounded-lg transition-colors font-semibold ${
-                          sharedRoundParticipants.includes(userId)
-                            ? 'bg-green-100 dark:bg-green-950/60 text-green-700 dark:text-green-300 cursor-not-allowed'
-                            : 'text-brand-fg-strong hover:text-violet-800 dark:hover:text-violet-200 hover:bg-violet-100 dark:hover:bg-violet-950/60'
-                        }`}
-                      >
-                        {sharedRoundParticipants.includes(userId) ? (
-                          <>
-                            <i className="fas fa-check"></i>
-                            You&apos;re included
-                          </>
-                        ) : (
-                          <>
-                            <i className="fas fa-user-plus"></i>
-                            + Add Myself
-                          </>
-                        )}
-                      </button>
-                      )}
-                      <button
-                        onClick={() => setShowParticipantModal(true)}
-                        className="flex items-center gap-2 px-3 py-1.5 text-sm text-green-700 dark:text-green-300 hover:text-green-800 dark:hover:text-green-200 hover:bg-green-100 dark:hover:bg-green-950/60 rounded-lg transition-colors font-semibold"
-                      >
-                        <i className="fas fa-users"></i>
-                        Add Others
-                      </button>
-                    </div>
-                  </div>
-
-                  {/* Participant chips */}
-                  {sharedRoundParticipantsData.length > 0 ? (
-                    <div className="flex flex-wrap gap-2">
-                      {sharedRoundParticipantsData.map(participant => (
-                        <span
-                          key={participant.id}
-                          className="inline-flex items-center gap-2 px-3 py-1.5 bg-green-100 dark:bg-green-950/60 text-green-800 dark:text-green-200 rounded-full text-sm font-medium border border-green-300 dark:border-green-700"
-                        >
-                          <i className="fas fa-user text-xs"></i>
-                          {participant.name}
-                          <button
-                            onClick={() => removeParticipant(participant.id)}
-                            className="ml-1 hover:text-green-900 dark:hover:text-green-200 min-w-[32px] min-h-[32px] -my-1.5 -mr-2 flex items-center justify-center rounded-full hover:bg-green-200"
-                            aria-label={`Remove ${participant.name}`}
-                          >
-                            <i className="fas fa-times text-xs"></i>
-                          </button>
-                        </span>
-                      ))}
-                    </div>
-                  ) : sharedRoundDetails.alreadyPlayed ? (
-                    <div className="text-sm text-tertiary bg-surface rounded-lg p-3 border border-border-strong">
-                      <i className="fas fa-info-circle mr-1"></i>
-                      Add at least one participant to create a shared round
-                    </div>
-                  ) : (
-                    // Live rounds are solo by default — nothing here is
-                    // required. The old copy said a participant was needed and
-                    // read as a hard block even though Go Live was enabled.
-                    <div className="text-sm text-tertiary bg-surface rounded-lg p-3 border border-border-strong">
-                      <i className="fas fa-golf-ball-tee mr-1"></i>
-                      Playing solo — just hit Go Live. Add partners any time if
-                      someone joins you.
-                    </div>
-                  )}
-                </div>
-              </div>
-              </div>
-            </div>
-          )}
-
-          {/* Score Entry Section (when shared round with participants) */}
-          {postType === 'golf' && roundType === 'shared' && sharedRoundParticipantsData.length > 0 && (
-            <div className="mb-6">
-              <div className="bg-surface rounded-lg border border-border p-4">
-                <h3 className="text-lg font-semibold text-primary mb-4 flex items-center">
-                  <i className="fas fa-list-ol mr-2 text-green-600 dark:text-green-400"></i>
-                  Score Entry
-                </h3>
-                <p className="text-sm text-tertiary mb-4">
-                  Enter scores below or leave blank - participants can add them later
-                </p>
-
-                {/* Multi-player scorecard grid - always shown */}
-                <div>
-                  <MultiPlayerScorecardGrid
-                      players={playerScores}
-                      holes={sharedRoundDetails.holesPlayed}
-                      editable={true}
-                      showDetailedStats={false}
-                      onScoreChange={handlePlayerScoreChange}
-                      holeData={
-                        // Use course data if available, otherwise manual entry
-                        courseHoleData.length > 0
-                          ? courseHoleData
-                          : manualParEntry.length > 0 || manualYardageEntry.length > 0
-                          ? Array.from({ length: sharedRoundDetails.holesPlayed }, (_, i) => ({
-                              hole: i + 1,
-                              par: manualParEntry[i] || 4,
-                              yardage: manualYardageEntry[i] || undefined
-                            }))
-                          : undefined
-                      }
-                    />
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* Golf Scorecard (when individual round is selected) */}
-          {postType === 'golf' && roundType === 'individual' && (
-            <div className="mb-6">
-              <div className="bg-green-50 dark:bg-green-950/40 rounded-lg border border-green-200 dark:border-green-800 p-4">
-                <GolfScorecardForm
-                  onDataChange={(data) => setGolfRoundData(data)}
-                />
-              </div>
-
-              {/* Generate Caption from Stats */}
-              {golfRoundData && (
-                <button
-                  onClick={() => setCaption(generateGolfCaption())}
-                  className="mt-3 text-sm text-green-600 dark:text-green-400 hover:text-green-700 dark:hover:text-green-300 font-medium"
-                >
-                  <i className="fas fa-magic mr-1"></i>
-                  Generate caption from scorecard
-                </button>
-              )}
-            </div>
-          )}
+          {/* Sport-specific composer section — golf's round timing, round
+              type, shared-round details, score entry and scorecard all live in
+              GolfComposerSection (sport-cleanup D-2). Sections stay mounted
+              for the life of the open modal regardless of the selected sport,
+              so switching away and back preserves what was entered — the same
+              behavior the old inline state had; each renders nothing while its
+              sport is not selected. The key remounts them on reset(). */}
+          {SPORT_COMPOSER_ENTRIES.map(([sportKey, SportSection]) => (
+            <SportSection
+              key={`${sportKey}-${sportSectionResetKey}`}
+              userId={userId}
+              active={postType === sportKey}
+              onChange={setGolfValue}
+              onCaptionGenerated={setCaption}
+            />
+          ))}
 
           {/* Caption */}
           <div className={isLiveSetup ? 'hidden' : 'mb-6'}>
@@ -2014,10 +1017,11 @@ export default function CreatePostModal({
             {!isValidForSubmission() && (
               <span className="text-red-600 dark:text-red-400">
                 <i className="fas fa-exclamation-circle mr-1"></i>
-                {postType === 'golf' && roundType === 'shared'
+                {postType === 'golf' && golfValue.roundType === 'shared'
                   ? (() => {
                       // Name the ACTUAL missing fields — a dead grey button
                       // with a stale generic hint reads as "broken"
+                      const { sharedRoundDetails, sharedRoundParticipants } = golfValue;
                       const missing: string[] = [];
                       if (!sharedRoundDetails.courseName.trim()) missing.push('course name');
                       if (!sharedRoundDetails.date) missing.push('date');
@@ -2088,21 +1092,19 @@ export default function CreatePostModal({
       {/* Preview Modal */}
       {showPreview && (
         <PostPreview
-          holeParSource={courseHoleData.length > 0
-            ? courseHoleData
-            : manualParEntry.map((par, idx) => ({ hole: idx + 1, par })).filter(h => h.par > 0)}
+          holeParSource={golfValue.holeParSource}
           postType={postType}
           caption={caption}
           tags={selectedTags}
           hashtags={hashtags}
           mediaFiles={mediaFiles}
           visibility={visibility}
-          golfData={golfRoundData}
+          golfData={golfValue.golfRoundData}
           taggedPeople={taggedProfilesData}
-          roundType={roundType}
-          sharedRoundDetails={sharedRoundDetails}
-          sharedRoundParticipants={sharedRoundParticipantsData}
-          playerScores={playerScores}
+          roundType={golfValue.roundType}
+          sharedRoundDetails={golfValue.sharedRoundDetails}
+          sharedRoundParticipants={golfValue.sharedRoundParticipantsData}
+          playerScores={golfValue.playerScores}
           userId={userId}
           onClose={() => setShowPreview(false)}
           onPost={() => {
@@ -2121,14 +1123,8 @@ export default function CreatePostModal({
         selectionMode={true}
       />
 
-      {/* Participant Selection Modal (for shared rounds) */}
-      <TagPeopleModal
-        isOpen={showParticipantModal}
-        onClose={() => setShowParticipantModal(false)}
-        existingTags={sharedRoundParticipants}
-        onSelectionComplete={handleParticipantSelection}
-        selectionMode={true}
-      />
+      {/* The participant-selection TagPeopleModal for shared rounds moved
+          into GolfComposerSection, which owns the participant state. */}
 
       {/* Sport Selector Modal */}
       {showSportSelector && (
