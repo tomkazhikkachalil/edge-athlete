@@ -8,7 +8,7 @@ import { calcPlayerTotals } from '@/lib/golf/scoring';
 import { useToast } from '@/components/Toast';
 import { getTagOptions, getHashtagSuggestions } from '@/lib/sports/post-tags';
 import MediaTile from '@/components/media/MediaTile';
-import GolfScorecardForm from '@/components/GolfScorecardForm';
+import GolfScorecardForm from '@/components/golf/GolfScorecardForm';
 import TagPeopleModal from '@/components/TagPeopleModal';
 import SportSelector from '@/components/SportSelector';
 import MultiPlayerScorecardGrid, { type PlayerScoreData, type PlayerHoleScore } from '@/components/golf/MultiPlayerScorecardGrid';
