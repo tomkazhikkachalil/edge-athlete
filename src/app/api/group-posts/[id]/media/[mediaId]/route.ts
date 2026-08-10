@@ -24,7 +24,6 @@ import type { SportKey } from '@/lib/sports';
 interface MediaPatch {
   segment_number?: number | null;
   segment_kind?: string | null;
-  hole_number?: number | null;
   is_highlight?: boolean;
   caption?: string | null;
 }
@@ -74,7 +73,6 @@ export async function PATCH(
         // Explicitly moving an item back to event level.
         patch.segment_number = null;
         patch.segment_kind = null;
-        patch.hole_number = null;
       } else {
         const sportKey = await resolveSport(supabase, groupPostId);
         if (typeof raw !== 'number' || !isValidSegment(sportKey, raw)) {
@@ -91,9 +89,8 @@ export async function PATCH(
         const kind = segmentSchemaFor(sportKey)?.kind ?? null;
         patch.segment_number = raw;
         patch.segment_kind = kind;
-        // Same conditional dual-write as the attach route: hole_number keeps
-        // its 1..18 constraint, so only golf-shaped values may go there.
-        patch.hole_number = kind === 'hole' && raw >= 1 && raw <= 18 ? raw : null;
+        // hole_number is no longer written — migration 076 dropped the legacy
+        // column; the request-body alias read above stays for stale tabs.
       }
     }
 

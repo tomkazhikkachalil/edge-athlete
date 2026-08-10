@@ -31,7 +31,9 @@ export default function MultiSportActivity({ profileId, onEdit, onDelete }: Mult
   const [primarySportKeys, setPrimarySportKeys] = useState<SportKey[]>(
     () => getPrimarySports(3).slice(0, 3).map(s => s.sport_key)
   );
-  const [activeSportKey, setActiveSportKey] = useState<SportKey>(primarySportKeys[0] ?? getPrimarySports()[0]?.sport_key ?? 'golf');
+  // getPrimarySports pads to ≥3 enabled sports, so [0] always exists — no
+  // hardcoded golf terminal fallback.
+  const [activeSportKey, setActiveSportKey] = useState<SportKey>(primarySportKeys[0] ?? getPrimarySports()[0].sport_key);
   const [activityData, setActivityData] = useState<Record<SportKey, ActivityRow[]>>({} as Record<SportKey, ActivityRow[]>);
   const [loading, setLoading] = useState<Record<SportKey, boolean>>({} as Record<SportKey, boolean>);
 

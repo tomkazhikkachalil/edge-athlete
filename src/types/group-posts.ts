@@ -103,8 +103,6 @@ export interface GroupPostMedia {
    *  already drifted apart; keep them in step. */
   segment_number?: number | null;
   segment_kind?: string | null;
-  /** @deprecated Superseded by `segment_number` (migration 061). */
-  hole_number?: number | null;
   thumbnail_url?: string | null;
   duration_seconds?: number | null;
 
@@ -301,11 +299,6 @@ export interface RoundMediaItem {
   segment_number: number | null;
   /** What that slice is called, so a row is self-describing without a join. */
   segment_kind?: string | null;
-  /**
-   * @deprecated Superseded by `segment_number` (migration 061). Still written
-   * for golf while both columns coexist; read `segment_number` instead.
-   */
-  hole_number: number | null;
   uploaded_by: string;
   caption: string | null;
   /** Poster frame for videos (migration 060). NULL for images. */

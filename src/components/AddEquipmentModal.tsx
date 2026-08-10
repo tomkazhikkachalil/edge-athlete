@@ -59,9 +59,11 @@ function seedFrom(
   defaultSport: string | undefined,
   defaultCategory: EquipmentCategory | undefined
 ) {
+  // Unknown/absent sport seeds to 'general' (the picker's catch-all), never
+  // to golf — the old golf fallback silently mislabeled gear.
   const sport = editingItem
-    ? (isKnownSport(editingItem.sport_key) ? editingItem.sport_key : 'golf')
-    : (isKnownSport(defaultSport) ? defaultSport : 'golf');
+    ? (isKnownSport(editingItem.sport_key) ? editingItem.sport_key : 'general')
+    : (isKnownSport(defaultSport) ? defaultSport : 'general');
   const hasCatalog = getEquipmentCategories(sport).length > 0;
   const specValues: Record<string, string> = {};
   if (editingItem?.specs) {
