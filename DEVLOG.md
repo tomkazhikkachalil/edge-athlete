@@ -1,5 +1,37 @@
 # Development Log
 
+## August 9, 2026 — Panels flip, never self-close, and the @ list looks like a picker
+
+Tom's device pass on the portaled panels, four reports, four mechanisms:
+
+- **"Emoji at the top of the page shoots me to the bottom."** The portal
+  always opened ABOVE the trigger with no vertical clamp — near the
+  viewport top the 350px panel sat entirely off-screen, and the picker's
+  search autofocus made the browser scroll the document chasing it. Both
+  halves fixed: panels now FLIP below when they don't fit above (with a
+  height floor for the dynamic picker's pre-load frame so even the first
+  paint lands on the correct side), and `autoFocusSearch={false}` (which
+  also stops the mobile keyboard popping over the panel).
+- **"The @ closes itself after a few seconds."** Close-on-scroll was the
+  wrong policy: phones fire stray scroll events (address bar, keyboard
+  settle) with zero user intent. Both portals now REPOSITION on
+  scroll/resize (rAF-coalesced) and never self-close — dismissal is only
+  outside-mousedown, Escape, token-gone, or selection. The 150ms
+  grace-timer machinery is deleted with the policy.
+- **"The window floats above the box, easy to miss."** Gap tightened to
+  4px and both panels get `ea-dropdown-in` (new keyframes beside the other
+  messaging micro-interactions — 140ms rise-in, auto-neutralized by the
+  reduced-motion block).
+- **"Names aren't clean."** Picker rows are the standard two-line shape
+  now: 32px avatar, name over muted @handle, min-h 48px. The @handle (the
+  thing being inserted) still never truncates — the name gives way.
+
+Probe (390 AND 1280): placement always consistent with the flip math and
+fully inside the viewport, zero app-caused scroll on open (measured AFTER
+the click — Playwright's own actionability scroll is not the app's), the
+@ dropdown survives synthetic scrolls plus 3s idle and stays anchored,
+outside-mousedown still dismisses. direct-message + chat-dock green.
+
 ## August 9, 2026 — The clipping rule bites twice more; the panels go portal
 
 Tom's cross-device pass: emoji picker dead in comments (every width), the

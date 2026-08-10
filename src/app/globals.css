@@ -576,6 +576,16 @@ body {
 
 .ea-backdrop-fade { animation: ea-fade-in var(--ea-hover-ms) ease-out; }
 
+/* Portaled dropdowns (mention picker, emoji panel): a short rise-in so the
+ * panel's appearance registers — a hard mount near a busy composer was easy
+ * to miss on phones. */
+@keyframes ea-dropdown-in {
+  from { opacity: 0; transform: translateY(4px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.ea-dropdown-in { animation: ea-dropdown-in 140ms var(--ea-ease); }
+
 /* Long-press targets: a 400ms press must open OUR surface, not the OS text
  * selection (iOS loupe/callout) — the two fight, and selection wins ugly.
  * Coarse-scoped so desktop mouse selection (and copy) is untouched; on
