@@ -1,10 +1,11 @@
 'use client';
 
 import { useState, useEffect, useCallback, useMemo } from 'react';
-import ScoreEntryModal from '@/components/golf/ScoreEntryModal';
+import MultiPlayerScorecardGrid, { type PlayerHoleScore, type PlayerScoreData } from '@/components/golf/MultiPlayerScorecardGrid';
 import { useToast } from '@/components/Toast';
+import { useAuth } from '@/lib/auth';
 import type { GolfCourse } from '@/lib/golf-courses-db';
-import { totalPenalties } from '@/lib/golf/penalties';
+import { holeDataToPlayerScores, applyPlayerScoreChange } from '@/lib/golf/hole-adapters';
 import { buildDefaultHoles } from '@/lib/golf/scoring';
 import type { HoleData } from '@/types/golf';
 import { GOLF_INPUT, GOLF_SELECT, GOLF_LABEL } from '@/components/golf/golf-form-styles';
@@ -43,6 +44,10 @@ interface GolfScorecardFormProps {
 
 export default function GolfScorecardForm({ onDataChange }: GolfScorecardFormProps) {
   const { showSuccess } = useToast();
+  // Sticky player column identity for the (single-row) shared grid — the
+  // athlete this round belongs to. activeProfile covers acting-as contexts.
+  const { profile, activeProfile } = useAuth();
+  const displayProfile = activeProfile ?? profile;
 
   // Course info
   const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
@@ -68,11 +73,10 @@ export default function GolfScorecardForm({ onDataChange }: GolfScorecardFormPro
   // at the default 18 holes with zero score cells (and quick-entry silently
   // discarding scores into the empty array).
   const [holesData, setHolesData] = useState<HoleData[]>(() => buildDefaultHoles(18, 'front'));
-  const [activeTab, setActiveTab] = useState<'front' | 'back'>('front');
-  const [showQuickEntry, setShowQuickEntry] = useState(false);
-  // Hole NUMBER a PEN cell asked the quick-entry modal to open at; null =
-  // the modal's own first-incomplete-hole resume logic.
-  const [quickEntryHole, setQuickEntryHole] = useState<number | null>(null);
+  // The quick-entry stepper is mounted by MultiPlayerScorecardGrid (one modal
+  // path for solo + shared); the header "Quick entry" button lifts its request
+  // into the grid via this counter — each increment opens it in resume mode.
+  const [quickEntryRequest, setQuickEntryRequest] = useState(0);
 
   // Course search
   const [courseSearchOpen, setCourseSearchOpen] = useState(false);
@@ -83,24 +87,12 @@ export default function GolfScorecardForm({ onDataChange }: GolfScorecardFormPro
 
   // Switch between 18- and 9-hole rounds. Adjusts the default course par
   // (72 <-> 36) only when the current value IS the other mode's default, so a
-  // custom par the user typed is never stomped. Also snaps the scorecard's
-  // tab filter to a valid state for the new mode.
+  // custom par the user typed is never stomped. (Front/Back tab state lives in
+  // MultiPlayerScorecardGrid now.)
   const handleHoleCountChange = (count: number) => {
     setHoleCount(count);
     if (count === 9 && coursePar === 72) setCoursePar(36);
     if (count === 18 && coursePar === 36) setCoursePar(72);
-    if (count === 18) {
-      setActiveTab('front');
-    } else {
-      setActiveTab(startingHole === 'back' ? 'back' : 'front');
-    }
-  };
-
-  // 9-hole rounds can start on the back nine (holes 10-18). The table's
-  // front/back filter keys off activeTab, so keep it in sync.
-  const handleStartingHoleChange = (start: 'front' | 'back') => {
-    setStartingHole(start);
-    if (holeCount === 9) setActiveTab(start);
   };
 
   // Rebuild the hole grid when holeCount/startingHole CHANGE (render-phase
@@ -248,35 +240,39 @@ export default function GolfScorecardForm({ onDataChange }: GolfScorecardFormPro
     };
   }, [holesData, handicap]);
 
-  // Update hole data
-  const updateHole = (holeIndex: number, field: keyof HoleData, value: number | boolean | string | undefined) => {
-    const newHolesData = [...holesData];
-    newHolesData[holeIndex] = { ...newHolesData[holeIndex], [field]: value };
+  // ── Scorecard convergence: the entry grid is MultiPlayerScorecardGrid
+  // (one player row), identical to shared rounds. holesData stays the form's
+  // source of truth and the /api/posts contract; the adapters convert at the
+  // UI boundary only (src/lib/golf/hole-adapters.ts).
+  const startingHoleNumber = holeCount === 9 && startingHole === 'back' ? 10 : 1;
 
-    // Auto-calculate GIR
-    if (field === 'score' || field === 'putts') {
-      const hole = newHolesData[holeIndex];
-      if (hole.score && hole.putts) {
-        const strokesToGreen = hole.score - hole.putts;
-        const parStrokes = hole.par - 2; // GIR means reaching in par-2
-        hole.gir = strokesToGreen <= parStrokes;
-      }
-    }
+  const soloPlayers = useMemo<PlayerScoreData[]>(() => [{
+    ...holeDataToPlayerScores(holesData, 'solo'),
+    profile: {
+      id: displayProfile?.id ?? 'solo',
+      first_name: displayProfile?.first_name,
+      last_name: displayProfile?.last_name,
+      full_name: displayProfile?.full_name
+        ?? (displayProfile?.first_name || displayProfile?.last_name ? undefined : 'You'),
+      avatar_url: displayProfile?.avatar_url,
+    },
+  }], [holesData, displayProfile]);
 
-    setHolesData(newHolesData);
-  };
+  const gridHoleData = useMemo(
+    () => holesData
+      .filter(h => typeof h.hole === 'number')
+      .map(h => ({ hole: h.hole as number, par: h.par, yardage: h.yardage })),
+    [holesData]
+  );
 
-  // Get score display with color
-  const getScoreDisplay = (hole: HoleData) => {
-    if (!hole.score) return { text: '-', color: 'text-faint' };
-
-    const diff = hole.score - hole.par;
-    if (diff <= -2) return { text: hole.score, color: 'text-yellow-500 font-bold' }; // Eagle
-    if (diff === -1) return { text: hole.score, color: 'text-green-600 font-bold' }; // Birdie
-    if (diff === 0) return { text: hole.score, color: 'text-brand-fg' }; // Par
-    if (diff === 1) return { text: hole.score, color: 'text-secondary' }; // Bogey
-    return { text: hole.score, color: 'text-red-600' }; // Double+
-  };
+  // Write-back from the grid (checkbox/input edits AND the quick-entry
+  // stepper's per-hole batch). Functional update: batched patches accumulate.
+  const handleGridScoreChange = useCallback(
+    (_playerId: string, holeNum: number, patch: Partial<PlayerHoleScore>) => {
+      setHolesData(prev => applyPlayerScoreChange(prev, holeNum, patch));
+    },
+    []
+  );
 
 
   // Notify parent of data changes (with stable callback)
@@ -485,7 +481,7 @@ export default function GolfScorecardForm({ onDataChange }: GolfScorecardFormPro
                 <div className="flex gap-2">
                   <button
                     type="button"
-                    onClick={() => handleStartingHoleChange('front')}
+                    onClick={() => setStartingHole('front')}
                     className={`px-3 py-2 min-h-[44px] rounded-md text-xs font-medium transition-colors ${
                       startingHole === 'front'
                         ? 'bg-brand text-white'
@@ -496,7 +492,7 @@ export default function GolfScorecardForm({ onDataChange }: GolfScorecardFormPro
                   </button>
                   <button
                     type="button"
-                    onClick={() => handleStartingHoleChange('back')}
+                    onClick={() => setStartingHole('back')}
                     className={`px-3 py-2 min-h-[44px] rounded-md text-xs font-medium transition-colors ${
                       startingHole === 'back'
                         ? 'bg-brand text-white'
@@ -665,10 +661,7 @@ export default function GolfScorecardForm({ onDataChange }: GolfScorecardFormPro
             <span className="flex items-center gap-3">
               <button
                 type="button"
-                onClick={() => {
-                  setQuickEntryHole(null); // header entry resumes normally
-                  setShowQuickEntry(true);
-                }}
+                onClick={() => setQuickEntryRequest(n => n + 1)}
                 className="bg-white/20 hover:bg-white/30 text-white text-sm font-semibold px-3 py-2 min-h-[40px] rounded-md transition-colors"
               >
                 <i className="fas fa-bolt mr-1"></i>
@@ -683,36 +676,9 @@ export default function GolfScorecardForm({ onDataChange }: GolfScorecardFormPro
           </h3>
         </div>
 
-        {/* Tabs for 18 holes */}
-        {holeCount === 18 && (
-          <div className="border-b border-border bg-surface-muted">
-            <div className="flex">
-              <button
-                onClick={() => setActiveTab('front')}
-                className={`px-6 py-3 font-medium transition-colors ${
-                  activeTab === 'front'
-                    ? 'bg-surface border-b-2 border-green-600 text-green-600 dark:text-green-400'
-                    : 'text-tertiary hover:text-primary'
-                }`}
-              >
-                Front 9
-              </button>
-              <button
-                onClick={() => setActiveTab('back')}
-                className={`px-6 py-3 font-medium transition-colors ${
-                  activeTab === 'back'
-                    ? 'bg-surface border-b-2 border-green-600 text-green-600 dark:text-green-400'
-                    : 'text-tertiary hover:text-primary'
-                }`}
-              >
-                Back 9
-              </button>
-            </div>
-          </div>
-        )}
-
-        {/* Authentic Golf Scorecard */}
-        <div className="overflow-x-auto bg-surface">
+        {/* Scorecard body: course strip, the shared grid, signature. (The
+            form's duplicated Front/Back tabs are gone — the grid owns them.) */}
+        <div className="bg-surface">
           {/* Scorecard Header */}
           <div className="bg-gradient-to-r from-green-800 to-green-700 text-white px-4 py-2 text-center">
             <div className="flex justify-between items-center">
@@ -726,304 +692,22 @@ export default function GolfScorecardForm({ onDataChange }: GolfScorecardFormPro
             </div>
           </div>
 
-          <table className="w-full border-collapse bg-surface">
-            {/* Traditional Scorecard Header */}
-            <thead>
-              {/* Hole Numbers Row */}
-              <tr className="bg-green-600 text-white">
-                <td className="px-2 py-2 text-xs font-bold border border-green-700 text-center">HOLE</td>
-                {holesData
-                  .filter(hole => {
-                    if (holeCount !== 18) return true; // Show all holes for non-18 hole rounds
-                    const holeNum = hole.hole ?? 0;
-                    return activeTab === 'front' ? holeNum <= 9 : holeNum > 9;
-                  })
-                  .map(hole => (
-                    <td key={hole.hole} className="px-2 py-2 text-sm font-bold border border-green-700 text-center min-w-[40px]">
-                      {hole.hole}
-                    </td>
-                  ))}
-                <td className="px-2 py-2 text-xs font-bold border border-green-700 text-center bg-green-700">
-                  {holeCount === 18 ? (activeTab === 'front' ? 'OUT' : 'IN') : 'TOTAL'}
-                </td>
-              </tr>
-
-              {/* Par Row */}
-              <tr className="bg-violet-100 dark:bg-violet-950/60">
-                <td className="px-2 py-2 text-xs font-bold border border-border-strong text-center bg-violet-200 dark:bg-violet-900/50 text-primary">PAR</td>
-                {holesData
-                  .filter(hole => {
-                    if (holeCount !== 18) return true; // Show all holes for non-18 hole rounds
-                    const holeNum = hole.hole ?? 0;
-                    return activeTab === 'front' ? holeNum <= 9 : holeNum > 9;
-                  })
-                  .map(hole => (
-                    <td key={hole.hole} className={`px-2 py-2 text-sm font-bold border border-border-strong text-center text-primary ${
-                      hole.par === 3 ? 'bg-red-100 dark:bg-red-950/60' : hole.par === 5 ? 'bg-yellow-100 dark:bg-yellow-950/60' : 'bg-violet-100 dark:bg-violet-950/60'
-                    }`}>
-                      {hole.par}
-                    </td>
-                  ))}
-                <td className="px-2 py-2 text-sm font-bold border border-border-strong text-center bg-violet-200 dark:bg-violet-900/50 text-primary">
-                  {holesData
-                    .filter(h => {
-                      if (holeCount !== 18) return true; // Show all holes for non-18 hole rounds
-                      const holeNum = h.hole ?? 0;
-                      return activeTab === 'front' ? holeNum <= 9 : holeNum > 9;
-                    })
-                    .reduce((sum, h) => sum + h.par, 0)}
-                </td>
-              </tr>
-
-              {/* Yardage Row */}
-              <tr className="bg-surface-muted">
-                <td className="px-2 py-2 text-xs font-bold border border-border-strong text-center bg-surface-sunken text-primary">YDS</td>
-                {holesData
-                  .filter(hole => {
-                    if (holeCount !== 18) return true; // Show all holes for non-18 hole rounds
-                    const holeNum = hole.hole ?? 0;
-                    return activeTab === 'front' ? holeNum <= 9 : holeNum > 9;
-                  })
-                  .map(hole => (
-                    <td key={hole.hole} className="px-1 py-2 text-xs border border-border-strong text-center text-primary font-medium">
-                      {hole.yardage}
-                    </td>
-                  ))}
-                <td className="px-2 py-2 text-xs font-bold border border-border-strong text-center bg-surface-sunken text-primary">
-                  {holesData
-                    .filter(h => {
-                      if (holeCount !== 18) return true; // Show all holes for non-18 hole rounds
-                      const holeNum = h.hole ?? 0;
-                      return activeTab === 'front' ? holeNum <= 9 : holeNum > 9;
-                    })
-                    .reduce((sum, h) => sum + (h.yardage ?? 0), 0)}
-                </td>
-              </tr>
-
-              {/* Handicap Row */}
-              <tr className="bg-surface-muted">
-                <td className="px-2 py-2 text-xs font-bold border border-border-strong text-center bg-surface-sunken text-primary">HCP</td>
-                {holesData
-                  .filter(hole => {
-                    if (holeCount !== 18) return true; // Show all holes for non-18 hole rounds
-                    const holeNum = hole.hole ?? 0;
-                    return activeTab === 'front' ? holeNum <= 9 : holeNum > 9;
-                  })
-                  .map(hole => (
-                    <td key={hole.hole} className="px-1 py-2 text-xs border border-border-strong text-center text-primary font-medium">
-                      {hole.handicap || '-'}
-                    </td>
-                  ))}
-                <td className="px-2 py-2 text-xs border border-border-strong text-center bg-surface-sunken text-primary font-medium">-</td>
-              </tr>
-            </thead>
-
-            {/* Score Entry Section */}
-            <tbody>
-              {/* Score Row */}
-              <tr className="bg-surface">
-                <td className="px-2 py-3 text-xs font-bold border border-border-strong text-center bg-yellow-100 dark:bg-yellow-950/60 text-primary">SCORE</td>
-                {holesData
-                  .filter(hole => {
-                    if (holeCount !== 18) return true; // Show all holes for non-18 hole rounds
-                    const holeNum = hole.hole ?? 0;
-                    return activeTab === 'front' ? holeNum <= 9 : holeNum > 9;
-                  })
-                  .map((hole, index) => {
-                    const actualIndex = holeCount === 18 && activeTab === 'back' ? index + 9 : index;
-                    const score = getScoreDisplay(hole);
-
-                    return (
-                      <td key={hole.hole} className="px-1 py-2 border border-border-strong text-center">
-                        <input
-                          type="number"
-                          min="1"
-                          max="15"
-                          value={hole.score || ''}
-                          onChange={(e) => updateHole(actualIndex, 'score', e.target.value ? Number(e.target.value) : undefined)}
-                          className={`w-full h-10 text-center text-lg font-bold border-2 rounded ${
-                            hole.score
-                              ? score.color === 'text-yellow-500 font-bold' ? 'bg-yellow-100 dark:bg-yellow-950/60 border-yellow-500 text-yellow-900 dark:text-yellow-200'
-                              : score.color === 'text-green-600 font-bold' ? 'bg-green-100 dark:bg-green-950/60 border-green-500 text-green-900 dark:text-green-200'
-                              : score.color === 'text-brand-fg' ? 'bg-violet-100 dark:bg-violet-950/60 border-violet-500 text-violet-900 dark:text-violet-200'
-                              : score.color === 'text-red-600' ? 'bg-red-100 dark:bg-red-950/60 border-red-500 text-red-900 dark:text-red-200'
-                              : 'bg-surface-sunken border-border-strong text-primary'
-                              : 'bg-surface border-border-strong text-primary'
-                          }`}
-                          placeholder="−"
-                        />
-                      </td>
-                    );
-                  })}
-                <td className="px-2 py-2 text-lg font-bold border border-border-strong text-center bg-yellow-100 dark:bg-yellow-950/60 text-primary">
-                  <div className="h-10 flex items-center justify-center">
-                    {stats ?
-                      holesData
-                        .filter(h => {
-                          if (holeCount !== 18) return true; // Show all holes for non-18 hole rounds
-                          const holeNum = h.hole ?? 0;
-                          return activeTab === 'front' ? holeNum <= 9 : holeNum > 9;
-                        })
-                        .reduce((sum, h) => sum + (h.score || 0), 0) || '−'
-                      : '−'
-                    }
-                  </div>
-                </td>
-              </tr>
-
-              {/* Putts Row */}
-              <tr className="bg-surface-muted">
-                <td className="px-2 py-2 text-xs font-bold border border-border-strong text-center bg-surface-sunken text-primary">PUTTS</td>
-                {holesData
-                  .filter(hole => {
-                    if (holeCount !== 18) return true; // Show all holes for non-18 hole rounds
-                    const holeNum = hole.hole ?? 0;
-                    return activeTab === 'front' ? holeNum <= 9 : holeNum > 9;
-                  })
-                  .map((hole, index) => {
-                    const actualIndex = holeCount === 18 && activeTab === 'back' ? index + 9 : index;
-
-                    return (
-                      <td key={hole.hole} className="px-1 py-2 border border-border-strong text-center">
-                        <input
-                          type="number"
-                          min="0"
-                          max="10"
-                          value={hole.putts || ''}
-                          onChange={(e) => updateHole(actualIndex, 'putts', e.target.value ? Number(e.target.value) : undefined)}
-                          className="w-full h-8 text-center text-sm border border-border-strong rounded text-primary bg-surface font-medium"
-                          placeholder="−"
-                        />
-                      </td>
-                    );
-                  })}
-                <td className="px-2 py-2 text-sm font-bold border border-border-strong text-center bg-surface-sunken text-primary">
-                  {stats ?
-                    holesData
-                      .filter(h => {
-                        if (holeCount !== 18) return true; // Show all holes for non-18 hole rounds
-                        const holeNum = h.hole ?? 0;
-                        return activeTab === 'front' ? holeNum <= 9 : holeNum > 9;
-                      })
-                      .reduce((sum, h) => sum + (h.putts || 0), 0) || '−'
-                    : '−'
-                  }
-                </td>
-              </tr>
-
-              {/* Fairway Row */}
-              <tr className="bg-green-50 dark:bg-green-950/40">
-                <td className="px-2 py-2 text-xs font-bold border border-border-strong text-center bg-green-100 dark:bg-green-950/60 text-primary">F/W</td>
-                {holesData
-                  .filter(hole => {
-                    if (holeCount !== 18) return true; // Show all holes for non-18 hole rounds
-                    const holeNum = hole.hole ?? 0;
-                    return activeTab === 'front' ? holeNum <= 9 : holeNum > 9;
-                  })
-                  .map((hole, index) => {
-                    const actualIndex = holeCount === 18 && activeTab === 'back' ? index + 9 : index;
-
-                    return (
-                      <td key={hole.hole} className="px-1 py-2 border border-border-strong text-center">
-                        {hole.par > 3 ? (
-                          <select
-                            value={hole.fairway || ''}
-                            onChange={(e) => updateHole(actualIndex, 'fairway', e.target.value)}
-                            className="w-full h-7 text-xs text-center border border-border-strong rounded text-primary bg-surface font-medium"
-                          >
-                            <option value="">−</option>
-                            <option value="hit">✓</option>
-                            <option value="left">←</option>
-                            <option value="right">→</option>
-                          </select>
-                        ) : (
-                          <div className="h-7 flex items-center justify-center text-tertiary text-sm font-bold">•</div>
-                        )}
-                      </td>
-                    );
-                  })}
-                <td className="px-2 py-2 text-xs border border-border-strong text-center bg-green-100 dark:bg-green-950/60 text-primary font-bold">
-                  {stats ? `${stats.fairwaysHit}/${holesData.filter(h => h.par > 3 && (holeCount !== 18 ? true : activeTab === 'front' ? (h.hole ?? 0) <= 9 : (h.hole ?? 0) > 9)).length}` : '−'}
-                </td>
-              </tr>
-
-              {/* GIR Row */}
-              <tr className="bg-brand-soft">
-                <td className="px-2 py-2 text-xs font-bold border border-border-strong text-center bg-violet-100 dark:bg-violet-950/60 text-primary">GIR</td>
-                {holesData
-                  .filter(hole => {
-                    if (holeCount !== 18) return true; // Show all holes for non-18 hole rounds
-                    const holeNum = hole.hole ?? 0;
-                    return activeTab === 'front' ? holeNum <= 9 : holeNum > 9;
-                  })
-                  .map((hole, index) => {
-                    const actualIndex = holeCount === 18 && activeTab === 'back' ? index + 9 : index;
-
-                    return (
-                      <td key={hole.hole} className="px-1 py-2 border border-border-strong text-center">
-                        <div className="flex justify-center">
-                          <input
-                            type="checkbox"
-                            checked={hole.gir || false}
-                            onChange={(e) => updateHole(actualIndex, 'gir', e.target.checked)}
-                            className="w-5 h-5 text-brand-fg border-2 border-border-strong rounded"
-                          />
-                        </div>
-                      </td>
-                    );
-                  })}
-                <td className="px-2 py-2 text-xs border border-border-strong text-center bg-violet-100 dark:bg-violet-950/60 text-primary font-bold">
-                  {stats ? `${stats.greensInRegulation}/${holesData.filter(h => holeCount !== 18 ? true : activeTab === 'front' ? (h.hole ?? 0) <= 9 : (h.hole ?? 0) > 9).length}` : '−'}
-                </td>
-              </tr>
-
-              {/* Penalties Row — read-only in the grid; each cell opens the
-                  quick-entry stepper AT that hole, where penalties are edited
-                  (dropdown + count — too much control for a 40px table cell) */}
-              <tr className="bg-surface-muted">
-                <td className="px-2 py-2 text-xs font-bold border border-border-strong text-center bg-surface-sunken text-primary">PEN</td>
-                {holesData
-                  .filter(hole => {
-                    if (holeCount !== 18) return true; // Show all holes for non-18 hole rounds
-                    const holeNum = hole.hole ?? 0;
-                    return activeTab === 'front' ? holeNum <= 9 : holeNum > 9;
-                  })
-                  .map(hole => {
-                    const penCount = totalPenalties(hole.penalties);
-                    return (
-                      <td key={hole.hole} className="px-1 py-2 border border-border-strong text-center">
-                        <button
-                          type="button"
-                          onClick={() => {
-                            if (typeof hole.hole === 'number') setQuickEntryHole(hole.hole);
-                            setShowQuickEntry(true);
-                          }}
-                          className={`w-full h-8 flex items-center justify-center text-sm rounded font-medium ${
-                            penCount > 0 ? 'text-amber-600 dark:text-amber-400 font-bold' : 'text-faint'
-                          } hover:bg-border transition-colors`}
-                          title={`Edit hole ${hole.hole} in quick entry`}
-                          aria-label={`Hole ${hole.hole}: ${penCount} penalt${penCount === 1 ? 'y' : 'ies'} — edit in quick entry`}
-                        >
-                          {penCount > 0 ? penCount : '−'}
-                        </button>
-                      </td>
-                    );
-                  })}
-                <td className="px-2 py-2 text-sm font-bold border border-border-strong text-center bg-surface-sunken text-primary">
-                  {(() => {
-                    const total = holesData
-                      .filter(h => {
-                        if (holeCount !== 18) return true; // Show all holes for non-18 hole rounds
-                        const holeNum = h.hole ?? 0;
-                        return activeTab === 'front' ? holeNum <= 9 : holeNum > 9;
-                      })
-                      .reduce((sum, h) => sum + totalPenalties(h.penalties), 0);
-                    return total || '−';
-                  })()}
-                </td>
-              </tr>
-            </tbody>
-          </table>
+          {/* One grid for solo + shared (scorecard convergence): the same
+              component shared rounds use, with a single player row — same
+              sticky column, side-scroll, cells and quick-entry stepper. */}
+          <div className="p-4">
+            <MultiPlayerScorecardGrid
+              players={soloPlayers}
+              holes={holeCount}
+              editable={true}
+              showDetailedStats={true}
+              startingHoleNumber={startingHoleNumber}
+              courseName={courseName || null}
+              holeData={gridHoleData}
+              onScoreChange={handleGridScoreChange}
+              quickEntryRequest={quickEntryRequest}
+            />
+          </div>
 
           {/* Scorecard Signature Area */}
           <div className="bg-surface-sunken px-4 py-3 border-t border-border-strong">
@@ -1136,63 +820,13 @@ export default function GolfScorecardForm({ onDataChange }: GolfScorecardFormPro
             <ul className="text-xs text-tertiary space-y-1">
               <li>• GIR auto-calculated from score + putts</li>
               <li>• Use Tab to move between fields quickly</li>
-              <li>• F/W: ✓=Hit, ←=Left, →=Right, •=Par 3</li>
+              <li>• F = Fairway hit, G = Green in regulation, • = Par 3</li>
+              <li>• P = Penalties — tap the badge to edit in quick entry</li>
             </ul>
           </div>
         </div>
       </div>
 
-      {/* Quick entry: hole-by-hole stepper (same modal shared rounds use).
-          Maps in/out of this form's holesData — the 72-field table stays for
-          those who prefer it; this is the mobile-friendly path. */}
-      {showQuickEntry && (
-        <ScoreEntryModal
-          groupPostId=""
-          participantId=""
-          holesPlayed={holeCount}
-          startingHoleNumber={holeCount === 9 && startingHole === 'back' ? 10 : 1}
-          holeData={holesData
-            .filter(h => typeof h.hole === 'number')
-            .map(h => ({ hole: h.hole as number, par: h.par, yardage: h.yardage }))}
-          courseName={courseName || null}
-          existingScores={holesData
-            .filter(h => h.score !== undefined && h.score !== null)
-            .map(h => ({
-              hole_number: h.hole,
-              strokes: h.score as number,
-              putts: h.putts ?? null,
-              fairway_hit: h.fairway === 'hit' ? true : h.fairway === 'left' || h.fairway === 'right' ? false : null,
-              green_in_regulation: h.gir ?? null,
-              penalties: h.penalties ?? null,
-            })) as never}
-          initialHole={quickEntryHole ?? undefined}
-          onSave={async (scores) => {
-            setHolesData(prev => prev.map(hole => {
-              const entered = scores.find(sc => sc.hole_number === hole.hole);
-              if (!entered) return hole;
-              return {
-                ...hole,
-                score: entered.strokes,
-                putts: entered.putts,
-                fairway: hole.par === 3
-                  ? 'na'
-                  : entered.fairway_hit === true ? 'hit'
-                  // boolean miss loses direction — keep an existing left/right,
-                  // else default to 'left'
-                  : entered.fairway_hit === false
-                    ? (hole.fairway === 'left' || hole.fairway === 'right' ? hole.fairway : 'left')
-                  : hole.fairway,
-                gir: entered.green_in_regulation ?? hole.gir,
-                penalties: entered.penalties ?? null,
-              };
-            }));
-          }}
-          onClose={() => {
-            setShowQuickEntry(false);
-            setQuickEntryHole(null);
-          }}
-        />
-      )}
     </div>
 
   );

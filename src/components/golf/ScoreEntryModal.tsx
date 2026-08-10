@@ -68,6 +68,9 @@ interface ScoreEntryModalProps {
    *  grid's PEN cells jump straight to the tapped hole). Out-of-range values
    *  fall back to the default resume logic. */
   initialHole?: number;
+  /** Scroll this section into view when the modal opens (penalty badges jump
+   *  straight to the Penalties block). Additive — omitted, opens as today. */
+  focusSection?: 'penalties';
   onSave: (scores: Array<{
     hole_number: number;
     strokes: number;
@@ -103,6 +106,7 @@ export default function ScoreEntryModal({
   playerName,
   existingScores = [],
   initialHole,
+  focusSection,
   onSave,
   onSaveHole,
   onClose
@@ -162,6 +166,16 @@ export default function ScoreEntryModal({
   const [currentHole, setCurrentHole] = useState(initialSession.start);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // PEN-flow fix: opened from a penalty badge, bring the Penalties block into
+  // view immediately — it sits four sections down and the flow felt backwards
+  // landing on Strokes. focusSection is stable for a mount, so this runs once.
+  const penaltiesSectionRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (focusSection === 'penalties') {
+      penaltiesSectionRef.current?.scrollIntoView({ behavior: 'auto', block: 'start' });
+    }
+  }, [focusSection]);
 
   // Per-hole persistence state, keyed by POSITION. Holes present in
   // existingScores start "saved"; any local edit marks a hole dirty until it
@@ -693,7 +707,7 @@ export default function ScoreEntryModal({
             </div>
 
             {/* Penalties — type + count entry; rows below aggregate per type */}
-            <div className="mt-4">
+            <div className="mt-4" ref={penaltiesSectionRef}>
               <label className={GOLF_LABEL} htmlFor="penalty-type-select">Penalties</label>
               <div className="flex items-center gap-2">
                 <select
