@@ -96,6 +96,19 @@ export interface SportAdapter {
    * Check if this sport is enabled
    */
   isEnabled(): boolean;
+
+  /**
+   * Sport-owned navigation links for activity surfaces (e.g. golf's
+   * "View all rounds" / "Trends"). Default: none — a sport without
+   * dedicated pages contributes nothing.
+   */
+  getNavLinks(): { href: string; label: string }[];
+
+  /**
+   * Sport-owned route for a single activity, or null to use the generic
+   * /app/sport/[sport_key]/activity/[id] page.
+   */
+  getActivityHref(activityId: string): string | null;
 }
 
 /**
@@ -109,6 +122,15 @@ export abstract class BaseSportAdapter implements SportAdapter {
     this.sportKey = sportKey;
   }
   
+  getNavLinks(): { href: string; label: string }[] {
+    return [];
+  }
+
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  getActivityHref(_activityId: string): string | null {
+    return null;
+  }
+
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   async getHighlights(_profileId: string, _season?: string): Promise<HighlightTile[]> {
     // Default: return empty tiles with labels from registry

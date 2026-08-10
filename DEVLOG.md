@@ -52,6 +52,33 @@ has exactly one write slot and one read slot to mirror. Invariant checked
 against prod captures: `/api/public/profile` and `/api/posts` responses
 byte-identical before/after.
 
+**PR-D — composer decomposition (the riskiest phase; two mechanical
+commits).** CreatePostModal 2501 → 1417 lines: GolfScorecardForm moved to
+`components/golf/` (pure move), then all golf state/handlers/JSX extracted
+into `golf/GolfComposerSection.tsx` behind a `GolfComposerValue` contract,
+the shared-round submit fork into `golf/shared-round-submit.ts` (request
+bodies verified byte-identical by automated diff), and a
+`SPORT_COMPOSER_EXTRAS` slot map — a second sport's composer section is now
+a registry entry. Sections stay mounted across sport switches (state
+survives golf → general → golf, as before); reset via section remount key
+at the same moments. Bonus: the extraction eliminated CreatePostModal's
+documented set-state-in-effect warning — **lint ratchet lowered 44 → 43**.
+The composer manual matrix (golf solo ± scorecard, shared round +
+participants + per-hole media, stat-line, vitals/workout shares, repost)
+is Tom's device pass.
+
+**PR-E — the adapter grows a nav surface.** `SportAdapter.getNavLinks()` +
+`getActivityHref()` (defaults: none/null in BaseSportAdapter; golf declares
+its rounds/trends pages). MultiSportActivity renders links from the adapter
+(was a hardcoded golf block in an otherwise adapter-driven component);
+`copy.ts getSportRoute` dispatches through the adapter (no import cycle —
+nothing under src/lib/sports imports copy.ts); the group-posts route's
+inline `type === 'golf_round' ? 'golf' : 'general'` ternary became the
+exported `GROUP_TYPE_TO_SPORT` map (behavior-identical; sport #2 edits the
+map). This closes the five-phase sport-settings cleanup round — the
+deferred items (generic activity_id linkage, group-posts generalization,
+profiles.sport label→key) are recorded at the top of this entry.
+
 
 ## August 10, 2026 — End-of-day maintenance sweep
 

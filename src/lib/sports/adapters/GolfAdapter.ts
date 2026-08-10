@@ -180,6 +180,19 @@ export class GolfAdapter extends BaseSportAdapter {
     return super.isEnabled();
   }
 
+  // Golf owns its dedicated pages — the adapter is where they're declared,
+  // so shared components never hardcode a sport's routes.
+  getNavLinks(): { href: string; label: string }[] {
+    return [
+      { href: '/app/sport/golf/rounds', label: 'View all rounds →' },
+      { href: '/app/sport/golf/trends', label: 'Trends →' },
+    ];
+  }
+
+  getActivityHref(activityId: string): string | null {
+    return `/app/sport/golf/rounds/${activityId}`;
+  }
+
   /**
    * Format golf score for display
    * Handles par display (+2, E, -1) and stroke totals

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseAdmin, getServerAuth } from '@/lib/auth-server';
 import { notifyGroupInvites } from '@/lib/golf/group-notifications';
 import { initialRoundStatus } from '@/lib/golf/round-status';
+import { GROUP_TYPE_TO_SPORT, type GroupPostType } from '@/types/group-posts';
 
 /**
  * GET /api/group-posts
@@ -351,7 +352,7 @@ export async function POST(request: NextRequest) {
       .from('posts')
       .insert({
         profile_id: user.id,
-        sport_key: type === 'golf_round' ? 'golf' : 'general',
+        sport_key: GROUP_TYPE_TO_SPORT[type as GroupPostType] ?? 'general',
         caption: description || title,
         visibility: visibility || 'public',
         group_post_id: groupPost.id,
