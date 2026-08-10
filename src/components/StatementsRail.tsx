@@ -77,10 +77,7 @@ export default function StatementsRail({ profileId, currentUserId, totalCount, r
   return (
     <div className="mb-6">
       <div className="flex items-center justify-between mb-2">
-        <h3 className="text-sm font-bold text-primary">
-          <i className="fas fa-quote-left text-brand-fg mr-2"></i>
-          Notions
-        </h3>
+        <h3 className="text-sm font-bold text-primary">Notions</h3>
         {total > RAIL_VISIBLE_COUNT && (
           <button
             onClick={() => (expanded ? setExpanded(false) : expand())}
