@@ -71,9 +71,20 @@ interface SportStats {
   tiles: Array<{ label: string; value: string }>;
 }
 
+/** Text-only posts (the statements split, migration 074). */
+interface PublicStatement {
+  id: string;
+  caption: string | null;
+  created_at: string;
+  likes_count: number;
+  comments_count: number;
+}
+
 interface ProfileData {
   profile: PublicProfile;
   recentPosts: RecentPost[];
+  /** Optional so cached responses from before the statements split parse. */
+  statements?: PublicStatement[];
   /** Real athlete_achievements rows (pill fields only). Optional so a
    *  cached response from before this field existed still parses. */
   achievements?: Array<{
@@ -229,6 +240,7 @@ export default function PublicProfilePage() {
   if (!profileData) return null;
 
   const { profile, recentPosts, sportStats } = profileData;
+  const statements = profileData.statements ?? [];
   // Defaults so a response predating these fields renders normally.
   const sportSettings = profileData.sportSettings ?? [];
   const achievements = profileData.achievements ?? [];
@@ -446,6 +458,31 @@ export default function PublicProfilePage() {
           </div>
         )}
 
+        {/* Statements — text-only posts, split out of Recent Posts (074).
+            Non-interactive tiles, matching this page's Recent Posts treatment
+            (no anonymous post-open surface exists). */}
+        {statements.length > 0 && (
+          <div className="mt-4 bg-surface rounded-xl shadow-sm border border-border p-4">
+            <h2 className="text-sm font-semibold text-secondary mb-3">Statements</h2>
+            <div className="flex gap-2 overflow-x-auto scrollbar-hide pb-1">
+              {statements.map((statement) => (
+                <div
+                  key={statement.id}
+                  className="w-[200px] flex-shrink-0 rounded-lg bg-surface-sunken p-3"
+                >
+                  <p className="text-xs text-muted line-clamp-4 whitespace-pre-wrap">
+                    {statement.caption || 'Post'}
+                  </p>
+                  <div className="flex items-center gap-3 mt-2 text-[10px] text-faint">
+                    <span>{statement.likes_count} likes</span>
+                    <span>{statement.comments_count} comments</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
         {/* Recent Posts */}
         {recentPosts.length > 0 && (
           <div className="mt-4 bg-surface rounded-xl shadow-sm border border-border p-4">
@@ -504,8 +541,8 @@ export default function PublicProfilePage() {
           </div>
         )}
 
-        {/* Empty state for no posts */}
-        {recentPosts.length === 0 && (
+        {/* Empty state for no posts (statements count as posts here) */}
+        {recentPosts.length === 0 && statements.length === 0 && (
           <div className="mt-4 bg-surface rounded-xl shadow-sm border border-border p-8 text-center">
             <p className="text-muted">No public posts yet</p>
           </div>

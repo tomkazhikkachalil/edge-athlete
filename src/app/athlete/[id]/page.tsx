@@ -11,6 +11,7 @@ import FollowButton from '@/components/FollowButton';
 import PrivateProfileView from '@/components/PrivateProfileView';
 import ProfileMediaTabs from '@/components/ProfileMediaTabs';
 import FeaturedPosts from '@/components/FeaturedPosts';
+import StatementsRail from '@/components/StatementsRail';
 import PostDetailModal from '@/components/PostDetailModal';
 import FollowersModal from '@/components/FollowersModal';
 import type { Profile } from '@/lib/supabase';
@@ -58,6 +59,8 @@ export default function AthleteProfilePage() {
   // Pushed up from ProfileMediaTabs (same pattern as the own page) — the
   // stats row renders only for viewers with access, so no privacy concern.
   const [postsCount, setPostsCount] = useState(0);
+  // counts.all is media-only since migration 074; statements feed the rail.
+  const [statementsCount, setStatementsCount] = useState(0);
 
   // Followers Modal state
   const [isFollowersModalOpen, setIsFollowersModalOpen] = useState(false);
@@ -462,11 +465,19 @@ export default function AthleteProfilePage() {
           isOwnProfile={isOwnProfile}
           currentUserId={user?.id}
         />
+        <StatementsRail
+          profileId={athleteId}
+          currentUserId={user?.id}
+          totalCount={statementsCount}
+        />
         <ProfileMediaTabs
           profileId={athleteId}
           currentUserId={user?.id}
           isOwnProfile={isOwnProfile}
-          onCountsChange={(counts) => setPostsCount(counts.all)}
+          onCountsChange={(counts) => {
+            setPostsCount(counts.all);
+            setStatementsCount(counts.statements ?? 0);
+          }}
         />
       </div>
       </div>

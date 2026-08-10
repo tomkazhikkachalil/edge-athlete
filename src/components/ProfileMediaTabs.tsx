@@ -95,6 +95,8 @@ interface TabCounts {
   all: number;
   stats: number;
   tagged: number;
+  /** Text-only posts (074) — no tab here; feeds the StatementsRail above. */
+  statements: number;
   equipment: number;
   vitals: number;
   achievements: number;
@@ -116,7 +118,7 @@ export default function ProfileMediaTabs({ profileId, currentUserId, isOwnProfil
   const [selectedSports, setSelectedSports] = useState<string[]>([]);
   const [selectedYears, setSelectedYears] = useState<number[]>([]);
   const [items, setItems] = useState<MediaItem[]>([]);
-  const [counts, setCounts] = useState<TabCounts>({ all: 0, stats: 0, tagged: 0, equipment: 0, vitals: 0, achievements: 0 });
+  const [counts, setCounts] = useState<TabCounts>({ all: 0, stats: 0, tagged: 0, statements: 0, equipment: 0, vitals: 0, achievements: 0 });
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
   const [hasMore, setHasMore] = useState(false);
@@ -149,6 +151,7 @@ export default function ProfileMediaTabs({ profileId, currentUserId, isOwnProfil
           all: data.all,
           stats: data.stats,
           tagged: data.tagged,
+          statements: data.statements ?? 0,
           equipment: data.equipment ?? 0,
           vitals: data.vitals ?? 0,
           achievements: data.achievements ?? 0,

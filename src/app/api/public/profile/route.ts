@@ -4,6 +4,7 @@ import { getStatSchema, isStatLineData } from '@/lib/sports/stat-schemas';
 import { getSportSettingsDisplay } from '@/lib/sports/settings-schemas';
 import { resolveSportKey } from '@/lib/sports/resolve-sport-key';
 import { getSupabaseAdmin } from '@/lib/auth-server';
+import { isStatementPost } from '@/lib/statements';
 
 export async function GET(request: NextRequest) {
   try {
@@ -79,15 +80,33 @@ export async function GET(request: NextRequest) {
         .eq('status', 'accepted')
     ]);
 
-    // Fetch posts count
-    const { count: postsCount } = await supabase
-      .from('posts')
-      .select('id', { count: 'exact', head: true })
-      .eq('profile_id', profile.id)
-      .eq('visibility', 'public');
+    // Fetch posts count — media-only since the statements split (074): the
+    // headline number counts portfolio posts, matching the athlete pages'
+    // media-only counts.all. Statements are subtracted via the PostgREST
+    // null-embed (anti-join) pattern; if that count errors it degrades to
+    // subtracting 0 (total count) rather than breaking the page.
+    const [{ count: postsCount }, { count: statementsTotal }] = await Promise.all([
+      supabase
+        .from('posts')
+        .select('id', { count: 'exact', head: true })
+        .eq('profile_id', profile.id)
+        .eq('visibility', 'public'),
+      supabase
+        .from('posts')
+        .select('id, post_media!left(id)', { count: 'exact', head: true })
+        .eq('profile_id', profile.id)
+        .eq('visibility', 'public')
+        .is('post_media', null)
+        .is('round_id', null)
+        .is('group_post_id', null)
+        .or('stats_data.is.null,stats_data.eq."{}"'),
+    ]);
 
-    // Fetch recent public posts (limited)
-    const { data: recentPosts } = await supabase
+    // Fetch recent public posts. Over-fetch, then split into media posts
+    // (the Recent Posts grid) and statements (the strip). Trade-off: if the
+    // 24 most recent public posts are all statements, older media won't
+    // backfill the grid — cosmetic on a teaser page, avoids a second query.
+    const { data: rawRecentPosts } = await supabase
       .from('posts')
       .select(`
         id,
@@ -96,6 +115,9 @@ export async function GET(request: NextRequest) {
         created_at,
         likes_count,
         comments_count,
+        stats_data,
+        round_id,
+        group_post_id,
         post_media (
           id,
           media_url,
@@ -105,7 +127,32 @@ export async function GET(request: NextRequest) {
       .eq('profile_id', profile.id)
       .eq('visibility', 'public')
       .order('created_at', { ascending: false })
-      .limit(6);
+      .limit(24);
+
+    // Classification fields (stats_data/round_id/group_post_id) stay server-
+    // side — the wire shapes don't grow.
+    const recentPosts = (rawRecentPosts || [])
+      .filter(p => !isStatementPost(p))
+      .slice(0, 6)
+      .map(p => ({
+        id: p.id,
+        caption: p.caption,
+        sport_key: p.sport_key,
+        created_at: p.created_at,
+        likes_count: p.likes_count,
+        comments_count: p.comments_count,
+        post_media: p.post_media,
+      }));
+    const statements = (rawRecentPosts || [])
+      .filter(p => isStatementPost(p))
+      .slice(0, 6)
+      .map(p => ({
+        id: p.id,
+        caption: p.caption,
+        created_at: p.created_at,
+        likes_count: p.likes_count,
+        comments_count: p.comments_count,
+      }));
 
     // Fetch top achievements (real athlete_achievements rows — the fields
     // the pill treatment needs; podium ranking happens client-side)
@@ -210,9 +257,10 @@ export async function GET(request: NextRequest) {
         ...profile,
         followersCount: followersResult.count || 0,
         followingCount: followingResult.count || 0,
-        postsCount: postsCount || 0
+        postsCount: Math.max((postsCount || 0) - (statementsTotal || 0), 0)
       },
-      recentPosts: recentPosts || [],
+      recentPosts,
+      statements,
       achievements: achievements || [],
       // Deprecated: athlete_badges no longer render anywhere. Kept one
       // release so cached clients keep working.

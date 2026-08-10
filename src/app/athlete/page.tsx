@@ -11,6 +11,7 @@ import { useToast } from '@/components/Toast';
 import LazyImage from '@/components/LazyImage';
 import ProfileMediaTabs from '@/components/ProfileMediaTabs';
 import FeaturedPosts from '@/components/FeaturedPosts';
+import StatementsRail from '@/components/StatementsRail';
 import AvatarUploader from '@/components/AvatarUploader';
 import CoverPhotoUploader from '@/components/CoverPhotoUploader';
 import PostDetailModal from '@/components/PostDetailModal';
@@ -197,6 +198,8 @@ export default function AthleteProfilePage() {
 
   // Posts count for stats display
   const [postsCount, setPostsCount] = useState(0);
+  // counts.all is media-only since migration 074; statements feed the rail.
+  const [statementsCount, setStatementsCount] = useState(0);
 
   // Media refresh trigger
   const [mediaRefreshKey, setMediaRefreshKey] = useState(0);
@@ -852,12 +855,21 @@ export default function AthleteProfilePage() {
               currentUserId={user?.id}
               refreshKey={mediaRefreshKey}
             />
+            <StatementsRail
+              profileId={user?.id || ''}
+              currentUserId={user?.id}
+              totalCount={statementsCount}
+              refreshKey={mediaRefreshKey}
+            />
             <ProfileMediaTabs
               key={mediaRefreshKey}
               profileId={user?.id || ''}
               currentUserId={user?.id}
               isOwnProfile={true}
-              onCountsChange={(counts) => setPostsCount(counts.all)}
+              onCountsChange={(counts) => {
+                setPostsCount(counts.all);
+                setStatementsCount(counts.statements ?? 0);
+              }}
             />
           </div>
         </div>
