@@ -1,5 +1,25 @@
 # Development Log
 
+## August 9, 2026 — The @ bubble goes pixel-tight (bottom-anchoring retired)
+
+Tom: the bubble hugs the box on desktop but keeps "a few pixels of space"
+on the phone. Two sub-pixel culprits, both platform-shaped:
+
+- **`bottom:`-anchored fixed positioning drifts on iOS** — the relationship
+  between `window.innerHeight` and where `bottom: X` actually lands moves
+  with Safari's dynamic toolbar. Since the panel's height is measured
+  anyway, placement is now ALWAYS top-anchored
+  (`top = anchorTop − gap − height` when opening above) — pixel-exact on
+  every platform, `innerHeight` no longer in the equation. `placePanel`
+  returns only `top`; tests updated.
+- **`offsetHeight` rounds to integers** while real heights are fractional —
+  a ~1px seam on any surface. Both portals now measure
+  `getBoundingClientRect().height`.
+
+Probe: bubble bottom within 1px of the intended 2px gap at 390 AND 1280
+(measured after the entrance animation settles — a mid-animation
+`translateY` reads as a false gap). direct-message + chat-dock green.
+
 ## August 9, 2026 — The panels learn the action sheet's viewport model (modal + keyboard correct)
 
 Tom: @ works on the feed but breaks on athlete-profile posts and the post

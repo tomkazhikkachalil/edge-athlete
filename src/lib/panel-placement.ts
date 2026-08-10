@@ -30,8 +30,6 @@ export interface PanelPlacementArgs {
   viewportTop: number;
   /** visualViewport.height ?? innerHeight — height of the visible strip. */
   viewportHeight: number;
-  /** window.innerHeight — the layout viewport, for bottom-anchored math. */
-  layoutViewportHeight: number;
   /** Optional cap for scrollable panels (mention dropdown: 288). */
   maxHeightCap?: number;
 }
@@ -39,9 +37,12 @@ export interface PanelPlacementArgs {
 export interface PanelPlacement {
   left: number;
   width: number;
-  /** Exactly one of top/bottom is set. */
-  top?: number;
-  bottom?: number;
+  /** ALWAYS top-anchored: `bottom:`-anchored fixed positioning drifts on
+   *  iOS against window.innerHeight when Safari's toolbar is in play —
+   *  Tom measured "a few pixels of space" on the phone while desktop was
+   *  exact. With the panel height known, top = anchorTop − gap − height
+   *  is pixel-exact on every platform. */
+  top: number;
   /** Only when maxHeightCap given: cap shrunk to the visible strip. */
   maxHeight?: number;
 }
@@ -56,7 +57,6 @@ export function placePanel(args: PanelPlacementArgs): PanelPlacement {
     gap,
     viewportTop,
     viewportHeight,
-    layoutViewportHeight,
     maxHeightCap,
   } = args;
 
@@ -70,13 +70,11 @@ export function placePanel(args: PanelPlacementArgs): PanelPlacement {
   // the keyboard up a composer can sit near the bottom of a ~370px strip
   // while still reporting a large rect.top.
   const roomAbove = anchorTop - viewportTop;
-  const out: PanelPlacement = { left: anchorLeft, width: anchorWidth };
+  const top =
+    roomAbove >= effectiveH + gap + 4
+      ? anchorTop - gap - effectiveH
+      : anchorBottom + gap;
+  const out: PanelPlacement = { left: anchorLeft, width: anchorWidth, top };
   if (maxHeight !== undefined) out.maxHeight = maxHeight;
-
-  if (roomAbove >= effectiveH + gap + 4) {
-    out.bottom = layoutViewportHeight - anchorTop + gap;
-  } else {
-    out.top = anchorBottom + gap;
-  }
   return out;
 }

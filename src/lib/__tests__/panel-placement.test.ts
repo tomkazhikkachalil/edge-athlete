@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { placePanel } from '../panel-placement';
 
-const desktop = { viewportTop: 0, viewportHeight: 800, layoutViewportHeight: 800 };
+const desktop = { viewportTop: 0, viewportHeight: 800 };
 
 describe('placePanel', () => {
   it('desktop, room above: anchors bottom to the anchor top (parity with pre-keyboard math)', () => {
@@ -9,8 +9,9 @@ describe('placePanel', () => {
       anchorTop: 500, anchorBottom: 540, anchorLeft: 100, anchorWidth: 300,
       panelH: 200, gap: 2, ...desktop,
     });
-    expect(p.bottom).toBe(800 - 500 + 2);
-    expect(p.top).toBeUndefined();
+    // Top-anchored: panel bottom = anchorTop - gap, exactly.
+    expect(p.top).toBe(500 - 2 - 200);
+    expect(p.top + 200 + 2).toBe(500);
     expect(p.left).toBe(100);
     expect(p.width).toBe(300);
   });
@@ -21,7 +22,6 @@ describe('placePanel', () => {
       panelH: 200, gap: 2, ...desktop,
     });
     expect(p.top).toBe(120 + 2);
-    expect(p.bottom).toBeUndefined();
   });
 
   it('iOS keyboard pan (the modal case): raw coords, room judged vs the visible strip', () => {
@@ -31,19 +31,19 @@ describe('placePanel', () => {
     const p = placePanel({
       anchorTop: 560, anchorBottom: 600, anchorLeft: 20, anchorWidth: 350,
       panelH: 200, gap: 2,
-      viewportTop: 300, viewportHeight: 370, layoutViewportHeight: 844,
+      viewportTop: 300, viewportHeight: 370,
     });
     // roomAbove = 560-300 = 260 ≥ 206 → above, RAW coordinates (no +offset).
-    expect(p.bottom).toBe(844 - 560 + 2);
-    // The panel's top edge (560-2-200=358) stays inside the strip [300,670].
-    expect(560 - 2 - 200).toBeGreaterThanOrEqual(300);
+    expect(p.top).toBe(560 - 2 - 200);
+    // The panel's top edge stays inside the strip [300, 670].
+    expect(p.top).toBeGreaterThanOrEqual(300);
   });
 
   it('iOS keyboard pan, composer near the strip top: flips below despite a large rect.top', () => {
     const p = placePanel({
       anchorTop: 340, anchorBottom: 380, anchorLeft: 20, anchorWidth: 350,
       panelH: 200, gap: 2,
-      viewportTop: 300, viewportHeight: 370, layoutViewportHeight: 844,
+      viewportTop: 300, viewportHeight: 370,
     });
     // roomAbove = 40 < 206 → below. The old math (top >= panelH) would have
     // opened above, off the visible strip.
@@ -54,7 +54,7 @@ describe('placePanel', () => {
     const p = placePanel({
       anchorTop: 500, anchorBottom: 540, anchorLeft: 0, anchorWidth: 390,
       panelH: 288, gap: 2,
-      viewportTop: 300, viewportHeight: 240, layoutViewportHeight: 844,
+      viewportTop: 300, viewportHeight: 240,
       maxHeightCap: 288,
     });
     expect(p.maxHeight).toBe(240 - 4 - 8);
@@ -66,7 +66,7 @@ describe('placePanel', () => {
     const p = placePanel({
       anchorTop: 200, anchorBottom: 240, anchorLeft: 0, anchorWidth: 390,
       panelH: 288, gap: 2,
-      viewportTop: 0, viewportHeight: 80, layoutViewportHeight: 844,
+      viewportTop: 0, viewportHeight: 80,
       maxHeightCap: 288,
     });
     expect(p.maxHeight).toBe(96);
