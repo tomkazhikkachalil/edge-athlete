@@ -204,7 +204,7 @@ export function RoundMediaItemControls({
         onChange={e =>
           patch({ segment_number: e.target.value === '' ? null : Number(e.target.value) })
         }
-        className="min-w-0 w-full sm:flex-1 rounded border border-border-strong px-1 py-0.5 text-[11px] focus:outline-none focus:ring-1 focus:ring-violet-500"
+        className="min-w-0 w-full sm:flex-1 rounded border border-border-strong px-1 py-0.5 text-[11px]"
       >
         <option value="">Whole round</option>
         {options.map(n => (

@@ -488,7 +488,7 @@ export default function ScoreEntryModal({
             </div>
             <button
               onClick={isLive ? handleDone : onClose}
-              className="text-white hover:text-gray-200 text-xl font-bold min-w-[44px] min-h-[44px] -m-2 flex items-center justify-center"
+              className="text-white hover:text-white/80 text-xl font-bold min-w-[44px] min-h-[44px] -m-2 flex items-center justify-center"
               aria-label="Close"
             >
               <i className="fas fa-times"></i>
@@ -534,7 +534,7 @@ export default function ScoreEntryModal({
                       unoptimized={!isOptimizableImageSrc(p.avatarUrl)}
                     />
                   ) : (
-                    <span className={`w-5 h-5 shrink-0 rounded-full flex items-center justify-center text-[10px] ${active ? 'bg-white/25' : 'bg-gray-200 dark:bg-stone-800'}`}>
+                    <span className={`w-5 h-5 shrink-0 rounded-full flex items-center justify-center text-[10px] ${active ? 'bg-white/25' : 'bg-surface-sunken'}`}>
                       {p.name.charAt(0)}
                     </span>
                   )}
@@ -547,7 +547,7 @@ export default function ScoreEntryModal({
         )}
 
         {/* Progress Bar */}
-        <div className="bg-gray-200 dark:bg-stone-800 h-2">
+        <div className="bg-surface-sunken h-2">
           <div
             className="bg-green-600 h-full transition-all duration-300"
             style={{ width: `${(holesCompleted / holesPlayed) * 100}%` }}
@@ -575,7 +575,8 @@ export default function ScoreEntryModal({
 
           {/* Strokes Entry */}
           <div className="mb-6">
-            <label className="block text-sm font-bold text-primary mb-3">Strokes</label>
+            {/* GOLF_LABEL (golf-form-styles) with mb-3 — the extra gap is deliberate for tap targets */}
+            <label className="block text-sm font-medium text-secondary mb-3">Strokes</label>
             <div className="grid grid-cols-5 gap-2">
               {[2, 3, 4, 5, 6, 7, 8, 9, 10, 11].map(num => (
                 <button
@@ -584,7 +585,7 @@ export default function ScoreEntryModal({
                   className={`py-3 px-2 rounded-lg font-bold text-lg transition-colors ${
                     currentHoleData.strokes === num
                       ? 'bg-green-600 text-white'
-                      : 'bg-surface-sunken text-primary hover:bg-gray-200 dark:hover:bg-stone-800'
+                      : 'bg-surface-sunken text-primary hover:bg-border'
                   }`}
                 >
                   {num}
@@ -595,7 +596,8 @@ export default function ScoreEntryModal({
 
           {/* Putts Entry */}
           <div className="mb-6">
-            <label className="block text-sm font-bold text-primary mb-3">Putts (optional)</label>
+            {/* GOLF_LABEL (golf-form-styles) with mb-3 — the extra gap is deliberate for tap targets */}
+            <label className="block text-sm font-medium text-secondary mb-3">Putts (optional)</label>
             <div className="grid grid-cols-5 gap-2">
               {[0, 1, 2, 3, 4].map(num => (
                 <button
@@ -604,7 +606,7 @@ export default function ScoreEntryModal({
                   className={`py-3 px-2 rounded-lg font-bold text-lg transition-colors ${
                     currentHoleData.putts === num
                       ? 'bg-brand text-white'
-                      : 'bg-surface-sunken text-primary hover:bg-gray-200 dark:hover:bg-stone-800'
+                      : 'bg-surface-sunken text-primary hover:bg-border'
                   }`}
                 >
                   {num}
@@ -622,7 +624,7 @@ export default function ScoreEntryModal({
                 className={`flex-1 py-2 px-3 min-h-[40px] rounded-lg text-sm font-semibold transition-colors ${
                   currentHoleData.fairway_hit
                     ? 'bg-green-600 text-white'
-                    : 'bg-surface-sunken text-secondary hover:bg-gray-200 dark:hover:bg-stone-800'
+                    : 'bg-surface-sunken text-secondary hover:bg-border'
                 }`}
               >
                 <i className="fas fa-check mr-1"></i>
@@ -633,7 +635,7 @@ export default function ScoreEntryModal({
                 className={`flex-1 py-2 px-3 min-h-[40px] rounded-lg text-sm font-semibold transition-colors ${
                   currentHoleData.green_in_regulation
                     ? 'bg-green-600 text-white'
-                    : 'bg-surface-sunken text-secondary hover:bg-gray-200 dark:hover:bg-stone-800'
+                    : 'bg-surface-sunken text-secondary hover:bg-border'
                 }`}
               >
                 <i className="fas fa-check mr-1"></i>
@@ -655,7 +657,7 @@ export default function ScoreEntryModal({
               <button
                 onClick={() => mediaInputRef.current?.click()}
                 disabled={uploadingMedia}
-                className="w-full py-2.5 px-3 min-h-[40px] rounded-lg text-sm font-semibold bg-surface-sunken text-secondary hover:bg-gray-200 dark:hover:bg-stone-800 transition-colors disabled:opacity-60"
+                className="w-full py-2.5 px-3 min-h-[40px] rounded-lg text-sm font-semibold bg-surface-sunken text-secondary hover:bg-border transition-colors disabled:opacity-60"
               >
                 {uploadingMedia ? (
                   <><i className="fas fa-spinner fa-spin mr-2"></i>Uploading…</>
@@ -720,7 +722,7 @@ export default function ScoreEntryModal({
                         ? 'bg-green-600 text-white ring-2 ring-green-800'
                         : hasScore
                         ? 'bg-violet-100 text-violet-900 hover:bg-violet-200 dark:bg-violet-950/60 dark:text-violet-200 dark:hover:bg-violet-900/60'
-                        : 'bg-surface-sunken text-tertiary hover:bg-gray-200 dark:hover:bg-stone-800'
+                        : 'bg-surface-sunken text-tertiary hover:bg-border'
                     }`}
                     title={isSaved ? 'Saved' : undefined}
                   >
@@ -745,7 +747,7 @@ export default function ScoreEntryModal({
             <button
               onClick={handlePrevious}
               disabled={currentHole === 1 || savingHole !== null}
-              className="flex-1 bg-gray-600 hover:bg-gray-700 disabled:bg-gray-400 disabled:cursor-not-allowed text-white font-bold py-3 px-4 rounded-lg transition-colors"
+              className="flex-1 bg-surface-sunken hover:bg-border disabled:opacity-50 disabled:cursor-not-allowed text-secondary font-bold py-3 px-4 rounded-lg transition-colors"
             >
               <i className="fas fa-chevron-left mr-2"></i>
               Previous
