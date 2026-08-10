@@ -468,7 +468,7 @@ export default function PublicProfilePage() {
             (no anonymous post-open surface exists). */}
         {statements.length > 0 && (
           <div className="mt-4 bg-surface rounded-xl shadow-sm border border-border p-4">
-            <h2 className="text-sm font-semibold text-secondary mb-3">Statements</h2>
+            <h2 className="text-sm font-semibold text-secondary mb-3">Notions</h2>
             <div className="flex gap-2 overflow-x-auto scrollbar-hide pb-1">
               {statements.map((statement) => (
                 <div
