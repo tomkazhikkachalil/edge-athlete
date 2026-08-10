@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseAdmin, getServerAuth } from '@/lib/auth-server';
 import { canViewProfile } from '@/lib/privacy';
 import { participantOrder } from '@/lib/golf/scorecard-transform';
+import { canViewSharedPost } from '@/lib/reposts';
 
 interface MediaItem {
   id: string;
@@ -409,12 +410,91 @@ export async function GET(
         }
       }
 
+      // REPOSTS reach the grid the same way shared rounds do: the RPC row
+      // doesn't carry shared_post_id, so re-read it for the ids the RPC
+      // already visibility-vetted, then hydrate + per-viewer-gate the quoted
+      // originals (the feed's read-time rule via canViewSharedPost).
+      const repostLinkByPostId = new Map<string, string>();
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const sharedPostByPostId = new Map<string, any>();
+      {
+        const { data: repostLinks, error: repostLinkError } = await supabaseAdmin
+          .from('posts')
+          .select('id, shared_post_id')
+          .in('id', sharedLookupIds)
+          .not('shared_post_id', 'is', null);
+
+        if (repostLinkError) {
+          console.error('[PROFILE MEDIA API] Error fetching repost links:', repostLinkError);
+        } else if (repostLinks && repostLinks.length > 0) {
+          for (const link of repostLinks) {
+            repostLinkByPostId.set(link.id as string, link.shared_post_id as string);
+          }
+          const originalIds = [...new Set(repostLinks.map(l => l.shared_post_id as string))];
+          const { data: originals, error: origError } = await supabaseAdmin
+            .from('posts')
+            .select(`
+              id, caption, visibility, status, created_at, profile_id,
+              profile:profile_id ( id, first_name, last_name, full_name, avatar_url, handle, visibility ),
+              media:post_media ( media_url, media_type )
+            `)
+            .in('id', originalIds);
+
+          if (origError) {
+            console.error('[PROFILE MEDIA API] Error fetching repost originals:', origError);
+          } else if (originals && originals.length > 0) {
+            // One follows query for the viewer against all original owners.
+            const ownerIds = [...new Set(originals.map(o => o.profile_id as string))];
+            let viewerFollows = new Set<string>();
+            if (viewerId && ownerIds.length > 0) {
+              const { data: follows } = await supabaseAdmin
+                .from('follows')
+                .select('following_id')
+                .eq('follower_id', viewerId)
+                .in('following_id', ownerIds)
+                .eq('status', 'accepted');
+              viewerFollows = new Set((follows || []).map(f => f.following_id as string));
+            }
+            for (const orig of originals) {
+              const owner = Array.isArray(orig.profile) ? orig.profile[0] : orig.profile;
+              if (!owner?.id) continue;
+              if (orig.status && orig.status !== 'published' && orig.profile_id !== viewerId) continue;
+              const visible = canViewSharedPost({
+                postVisibility: orig.visibility as string,
+                ownerVisibility: owner.visibility as string,
+                isOwner: viewerId === owner.id,
+                isFollower: viewerFollows.has(owner.id as string),
+              });
+              if (!visible) continue;
+              sharedPostByPostId.set(orig.id as string, {
+                id: orig.id,
+                caption: orig.caption,
+                created_at: orig.created_at,
+                profile: {
+                  id: owner.id,
+                  first_name: owner.first_name,
+                  last_name: owner.last_name,
+                  full_name: owner.full_name,
+                  avatar_url: owner.avatar_url,
+                  handle: owner.handle,
+                },
+                media: orig.media || [],
+              });
+            }
+          }
+        }
+      }
+
       items = items.map((item: MediaItem) => ({
         ...item,
         media: mediaMap.get(item.id) || [],
         tagged_profiles: taggedProfilesMap.get(item.id) || [],
         golf_round: item.round_id ? golfRoundsMap.get(item.round_id) || null : null,
-        group_scorecard: scorecardsByPostId.get(item.id) || null
+        group_scorecard: scorecardsByPostId.get(item.id) || null,
+        shared_post_id: repostLinkByPostId.get(item.id) || null,
+        shared_post: repostLinkByPostId.has(item.id)
+          ? sharedPostByPostId.get(repostLinkByPostId.get(item.id)!) ?? null
+          : null
       }));
     }
 

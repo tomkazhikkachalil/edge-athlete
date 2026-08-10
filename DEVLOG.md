@@ -1,5 +1,47 @@
 # Development Log
 
+## August 10, 2026 — Reposts: share any visible post, lands in the Statements rail
+
+The feature 074 pre-authorized. Tom's framing: parents/athletes share events
+and highlights they are NOT tagged in, optionally adding their own statement.
+One flow — the Repost button opens a small sheet (quoted preview + optional
+"Add your thoughts"); empty caption = plain repost, filled = quote post.
+
+- **Migration 075** (`075_reposts.sql`, run BEFORE the app deploy — the
+  INVERSE of 074's order, because the failure modes invert: column-first is
+  fully soft under the old app, app-first 500s every repost submit):
+  `posts.shared_post_id` (FK shape verbatim from `messages.shared_post_id` —
+  ON DELETE SET NULL, so a repost survives its original's deletion), partial
+  index shipped with the column, `posts.reposts_count` + an absolute-recount
+  trigger (015 pattern, but the source table IS posts, keyed on
+  shared_post_id, with an `UPDATE OF shared_post_id` arm — the FK's SET NULL
+  fires exactly that arm on surviving reposts; the recount then targets a
+  mid-delete row and matches 0 rows, harmless; no recursion because the
+  recount writes only reposts_count). NO RPC changes, NO notifications
+  changes (deliberate: no repost notification), NO statements-predicate
+  change — a repost classifies as a STATEMENT by construction.
+- **Rules**: repostable = anything the REPOSTER can see (gate mirrors
+  messages' `filterViewableSharedPost` exactly, now shared as
+  `canViewSharedPost` in `src/lib/reposts.ts`, 13 node tests);
+  repost-of-a-repost collapses to the ROOT original, gated against the root;
+  a repost is caption-only (media/golf/stats → 400, keeping it a statement);
+  404 not 403 for invisible originals (don't confirm existence); undo =
+  delete your repost (existing DELETE unchanged).
+- **Read-time gating everywhere**: viewers of a repost get the quoted
+  original only if THEY can see it — else the quiet "This post is
+  unavailable" box (`QuotedPostEmbed`, adapted from messages'
+  SharedPostPreview, which stays untouched). Hydration is batched per page
+  (one originals query + the already-in-scope followingIds set in the feed;
+  one originals + one follows query in the profile media route; PUBLIC-only
+  tiny excerpt on `/u`).
+- **Feed realtime now refetches via `/api/posts?postId=`** instead of an
+  inline browser-client select — the single-post branch does the gated
+  hydration RLS can't, the shape is drop-in, and a 404 skips the prepend.
+- Repost count shows in the PostCard action row (fa-retweet, between share
+  and save; count hidden at 0); bumps locally only when the card IS the
+  original. Statements rail + `/u` strip render reposts with a compact
+  quoted block.
+
 ## August 10, 2026 — The statements split: text-only posts leave My Media
 
 Tom's product call: a post that is just a statement (no media, no stats, no

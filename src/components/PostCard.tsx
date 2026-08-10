@@ -11,6 +11,8 @@ import { buildPostHeadline } from '@/lib/sports/post-headline';
 import ConfirmModal from './ConfirmModal';
 import CommentSection from './CommentSection';
 import SharePostModal from './SharePostModal';
+import RepostModal from './RepostModal';
+import QuotedPostEmbed, { type QuotedPost } from './QuotedPostEmbed';
 import SportPostBody from './SportPostBody';
 import { isAutoRoundCaption } from '@/lib/golf/round-caption';
 import SharedRoundQuickView from './golf/SharedRoundQuickView';
@@ -72,6 +74,9 @@ interface Post {
   golf_round?: GolfRound;
   tagged_profiles?: TaggedProfile[];
   group_scorecard?: CompleteGolfScorecard; // Shared round scorecard
+  shared_post_id?: string | null; // Repost: the quoted original's id
+  shared_post?: QuotedPost | null; // Gated server-side; null = unavailable to this viewer
+  reposts_count?: number;
 }
 
 // Module scope, so the component identity is stable across renders.
@@ -96,6 +101,8 @@ interface PostCardProps {
   onEdit?: (postId: string) => void;
   onCommentCountChange?: (postId: string, newCount: number) => void;
   showActions?: boolean;
+  /** Feed passes this to prepend the created repost. */
+  onReposted?: (post: unknown) => void;
   /** One-shot: open the viewer's own score entry once the shared-round
    *  scorecard is available (resume-banner deep link). */
 }
@@ -109,6 +116,7 @@ function PostCard({
   onEdit,
   onCommentCountChange,
   showActions = true,
+  onReposted,
 }: PostCardProps) {
   const router = useRouter();
   const [currentMediaIndex, setCurrentMediaIndex] = useState(0);
@@ -126,6 +134,23 @@ function PostCard({
   const [pinError, setPinError] = useState<string | null>(null);
   const [showFullScorecard, setShowFullScorecard] = useState(false);
   const [showScoreEntry, setShowScoreEntry] = useState(false);
+  const [showRepostModal, setShowRepostModal] = useState(false);
+  const [localRepostsCount, setLocalRepostsCount] = useState(post.reposts_count ?? 0);
+
+  // What the Repost modal quotes: the card itself, or — when the card IS a
+  // repost — its original (client-side root-collapse for the preview; the
+  // server re-collapses authoritatively). A repost with an unavailable
+  // original can't be reposted (the server would 404 the invisible root).
+  const repostTarget: QuotedPost | null = post.shared_post_id
+    ? post.shared_post ?? null
+    : {
+        id: post.id,
+        caption: post.caption,
+        created_at: post.created_at,
+        profile: post.profile,
+        media: (post.media || []).map(m => ({ media_url: m.media_url, media_type: m.media_type })),
+      };
+  const canRepost = !!currentUserId && !!repostTarget;
 
   // Shared-round live state (the live-scoring seam). Seeds from the scorecard
   // the feed loaded; subscribes to Realtime while the full card or score entry
@@ -567,6 +592,17 @@ function PostCard({
           <p className="text-primary text-base font-medium leading-relaxed mb-3 break-words">{post.caption}</p>
         )}
 
+        {/* Quoted original (repost) — the caption above is the reposter's
+            commentary; tapping the embed opens the original. */}
+        {post.shared_post_id !== undefined && post.shared_post_id !== null && (
+          <div className="mb-3">
+            <QuotedPostEmbed
+              post={post.shared_post ?? null}
+              onClick={post.shared_post ? () => router.push(`/feed?post=${post.shared_post!.id}`) : undefined}
+            />
+          </div>
+        )}
+
         {/* Hashtags */}
         {post.hashtags && post.hashtags.length > 0 && (
           <div className="flex flex-wrap gap-2 mb-3">
@@ -705,6 +741,18 @@ function PostCard({
               <i className="far fa-comment text-lg"></i>
               <span>{localCommentsCount}</span>
             </button>
+
+            {canRepost && (
+              <button
+                onClick={() => setShowRepostModal(true)}
+                className="flex items-center gap-2 text-base font-bold text-primary hover:text-brand-fg transition-colors min-h-[44px] min-w-[44px] justify-center"
+                title="Repost"
+                aria-label="Repost"
+              >
+                <i className="fas fa-retweet text-lg"></i>
+                {localRepostsCount > 0 && <span>{localRepostsCount}</span>}
+              </button>
+            )}
 
             {/* Icon-only actions: min-w so the tap target isn't just the
                 ~20px glyph (like/comment get width from their counts) */}
@@ -887,6 +935,23 @@ function PostCard({
         postAuthorName={displayName}
         shareUrl={shareUrl}
       />
+
+      {/* Repost Modal */}
+      {repostTarget && (
+        <RepostModal
+          isOpen={showRepostModal}
+          onClose={() => setShowRepostModal(false)}
+          quotedPost={repostTarget}
+          onReposted={(created) => {
+            // The count lives on the ORIGINAL — bump locally only when this
+            // card IS the original being reposted.
+            if (!post.shared_post_id) {
+              setLocalRepostsCount(c => c + 1);
+            }
+            onReposted?.(created);
+          }}
+        />
+      )}
     </div>
   );
 }

@@ -118,6 +118,7 @@ export async function GET(request: NextRequest) {
         stats_data,
         round_id,
         group_post_id,
+        shared_post_id,
         post_media (
           id,
           media_url,
@@ -143,16 +144,47 @@ export async function GET(request: NextRequest) {
         comments_count: p.comments_count,
         post_media: p.post_media,
       }));
-    const statements = (rawRecentPosts || [])
+    const statementRows = (rawRecentPosts || [])
       .filter(p => isStatementPost(p))
-      .slice(0, 6)
-      .map(p => ({
-        id: p.id,
-        caption: p.caption,
-        created_at: p.created_at,
-        likes_count: p.likes_count,
-        comments_count: p.comments_count,
-      }));
+      .slice(0, 6);
+
+    // Reposts on the anonymous page: hydrate a TINY quoted excerpt, and only
+    // when both the original post AND its owner's profile are public — the
+    // strictest read-time gate, since there is no viewer to grant more.
+    // Anything else ships shared_post: null (client renders "unavailable").
+    const repostOriginalIds = [...new Set(
+      statementRows.map(p => p.shared_post_id).filter((id): id is string => !!id)
+    )];
+    const publicOriginalById = new Map<string, { author_name: string | null; caption: string | null }>();
+    if (repostOriginalIds.length > 0) {
+      const { data: originals } = await supabase
+        .from('posts')
+        .select('id, caption, visibility, profile:profile_id ( full_name, first_name, last_name, visibility )')
+        .in('id', repostOriginalIds);
+      for (const orig of originals || []) {
+        const owner = Array.isArray(orig.profile) ? orig.profile[0] : orig.profile;
+        if (orig.visibility !== 'public' || owner?.visibility !== 'public') continue;
+        const authorName = owner.full_name
+          || [owner.first_name, owner.last_name].filter(Boolean).join(' ')
+          || null;
+        publicOriginalById.set(orig.id, {
+          author_name: authorName,
+          caption: orig.caption ? String(orig.caption).slice(0, 140) : null,
+        });
+      }
+    }
+
+    const statements = statementRows.map(p => ({
+      id: p.id,
+      caption: p.caption,
+      created_at: p.created_at,
+      likes_count: p.likes_count,
+      comments_count: p.comments_count,
+      shared_post_id: p.shared_post_id ?? null,
+      shared_post: p.shared_post_id
+        ? publicOriginalById.get(p.shared_post_id) ?? null
+        : null,
+    }));
 
     // Fetch top achievements (real athlete_achievements rows — the fields
     // the pill treatment needs; podium ranking happens client-side)
