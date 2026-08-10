@@ -5,6 +5,7 @@ import { createPortal } from 'react-dom';
 import Image from 'next/image';
 import { formatDisplayName, getInitials } from '@/lib/formatters';
 import { usePopoverDismiss } from '@/hooks/usePopoverDismiss';
+import { placePanel } from '@/lib/panel-placement';
 import type { MentionCandidate } from '@/hooks/useMentionTypeahead';
 
 /** Tight gap so the panel reads ATTACHED to the composer, not floating. */
@@ -61,24 +62,28 @@ export default function MentionSuggestions({
     const panel = panelRef.current;
     if (!anchor || !panel) return;
     const r = anchor.getBoundingClientRect();
-    // position:fixed is LAYOUT-viewport based; getBoundingClientRect is
-    // VISUAL-viewport based. With the mobile keyboard up (or any pan) they
-    // differ by visualViewport.offset* — mixing the spaces put the panel
-    // visibly off the box, intermittently. Convert before writing styles;
-    // offsets are 0 on desktop, so nothing changes there.
+    // RAW client coordinates — fixed positioning and client rects share the
+    // layout viewport space; the visual viewport enters ONLY as bounds (the
+    // placePanel model, proven by MessageActionSheet inside keyboard-panned
+    // modals). Adding vv offsets here double-counts the keyboard pan.
     const vv = window.visualViewport;
-    const offX = vv?.offsetLeft ?? 0;
-    const offY = vv?.offsetTop ?? 0;
-    const panelH = panel.offsetHeight;
-    panel.style.left = `${r.left + offX}px`;
-    panel.style.width = `${r.width}px`;
-    if (r.top >= panelH + GAP_PX + 4) {
-      panel.style.bottom = `${window.innerHeight - (r.top + offY) + GAP_PX}px`;
-      panel.style.top = 'auto';
-    } else {
-      panel.style.top = `${r.bottom + offY + GAP_PX}px`;
-      panel.style.bottom = 'auto';
-    }
+    const placed = placePanel({
+      anchorTop: r.top,
+      anchorBottom: r.bottom,
+      anchorLeft: r.left,
+      anchorWidth: r.width,
+      panelH: panel.offsetHeight,
+      gap: GAP_PX,
+      viewportTop: vv?.offsetTop ?? 0,
+      viewportHeight: vv?.height ?? window.innerHeight,
+      layoutViewportHeight: window.innerHeight,
+      maxHeightCap: 288, // matches max-h-72 — shrinks under the keyboard
+    });
+    panel.style.left = `${placed.left}px`;
+    panel.style.width = `${placed.width}px`;
+    panel.style.maxHeight = `${placed.maxHeight}px`;
+    panel.style.top = placed.top !== undefined ? `${placed.top}px` : 'auto';
+    panel.style.bottom = placed.bottom !== undefined ? `${placed.bottom}px` : 'auto';
   };
 
   // Deliberately no dependency array: re-measure after every render while
@@ -88,6 +93,9 @@ export default function MentionSuggestions({
   });
 
   // Scrolling repositions — NEVER closes (see header). rAF-coalesced.
+  // visualViewport listeners matter in the post modal: body scroll is
+  // locked there, so the iOS keyboard PANS the visual viewport — an event
+  // that fires on neither window scroll nor window resize.
   useLayoutEffect(() => {
     if (!open) return;
     let raf = 0;
@@ -95,12 +103,17 @@ export default function MentionSuggestions({
       cancelAnimationFrame(raf);
       raf = requestAnimationFrame(reposition);
     };
+    const vv = window.visualViewport;
     window.addEventListener('scroll', onScroll, { capture: true, passive: true });
     window.addEventListener('resize', onScroll);
+    vv?.addEventListener('scroll', onScroll);
+    vv?.addEventListener('resize', onScroll);
     return () => {
       cancelAnimationFrame(raf);
       window.removeEventListener('scroll', onScroll, { capture: true });
       window.removeEventListener('resize', onScroll);
+      vv?.removeEventListener('scroll', onScroll);
+      vv?.removeEventListener('resize', onScroll);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);

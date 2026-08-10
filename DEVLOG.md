@@ -1,5 +1,41 @@
 # Development Log
 
+## August 9, 2026 — The panels learn the action sheet's viewport model (modal + keyboard correct)
+
+Tom: @ works on the feed but breaks on athlete-profile posts and the post
+popup — mobile only. Both surfaces open comments through PostDetailModal;
+the diagnosis found three stacked causes, including an honest revert:
+
+- **The modal locks body scroll**, so on iOS focusing the composer PANS the
+  visual viewport instead of scrolling the document — an event that fires
+  on neither `window` scroll nor resize, which was all we listened to. The
+  panel kept stale coordinates. (The feed works because its document
+  scroll DOES fire `window scroll`.) Both portals now also subscribe to
+  `visualViewport` scroll/resize.
+- **#101's `+ offsetTop/Left` "correction" was wrong** — on iOS, client
+  rects and `position:fixed` share the LAYOUT viewport space, so adding
+  the visual-viewport offset double-counted the keyboard pan (150-400px).
+  Every desktop/Android probe passed because the offsets are ~0 there.
+  Reverted to raw coordinates.
+- **The flip/room math ignored the keyboard-shrunk visible strip** — with
+  the keyboard up, a composer visually near the bottom of a ~370px strip
+  still reports a large `rect.top`, so the old test opened the panel
+  "above" into invisible space.
+
+The correct model already existed in the repo: MessageActionSheet's
+clampSheetTop — raw anchor coordinates, visual viewport as BOUNDS only.
+That model is now a pure module, **`src/lib/panel-placement.ts`**
+(`placePanel`, 6 node tests including keyboard-panned-modal scenarios —
+the honest way to pin math that only reproduces on iOS hardware), consumed
+by both MentionSuggestions and EmojiPickerButton. The mention dropdown
+also gets a dynamic maxHeight capped to the visible strip.
+
+Probed at 390 + 1280 on the MODAL path (`/feed?post=` deep link): @
+dropdown visible, hit-testable, aligned within 4px of the composer row,
+splices; emoji opens inside the viewport and inserts; feed inline parity
+re-pinned. direct-message + chat-dock green. The keyboard-up behavior
+itself is iOS hardware — Tom's device retest is the true gate.
+
 ## August 9, 2026 — The @ bubble snaps to the box (visual-viewport math) and wears the brand
 
 Tom's mobile pass on the panel round: the @ suggestions bubble drifted off
