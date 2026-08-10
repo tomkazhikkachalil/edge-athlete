@@ -102,11 +102,15 @@ export async function GET(
 
     // Parameters (await params in Next.js 15)
     const { profileId } = await params;
-    const tab = searchParams.get('tab') || 'all'; // all | stats | tagged
+    const tab = searchParams.get('tab') || 'all'; // all | stats | tagged | statements
     // NaN-guard (?limit=abc used to reach the RPC and 500)
     const limit = Math.min(Math.max(parseInt(searchParams.get('limit') || '20', 10) || 20, 1), 100);
     const offset = Math.max(parseInt(searchParams.get('offset') || '0', 10) || 0, 0);
     const sort = searchParams.get('sort') || 'newest'; // newest | most_engaged
+    // mediaType 'posts' = media-tab posts with or without attachments (stats/
+    // round posts have no post_media rows). Pure text posts are statements
+    // since migration 074 and never reach tab=all, so 'posts' no longer
+    // means "text posts included".
     const mediaType = searchParams.get('mediaType') || 'all'; // all | photos | videos | posts
 
     // Sport / year filters: comma-separated. Empty / missing = no filter (NULL to RPC).
@@ -148,8 +152,8 @@ export async function GET(
     }
 
     // Validate tab
-    if (!['all', 'stats', 'tagged'].includes(tab)) {
-      return NextResponse.json({ error: 'Invalid tab. Use: all, stats, or tagged' }, { status: 400 });
+    if (!['all', 'stats', 'tagged', 'statements'].includes(tab)) {
+      return NextResponse.json({ error: 'Invalid tab. Use: all, stats, tagged, or statements' }, { status: 400 });
     }
 
     // Select appropriate database function based on tab
@@ -158,6 +162,8 @@ export async function GET(
       functionName = 'get_profile_stats_media';
     } else if (tab === 'tagged') {
       functionName = 'get_profile_tagged_media';
+    } else if (tab === 'statements') {
+      functionName = 'get_profile_statements_media';
     }
 
     // Build RPC payload — only include filter args when they're actually set so
@@ -228,7 +234,7 @@ export async function GET(
         // Filter based on mediaType
         items = items.filter((item: MediaItem) => {
           const mediaInfo = postMediaMap.get(item.id);
-          if (!mediaInfo && mediaType !== 'posts') return false; // Text posts only match 'posts' filter
+          if (!mediaInfo && mediaType !== 'posts') return false; // Attachment-less (stats/round) posts only match 'posts' filter
 
           if (mediaType === 'photos') {
             return mediaInfo?.hasPhoto || false;
@@ -465,7 +471,7 @@ export async function POST(
     }
     if (!canSee) {
       return NextResponse.json({
-        all: 0, stats: 0, tagged: 0, equipment: 0, vitals: 0, achievements: 0
+        all: 0, stats: 0, tagged: 0, statements: 0, equipment: 0, vitals: 0, achievements: 0
       });
     }
 
@@ -481,13 +487,14 @@ export async function POST(
       // migration 020 dropped), return zero badge counts with 200 instead of a
       // 500. Tab badges show nothing; media itself still loads via the GET RPCs.
       console.error('media counts RPC failed (returning zero counts):', countError.message);
-      return NextResponse.json({ all: 0, stats: 0, tagged: 0, achievements: 0, degraded: true });
+      return NextResponse.json({ all: 0, stats: 0, tagged: 0, statements: 0, achievements: 0, degraded: true });
     }
 
     const result = counts && counts.length > 0 ? counts[0] : {
       all_media_count: 0,
       stats_media_count: 0,
-      tagged_media_count: 0
+      tagged_media_count: 0,
+      statements_count: 0
     };
 
     // Equipment, vitals & achievements counts for their tab badges. The media
@@ -506,6 +513,8 @@ export async function POST(
       all: parseInt(result.all_media_count || '0', 10),
       stats: parseInt(result.stats_media_count || '0', 10),
       tagged: parseInt(result.tagged_media_count || '0', 10),
+      // Absent until migration 074 runs — || '0' degrades it to zero.
+      statements: parseInt(result.statements_count || '0', 10),
       equipment,
       vitals,
       achievements

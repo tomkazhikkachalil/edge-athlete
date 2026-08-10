@@ -1,5 +1,52 @@
 # Development Log
 
+## August 10, 2026 — The statements split: text-only posts leave My Media
+
+Tom's product call: a post that is just a statement (no media, no stats, no
+round) is feed content, not portfolio content. The feed keeps everything —
+verified it has no type filtering, zero changes there — but the profile now
+separates the two:
+
+- **Migration 074** (`074_statements_split.sql`, NOT yet run): new
+  `get_profile_statements_media` RPC (068's all-media body + the STATEMENT
+  predicate), the MEDIA inverse predicate on `get_profile_all_media`, and
+  `get_profile_media_counts` DROPped and recreated with a fourth
+  `statements_count` column — the drop resets ACL/search_path (the 051/068
+  lesson), so the re-pin/re-REVOKE tail is required, and the file must run as
+  one execution. Also creates `idx_post_media_post_id` (existed only in
+  archived legacy scripts — the 072 situation again) for the new
+  `NOT EXISTS (post_media)` probes. The STATEMENT predicate is 4-part: empty
+  `stats_data` AND null `round_id` AND null `group_post_id` AND no
+  `post_media` rows — a future repost (`shared_post_id`, not built) will
+  classify as a statement by construction; do not special-case it.
+  **Deploy order: app first, migration second** — the RPC bodies move
+  statements out of the grid the instant 074 runs; pre-074 the app fails soft
+  (rail hidden, `statements` count 0).
+- **StatementsRail + StatementCard**: horizontal strip between FeaturedPosts
+  and the My Media tabs on both athlete pages — LiveNowStrip's strip classes
+  (edge bleed, scrollbar-hide, cut-off card as affordance; ~3 cards desktop,
+  1 + peek at 390), EquipmentShelf's "See all N ›" flipping to an in-place
+  grid, cards open the rail's own PostDetailModal. Hidden when empty.
+- **`counts.all` is now media-only**, and it feeds the profile "Posts" stat —
+  every athlete's visible post count DROPS on migration day. Tom chose this
+  explicitly. The partition identity (`all + statements` = old `all`) is the
+  074 VERIFY check. Tagged tab untouched: statements you're tagged in still
+  count there, and a tagged statement showing in both the rail and Tagged is
+  intentional (rail mirrors the all-tab membership: own + tagged).
+- **`/u/[username]` splits too**: Recent Posts is media-only, a non-clickable
+  Statements strip sits above it (no anonymous post-open surface exists —
+  don't invent one), and the public posts count subtracts statements via the
+  PostgREST null-embed anti-join (`post_media!left` + `.is('post_media',
+  null)` + `.or('stats_data.is.null,stats_data.eq."{}"')`) — needs a manual
+  check against live PostgREST; on error it degrades to the total count.
+- `isStatementPost` (`src/lib/statements.ts`, 12 node tests) mirrors the SQL
+  predicate for the public route's server-side split; the profile rail trusts
+  SQL. The `mediaType=posts` filter label now means "media-tab posts with or
+  without attachments" (comments updated, no behavior change).
+- New-file lint: the rail's fetch is a cancellable async IIFE inlined in the
+  effect (the eslint.config.mjs kind-1 fix), so the set-state-in-effect count
+  stays at the documented 44.
+
 ## August 9, 2026 — End-of-day maintenance sweep (second session)
 
 Requested checklist after the day's second run of fourteen PRs (#90–#103):
