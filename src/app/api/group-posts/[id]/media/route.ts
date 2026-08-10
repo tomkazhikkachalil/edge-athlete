@@ -83,15 +83,9 @@ export async function POST(
 
     const segmentKind = segmentSchemaFor(sportKey)?.kind ?? null;
 
-    // DUAL-WRITE, conditionally. hole_number still carries its BETWEEN 1 AND 18
-    // constraint (migration 042), so writing a lap-24 there would fail the
-    // insert outright. Only golf-shaped values go to the legacy column; the
-    // contract migration drops it once no client reads it.
-    const legacyHoleNumber =
-      segmentKind === 'hole' && segmentNumber !== null && segmentNumber >= 1 && segmentNumber <= 18
-        ? segmentNumber
-        : null;
-
+    // hole_number (the 042 legacy column) is no longer written — migration 076
+    // dropped it. The request-body alias above stays: it's DB-independent and
+    // protects a stale browser tab mid-deploy.
     const { data, error } = await supabase
       .from('group_post_media')
       .insert({
@@ -101,7 +95,6 @@ export async function POST(
         media_type,
         segment_number: segmentNumber,
         segment_kind: segmentNumber !== null ? segmentKind : null,
-        hole_number: legacyHoleNumber,
         caption: typeof caption === 'string' && caption.trim() ? caption.trim() : null,
         thumbnail_url: typeof thumbnail_url === 'string' && thumbnail_url ? thumbnail_url : null,
         duration_seconds:

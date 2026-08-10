@@ -19,11 +19,11 @@ export type RoundCollageItem = CollageItem & {
 };
 
 /**
- * A row's segment, tolerating rows written before migration 061 (and any
- * client mid-deploy) that still only carry `hole_number`.
+ * A row's segment. segment_number is authoritative since the 061 backfill;
+ * the hole_number fallback retired with migration 076 (column dropped).
  */
 function segmentOf(m: RoundMediaItem): number | null {
-  return m.segment_number ?? m.hole_number ?? null;
+  return m.segment_number ?? null;
 }
 
 /**

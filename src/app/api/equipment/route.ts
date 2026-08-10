@@ -147,15 +147,16 @@ export async function POST(request: NextRequest) {
     }
 
     // Sport must be one the picker offers ('general' + enabled registry
-    // sports). Absent → golf (legacy clients); present-but-unknown → 400.
-    let validSportKey = 'golf';
-    if (sportKey !== undefined && sportKey !== null && sportKey !== '') {
-      const allowed = getEquipmentSportOptions().some(o => o.value === sportKey);
-      if (!allowed) {
-        return NextResponse.json({ error: 'Unknown sport' }, { status: 400 });
-      }
-      validSportKey = sportKey;
+    // sports). Required — the only client (AddEquipmentModal) always sends
+    // it; the old absent→'golf' legacy default silently mislabeled gear.
+    if (sportKey === undefined || sportKey === null || sportKey === '') {
+      return NextResponse.json({ error: 'Sport is required' }, { status: 400 });
     }
+    const allowed = getEquipmentSportOptions().some(o => o.value === sportKey);
+    if (!allowed) {
+      return NextResponse.json({ error: 'Unknown sport' }, { status: 400 });
+    }
+    const validSportKey = sportKey;
 
     // Insert equipment
     const { data: equipment, error } = await supabase

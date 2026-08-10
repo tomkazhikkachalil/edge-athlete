@@ -115,7 +115,9 @@ export default function NotificationBell() {
   const getNotificationIcon = (type: string) => {
     switch (type) {
       case 'group_invite':
-        return 'fa-golf-ball';
+        // Group posts are sport-agnostic — a golf ball here mislabeled every
+        // non-golf invite.
+        return 'fa-users';
       case 'group_update':
         return 'fa-trophy';
       case 'follow_request':

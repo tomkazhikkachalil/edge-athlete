@@ -2,6 +2,7 @@
 
 import { useState, useRef } from 'react';
 import { useToast } from '@/components/Toast';
+import { getHashtagSuggestions } from '@/lib/sports/post-tags';
 import { useBodyScrollLock } from '@/hooks/useBodyScrollLock';
 import { useDirtyClose } from '@/hooks/useDirtyClose';
 import ConfirmModal from '@/components/ConfirmModal';
@@ -23,12 +24,7 @@ interface EditPostModalProps {
   onPostUpdated?: (post: unknown) => void;
 }
 
-// Tags for categorization
-// Popular hashtags suggestions
-const HASHTAG_SUGGESTIONS = {
-  general: ['#Athletics', '#SportLife', '#Training', '#Fitness', '#Athlete', '#PersonalBest', '#GameDay', '#Champions'],
-  golf: ['#Golf', '#GolfLife', '#GolfSwing', '#GolfCourse', '#Birdie', '#Eagle', '#Par', '#HoleInOne', '#PGA', '#18Holes']
-};
+// Hashtag suggestions are registry-driven — see src/lib/sports/post-tags.ts.
 
 export default function EditPostModal({
   isOpen,
@@ -47,7 +43,7 @@ export default function EditPostModal({
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const postType = post.sport_key || 'general';
-  const currentHashtagSuggestions = HASHTAG_SUGGESTIONS[postType as keyof typeof HASHTAG_SUGGESTIONS] || HASHTAG_SUGGESTIONS.general;
+  const currentHashtagSuggestions = getHashtagSuggestions(postType);
 
   // Reset the form when the post changes. Done during render rather than in an
   // effect: this is state synchronisation, and in an effect the old post's

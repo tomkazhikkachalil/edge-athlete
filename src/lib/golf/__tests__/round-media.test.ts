@@ -8,7 +8,6 @@ const item = (over: Partial<RoundMediaItem> & { id: string }): RoundMediaItem =>
     media_url: over.media_url ?? `https://x/${over.id}.jpg`,
     media_type: over.media_type ?? 'image',
     segment_number: over.segment_number ?? null,
-    hole_number: over.hole_number ?? null,
     uploaded_by: over.uploaded_by ?? 'u1',
     caption: over.caption ?? null,
     thumbnail_url: over.thumbnail_url ?? null,
@@ -72,20 +71,15 @@ describe('toCollageItems', () => {
     expect(toCollageItems([item({ id: 'b', segment_number: 4 })])[0].alt).toBe('Round media');
   });
 
-  it('falls back to hole_number for rows written before migration 061', () => {
-    // The backfill covers existing rows, but a client mid-deploy can still
-    // send only hole_number — a photo must never lose its moment.
+  it('treats a null segment as round-level (hole_number fallback retired with 076)', () => {
+    // 061's backfill made segment_number authoritative for every row; the
+    // legacy column is dropped, so a null segment simply means "whole round".
     const out = toCollageItems([
-      item({ id: 'legacy', segment_number: null, hole_number: 5 }),
-      item({ id: 'modern', segment_number: 2 }),
+      item({ id: 'roundLevel', segment_number: null }),
+      item({ id: 'tagged', segment_number: 2 }),
     ]);
-    expect(out.map(i => i.id)).toEqual(['modern', 'legacy']);
-    expect(out.find(i => i.id === 'legacy')!.segment).toBe(5);
-  });
-
-  it('prefers segment_number when both columns are present', () => {
-    const [only] = toCollageItems([item({ id: 'x', segment_number: 9, hole_number: 3 })]);
-    expect(only.segment).toBe(9);
+    expect(out.map(i => i.id)).toEqual(['tagged', 'roundLevel']);
+    expect(out.find(i => i.id === 'roundLevel')!.segment).toBeNull();
   });
 });
 

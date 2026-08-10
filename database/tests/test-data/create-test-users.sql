@@ -143,10 +143,19 @@ UPDATE profiles SET
   weight_unit = 'lbs',
   class_year = 2025,
   social_instagram = '@tigerwoods',
-  social_twitter = '@TigerWoods',
-  golf_handicap = 0.5,
-  golf_home_course = 'Pebble Beach Golf Links'
+  social_twitter = '@TigerWoods'
 WHERE id = '00000000-0000-0000-0000-000000000005';
+
+-- Golf profile settings live in sport_settings (schema keys from
+-- src/lib/sports/settings-schemas.ts), not on profiles.
+INSERT INTO sport_settings (profile_id, sport_key, settings)
+VALUES (
+  '00000000-0000-0000-0000-000000000005',
+  'golf',
+  '{"handicap": 0.5, "home_course": "Pebble Beach Golf Links"}'::jsonb
+)
+ON CONFLICT (profile_id, sport_key)
+DO UPDATE SET settings = sport_settings.settings || EXCLUDED.settings;
 
 -- =====================================================
 -- CREATE SAMPLE POSTS FOR SEARCH TESTING

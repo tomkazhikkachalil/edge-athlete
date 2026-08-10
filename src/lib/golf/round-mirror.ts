@@ -135,7 +135,7 @@ export async function mirrorRoundMedia(admin: Admin, groupPostId: string): Promi
 
     const { data: roundMedia, error: mediaError } = await admin
       .from('group_post_media')
-      .select('media_url, media_type, segment_number, hole_number, created_at, thumbnail_url')
+      .select('media_url, media_type, segment_number, created_at, thumbnail_url')
       .eq('group_post_id', groupPostId);
     if (mediaError || !roundMedia || roundMedia.length === 0) return;
 
@@ -151,12 +151,9 @@ export async function mirrorRoundMedia(admin: Admin, groupPostId: string): Promi
     const startOrder =
       (existing ?? []).reduce((max, m) => Math.max(max, m.display_order ?? 0), 0) + 1;
     const rows = buildMirrorMedia(
-      // Fall back to hole_number for rows written before migration 061 or by a
-      // client mid-deploy, so a photo never loses its place in the carousel.
-      (roundMedia as Array<RoundMediaInput & { hole_number?: number | null }>).map(m => ({
-        ...m,
-        segment_number: m.segment_number ?? m.hole_number ?? null,
-      })),
+      // segment_number is authoritative since the 061 backfill; the
+      // hole_number fallback retired with migration 076 (column dropped).
+      roundMedia as RoundMediaInput[],
       (existing ?? []).map(m => m.media_url),
       startOrder
     );

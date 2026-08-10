@@ -38,6 +38,12 @@ export interface SportActivityColumns {
   col5?: string;  // Organization/League
 }
 
+export interface SportPostTagOption {
+  value: string;
+  label: string;
+  color: string;
+}
+
 export interface SportDefinition {
   sport_key: SportKey;
   display_name: string;
@@ -47,6 +53,10 @@ export interface SportDefinition {
   metric_labels: SportMetricLabels;
   activity_columns: SportActivityColumns;
   primary_action: string;              // "Add Round", "Add Game", etc.
+  /** Composer tag chips. Absent → the general defaults (src/lib/sports/post-tags.ts). */
+  tag_options?: SportPostTagOption[];
+  /** Composer hashtag suggestions. Absent → the general defaults. */
+  hashtag_suggestions?: string[];
 }
 
 /**
@@ -77,7 +87,15 @@ export const SPORT_REGISTRY: Record<SportKey, SportDefinition> = {
       col4: 'GIR',
       col5: 'Tournament'
     },
-    primary_action: 'Add Round'
+    primary_action: 'Add Round',
+    tag_options: [
+      { value: 'tournament', label: 'Tournament', color: 'red' },
+      { value: 'practice', label: 'Practice Round', color: 'blue' },
+      { value: 'casual', label: 'Casual Round', color: 'green' },
+      { value: 'lesson', label: 'Lesson', color: 'purple' },
+      { value: 'achievement', label: 'Personal Best', color: 'yellow' }
+    ],
+    hashtag_suggestions: ['#Golf', '#GolfLife', '#GolfSwing', '#GolfCourse', '#Birdie', '#Eagle', '#Par', '#HoleInOne', '#PGA', '#18Holes']
   },
 
   // === TRAINING — MVP content classification shortcut ===

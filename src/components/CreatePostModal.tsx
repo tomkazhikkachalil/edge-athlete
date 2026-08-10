@@ -6,6 +6,7 @@ import { useAuth } from '@/lib/auth';
 import { shouldEnterScorerAfterCreate } from '@/lib/golf/round-route';
 import { calcPlayerTotals } from '@/lib/golf/scoring';
 import { useToast } from '@/components/Toast';
+import { getTagOptions, getHashtagSuggestions } from '@/lib/sports/post-tags';
 import MediaTile from '@/components/media/MediaTile';
 import GolfScorecardForm from '@/components/GolfScorecardForm';
 import TagPeopleModal from '@/components/TagPeopleModal';
@@ -104,29 +105,8 @@ interface PostPreviewProps {
 
 // No longer needed - using SportSelector instead
 
-// Popular hashtags suggestions
-const HASHTAG_SUGGESTIONS = {
-  general: ['#Athletics', '#SportLife', '#Training', '#Fitness', '#Athlete', '#PersonalBest', '#GameDay', '#Champions'],
-  golf: ['#Golf', '#GolfLife', '#GolfSwing', '#GolfCourse', '#Birdie', '#Eagle', '#Par', '#HoleInOne', '#PGA', '#18Holes']
-};
-
-// Tags for categorization
-const TAG_OPTIONS = {
-  general: [
-    { value: 'training', label: 'Training', color: 'blue' },
-    { value: 'competition', label: 'Competition', color: 'red' },
-    { value: 'achievement', label: 'Achievement', color: 'green' },
-    { value: 'team', label: 'Team', color: 'purple' },
-    { value: 'lifestyle', label: 'Lifestyle', color: 'yellow' }
-  ],
-  golf: [
-    { value: 'tournament', label: 'Tournament', color: 'red' },
-    { value: 'practice', label: 'Practice Round', color: 'blue' },
-    { value: 'casual', label: 'Casual Round', color: 'green' },
-    { value: 'lesson', label: 'Lesson', color: 'purple' },
-    { value: 'achievement', label: 'Personal Best', color: 'yellow' }
-  ]
-};
+// Tag chips + hashtag suggestions are registry-driven — see
+// src/lib/sports/post-tags.ts (per-sport lists live on SportDefinition).
 
 export default function CreatePostModal({
   isOpen,
@@ -970,8 +950,8 @@ export default function CreatePostModal({
 
   if (!isOpen) return null;
 
-  const currentTags = TAG_OPTIONS[postType as keyof typeof TAG_OPTIONS] || TAG_OPTIONS.general;
-  const currentHashtags = HASHTAG_SUGGESTIONS[postType as keyof typeof HASHTAG_SUGGESTIONS] || HASHTAG_SUGGESTIONS.general;
+  const currentTags = getTagOptions(postType);
+  const currentHashtags = getHashtagSuggestions(postType);
 
   // "Playing now" is round SETUP, not a post: course, partners, conditions,
   // then Go Live. Caption/media/tags belong to the story told when the round
@@ -2311,7 +2291,7 @@ function PostPreview({
   onClose,
   onPost
 }: PostPreviewProps) {
-  const tagOptions = TAG_OPTIONS[postType as keyof typeof TAG_OPTIONS] || TAG_OPTIONS.general;
+  const tagOptions = getTagOptions(postType);
 
   return (
     <div className="fixed inset-0 bg-black/75 flex items-center justify-center z-[60] p-4">
