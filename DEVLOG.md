@@ -1,5 +1,30 @@
 # Development Log
 
+## August 10, 2026 — Scorecard convergence: one grid for solo + shared
+
+Tom's pass on the golf polish round: the two composer scorecards were still
+unrelated grids, shared rounds always lost hole 3's quick-click stats, solo
+couldn't side-scroll, and the PEN cell dropped you at the top of the stepper.
+
+- **The hole-3 bug was literal**: `holeNum !== 3 // Par 3s don't have
+  fairways` from the grid's first commit — par-gating by HOLE NUMBER, and
+  taking GIR + penalties down with the fairway checkbox. Now only the F
+  checkbox is par-gated (real par check via getHolePar, solo's • placeholder);
+  G/putts/penalties render on every hole.
+- **Solo 'Already played' entry now renders MultiPlayerScorecardGrid** with
+  one player row — identical style, inputs, sticky column and side-scroll as
+  shared (the old transposed table was w-full, shrink-to-fit, so it could
+  never scroll). HoleData↔PlayerHoleScore converters extracted pure into
+  src/lib/golf/hole-adapters.ts (13 tests) — the golfData request shape to
+  /api/posts is UNCHANGED (adapters convert at the UI boundary). Fairway
+  left/right direction + the HCP row retired (never persisted; DB stores
+  fairway_hit boolean).
+- **Penalty badges in both grids open the stepper with Penalties scrolled
+  into view** (additive focusSection prop); shared creators can now enter
+  penalties per player (they previously had NO penalty entry). One stepper
+  path: the form's header Quick-entry button drives the grid's modal;
+  per-player draft keys prevent cross-player draft leaks.
+
 ## August 10, 2026 — Golf round polish: one form vocabulary + per-hole penalties
 
 Tom's device feedback after the cleanup round: solo vs shared round inputs
