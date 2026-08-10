@@ -1,5 +1,27 @@
 # Development Log
 
+## August 10, 2026 — End-of-day maintenance sweep (second session)
+
+Requested checklist after the day's second run — eight more PRs (#114–#121)
+on top of the morning's #105–#113:
+
+- **`npm audit`: 0 vulnerabilities**; `npm ci --dry-run` resolves.
+- Full gate green: tsc clean, lint at the **43** ratchet exactly (LOWERED
+  from 44 this session — PR-D's composer extraction eliminated a documented
+  set-state-in-effect warning), 1186 tests (up 44 from the morning sweep's
+  1142: post-tags, post-category, golf server modules, post-write,
+  penalties, draft/mirror additions, hole-adapters), production build
+  complete.
+- Tree clean on main, synced with origin; the #121 deploy is green on
+  Vercel and prod `/api/health` returns 200.
+- Session ledger: the five-phase sport-settings cleanup (#114–#118,
+  migrations 076+077 — 076's order incident and recovery recorded above),
+  and the golf polish arc (#119 restyle, #120 penalties + migration 078 in
+  the correct order, #121 scorecard convergence + the hole-3 bug fix).
+  Migrations 076/077/078 all run and verified live; Tom signed off the
+  whole arc on phone AND desktop.
+
+
 ## August 10, 2026 — Scorecard convergence: one grid for solo + shared
 
 Tom's pass on the golf polish round: the two composer scorecards were still
