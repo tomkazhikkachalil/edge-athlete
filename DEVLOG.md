@@ -7,7 +7,19 @@ round) is feed content, not portfolio content. The feed keeps everything —
 verified it has no type filtering, zero changes there — but the profile now
 separates the two:
 
-- **Migration 074** (`074_statements_split.sql`, NOT yet run): new
+**Applied + verified live, Aug 10:** Tom ran 074 in the SQL editor (before the
+app deploy — the PR merge hadn't actually landed, leaving a short window where
+statements were visible only in feed/Tagged; the merge closed it). Verified
+end-to-end against prod with a disposable public profile carrying one
+statement + one media post: tab=statements returns exactly the statement,
+tab=all exactly the media post, counts partition (all=1, statements=1), the
+public page splits recentPosts/statements with a media-only postsCount (the
+PostgREST null-embed anti-join works against live PostgREST — no fallback
+needed), and anonymous direct RPC calls to both the statements and counts
+functions are denied (the post-DROP ACL re-lock held). Fixtures cleaned up
+and the cleanup verified by service-role read.
+
+- **Migration 074** (`074_statements_split.sql`): new
   `get_profile_statements_media` RPC (068's all-media body + the STATEMENT
   predicate), the MEDIA inverse predicate on `get_profile_all_media`, and
   `get_profile_media_counts` DROPped and recreated with a fourth
