@@ -6,6 +6,7 @@ import { isActiveParticipant, isRoundLive } from '@/lib/golf/round-status';
 import { canPin, MAX_PINNED_POSTS } from '@/lib/posts/pinning';
 import { FEATURE_FLAGS } from '@/lib/features';
 import { resolveRepostTarget, canViewSharedPost, validateRepostBody } from '@/lib/reposts';
+import { normalizePostIdentity } from '@/lib/posts/post-category';
 
 // Interface for tagged profiles
 interface TaggedProfile {
@@ -88,7 +89,7 @@ export async function POST(request: NextRequest) {
 
     const body = await request.json();
     const {
-      postType = 'general', // 'general', 'golf', or 'training'
+      postType: rawPostType = 'general', // 'general' or a registry sport_key
       caption = '',
       hashtags = [],
       visibility = 'public',
@@ -97,7 +98,16 @@ export async function POST(request: NextRequest) {
       taggedProfiles = [], // Array of profile IDs to tag in this post
       stats_data: incomingStatsData = null, // Optional structured metadata (e.g. vitals_entry)
       sharedPostId = null, // Repost: the post being shared (075)
+      postCategory: rawPostCategory = null, // Cross-cutting category (077): 'training'
     } = body;
+
+    // Category normalization — also maps the pre-077 legacy shape
+    // (postType 'training') onto {general + training}.
+    const identity = normalizePostIdentity(rawPostType, rawPostCategory);
+    if ('error' in identity) {
+      return NextResponse.json({ error: identity.error }, { status: 400 });
+    }
+    const { postType, postCategory } = identity;
 
     // Content owner: the session user, or — guardian-profiles — a managed
     // athlete via targetProfileId. Server-authoritative: the guardian row is
@@ -228,6 +238,7 @@ export async function POST(request: NextRequest) {
       stats_data?: Record<string, unknown>;
       activity_mode?: string;
       shared_post_id?: string;
+      post_category?: string;
     } = {
       profile_id: userId,
       sport_key: postType, // Use postType as sport_key for our unified approach
@@ -241,6 +252,7 @@ export async function POST(request: NextRequest) {
       comments_count: 0,
       ...(incomingStatsData && postType !== 'golf' ? { stats_data: incomingStatsData } : {}),
       ...(repostTargetId ? { shared_post_id: repostTargetId } : {}),
+      ...(postCategory ? { post_category: postCategory } : {}),
     };
 
     let roundId: string | null = null;
@@ -523,6 +535,7 @@ export async function POST(request: NextRequest) {
       id: completePost.id,
       caption: completePost.caption,
       sport_key: completePost.sport_key,
+      post_category: completePost.post_category ?? null,
       stats_data: completePost.stats_data,
       visibility: completePost.visibility,
       tags: completePost.tags || [],
@@ -836,6 +849,7 @@ export async function GET(request: NextRequest) {
         id: post.id,
         caption: post.caption,
         sport_key: post.sport_key,
+        post_category: post.post_category ?? null,
         stats_data: post.stats_data,
         visibility: post.visibility,
         tags: post.tags || [],
@@ -1102,6 +1116,7 @@ export async function GET(request: NextRequest) {
           id: post.id,
           caption: post.caption,
           sport_key: post.sport_key,
+          post_category: post.post_category ?? null,
           stats_data: post.stats_data,
           visibility: post.visibility,
           tags: post.tags || [],

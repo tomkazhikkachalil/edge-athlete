@@ -840,7 +840,8 @@ export default function VitalsTab({ profileId, currentUserId, isOwnProfile = fal
           isOpen={showCreatePost}
           onClose={() => setShowCreatePost(false)}
           userId={currentUserId}
-          defaultSportKey="training"
+          defaultSportKey="general"
+          defaultPostCategory="training"
           onPostCreated={() => {
             setShowCreatePost(false);
             fetchData();

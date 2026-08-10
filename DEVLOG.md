@@ -1,5 +1,42 @@
 # Development Log
 
+## August 10, 2026 — Sport-settings cleanup, PRs A + B (migrations 076 + 077)
+
+The five-phase cleanup round (full Tier 1–3 scope, Tom's call; Tier 3 is
+behavior-preserving extraction only — the generic activity_id model stays
+deferred until sport #2 is real).
+
+**PR-A (#114) + migration 076 — SHIPPED, 076 run + verified Aug 10.**
+sport_settings DDL ratified into the numbered series; equipment's silent
+`DEFAULT 'golf'` dropped; the 061-promised contract executed (hole_number +
+index gone, every app write/select/fallback removed); group_invite icon
+fixed (was a golf ball for every sport); golf fallback defaults retired;
+composer tag/hashtag lists registry-driven (`src/lib/sports/post-tags.ts`).
+⚠️ **Order incident**: 076 required app-first but was run BEFORE the deploy —
+~8 minutes where shared-round scorecards read caption-only and media attach
+failed (no crash, no data loss; the 061 backfill had already made
+segment_number authoritative). Recovered on deploy; probe: 0→8 scorecards
+hydrated, segment data intact. Second order miss of the day (074 was the
+first, opposite direction) — migration handoffs now lead with the order in
+one bold line.
+
+**PR-B + migration 077 — 'training' stops masquerading as a sport.**
+`posts.post_category` (nullable, NO CHECK — the 020 activity_mode reasoning),
+backfill training→{general + training category} (re-runnable; re-run after
+deploy for gap rows). 'training' left the SportKey union and the registry —
+the compiler then found every dead exclusion filter (getPrimarySports,
+equipment options, isComposerSport test). Writers (AddVitalModal,
+WorkoutEditorScreen, VitalsTab→composer) send `postCategory: 'training'`;
+the posts API normalizes via `normalizePostIdentity` with a one-release
+legacy alias (`postType: 'training'` → general + category) so stale tabs
+keep working; vitals feed filters on post_category; PostCard's chip renders
+Training from the category (sports-config keeps its string-keyed training
+display entries for this). 074 predicate invariant: training posts always
+carry stats_data, so no post moves between Media and Notions.
+**Deploy order: 077 FIRST, then the app** — the old app ignores the new
+column; the new app writes and filters on it.
+
+
 ## August 10, 2026 — End-of-day maintenance sweep
 
 Requested checklist after the day's run of eight PRs (#105–#112):

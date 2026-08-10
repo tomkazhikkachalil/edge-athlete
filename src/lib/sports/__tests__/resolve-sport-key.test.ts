@@ -31,10 +31,9 @@ describe('isComposerSport', () => {
     expect(isComposerSport('basketball')).toBe(true);
   });
 
-  it('rejects training (post category, no adapter) and null', () => {
-    // 'training' is enabled in the registry but getSportAdapter('training')
-    // throws — auto-defaulting the composer to it must be impossible.
-    expect(isComposerSport('training')).toBe(false);
+  it('rejects null', () => {
+    // ('training' left the SportKey union with migration 077 — the compiler
+    // now rejects it before this function ever could.)
     expect(isComposerSport(null)).toBe(false);
   });
 

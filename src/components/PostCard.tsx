@@ -77,6 +77,7 @@ interface Post {
   shared_post_id?: string | null; // Repost: the quoted original's id
   shared_post?: QuotedPost | null; // Gated server-side; null = unavailable to this viewer
   reposts_count?: number;
+  post_category?: string | null; // Cross-cutting category (077): 'training'
 }
 
 // Module scope, so the component identity is stable across renders.
@@ -251,7 +252,12 @@ function PostCard({
 
   const timeAgo = formatDistanceToNow(new Date(post.created_at), { addSuffix: true });
 
-  const sportColor = post.sport_key ? getSportColor(post.sport_key) : '#6B7280';
+  // Chip identity: a 'training' CATEGORY post (077) wears the Training chip
+  // regardless of sport_key (backfilled rows carry sport_key='general' —
+  // sports-config keeps its string-keyed 'training' display entries for
+  // exactly this).
+  const chipKey = post.post_category === 'training' ? 'training' : post.sport_key;
+  const sportColor = chipKey ? getSportColor(chipKey) : '#6B7280';
 
   const handleLike = () => {
     if (onLike) {
@@ -441,12 +447,12 @@ function PostCard({
               </div>
               <div className="flex items-center gap-2 flex-wrap">
                 <span className="text-sm text-secondary font-medium">{timeAgo}</span>
-                {post.sport_key && (
+                {chipKey && (
                   <>
                     <span className="text-sm text-secondary font-medium">•</span>
                     <div className="flex items-center gap-1">
-                      <SportGlyph sportKey={post.sport_key} color={sportColor} />
-                      <span className="text-sm text-secondary font-semibold">{getSportName(post.sport_key)}</span>
+                      <SportGlyph sportKey={chipKey} color={sportColor} />
+                      <span className="text-sm text-secondary font-semibold">{getSportName(chipKey)}</span>
                     </div>
                   </>
                 )}

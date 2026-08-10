@@ -113,14 +113,13 @@ export function getCategoryConfig(sportKey: string, category: string): Equipment
 
 /**
  * Sport options for the Add Equipment picker: General first, then every
- * enabled registry sport except 'training' (training gear fits General).
+ * enabled registry sport. (Training gear fits General — 'training' left the
+ * registry with migration 077, so no filter is needed.)
  */
 export function getEquipmentSportOptions(): Array<{ value: string; label: string }> {
   return [
     { value: 'general', label: 'General / Other' },
-    ...getEnabledSports()
-      .filter(s => s.sport_key !== 'training')
-      .map(s => ({ value: s.sport_key, label: s.display_name })),
+    ...getEnabledSports().map(s => ({ value: s.sport_key, label: s.display_name })),
   ];
 }
 

@@ -33,6 +33,9 @@ interface CreatePostModalProps {
   userId: string;
   onPostCreated?: (post: unknown) => void;
   defaultSportKey?: SportKey | 'general'; // Optional: pre-select a sport
+  /** Cross-cutting category stamped on the created post (077) — the vitals
+   *  tab passes 'training'. Not user-editable in the composer. */
+  defaultPostCategory?: 'training';
 }
 
 interface MediaFile {
@@ -113,7 +116,8 @@ export default function CreatePostModal({
   onClose,
   userId,
   onPostCreated,
-  defaultSportKey = 'general'
+  defaultSportKey = 'general',
+  defaultPostCategory
 }: CreatePostModalProps) {
   const { showSuccess, showError } = useToast();
   const router = useRouter();
@@ -895,6 +899,8 @@ export default function CreatePostModal({
             ? statLineData
             : undefined,
         taggedProfiles: taggedProfiles, // Add tagged people
+        // Cross-cutting category (077) — e.g. the vitals tab's training posts.
+        ...(defaultPostCategory ? { postCategory: defaultPostCategory } : {}),
         // Guardian-profiles: post to the acting-as athlete's profile.
         // Server re-authorizes (guardian row + approved consent).
         ...(activeProfile ? { targetProfileId: activeProfile.id } : {}),
