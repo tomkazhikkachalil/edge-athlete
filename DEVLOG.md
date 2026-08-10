@@ -1,5 +1,26 @@
 # Development Log
 
+## August 9, 2026 — End-of-day maintenance sweep (second session)
+
+Requested checklist after the day's second run of fourteen PRs (#90–#103):
+
+- **`npm audit`: 0 vulnerabilities** — nothing drifted in since the
+  morning sweep's three fixes; no lockfile change needed this time.
+- Full gate green: tsc clean, lint at the 44 ratchet exactly (unchanged
+  all day — none of the new files added a warning), 1117 tests (34 added
+  today: comment-thread 9, mentions 19, panel-placement 6), production
+  build with all 112 pages. `npm ci --dry-run` resolves.
+- Tree clean on main, synced with origin; the #103 deploy is green on
+  Vercel and prod `/api/health` returns 200.
+- Day's ledger, for the record: dark logo asset (#90), message-strip
+  pointer rules (#91), the long-press action sheet (#92), mobile
+  reply/keyboard fixes (#93), the comments round (#94 auto-grow, #95
+  nested replies + migration 072, #96 @mentions + migration 073), and the
+  device-test-driven polish arc (#97–#103). Migrations 072 + 073 run and
+  verified live by Tom; legacy profiles backfilled with handles via
+  service-role script (no code change — every signup path already
+  requires a handle).
+
 ## August 9, 2026 — The @ bubble goes pixel-tight (bottom-anchoring retired)
 
 Tom: the bubble hugs the box on desktop but keeps "a few pixels of space"
