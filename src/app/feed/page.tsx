@@ -51,6 +51,9 @@ interface Post {
   likes?: { profile_id: string }[];
   tags?: string[];
   hashtags?: string[];
+  shared_post_id?: string | null;
+  shared_post?: import('@/components/QuotedPostEmbed').QuotedPost | null;
+  reposts_count?: number;
 }
 
 interface RealtimePostPayload {
@@ -218,45 +221,25 @@ export default function FeedPage() {
           if (authorId === user.id) return;
           if (!followedIds.has(authorId)) return;
 
-          // Fetch the complete post with profile and media
-          const { data: newPost } = await supabase
-            .from('posts')
-            .select(`
-              id,
-              caption,
-              sport_key,
-              stats_data,
-              visibility,
-              created_at,
-              likes_count,
-              comments_count,
-              profile:profile_id (
-                id,
-                first_name,
-                middle_name,
-                last_name,
-                full_name,
-                avatar_url,
-                handle
-              ),
-              media:post_media (
-                id,
-                media_url,
-                media_type,
-                display_order
-              )
-            `)
-            .eq('id', payload.new.id)
-            .single();
-
-          if (newPost) {
-            setPosts(prev => {
-              // Dedup guard — never render the same post id twice.
-              if (prev.some(p => p.id === (newPost as Post).id)) return prev;
-              return [newPost as Post, ...prev];
-            });
-            showSuccess('New Post', 'A new post has been added to your feed');
-          }
+          // Fetch the complete post via the API's single-post branch — it
+          // does the server-side gated hydration (quoted repost originals,
+          // scorecards) the browser client can't replicate under RLS, and
+          // returns the feed's exact Post shape. A 404 (post the viewer
+          // can't see) simply skips the prepend.
+          try {
+            const res = await fetch(`/api/posts?postId=${payload.new.id}`);
+            if (!res.ok) return;
+            const data = await res.json();
+            const newPost = data.post as Post | undefined;
+            if (newPost) {
+              setPosts(prev => {
+                // Dedup guard — never render the same post id twice.
+                if (prev.some(p => p.id === newPost.id)) return prev;
+                return [newPost, ...prev];
+              });
+              showSuccess('New Post', 'A new post has been added to your feed');
+            }
+          } catch { /* realtime prepend is a nicety — the next load has it */ }
         }
       )
       .subscribe();
@@ -634,6 +617,12 @@ export default function FeedPage() {
                       onDelete={handleDelete}
                       onCommentCountChange={handleCommentCountChange}
                       showActions={true}
+                      onReposted={(created) => {
+                        const repost = created as Post;
+                        setPosts(prev =>
+                          prev.some(p => p.id === repost.id) ? prev : [repost, ...prev]
+                        );
+                      }}
                     />
                   ))}
                   

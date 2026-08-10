@@ -2,6 +2,7 @@
 
 import { formatDistanceToNow } from 'date-fns';
 import LazyImage from './LazyImage';
+import QuotedPostEmbed, { type QuotedPost } from './QuotedPostEmbed';
 import { formatDisplayName, getInitials } from '@/lib/formatters';
 
 /** The slice of a profile-media RPC row a statement card renders. */
@@ -18,6 +19,9 @@ export interface StatementItem {
   comments_count: number;
   is_own_post: boolean;
   is_tagged: boolean;
+  /** Repost fields — hydrated by the media route (075). */
+  shared_post_id?: string | null;
+  shared_post?: QuotedPost | null;
 }
 
 interface StatementCardProps {
@@ -64,9 +68,18 @@ export default function StatementCard({ item, onClick }: StatementCardProps) {
         )}
       </div>
 
-      <p className="text-sm text-primary line-clamp-4 whitespace-pre-wrap flex-1">
-        {item.caption || 'Post'}
-      </p>
+      {item.shared_post_id ? (
+        <div className="flex-1 min-w-0">
+          {item.caption && (
+            <p className="text-sm text-primary line-clamp-2 whitespace-pre-wrap mb-2">{item.caption}</p>
+          )}
+          <QuotedPostEmbed post={item.shared_post ?? null} compact />
+        </div>
+      ) : (
+        <p className="text-sm text-primary line-clamp-4 whitespace-pre-wrap flex-1">
+          {item.caption || 'Post'}
+        </p>
+      )}
 
       <div className="flex items-center gap-3 mt-2 text-xs text-tertiary">
         <span>

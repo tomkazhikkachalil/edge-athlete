@@ -5,6 +5,7 @@ import { GROUP_SCORECARD_SELECT, transformGroupPostToScorecard } from '@/lib/gol
 import { isActiveParticipant, isRoundLive } from '@/lib/golf/round-status';
 import { canPin, MAX_PINNED_POSTS } from '@/lib/posts/pinning';
 import { FEATURE_FLAGS } from '@/lib/features';
+import { resolveRepostTarget, canViewSharedPost, validateRepostBody } from '@/lib/reposts';
 
 // Interface for tagged profiles
 interface TaggedProfile {
@@ -15,6 +16,68 @@ interface TaggedProfile {
   full_name: string | null;
   avatar_url: string | null;
   handle: string | null;
+}
+
+// Reject non-UUID ids up front (garbage used to hit PostgREST as 22P02 → 500)
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/** Select shape for a repost's quoted ORIGINAL — the wire subset
+ *  QuotedPostEmbed renders, plus visibility/status/profile visibility for
+ *  the per-viewer gate (stripped before shipping). */
+const SHARED_POST_SELECT = `
+  id,
+  caption,
+  visibility,
+  status,
+  created_at,
+  profile_id,
+  profile:profile_id (
+    id, first_name, last_name, full_name, avatar_url, handle, visibility
+  ),
+  media:post_media ( media_url, media_type )
+`;
+
+/** Gate + shape a fetched original for a given viewer. Returns the wire
+ *  QuotedPost or null ("post unavailable" to this viewer). Mirrors the
+ *  messages route's filterViewableSharedPost semantics via canViewSharedPost. */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function gateSharedPost(orig: any, currentUserId: string | null, followingIds: Set<string>) {
+  if (!orig) return null;
+  const owner = Array.isArray(orig.profile) ? orig.profile[0] : orig.profile;
+  if (!owner?.id) return null;
+  // Approval queue: unpublished originals stay hidden from everyone but
+  // their author (flag-gated — posts.status needs migration 051).
+  if (
+    FEATURE_FLAGS.FEATURE_GUARDIAN_PROFILES &&
+    orig.status && orig.status !== 'published' &&
+    orig.profile_id !== currentUserId
+  ) {
+    return null;
+  }
+  const visible = canViewSharedPost({
+    postVisibility: orig.visibility,
+    ownerVisibility: owner.visibility,
+    isOwner: currentUserId === owner.id,
+    isFollower: followingIds.has(owner.id),
+  });
+  if (!visible) return null;
+  return {
+    id: orig.id,
+    caption: orig.caption,
+    created_at: orig.created_at,
+    profile: {
+      id: owner.id,
+      first_name: owner.first_name,
+      last_name: owner.last_name,
+      full_name: owner.full_name,
+      avatar_url: owner.avatar_url,
+      handle: owner.handle,
+    },
+    media: (orig.media || []).map((m: { media_url: string; media_type: string }) => ({
+      media_url: m.media_url,
+      media_type: m.media_type,
+    })),
+  };
 }
 
 export async function POST(request: NextRequest) {
@@ -33,6 +96,7 @@ export async function POST(request: NextRequest) {
       golfData = null,
       taggedProfiles = [], // Array of profile IDs to tag in this post
       stats_data: incomingStatsData = null, // Optional structured metadata (e.g. vitals_entry)
+      sharedPostId = null, // Repost: the post being shared (075)
     } = body;
 
     // Content owner: the session user, or — guardian-profiles — a managed
@@ -85,6 +149,71 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Invalid visibility setting' }, { status: 400 });
     }
 
+    // Repost validation. A repost is caption-only — media/golf/stats would
+    // break the 074 STATEMENT classification — and must target a post the
+    // REPOSTER can see. Repost-of-a-repost collapses to the ROOT original,
+    // and the gate runs against that root (it's what viewers will see).
+    let repostTargetId: string | null = null;
+    if (sharedPostId) {
+      if (typeof sharedPostId !== 'string' || !UUID_RE.test(sharedPostId)) {
+        return NextResponse.json({ error: 'Post not found' }, { status: 404 });
+      }
+      const repostError = validateRepostBody({ media, golfData, stats_data: incomingStatsData });
+      if (repostError) {
+        return NextResponse.json({ error: repostError }, { status: 400 });
+      }
+      if (postType !== 'general') {
+        return NextResponse.json({ error: 'A repost must be a general post' }, { status: 400 });
+      }
+
+      const fetchOriginal = async (id: string) => {
+        const { data } = await supabase
+          .from('posts')
+          .select('id, profile_id, visibility, status, shared_post_id, profiles:profile_id (visibility)')
+          .eq('id', id)
+          .maybeSingle();
+        return data;
+      };
+      let original = await fetchOriginal(sharedPostId);
+      if (original?.shared_post_id) {
+        // Root-collapse, then re-gate against the root.
+        original = await fetchOriginal(resolveRepostTarget(original));
+      }
+      // 404 (not 403) throughout — don't confirm a hidden post's existence.
+      if (!original) {
+        return NextResponse.json({ error: 'Post not found' }, { status: 404 });
+      }
+      if (
+        FEATURE_FLAGS.FEATURE_GUARDIAN_PROFILES &&
+        original.status && original.status !== 'published' &&
+        original.profile_id !== userId
+      ) {
+        return NextResponse.json({ error: 'Post not found' }, { status: 404 });
+      }
+      const ownerProfile = Array.isArray(original.profiles) ? original.profiles[0] : original.profiles;
+      let isFollower = false;
+      if (original.profile_id !== userId) {
+        const { data: follow } = await supabase
+          .from('follows')
+          .select('id')
+          .eq('follower_id', userId)
+          .eq('following_id', original.profile_id)
+          .eq('status', 'accepted')
+          .maybeSingle();
+        isFollower = !!follow;
+      }
+      const canRepost = canViewSharedPost({
+        postVisibility: original.visibility,
+        ownerVisibility: ownerProfile?.visibility,
+        isOwner: original.profile_id === userId,
+        isFollower,
+      });
+      if (!canRepost) {
+        return NextResponse.json({ error: 'Post not found' }, { status: 404 });
+      }
+      repostTargetId = original.id;
+    }
+
     // Create the post record
     const postData: {
       profile_id: string;
@@ -98,6 +227,7 @@ export async function POST(request: NextRequest) {
       round_id?: string;
       stats_data?: Record<string, unknown>;
       activity_mode?: string;
+      shared_post_id?: string;
     } = {
       profile_id: userId,
       sport_key: postType, // Use postType as sport_key for our unified approach
@@ -110,6 +240,7 @@ export async function POST(request: NextRequest) {
       likes_count: 0,
       comments_count: 0,
       ...(incomingStatsData && postType !== 'golf' ? { stats_data: incomingStatsData } : {}),
+      ...(repostTargetId ? { shared_post_id: repostTargetId } : {}),
     };
 
     let roundId: string | null = null;
@@ -423,8 +554,27 @@ export async function POST(request: NextRequest) {
         })),
       likes: completePost.post_likes || [],
       golf_round: golfRound,
-      tagged_profiles: taggedProfilesList
+      tagged_profiles: taggedProfilesList,
+      shared_post_id: completePost.shared_post_id ?? null,
+      shared_post: null as ReturnType<typeof gateSharedPost>,
+      reposts_count: completePost.reposts_count ?? 0
     };
+
+    // Hydrate the quoted original so the feed's optimistic prepend renders
+    // the full repost card. The creator just passed the repost gate, so
+    // visibility is a formality — but run it through the same gate anyway.
+    if (transformedPost.shared_post_id) {
+      const { data: orig } = await supabase
+        .from('posts')
+        .select(SHARED_POST_SELECT)
+        .eq('id', transformedPost.shared_post_id)
+        .maybeSingle();
+      const origOwner = orig ? (Array.isArray(orig.profile) ? orig.profile[0] : orig.profile) : null;
+      transformedPost.shared_post = gateSharedPost(
+        orig, userId,
+        new Set(origOwner?.id ? [origOwner.id] : [])
+      );
+    }
 
     return NextResponse.json({
       success: true,
@@ -458,8 +608,7 @@ export async function GET(request: NextRequest) {
     const limit = Math.min(Math.max(parseInt(searchParams.get('limit') || '20', 10) || 20, 1), 100);
     const offset = Math.max(parseInt(searchParams.get('offset') || '0', 10) || 0, 0);
 
-    // Reject non-UUID ids up front (garbage used to hit PostgREST as 22P02 → 500)
-    const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    // UUID_RE hoisted to module scope (reposts need it in POST too)
     if (postId && !UUID_RE.test(postId)) {
       return NextResponse.json({ error: 'Post not found' }, { status: 404 });
     }
@@ -642,6 +791,33 @@ export async function GET(request: NextRequest) {
         }
       }
 
+      // Hydrate the quoted original for a repost, gated for THIS viewer —
+      // an invisible original renders as a "post unavailable" placeholder.
+      let sharedPost: ReturnType<typeof gateSharedPost> = null;
+      if (post.shared_post_id) {
+        const { data: orig } = await supabase
+          .from('posts')
+          .select(SHARED_POST_SELECT)
+          .eq('id', post.shared_post_id)
+          .maybeSingle();
+        const origOwner = orig ? (Array.isArray(orig.profile) ? orig.profile[0] : orig.profile) : null;
+        let followsOrigOwner = false;
+        if (currentUserId && origOwner?.id && origOwner.id !== currentUserId) {
+          const { data: follow } = await supabase
+            .from('follows')
+            .select('id')
+            .eq('follower_id', currentUserId)
+            .eq('following_id', origOwner.id)
+            .eq('status', 'accepted')
+            .maybeSingle();
+          followsOrigOwner = !!follow;
+        }
+        sharedPost = gateSharedPost(
+          orig, currentUserId,
+          followsOrigOwner && origOwner?.id ? new Set([origOwner.id as string]) : new Set<string>()
+        );
+      }
+
       // Fetch tagged profiles if exists
       let taggedProfiles: TaggedProfile[] = [];
       if (post.tags && post.tags.length > 0) {
@@ -694,7 +870,10 @@ export async function GET(request: NextRequest) {
         likes: post.post_likes || [],
         golf_round: golfRound,
         group_scorecard: groupScorecard,
-        tagged_profiles: taggedProfiles
+        tagged_profiles: taggedProfiles,
+        shared_post_id: post.shared_post_id ?? null,
+        shared_post: sharedPost,
+        reposts_count: post.reposts_count ?? 0
       };
 
       return NextResponse.json({ post: transformedPost });
@@ -824,8 +1003,9 @@ export async function GET(request: NextRequest) {
     const roundIds = [...new Set(finalVisiblePosts.map(p => p.round_id).filter(Boolean))];
     const groupPostIds = [...new Set(finalVisiblePosts.map(p => p.group_post_id).filter(Boolean))];
     const tagProfileIds = [...new Set(finalVisiblePosts.flatMap(p => p.tags || []))];
+    const sharedPostIds = [...new Set(finalVisiblePosts.map(p => p.shared_post_id).filter(Boolean))];
 
-    const [roundsResult, groupsResult, tagProfilesResult] = await Promise.all([
+    const [roundsResult, groupsResult, tagProfilesResult, sharedResult] = await Promise.all([
       roundIds.length > 0
         ? supabase
             .from('golf_rounds')
@@ -847,11 +1027,23 @@ export async function GET(request: NextRequest) {
             .select('id, first_name, middle_name, last_name, full_name, avatar_url, handle')
             .in('id', tagProfileIds)
         : Promise.resolve({ data: [], error: null }),
+      sharedPostIds.length > 0
+        ? supabase.from('posts').select(SHARED_POST_SELECT).in('id', sharedPostIds)
+        : Promise.resolve({ data: [], error: null }),
     ]);
 
     if (roundsResult.error) console.error('[GET] Error fetching golf rounds:', roundsResult.error);
     if (groupsResult.error) console.error('[GET] Error fetching group scorecards:', groupsResult.error);
     if (tagProfilesResult.error) console.error('[GET] Error fetching tagged profiles:', tagProfilesResult.error);
+    if (sharedResult.error) console.error('[GET] Error fetching shared originals:', sharedResult.error);
+
+    // Quoted originals, gated PER VIEWER with the followingIds set already in
+    // scope — no extra follow queries.
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const sharedById = new Map<string, any>();
+    for (const orig of sharedResult.data || []) {
+      sharedById.set(orig.id, orig);
+    }
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const roundsById = new Map<string, any>();
@@ -879,6 +1071,9 @@ export async function GET(request: NextRequest) {
         ...post,
         golf_round: post.round_id ? roundsById.get(post.round_id) ?? null : null,
         group_scorecard: post.group_post_id ? scorecardsByGroupId.get(post.group_post_id) ?? null : null,
+        shared_post: post.shared_post_id
+          ? gateSharedPost(sharedById.get(post.shared_post_id), currentUserId, followingIds)
+          : null,
         tagged_profiles: (post.tags || [])
           .map((id: string) => tagProfilesById.get(id))
           .filter((p: TaggedProfile | undefined): p is TaggedProfile => !!p),
@@ -942,7 +1137,10 @@ export async function GET(request: NextRequest) {
           likes: post.post_likes || [],
           golf_round: post.golf_round || null,
           group_scorecard: post.group_scorecard || null,
-          tagged_profiles: post.tagged_profiles || []
+          tagged_profiles: post.tagged_profiles || [],
+          shared_post_id: post.shared_post_id ?? null,
+          shared_post: post.shared_post ?? null,
+          reposts_count: post.reposts_count ?? 0
         }));
 
     return NextResponse.json({ posts: transformedPosts, hasMore: rawPageCount === limit });

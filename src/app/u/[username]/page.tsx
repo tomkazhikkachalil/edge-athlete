@@ -78,6 +78,11 @@ interface PublicStatement {
   created_at: string;
   likes_count: number;
   comments_count: number;
+  /** Repost (075): tiny public-only excerpt of the quoted original, or null
+   *  when the original isn't fully public ("unavailable"). Optional so
+   *  cached pre-repost responses parse. */
+  shared_post_id?: string | null;
+  shared_post?: { author_name: string | null; caption: string | null } | null;
 }
 
 interface ProfileData {
@@ -471,8 +476,16 @@ export default function PublicProfilePage() {
                   className="w-[200px] flex-shrink-0 rounded-lg bg-surface-sunken p-3"
                 >
                   <p className="text-xs text-muted line-clamp-4 whitespace-pre-wrap">
-                    {statement.caption || 'Post'}
+                    {statement.caption || (statement.shared_post_id ? '' : 'Post')}
                   </p>
+                  {statement.shared_post_id && (
+                    <p className="text-xs text-faint line-clamp-2 mt-1">
+                      <i className="fas fa-retweet mr-1"></i>
+                      {statement.shared_post
+                        ? `${statement.shared_post.author_name || 'Post'}: ${statement.shared_post.caption || ''}`
+                        : 'Post unavailable'}
+                    </p>
+                  )}
                   <div className="flex items-center gap-3 mt-2 text-[10px] text-faint">
                     <span>{statement.likes_count} likes</span>
                     <span>{statement.comments_count} comments</span>
