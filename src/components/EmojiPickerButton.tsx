@@ -96,17 +96,22 @@ export default function EmojiPickerButton({
     const panel = panelRef.current;
     if (!trigger || !panel) return;
     const r = trigger.getBoundingClientRect();
+    // Layout- vs visual-viewport correction — see MentionSuggestions:
+    // fixed positioning from raw client rects drifts by the keyboard pan.
+    const vv = window.visualViewport;
+    const offX = vv?.offsetLeft ?? 0;
+    const offY = vv?.offsetTop ?? 0;
     // While the dynamic picker is still loading the wrapper is ~0 tall —
     // assume full height for that frame so it lands on the correct side;
     // once real content exists, trust the measurement.
     const panelH = panel.offsetHeight >= 100 ? panel.offsetHeight : 420;
-    const left = Math.max(8, Math.min(r.left, window.innerWidth - PANEL_WIDTH_PX - 8));
+    const left = Math.max(8, Math.min(r.left + offX, window.innerWidth - PANEL_WIDTH_PX - 8));
     panel.style.left = `${left}px`;
     if (r.top >= panelH + 12) {
-      panel.style.bottom = `${window.innerHeight - r.top + 8}px`;
+      panel.style.bottom = `${window.innerHeight - (r.top + offY) + 8}px`;
       panel.style.top = 'auto';
     } else {
-      panel.style.top = `${r.bottom + 8}px`;
+      panel.style.top = `${r.bottom + offY + 8}px`;
       panel.style.bottom = 'auto';
     }
   };

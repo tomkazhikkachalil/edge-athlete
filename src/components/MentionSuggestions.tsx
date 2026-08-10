@@ -8,7 +8,7 @@ import { usePopoverDismiss } from '@/hooks/usePopoverDismiss';
 import type { MentionCandidate } from '@/hooks/useMentionTypeahead';
 
 /** Tight gap so the panel reads ATTACHED to the composer, not floating. */
-const GAP_PX = 4;
+const GAP_PX = 2;
 
 interface Props {
   open: boolean;
@@ -61,14 +61,22 @@ export default function MentionSuggestions({
     const panel = panelRef.current;
     if (!anchor || !panel) return;
     const r = anchor.getBoundingClientRect();
+    // position:fixed is LAYOUT-viewport based; getBoundingClientRect is
+    // VISUAL-viewport based. With the mobile keyboard up (or any pan) they
+    // differ by visualViewport.offset* — mixing the spaces put the panel
+    // visibly off the box, intermittently. Convert before writing styles;
+    // offsets are 0 on desktop, so nothing changes there.
+    const vv = window.visualViewport;
+    const offX = vv?.offsetLeft ?? 0;
+    const offY = vv?.offsetTop ?? 0;
     const panelH = panel.offsetHeight;
-    panel.style.left = `${r.left}px`;
+    panel.style.left = `${r.left + offX}px`;
     panel.style.width = `${r.width}px`;
     if (r.top >= panelH + GAP_PX + 4) {
-      panel.style.bottom = `${window.innerHeight - r.top + GAP_PX}px`;
+      panel.style.bottom = `${window.innerHeight - (r.top + offY) + GAP_PX}px`;
       panel.style.top = 'auto';
     } else {
-      panel.style.top = `${r.bottom + GAP_PX}px`;
+      panel.style.top = `${r.bottom + offY + GAP_PX}px`;
       panel.style.bottom = 'auto';
     }
   };
@@ -105,7 +113,7 @@ export default function MentionSuggestions({
       role="listbox"
       aria-label="Mention suggestions"
       style={{ position: 'fixed' }}
-      className="z-[70] ea-dropdown-in bg-surface-raised rounded-xl shadow-[var(--ea-shadow-raised)] border border-border py-1 max-h-72 overflow-y-auto overscroll-contain"
+      className="z-[70] ea-dropdown-in bg-surface-raised rounded-xl shadow-[var(--ea-shadow-raised)] border-2 border-violet-500 py-1 max-h-72 overflow-y-auto overscroll-contain"
     >
       {candidates.map((c, i) => {
         const name = formatDisplayName(c.first_name, null, c.last_name, c.full_name);
