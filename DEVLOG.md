@@ -1,5 +1,24 @@
 # Development Log
 
+## August 10, 2026 — End-of-day maintenance sweep
+
+Requested checklist after the day's run of eight PRs (#105–#112):
+
+- **`npm audit`: 0 vulnerabilities**; `npm ci --dry-run` resolves.
+- Full gate green: tsc clean, lint at the 44 ratchet exactly (unchanged all
+  day — none of the new files added a warning), 1142 tests (25 added today:
+  statements 12, reposts 13), production build with all pages.
+- Tree clean on main, synced with origin; the #112 deploy is green on
+  Vercel and prod `/api/health` returns 200.
+- Day's ledger, for the record: the statements split (#105, migration 074)
+  with its DEVLOG records (#106, #107), reposts (#108, migration 075) with
+  its record (#109), and the Notions polish arc (#110 rename, #111 icon
+  removal, #112 header scale). Migrations 074 + 075 both run and verified
+  live — 074 by an 8-check prod probe, 075 by a 16-check probe (both
+  scratchpad scripts, disposable users, cleanup verified). Tom's device
+  passes closed out both features.
+
+
 ## August 10, 2026 — "Notions": the statements surfaces get their product name
 
 Tom's call after the device pass: the profile section is titled **Notions**,
