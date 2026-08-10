@@ -22,9 +22,9 @@ export function resolveSportKey(sport: string | null | undefined): SportKey | nu
 
 /**
  * Sports the composer can meaningfully default to: golf (full scorecard UI)
- * or any sport with a stat-line schema. 'training' and schema-less sports
- * must NOT be auto-selected (training has no adapter; others render nothing
- * sport-specific).
+ * or any sport with a stat-line schema. Schema-less sports must NOT be
+ * auto-selected (they render nothing sport-specific). 'training' is a post
+ * category, not a SportKey, since migration 077.
  */
 export function isComposerSport(key: SportKey | null): key is SportKey {
   if (!key) return false;

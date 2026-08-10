@@ -68,7 +68,8 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Failed to fetch vitals' }, { status: 500 });
     }
 
-    // Fetch training posts for this profile (sport_key = 'training').
+    // Fetch training posts for this profile (post_category = 'training',
+    // migration 077 — 'training' is a category, not a sport_key, since then).
     // Non-owners (even permitted viewers of a public profile) must NOT see
     // the athlete's PRIVATE training posts — filter to public for them.
     let trainingQuery = supabase
@@ -77,6 +78,7 @@ export async function GET(request: NextRequest) {
         id,
         caption,
         sport_key,
+        post_category,
         stats_data,
         visibility,
         created_at,
@@ -103,7 +105,7 @@ export async function GET(request: NextRequest) {
         )
       `)
       .eq('profile_id', profileId)
-      .eq('sport_key', 'training')
+      .eq('post_category', 'training')
       .order('created_at', { ascending: false })
       .limit(20);
 

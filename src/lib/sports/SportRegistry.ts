@@ -8,9 +8,10 @@
  * - All sport-specific logic lives in adapters, not components
  */
 
+// 'training' is NOT a SportKey since migration 077 — it is a post CATEGORY
+// (posts.post_category, src/lib/posts/post-category.ts).
 export type SportKey =
   | 'golf'
-  | 'training'
   | 'ice_hockey'
   | 'volleyball'
   | 'track_field'
@@ -98,29 +99,9 @@ export const SPORT_REGISTRY: Record<SportKey, SportDefinition> = {
     hashtag_suggestions: ['#Golf', '#GolfLife', '#GolfSwing', '#GolfCourse', '#Birdie', '#Eagle', '#Par', '#HoleInOne', '#PGA', '#18Holes']
   },
 
-  // === TRAINING — MVP content classification shortcut ===
-  // Note: 'training' is used as sport_key for training-tagged posts in Phase 1.
-  // Long-term, this should become a post_category field separate from sport_key.
-  training: {
-    sport_key: 'training',
-    display_name: 'Training',
-    brand_color_token: 'violet',
-    icon_id: 'fas fa-dumbbell',
-    enabled: true,
-    metric_labels: {
-      tile1: 'Sessions',
-      tile2: 'PRs',
-      tile3: 'Streak',
-      tile4: 'Level'
-    },
-    activity_columns: {
-      col1: 'Date',
-      col2: 'Type',
-      col3: 'Duration',
-      col4: 'Notes'
-    },
-    primary_action: 'Log Training'
-  },
+  // ('training' left the registry with migration 077 — it's a post category
+  //  now, never a sport. Display strings for the Training chip live in
+  //  src/lib/config/sports-config.ts, which is string-keyed on purpose.)
 
   // === ICE HOCKEY (Stat-line implementation — posts.stats_data) ===
   ice_hockey: {
@@ -360,7 +341,7 @@ export const TEASER_SPORT_KEYS: SportKey[] = ['ice_hockey', 'volleyball'];
  * teaser sports to keep at least `min` cards visible during early MVP.
  */
 export const getPrimarySports = (min = 3): SportDefinition[] => {
-  const primary = getEnabledSports().filter(s => s.sport_key !== 'training');
+  const primary = getEnabledSports();
   if (primary.length >= min) return primary;
   const teasers = TEASER_SPORT_KEYS
     .map(key => SPORT_REGISTRY[key])

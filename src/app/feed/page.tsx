@@ -54,6 +54,7 @@ interface Post {
   shared_post_id?: string | null;
   shared_post?: import('@/components/QuotedPostEmbed').QuotedPost | null;
   reposts_count?: number;
+  post_category?: string | null;
 }
 
 interface RealtimePostPayload {

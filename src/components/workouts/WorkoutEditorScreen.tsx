@@ -358,7 +358,8 @@ export default function WorkoutEditorScreen({ mode, session, currentUserId }: Wo
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
         body: JSON.stringify({
-          postType: 'training',
+          postType: 'general',
+          postCategory: 'training',
           caption,
           visibility: 'public',
           media: mediaOptions

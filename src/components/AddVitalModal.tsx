@@ -248,7 +248,8 @@ export default function AddVitalModal({ isOpen, onClose, onSaved }: AddVitalModa
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            postType: 'training',
+            postType: 'general',
+            postCategory: 'training',
             caption: postCaption,
             visibility,
             media: uploadedMedia,

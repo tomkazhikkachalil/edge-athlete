@@ -11,7 +11,7 @@ interface SportMultiSelectProps {
 
 /**
  * Multi-select sport grid for intake + profile editing. Selectable sports
- * come from getPrimarySports() (enabled, minus the 'training' post
+ * come from getPrimarySports() (enabled sports; 'training' is a post
  * category — it has no adapter and must never be offered as a sport).
  * Selection ORDER matters: the first pick is the athlete's primary sport.
  * Disabled registry sports render locked as roadmap honesty.
