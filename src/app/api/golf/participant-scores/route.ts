@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerAuth, getSupabaseAdmin } from '@/lib/auth-server';
+import { sanitizePenalties } from '@/lib/golf/penalties';
 import { advanceRoundStatus } from '@/lib/golf/round-status';
 import { mirrorCompletedRound, mirrorRoundMedia } from '@/lib/golf/round-mirror';
 
@@ -115,6 +116,7 @@ export async function POST(request: NextRequest) {
         putts?: number;
         fairway_hit?: boolean;
         green_in_regulation?: boolean;
+        penalties?: string[] | null;
         par?: number;
         yardage?: number;
       }) => ({
@@ -126,7 +128,10 @@ export async function POST(request: NextRequest) {
         strokes: hole.strokes,
         putts: hole.putts || null,
         fairway_hit: hole.fairway_hit || null,
-        green_in_regulation: hole.green_in_regulation || null
+        green_in_regulation: hole.green_in_regulation || null,
+        // LENIENT on this bulk path: unknown types are dropped, not fatal —
+        // one bad entry must not discard a whole creator-entered scorecard.
+        penalties: sanitizePenalties(hole.penalties)
       }));
 
       const { error: holeScoresError } = await supabase

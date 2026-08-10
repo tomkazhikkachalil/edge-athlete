@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseAdmin, getServerAuth } from '@/lib/auth-server';
 import { notifyScoresPosted, groupPostActionUrl } from '@/lib/golf/group-notifications';
+import { validatePenalties } from '@/lib/golf/penalties';
 import { advanceRoundStatus } from '@/lib/golf/round-status';
 import { mirrorCompletedRound, mirrorRoundMedia } from '@/lib/golf/round-mirror';
 
@@ -122,6 +123,18 @@ export async function POST(
       return NextResponse.json({ error: 'Failed to fetch golf participant scores' }, { status: 500 });
     }
 
+    // Penalties: STRICT vocabulary check per score — an unknown type rejects
+    // the batch with the validator's message (400), it is never silently
+    // dropped on this path (the bulk creator path sanitizes instead).
+    const penaltiesByIndex: Array<string[] | null> = [];
+    for (const score of scores as Array<{ penalties?: unknown }>) {
+      const validated = validatePenalties(score.penalties);
+      if (validated !== null && !Array.isArray(validated)) {
+        return NextResponse.json({ error: validated.error }, { status: 400 });
+      }
+      penaltiesByIndex.push(validated);
+    }
+
     // Validate and insert/update hole scores
     const validatedScores = scores.map((score: {
       hole_number: number;
@@ -129,7 +142,7 @@ export async function POST(
       putts?: number;
       fairway_hit?: boolean;
       green_in_regulation?: boolean;
-    }) => {
+    }, index: number) => {
       const { hole_number, strokes, putts, fairway_hit, green_in_regulation } = score;
 
       // Validate hole_number
@@ -154,6 +167,7 @@ export async function POST(
         putts: putts ?? null,
         fairway_hit: fairway_hit ?? null,
         green_in_regulation: green_in_regulation ?? null,
+        penalties: penaltiesByIndex[index],
       };
     });
 
@@ -180,7 +194,8 @@ export async function POST(
           strokes,
           putts,
           fairway_hit,
-          green_in_regulation
+          green_in_regulation,
+          penalties
         )
       `)
       .eq('id', golf_participant_id)
@@ -296,6 +311,7 @@ export async function GET(
           putts,
           fairway_hit,
           green_in_regulation,
+          penalties,
           created_at
         )
       `)

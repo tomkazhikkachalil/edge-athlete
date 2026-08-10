@@ -74,6 +74,7 @@ export const GROUP_SCORECARD_SELECT = `
         putts,
         fairway_hit,
         green_in_regulation,
+        penalties,
         created_at
       )
     )

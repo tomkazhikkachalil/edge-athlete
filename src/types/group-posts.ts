@@ -181,6 +181,8 @@ export interface GolfHoleScore {
   putts: number | null; // 0-strokes
   fairway_hit: boolean | null;
   green_in_regulation: boolean | null;
+  /** One element per occurrence — vocabulary in src/lib/golf/penalties.ts (migration 078). */
+  penalties?: string[] | null;
   created_at: string;
   updated_at: string;
 }
@@ -245,6 +247,7 @@ export interface AddGolfScoresRequest {
     putts?: number;
     fairway_hit?: boolean;
     green_in_regulation?: boolean;
+    penalties?: string[] | null;
   }>;
   entered_by?: string;
 }

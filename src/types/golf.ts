@@ -17,8 +17,8 @@ export interface HoleData {
   fairway_hit?: boolean | null; // Used in database records
   gir?: boolean;  // Green in Regulation
   green_in_regulation?: boolean | null; // Used in database records
-  penalty?: number;  // Penalty strokes
-  sand?: boolean;  // Hit sand bunker
+  /** One element per occurrence — vocabulary in src/lib/golf/penalties.ts (migration 078). */
+  penalties?: string[] | null;
   notes?: string;
 }
 

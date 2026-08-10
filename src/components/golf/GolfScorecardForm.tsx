@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback, useMemo } from 'react';
 import ScoreEntryModal from '@/components/golf/ScoreEntryModal';
 import { useToast } from '@/components/Toast';
 import type { GolfCourse } from '@/lib/golf-courses-db';
+import { totalPenalties } from '@/lib/golf/penalties';
 import { buildDefaultHoles } from '@/lib/golf/scoring';
 import type { HoleData } from '@/types/golf';
 import { GOLF_INPUT, GOLF_SELECT, GOLF_LABEL } from '@/components/golf/golf-form-styles';
@@ -69,6 +70,9 @@ export default function GolfScorecardForm({ onDataChange }: GolfScorecardFormPro
   const [holesData, setHolesData] = useState<HoleData[]>(() => buildDefaultHoles(18, 'front'));
   const [activeTab, setActiveTab] = useState<'front' | 'back'>('front');
   const [showQuickEntry, setShowQuickEntry] = useState(false);
+  // Hole NUMBER a PEN cell asked the quick-entry modal to open at; null =
+  // the modal's own first-incomplete-hole resume logic.
+  const [quickEntryHole, setQuickEntryHole] = useState<number | null>(null);
 
   // Course search
   const [courseSearchOpen, setCourseSearchOpen] = useState(false);
@@ -661,7 +665,10 @@ export default function GolfScorecardForm({ onDataChange }: GolfScorecardFormPro
             <span className="flex items-center gap-3">
               <button
                 type="button"
-                onClick={() => setShowQuickEntry(true)}
+                onClick={() => {
+                  setQuickEntryHole(null); // header entry resumes normally
+                  setShowQuickEntry(true);
+                }}
                 className="bg-white/20 hover:bg-white/30 text-white text-sm font-semibold px-3 py-2 min-h-[40px] rounded-md transition-colors"
               >
                 <i className="fas fa-bolt mr-1"></i>
@@ -969,6 +976,52 @@ export default function GolfScorecardForm({ onDataChange }: GolfScorecardFormPro
                   {stats ? `${stats.greensInRegulation}/${holesData.filter(h => holeCount !== 18 ? true : activeTab === 'front' ? (h.hole ?? 0) <= 9 : (h.hole ?? 0) > 9).length}` : '−'}
                 </td>
               </tr>
+
+              {/* Penalties Row — read-only in the grid; each cell opens the
+                  quick-entry stepper AT that hole, where penalties are edited
+                  (dropdown + count — too much control for a 40px table cell) */}
+              <tr className="bg-surface-muted">
+                <td className="px-2 py-2 text-xs font-bold border border-border-strong text-center bg-surface-sunken text-primary">PEN</td>
+                {holesData
+                  .filter(hole => {
+                    if (holeCount !== 18) return true; // Show all holes for non-18 hole rounds
+                    const holeNum = hole.hole ?? 0;
+                    return activeTab === 'front' ? holeNum <= 9 : holeNum > 9;
+                  })
+                  .map(hole => {
+                    const penCount = totalPenalties(hole.penalties);
+                    return (
+                      <td key={hole.hole} className="px-1 py-2 border border-border-strong text-center">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (typeof hole.hole === 'number') setQuickEntryHole(hole.hole);
+                            setShowQuickEntry(true);
+                          }}
+                          className={`w-full h-8 flex items-center justify-center text-sm rounded font-medium ${
+                            penCount > 0 ? 'text-amber-600 dark:text-amber-400 font-bold' : 'text-faint'
+                          } hover:bg-border transition-colors`}
+                          title={`Edit hole ${hole.hole} in quick entry`}
+                          aria-label={`Hole ${hole.hole}: ${penCount} penalt${penCount === 1 ? 'y' : 'ies'} — edit in quick entry`}
+                        >
+                          {penCount > 0 ? penCount : '−'}
+                        </button>
+                      </td>
+                    );
+                  })}
+                <td className="px-2 py-2 text-sm font-bold border border-border-strong text-center bg-surface-sunken text-primary">
+                  {(() => {
+                    const total = holesData
+                      .filter(h => {
+                        if (holeCount !== 18) return true; // Show all holes for non-18 hole rounds
+                        const holeNum = h.hole ?? 0;
+                        return activeTab === 'front' ? holeNum <= 9 : holeNum > 9;
+                      })
+                      .reduce((sum, h) => sum + totalPenalties(h.penalties), 0);
+                    return total || '−';
+                  })()}
+                </td>
+              </tr>
             </tbody>
           </table>
 
@@ -1110,7 +1163,9 @@ export default function GolfScorecardForm({ onDataChange }: GolfScorecardFormPro
               putts: h.putts ?? null,
               fairway_hit: h.fairway === 'hit' ? true : h.fairway === 'left' || h.fairway === 'right' ? false : null,
               green_in_regulation: h.gir ?? null,
+              penalties: h.penalties ?? null,
             })) as never}
+          initialHole={quickEntryHole ?? undefined}
           onSave={async (scores) => {
             setHolesData(prev => prev.map(hole => {
               const entered = scores.find(sc => sc.hole_number === hole.hole);
@@ -1128,10 +1183,14 @@ export default function GolfScorecardForm({ onDataChange }: GolfScorecardFormPro
                     ? (hole.fairway === 'left' || hole.fairway === 'right' ? hole.fairway : 'left')
                   : hole.fairway,
                 gir: entered.green_in_regulation ?? hole.gir,
+                penalties: entered.penalties ?? null,
               };
             }));
           }}
-          onClose={() => setShowQuickEntry(false)}
+          onClose={() => {
+            setShowQuickEntry(false);
+            setQuickEntryHole(null);
+          }}
         />
       )}
     </div>

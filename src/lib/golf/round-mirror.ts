@@ -22,6 +22,8 @@ export interface MirrorHoleInput {
   putts: number | null;
   fairway_hit: boolean | null;
   green_in_regulation: boolean | null;
+  /** One element per occurrence — vocabulary in ./penalties.ts (migration 078). */
+  penalties?: string[] | null;
 }
 
 /** Pure: map a participant's group scores + round hole_data to golf_holes
@@ -37,6 +39,7 @@ export function buildMirrorHoles(
   putts: number | null;
   fairway_hit: boolean | null;
   green_in_regulation: boolean | null;
+  penalties: string[] | null;
 }> {
   return holeScores.map(h => {
     const course = holeData?.find(c => c.hole === h.hole_number);
@@ -48,6 +51,8 @@ export function buildMirrorHoles(
       putts: h.putts,
       fairway_hit: h.fairway_hit,
       green_in_regulation: h.green_in_regulation,
+      // Already validated at write time; carried, not re-vetted
+      penalties: h.penalties ?? null,
     };
   });
 }
@@ -194,7 +199,7 @@ export async function mirrorCompletedRound(admin: Admin, groupPostId: string): P
             total_score,
             holes_completed,
             hole_scores:golf_hole_scores (
-              hole_number, strokes, putts, fairway_hit, green_in_regulation
+              hole_number, strokes, putts, fairway_hit, green_in_regulation, penalties
             )
           )
         )

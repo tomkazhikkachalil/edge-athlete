@@ -3,6 +3,7 @@
 import { useState, useCallback, memo } from 'react';
 import LazyImage from '@/components/LazyImage';
 import { getInitials, formatDisplayName, formatShortName } from '@/lib/formatters';
+import { totalPenalties } from '@/lib/golf/penalties';
 import { holePar, classifyScore, calcPlayerTotals, SCORE_CELL_FILL } from '@/lib/golf/scoring';
 
 export interface PlayerHoleScore {
@@ -11,6 +12,8 @@ export interface PlayerHoleScore {
   putts?: number;
   fairway_hit?: boolean;
   green_in_regulation?: boolean;
+  /** One element per occurrence — vocabulary in @/lib/golf/penalties (migration 078). */
+  penalties?: string[] | null;
 }
 
 export interface PlayerScoreData {
@@ -316,6 +319,11 @@ function MultiPlayerScorecardGrid({
                                 {holeScore?.fairway_hit && <span className="text-green-600 dark:text-green-400">F</span>}
                                 {holeScore?.green_in_regulation && <span className="text-green-600 dark:text-green-400">G</span>}
                               </>
+                            )}
+                            {totalPenalties(holeScore?.penalties) > 0 && (
+                              <span className="text-amber-600 dark:text-amber-400 font-semibold">
+                                P{totalPenalties(holeScore?.penalties)}
+                              </span>
                             )}
                           </div>
                         )}
