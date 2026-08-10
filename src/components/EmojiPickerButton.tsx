@@ -6,6 +6,7 @@ import dynamic from 'next/dynamic';
 import { Theme } from 'emoji-picker-react';
 import type { EmojiClickData } from 'emoji-picker-react';
 import { useTheme } from '@/lib/use-theme';
+import { placePanel } from '@/lib/panel-placement';
 
 // Lazy-load the picker so it doesn't bloat the initial bundle
 const EmojiPicker = dynamic(() => import('emoji-picker-react'), {
@@ -96,24 +97,29 @@ export default function EmojiPickerButton({
     const panel = panelRef.current;
     if (!trigger || !panel) return;
     const r = trigger.getBoundingClientRect();
-    // Layout- vs visual-viewport correction — see MentionSuggestions:
-    // fixed positioning from raw client rects drifts by the keyboard pan.
+    // RAW client coordinates + visual viewport as BOUNDS only — the
+    // placePanel model (see src/lib/panel-placement.ts for the coordinate
+    // story; adding vv offsets double-counts the keyboard pan).
     const vv = window.visualViewport;
-    const offX = vv?.offsetLeft ?? 0;
-    const offY = vv?.offsetTop ?? 0;
     // While the dynamic picker is still loading the wrapper is ~0 tall —
     // assume full height for that frame so it lands on the correct side;
     // once real content exists, trust the measurement.
     const panelH = panel.offsetHeight >= 100 ? panel.offsetHeight : 420;
-    const left = Math.max(8, Math.min(r.left + offX, window.innerWidth - PANEL_WIDTH_PX - 8));
+    const placed = placePanel({
+      anchorTop: r.top,
+      anchorBottom: r.bottom,
+      anchorLeft: r.left,
+      anchorWidth: r.width,
+      panelH,
+      gap: 8,
+      viewportTop: vv?.offsetTop ?? 0,
+      viewportHeight: vv?.height ?? window.innerHeight,
+      layoutViewportHeight: window.innerHeight,
+    });
+    const left = Math.max(8, Math.min(placed.left, window.innerWidth - PANEL_WIDTH_PX - 8));
     panel.style.left = `${left}px`;
-    if (r.top >= panelH + 12) {
-      panel.style.bottom = `${window.innerHeight - (r.top + offY) + 8}px`;
-      panel.style.top = 'auto';
-    } else {
-      panel.style.top = `${r.bottom + offY + 8}px`;
-      panel.style.bottom = 'auto';
-    }
+    panel.style.top = placed.top !== undefined ? `${placed.top}px` : 'auto';
+    panel.style.bottom = placed.bottom !== undefined ? `${placed.bottom}px` : 'auto';
   };
 
   // No dependency array on purpose: the dynamic picker mounts a frame after
@@ -132,13 +138,22 @@ export default function EmojiPickerButton({
       cancelAnimationFrame(raf);
       raf = requestAnimationFrame(reposition);
     };
+    // visualViewport listeners: inside the scroll-locked post modal the iOS
+    // keyboard PANS the visual viewport — neither window scroll nor resize
+    // fires for that.
+    const vv = window.visualViewport;
     window.addEventListener('scroll', onScroll, { capture: true, passive: true });
     window.addEventListener('resize', onScroll);
+    vv?.addEventListener('scroll', onScroll);
+    vv?.addEventListener('resize', onScroll);
     return () => {
       cancelAnimationFrame(raf);
       window.removeEventListener('scroll', onScroll, { capture: true });
       window.removeEventListener('resize', onScroll);
+      vv?.removeEventListener('scroll', onScroll);
+      vv?.removeEventListener('resize', onScroll);
     };
+     
   }, [portal, open]);
 
   const handleEmojiClick = (data: EmojiClickData) => {
