@@ -87,36 +87,52 @@ export default function EmojiPickerButton({
     };
   }, [open]);
 
-  // Portal mode: position above the trigger before paint (clamped to the
-  // viewport), close on any scroll instead of visually detaching.
-  useLayoutEffect(() => {
-    if (!portal || !open) return;
+  // Portal mode positioning: prefer ABOVE the trigger, FLIP BELOW when the
+  // panel wouldn't fit — it must never leave the viewport (an off-screen
+  // panel + the picker's search autofocus caused a wild page-scroll jump
+  // when the trigger sat near the viewport top). Horizontal stays clamped.
+  const reposition = () => {
     const trigger = containerRef.current;
     const panel = panelRef.current;
     if (!trigger || !panel) return;
     const r = trigger.getBoundingClientRect();
+    // While the dynamic picker is still loading the wrapper is ~0 tall —
+    // assume full height for that frame so it lands on the correct side;
+    // once real content exists, trust the measurement.
+    const panelH = panel.offsetHeight >= 100 ? panel.offsetHeight : 420;
     const left = Math.max(8, Math.min(r.left, window.innerWidth - PANEL_WIDTH_PX - 8));
     panel.style.left = `${left}px`;
-    panel.style.bottom = `${window.innerHeight - r.top + 8}px`;
-  }, [portal, open]);
+    if (r.top >= panelH + 12) {
+      panel.style.bottom = `${window.innerHeight - r.top + 8}px`;
+      panel.style.top = 'auto';
+    } else {
+      panel.style.top = `${r.bottom + 8}px`;
+      panel.style.bottom = 'auto';
+    }
+  };
 
+  // No dependency array on purpose: the dynamic picker mounts a frame after
+  // the wrapper (its height goes 0 → ~450), and each render re-measures.
+  useLayoutEffect(() => {
+    if (portal && open) reposition();
+  });
+
+  // Scrolling REPOSITIONS the panel — it never closes it. Phones fire
+  // stray scroll events (address bar, keyboard settle) with no user
+  // intent; close-on-scroll read as "it closes itself". rAF-coalesced.
   useEffect(() => {
     if (!portal || !open) return;
-    // capture:true sees scrolls from EVERY scroller — including the panel's
-    // own internal list, which fires on mount. Only outside scrolls close.
-    const onScroll = (e: Event) => {
-      if (panelRef.current?.contains(e.target as Node)) return;
-      setOpen(false);
+    let raf = 0;
+    const onScroll = () => {
+      cancelAnimationFrame(raf);
+      raf = requestAnimationFrame(reposition);
     };
-    // Grace before arming: the open-click's own auto-scroll can deliver a
-    // trailing scroll event a few ms after mount and instantly close the
-    // panel (observed at +11ms).
-    const t = setTimeout(() => {
-      window.addEventListener('scroll', onScroll, { capture: true, passive: true });
-    }, 150);
+    window.addEventListener('scroll', onScroll, { capture: true, passive: true });
+    window.addEventListener('resize', onScroll);
     return () => {
-      clearTimeout(t);
+      cancelAnimationFrame(raf);
       window.removeEventListener('scroll', onScroll, { capture: true });
+      window.removeEventListener('resize', onScroll);
     };
   }, [portal, open]);
 
@@ -133,6 +149,10 @@ export default function EmojiPickerButton({
       height={350}
       width={`min(${PANEL_WIDTH_PX}px, calc(100vw - 2rem))`}
       searchPlaceholder="Search emoji…"
+      // No search autofocus: it popped the mobile keyboard over the panel,
+      // and focusing during the portal's first (pre-measure) frame made the
+      // browser scroll the page chasing a transiently off-screen element.
+      autoFocusSearch={false}
     />
   );
 
@@ -159,7 +179,7 @@ export default function EmojiPickerButton({
       )}
       {open && portal &&
         createPortal(
-          <div ref={panelRef} style={{ position: 'fixed' }} className="z-[70]">
+          <div ref={panelRef} style={{ position: 'fixed' }} className="z-[70] ea-dropdown-in">
             {panel}
           </div>,
           document.body
