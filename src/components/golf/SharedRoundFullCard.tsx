@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from 'react';
 import { formatDisplayName, getInitials } from '@/lib/formatters';
+import { totalPenalties, formatPenaltySummary } from '@/lib/golf/penalties';
 import { classifyScore, SCORE_CELL_RING, holePar, bestHoleFor, placements, ordinalLabel } from '@/lib/golf/scoring';
 import { pickOverviewMedia } from '@/lib/media/hero';
 import { isRoundLive, isActiveParticipant, effectiveRoundStatus } from '@/lib/golf/round-status';
@@ -342,6 +343,12 @@ export default function SharedRoundFullCard({
                       return sum + (hole?.strokes || 0);
                     }, 0);
 
+                    // Penalty total across these holes (0 renders nothing)
+                    const penaltyTotal = holeNumbers.reduce(
+                      (sum, holeNum) => sum + totalPenalties(holeScoresMap.get(holeNum)?.penalties),
+                      0
+                    );
+
                     const isCurrentUser = participant.profile_id === currentUserId;
 
                     return (
@@ -389,13 +396,23 @@ export default function SharedRoundFullCard({
                           const textColor = cellStyle.text;
                           const border = cellStyle.ring;
 
+                          const penCount = totalPenalties(hole.penalties);
+
                           return (
                             <td key={holeNum} className="text-center py-2 px-1">
                               {/* SEMANTIC COLOUR — DO NOT NEUTRALISE. SCORE_CELL_RING
                             encodes eagle/birdie/bogey/double against par; this is
                             the scorecard's at-a-glance read, not decoration. */}
-                        <div className={`${textColor} ${border} bg-surface rounded mx-auto w-7 h-7 flex items-center justify-center text-sm`}>
+                        <div
+                          className={`relative ${textColor} ${border} bg-surface rounded mx-auto w-7 h-7 flex items-center justify-center text-sm`}
+                          title={penCount > 0 ? formatPenaltySummary(hole.penalties) : undefined}
+                        >
                                 {hole.strokes}
+                                {penCount > 0 && (
+                                  <span className="absolute -top-1 -right-1 text-[10px] text-amber-600 dark:text-amber-400 font-bold">
+                                    {penCount}
+                                  </span>
+                                )}
                               </div>
                             </td>
                           );
@@ -405,6 +422,9 @@ export default function SharedRoundFullCard({
                           <span className="font-black text-violet-900 dark:text-violet-200 text-base">
                             {subtotal || '-'}
                           </span>
+                          {penaltyTotal > 0 && (
+                            <div className="text-xs text-tertiary">{penaltyTotal} pen</div>
+                          )}
                         </td>
                       </tr>
                     );
@@ -933,6 +953,12 @@ export default function SharedRoundFullCard({
                 <div className="flex items-center gap-1">
                   <div className="w-5 h-5 rounded ring-2 ring-red-500 ring-inset bg-surface"></div>
                   <span>Double+ (+2)</span>
+                </div>
+                <div className="flex items-center gap-1">
+                  <div className="relative w-5 h-5 rounded border border-border bg-surface">
+                    <span className="absolute -top-1 -right-1 text-[10px] text-amber-600 dark:text-amber-400 font-bold">2</span>
+                  </div>
+                  <span>Penalty count (hover a score for the breakdown)</span>
                 </div>
               </div>
             </div>

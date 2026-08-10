@@ -1,4 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { sanitizePenalties } from './penalties';
 
 /**
  * Golf's post-creation write path — moved intact from api/posts/route.ts so
@@ -14,6 +15,8 @@ export interface GolfHoleInput {
   putts?: number;
   fairway?: string;
   gir?: boolean;
+  /** One element per occurrence — vocabulary in ./penalties.ts (migration 078). */
+  penalties?: string[] | null;
   notes?: string;
 }
 
@@ -51,6 +54,8 @@ export function buildHoleRecords(holesData: GolfHoleInput[], roundId: string) {
       putts: hole.putts,
       fairway_hit: hole.fairway === 'hit' ? true : hole.fairway === 'na' ? null : false,
       green_in_regulation: hole.gir || false,
+      // Lenient: unknown types drop rather than failing the whole post
+      penalties: sanitizePenalties(hole.penalties),
       notes: hole.notes || null,
     }));
 }

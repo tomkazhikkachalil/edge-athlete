@@ -1,5 +1,40 @@
 # Development Log
 
+## August 10, 2026 — Golf round polish: one form vocabulary + per-hole penalties
+
+Tom's device feedback after the cleanup round: solo vs shared round inputs
+looked unrelated to each other and to the app, and he wants penalties
+(drops, OB, re-tee…) captured per hole and shown in the live round — with
+feed post rendering explicitly frozen.
+
+**PR-1 (#119) — golf form restyle. SHIPPED + deployed.** One vocabulary
+(`src/components/golf/golf-form-styles.ts`) applied to BOTH composer paths
+(they were two separate implementations with six label treatments); every
+per-control focus ring removed — the app-wide violet `:focus-visible` ring
+owns focus (the globals.css rule golf had been breaking with green rings);
+~31 raw grays tokenized; the scorecard legend rebuilt on tokens (was
+light-only, unreadable in dark). Semantic score colors + golf-green accents
+deliberately untouched.
+
+**PR-2 — per-hole penalties + migration 078 (⚠️ RUN 078 FIRST, THEN
+DEPLOY — the 074/075/077 direction; the new app both writes and selects
+`penalties`).** Nullable `penalties TEXT[]` on golf_holes AND
+golf_hole_scores, one element per occurrence (['out_of_bounds','drop',
+'drop'] = OB ×1 + Drop ×2); vocabulary + strict/lenient validators +
+aggregation in `src/lib/golf/penalties.ts` (no DB CHECK — house rule).
+Entry: dropdown + count + Add in the scorer's Optional Stats (serves live
+scoring AND solo quick-entry), removable per-type tags, amber count badges
+on the hole jumper; solo grid gets a read-only PEN row whose cells open
+quick entry at that hole (new `initialHole` prop). Drafts carry penalties
+(ScoreDraft.v 1→2 — old drafts discarded by design). Write paths: live
+scores route (strict validate → 400), bulk participant-scores (lenient),
+buildHoleRecords, round-mirror. Live display: GROUP_SCORECARD_SELECT gains
+the column; SharedRoundFullCard cells get amber badges + per-player pen
+totals + a legend entry; MultiPlayerScorecardGrid shows P{n} in stats
+mode. Stats RPCs untouched (strokes already include penalty strokes).
+FEED UNTOUCHED by design: post-read.ts, post-stat-highlights, GolfRoundCard
+and the two inline selects were verified unmodified. 13 new node tests.
+
 ## August 10, 2026 — Sport-settings cleanup, PRs A + B (migrations 076 + 077)
 
 The five-phase cleanup round (full Tier 1–3 scope, Tom's call; Tier 3 is

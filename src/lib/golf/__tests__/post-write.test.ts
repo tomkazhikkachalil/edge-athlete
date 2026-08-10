@@ -37,4 +37,18 @@ describe('buildHoleRecords', () => {
     expect(row.green_in_regulation).toBe(false);
     expect(row.notes).toBeNull();
   });
+
+  it('penalties pass through sanitized; unknown types drop; absent → null', () => {
+    const [withPenalties, mixed, absent] = buildHoleRecords(
+      [
+        { hole: 1, par: 4, score: 6, penalties: ['out_of_bounds', 'drop', 'drop'] },
+        { hole: 2, par: 4, score: 5, penalties: ['water', 'not_a_penalty'] },
+        { hole: 3, par: 4, score: 4 },
+      ],
+      'r-1'
+    );
+    expect(withPenalties.penalties).toEqual(['out_of_bounds', 'drop', 'drop']);
+    expect(mixed.penalties).toEqual(['water']); // lenient path drops, never throws
+    expect(absent.penalties).toBeNull();
+  });
 });

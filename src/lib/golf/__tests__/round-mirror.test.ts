@@ -31,7 +31,20 @@ describe('buildMirrorHoles', () => {
     expect(rows[0]).toEqual({
       hole_number: 3, par: 4, distance_yards: null,
       strokes: 5, putts: 2, fairway_hit: true, green_in_regulation: false,
+      penalties: null,
     });
+  });
+
+  it('carries penalties from hole_scores into the mirrored rows (absent → null)', () => {
+    const rows = buildMirrorHoles(
+      [
+        { ...hole(1, 7), penalties: ['out_of_bounds', 'drop'] },
+        hole(2, 4), // no penalties key at all (pre-078 row shape)
+      ],
+      null
+    );
+    expect(rows[0].penalties).toEqual(['out_of_bounds', 'drop']);
+    expect(rows[1].penalties).toBeNull();
   });
 });
 

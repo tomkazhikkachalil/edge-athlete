@@ -34,10 +34,13 @@ export interface DraftHole {
   putts: number | null;
   fairway_hit: boolean | null;
   green_in_regulation: boolean | null;
+  /** One element per occurrence — vocabulary in src/lib/golf/penalties.ts. */
+  penalties: string[] | null;
 }
 
 export interface ScoreDraft {
-  v: 1;
+  /** v2 added penalties; v1 drafts are silently discarded (intended). */
+  v: 2;
   participantId: string;
   savedAt: number;
   /** Keyed by hole_number (stable across sessions, unlike modal positions). */
@@ -49,6 +52,8 @@ export interface ScoreDraft {
 export const DRAFT_TTL_MS = 48 * 60 * 60 * 1000;
 
 export function draftKey(participantId: string): string {
+  // The `v1` here is the STORAGE-KEY namespace, not ScoreDraft.v — it stays
+  // put across payload version bumps so old keys are overwritten, not orphaned.
   return `ea:golf-draft:v1:${participantId}`;
 }
 
@@ -75,7 +80,7 @@ export function parseDraft(
   try {
     const d = JSON.parse(raw) as ScoreDraft;
     if (
-      !d || d.v !== 1 ||
+      !d || d.v !== 2 ||
       d.participantId !== participantId ||
       typeof d.savedAt !== 'number' ||
       now - d.savedAt > DRAFT_TTL_MS ||
@@ -109,11 +114,14 @@ export function mergeDraftIntoHoles<T extends { hole_number: number | null } & D
     if (h.hole_number === null) return h;
     const d = draft.holes[h.hole_number];
     if (!d || onServer.has(h.hole_number)) return h;
-    if (d.strokes === null && d.putts === null && d.fairway_hit === null && d.green_in_regulation === null) {
+    if (
+      d.strokes === null && d.putts === null && d.fairway_hit === null && d.green_in_regulation === null &&
+      (d.penalties === null || d.penalties.length === 0)
+    ) {
       return h;
     }
     restored.push(h.hole_number);
-    return { ...h, strokes: d.strokes, putts: d.putts, fairway_hit: d.fairway_hit, green_in_regulation: d.green_in_regulation };
+    return { ...h, strokes: d.strokes, putts: d.putts, fairway_hit: d.fairway_hit, green_in_regulation: d.green_in_regulation, penalties: d.penalties ?? null };
   });
   return { holes: merged, restored };
 }
@@ -154,7 +162,7 @@ export function writeDraft(
       s.removeItem(draftKey(participantId));
       return;
     }
-    const draft: ScoreDraft = { v: 1, participantId, savedAt: now, holes };
+    const draft: ScoreDraft = { v: 2, participantId, savedAt: now, holes };
     s.setItem(draftKey(participantId), JSON.stringify(draft));
   } catch { /* best-effort */ }
 }

@@ -14,6 +14,14 @@ import {
   type DraftHole,
 } from '@/lib/golf/score-entry';
 import { useBodyScrollLock } from '@/hooks/useBodyScrollLock';
+import {
+  PENALTY_TYPES,
+  PENALTY_LABELS,
+  isPenaltyType,
+  aggregatePenalties,
+  totalPenalties,
+} from '@/lib/golf/penalties';
+import { GOLF_LABEL, GOLF_SELECT, GOLF_INPUT_COMPACT } from '@/components/golf/golf-form-styles';
 import type { GolfHoleScore } from '@/types/group-posts';
 import type { HoleData } from '@/types/golf';
 import { MediaEditor } from '@/components/media-editor';
@@ -56,12 +64,17 @@ interface ScoreEntryModalProps {
    *  scores for another player, so it's unmistakable whose card is open. */
   playerName?: string;
   existingScores?: GolfHoleScore[];
+  /** Open at this HOLE NUMBER instead of the first incomplete hole (solo
+   *  grid's PEN cells jump straight to the tapped hole). Out-of-range values
+   *  fall back to the default resume logic. */
+  initialHole?: number;
   onSave: (scores: Array<{
     hole_number: number;
     strokes: number;
     putts?: number;
     fairway_hit?: boolean;
     green_in_regulation?: boolean;
+    penalties?: string[] | null;
   }>) => Promise<void>;
   // LIVE mode: when provided, each hole is persisted as you advance (rather
   // than all-at-once via onSave), so co-players watching the round see your
@@ -72,6 +85,7 @@ interface ScoreEntryModalProps {
     putts?: number;
     fairway_hit?: boolean;
     green_in_regulation?: boolean;
+    penalties?: string[] | null;
   }) => Promise<void>;
   onClose: () => void;
 }
@@ -88,6 +102,7 @@ export default function ScoreEntryModal({
   uploaderId,
   playerName,
   existingScores = [],
+  initialHole,
   onSave,
   onSaveHole,
   onClose
@@ -111,6 +126,7 @@ export default function ScoreEntryModal({
         putts: existing?.putts ?? null,
         fairway_hit: existing?.fairway_hit ?? null,
         green_in_regulation: existing?.green_in_regulation ?? null,
+        penalties: existing?.penalties ?? null,
         // Real course par when the round carries hole_data; par-4 fallback
         // otherwise. Keyed by HOLE NUMBER (not position — back-9 rounds
         // start at 10).
@@ -126,15 +142,20 @@ export default function ScoreEntryModal({
     // server, so the next advance persists them. Sets are keyed by POSITION
     // (1..holesPlayed), matching currentHole; convert from hole numbers.
     const toPos = (holeNumber: number) => holeNumber - startingHoleNumber + 1;
+    // A caller-requested hole (solo grid PEN cell) overrides the resume
+    // logic; out-of-range requests fall through to the default.
+    const requestedPos = initialHole != null ? toPos(initialHole) : null;
     return {
       holes: holes as HoleData[],
       dirty: new Set(restored.map(toPos)),
       // Resume at the first hole with no strokes AFTER the draft merge
-      start: firstUnscoredHole(
-        holes.filter(h => h.strokes !== null && h.hole_number !== null) as Array<{ hole_number: number }>,
-        holesPlayed,
-        startingHoleNumber
-      ),
+      start: requestedPos != null && requestedPos >= 1 && requestedPos <= holesPlayed
+        ? requestedPos
+        : firstUnscoredHole(
+            holes.filter(h => h.strokes !== null && h.hole_number !== null) as Array<{ hole_number: number }>,
+            holesPlayed,
+            startingHoleNumber
+          ),
     };
   });
 
@@ -187,6 +208,7 @@ export default function ScoreEntryModal({
               putts: hole.putts ?? undefined,
               fairway_hit: hole.fairway_hit ?? undefined,
               green_in_regulation: hole.green_in_regulation ?? undefined,
+              penalties: hole.penalties?.length ? hole.penalties : undefined,
             }],
           }),
         }).catch(() => { /* page is going away — nothing to do */ });
@@ -204,7 +226,7 @@ export default function ScoreEntryModal({
     };
   }, [isLive, participantId]);
 
-  const updateCurrentHole = (field: keyof HoleData, value: number | boolean | null) => {
+  const updateCurrentHole = (field: keyof HoleData, value: number | boolean | string[] | null) => {
     const next = holeData.map((h, idx) =>
       idx === currentHole - 1 ? { ...h, [field]: value } : h
     );
@@ -224,6 +246,7 @@ export default function ScoreEntryModal({
           putts: h.putts ?? null,
           fairway_hit: h.fairway_hit ?? null,
           green_in_regulation: h.green_in_regulation ?? null,
+          penalties: h.penalties ?? null,
         };
       }
     }
@@ -236,6 +259,30 @@ export default function ScoreEntryModal({
 
   const handlePuttClick = (putts: number) => {
     updateCurrentHole('putts', putts);
+  };
+
+  // Penalty entry: pick a type + how many times it happened; Add appends that
+  // many occurrences (the storage model is one array element per occurrence —
+  // see src/lib/golf/penalties.ts). The × on a row removes ALL occurrences of
+  // that type. Capped at 20 per hole, matching validatePenalties server-side.
+  const [penaltyType, setPenaltyType] = useState('');
+  const [penaltyCount, setPenaltyCount] = useState(1);
+
+  const handleAddPenalty = () => {
+    if (!isPenaltyType(penaltyType)) return;
+    const count = Math.min(9, Math.max(1, Math.floor(penaltyCount) || 1));
+    const next = [
+      ...(currentHoleData.penalties ?? []),
+      ...Array.from({ length: count }, () => penaltyType),
+    ].slice(0, 20);
+    updateCurrentHole('penalties', next);
+    setPenaltyType('');
+    setPenaltyCount(1);
+  };
+
+  const handleRemovePenalty = (type: string) => {
+    const remaining = (currentHoleData.penalties ?? []).filter(p => p !== type);
+    updateCurrentHole('penalties', remaining.length > 0 ? remaining : null);
   };
 
   // Live mode: persist a single hole (if it has a score and is dirty).
@@ -255,6 +302,7 @@ export default function ScoreEntryModal({
         putts: hole.putts ?? undefined,
         fairway_hit: hole.fairway_hit ?? undefined,
         green_in_regulation: hole.green_in_regulation ?? undefined,
+        penalties: hole.penalties?.length ? hole.penalties : undefined,
       });
       setSavedHoles(prev => new Set(prev).add(holeNum));
       setDirtyHoles(prev => { const n = new Set(prev); n.delete(holeNum); return n; });
@@ -431,6 +479,7 @@ export default function ScoreEntryModal({
           putts: h.putts ?? undefined,
           fairway_hit: h.fairway_hit ?? undefined,
           green_in_regulation: h.green_in_regulation ?? undefined,
+          penalties: h.penalties?.length ? h.penalties : undefined,
         }));
 
       await onSave(scores);
@@ -642,6 +691,68 @@ export default function ScoreEntryModal({
                 GIR
               </button>
             </div>
+
+            {/* Penalties — type + count entry; rows below aggregate per type */}
+            <div className="mt-4">
+              <label className={GOLF_LABEL} htmlFor="penalty-type-select">Penalties</label>
+              <div className="flex items-center gap-2">
+                <select
+                  id="penalty-type-select"
+                  value={penaltyType}
+                  onChange={e => setPenaltyType(e.target.value)}
+                  className={GOLF_SELECT}
+                >
+                  <option value="">Add penalty…</option>
+                  {PENALTY_TYPES.map(type => (
+                    <option key={type} value={type}>{PENALTY_LABELS[type]}</option>
+                  ))}
+                </select>
+                {/* w-16 wrapper (not on the input): GOLF_INPUT_COMPACT carries
+                    w-full, and utility precedence comes from stylesheet order,
+                    so a sibling w-16 on the input can't reliably win. */}
+                <div className="w-16 shrink-0">
+                  <input
+                    type="number"
+                    min={1}
+                    max={9}
+                    value={penaltyCount}
+                    onChange={e => setPenaltyCount(e.target.value ? Number(e.target.value) : 1)}
+                    className={GOLF_INPUT_COMPACT}
+                    aria-label="How many times"
+                  />
+                </div>
+                <button
+                  onClick={handleAddPenalty}
+                  disabled={!isPenaltyType(penaltyType)}
+                  className="shrink-0 py-2 px-3 min-h-[40px] rounded-lg text-sm font-semibold bg-surface-sunken text-secondary hover:bg-border transition-colors disabled:opacity-50"
+                >
+                  <i className="fas fa-plus mr-1"></i>
+                  Add
+                </button>
+              </div>
+              {(currentHoleData.penalties?.length ?? 0) > 0 && (
+                <div className="mt-2 space-y-1.5">
+                  {aggregatePenalties(currentHoleData.penalties).map(({ type, count }) => (
+                    <div
+                      key={type}
+                      className="flex items-center justify-between bg-surface-sunken rounded-lg px-3 py-1.5 text-sm text-primary"
+                    >
+                      <span>
+                        {PENALTY_LABELS[type]}
+                        {count > 1 && <span className="text-tertiary font-semibold"> ×{count}</span>}
+                      </span>
+                      <button
+                        onClick={() => handleRemovePenalty(type)}
+                        className="-my-1.5 -mr-3 min-w-[44px] min-h-[44px] flex items-center justify-center text-tertiary hover:text-primary"
+                        aria-label={`Remove ${PENALTY_LABELS[type]} penalties`}
+                      >
+                        <i className="fas fa-times"></i>
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
 
           {/* Hole photo/video (live rounds) */}
@@ -730,6 +841,13 @@ export default function ScoreEntryModal({
                     {isSaved && !isCurrent && (
                       <span className="absolute -top-1 -right-1 w-3 h-3 bg-green-500 rounded-full flex items-center justify-center">
                         <i className="fas fa-check text-white" style={{ fontSize: '7px' }}></i>
+                      </span>
+                    )}
+                    {/* Penalty count — top-LEFT corner (the saved check owns
+                        the right one) */}
+                    {totalPenalties(hole.penalties) > 0 && (
+                      <span className="absolute -top-1 -left-1 text-[10px] text-amber-600 dark:text-amber-400 font-bold">
+                        {totalPenalties(hole.penalties)}
                       </span>
                     )}
                   </button>

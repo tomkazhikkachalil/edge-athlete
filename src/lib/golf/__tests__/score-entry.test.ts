@@ -50,9 +50,9 @@ describe('firstUnscoredHole', () => {
 
 const NOW = 1_800_000_000_000;
 const draftHole = (strokes: number | null): DraftHole =>
-  ({ strokes, putts: null, fairway_hit: null, green_in_regulation: null });
+  ({ strokes, putts: null, fairway_hit: null, green_in_regulation: null, penalties: null });
 const validDraft = (over: Partial<ScoreDraft> = {}): string => JSON.stringify({
-  v: 1,
+  v: 2,
   participantId: 'p1',
   savedAt: NOW - 1000,
   holes: { 7: draftHole(5) },
@@ -69,8 +69,12 @@ describe('parseDraft', () => {
     expect(parseDraft(null, 'p1', NOW)).toBeNull();
     expect(parseDraft('not json{', 'p1', NOW)).toBeNull();
     expect(parseDraft('"a string"', 'p1', NOW)).toBeNull();
-    expect(parseDraft(JSON.stringify({ v: 2 }), 'p1', NOW)).toBeNull();
+    expect(parseDraft(JSON.stringify({ v: 3 }), 'p1', NOW)).toBeNull();
     expect(parseDraft(validDraft({ holes: [1, 2] as unknown as ScoreDraft['holes'] }), 'p1', NOW)).toBeNull();
+  });
+
+  it('rejects a pre-penalties v1 draft (silently discarded — intended)', () => {
+    expect(parseDraft(validDraft({ v: 1 } as unknown as Partial<ScoreDraft>), 'p1', NOW)).toBeNull();
   });
 
   it('rejects another participant\'s draft', () => {
@@ -91,10 +95,10 @@ describe('parseDraft', () => {
 
 describe('mergeDraftIntoHoles', () => {
   const hole = (hole_number: number | null, strokes: number | null = null) => ({
-    hole_number, strokes, putts: null, fairway_hit: null, green_in_regulation: null,
+    hole_number, strokes, putts: null, fairway_hit: null, green_in_regulation: null, penalties: null,
   });
   const draft = (holes: Record<number, DraftHole>): ScoreDraft =>
-    ({ v: 1, participantId: 'p1', savedAt: NOW, holes });
+    ({ v: 2, participantId: 'p1', savedAt: NOW, holes });
 
   it('restores a draft hole the server does not have', () => {
     const { holes, restored } = mergeDraftIntoHoles(
@@ -127,9 +131,20 @@ describe('mergeDraftIntoHoles', () => {
   });
 
   it('restores putts-only input (partial hole worth protecting)', () => {
-    const d = draft({ 4: { strokes: null, putts: 2, fairway_hit: null, green_in_regulation: null } });
+    const d = draft({ 4: { strokes: null, putts: 2, fairway_hit: null, green_in_regulation: null, penalties: null } });
     const { holes, restored } = mergeDraftIntoHoles([hole(4)], d, []);
     expect(holes[0].putts).toBe(2);
     expect(restored).toEqual([4]);
+  });
+
+  it('carries penalties through the merge (and restores a penalties-only hole)', () => {
+    const withPenalties = draft({
+      5: { ...draftHole(6), penalties: ['out_of_bounds', 'drop', 'drop'] },
+      6: { ...draftHole(null), penalties: ['water'] }, // penalties-only partial input
+    });
+    const { holes, restored } = mergeDraftIntoHoles([hole(5), hole(6)], withPenalties, []);
+    expect(holes[0].penalties).toEqual(['out_of_bounds', 'drop', 'drop']);
+    expect(holes[1].penalties).toEqual(['water']);
+    expect(restored).toEqual([5, 6]);
   });
 });
