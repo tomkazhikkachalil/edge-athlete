@@ -2,9 +2,11 @@
 
 import { useState, useCallback, memo } from 'react';
 import LazyImage from '@/components/LazyImage';
+import ScoreEntryModal from '@/components/golf/ScoreEntryModal';
 import { getInitials, formatDisplayName, formatShortName } from '@/lib/formatters';
 import { totalPenalties } from '@/lib/golf/penalties';
 import { holePar, classifyScore, calcPlayerTotals, SCORE_CELL_FILL } from '@/lib/golf/scoring';
+import type { GolfHoleScore } from '@/types/group-posts';
 
 export interface PlayerHoleScore {
   hole_number: number;
@@ -38,6 +40,14 @@ interface MultiPlayerScorecardGridProps {
   showDetailedStats?: boolean; // Show FIR, GIR, putts columns
   onScoreChange?: (playerId: string, holeNum: number, data: Partial<PlayerHoleScore>) => void;
   holeData?: { hole: number; par: number; yardage?: number }[]; // Par and yardage per hole
+  /** First hole number (10 for back-9 solo rounds). Defaults to 1. */
+  startingHoleNumber?: number;
+  /** Course name forwarded to the quick-entry stepper's context line. */
+  courseName?: string | null;
+  /** Increment to open the quick-entry stepper in resume mode for the first
+   *  player — the seam the solo form's header "Quick entry" button uses.
+   *  Requires editable + onScoreChange. */
+  quickEntryRequest?: number;
 }
 
 function MultiPlayerScorecardGrid({
@@ -47,10 +57,34 @@ function MultiPlayerScorecardGrid({
   editable,
   showDetailedStats = false,
   onScoreChange,
-  holeData
+  holeData,
+  startingHoleNumber = 1,
+  courseName = null,
+  quickEntryRequest = 0
 }: MultiPlayerScorecardGridProps) {
   const [showStats, setShowStats] = useState(showDetailedStats);
   const [activeTab, setActiveTab] = useState<'front9' | 'back9'>('front9');
+
+  // Quick-entry stepper session: which player's card is open, at which hole
+  // (null = the modal's own first-incomplete-hole resume logic), and whether
+  // a penalty badge asked for the Penalties block to be scrolled into view.
+  const [entrySession, setEntrySession] = useState<{
+    playerId: string;
+    hole: number | null;
+    focusPenalties: boolean;
+  } | null>(null);
+
+  // The solo form's header "Quick entry" button lifts its request in via a
+  // counter prop; render-phase sync (repo convention — see GolfScorecardForm)
+  // so the modal mounts on the same paint. Seeded with the current value, so
+  // nothing opens on mount.
+  const [seenQuickEntryRequest, setSeenQuickEntryRequest] = useState(quickEntryRequest);
+  if (quickEntryRequest !== seenQuickEntryRequest) {
+    setSeenQuickEntryRequest(quickEntryRequest);
+    if (editable && onScoreChange && players.length > 0) {
+      setEntrySession({ playerId: players[0].participant_id, hole: null, focusPenalties: false });
+    }
+  }
 
   // Par lookup — shared domain logic (lib/golf/scoring)
   const getHolePar = useCallback(
@@ -83,8 +117,8 @@ function MultiPlayerScorecardGrid({
     onScoreChange(playerId, holeNum, { [field]: parsedValue });
   };
 
-  // Generate hole numbers array
-  const allHoleNumbers = Array.from({ length: holes }, (_, i) => i + 1);
+  // Generate hole numbers array (back-9 solo rounds start at 10)
+  const allHoleNumbers = Array.from({ length: holes }, (_, i) => startingHoleNumber + i);
   const front9Holes = allHoleNumbers.filter(h => h <= 9);
   const back9Holes = allHoleNumbers.filter(h => h > 9);
   const is18Holes = holes === 18;
@@ -173,14 +207,25 @@ function MultiPlayerScorecardGrid({
                 <th className="sticky left-0 z-10 bg-brand-soft px-2 sm:px-4 py-2 text-left text-xs font-semibold text-primary uppercase tracking-wider border-r border-border-strong">
                   Par
                 </th>
-                {displayHoles.map(holeNum => (
-                  <th
-                    key={holeNum}
-                    className="px-3 py-2 text-center text-sm font-semibold text-primary border-r border-border"
-                  >
-                    {getHolePar(holeNum)}
-                  </th>
-                ))}
+                {displayHoles.map(holeNum => {
+                  const par = getHolePar(holeNum);
+                  return (
+                    <th
+                      key={holeNum}
+                      // Par color-coding carried over from the solo scorecard:
+                      // par 3 red, par 5 yellow, par 4 keeps the row's brand-soft
+                      className={`px-3 py-2 text-center text-sm font-semibold text-primary border-r border-border ${
+                        par === 3
+                          ? 'bg-red-100 dark:bg-red-950/60'
+                          : par === 5
+                            ? 'bg-yellow-100 dark:bg-yellow-950/60'
+                            : ''
+                      }`}
+                    >
+                      {par}
+                    </th>
+                  );
+                })}
                 {is18Holes && (
                   <th className="px-4 py-2 text-center text-sm font-semibold text-primary bg-violet-100 dark:bg-violet-950/60 border-l border-border-strong">
                     {displayHoles.reduce((sum, h) => sum + getHolePar(h), 0)}
@@ -290,20 +335,29 @@ function MultiPlayerScorecardGrid({
                           </div>
                         )}
 
-                        {/* Detailed Stats (if enabled) */}
-                        {showStats && holeNum !== 3 && ( // Par 3s don't have fairways
+                        {/* Detailed Stats (if enabled). Only the FAIRWAY stat
+                            is par-gated (par 3s have no fairway — the solo
+                            grid's • placeholder). GIR and penalties render for
+                            EVERY hole: the old gate compared the HOLE NUMBER
+                            to 3, hiding all three stats on every course's
+                            hole 3 and showing a fairway on par-3s elsewhere. */}
+                        {showStats && (
                           <div className="mt-1 flex items-center justify-center gap-1 text-xs">
                             {editable ? (
                               <>
-                                <label className="flex items-center gap-0.5 cursor-pointer">
-                                  <input
-                                    type="checkbox"
-                                    checked={holeScore?.fairway_hit || false}
-                                    onChange={(e) => handleScoreChange(player.participant_id, holeNum, 'fairway_hit', e.target.checked)}
-                                    className="w-5 h-5 text-green-600 dark:text-green-400 rounded"
-                                  />
-                                  <span className="text-tertiary">F</span>
-                                </label>
+                                {getHolePar(holeNum) !== 3 ? (
+                                  <label className="flex items-center gap-0.5 cursor-pointer">
+                                    <input
+                                      type="checkbox"
+                                      checked={holeScore?.fairway_hit || false}
+                                      onChange={(e) => handleScoreChange(player.participant_id, holeNum, 'fairway_hit', e.target.checked)}
+                                      className="w-5 h-5 text-green-600 dark:text-green-400 rounded"
+                                    />
+                                    <span className="text-tertiary">F</span>
+                                  </label>
+                                ) : (
+                                  <span className="text-tertiary font-bold" aria-hidden="true">•</span>
+                                )}
                                 <label className="flex items-center gap-0.5 cursor-pointer">
                                   <input
                                     type="checkbox"
@@ -316,14 +370,38 @@ function MultiPlayerScorecardGrid({
                               </>
                             ) : (
                               <>
-                                {holeScore?.fairway_hit && <span className="text-green-600 dark:text-green-400">F</span>}
+                                {holeScore?.fairway_hit && getHolePar(holeNum) !== 3 && <span className="text-green-600 dark:text-green-400">F</span>}
                                 {holeScore?.green_in_regulation && <span className="text-green-600 dark:text-green-400">G</span>}
                               </>
                             )}
-                            {totalPenalties(holeScore?.penalties) > 0 && (
-                              <span className="text-amber-600 dark:text-amber-400 font-semibold">
-                                P{totalPenalties(holeScore?.penalties)}
-                              </span>
+                            {/* Penalties: entered via the quick-entry stepper
+                                (dropdown + count — too much control for a grid
+                                cell), so in editable mode the badge is a button
+                                opening it at this hole with Penalties in view */}
+                            {editable && onScoreChange ? (
+                              <button
+                                type="button"
+                                onClick={() => setEntrySession({
+                                  playerId: player.participant_id,
+                                  hole: holeNum,
+                                  focusPenalties: true,
+                                })}
+                                className={`min-w-[24px] px-1 py-0.5 rounded font-semibold transition-colors hover:bg-border ${
+                                  totalPenalties(holeScore?.penalties) > 0
+                                    ? 'text-amber-600 dark:text-amber-400'
+                                    : 'text-faint'
+                                }`}
+                                title={`Hole ${holeNum}: edit penalties in quick entry`}
+                                aria-label={`Hole ${holeNum}: ${totalPenalties(holeScore?.penalties)} penalt${totalPenalties(holeScore?.penalties) === 1 ? 'y' : 'ies'} — edit in quick entry`}
+                              >
+                                {totalPenalties(holeScore?.penalties) > 0 ? `P${totalPenalties(holeScore?.penalties)}` : '−'}
+                              </button>
+                            ) : (
+                              totalPenalties(holeScore?.penalties) > 0 && (
+                                <span className="text-amber-600 dark:text-amber-400 font-semibold">
+                                  P{totalPenalties(holeScore?.penalties)}
+                                </span>
+                              )
                             )}
                           </div>
                         )}
@@ -416,9 +494,52 @@ function MultiPlayerScorecardGrid({
               <span className="text-green-600 dark:text-green-400 font-semibold">G</span>
               <span>= Green in Regulation</span>
             </div>
+            <div className="flex items-center gap-1">
+              <span className="text-amber-600 dark:text-amber-400 font-semibold">P</span>
+              <span>= Penalties{editable ? ' (tap to edit)' : ''}</span>
+            </div>
           </>
         )}
       </div>
+
+      {/* ONE quick-entry stepper for the whole grid, keyed by player so a
+          switch reseeds. Batch mode (no groupPostId): scores flow back through
+          onScoreChange per hole — the same write path the cells use. */}
+      {editable && onScoreChange && entrySession && (() => {
+        const entryPlayer = players.find(p => p.participant_id === entrySession.playerId);
+        if (!entryPlayer) return null;
+        return (
+          <ScoreEntryModal
+            key={entrySession.playerId}
+            groupPostId=""
+            participantId={entrySession.playerId}
+            holesPlayed={holes}
+            startingHoleNumber={startingHoleNumber}
+            holeData={holeData ?? null}
+            courseName={courseName}
+            playerName={players.length > 1
+              ? formatDisplayName(entryPlayer.profile.first_name, null, entryPlayer.profile.last_name, entryPlayer.profile.full_name)
+              : undefined}
+            existingScores={entryPlayer.hole_scores.filter(s => typeof s.strokes === 'number') as unknown as GolfHoleScore[]}
+            initialHole={entrySession.hole ?? undefined}
+            focusSection={entrySession.focusPenalties ? 'penalties' : undefined}
+            onSave={async (scores) => {
+              // Callers update via functional setState, so per-hole patches
+              // in one tick accumulate correctly.
+              for (const s of scores) {
+                onScoreChange(entrySession.playerId, s.hole_number, {
+                  strokes: s.strokes,
+                  putts: s.putts,
+                  fairway_hit: s.fairway_hit,
+                  green_in_regulation: s.green_in_regulation,
+                  penalties: s.penalties ?? null,
+                });
+              }
+            }}
+            onClose={() => setEntrySession(null)}
+          />
+        );
+      })()}
     </div>
   );
 }
