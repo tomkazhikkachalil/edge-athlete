@@ -1,5 +1,14 @@
 # Development Log
 
+## August 10, 2026 — "Notions": the statements surfaces get their product name
+
+Tom's call after the device pass: the profile section is titled **Notions**,
+not "Statements". Copy-only — the two visible headings (profile rail + /u
+strip). Everything internal deliberately keeps the statements name (074
+predicate, RPCs, `tab=statements`, component filenames): renaming a live SQL
+surface for a heading is churn with no user value. If the product name
+sticks, a future round can align filenames; the DB names should stay.
+
 ## August 10, 2026 — Reposts: share any visible post, lands in the Statements rail
 
 **Applied + verified live, Aug 10:** Tom ran 075 in the SQL editor BEFORE the

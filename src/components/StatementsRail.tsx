@@ -18,7 +18,8 @@ const PAGE_SIZE = 24;
 const RAIL_VISIBLE_COUNT = 3;
 
 /**
- * The profile's Statements rail — text-only posts, split out of the Media
+ * The profile's Notions rail (internally "statements" everywhere — the SQL
+ * predicate, RPC, and API tab keep that name) — text-only posts, split out of the Media
  * grid by migration 074. Sits between FeaturedPosts and the My Media tabs.
  * Horizontal strip (LiveNowStrip's language: hidden scrollbar, edge bleed
  * below sm, a cut-off card as the "more here" affordance); "See all N ›"
@@ -78,7 +79,7 @@ export default function StatementsRail({ profileId, currentUserId, totalCount, r
       <div className="flex items-center justify-between mb-2">
         <h3 className="text-sm font-bold text-primary">
           <i className="fas fa-quote-left text-brand-fg mr-2"></i>
-          Statements
+          Notions
         </h3>
         {total > RAIL_VISIBLE_COUNT && (
           <button
