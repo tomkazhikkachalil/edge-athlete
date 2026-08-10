@@ -2,6 +2,17 @@
 
 ## August 10, 2026 — Reposts: share any visible post, lands in the Statements rail
 
+**Applied + verified live, Aug 10:** Tom ran 075 in the SQL editor BEFORE the
+#108 merge (the correct order this round), and the deploy went green. Verified
+end-to-end against prod with disposable users (public author A + post P,
+reposter B with a minted session cookie, PRIVATE author C + post Q): 16/16
+checks — plain + quote repost via the API (trigger count exact through create
+and delete), repost-of-repost collapses to root, repost+media 400, repost of
+invisible original 404, anonymous hydration for public originals and the
+"unavailable" placeholder for private ones on the feed, statements tab AND
+/u strip, and deleting the original SET-NULLs survivors with no errors.
+Fixtures cleaned up, cleanup verified by service-role read.
+
 The feature 074 pre-authorized. Tom's framing: parents/athletes share events
 and highlights they are NOT tagged in, optionally adding their own statement.
 One flow — the Repost button opens a small sheet (quoted preview + optional
