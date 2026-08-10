@@ -19,6 +19,24 @@ export type GroupPostType =
 
 export type GroupPostVisibility = 'public' | 'private' | 'participants_only';
 
+/**
+ * The sport_key a group post's mirrored feed post carries. Only golf_round
+ * maps to a sport today (the POST route can't create the others yet) —
+ * sport #2's multi-player type adds its entry HERE, not another inline
+ * ternary in the route. Deliberately behavior-identical to the old
+ * `type === 'golf_round' ? 'golf' : 'general'`.
+ */
+export const GROUP_TYPE_TO_SPORT: Record<GroupPostType, string> = {
+  golf_round: 'golf',
+  hockey_game: 'general',
+  volleyball_match: 'general',
+  basketball_game: 'general',
+  social_event: 'general',
+  practice_session: 'general',
+  tournament_round: 'general',
+  watch_party: 'general',
+};
+
 export type GroupPostStatus = 'pending' | 'active' | 'completed' | 'cancelled';
 
 export type ParticipantStatus = 'pending' | 'confirmed' | 'declined' | 'maybe';

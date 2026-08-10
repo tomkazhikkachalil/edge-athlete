@@ -7,6 +7,7 @@
 
 import type { SportKey } from './sports/SportRegistry';
 import { getSportDefinition } from './sports/SportRegistry';
+import { getSportAdapter } from './sports/AdapterRegistry';
 
 // Global Copy Constants
 export const COPY = {
@@ -236,13 +237,13 @@ export function getActivityEncouragement(sportKey: SportKey): string {
 }
 
 /**
- * Get sport-specific route
+ * Get sport-specific route — adapter-owned when the sport declares one
+ * (golf's rounds page), generic activity route otherwise. No import cycle:
+ * nothing under src/lib/sports imports copy.ts.
  */
 export function getSportRoute(sportKey: SportKey, activityId: string): string {
-  if (sportKey === 'golf') {
-    return COPY.ROUTES.GOLF_ROUND(activityId);
-  }
-  return COPY.ROUTES.SPORT_ACTIVITY(sportKey, activityId);
+  const ownedRoute = getSportAdapter(sportKey).getActivityHref(activityId);
+  return ownedRoute ?? COPY.ROUTES.SPORT_ACTIVITY(sportKey, activityId);
 }
 
 // Export specific sections for easy importing
