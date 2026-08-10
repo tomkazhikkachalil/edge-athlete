@@ -7,6 +7,8 @@ import { canPin, MAX_PINNED_POSTS } from '@/lib/posts/pinning';
 import { FEATURE_FLAGS } from '@/lib/features';
 import { resolveRepostTarget, canViewSharedPost, validateRepostBody } from '@/lib/reposts';
 import { normalizePostIdentity } from '@/lib/posts/post-category';
+import { createGolfRoundEntities } from '@/lib/golf/post-write';
+import { fetchGolfRoundById, fetchGolfRoundsByIds } from '@/lib/golf/post-read';
 
 // Interface for tagged profiles
 interface TaggedProfile {
@@ -257,103 +259,18 @@ export async function POST(request: NextRequest) {
 
     let roundId: string | null = null;
 
-    // Create golf entities if provided (comprehensive scorecard)
+    // Sport write dispatch — golf is the only deep-table sport today; its
+    // round/holes creation lives in src/lib/golf/post-write.ts (moved intact,
+    // migration-020/023 history documented there).
     if (postType === 'golf' && golfData) {
-      // A second same-day/same-course post may REUSE the existing round, but
-      // only when it brings no new hole data — the old behavior overwrote the
-      // round's metadata and delete-reinserted its holes, silently rewriting
-      // the FIRST post's scorecard (both posts share round_id).
-      const hasNewHoleData = !!(golfData.holesData && golfData.holesData.length > 0);
-      const { data: existingRounds } = await supabase
-        .from('golf_rounds')
-        .select('id')
-        .eq('profile_id', userId)
-        .eq('date', golfData.date)
-        .eq('course', golfData.courseName)
-        .limit(1);
-
-      if (existingRounds && existingRounds.length > 0 && !hasNewHoleData) {
-        // Attach this post to the existing round as-is (no rewrite)
-        roundId = existingRounds[0].id;
-      } else {
-        // Create new comprehensive round
-        const { data: newRound, error: roundError } = await supabase
-          .from('golf_rounds')
-          .insert({
-            profile_id: userId,
-            date: golfData.date,
-            course: golfData.courseName,
-            course_location: golfData.courseLocation || null,
-            tee: golfData.teeBox || null,
-            holes: parseInt(golfData.holes) || 18,
-            round_type: golfData.roundType || 'outdoor',
-            par: golfData.coursePar || 72,
-            weather: golfData.weather || null,
-            temperature: golfData.temperature || null,
-            wind: golfData.wind || null,
-            course_rating: golfData.courseRating || null,
-            slope_rating: golfData.courseSlope || null
-          })
-          .select()
-          .single();
-
-        if (roundError || !newRound) {
-          // The post hasn't been created yet — abort so the user's full
-          // hole-by-hole entry isn't silently discarded behind a "success".
-          console.error('Round creation error:', roundError);
-          return NextResponse.json({ error: 'Failed to save golf round' }, { status: 500 });
-        }
-        roundId = newRound.id;
+      const golfResult = await createGolfRoundEntities(supabase, userId, golfData);
+      if (!golfResult.ok) {
+        return NextResponse.json({ error: golfResult.message }, { status: 500 });
       }
-
-      // Now handle hole-by-hole data
-      if (roundId && golfData.holesData && golfData.holesData.length > 0) {
-        const holeRecords = golfData.holesData
-          .filter((hole: { score?: number }) => hole.score !== undefined)
-          .map((hole: { hole: number; par: number; yardage?: number; score: number; putts?: number; fairway?: string; gir?: boolean; notes?: string }) => ({
-            round_id: roundId,
-            hole_number: hole.hole,
-            par: hole.par,
-            distance_yards: hole.yardage,
-            strokes: hole.score,
-            putts: hole.putts,
-            fairway_hit: hole.fairway === 'hit' ? true : hole.fairway === 'na' ? null : false,
-            green_in_regulation: hole.gir || false,
-            notes: hole.notes || null
-          }));
-
-        if (holeRecords.length > 0) {
-          // Delete existing holes for this round first
-          await supabase
-            .from('golf_holes')
-            .delete()
-            .eq('round_id', roundId);
-
-          // Insert new hole data
-          const { error: holesError } = await supabase
-            .from('golf_holes')
-            .insert(holeRecords);
-
-          if (holesError) {
-            console.error('Holes creation error:', holesError);
-            // Pre-post: abort rather than leave a zero-hole round and a
-            // "successful" post with a missing scorecard.
-            await supabase.from('golf_rounds').delete().eq('id', roundId);
-            return NextResponse.json({ error: 'Failed to save hole-by-hole scores' }, { status: 500 });
-          }
-
-          // Calculate round stats
-          try {
-            await supabase.rpc('calculate_round_stats', { round_uuid: roundId });
-          } catch (statsError) {
-            console.error('Stats calculation error:', statsError);
-          }
-        }
-      }
+      roundId = golfResult.roundId;
 
       // Add golf references to post.
       // activity_mode is the sport-agnostic column (migration 020).
-      // golf_mode dual-write removed — the column is dropped in migration 023.
       if (roundId) {
         postData.round_id = roundId;
         postData.activity_mode = 'round_recap';
@@ -489,32 +406,11 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    // Fetch golf round if exists
+    // Fetch golf round if exists (src/lib/golf/post-read.ts — the one
+    // hydration slot for deep-table sports)
     let golfRound = null;
     if (completePost.round_id) {
-      const { data: roundData } = await supabase
-        .from('golf_rounds')
-        .select(`
-          *,
-          golf_holes (
-            hole_number,
-            par,
-            strokes,
-            putts,
-            fairway_hit,
-            green_in_regulation,
-            distance_yards,
-            club_off_tee,
-            notes
-          )
-        `)
-        .eq('id', completePost.round_id)
-        .single();
-
-      if (roundData && roundData.golf_holes) {
-        roundData.golf_holes.sort((a: { hole_number: number }, b: { hole_number: number }) => a.hole_number - b.hole_number);
-      }
-      golfRound = roundData;
+      golfRound = await fetchGolfRoundById(supabase, completePost.round_id);
     }
 
     // Fetch tagged profiles if exists
@@ -760,32 +656,10 @@ export async function GET(request: NextRequest) {
         }, { status: 404 });
       }
 
-      // Fetch golf round if exists
+      // Fetch golf round if exists (src/lib/golf/post-read.ts)
       let golfRound = null;
       if (post.round_id) {
-        const { data: roundData } = await supabase
-          .from('golf_rounds')
-          .select(`
-            *,
-            golf_holes (
-              hole_number,
-              par,
-              strokes,
-              putts,
-              fairway_hit,
-              green_in_regulation,
-              distance_yards,
-              club_off_tee,
-              notes
-            )
-          `)
-          .eq('id', post.round_id)
-          .single();
-
-        if (roundData && roundData.golf_holes) {
-          roundData.golf_holes.sort((a: { hole_number: number }, b: { hole_number: number }) => a.hole_number - b.hole_number);
-        }
-        golfRound = roundData;
+        golfRound = await fetchGolfRoundById(supabase, post.round_id);
       }
 
       // Fetch shared golf scorecard if exists (same shape as the feed list —
@@ -1020,18 +894,7 @@ export async function GET(request: NextRequest) {
     const sharedPostIds = [...new Set(finalVisiblePosts.map(p => p.shared_post_id).filter(Boolean))];
 
     const [roundsResult, groupsResult, tagProfilesResult, sharedResult] = await Promise.all([
-      roundIds.length > 0
-        ? supabase
-            .from('golf_rounds')
-            .select(`
-              *,
-              golf_holes (
-                hole_number, par, strokes, putts, fairway_hit,
-                green_in_regulation, distance_yards, club_off_tee, notes
-              )
-            `)
-            .in('id', roundIds)
-        : Promise.resolve({ data: [], error: null }),
+      fetchGolfRoundsByIds(supabase, roundIds as string[]),
       groupPostIds.length > 0
         ? supabase.from('group_posts').select(GROUP_SCORECARD_SELECT).in('id', groupPostIds)
         : Promise.resolve({ data: [], error: null }),
@@ -1059,14 +922,8 @@ export async function GET(request: NextRequest) {
       sharedById.set(orig.id, orig);
     }
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const roundsById = new Map<string, any>();
-    for (const round of roundsResult.data || []) {
-      if (round.golf_holes) {
-        round.golf_holes.sort((a: { hole_number: number }, b: { hole_number: number }) => a.hole_number - b.hole_number);
-      }
-      roundsById.set(round.id, round);
-    }
+    // Rounds arrive pre-sorted + keyed from post-read.ts
+    const roundsById = roundsResult.byId;
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const scorecardsByGroupId = new Map<string, any>();
