@@ -76,8 +76,10 @@ export default function StatementsRail({ profileId, currentUserId, totalCount, r
 
   return (
     <div className="mb-6">
-      <div className="flex items-center justify-between mb-2">
-        <h3 className="text-sm font-bold text-primary">Notions</h3>
+      {/* Heading matches FeaturedPosts (the sibling rail above) so the two
+          read as peer sections — text-sm here looked like body copy. */}
+      <div className="flex items-center justify-between mb-3">
+        <h3 className="text-lg font-bold text-black dark:text-primary">Notions</h3>
         {total > RAIL_VISIBLE_COUNT && (
           <button
             onClick={() => (expanded ? setExpanded(false) : expand())}
