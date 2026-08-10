@@ -72,18 +72,19 @@ export default function MentionSuggestions({
       anchorBottom: r.bottom,
       anchorLeft: r.left,
       anchorWidth: r.width,
-      panelH: panel.offsetHeight,
+      // Fractional height: offsetHeight rounds to integers and leaves a
+      // ~1px seam against the box; the rect height is sub-pixel exact.
+      panelH: panel.getBoundingClientRect().height,
       gap: GAP_PX,
       viewportTop: vv?.offsetTop ?? 0,
       viewportHeight: vv?.height ?? window.innerHeight,
-      layoutViewportHeight: window.innerHeight,
       maxHeightCap: 288, // matches max-h-72 — shrinks under the keyboard
     });
     panel.style.left = `${placed.left}px`;
     panel.style.width = `${placed.width}px`;
     panel.style.maxHeight = `${placed.maxHeight}px`;
-    panel.style.top = placed.top !== undefined ? `${placed.top}px` : 'auto';
-    panel.style.bottom = placed.bottom !== undefined ? `${placed.bottom}px` : 'auto';
+    panel.style.top = `${placed.top}px`;
+    panel.style.bottom = 'auto';
   };
 
   // Deliberately no dependency array: re-measure after every render while

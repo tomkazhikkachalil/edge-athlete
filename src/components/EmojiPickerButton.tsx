@@ -104,7 +104,8 @@ export default function EmojiPickerButton({
     // While the dynamic picker is still loading the wrapper is ~0 tall —
     // assume full height for that frame so it lands on the correct side;
     // once real content exists, trust the measurement.
-    const panelH = panel.offsetHeight >= 100 ? panel.offsetHeight : 420;
+    const measured = panel.getBoundingClientRect().height;
+    const panelH = measured >= 100 ? measured : 420;
     const placed = placePanel({
       anchorTop: r.top,
       anchorBottom: r.bottom,
@@ -114,12 +115,11 @@ export default function EmojiPickerButton({
       gap: 8,
       viewportTop: vv?.offsetTop ?? 0,
       viewportHeight: vv?.height ?? window.innerHeight,
-      layoutViewportHeight: window.innerHeight,
     });
     const left = Math.max(8, Math.min(placed.left, window.innerWidth - PANEL_WIDTH_PX - 8));
     panel.style.left = `${left}px`;
-    panel.style.top = placed.top !== undefined ? `${placed.top}px` : 'auto';
-    panel.style.bottom = placed.bottom !== undefined ? `${placed.bottom}px` : 'auto';
+    panel.style.top = `${placed.top}px`;
+    panel.style.bottom = 'auto';
   };
 
   // No dependency array on purpose: the dynamic picker mounts a frame after
