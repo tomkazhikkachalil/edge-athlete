@@ -1,5 +1,31 @@
 # Development Log
 
+## August 9, 2026 — The @ bubble snaps to the box (visual-viewport math) and wears the brand
+
+Tom's mobile pass on the panel round: the @ suggestions bubble drifted off
+the text box "sometimes" on mobile, should sit a millimetre above the box,
+and needed the composer's violet highlight to be visible at all.
+
+- **The drift is a coordinate-space bug**: `position: fixed` positions
+  against the LAYOUT viewport, `getBoundingClientRect()` measures in the
+  VISUAL viewport — with the mobile keyboard up they differ by
+  `visualViewport.offsetTop/Left`, so panels landed off by exactly the
+  keyboard pan, intermittently. Both portals (mention dropdown + emoji
+  panel) now convert rect → layout coordinates before writing fixed
+  styles; offsets are 0 on desktop, nothing changes there. (Third member
+  of the visual-viewport family after the --vvh hook and the action
+  sheet's clamp.)
+- Gap 4px → 2px — the bubble reads attached, not floating.
+- `border-2 border-violet-500` on the dropdown — the same violet family as
+  the composer's focus ring, so the bubble reads as part of the focused
+  composer. QA note: Chrome reports Tailwind v4 colors in `lab()`, so
+  color assertions must compare against a reference element with the same
+  class, not an rgb literal.
+
+Probed at 390 + 1280 (gap ≤ 3px, 2px violet border, flip behavior intact);
+direct-message + chat-dock green. The keyboard-up drift itself is
+iOS-hardware behavior — Tom's device retest is the true gate.
+
 ## August 9, 2026 — Panels flip, never self-close, and the @ list looks like a picker
 
 Tom's device pass on the portaled panels, four reports, four mechanisms:
