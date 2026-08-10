@@ -20,6 +20,7 @@ import TagPeopleModal from '@/components/TagPeopleModal';
 import MultiPlayerScorecardGrid, { type PlayerScoreData, type PlayerHoleScore } from '@/components/golf/MultiPlayerScorecardGrid';
 import type { HoleData, GolfCourse } from '@/types/golf';
 import type { SportComposerExtraProps } from '@/components/sport-composer-extras';
+import { GOLF_INPUT, GOLF_INPUT_COMPACT, GOLF_SELECT, GOLF_LABEL, GOLF_SECTION_CARD } from '@/components/golf/golf-form-styles';
 
 export interface GolfRoundData {
   courseName?: string;
@@ -409,7 +410,7 @@ export default function GolfComposerSection({
           {/* Golf: timing first — "Playing now" IS the live path (solo or
               with friends); "Already played" keeps individual/shared batch */}
           <div className="mb-6">
-            <label className="block text-sm font-semibold text-secondary mb-3">When is this round?</label>
+            <label className={GOLF_LABEL}>When is this round?</label>
             {/* Stacks below sm — "Already played" + icon wraps in a ~90px
                 half-column at 320px (same pattern as the holes row below) */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -434,8 +435,8 @@ export default function GolfComposerSection({
                 }}
                 className={`px-4 py-3 rounded-lg font-semibold transition-all ${
                   sharedRoundDetails.alreadyPlayed
-                    ? 'bg-gray-700 text-white'
-                    : 'bg-surface text-secondary border-2 border-border-strong hover:border-gray-400'
+                    ? 'bg-brand text-white'
+                    : 'bg-surface text-secondary border-2 border-border-strong hover:border-border-strong'
                 }`}
               >
                 <i className="fas fa-flag-checkered mr-2"></i>
@@ -453,7 +454,7 @@ export default function GolfComposerSection({
               flow where friends are optional) */}
           {sharedRoundDetails.alreadyPlayed && (
             <div className="mb-6">
-              <label className="block text-sm font-semibold text-secondary mb-3">Round Type</label>
+              <label className={GOLF_LABEL}>Round Type</label>
               {/* Stacks below sm — the icon + two-line copy had ~36px of text
                   width in a 320px half-column */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
@@ -462,7 +463,7 @@ export default function GolfComposerSection({
                   className={`p-4 border-2 rounded-lg text-left transition-all ${
                     roundType === 'individual'
                       ? 'border-green-500 bg-green-50 dark:bg-green-950/40'
-                      : 'border-border-strong hover:border-gray-400'
+                      : 'border-border-strong hover:border-border-strong'
                   }`}
                 >
                   <div className="flex items-center gap-3">
@@ -485,7 +486,7 @@ export default function GolfComposerSection({
                   className={`p-4 border-2 rounded-lg text-left transition-all ${
                     roundType === 'shared'
                       ? 'border-green-500 bg-green-50 dark:bg-green-950/40'
-                      : 'border-border-strong hover:border-gray-400'
+                      : 'border-border-strong hover:border-border-strong'
                   }`}
                 >
                   <div className="flex items-center gap-3">
@@ -508,10 +509,10 @@ export default function GolfComposerSection({
 
           {/* Shared Round Details Form */}
           {roundType === 'shared' && (
-            <div className="mb-6 bg-green-50 dark:bg-green-950/40 rounded-lg p-4 sm:p-6">
+            <div className="mb-6 bg-green-50 dark:bg-green-950/40 border border-green-200 dark:border-green-800 rounded-lg p-4 sm:p-6">
               <div className="space-y-6">
                 {/* Course Details - White Box */}
-              <div className="bg-surface rounded-lg border border-border p-4">
+              <div className={GOLF_SECTION_CARD}>
                 <h3 className="text-lg font-semibold text-primary mb-4 flex items-center">
                   <i className="fas fa-flag-checkered mr-2 text-green-600 dark:text-green-400"></i>
                   Course Details
@@ -519,7 +520,7 @@ export default function GolfComposerSection({
 
                 {/* Course Name with Search */}
                 <div className="mb-4 relative">
-                  <label className="block text-sm font-semibold text-primary mb-2">
+                  <label className={GOLF_LABEL}>
                     Course Name *
                   </label>
                   <div className="relative">
@@ -543,7 +544,7 @@ export default function GolfComposerSection({
                         }
                       }}
                       placeholder="Search for a golf course..."
-                      className="w-full px-4 py-2 border border-border-strong rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 pr-10"
+                      className={`${GOLF_INPUT} pr-10`}
                     />
                     {searchLoading && (
                       <div className="absolute right-3 top-1/2 transform -translate-y-1/2">
@@ -611,7 +612,7 @@ export default function GolfComposerSection({
 
                 {/* Date */}
                 <div className="mb-4">
-                  <label className="block text-sm font-semibold text-primary mb-2">
+                  <label className={GOLF_LABEL}>
                     Date *
                   </label>
                   <input
@@ -629,13 +630,13 @@ export default function GolfComposerSection({
                           : { alreadyPlayed: date < new Date().toISOString().split('T')[0] }),
                       }));
                     }}
-                    className="w-full px-4 py-2 border border-border-strong rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                    className={GOLF_INPUT}
                   />
                 </div>
 
                 {/* Indoor/Outdoor Selection */}
                 <div className="mb-4">
-                  <label className="block text-sm font-semibold text-primary mb-2">
+                  <label className={GOLF_LABEL}>
                     Round Type *
                   </label>
                   <div className="grid grid-cols-2 gap-3">
@@ -666,7 +667,7 @@ export default function GolfComposerSection({
 
                 {/* Game Format */}
                 <div className="mb-4">
-                  <label className="block text-sm font-semibold text-primary mb-2">
+                  <label className={GOLF_LABEL}>
                     Game Format
                   </label>
                   {/* Stacks on phones — three ~100px columns wrap the two-word
@@ -707,13 +708,13 @@ export default function GolfComposerSection({
                 {/* Tee Color (optional, outdoor only) */}
                 {sharedRoundDetails.roundTypeIndoorOutdoor === 'outdoor' && (
                   <div className="mb-4">
-                    <label className="block text-sm font-semibold text-primary mb-2">
+                    <label className={GOLF_LABEL}>
                       Tee Color (optional)
                     </label>
                     <select
                       value={sharedRoundDetails.teeColor}
                       onChange={(e) => setSharedRoundDetails(prev => ({ ...prev, teeColor: e.target.value }))}
-                      className="w-full px-4 py-2 border border-border-strong rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                      className={GOLF_SELECT}
                     >
                       <option value="">Select tee color</option>
                       <option value="black">Black</option>
@@ -728,7 +729,7 @@ export default function GolfComposerSection({
 
               {/* Manual Par & Yardage Entry - White Box (when course not in database) */}
               {!selectedCourse && sharedRoundDetails.courseName && (
-                <div className="bg-surface rounded-lg border border-border p-4">
+                <div className={GOLF_SECTION_CARD}>
                   <h3 className="text-lg font-semibold text-primary mb-4 flex items-center">
                     <i className="fas fa-edit mr-2 text-brand-fg"></i>
                     Course Par & Yardage (Optional)
@@ -747,7 +748,7 @@ export default function GolfComposerSection({
                               <span className="text-sm font-semibold text-secondary w-16">Hole {holeNum}</span>
                               <div className="flex-1 flex gap-3">
                                 <div className="flex-1">
-                                  <label className="block text-xs text-tertiary mb-1">Par</label>
+                                  <label className={GOLF_LABEL}>Par</label>
                                   <select
                                     value={manualParEntry[i] || ''}
                                     onChange={(e) => {
@@ -755,7 +756,7 @@ export default function GolfComposerSection({
                                       newPar[i] = parseInt(e.target.value) || 0;
                                       setManualParEntry(newPar);
                                     }}
-                                    className="w-full px-3 py-1.5 text-sm border border-border-strong rounded focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                                    className={GOLF_INPUT_COMPACT}
                                   >
                                     <option value="">-</option>
                                     <option value="3">3</option>
@@ -765,7 +766,7 @@ export default function GolfComposerSection({
                                   </select>
                                 </div>
                                 <div className="flex-1">
-                                  <label className="block text-xs text-tertiary mb-1">Yardage</label>
+                                  <label className={GOLF_LABEL}>Yardage</label>
                                   <input
                                     type="number"
                                     value={manualYardageEntry[i] || ''}
@@ -777,7 +778,7 @@ export default function GolfComposerSection({
                                     placeholder="yards"
                                     min="50"
                                     max="700"
-                                    className="w-full px-3 py-1.5 text-sm border border-border-strong rounded focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                                    className={GOLF_INPUT_COMPACT}
                                   />
                                 </div>
                               </div>
@@ -797,7 +798,7 @@ export default function GolfComposerSection({
 
               {/* Playing Conditions - White Box (outdoor only, required) */}
               {sharedRoundDetails.roundTypeIndoorOutdoor === 'outdoor' && (
-                <div className="bg-surface rounded-lg border border-border p-4">
+                <div className={GOLF_SECTION_CARD}>
                   <h3 className="text-lg font-semibold text-primary mb-4 flex items-center">
                     <i className="fas fa-cloud-sun mr-2 text-violet-500"></i>
                     Playing Conditions
@@ -806,13 +807,13 @@ export default function GolfComposerSection({
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
                       {/* Weather */}
                       <div>
-                        <label className="block text-xs font-semibold text-secondary mb-1.5">
+                        <label className={GOLF_LABEL}>
                           Weather *
                         </label>
                         <select
                           value={sharedRoundDetails.weather}
                           onChange={(e) => setSharedRoundDetails(prev => ({ ...prev, weather: e.target.value }))}
-                          className="w-full px-3 py-2 text-sm border border-border-strong rounded-lg focus:ring-2 focus:ring-violet-500 focus:border-violet-500"
+                          className={GOLF_SELECT}
                           required
                         >
                           <option value="">Select weather</option>
@@ -826,14 +827,14 @@ export default function GolfComposerSection({
 
                       {/* Temperature */}
                       <div>
-                        <label className="block text-xs font-semibold text-secondary mb-1.5">
+                        <label className={GOLF_LABEL}>
                           Temperature (°F) *
                         </label>
                         <input
                           type="number"
                           value={sharedRoundDetails.temperature}
                           onChange={(e) => setSharedRoundDetails(prev => ({ ...prev, temperature: e.target.value }))}
-                          className="w-full px-3 py-2 text-sm border border-border-strong rounded-lg focus:ring-2 focus:ring-violet-500 focus:border-violet-500"
+                          className={GOLF_INPUT}
                           placeholder="72"
                           min="0"
                           max="120"
@@ -843,13 +844,13 @@ export default function GolfComposerSection({
 
                       {/* Wind */}
                       <div>
-                        <label className="block text-xs font-semibold text-secondary mb-1.5">
+                        <label className={GOLF_LABEL}>
                           Wind *
                         </label>
                         <select
                           value={sharedRoundDetails.wind}
                           onChange={(e) => setSharedRoundDetails(prev => ({ ...prev, wind: e.target.value }))}
-                          className="w-full px-3 py-2 text-sm border border-border-strong rounded-lg focus:ring-2 focus:ring-violet-500 focus:border-violet-500"
+                          className={GOLF_SELECT}
                           required
                         >
                           <option value="">Select wind</option>
@@ -864,7 +865,7 @@ export default function GolfComposerSection({
               )}
 
               {/* Participants - White Box */}
-              <div className="bg-surface rounded-lg border border-border p-4">
+              <div className={GOLF_SECTION_CARD}>
                 <h3 className="text-lg font-semibold text-primary mb-4 flex items-center">
                   <i className="fas fa-users mr-2 text-green-600 dark:text-green-400"></i>
                   {sharedRoundDetails.alreadyPlayed ? 'Round Participants' : 'Playing partners'}
@@ -989,7 +990,7 @@ export default function GolfComposerSection({
           {/* Score Entry Section (when shared round with participants) */}
           {roundType === 'shared' && sharedRoundParticipantsData.length > 0 && (
             <div className="mb-6">
-              <div className="bg-surface rounded-lg border border-border p-4">
+              <div className={GOLF_SECTION_CARD}>
                 <h3 className="text-lg font-semibold text-primary mb-4 flex items-center">
                   <i className="fas fa-list-ol mr-2 text-green-600 dark:text-green-400"></i>
                   Score Entry

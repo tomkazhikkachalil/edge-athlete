@@ -152,7 +152,7 @@ function MultiPlayerScorecardGrid({
                 </th>
               ))}
               {is18Holes && (
-                <th className="px-4 py-3 text-center text-xs font-semibold text-primary uppercase tracking-wider bg-surface-sunken border-l border-gray-400">
+                <th className="px-4 py-3 text-center text-xs font-semibold text-primary uppercase tracking-wider bg-surface-sunken border-l border-border-strong">
                   {activeTab === 'front9' ? 'Out' : 'In'}
                 </th>
               )}
@@ -179,7 +179,7 @@ function MultiPlayerScorecardGrid({
                   </th>
                 ))}
                 {is18Holes && (
-                  <th className="px-4 py-2 text-center text-sm font-semibold text-primary bg-violet-100 dark:bg-violet-950/60 border-l border-gray-400">
+                  <th className="px-4 py-2 text-center text-sm font-semibold text-primary bg-violet-100 dark:bg-violet-950/60 border-l border-border-strong">
                     {displayHoles.reduce((sum, h) => sum + getHolePar(h), 0)}
                   </th>
                 )}
@@ -208,17 +208,17 @@ function MultiPlayerScorecardGrid({
                   );
                 })}
                 {is18Holes && (
-                  <th className="px-4 py-2 text-center text-xs text-secondary bg-gray-200 dark:bg-stone-800 border-l border-gray-400">
+                  <th className="px-4 py-2 text-center text-xs text-secondary bg-surface-sunken border-l border-border-strong">
                     {displayHoles.reduce((sum, h) => {
                       const hole = holeData.find(hd => hd.hole === h);
                       return sum + (hole?.yardage || 0);
                     }, 0)}
                   </th>
                 )}
-                <th className="px-4 py-2 text-center text-xs text-secondary bg-gray-200 dark:bg-stone-800">
+                <th className="px-4 py-2 text-center text-xs text-secondary bg-surface-sunken">
                   {holeData.reduce((sum, h) => sum + (h.yardage || 0), 0)}
                 </th>
-                <th className="px-4 py-2 bg-gray-200 dark:bg-stone-800"></th>
+                <th className="px-4 py-2 bg-surface-sunken"></th>
               </tr>
             )}
           </thead>
@@ -278,7 +278,7 @@ function MultiPlayerScorecardGrid({
                             max="15"
                             value={strokes || ''}
                             onChange={(e) => handleScoreChange(player.participant_id, holeNum, 'strokes', e.target.value)}
-                            className={`w-12 h-10 text-center text-sm border border-border-strong rounded focus:ring-2 focus:ring-green-500 focus:border-green-500 ${getScoreStyle(strokes, getHolePar(holeNum))}`}
+                            className={`w-12 h-10 text-center text-sm border border-border-strong rounded ${getScoreStyle(strokes, getHolePar(holeNum))}`}
                             placeholder="-"
                           />
                         ) : (
@@ -297,7 +297,7 @@ function MultiPlayerScorecardGrid({
                                     type="checkbox"
                                     checked={holeScore?.fairway_hit || false}
                                     onChange={(e) => handleScoreChange(player.participant_id, holeNum, 'fairway_hit', e.target.checked)}
-                                    className="w-4 h-4 text-green-600 dark:text-green-400 rounded"
+                                    className="w-5 h-5 text-green-600 dark:text-green-400 rounded"
                                   />
                                   <span className="text-tertiary">F</span>
                                 </label>
@@ -306,7 +306,7 @@ function MultiPlayerScorecardGrid({
                                     type="checkbox"
                                     checked={holeScore?.green_in_regulation || false}
                                     onChange={(e) => handleScoreChange(player.participant_id, holeNum, 'green_in_regulation', e.target.checked)}
-                                    className="w-4 h-4 text-green-600 dark:text-green-400 rounded"
+                                    className="w-5 h-5 text-green-600 dark:text-green-400 rounded"
                                   />
                                   <span className="text-tertiary">G</span>
                                 </label>
@@ -330,7 +330,7 @@ function MultiPlayerScorecardGrid({
                                 max="5"
                                 value={holeScore?.putts || ''}
                                 onChange={(e) => handleScoreChange(player.participant_id, holeNum, 'putts', e.target.value)}
-                                className="w-12 h-6 text-center text-xs border border-border rounded focus:ring-1 focus:ring-green-400"
+                                className="w-12 h-6 text-center text-xs border border-border-strong rounded"
                                 placeholder="P"
                               />
                             ) : (
@@ -346,7 +346,7 @@ function MultiPlayerScorecardGrid({
 
                   {/* Totals Columns */}
                   {is18Holes && (
-                    <td className="px-4 py-3 text-center text-sm font-semibold text-primary bg-surface-muted border-l border-gray-400">
+                    <td className="px-4 py-3 text-center text-sm font-semibold text-primary bg-surface-muted border-l border-border-strong">
                       {activeTab === 'front9' ? (totals.front9 || '-') : (totals.back9 || '-')}
                     </td>
                   )}
