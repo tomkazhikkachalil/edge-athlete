@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSportDefinition, type SportKey } from '@/lib/sports/SportRegistry';
-import { getStatSchema, isStatLineData } from '@/lib/sports/stat-schemas';
 import { getSportSettingsDisplay } from '@/lib/sports/settings-schemas';
 import { resolveSportKey } from '@/lib/sports/resolve-sport-key';
+import { buildSportStatsCard } from '@/lib/sports/server';
 import { getSupabaseAdmin } from '@/lib/auth-server';
 import { isStatementPost } from '@/lib/statements';
 
@@ -195,74 +195,11 @@ export async function GET(request: NextRequest) {
       .order('achieved_on', { ascending: false })
       .limit(12);
 
-    // Sport stats card — sport-aware (golf: rounds; stat-line sports: posts).
-    // Generic shape: { label, tiles: [{label, value}] } | null.
-    let sportStats: { label: string; tiles: Array<{ label: string; value: string }> } | null = null;
+    // Sport stats card — per-sport server modules (src/lib/sports/server/):
+    // golf reads golf_rounds, stat-line sports aggregate public posts, and a
+    // sport with neither contributes null. Generic output shape either way.
     const profileSportKey = resolveSportKey(profile.sport);
-
-    if (profileSportKey === 'golf') {
-      const { data: rounds } = await supabase
-        .from('golf_rounds')
-        .select('gross_score, par')
-        .eq('profile_id', profile.id)
-        .order('date', { ascending: false })
-        .limit(10);
-
-      if (rounds && rounds.length > 0) {
-        const scores = rounds.map(r => r.gross_score).filter(Boolean);
-        const avgScore = scores.length > 0
-          ? Math.round(scores.reduce((a, b) => a + b, 0) / scores.length * 10) / 10
-          : null;
-        const bestScore = scores.length > 0 ? Math.min(...scores) : null;
-
-        sportStats = {
-          label: 'Golf Stats',
-          tiles: [
-            { label: 'Rounds', value: String(rounds.length) },
-            { label: 'Avg Score', value: avgScore !== null ? String(avgScore) : '-' },
-            { label: 'Best Score', value: bestScore !== null ? String(bestScore) : '-' },
-          ],
-        };
-      }
-    } else if (profileSportKey && getStatSchema(profileSportKey)) {
-      // Stat-line sports: aggregate PUBLIC posts only (this is a public page)
-      const schema = getStatSchema(profileSportKey)!;
-      const { data: statPosts } = await supabase
-        .from('posts')
-        .select('stats_data')
-        .eq('profile_id', profile.id)
-        .eq('sport_key', profileSportKey)
-        .eq('visibility', 'public')
-        .not('stats_data', 'is', null)
-        .limit(100);
-
-      const lines = (statPosts || [])
-        .map(p => p.stats_data)
-        .filter(isStatLineData);
-
-      if (lines.length > 0) {
-        const totals: Record<string, number> = {};
-        for (const line of lines) {
-          for (const f of schema.fields) {
-            const v = line.stats[f.key];
-            if (typeof v === 'number' && Number.isFinite(v)) {
-              totals[f.key] = (totals[f.key] ?? 0) + v;
-            }
-          }
-        }
-        const topFields = schema.fields
-          .filter(f => (totals[f.key] ?? 0) > 0)
-          .slice(0, 2);
-        const sportDef = getSportDefinition(profileSportKey);
-        sportStats = {
-          label: `${sportDef.display_name} Stats`,
-          tiles: [
-            { label: `${schema.activityNoun}s`, value: String(lines.length) },
-            ...topFields.map(f => ({ label: f.label, value: String(totals[f.key]) })),
-          ].slice(0, 3),
-        };
-      }
-    }
+    const sportStats = await buildSportStatsCard(profileSportKey, profile.id, supabase);
 
     // Declared per-sport details (position, jersey, handedness, handicap...).
     // No extra privacy gate is needed: this route already 403s anything that

@@ -34,7 +34,23 @@ Training from the category (sports-config keeps its string-keyed training
 display entries for this). 074 predicate invariant: training posts always
 carry stats_data, so no post moves between Media and Notions.
 **Deploy order: 077 FIRST, then the app** — the old app ignores the new
-column; the new app writes and filters on it.
+column; the new app writes and filters on it. Run + verified live Aug 10
+(column present, 0 pseudo-sport rows, vitals feed serving via the category
+filter; backfill re-pass after deploy caught nothing — no gap rows).
+
+**PR-C — server sport-module seam + posts-API golf extraction (code-only,
+behavior-preserving).** The public profile's stats card now dispatches
+through `src/lib/sports/server/` (a minimal ServerSportModule registry —
+the server-side seam the fetch-based client adapters can't provide): golf's
+branch moved verbatim into `server/golf.ts` (pure `buildGolfStatsTiles`,
+5 tests), the stat-line aggregation into `server/stat-line.ts` as the
+generic fallback. The posts API's ~100-line golf round/holes write block
+moved intact to `src/lib/golf/post-write.ts` (same dedup/rollback/messages;
+pure `buildHoleRecords`, 3 tests), and all three golf_round hydration sites
+route through `src/lib/golf/post-read.ts` — a second deep-table sport now
+has exactly one write slot and one read slot to mirror. Invariant checked
+against prod captures: `/api/public/profile` and `/api/posts` responses
+byte-identical before/after.
 
 
 ## August 10, 2026 — End-of-day maintenance sweep
