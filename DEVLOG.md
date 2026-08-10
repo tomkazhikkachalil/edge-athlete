@@ -19,6 +19,15 @@ needed), and anonymous direct RPC calls to both the statements and counts
 functions are denied (the post-DROP ACL re-lock held). Fixtures cleaned up
 and the cleanup verified by service-role read.
 
+**Device-verified + signed off, Aug 10:** Tom confirmed the rail on his phone
+(#105 + #106 merged). One QA lesson from the pass: "the rail isn't showing"
+turned out to be a profile with no statement posts — the rail hides itself
+when empty BY DESIGN, so check the profile's data (does any post satisfy the
+STATEMENT predicate?) before suspecting the deploy or a stale client bundle.
+The feature is complete; the deliberate leftovers are the ones listed above
+(pinned statements duplicate into FeaturedPosts + rail; tagged statements
+appear in both the rail and Tagged; every Posts stat now reads media-only).
+
 - **Migration 074** (`074_statements_split.sql`): new
   `get_profile_statements_media` RPC (068's all-media body + the STATEMENT
   predicate), the MEDIA inverse predicate on `get_profile_all_media`, and
