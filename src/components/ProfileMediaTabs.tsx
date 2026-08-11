@@ -352,6 +352,34 @@ export default function ProfileMediaTabs({ profileId, currentUserId, isOwnProfil
     showSuccess('Success', 'Post updated successfully!');
   };
 
+  // Six tabs overflow a phone-width viewport and `scrollbar-hide` removes the
+  // native hint, so fades mark whichever edge has more content — same pattern
+  // as the settings page tab strip.
+  const tabScrollerRef = useRef<HTMLDivElement>(null);
+  const [tabOverflow, setTabOverflow] = useState({ left: false, right: false });
+
+  const measureTabOverflow = useCallback(() => {
+    const scroller = tabScrollerRef.current;
+    if (!scroller) return;
+    // 1px slack: fractional scroll positions otherwise leave a fade pinned on.
+    setTabOverflow({
+      left: scroller.scrollLeft > 1,
+      right: scroller.scrollLeft + scroller.clientWidth < scroller.scrollWidth - 1,
+    });
+  }, []);
+
+  useEffect(() => {
+    const scroller = tabScrollerRef.current;
+    if (!scroller) return;
+    measureTabOverflow();
+    scroller.addEventListener('scroll', measureTabOverflow, { passive: true });
+    window.addEventListener('resize', measureTabOverflow);
+    return () => {
+      scroller.removeEventListener('scroll', measureTabOverflow);
+      window.removeEventListener('resize', measureTabOverflow);
+    };
+  }, [measureTabOverflow]);
+
   // Tab configuration with icons
   const tabs = [
     { id: 'all' as TabType, label: 'Media', icon: Camera, count: counts.all },
@@ -366,12 +394,16 @@ export default function ProfileMediaTabs({ profileId, currentUserId, isOwnProfil
     <div className="w-full space-y-6">
       {/* Modern Segmented Control Tabs */}
       <div className="relative">
-        {/* Scrollable container with gradient fade on edges */}
+        {/* Scrollable container with gradient fade on the edge that has more content */}
         <div className="relative overflow-hidden">
-          <div className="absolute left-0 top-0 bottom-0 w-8 bg-gradient-to-r from-white to-transparent z-10 pointer-events-none md:hidden" />
-          <div className="absolute right-0 top-0 bottom-0 w-8 bg-gradient-to-l from-white to-transparent z-10 pointer-events-none md:hidden" />
+          {tabOverflow.left && (
+            <div aria-hidden="true" className="absolute left-0 top-0 bottom-0 w-8 bg-gradient-to-r from-surface to-transparent z-10 pointer-events-none md:hidden" />
+          )}
+          {tabOverflow.right && (
+            <div aria-hidden="true" className="absolute right-0 top-0 bottom-0 w-8 bg-gradient-to-l from-surface to-transparent z-10 pointer-events-none md:hidden" />
+          )}
 
-          <div className="overflow-x-auto scrollbar-hide">
+          <div ref={tabScrollerRef} className="overflow-x-auto scrollbar-hide">
             <nav
               className="flex gap-2 p-1 bg-surface-sunken rounded-xl min-w-min"
               aria-label="Profile sections"
