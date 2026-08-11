@@ -12,7 +12,7 @@ import {
   formatSecondsToDisplay,
 } from '@/lib/vitals-config';
 import {
-  Plus, History, Ruler, Timer, Dumbbell, Loader2, Star, Camera, ChevronDown,
+  Plus, History, Ruler, Timer, Dumbbell, Loader2, Star, Camera, ChevronDown, Settings,
 } from 'lucide-react';
 import AddVitalModal from './AddVitalModal';
 import CreatePostModal from './CreatePostModal';
@@ -29,6 +29,7 @@ import { weeklySummary, streakWeeks, latestPB } from '@/lib/workouts/dashboard';
 import HeroStrip from './vitals/HeroStrip';
 import PBShowcase from './vitals/PBShowcase';
 import ProgressSection from './vitals/ProgressSection';
+import VitalsSettingsModal from './vitals/VitalsSettingsModal';
 import SectionEmptyState from './SectionEmptyState';
 import { categoryAccent } from './vitals/category-colors';
 import { useTheme } from '@/lib/use-theme';
@@ -95,6 +96,12 @@ interface CurrentVitals {
   weightUnit: 'lbs' | 'kg' | 'stone' | null;
   dob: string | null;
 }
+
+// Shared look for the two responsive placements of the settings gear.
+// Display classes (flex/hidden) stay per-instance — a display value in a
+// shared string is the .ea-icon-btn lg:hidden trap.
+const VITALS_GEAR_CLASSES =
+  'items-center justify-center p-2.5 border border-border-strong text-secondary rounded-lg hover:bg-surface-muted transition-colors';
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 
@@ -334,6 +341,7 @@ export default function VitalsTab({ profileId, currentUserId, isOwnProfile = fal
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [showAddVital, setShowAddVital] = useState(false);
+  const [showVitalsSettings, setShowVitalsSettings] = useState(false);
   const [showCreatePost, setShowCreatePost] = useState(false);
   const [linkedPostId, setLinkedPostId] = useState<string | null>(null);
   const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
@@ -493,11 +501,29 @@ export default function VitalsTab({ profileId, currentUserId, isOwnProfile = fal
       {/* ── Edge Vitals header + workout actions ─────────────────────── */}
       <div>
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-          <div>
-            <h2 className="text-h2 text-primary">Edge Vitals</h2>
-            <p className="text-sm text-muted mt-0.5">
-              Live workouts, performance metrics, and training history.
-            </p>
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <h2 className="text-h2 text-primary">Edge Vitals</h2>
+              <p className="text-sm text-muted mt-0.5">
+                Live workouts, performance metrics, and training history.
+              </p>
+            </div>
+            {/* Section-wide quick settings (body measurements today; more to
+                come). Needs the currentVitals snapshot to seed the form. Two
+                placements, one visible at a time: on phones the action cluster
+                stacks BELOW the heading, so the gear sits up here on the
+                heading line instead; ≥sm it rides the cluster. */}
+            {isOwnProfile && currentVitals && (
+              <button
+                type="button"
+                onClick={() => setShowVitalsSettings(true)}
+                aria-label="Vitals settings"
+                title="Vitals settings"
+                className={`${VITALS_GEAR_CLASSES} flex sm:hidden`}
+              >
+                <Settings className="w-5 h-5" aria-hidden="true" />
+              </button>
+            )}
           </div>
           {isOwnProfile && (
             <div className="flex items-center gap-2 flex-wrap">
@@ -520,6 +546,17 @@ export default function VitalsTab({ profileId, currentUserId, isOwnProfile = fal
                 <History className="w-3.5 h-3.5" aria-hidden="true" />
                 Log Past Workout
               </button>
+              {currentVitals && (
+                <button
+                  type="button"
+                  onClick={() => setShowVitalsSettings(true)}
+                  aria-label="Vitals settings"
+                  title="Vitals settings"
+                  className={`${VITALS_GEAR_CLASSES} hidden sm:flex`}
+                >
+                  <Settings className="w-5 h-5" aria-hidden="true" />
+                </button>
+              )}
             </div>
           )}
         </div>
@@ -568,15 +605,14 @@ export default function VitalsTab({ profileId, currentUserId, isOwnProfile = fal
       <ProgressSection vitals={vitals} sessions={completedWorkouts} />
 
       {/* ── Current Vitals — the athlete's present-day snapshot from their
-             profile (edited via the profile header / Edit Profile). DOB is
-             owner-only; visitors see Age. ──────────────────────────────── */}
+             profile. Owners update height/weight via the Edge Vitals header
+             gear (each save also appends a dated athlete_vitals timeline
+             entry); DOB stays an Edit Profile job. DOB tile is owner-only;
+             visitors see Age. ─────────────────────────────────────────────── */}
       {currentVitals && (
         <div>
           <div className="flex items-baseline justify-between mb-3">
             <h3 className="text-base font-bold text-primary">Current Vitals</h3>
-            {isOwnProfile && (
-              <span className="text-xs text-faint">Edit in Edit Profile</span>
-            )}
           </div>
           <div className={`grid grid-cols-2 gap-4 ${isOwnProfile ? 'md:grid-cols-4' : 'md:grid-cols-3'}`}>
             <div className="text-center bg-surface rounded-lg border border-border p-4">
@@ -834,6 +870,14 @@ export default function VitalsTab({ profileId, currentUserId, isOwnProfile = fal
           fetchData();
         }}
       />
+
+      {showVitalsSettings && currentVitals && (
+        <VitalsSettingsModal
+          currentVitals={currentVitals}
+          onClose={() => setShowVitalsSettings(false)}
+          onSaved={fetchData}
+        />
+      )}
 
       {showCreatePost && currentUserId && (
         <CreatePostModal
