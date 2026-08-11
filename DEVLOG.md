@@ -1,5 +1,59 @@
 # Development Log
 
+## August 11, 2026 — Maintenance sweep (workout-actions round)
+
+Requested checklist after #127:
+
+- **`npm audit`: 0 vulnerabilities.**
+- Full gate green on merged main: tsc clean, lint at the **43** ratchet
+  exactly, **1198 tests**, production build complete.
+- #127 deployed (Tom merged via GitHub); post-deploy prod probe at 390px
+  AND 1280px confirmed the workout actions render on both — the
+  "missing on desktop" report was the unmerged PR, not a breakpoint gap
+  (the shipped mobile fixes were phone-only problems by nature, so
+  desktop legitimately looked unchanged).
+- No migrations this round.
+
+## August 11, 2026 — Workouts: edit, delete, and share from the history list
+
+Tom's ask: from the Vitals workouts list — delete a workout, go back into
+a completed one to edit (especially adding photos/videos after the fact),
+then optionally post it to the public.
+
+- **Most of the machinery already existed, unreachable.** DELETE
+  /api/workouts/[id] shipped with the feature but only live-discard
+  called it; the entries PUT never had a status guard, so editing
+  completed sessions always worked server-side; the whole ShareStep
+  (media picker → POST /api/posts with denormalized stats_data → PATCH
+  postId) existed inside the finish flow only.
+- **The one real gap was editor semantics**: /app/workout/[id] hardcoded
+  mode="live", so reopening a completed session ran a growing timer and
+  its Finish would recompute duration_seconds from now − started_at.
+  New third editor mode **review**: static stored duration + date in the
+  header, the same draft + debounced autosave as live (per-set media
+  rides the existing pipeline), and a Done button that saves title/edits
+  but never re-finishes. The server now 409s `finish` on a completed
+  session outright — that recompute was a data-corruption hole for ANY
+  stale client, not just this flow.
+- **Done on an unshared workout offers the existing ShareStep**; the
+  card's "Share to Feed" deep-links straight there via ?share=1 (the
+  Suspense-wrapped useSearchParams reader pattern). PR detection stays
+  finish-time-only — backdated edits must not mint "new PB!" toasts.
+- **WorkoutCard owner actions** live at the bottom of the EXPANDED body
+  (EquipmentCard actions-row style, 44px targets, no hover reveal —
+  pointer-coarse rule): Edit / Share to Feed (unshared only) / Delete
+  with the permanent-delete confirm, which notes that a shared post
+  stays on the feed (denormalized by design; WorkoutPostCard degrades
+  to 'unavailable' for the session fetch).
+- Bonus fix that fell out: reloading right after finishing a live
+  workout used to reopen the live editor with a growing timer — that
+  path now lands in review mode.
+- E2E 10/10: 409 guard with duration untouched in DB, entries PUT on
+  completed, actions row owner-only (second signed-in user sees none),
+  static duration across a wait, add-set → autosave → Done → share →
+  post created + session linked + chip on return, delete removes card
+  without reload and row from DB.
+
 ## August 10, 2026 — Late-session maintenance sweep (third session)
 
 Requested checklist after the evening run (#123–#125):
