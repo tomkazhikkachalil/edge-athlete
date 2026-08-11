@@ -1,5 +1,80 @@
 # Development Log
 
+## August 10, 2026 — Late-session maintenance sweep (third session)
+
+Requested checklist after the evening run (#123–#125):
+
+- **`npm audit`: 0 vulnerabilities.**
+- Full gate green on merged main: tsc clean, lint at the **43** ratchet
+  exactly, **1198 tests** (up 12 from the second sweep's 1186 — the
+  body-measurement conversion/rule suite), production build complete.
+- Tree clean on main, synced with origin; #125 squash-merged and the
+  deploy verified green on Vercel.
+- Session ledger: mobile dark-mode fade fix (#123), Add Exercise sheet
+  keyboard fix + emoji removal (#124, Tom device-verified both), vitals
+  quick-settings with the dated growth timeline (#125, gear placement
+  iterated twice on Tom's device feedback). No migrations this session —
+  #125 runs entirely on migration 010's athlete_vitals.
+
+## August 10, 2026 — Vitals settings: body measurements join the timeline
+
+Tom's ask: a quick-settings surface in the Vitals area — weight changes
+especially, and height, because kid athletes grow fast and the point is an
+accurate dated growth record ("how much did I grow this year/season").
+DOB/age stays editable ONLY in Edit Profile.
+
+- **The gap was a missing bridge, not a missing table.** athlete_vitals
+  (migration 010) has been an append-only dated time-series with
+  height/weight body metrics since the start, and MetricCard already
+  renders per-year history with age-at-date; but "Current Vitals" reads
+  the profiles columns and nothing connected an edit to the timeline.
+- **One request, both stores** (`POST /api/vitals/body-measurement`):
+  appends timeline rows in canonical chart units (height→inches,
+  weight→lbs — mixed units would corrupt metricSeries) AND syncs the
+  profiles snapshot **only when the entry is the newest dated
+  measurement**. Backdated fills enrich history without clobbering the
+  present; the toast says which happened. If the profile sync fails after
+  the insert, the rows are compensatingly deleted — athlete_vitals has no
+  UPDATE/DELETE policies, so a half-state would be uncorrectable in-app.
+- **weight_kg parity**: the derivation formula is copied exactly from
+  PUT /api/profile (kg passthrough / stone ×6.35029 / lbs ×0.453592, 2dp)
+  and pinned by unit tests, so both edit paths always agree.
+- **The gear is the Vitals section's settings entry point** (Equipment-gear
+  precedent, aria "Vitals settings" — more quick settings will live here).
+  Placement iterated on Tom's feedback: header action cluster on ≥sm, and
+  on phones a second `sm:hidden` instance on the Edge Vitals heading line
+  (the cluster stacks below the heading there). Display classes stay
+  per-instance — the shared-display-class trap.
+- Known accepted asymmetry, possible follow-up: Edit Profile height/weight
+  edits still do NOT append timeline entries.
+- E2E: 15/15 (auth/validation, kg-parity triple against the DB, owner-only
+  gear at both breakpoints with y-overlap geometry checks, backdate
+  semantics, dirty-close, visitor exclusion).
+
+## August 10, 2026 — Mobile polish: the last white fade + the sinking sheet
+
+Two phone reports from Tom, both bottom-anchored-layout bugs at heart:
+
+- **#123 — the athlete tab strip's dark-mode fade.** ProfileMediaTabs'
+  mobile edge fades were the LAST `from-white` site in the app (the
+  dark-mode sweep tokenized the other three; this one predates the token
+  vocabulary). Pure white over the dark pill also painted square corners
+  over its rounded-xl. Now `from-surface` + the settings-page
+  measured-overflow pattern: a fade renders only on an edge that actually
+  has more content (1px slack, passive scroll + resize listeners).
+- **#124 — Add Exercise search sank under the keyboard.** The bottom sheet
+  had only a MAX height, so narrowing the query collapsed the panel to
+  content size and — anchored to the bottom of the layout viewport, which
+  iOS never shrinks for the keyboard — dropped input, options and the
+  custom-exercise row behind it. Fix: `h-dvh sm:h-auto` pins the phone
+  sheet (GifPickerModal's reasoning) + the modal flex shape it was missing
+  (shrink-0 header, min-h-0 body, modal-sheet-bottom). Also dropped the
+  category emoji from exercise cards — Tom wants name-only.
+- Two QA-recipe traps recorded in memory this session: profiles.email is
+  now NOT NULL (disposable-user inserts need it), and forcing a theme in
+  browser tests requires profiles.theme_prefs — the middleware-refreshed
+  ea-theme cookie beats any localStorage mirror you plant.
+
 ## August 10, 2026 — End-of-day maintenance sweep (second session)
 
 Requested checklist after the day's second run — eight more PRs (#114–#121)
