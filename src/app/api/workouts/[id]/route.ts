@@ -142,6 +142,12 @@ export async function PATCH(
       updates.post_id = body.postId;
     }
     if (body.finish) {
+      // Re-finishing a completed session would recompute duration_seconds
+      // from now − started_at and corrupt the stored duration (review-mode
+      // edits PATCH title only; nothing legitimate re-sends finish).
+      if (session.status === 'completed') {
+        return NextResponse.json({ error: 'Workout is already finished' }, { status: 409 });
+      }
       const startedMs = Date.parse(session.started_at);
       const requestedMs = Date.parse(body.finish.endedAt ?? '');
       const nowMs = Date.now();

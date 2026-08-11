@@ -1,20 +1,35 @@
 'use client';
 
 import { useMemo, useState } from 'react';
-import { ChevronDown, ChevronUp, Dumbbell } from 'lucide-react';
+import { ChevronDown, ChevronUp, Dumbbell, Globe, Pencil, Trash2 } from 'lucide-react';
 import { computeSummary, formatDuration, formatVolume, formatSetLine } from '@/lib/workouts/summary';
 import { serverToEntries, type ServerWorkoutSession } from '@/lib/workouts/serialize';
 import SetMediaStrip from './SetMediaStrip';
+import ConfirmModal from '../ConfirmModal';
+import { useToast } from '../Toast';
 
 interface WorkoutCardProps {
   session: ServerWorkoutSession;
   /** Opens the linked feed post (shared workouts). */
   onOpenPost?: (postId: string) => void;
+  /** Owner-only actions render when true. */
+  isOwnProfile?: boolean;
+  /** Reopen the workout in the review editor. */
+  onEdit?: () => void;
+  /** Deep-link to the share step (unshared workouts only). */
+  onShare?: () => void;
+  /** Called after a successful delete; caller removes/refetches. */
+  onDeleted?: () => void;
 }
 
 /** Expandable workout history card for the Edge Vitals tab. */
-export default function WorkoutCard({ session, onOpenPost }: WorkoutCardProps) {
+export default function WorkoutCard({
+  session, onOpenPost, isOwnProfile = false, onEdit, onShare, onDeleted,
+}: WorkoutCardProps) {
   const [expanded, setExpanded] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const { showSuccess, showError } = useToast();
   const entries = useMemo(() => serverToEntries(session), [session]);
   const summary = useMemo(() => computeSummary(entries), [entries]);
 
@@ -23,6 +38,26 @@ export default function WorkoutCard({ session, onOpenPost }: WorkoutCardProps) {
     day: 'numeric',
     year: 'numeric',
   });
+
+  const handleDelete = async () => {
+    setConfirmDelete(false);
+    setDeleting(true);
+    try {
+      const response = await fetch(`/api/workouts/${session.id}`, {
+        method: 'DELETE',
+        credentials: 'include',
+      });
+      if (!response.ok) {
+        const data = await response.json().catch(() => null);
+        throw new Error(data?.error || 'Failed to delete workout');
+      }
+      showSuccess('Deleted', 'Workout removed from your history');
+      onDeleted?.();
+    } catch (err) {
+      showError('Error', err instanceof Error ? err.message : 'Failed to delete workout');
+      setDeleting(false);
+    }
+  };
 
   return (
     <div className="border border-border rounded-xl overflow-hidden bg-surface">
@@ -107,8 +142,54 @@ export default function WorkoutCard({ session, onOpenPost }: WorkoutCardProps) {
               {session.notes}
             </p>
           )}
+
+          {/* Owner actions — always visible when expanded (no hover reveal:
+              hover: is invisible on touch). Lives OUTSIDE the header button,
+              so no nested-interactive. EquipmentCard actions-row style. */}
+          {isOwnProfile && (
+            <div className="flex items-center gap-2 border-t border-border-subtle pt-3">
+              <button
+                type="button"
+                onClick={onEdit}
+                className="flex-1 flex items-center justify-center gap-1.5 min-h-[44px] px-3 rounded-lg border border-border-strong bg-surface text-sm font-semibold text-secondary hover:bg-surface-muted transition-colors"
+              >
+                <Pencil className="w-3.5 h-3.5" aria-hidden="true" />
+                Edit
+              </button>
+              {!session.post_id && (
+                <button
+                  type="button"
+                  onClick={onShare}
+                  className="flex-1 flex items-center justify-center gap-1.5 min-h-[44px] px-3 rounded-lg border border-border-strong bg-surface text-sm font-semibold text-secondary hover:bg-surface-muted transition-colors"
+                >
+                  <Globe className="w-3.5 h-3.5" aria-hidden="true" />
+                  Share to Feed
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={() => setConfirmDelete(true)}
+                disabled={deleting}
+                aria-label="Delete workout"
+                title="Delete workout"
+                className="flex items-center justify-center min-w-[44px] min-h-[44px] rounded-lg bg-red-50 dark:bg-red-950/40 text-red-600 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-950/60 transition-colors disabled:opacity-50"
+              >
+                <Trash2 className="w-4 h-4" aria-hidden="true" />
+              </button>
+            </div>
+          )}
         </div>
       )}
+
+      <ConfirmModal
+        isOpen={confirmDelete}
+        title="Delete Workout"
+        message={`This permanently deletes this workout and everything you logged. This cannot be undone.${session.post_id ? ' Your shared post stays on the feed.' : ''}`}
+        confirmText="Delete"
+        cancelText="Cancel"
+        onConfirm={handleDelete}
+        onCancel={() => setConfirmDelete(false)}
+      />
     </div>
   );
 }
