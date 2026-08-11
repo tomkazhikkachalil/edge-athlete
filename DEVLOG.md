@@ -1,5 +1,25 @@
 # Development Log
 
+## August 11, 2026 — Maintenance sweep (routines + calendar-workouts round)
+
+Requested checklist after #129/#130/#131:
+
+- **`npm audit`: 0 vulnerabilities.**
+- Full gate green on merged main: tsc clean, lint at the **43** ratchet
+  exactly, **1236 tests** (up 38 from the workout-actions sweep's 1198 —
+  routines validation/conversion, event-routine resolution + timezone
+  day-window, overlay builders), production build complete.
+- Session ledger: saved workout routines (#129, migration 079), schedule
+  workouts on the calendar with guest own-copy start (#130, migration 080),
+  activity-history overlay (#131, no migration). All three merged and
+  deployed; **final probes ran AGAINST PRODUCTION**: routines 24/24,
+  calendar-workouts 28/28, browser passes at 390px + 1280px on both
+  features (screenshots reviewed).
+- Migrations 079 + 080 run and verified in Supabase before their deploys.
+- Deferred follow-ups noted in PR bodies/DEVLOG: stat-line posts on the
+  calendar (needs a functional index on `stats_data->>'date'`), history
+  hide-toggle, guest "save routine copy to my presets".
+
 ## August 11, 2026 — Activity history on the calendar (PR2 of calendar-workouts)
 
 Completed activities — workouts, golf rounds, training posts — now appear
