@@ -97,6 +97,12 @@ interface CurrentVitals {
   dob: string | null;
 }
 
+// Shared look for the two responsive placements of the settings gear.
+// Display classes (flex/hidden) stay per-instance — a display value in a
+// shared string is the .ea-icon-btn lg:hidden trap.
+const VITALS_GEAR_CLASSES =
+  'items-center justify-center p-2.5 border border-border-strong text-secondary rounded-lg hover:bg-surface-muted transition-colors';
+
 // ── Helpers ────────────────────────────────────────────────────────────────
 
 function formatEntryValue(entry: VitalEntry): string {
@@ -495,11 +501,29 @@ export default function VitalsTab({ profileId, currentUserId, isOwnProfile = fal
       {/* ── Edge Vitals header + workout actions ─────────────────────── */}
       <div>
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-          <div>
-            <h2 className="text-h2 text-primary">Edge Vitals</h2>
-            <p className="text-sm text-muted mt-0.5">
-              Live workouts, performance metrics, and training history.
-            </p>
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <h2 className="text-h2 text-primary">Edge Vitals</h2>
+              <p className="text-sm text-muted mt-0.5">
+                Live workouts, performance metrics, and training history.
+              </p>
+            </div>
+            {/* Section-wide quick settings (body measurements today; more to
+                come). Needs the currentVitals snapshot to seed the form. Two
+                placements, one visible at a time: on phones the action cluster
+                stacks BELOW the heading, so the gear sits up here on the
+                heading line instead; ≥sm it rides the cluster. */}
+            {isOwnProfile && currentVitals && (
+              <button
+                type="button"
+                onClick={() => setShowVitalsSettings(true)}
+                aria-label="Vitals settings"
+                title="Vitals settings"
+                className={`${VITALS_GEAR_CLASSES} flex sm:hidden`}
+              >
+                <Settings className="w-5 h-5" aria-hidden="true" />
+              </button>
+            )}
           </div>
           {isOwnProfile && (
             <div className="flex items-center gap-2 flex-wrap">
@@ -522,15 +546,13 @@ export default function VitalsTab({ profileId, currentUserId, isOwnProfile = fal
                 <History className="w-3.5 h-3.5" aria-hidden="true" />
                 Log Past Workout
               </button>
-              {/* Section-wide quick settings (body measurements today; more
-                  to come). Needs the currentVitals snapshot to seed the form. */}
               {currentVitals && (
                 <button
                   type="button"
                   onClick={() => setShowVitalsSettings(true)}
                   aria-label="Vitals settings"
                   title="Vitals settings"
-                  className="flex items-center justify-center p-2.5 border border-border-strong text-secondary rounded-lg hover:bg-surface-muted transition-colors"
+                  className={`${VITALS_GEAR_CLASSES} hidden sm:flex`}
                 >
                   <Settings className="w-5 h-5" aria-hidden="true" />
                 </button>
