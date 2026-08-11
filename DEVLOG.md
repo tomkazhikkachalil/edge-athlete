@@ -1,5 +1,52 @@
 # Development Log
 
+## August 11, 2026 — Saved workout routines (presets)
+
+Tom's ask: save a workout's exercise list as a named routine when finishing a
+session; starting from a routine pre-fills the exercises with EMPTY set/weight
+fields; in-session changes never touch the preset; permanent preset edits live
+only in main Settings and the Vitals quick-settings.
+
+- **Migration 079** — `workout_routines` + `workout_routine_exercises`
+  (ordered, `target_sets` 1–10 each, case-insensitive unique name per user,
+  owner-only RLS ×8: routines are private planning data, no public branch).
+  Real tables, not the 064 label shortcut — routines need ordering, standalone
+  existence and per-exercise metadata, which a label can't carry.
+- **Copy-on-start makes immutability structural.** `POST /api/workouts
+  {mode:'live', routineId}` authorizes + loads the routine BEFORE the session
+  insert (bad id can't strand an empty session), then materializes exercises
+  with `target_sets` empty set rows each — survives an immediate refresh, no
+  draft games, no FK back to the routine (the entries PUT delete-reinserts
+  children wholesale, so a shared row would be destroyed). Session title
+  defaults to the routine name. The manual branch's child-insert +
+  compensating-delete was factored into a shared `insertSessionEntries`.
+- **New `/api/workout-routines`** (GET/POST) and `[id]` (PATCH/DELETE):
+  owner-only both directions, 23505→409 "already have a routine with this
+  name", 30-routine cap, exercises PATCH is a full-snapshot replace (no stale
+  guard — single-editor settings surface). Validation in
+  `src/lib/workouts/routines.ts` mirrors the CHECKs; `routineToEntries`
+  output round-trips `validateEntriesPayload` (asserted in tests, 27 new).
+- **Finish flow**: "Save as routine" card in FinishSummary (live AND manual),
+  name prefilled from the title, saves immediately and independently of
+  Continue — a duplicate-name 409 renders inline and never blocks the flow.
+  WorkoutCard grew a bookmark action with an inline name prompt (44px, no
+  hover reveal) so older workouts can become presets too.
+- **Start Workout** now opens a picker sheet (AddExerciseSheet shell) when
+  routines exist — "Empty workout" + routine rows; zero-routine users keep the
+  one-tap start. 409 resume path unchanged plus an explanatory toast; picking
+  a just-deleted routine 404s cleanly and refreshes the list.
+- **Management surfaces**: Settings → new Routines tab; Vitals gear → "Workout
+  routines · Manage" row → modal. Both host the same `RoutineManager`
+  (reorder arrows, sets stepper, AddExerciseSheet reuse, useDirtyClose). The
+  vitals gear guard relaxed from `isOwnProfile && currentVitals` to
+  `isOwnProfile` — routines must be reachable before any body measurement
+  exists; the form seeds from an empty snapshot.
+- **Ratchet note**: the two new fetch-on-mount sites are inlined cancellable
+  IIFEs per the eslint.config.mjs category-1 remedy — lint stays at exactly
+  43, nothing added to the warning list.
+- ⚠️ Migration 079 must run in Supabase before deploying (routines routes
+  42P01 otherwise).
+
 ## August 11, 2026 — Maintenance sweep (workout-actions round)
 
 Requested checklist after #127:

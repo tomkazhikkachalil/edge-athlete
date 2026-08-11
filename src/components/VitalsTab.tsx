@@ -30,10 +30,13 @@ import HeroStrip from './vitals/HeroStrip';
 import PBShowcase from './vitals/PBShowcase';
 import ProgressSection from './vitals/ProgressSection';
 import VitalsSettingsModal from './vitals/VitalsSettingsModal';
+import StartWorkoutSheet from './workouts/StartWorkoutSheet';
+import WorkoutRoutinesModal from './workouts/WorkoutRoutinesModal';
 import SectionEmptyState from './SectionEmptyState';
 import { categoryAccent } from './vitals/category-colors';
 import { useTheme } from '@/lib/use-theme';
 import type { ServerWorkoutSession } from '@/lib/workouts/serialize';
+import type { WorkoutRoutine } from '@/lib/workouts/routines';
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
@@ -348,6 +351,9 @@ export default function VitalsTab({ profileId, currentUserId, isOwnProfile = fal
   const [selectedYears, setSelectedYears] = useState<number[]>([]);
   const [startingWorkout, setStartingWorkout] = useState(false);
   const [bannerDismissed, setBannerDismissed] = useState(false);
+  const [routines, setRoutines] = useState<WorkoutRoutine[]>([]);
+  const [showStartSheet, setShowStartSheet] = useState(false);
+  const [showRoutinesModal, setShowRoutinesModal] = useState(false);
 
   const fetchData = useCallback(async () => {
     try {
@@ -382,6 +388,30 @@ export default function VitalsTab({ profileId, currentUserId, isOwnProfile = fal
     fetchData();
   }, [fetchData]);
 
+  // Saved routines feed the Start Workout picker — owner only, and a failure
+  // just degrades to the plain one-tap start. Inlined cancellable IIFE (not a
+  // callback call) so it stays out of the set-state-in-effect warning list;
+  // event handlers refresh by bumping routinesReload.
+  const [routinesReload, setRoutinesReload] = useState(0);
+  useEffect(() => {
+    if (!isOwnProfile) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const response = await fetch('/api/workout-routines', { credentials: 'include' });
+        if (!response.ok) return;
+        const data = await response.json();
+        if (!cancelled) setRoutines(data.routines ?? []);
+      } catch {
+        /* keep whatever we had */
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [isOwnProfile, routinesReload]);
+  const refreshRoutines = () => setRoutinesReload(k => k + 1);
+
   // Live session in progress (owner only sees actives from the API)
   const activeWorkout = useMemo(
     () =>
@@ -404,7 +434,7 @@ export default function VitalsTab({ profileId, currentUserId, isOwnProfile = fal
     }
   }, [activeWorkout]);
 
-  const handleStartWorkout = async () => {
+  const handleStartWorkout = async (routineId: string | null = null) => {
     if (startingWorkout) return;
     setStartingWorkout(true);
     try {
@@ -412,11 +442,20 @@ export default function VitalsTab({ profileId, currentUserId, isOwnProfile = fal
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
-        body: JSON.stringify({ mode: 'live' }),
+        body: JSON.stringify({ mode: 'live', ...(routineId ? { routineId } : {}) }),
       });
       const data = await response.json().catch(() => null);
       if (response.status === 409 && data?.activeSessionId) {
+        showError('Workout in progress', 'Resuming your workout in progress.');
         router.push(`/app/workout/${data.activeSessionId}`);
+        return;
+      }
+      if (routineId && response.status === 404) {
+        // Deleted between opening the sheet and tapping it
+        showError('Routine not found', 'That routine no longer exists.');
+        setShowStartSheet(false);
+        refreshRoutines();
+        setStartingWorkout(false);
         return;
       }
       if (!response.ok) throw new Error(data?.error || 'Failed to start workout');
@@ -425,6 +464,12 @@ export default function VitalsTab({ profileId, currentUserId, isOwnProfile = fal
       showError('Error', err instanceof Error ? err.message : 'Failed to start workout');
       setStartingWorkout(false);
     }
+  };
+
+  // With saved routines the button opens the picker; without, one-tap start.
+  const openStartWorkout = () => {
+    if (routines.length > 0) setShowStartSheet(true);
+    else handleStartWorkout();
   };
 
   // Filter options derived from the data actually present
@@ -508,12 +553,13 @@ export default function VitalsTab({ profileId, currentUserId, isOwnProfile = fal
                 Live workouts, performance metrics, and training history.
               </p>
             </div>
-            {/* Section-wide quick settings (body measurements today; more to
-                come). Needs the currentVitals snapshot to seed the form. Two
-                placements, one visible at a time: on phones the action cluster
-                stacks BELOW the heading, so the gear sits up here on the
-                heading line instead; ≥sm it rides the cluster. */}
-            {isOwnProfile && currentVitals && (
+            {/* Section-wide quick settings (body measurements + workout
+                routines). The form seeds from currentVitals when present and
+                from an empty snapshot when not — routines must stay reachable
+                either way. Two placements, one visible at a time: on phones
+                the action cluster stacks BELOW the heading, so the gear sits
+                up here on the heading line instead; ≥sm it rides the cluster. */}
+            {isOwnProfile && (
               <button
                 type="button"
                 onClick={() => setShowVitalsSettings(true)}
@@ -528,7 +574,7 @@ export default function VitalsTab({ profileId, currentUserId, isOwnProfile = fal
           {isOwnProfile && (
             <div className="flex items-center gap-2 flex-wrap">
               <button
-                onClick={handleStartWorkout}
+                onClick={openStartWorkout}
                 disabled={startingWorkout}
                 className="flex items-center gap-2 px-4 py-2.5 bg-brand text-white rounded-lg font-bold text-sm hover:bg-brand-hover transition-colors shadow-sm disabled:opacity-60"
               >
@@ -546,17 +592,15 @@ export default function VitalsTab({ profileId, currentUserId, isOwnProfile = fal
                 <History className="w-3.5 h-3.5" aria-hidden="true" />
                 Log Past Workout
               </button>
-              {currentVitals && (
-                <button
-                  type="button"
-                  onClick={() => setShowVitalsSettings(true)}
-                  aria-label="Vitals settings"
-                  title="Vitals settings"
-                  className={`${VITALS_GEAR_CLASSES} hidden sm:flex`}
-                >
-                  <Settings className="w-5 h-5" aria-hidden="true" />
-                </button>
-              )}
+              <button
+                type="button"
+                onClick={() => setShowVitalsSettings(true)}
+                aria-label="Vitals settings"
+                title="Vitals settings"
+                className={`${VITALS_GEAR_CLASSES} hidden sm:flex`}
+              >
+                <Settings className="w-5 h-5" aria-hidden="true" />
+              </button>
             </div>
           )}
         </div>
@@ -774,7 +818,7 @@ export default function VitalsTab({ profileId, currentUserId, isOwnProfile = fal
             body={isOwnProfile
               ? 'Hit Start Workout to record live — exercises, sets, reps, and weight as you go.'
               : "This athlete hasn't recorded workouts yet."}
-            cta={isOwnProfile ? { label: 'Start Your First Workout', onClick: handleStartWorkout } : undefined}
+            cta={isOwnProfile ? { label: 'Start Your First Workout', onClick: openStartWorkout } : undefined}
           />
         ) : (
           <div className="space-y-5">
@@ -878,11 +922,33 @@ export default function VitalsTab({ profileId, currentUserId, isOwnProfile = fal
         }}
       />
 
-      {showVitalsSettings && currentVitals && (
+      {showVitalsSettings && (
         <VitalsSettingsModal
-          currentVitals={currentVitals}
+          currentVitals={currentVitals ?? { heightCm: null, weightDisplay: null, weightUnit: null }}
           onClose={() => setShowVitalsSettings(false)}
           onSaved={fetchData}
+          onManageRoutines={() => {
+            setShowVitalsSettings(false);
+            setShowRoutinesModal(true);
+          }}
+        />
+      )}
+
+      {showRoutinesModal && (
+        <WorkoutRoutinesModal
+          onClose={() => {
+            setShowRoutinesModal(false);
+            refreshRoutines();
+          }}
+        />
+      )}
+
+      {showStartSheet && (
+        <StartWorkoutSheet
+          routines={routines}
+          starting={startingWorkout}
+          onStart={routineId => handleStartWorkout(routineId)}
+          onClose={() => setShowStartSheet(false)}
         />
       )}
 

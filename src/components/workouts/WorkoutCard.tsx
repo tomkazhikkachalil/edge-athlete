@@ -1,8 +1,9 @@
 'use client';
 
 import { useMemo, useState } from 'react';
-import { ChevronDown, ChevronUp, Dumbbell, Globe, Pencil, Trash2 } from 'lucide-react';
+import { Bookmark, ChevronDown, ChevronUp, Dumbbell, Globe, Pencil, Trash2 } from 'lucide-react';
 import { computeSummary, formatDuration, formatVolume, formatSetLine } from '@/lib/workouts/summary';
+import { entriesToRoutineExercises } from '@/lib/workouts/routines';
 import { serverToEntries, type ServerWorkoutSession } from '@/lib/workouts/serialize';
 import SetMediaStrip from './SetMediaStrip';
 import ConfirmModal from '../ConfirmModal';
@@ -29,6 +30,10 @@ export default function WorkoutCard({
   const [expanded, setExpanded] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [savePromptOpen, setSavePromptOpen] = useState(false);
+  const [routineName, setRoutineName] = useState('');
+  const [savingRoutine, setSavingRoutine] = useState(false);
+  const [routineError, setRoutineError] = useState('');
   const { showSuccess, showError } = useToast();
   const entries = useMemo(() => serverToEntries(session), [session]);
   const summary = useMemo(() => computeSummary(entries), [entries]);
@@ -56,6 +61,33 @@ export default function WorkoutCard({
     } catch (err) {
       showError('Error', err instanceof Error ? err.message : 'Failed to delete workout');
       setDeleting(false);
+    }
+  };
+
+  const handleSaveRoutine = async () => {
+    if (savingRoutine) return;
+    const name = routineName.trim() || session.title?.trim() || 'Workout';
+    setSavingRoutine(true);
+    setRoutineError('');
+    try {
+      const response = await fetch('/api/workout-routines', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ name, exercises: entriesToRoutineExercises(entries) }),
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        setRoutineError(data.error || 'Failed to save routine');
+        return;
+      }
+      showSuccess('Routine saved', `Pick “${name}” next time you start a workout.`);
+      setSavePromptOpen(false);
+    } catch (err) {
+      console.error('Failed to save routine:', err);
+      setRoutineError('Failed to save routine');
+    } finally {
+      setSavingRoutine(false);
     }
   };
 
@@ -166,6 +198,21 @@ export default function WorkoutCard({
                   Share to Feed
                 </button>
               )}
+              {entries.length > 0 && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setRoutineName(session.title || '');
+                    setRoutineError('');
+                    setSavePromptOpen(prev => !prev);
+                  }}
+                  aria-label="Save as routine"
+                  title="Save as routine"
+                  className="flex items-center justify-center min-w-[44px] min-h-[44px] rounded-lg border border-border-strong bg-surface text-secondary hover:bg-surface-muted transition-colors"
+                >
+                  <Bookmark className="w-4 h-4" aria-hidden="true" />
+                </button>
+              )}
               <button
                 type="button"
                 onClick={() => setConfirmDelete(true)}
@@ -176,6 +223,39 @@ export default function WorkoutCard({
               >
                 <Trash2 className="w-4 h-4" aria-hidden="true" />
               </button>
+            </div>
+          )}
+
+          {/* Inline save-as-routine prompt — no extra modal layer needed */}
+          {isOwnProfile && savePromptOpen && (
+            <div className="border-t border-border-subtle pt-3">
+              <p className="text-xs font-semibold text-secondary mb-2">
+                Save this exercise list as a routine
+              </p>
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  value={routineName}
+                  onChange={e => {
+                    setRoutineName(e.target.value.slice(0, 120));
+                    setRoutineError('');
+                  }}
+                  placeholder="Routine name"
+                  aria-label="Routine name"
+                  className="flex-1 min-w-0 px-3 py-2.5 border border-border-strong rounded-lg text-sm bg-surface focus:outline-none"
+                />
+                <button
+                  type="button"
+                  onClick={handleSaveRoutine}
+                  disabled={savingRoutine}
+                  className="shrink-0 px-4 min-h-[44px] rounded-lg text-sm font-bold text-white bg-brand hover:bg-brand-hover transition-colors disabled:opacity-50"
+                >
+                  {savingRoutine ? 'Saving…' : 'Save'}
+                </button>
+              </div>
+              {routineError && (
+                <p className="text-xs text-red-600 dark:text-red-400 mt-2">{routineError}</p>
+              )}
             </div>
           )}
         </div>
