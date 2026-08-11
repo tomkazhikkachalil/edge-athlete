@@ -243,6 +243,14 @@ export async function POST(request: NextRequest) {
         : null;
 
     if (body.mode === 'live') {
+      // Malformed requests fail before any state checks
+      if (body.routineId !== undefined && body.eventId !== undefined) {
+        return NextResponse.json(
+          { error: 'Provide routineId or eventId, not both' },
+          { status: 400 }
+        );
+      }
+
       // One live session at a time: finalize a stale one, 409 on a fresh one
       const { data: actives } = await supabase
         .from('workout_sessions')
@@ -276,12 +284,6 @@ export async function POST(request: NextRequest) {
       // Starting from a saved routine OR a scheduled calendar event:
       // authorize + load the plan BEFORE creating the session, so a bad id
       // never leaves an empty session behind
-      if (body.routineId !== undefined && body.eventId !== undefined) {
-        return NextResponse.json(
-          { error: 'Provide routineId or eventId, not both' },
-          { status: 400 }
-        );
-      }
       let plan: RoutinePlan | null = null;
       if (body.routineId !== undefined) {
         if (typeof body.routineId !== 'string' || body.routineId.length === 0) {
