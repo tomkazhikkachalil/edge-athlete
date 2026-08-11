@@ -522,6 +522,19 @@ export default function VitalsTab({ profileId, currentUserId, isOwnProfile = fal
                 <History className="w-3.5 h-3.5" aria-hidden="true" />
                 Log Past Workout
               </button>
+              {/* Section-wide quick settings (body measurements today; more
+                  to come). Needs the currentVitals snapshot to seed the form. */}
+              {currentVitals && (
+                <button
+                  type="button"
+                  onClick={() => setShowVitalsSettings(true)}
+                  aria-label="Vitals settings"
+                  title="Vitals settings"
+                  className="flex items-center justify-center p-2.5 border border-border-strong text-secondary rounded-lg hover:bg-surface-muted transition-colors"
+                >
+                  <Settings className="w-5 h-5" aria-hidden="true" />
+                </button>
+              )}
             </div>
           )}
         </div>
@@ -570,24 +583,14 @@ export default function VitalsTab({ profileId, currentUserId, isOwnProfile = fal
       <ProgressSection vitals={vitals} sessions={completedWorkouts} />
 
       {/* ── Current Vitals — the athlete's present-day snapshot from their
-             profile. Owners update height/weight via the gear (each save also
-             appends a dated athlete_vitals timeline entry); DOB stays an Edit
-             Profile job. DOB tile is owner-only; visitors see Age. ────────── */}
+             profile. Owners update height/weight via the Edge Vitals header
+             gear (each save also appends a dated athlete_vitals timeline
+             entry); DOB stays an Edit Profile job. DOB tile is owner-only;
+             visitors see Age. ─────────────────────────────────────────────── */}
       {currentVitals && (
         <div>
-          <div className="flex items-center justify-between mb-3">
+          <div className="flex items-baseline justify-between mb-3">
             <h3 className="text-base font-bold text-primary">Current Vitals</h3>
-            {isOwnProfile && (
-              <button
-                type="button"
-                onClick={() => setShowVitalsSettings(true)}
-                aria-label="Update body measurements"
-                title="Update body measurements"
-                className="shrink-0 flex h-9 w-9 items-center justify-center rounded-lg border border-border-strong bg-surface text-tertiary hover:bg-surface-muted transition-colors"
-              >
-                <Settings className="w-4 h-4" />
-              </button>
-            )}
           </div>
           <div className={`grid grid-cols-2 gap-4 ${isOwnProfile ? 'md:grid-cols-4' : 'md:grid-cols-3'}`}>
             <div className="text-center bg-surface rounded-lg border border-border p-4">
