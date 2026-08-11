@@ -63,9 +63,13 @@ export default function AddExerciseSheet({ isOpen, onClose, onAdd }: AddExercise
 
   return (
     <div className="fixed inset-0 bg-black/50 z-50 flex items-end sm:items-center justify-center">
-      <div className="bg-surface-raised rounded-t-2xl sm:rounded-2xl shadow-xl w-full sm:max-w-md max-h-modal flex flex-col">
+      {/* h-dvh (capped by max-h-modal) pins the phone sheet at full height: a
+          content-sized sheet would collapse as the query narrows and sink —
+          bottom-anchored — behind the keyboard, since iOS keeps the layout
+          viewport full-size. Same reasoning as GifPickerModal. */}
+      <div className="bg-surface-raised rounded-t-2xl sm:rounded-2xl shadow-xl w-full sm:max-w-md h-dvh sm:h-auto max-h-modal overflow-hidden flex flex-col modal-sheet-bottom">
         {/* Header + search */}
-        <div className="p-4 border-b border-border-subtle">
+        <div className="shrink-0 p-4 border-b border-border-subtle">
           <div className="flex items-center justify-between mb-3">
             <h2 className="text-lg font-bold text-primary">Add Exercise</h2>
             <button
@@ -91,7 +95,7 @@ export default function AddExerciseSheet({ isOpen, onClose, onAdd }: AddExercise
         </div>
 
         {/* Catalog list */}
-        <div className="flex-1 overflow-y-auto p-2">
+        <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain p-2">
           {grouped.map(group => (
             <div key={group.category} className="mb-2">
               <p className="px-3 py-1.5 text-xs font-semibold text-faint uppercase tracking-wider">
