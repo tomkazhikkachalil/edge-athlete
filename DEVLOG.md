@@ -1,5 +1,48 @@
 # Development Log
 
+## August 11, 2026 — Schedule workouts on the calendar (PR1 of calendar-workouts)
+
+Tom's ask: assign a saved routine to a calendar date, open the event on the
+day, see the routine, start the session immediately; invite others who can
+view the routine and start their own copy.
+
+- **Migration 080** — `events` gains `routine_id` (FK → workout_routines,
+  SET NULL) + `routine_snapshot` JSONB + `'workout'` in the category CHECK.
+  LIVE-reference semantics (Tom's decision): the event always shows/starts
+  the organizer's current routine version; the snapshot (frozen at attach
+  time, re-frozen only when the attachment changes) is purely the deletion
+  fallback. JSONB despite 079's rows-not-JSONB stance: write-once display
+  artifact, never queried per-exercise, copied verbatim per occurrence.
+- **New `src/lib/calendar/event-routine.ts`** — snapshot build/parse (parse
+  delegates to `validateRoutinePayload`, so a corrupt snapshot yields "no
+  workout attached", never a garbage session), live-else-snapshot resolution
+  (live only while still owned by the ORGANIZER — a recycled id can't leak
+  through the admin client), and pure `canStartEventWorkout` day-window
+  gating in the event's IANA zone (15 new tests incl. Auckland-vs-UTC).
+- **Six field whitelists** now carry the routine columns — three
+  `EVENT_FIELDS` copies, `OccurrenceEventFields`, the cron-extend template
+  selects, and PATCH `baseFields` (miss any one and occurrences silently
+  lose the routine). `FEED_EVENT_FIELDS` deliberately untouched.
+- **`POST /api/workouts` gains `eventId`** (mutually exclusive with
+  routineId): organizer or any non-declined guest starts THEIR OWN session
+  from the event's routine — copy-on-start via the existing
+  `routineToEntries` + `insertSessionEntries`. Outsiders 404 (calendar's
+  never-reveal-existence rule), declined guests 403, cancelled 400.
+  `workout_routines` RLS stays owner-only; the guest row is the authority.
+- **UI**: EventFormModal grows a routine picker in More options (chips ≤8,
+  select above; attaching flips category to 'workout'; `routineId` lives
+  INSIDE FormState so the dirty-close snapshot covers it for free);
+  EventDetailModal shows the exercise list + "Start This Workout" (409 →
+  resume the active session, VitalsTab pattern; off-day → disabled hint;
+  declined → "Respond Yes or Maybe" hint). Purity note: the CTA's day gate
+  uses a fetch-time timestamp — `Date.now()` in render trips
+  react-hooks/purity, and the modal refetches per open anyway.
+- Invites/RSVP/reminders/emails: zero changes — the whole guest pipeline
+  works for workout events as-is. Per-event ICS prepends "Workout: <name>".
+- ⚠️ Migration 080 must run in Supabase before deploying (EVENT_FIELDS
+  selects the new columns → 42703 otherwise).
+- PR2 (activity history overlay on the calendar) follows separately.
+
 ## August 11, 2026 — Saved workout routines (presets)
 
 Tom's ask: save a workout's exercise list as a named routine when finishing a

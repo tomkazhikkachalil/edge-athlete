@@ -4,6 +4,7 @@ import { FEATURE_FLAGS } from '@/lib/features';
 import { loadEventForViewer } from '@/lib/calendar/detail-server';
 import { buildVEvent, buildCalendar } from '@/lib/calendar/ics';
 import { describeRecurrence } from '@/lib/calendar/recurrence';
+import { resolveEventRoutine } from '@/lib/calendar/event-routine';
 
 // ── GET /api/calendar/events/[id]/ics ─────────────────────────────────────────
 // "Add to calendar": downloads this event (this occurrence only, for
@@ -26,6 +27,13 @@ export async function GET(
     if (!event) return NextResponse.json({ error: 'Event not found' }, { status: 404 });
 
     let description = event.description ?? '';
+    // Scheduled workout: name the routine in the exported description
+    if (event.routine_id || event.routine_snapshot) {
+      const routine = await resolveEventRoutine(admin, event);
+      if (routine) {
+        description = description ? `Workout: ${routine.name}\n\n${description}` : `Workout: ${routine.name}`;
+      }
+    }
     if (event.series_id) {
       const { data: rule } = await admin
         .from('event_series')

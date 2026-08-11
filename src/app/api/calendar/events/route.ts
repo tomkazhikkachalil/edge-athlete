@@ -7,6 +7,8 @@ import { validateRecurrenceInput, describeRecurrence } from '@/lib/calendar/recu
 import { insertSeriesOccurrences } from '@/lib/calendar/series-server';
 import { notifyEventInvites } from '@/lib/calendar/notifications';
 import { formatEventWhen } from '@/lib/calendar/format-server';
+import { buildRoutineSnapshot, type RoutinePlan } from '@/lib/calendar/event-routine';
+import type { ServerRoutineRow } from '@/lib/workouts/routines';
 
 // ── /api/calendar/events ──────────────────────────────────────────────────────
 // GET ?from=&to= → the caller's calendar for a visible range: their guest
@@ -20,7 +22,7 @@ import { formatEventWhen } from '@/lib/calendar/format-server';
 const MAX_RANGE_DAYS = 62;
 
 const EVENT_FIELDS =
-  'id, organizer_id, title, description, location, starts_at, ends_at, all_day, timezone, category, status, cancelled_at, series_id, series_override';
+  'id, organizer_id, title, description, location, starts_at, ends_at, all_day, timezone, category, status, cancelled_at, series_id, series_override, routine_id, routine_snapshot';
 
 export async function GET(request: NextRequest) {
   if (!FEATURE_FLAGS.FEATURE_CALENDAR) {
@@ -98,6 +100,27 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    // Attached routine: must be the caller's, snapshotted at attach time (the
+    // frozen fallback for when the live routine is later deleted — 080).
+    let routineSnapshot: RoutinePlan | null = null;
+    if (validated.event.routine_id) {
+      const { data: routineRow } = await admin
+        .from('workout_routines')
+        .select(
+          `id, name, created_at, updated_at,
+           exercises:workout_routine_exercises (
+             name, exercise_key, category, position, notes, target_sets
+           )`
+        )
+        .eq('id', validated.event.routine_id)
+        .eq('profile_id', user.id)
+        .maybeSingle();
+      if (!routineRow) {
+        return NextResponse.json({ error: 'That routine no longer exists.' }, { status: 400 });
+      }
+      routineSnapshot = buildRoutineSnapshot(routineRow as unknown as ServerRoutineRow);
+    }
+
     // ── Recurring: series row → materialized occurrences + guest fan-out ──
     if (body.recurrence !== undefined && body.recurrence !== null) {
       const recValidated = validateRecurrenceInput(
@@ -141,6 +164,8 @@ export async function POST(request: NextRequest) {
             all_day: validated.event.all_day,
             timezone: validated.event.timezone,
             category: validated.event.category,
+            routine_id: validated.event.routine_id,
+            routine_snapshot: routineSnapshot,
           },
           [
             { profile_id: user.id, role: 'organizer', status: 'accepted', responded_at: now },
@@ -206,7 +231,7 @@ export async function POST(request: NextRequest) {
 
     const { data: event, error: eventError } = await admin
       .from('events')
-      .insert({ ...validated.event, organizer_id: user.id })
+      .insert({ ...validated.event, routine_snapshot: routineSnapshot, organizer_id: user.id })
       .select(EVENT_FIELDS)
       .single();
     if (eventError || !event) {

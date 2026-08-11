@@ -1,5 +1,7 @@
 // Shared client types for the calendar feature — mirrors the API envelopes.
 
+import type { EventRoutine } from '@/lib/calendar/event-routine';
+
 export type MyStatus = 'invited' | 'accepted' | 'declined' | 'maybe';
 export type CalendarViewKind = 'month' | 'week' | 'day' | 'agenda';
 export type EditScope = 'this' | 'following' | 'series';
@@ -29,6 +31,8 @@ export interface EventListItem {
   cancelled_at: string | null;
   series_id: string | null;
   series_override: boolean;
+  /** Attached workout routine (080) — id only in list items. */
+  routine_id?: string | null;
   my_status: MyStatus;
   is_organizer: boolean;
 }
@@ -55,4 +59,6 @@ export interface EventGuest {
 export interface EventDetail extends Omit<EventListItem, 'my_status' | 'is_organizer'> {
   guests: EventGuest[];
   series: SeriesRule | null;
+  /** Resolved routine view (live version, snapshot fallback) — never the raw snapshot. */
+  routine: EventRoutine | null;
 }

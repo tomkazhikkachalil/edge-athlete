@@ -28,6 +28,8 @@ export interface OccurrenceEventFields {
   all_day: boolean;
   timezone: string;
   category: string;
+  routine_id: string | null;
+  routine_snapshot: unknown;
 }
 
 export interface GuestIdentity {
@@ -129,7 +131,7 @@ export async function extendRecurringSeries(
       // back to the latest occurrence of any kind.
       const { data: templateRow } = await admin
         .from('events')
-        .select('id, organizer_id, title, description, location, all_day, timezone, category')
+        .select('id, organizer_id, title, description, location, all_day, timezone, category, routine_id, routine_snapshot')
         .eq('series_id', series.id)
         .eq('series_override', false)
         .eq('status', 'active')
@@ -138,7 +140,7 @@ export async function extendRecurringSeries(
         .maybeSingle();
       const { data: latestAny } = await admin
         .from('events')
-        .select('id, organizer_id, title, description, location, all_day, timezone, category')
+        .select('id, organizer_id, title, description, location, all_day, timezone, category, routine_id, routine_snapshot')
         .eq('series_id', series.id)
         .order('starts_at', { ascending: false })
         .limit(1)
@@ -183,6 +185,8 @@ export async function extendRecurringSeries(
           all_day: template.all_day,
           timezone: template.timezone,
           category: template.category,
+          routine_id: template.routine_id,
+          routine_snapshot: template.routine_snapshot,
         },
         (guestRows ?? []) as GuestIdentity[]
       );

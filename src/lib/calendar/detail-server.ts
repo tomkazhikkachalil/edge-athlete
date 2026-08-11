@@ -9,7 +9,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 type Admin = SupabaseClient<any, 'public', any>;
 
 export const EVENT_FIELDS =
-  'id, organizer_id, title, description, location, starts_at, ends_at, all_day, timezone, category, status, cancelled_at, series_id, series_override';
+  'id, organizer_id, title, description, location, starts_at, ends_at, all_day, timezone, category, status, cancelled_at, series_id, series_override, routine_id, routine_snapshot';
 
 export interface CalendarEventRow {
   id: string;
@@ -26,6 +26,8 @@ export interface CalendarEventRow {
   cancelled_at: string | null;
   series_id: string | null;
   series_override: boolean;
+  routine_id: string | null;
+  routine_snapshot: unknown;
   updated_at?: string;
 }
 

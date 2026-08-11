@@ -9,7 +9,7 @@
 import { emailString } from '../validation';
 
 export const EVENT_CATEGORIES = [
-  'general', 'practice', 'game', 'tournament', 'training', 'social', 'other',
+  'general', 'practice', 'game', 'tournament', 'training', 'social', 'other', 'workout',
 ] as const;
 export type EventCategory = (typeof EVENT_CATEGORIES)[number];
 
@@ -29,6 +29,8 @@ export interface NormalizedEventInput {
   all_day: boolean;
   timezone: string;
   category: EventCategory;
+  /** Attached workout routine (080). Ownership is checked in the route. */
+  routine_id: string | null;
 }
 
 export interface NormalizedGuestInput {
@@ -121,6 +123,14 @@ export function validateEventInput(
     return { ok: false, error: 'Unknown event category.' };
   }
 
+  let routine_id: string | null = null;
+  if (body.routine_id !== undefined && body.routine_id !== null) {
+    if (typeof body.routine_id !== 'string' || !UUID_RE.test(body.routine_id)) {
+      return { ok: false, error: 'Invalid routine.' };
+    }
+    routine_id = body.routine_id;
+  }
+
   return {
     ok: true,
     event: {
@@ -132,6 +142,7 @@ export function validateEventInput(
       all_day,
       timezone,
       category: category as EventCategory,
+      routine_id,
     },
   };
 }

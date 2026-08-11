@@ -2,10 +2,12 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import Image from 'next/image';
+import { useRouter } from 'next/navigation';
 import { isOptimizableImageSrc } from '@/lib/media/image-src';
 import { format } from 'date-fns';
-import { X, CalendarDays } from 'lucide-react';
+import { X, CalendarDays, Dumbbell, Play } from 'lucide-react';
 import { useAuth } from '@/lib/auth';
+import { canStartEventWorkout } from '@/lib/calendar/event-routine';
 import { useBodyScrollLock } from '@/hooks/useBodyScrollLock';
 import { useToast } from '@/components/Toast';
 import ConfirmModal from '@/components/ConfirmModal';
@@ -79,6 +81,7 @@ export default function EventDetailModal({
   onEdit: (event: EventDetail) => void;
 }) {
   const { user } = useAuth();
+  const router = useRouter();
   const { showError, showSuccess } = useToast();
   const [event, setEvent] = useState<EventDetail | null>(null);
   const [loading, setLoading] = useState(false);
@@ -86,6 +89,10 @@ export default function EventDetailModal({
   const [confirmingCancel, setConfirmingCancel] = useState(false);
   const [pendingResponse, setPendingResponse] = useState<MyStatus | null>(null);
   const [savingReminder, setSavingReminder] = useState(false);
+  const [startingWorkout, setStartingWorkout] = useState(false);
+  // Captured at fetch time (render must stay pure); the modal refetches on
+  // every open, so the CTA's day-window gate is evaluated freshly per open.
+  const [loadedAt, setLoadedAt] = useState(0);
   useBodyScrollLock(isOpen);
 
   const load = useCallback(async () => {
@@ -100,6 +107,7 @@ export default function EventDetailModal({
         return;
       }
       setEvent(data.event);
+      setLoadedAt(Date.now());
     } catch {
       showError('Event unavailable', 'This event could not be loaded.');
       onClose();
@@ -174,6 +182,32 @@ export default function EventDetailModal({
       showError('Could not save', 'Please try again.');
     } finally {
       setSavingReminder(false);
+    }
+  };
+
+  // Start THIS VIEWER'S own session from the event's routine (copy-on-start;
+  // the shared routine is never mutated). VitalsTab's 409-resume pattern.
+  const startWorkout = async () => {
+    if (!event || startingWorkout) return;
+    setStartingWorkout(true);
+    try {
+      const res = await fetch('/api/workouts', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ mode: 'live', eventId: event.id }),
+      });
+      const data = await res.json().catch(() => null);
+      if (res.status === 409 && data?.activeSessionId) {
+        showError('Workout in progress', 'Resuming your workout in progress.');
+        router.push(`/app/workout/${data.activeSessionId}`);
+        return;
+      }
+      if (!res.ok) throw new Error(data?.error || 'Failed to start workout');
+      router.push(`/app/workout/${data.session.id}`);
+    } catch (err) {
+      showError('Error', err instanceof Error ? err.message : 'Failed to start workout');
+      setStartingWorkout(false);
     }
   };
 
@@ -272,6 +306,67 @@ export default function EventDetailModal({
                 {event.description}
               </p>
             )}
+
+            {/* Scheduled workout — the attached routine + start CTA. Every
+                viewer starts their OWN session; the routine itself is only
+                editable by its owner in Settings. */}
+            {event.routine && (() => {
+              const canStart = canStartEventWorkout({
+                status: event.status,
+                starts_at: event.starts_at,
+                ends_at: event.ends_at,
+                timezone: event.timezone,
+                isOrganizer,
+                myStatus: myGuestRow?.status ?? null,
+                now: loadedAt,
+              });
+              return (
+                <div className="border-t border-border-subtle pt-3">
+                  <div className="flex items-center gap-2 mb-2">
+                    <Dumbbell className="w-4 h-4 text-orange-600" aria-hidden="true" />
+                    <p className="text-sm font-semibold text-primary">{event.routine.name}</p>
+                    {event.routine.source === 'snapshot' && isOrganizer && (
+                      <span className="text-xs text-faint">
+                        saved copy — the original routine was deleted
+                      </span>
+                    )}
+                  </div>
+                  <ul className="space-y-1 mb-3">
+                    {event.routine.exercises.map((exercise, index) => (
+                      <li key={`${exercise.name}-${index}`} className="text-sm text-secondary">
+                        {exercise.name}
+                        <span className="text-muted">
+                          {' — '}{exercise.targetSets} {exercise.targetSets === 1 ? 'set' : 'sets'}
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                  {!cancelled && (
+                    canStart ? (
+                      <button
+                        type="button"
+                        onClick={startWorkout}
+                        disabled={startingWorkout}
+                        className="w-full flex items-center justify-center gap-2 bg-brand text-white py-2 rounded-lg text-sm font-bold hover:bg-brand-hover transition min-h-[44px] disabled:opacity-50"
+                      >
+                        {startingWorkout ? (
+                          <span className="animate-spin rounded-full h-4 w-4 border-b-2 border-white" aria-hidden="true" />
+                        ) : (
+                          <Play className="w-4 h-4" aria-hidden="true" />
+                        )}
+                        Start This Workout
+                      </button>
+                    ) : (
+                      <p className="w-full text-center py-2 rounded-lg text-sm font-medium text-muted bg-surface-muted border border-border min-h-[44px] flex items-center justify-center">
+                        {myGuestRow?.status === 'declined' && !isOrganizer
+                          ? 'Respond Yes or Maybe to start this workout'
+                          : 'Available on the day of the event'}
+                      </p>
+                    )
+                  )}
+                </div>
+              );
+            })()}
 
             {/* Respond (guests only, not on cancelled events) */}
             {myGuestRow && myGuestRow.role !== 'organizer' && !cancelled && (

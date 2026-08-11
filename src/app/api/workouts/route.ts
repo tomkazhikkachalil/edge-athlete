@@ -2,6 +2,11 @@ import { NextRequest, NextResponse } from 'next/server';
 import { requireAuth, getSupabaseAdmin } from '@/lib/auth-server';
 import { validateEntriesPayload, type EntryExercise } from '@/lib/workouts/entries';
 import { routineToEntries, type ServerRoutineRow } from '@/lib/workouts/routines';
+import {
+  buildRoutineSnapshot,
+  resolveEventRoutine,
+  type RoutinePlan,
+} from '@/lib/calendar/event-routine';
 import { effectiveSessionStatus, staleFinalizeFields } from '@/lib/workouts/status';
 
 /**
@@ -238,6 +243,14 @@ export async function POST(request: NextRequest) {
         : null;
 
     if (body.mode === 'live') {
+      // Malformed requests fail before any state checks
+      if (body.routineId !== undefined && body.eventId !== undefined) {
+        return NextResponse.json(
+          { error: 'Provide routineId or eventId, not both' },
+          { status: 400 }
+        );
+      }
+
       // One live session at a time: finalize a stale one, 409 on a fresh one
       const { data: actives } = await supabase
         .from('workout_sessions')
@@ -268,9 +281,10 @@ export async function POST(request: NextRequest) {
         }
       }
 
-      // Starting from a saved routine: authorize + load it BEFORE creating
-      // the session, so a bad routineId never leaves an empty session behind
-      let routine: ServerRoutineRow | null = null;
+      // Starting from a saved routine OR a scheduled calendar event:
+      // authorize + load the plan BEFORE creating the session, so a bad id
+      // never leaves an empty session behind
+      let plan: RoutinePlan | null = null;
       if (body.routineId !== undefined) {
         if (typeof body.routineId !== 'string' || body.routineId.length === 0) {
           return NextResponse.json({ error: 'Invalid routine' }, { status: 400 });
@@ -291,7 +305,47 @@ export async function POST(request: NextRequest) {
         if (routineRow.profile_id !== user.id) {
           return NextResponse.json({ error: 'Unauthorized' }, { status: 403 });
         }
-        routine = routineRow as unknown as ServerRoutineRow;
+        plan = buildRoutineSnapshot(routineRow as unknown as ServerRoutineRow);
+      }
+
+      // Scheduled workout: any non-declined guest (or the organizer) starts
+      // their OWN session from the event's routine — live version when the
+      // organizer still has it, frozen snapshot otherwise. workout_routines
+      // RLS stays owner-only; access is authorized through the guest row.
+      if (body.eventId !== undefined) {
+        if (typeof body.eventId !== 'string' || body.eventId.length === 0) {
+          return NextResponse.json({ error: 'Invalid event' }, { status: 400 });
+        }
+        const { data: event } = await supabase
+          .from('events')
+          .select('id, organizer_id, status, title, routine_id, routine_snapshot')
+          .eq('id', body.eventId)
+          .maybeSingle();
+        if (!event) {
+          return NextResponse.json({ error: 'Event not found' }, { status: 404 });
+        }
+        if (event.organizer_id !== user.id) {
+          const { data: guest } = await supabase
+            .from('event_guests')
+            .select('status')
+            .eq('event_id', event.id)
+            .eq('profile_id', user.id)
+            .maybeSingle();
+          if (!guest) {
+            // Outsiders never learn the event exists (calendar convention)
+            return NextResponse.json({ error: 'Event not found' }, { status: 404 });
+          }
+          if (guest.status === 'declined') {
+            return NextResponse.json({ error: 'You declined this event' }, { status: 403 });
+          }
+        }
+        if (event.status === 'cancelled') {
+          return NextResponse.json({ error: 'This event was cancelled' }, { status: 400 });
+        }
+        plan = await resolveEventRoutine(supabase, event);
+        if (!plan) {
+          return NextResponse.json({ error: 'No workout attached to this event' }, { status: 400 });
+        }
       }
 
       const now = new Date().toISOString();
@@ -299,7 +353,7 @@ export async function POST(request: NextRequest) {
         .from('workout_sessions')
         .insert({
           profile_id: user.id,
-          title: title ?? routine?.name ?? null,
+          title: title ?? plan?.name ?? null,
           status: 'active',
           source: 'live',
           started_at: now,
@@ -313,19 +367,9 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: 'Failed to start workout' }, { status: 500 });
       }
 
-      if (routine) {
-        // Copy-on-start: materialize the routine's exercises with empty sets
-        const seeded = routineToEntries(
-          [...(routine.exercises ?? [])]
-            .sort((a, b) => a.position - b.position)
-            .map(exercise => ({
-              name: exercise.name,
-              exerciseKey: exercise.exercise_key,
-              category: exercise.category,
-              notes: exercise.notes,
-              targetSets: exercise.target_sets,
-            }))
-        );
+      if (plan) {
+        // Copy-on-start: materialize the plan's exercises with empty sets
+        const seeded = routineToEntries(plan.exercises);
         const result = await insertSessionEntries(supabase, session.id, user.id, seeded);
         if (!result.ok) {
           console.error(`Routine start failed at ${result.step}:`, result.error);
