@@ -20,13 +20,6 @@ const SET_MEDIA_EDITOR_CONFIG: EditorConfig = {
 };
 const SET_MEDIA_MAX_BYTES = 50 * 1024 * 1024; // server cap on /api/upload/post-media
 
-const CATEGORY_ICON: Record<EntryExercise['category'], string> = {
-  strength: '🏋️',
-  cardio: '🏃',
-  mobility: '🧘',
-  other: '💪',
-};
-
 export function emptySet(setNumber: number): EntrySet {
   return {
     setNumber,
@@ -346,7 +339,6 @@ export default function ExerciseCard({ exercise, onChange, onDelete }: ExerciseC
   return (
     <div className="bg-surface rounded-xl border border-border p-3 sm:p-4">
       <div className="flex items-center gap-2 mb-2">
-        <span className="text-xl" aria-hidden="true">{CATEGORY_ICON[exercise.category]}</span>
         <h3 className="text-base font-bold text-primary flex-1 min-w-0 truncate">{exercise.name}</h3>
         <button
           type="button"
