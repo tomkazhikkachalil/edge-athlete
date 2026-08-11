@@ -36,12 +36,14 @@ interface VitalsSettingsModalProps {
   onClose: () => void;
   /** Called after a successful save; caller refetches. */
   onSaved: () => void;
+  /** Opens the workout-routines manager (the caller swaps modals). */
+  onManageRoutines?: () => void;
 }
 
 const today = () => new Date().toISOString().split('T')[0];
 
 export default function VitalsSettingsModal({
-  currentVitals, onClose, onSaved,
+  currentVitals, onClose, onSaved, onManageRoutines,
 }: VitalsSettingsModalProps) {
   const { showSuccess, showError } = useToast();
   const [saving, setSaving] = useState(false);
@@ -233,6 +235,21 @@ export default function VitalsSettingsModal({
               You can back-date entries to record historical measurements.
             </p>
           </div>
+
+          {onManageRoutines && (
+            <div className="border-t border-border-subtle pt-4">
+              <button
+                onClick={onManageRoutines}
+                className="w-full flex items-center justify-between gap-3 rounded-lg border border-border px-3 py-2.5 text-left hover:bg-surface-muted transition-colors"
+              >
+                <span>
+                  <span className="block text-sm font-semibold text-primary">Workout routines</span>
+                  <span className="block text-xs text-muted">Saved presets for starting workouts</span>
+                </span>
+                <span className="shrink-0 text-sm font-semibold text-brand-fg">Manage</span>
+              </button>
+            </div>
+          )}
 
           <p className="text-xs text-muted border-t border-border-subtle pt-4">
             Each save adds a permanent dated entry to your timeline; your most

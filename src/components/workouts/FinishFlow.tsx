@@ -1,7 +1,7 @@
 'use client';
 
 import Image from 'next/image';
-import { Award, Check, Dumbbell, Globe, Lock, Play, Timer, TrendingUp } from 'lucide-react';
+import { Award, Bookmark, Check, Dumbbell, Globe, Lock, Play, Timer, TrendingUp } from 'lucide-react';
 import {
   formatDuration,
   formatVolume,
@@ -11,6 +11,16 @@ import {
 } from '@/lib/workouts/summary';
 import type { PRCandidate } from '@/lib/workouts/pr-detection';
 
+/** State + handlers for the optional "save as routine" card; null hides it. */
+export interface RoutineSaveProps {
+  name: string;
+  onNameChange: (next: string) => void;
+  saving: boolean;
+  saved: boolean;
+  error: string;
+  onSave: () => void;
+}
+
 interface FinishSummaryProps {
   title: string;
   durationSeconds: number;
@@ -19,6 +29,7 @@ interface FinishSummaryProps {
   checkedPRs: Set<string>;
   onTogglePR: (metricKey: string) => void;
   onContinue: () => void;
+  routineSave: RoutineSaveProps | null;
 }
 
 export function FinishSummary({
@@ -29,6 +40,7 @@ export function FinishSummary({
   checkedPRs,
   onTogglePR,
   onContinue,
+  routineSave,
 }: FinishSummaryProps) {
   return (
     <div className="max-w-md mx-auto px-4 py-8 space-y-6">
@@ -102,6 +114,49 @@ export function FinishSummary({
               </label>
             ))}
           </div>
+        </div>
+      )}
+
+      {/* Save as routine — optional, saves immediately, never blocks Continue */}
+      {routineSave && (
+        <div className="bg-brand-soft border border-violet-200 dark:border-violet-800 rounded-xl p-4">
+          <div className="flex items-center gap-2 mb-1">
+            <Bookmark className="w-5 h-5 text-brand-fg" aria-hidden="true" />
+            <h2 className="text-base font-bold text-primary">Save as routine</h2>
+          </div>
+          <p className="text-xs text-tertiary mb-3">
+            Reuse this exercise list next time — sets ready, you fill in the numbers.
+          </p>
+          {routineSave.saved ? (
+            <p className="flex items-center gap-2 text-sm font-semibold text-emerald-700 dark:text-emerald-400">
+              <Check className="w-4 h-4" aria-hidden="true" />
+              Saved — pick it next time you start a workout.
+            </p>
+          ) : (
+            <>
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  value={routineSave.name}
+                  onChange={e => routineSave.onNameChange(e.target.value.slice(0, 120))}
+                  placeholder="Routine name"
+                  aria-label="Routine name"
+                  className="flex-1 min-w-0 px-3 py-2.5 border border-border-strong rounded-lg text-base bg-surface focus:outline-none"
+                />
+                <button
+                  type="button"
+                  onClick={routineSave.onSave}
+                  disabled={routineSave.saving}
+                  className="shrink-0 px-4 py-2.5 rounded-lg text-sm font-bold text-white bg-brand hover:bg-brand-hover transition-colors disabled:opacity-50"
+                >
+                  {routineSave.saving ? 'Saving…' : 'Save'}
+                </button>
+              </div>
+              {routineSave.error && (
+                <p className="text-xs text-red-600 dark:text-red-400 mt-2">{routineSave.error}</p>
+              )}
+            </>
+          )}
         </div>
       )}
 

@@ -9,6 +9,7 @@ import { FinishSummary, ShareStep } from './FinishFlow';
 import ConfirmModal from '../ConfirmModal';
 import { useToast } from '../Toast';
 import { MAX_EXERCISES, type EntryExercise } from '@/lib/workouts/entries';
+import { entriesToRoutineExercises } from '@/lib/workouts/routines';
 import {
   MANUAL_DRAFT_ID,
   clearDraft,
@@ -84,6 +85,13 @@ export default function WorkoutEditorScreen({ mode, session, currentUserId, init
   const [sharing, setSharing] = useState(false);
   const [shareError, setShareError] = useState('');
   const [selectedMedia, setSelectedMedia] = useState<Set<number>>(new Set());
+
+  // Save-as-routine (summary phase). Name is null until the user types, so
+  // the input tracks the final title without an effect.
+  const [routineName, setRoutineName] = useState<string | null>(null);
+  const [routineSaving, setRoutineSaving] = useState(false);
+  const [routineSaved, setRoutineSaved] = useState(false);
+  const [routineError, setRoutineError] = useState('');
 
   // ── Live timer (derived from started_at, never counted) ─────────────────
   // The tick stores the TIMESTAMP, not a throwaway counter: reading Date.now()
@@ -381,6 +389,32 @@ export default function WorkoutEditorScreen({ mode, session, currentUserId, init
     }
   };
 
+  const saveRoutine = async () => {
+    if (routineSaving) return;
+    const name = (routineName ?? title ?? '').trim() || 'Workout';
+    setRoutineSaving(true);
+    setRoutineError('');
+    try {
+      const response = await fetch('/api/workout-routines', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ name, exercises: entriesToRoutineExercises(exercises) }),
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        setRoutineError(data.error || 'Failed to save routine');
+        return;
+      }
+      setRoutineSaved(true);
+    } catch (err) {
+      console.error('Failed to save routine:', err);
+      setRoutineError('Failed to save routine');
+    } finally {
+      setRoutineSaving(false);
+    }
+  };
+
   const summary = useMemo(() => computeSummary(exercises), [exercises]);
   const mediaOptions = useMemo(() => collectWorkoutMedia(exercises), [exercises]);
 
@@ -481,6 +515,21 @@ export default function WorkoutEditorScreen({ mode, session, currentUserId, init
           })
         }
         onContinue={() => setPhase('share')}
+        routineSave={
+          exercises.length > 0
+            ? {
+                name: routineName ?? title ?? '',
+                onNameChange: next => {
+                  setRoutineName(next);
+                  setRoutineError('');
+                },
+                saving: routineSaving,
+                saved: routineSaved,
+                error: routineError,
+                onSave: saveRoutine,
+              }
+            : null
+        }
       />
     );
   }

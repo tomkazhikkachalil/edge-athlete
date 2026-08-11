@@ -85,7 +85,7 @@ function validateSetMedia(raw: unknown): { ok: true; media: SetMedia[] } | { ok:
   return { ok: true, media };
 }
 
-const CATEGORIES = ['strength', 'cardio', 'mobility', 'other'] as const;
+export const CATEGORIES = ['strength', 'cardio', 'mobility', 'other'] as const;
 const WEIGHT_UNITS = ['lbs', 'kg'] as const;
 const DISTANCE_UNITS = ['mi', 'km', 'm', 'yd'] as const;
 
