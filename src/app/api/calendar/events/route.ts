@@ -8,6 +8,7 @@ import { insertSeriesOccurrences } from '@/lib/calendar/series-server';
 import { notifyEventInvites } from '@/lib/calendar/notifications';
 import { formatEventWhen } from '@/lib/calendar/format-server';
 import { buildRoutineSnapshot, type RoutinePlan } from '@/lib/calendar/event-routine';
+import { fetchActivityOverlay } from '@/lib/calendar/activity-overlay';
 import type { ServerRoutineRow } from '@/lib/workouts/routines';
 
 // ── /api/calendar/events ──────────────────────────────────────────────────────
@@ -61,7 +62,18 @@ export async function GET(request: NextRequest) {
         is_organizer: row.role === 'organizer',
       };
     });
-    return NextResponse.json({ events });
+
+    // Completed-activity overlay (read-time, self-scoped, in-app only —
+    // never in the ICS feed). A source-table failure must not take the
+    // calendar down with it.
+    let overlay: Awaited<ReturnType<typeof fetchActivityOverlay>> = [];
+    try {
+      overlay = await fetchActivityOverlay(admin, user.id, fromMs, toMs);
+    } catch (e) {
+      console.error('[CALENDAR] activity overlay failed:', e);
+    }
+
+    return NextResponse.json({ events: [...events, ...overlay] });
   } catch (error) {
     if (error instanceof Response) return error;
     console.error('[CALENDAR] list error:', error);

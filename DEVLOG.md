@@ -1,5 +1,37 @@
 # Development Log
 
+## August 11, 2026 — Activity history on the calendar (PR2 of calendar-workouts)
+
+Completed activities — workouts, golf rounds, training posts — now appear
+automatically on their calendar dates. Tom's decision: IN-APP ONLY.
+
+- **Read-time overlay, not materialized events.** New
+  `src/lib/calendar/activity-overlay.ts`: pure builders (8 tests) + one
+  fetch of three self-scoped indexed queries (workout_sessions completed,
+  golf_rounds by date — the unified table already covers solo AND mirrored
+  group rounds per participant, posts post_category='training' published
+  only). Merged into the range GET response; a source-table failure logs
+  and degrades to no overlay, never a dead calendar. Deletes need no
+  cleanup — items derive from source rows on every read. The ICS/subscribe
+  feed is untouched by construction.
+- **Items impersonate EventListItem** (grid math is structurally typed):
+  prefixed ids (`activity:workout:<uuid>`), `my_status:'accepted'` (never
+  the dashed needs-reply styling), `series_id:null`, `✓ `-prefixed titles.
+  Workouts are timed (started→ended, clamped ≥1min); golf is all-day with
+  UTC-midnight exclusive-end bounds (057 convention); training posts get a
+  30-min block at share time.
+- **`kind:'activity'` discriminant** stops the client from opening
+  EventDetailModal on a synthetic id (guaranteed 404): CalendarPage and
+  FeedCalendarWidget deep-link to the item's home surface instead
+  (`/app/workout/[id]`, `/app/sport/golf/rounds/[roundId]`,
+  `/feed?post=<id>` — all pre-existing destinations).
+- **Dedupe**: workout-share posts (`stats_data.type='workout_session'`)
+  are skipped — their session row is the calendar item. Stat-line posts
+  deferred (unindexed JSONB date; needs a functional index first).
+  Guardian `pending_approval`/`rejected` posts excluded (051).
+- The feed widget's Upcoming list already filters `ends_at >= now`, so
+  past activities appear only in the mini-month dots and day quick-view.
+
 ## August 11, 2026 — Schedule workouts on the calendar (PR1 of calendar-workouts)
 
 Tom's ask: assign a saved routine to a calendar date, open the event on the

@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation';
 import { addDays, addMonths, format, isSameMonth, startOfDay } from 'date-fns';
 import { monthMatrix, eventOverlapsDay, localDayKey } from '@/lib/calendar/grid';
 import { categoryColor } from '@/lib/calendar/categories';
+import { activityHref } from '@/lib/calendar/activity-overlay';
 import type { EventListItem } from './types';
 
 const EventDetailModal = dynamic(() => import('./EventDetailModal'), { ssr: false });
@@ -97,6 +98,16 @@ export default function FeedCalendarWidget() {
 
   const refetch = () => setRefetchKey(k => k + 1);
 
+  // Completed-activity overlay items have no events row — deep-link to
+  // their home surface instead of opening the (guaranteed-404) detail modal.
+  const selectEvent = (event: EventListItem) => {
+    if (event.kind === 'activity' && event.activity) {
+      router.push(activityHref(event.activity));
+      return;
+    }
+    setDetailEventId(event.id);
+  };
+
   // Upcoming: next few events from now (or from the paged month's start).
   const upcoming = useMemo(() => {
     const cutoff = nowMs;
@@ -162,7 +173,7 @@ export default function FeedCalendarWidget() {
           ) : (
             <div className="space-y-0.5 mb-2">
               {upcoming.map(e => (
-                <EventRow key={e.id} event={e} onClick={() => setDetailEventId(e.id)} />
+                <EventRow key={e.id} event={e} onClick={() => selectEvent(e)} />
               ))}
             </div>
           )}
@@ -262,7 +273,7 @@ export default function FeedCalendarWidget() {
                   ) : (
                     <div className="space-y-0.5">
                       {eventsForDay(expandedDayDate).map(e => (
-                        <EventRow key={e.id} event={e} onClick={() => setDetailEventId(e.id)} />
+                        <EventRow key={e.id} event={e} onClick={() => selectEvent(e)} />
                       ))}
                     </div>
                   )}
