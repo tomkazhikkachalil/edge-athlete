@@ -16,6 +16,7 @@ export const CATEGORY_COLORS: Record<string, CategoryColor> = {
   training:   { bg: 'bg-rose-600',    text: 'text-rose-700 dark:text-rose-300',    border: 'border-rose-600 dark:border-rose-500',    dot: 'bg-rose-600' },
   social:     { bg: 'bg-teal-600',    text: 'text-teal-700 dark:text-teal-300',    border: 'border-teal-600 dark:border-teal-500',    dot: 'bg-teal-600' },
   other:      { bg: 'bg-gray-500',    text: 'text-gray-700 dark:text-stone-300',    border: 'border-gray-500',    dot: 'bg-gray-500' },
+  workout:    { bg: 'bg-orange-600',  text: 'text-orange-700 dark:text-orange-300',  border: 'border-orange-600 dark:border-orange-500',  dot: 'bg-orange-600' },
 };
 
 export const DEFAULT_CATEGORY_COLOR: CategoryColor = CATEGORY_COLORS.general;
@@ -32,4 +33,5 @@ export const CATEGORY_LABELS: Record<string, string> = {
   training: 'Training',
   social: 'Social',
   other: 'Other',
+  workout: 'Workout',
 };

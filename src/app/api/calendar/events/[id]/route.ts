@@ -12,6 +12,8 @@ import {
 } from '@/lib/calendar/notifications';
 import { formatEventWhen } from '@/lib/calendar/format-server';
 import { loadEventForViewer } from '@/lib/calendar/detail-server';
+import { buildRoutineSnapshot, resolveEventRoutine } from '@/lib/calendar/event-routine';
+import type { ServerRoutineRow } from '@/lib/workouts/routines';
 
 // ── /api/calendar/events/[id] ─────────────────────────────────────────────────
 // GET   → full detail (event + guest list + series rule when recurring).
@@ -28,7 +30,7 @@ import { loadEventForViewer } from '@/lib/calendar/detail-server';
 //         bulk-cancel and stop generation (series ends flips to 'until').
 
 const EVENT_FIELDS =
-  'id, organizer_id, title, description, location, starts_at, ends_at, all_day, timezone, category, status, cancelled_at, series_id, series_override';
+  'id, organizer_id, title, description, location, starts_at, ends_at, all_day, timezone, category, status, cancelled_at, series_id, series_override, routine_id, routine_snapshot';
 const GUEST_FIELDS =
   'id, profile_id, invited_email, role, status, responded_at, reminder_minutes, profiles:profile_id (id, first_name, middle_name, last_name, full_name, avatar_url, handle)';
 const SERIES_FIELDS = 'id, freq, interval_n, byweekday, ends, until_at, count_n';
@@ -42,7 +44,16 @@ function parseScope(raw: unknown): Scope | null {
   return null;
 }
 
-async function fullDetail(admin: Admin, event: { id: string; series_id?: string | null } & object) {
+async function fullDetail(
+  admin: Admin,
+  event: {
+    id: string;
+    organizer_id: string;
+    series_id?: string | null;
+    routine_id?: string | null;
+    routine_snapshot?: unknown;
+  } & object
+) {
   const { data: guests } = await admin
     .from('event_guests')
     .select(GUEST_FIELDS)
@@ -57,7 +68,16 @@ async function fullDetail(admin: Admin, event: { id: string; series_id?: string 
       .maybeSingle();
     series = data ?? null;
   }
-  return { ...event, guests: guests ?? [], series };
+  // The resolved routine (live version, snapshot fallback) is the single view
+  // the client gets — the raw snapshot column stays server-side.
+  const routine = await resolveEventRoutine(admin, {
+    organizer_id: event.organizer_id,
+    routine_id: event.routine_id ?? null,
+    routine_snapshot: event.routine_snapshot ?? null,
+  });
+  const { routine_snapshot: _snapshot, ...rest } = event as Record<string, unknown>;
+  void _snapshot;
+  return { ...rest, guests: guests ?? [], series, routine };
 }
 
 /** Occurrence rows of a series at/after an anchor (or all of them). */
@@ -135,10 +155,38 @@ export async function PATCH(
       all_day: body.all_day !== undefined ? body.all_day : event.all_day,
       timezone: body.timezone ?? event.timezone,
       category: body.category ?? event.category,
+      routine_id: body.routine_id !== undefined ? body.routine_id : event.routine_id,
     };
     const validated = validateEventInput(merged);
     if (!validated.ok) {
       return NextResponse.json({ error: validated.error }, { status: 400 });
+    }
+
+    // Re-snapshot ONLY when the attachment itself changes (explicit null
+    // detaches and clears both). Routine EDITS never touch the snapshot —
+    // the live reference covers those.
+    const routineChanged = validated.event.routine_id !== event.routine_id;
+    let routineSnapshot: unknown = event.routine_snapshot ?? null;
+    if (routineChanged) {
+      if (validated.event.routine_id) {
+        const { data: routineRow } = await admin
+          .from('workout_routines')
+          .select(
+            `id, name, created_at, updated_at,
+             exercises:workout_routine_exercises (
+               name, exercise_key, category, position, notes, target_sets
+             )`
+          )
+          .eq('id', validated.event.routine_id)
+          .eq('profile_id', user.id)
+          .maybeSingle();
+        if (!routineRow) {
+          return NextResponse.json({ error: 'That routine no longer exists.' }, { status: 400 });
+        }
+        routineSnapshot = buildRoutineSnapshot(routineRow as unknown as ServerRoutineRow);
+      } else {
+        routineSnapshot = null;
+      }
     }
 
     const timeChanged =
@@ -214,8 +262,10 @@ export async function PATCH(
       return NextResponse.json({ error: `Events can have at most ${MAX_GUESTS} guests.` }, { status: 400 });
     }
 
-    const nonTimeChanged = (['title', 'description', 'location', 'category'] as const)
-      .some(key => validated.event[key] !== (event as unknown as Record<string, unknown>)[key]);
+    const nonTimeChanged =
+      (['title', 'description', 'location', 'category'] as const)
+        .some(key => validated.event[key] !== (event as unknown as Record<string, unknown>)[key]) ||
+      routineChanged;
 
     // ── Apply field edits ──
     const baseFields = {
@@ -225,6 +275,8 @@ export async function PATCH(
       category: validated.event.category,
       timezone: validated.event.timezone,
       all_day: validated.event.all_day,
+      routine_id: validated.event.routine_id,
+      routine_snapshot: routineSnapshot,
     };
     if (timeChanged && scope !== 'this') {
       // Per-occurrence: keep its date, apply the new local time + duration.

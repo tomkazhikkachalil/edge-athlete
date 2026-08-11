@@ -13,6 +13,7 @@ import ConfirmModal from '@/components/ConfirmModal';
 import { useDirtyClose } from '@/hooks/useDirtyClose';
 import { COPY } from '@/lib/copy';
 import { formatDisplayName } from '@/lib/formatters';
+import type { WorkoutRoutine } from '@/lib/workouts/routines';
 import type { EditScope, EventDetail } from './types';
 
 // Quick-create by default (title + when), everything else behind
@@ -28,6 +29,9 @@ interface FormState {
   description: string;
   location: string;
   category: string;
+  // Inside FormState (not separate state) so the dirty-close snapshot
+  // covers it automatically.
+  routineId: string | null;
 }
 
 type RepeatFreq = 'none' | 'daily' | 'weekly' | 'monthly' | 'yearly';
@@ -80,6 +84,7 @@ function emptyForm(defaultDay?: Date): FormState {
     description: '',
     location: '',
     category: 'general',
+    routineId: null,
   };
 }
 
@@ -95,6 +100,7 @@ function formFromEvent(event: EventDetail): FormState {
     description: event.description ?? '',
     location: event.location ?? '',
     category: event.category,
+    routineId: event.routine_id ?? null,
   };
 }
 
@@ -137,6 +143,29 @@ export default function EventFormModal({
   const [scopeOpen, setScopeOpen] = useState(false);
   const snapRef = useRef<string | null>(null);
   useBodyScrollLock(isOpen);
+
+  // Saved routines for the "Workout routine" picker — fetched once, the
+  // first time More options opens. Inlined cancellable IIFE (not a callback
+  // call) so it stays out of the set-state-in-effect warning list. null =
+  // not yet loaded; [] = loaded, none (picker hides itself).
+  const [routines, setRoutines] = useState<WorkoutRoutine[] | null>(null);
+  useEffect(() => {
+    if (!isOpen || !moreOpen || routines !== null) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch('/api/workout-routines', { credentials: 'include' });
+        if (!res.ok) throw new Error(`${res.status}`);
+        const data = await res.json();
+        if (!cancelled) setRoutines(data.routines ?? []);
+      } catch {
+        if (!cancelled) setRoutines([]); // picker hides; attach still possible via edit later
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [isOpen, moreOpen, routines]);
 
   // Seeding the form is state synchronisation — done during render so the
   // previous values never paint for a frame.
@@ -238,6 +267,7 @@ export default function EventFormModal({
       all_day: form.allDay,
       timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
       category: form.category,
+      routine_id: form.routineId,
     };
 
     setSaving(true);
@@ -616,6 +646,68 @@ export default function EventFormModal({
                   ))}
                 </div>
               </div>
+
+              {/* Workout routine — schedule a session for this event. Hidden
+                  entirely for users with no saved routines. */}
+              {routines !== null && routines.length > 0 && (
+                <div>
+                  <label className="block text-sm font-semibold text-primary mb-1">
+                    Workout routine
+                  </label>
+                  <p className="text-xs text-muted mb-2">
+                    Attach a routine so the workout is ready to start from this event.
+                  </p>
+                  {routines.length > 8 ? (
+                    <select
+                      value={form.routineId ?? ''}
+                      onChange={e => {
+                        const id = e.target.value || null;
+                        set('routineId', id);
+                        if (id) set('category', 'workout');
+                      }}
+                      aria-label="Workout routine"
+                      className="w-full px-3 py-2 border border-border-strong rounded-lg text-sm bg-surface focus:ring-2 focus:ring-violet-500 focus:outline-none"
+                    >
+                      <option value="">None</option>
+                      {routines.map(routine => (
+                        <option key={routine.id} value={routine.id}>{routine.name}</option>
+                      ))}
+                    </select>
+                  ) : (
+                    <div className="flex flex-wrap gap-2">
+                      <button
+                        type="button"
+                        onClick={() => set('routineId', null)}
+                        className={`px-3 py-1.5 rounded-full text-xs font-medium border transition ${
+                          form.routineId === null
+                            ? 'border-brand bg-brand-soft text-brand-fg-strong'
+                            : 'border-border-strong text-tertiary hover:border-violet-300 dark:hover:border-violet-700'
+                        }`}
+                      >
+                        None
+                      </button>
+                      {routines.map(routine => (
+                        <button
+                          key={routine.id}
+                          type="button"
+                          onClick={() => {
+                            set('routineId', routine.id);
+                            set('category', 'workout');
+                          }}
+                          className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium border transition ${
+                            form.routineId === routine.id
+                              ? 'border-brand bg-brand-soft text-brand-fg-strong'
+                              : 'border-border-strong text-tertiary hover:border-violet-300 dark:hover:border-violet-700'
+                          }`}
+                        >
+                          <span className={`w-2 h-2 rounded-full ${categoryColor('workout').dot}`} />
+                          {routine.name}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
             </>
           )}
           </div>
