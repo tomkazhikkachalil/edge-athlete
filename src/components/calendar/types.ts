@@ -1,6 +1,7 @@
 // Shared client types for the calendar feature — mirrors the API envelopes.
 
 import type { EventRoutine } from '@/lib/calendar/event-routine';
+import type { ActivityPayload } from '@/lib/calendar/activity-overlay';
 
 export type MyStatus = 'invited' | 'accepted' | 'declined' | 'maybe';
 export type CalendarViewKind = 'month' | 'week' | 'day' | 'agenda';
@@ -35,6 +36,11 @@ export interface EventListItem {
   routine_id?: string | null;
   my_status: MyStatus;
   is_organizer: boolean;
+  /** Present on completed-activity overlay items; absent on real events.
+   *  Activity items must never open EventDetailModal (guaranteed 404) —
+   *  they deep-link to their home surface instead. */
+  kind?: 'activity';
+  activity?: ActivityPayload;
 }
 
 export interface EventGuest {

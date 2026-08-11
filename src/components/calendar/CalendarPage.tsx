@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation';
 import { addDays, addMonths, addWeeks, format, startOfDay } from 'date-fns';
 import { useToast } from '@/components/Toast';
 import { monthMatrix, weekDays } from '@/lib/calendar/grid';
+import { activityHref } from '@/lib/calendar/activity-overlay';
 import MonthView from './MonthView';
 import TimeGridView from './TimeGridView';
 import AgendaView from './AgendaView';
@@ -106,6 +107,17 @@ export default function CalendarPage({
     if (deepLinkEventId) router.replace('/calendar');
   };
 
+  // Completed-activity items have no events row — the detail modal would
+  // 404. They deep-link to their home surface instead.
+  const selectEvent = (id: string) => {
+    const item = events.find(e => e.id === id);
+    if (item?.kind === 'activity' && item.activity) {
+      router.push(activityHref(item.activity));
+      return;
+    }
+    setDetailEventId(id);
+  };
+
   const handleDateJump = (value: string) => {
     const [y, m, d] = value.split('-').map(Number);
     if (y && m && d) setFocusDate(new Date(y, m - 1, d));
@@ -193,16 +205,16 @@ export default function CalendarPage({
 
       {/* Active view */}
       {view === 'month' && (
-        <MonthView focusDate={focusDate} events={events} onSelectDay={openDay} onSelectEvent={setDetailEventId} />
+        <MonthView focusDate={focusDate} events={events} onSelectDay={openDay} onSelectEvent={selectEvent} />
       )}
       {view === 'week' && (
-        <TimeGridView days={weekDays(focusDate)} events={events} onSelectEvent={setDetailEventId} />
+        <TimeGridView days={weekDays(focusDate)} events={events} onSelectEvent={selectEvent} />
       )}
       {view === 'day' && (
-        <TimeGridView days={[focusDate]} events={events} onSelectEvent={setDetailEventId} />
+        <TimeGridView days={[focusDate]} events={events} onSelectEvent={selectEvent} />
       )}
       {view === 'agenda' && (
-        <AgendaView focusDate={focusDate} events={events} onSelectEvent={setDetailEventId} />
+        <AgendaView focusDate={focusDate} events={events} onSelectEvent={selectEvent} />
       )}
 
       {/* Legend for the pending style */}
