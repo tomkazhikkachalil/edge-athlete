@@ -1,17 +1,31 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-import { useParams, useRouter } from 'next/navigation';
+import { Suspense, useCallback, useEffect, useState } from 'react';
+import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '@/lib/auth';
 import AppHeader from '@/components/AppHeader';
 import WorkoutEditorScreen from '@/components/workouts/WorkoutEditorScreen';
 import type { ServerWorkoutSession } from '@/lib/workouts/serialize';
 
 /**
- * /app/workout/[id] — the live workout editor (start, resume, or the
- * finish flow for a just-completed session). Owner-only; everyone else
- * is sent back to the profile.
+ * /app/workout/[id] — the workout editor. Active sessions get the live
+ * editor (timer + finish flow); completed sessions open in REVIEW mode
+ * (edit sets/media after the fact, share if unshared — ?share=1 deep-links
+ * straight to the share step). Owner-only; everyone else is sent back to
+ * the profile.
  */
+
+// useSearchParams must live under Suspense (house rule) — this tiny reader
+// honours ?share=1 so the workout card's Share action can deep-link.
+function ShareParamReader({ onShare }: { onShare: () => void }) {
+  const searchParams = useSearchParams();
+  const requested = searchParams.get('share');
+  useEffect(() => {
+    if (requested === '1') onShare();
+  }, [requested, onShare]);
+  return null;
+}
+
 export default function WorkoutSessionPage() {
   const { user, loading: authLoading } = useAuth();
   const router = useRouter();
@@ -21,6 +35,8 @@ export default function WorkoutSessionPage() {
   const [session, setSession] = useState<ServerWorkoutSession | null>(null);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
+  const [wantShare, setWantShare] = useState(false);
+  const handleShareParam = useCallback(() => setWantShare(true), []);
 
   useEffect(() => {
     if (!authLoading && !user) router.push('/');
@@ -62,8 +78,13 @@ export default function WorkoutSessionPage() {
     );
   }
 
+  const mode = session?.status === 'completed' ? 'review' : 'live';
+
   return (
     <div className="min-h-screen bg-canvas">
+      <Suspense fallback={null}>
+        <ShareParamReader onShare={handleShareParam} />
+      </Suspense>
       <AppHeader showSearch={false} />
       <main>
         {error || !session ? (
@@ -77,7 +98,12 @@ export default function WorkoutSessionPage() {
             </button>
           </div>
         ) : (
-          <WorkoutEditorScreen mode="live" session={session} currentUserId={user.id} />
+          <WorkoutEditorScreen
+            mode={mode}
+            session={session}
+            currentUserId={user.id}
+            initialPhase={mode === 'review' && wantShare ? 'share' : 'editing'}
+          />
         )}
       </main>
     </div>

@@ -794,6 +794,13 @@ export default function VitalsTab({ profileId, currentUserId, isOwnProfile = fal
                       key={session.id}
                       session={session}
                       onOpenPost={postId => setLinkedPostId(postId)}
+                      isOwnProfile={isOwnProfile}
+                      onEdit={() => router.push(`/app/workout/${session.id}`)}
+                      onShare={() => router.push(`/app/workout/${session.id}?share=1`)}
+                      onDeleted={() => {
+                        setWorkouts(ws => ws.filter(w => w.id !== session.id));
+                        fetchData();
+                      }}
                     />
                   ))}
                 </div>

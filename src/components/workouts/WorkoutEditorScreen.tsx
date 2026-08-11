@@ -26,22 +26,30 @@ const SYNC_DEBOUNCE_MS = 2000;
 const KEEPALIVE_BODY_LIMIT = 60_000; // fetch keepalive shares a 64KiB in-flight cap
 
 interface WorkoutEditorScreenProps {
-  mode: 'live' | 'manual';
-  /** Required for live mode; the loaded session. */
+  /** live = active session with ticking timer; manual = backdated log (no
+   *  server row until Save); review = a COMPLETED session reopened to edit
+   *  (static duration, Done never re-finishes, share offered if unshared). */
+  mode: 'live' | 'manual' | 'review';
+  /** Required for live/review mode; the loaded session. */
   session?: ServerWorkoutSession;
   currentUserId: string;
+  /** review only: 'share' deep-links straight to the share step (?share=1). */
+  initialPhase?: 'editing' | 'share';
 }
 
-export default function WorkoutEditorScreen({ mode, session, currentUserId }: WorkoutEditorScreenProps) {
+export default function WorkoutEditorScreen({ mode, session, currentUserId, initialPhase }: WorkoutEditorScreenProps) {
   const router = useRouter();
   const { showSuccess, showError } = useToast();
 
-  const draftId = mode === 'live' ? session!.id : MANUAL_DRAFT_ID;
+  // live + review both edit a persisted server session (draft keyed by id,
+  // debounced entries PUT); manual is client-local until its one atomic POST.
+  const isServerSession = mode !== 'manual';
+  const draftId = isServerSession ? session!.id : MANUAL_DRAFT_ID;
 
   // ── Editor state (source of truth while editing) ─────────────────────────
   const [initial] = useState(() => {
     const draft = readDraft(draftId);
-    if (mode === 'live' && session) {
+    if (isServerSession && session) {
       return resolveEntries(serverToEntries(session), Date.parse(session.updated_at), draft);
     }
     // Manual: no server copy — any draft wins
@@ -53,7 +61,9 @@ export default function WorkoutEditorScreen({ mode, session, currentUserId }: Wo
   });
   const [exercises, setExercises] = useState<EntryExercise[]>(initial.exercises);
   const [title, setTitle] = useState<string>(initial.title ?? session?.title ?? '');
-  const [phase, setPhase] = useState<Phase>('editing');
+  const [phase, setPhase] = useState<Phase>(
+    mode === 'review' && initialPhase === 'share' ? 'share' : 'editing'
+  );
   const [addSheetOpen, setAddSheetOpen] = useState(false);
   const [discardOpen, setDiscardOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
@@ -65,7 +75,7 @@ export default function WorkoutEditorScreen({ mode, session, currentUserId }: Wo
 
   // Post-finish state
   const [finishedSessionId, setFinishedSessionId] = useState<string | null>(
-    mode === 'live' && session?.status === 'completed' ? session.id : null
+    session?.status === 'completed' ? session.id : null
   );
   const [finishedDuration, setFinishedDuration] = useState<number>(session?.duration_seconds ?? 0);
   const [prCandidates, setPrCandidates] = useState<PRCandidate[]>([]);
@@ -123,7 +133,7 @@ export default function WorkoutEditorScreen({ mode, session, currentUserId }: Wo
   const [syncState, setSyncState] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
 
   const syncNow = useCallback(async (): Promise<boolean> => {
-    if (mode !== 'live' || !session) return true;
+    if (!isServerSession || !session) return true;
     if (inFlightRef.current) {
       pendingRef.current = true;
       return true;
@@ -159,19 +169,19 @@ export default function WorkoutEditorScreen({ mode, session, currentUserId }: Wo
     } finally {
       inFlightRef.current = false;
     }
-  }, [mode, session]);
+  }, [isServerSession, session]);
 
   const scheduleSync = useCallback(() => {
-    if (mode !== 'live') return;
+    if (!isServerSession) return;
     if (debounceRef.current) clearTimeout(debounceRef.current);
     debounceRef.current = setTimeout(() => void syncNow(), SYNC_DEBOUNCE_MS);
-  }, [mode, syncNow]);
+  }, [isServerSession, syncNow]);
 
   // Keepalive flush on pagehide / tab-hide (belt = draft, suspenders = this)
   const flushRef = useRef<() => void>(() => {});
   useEffect(() => {
     flushRef.current = () => {
-      if (mode !== 'live' || !session || phase !== 'editing') return;
+      if (!isServerSession || !session || phase !== 'editing') return;
       const body = JSON.stringify({ savedAt: Date.now(), exercises: stateRef.current.exercises });
       if (body.length > KEEPALIVE_BODY_LIMIT) return; // draft covers; next debounce syncs
       fetch(`/api/workouts/${session.id}/entries`, {
@@ -203,7 +213,7 @@ export default function WorkoutEditorScreen({ mode, session, currentUserId }: Wo
     reconciledRef.current = true;
     if (initial.fromDraft) {
       showSuccess('Restored', 'Unsaved sets were restored');
-      if (mode === 'live') void syncNow();
+      if (isServerSession) void syncNow();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -301,6 +311,40 @@ export default function WorkoutEditorScreen({ mode, session, currentUserId }: Wo
       setFinishedDuration(data.session.duration_seconds ?? durationMin * 60);
       await loadPRs(exercises);
       setPhase('summary');
+    } catch (err) {
+      showError('Error', err instanceof Error ? err.message : 'Failed to save workout');
+    } finally {
+      setFinishing(false);
+    }
+  };
+
+  // Review mode: save edits, never re-finish (the server 409s finish on a
+  // completed session anyway). Unshared workouts get the share offer; PR
+  // detection stays a finish-time concept — no "new PB!" for backdated edits.
+  const doneReview = async () => {
+    if (!session || finishing) return;
+    setFinishing(true);
+    try {
+      const flushed = await syncNow();
+      if (!flushed) throw new Error('Could not save your sets — check your connection and try again.');
+      // Always send title so the no-fields 400 can't fire
+      const response = await fetch(`/api/workouts/${session.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ title: title || null }),
+      });
+      if (!response.ok) {
+        const data = await response.json().catch(() => null);
+        throw new Error(data?.error || 'Failed to save workout');
+      }
+      clearDraft(draftId);
+      if (session.post_id) {
+        showSuccess('Saved', 'Workout updated');
+        router.push('/athlete');
+      } else {
+        setPhase('share');
+      }
     } catch (err) {
       showError('Error', err instanceof Error ? err.message : 'Failed to save workout');
     } finally {
@@ -411,7 +455,7 @@ export default function WorkoutEditorScreen({ mode, session, currentUserId }: Wo
   const handleDiscard = async () => {
     setDiscardOpen(false);
     clearDraft(draftId);
-    if (mode === 'live' && session) {
+    if (isServerSession && session) {
       try {
         await fetch(`/api/workouts/${session.id}`, { method: 'DELETE', credentials: 'include' });
       } catch { /* draft cleared; session finalizes lazily if delete failed */ }
@@ -496,7 +540,7 @@ export default function WorkoutEditorScreen({ mode, session, currentUserId }: Wo
                   className="w-full flex items-center gap-2 px-3 py-2.5 text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/40 rounded-lg transition-colors"
                 >
                   <Trash2 className="w-4 h-4" />
-                  Discard workout
+                  {mode === 'review' ? 'Delete workout' : 'Discard workout'}
                 </button>
               </div>
             )}
@@ -517,6 +561,25 @@ export default function WorkoutEditorScreen({ mode, session, currentUserId }: Wo
               {restSeconds !== null && restSeconds < 3600 && (
                 <span className="text-xs text-muted whitespace-nowrap">
                   Rest {formatElapsed(restSeconds)}
+                </span>
+              )}
+              {syncState === 'saving' && <span className="text-xs text-faint">Saving…</span>}
+              {syncState === 'saved' && <span className="text-xs text-emerald-600">Saved</span>}
+              {syncState === 'error' && <span className="text-xs text-amber-600 dark:text-amber-400">Offline — kept locally</span>}
+            </div>
+          ) : mode === 'review' ? (
+            <div className="flex items-center gap-3 min-w-0">
+              <div className="flex items-center gap-1.5 text-brand-fg-strong">
+                <Timer className="w-5 h-5" aria-hidden="true" />
+                <span className="text-2xl font-bold tabular-nums">
+                  {formatElapsed(session?.duration_seconds ?? 0)}
+                </span>
+              </div>
+              {session && (
+                <span className="text-xs text-muted whitespace-nowrap">
+                  {new Date(session.started_at).toLocaleDateString('en-US', {
+                    month: 'short', day: 'numeric', year: 'numeric',
+                  })}
                 </span>
               )}
               {syncState === 'saving' && <span className="text-xs text-faint">Saving…</span>}
@@ -549,7 +612,7 @@ export default function WorkoutEditorScreen({ mode, session, currentUserId }: Wo
 
           <button
             type="button"
-            onClick={mode === 'live' ? finishLive : saveManual}
+            onClick={mode === 'live' ? finishLive : mode === 'review' ? doneReview : saveManual}
             disabled={finishing}
             className="flex items-center gap-1.5 px-4 py-2.5 bg-brand text-white rounded-lg font-bold text-sm hover:bg-brand-hover transition-colors disabled:opacity-60 shrink-0"
           >
@@ -558,7 +621,7 @@ export default function WorkoutEditorScreen({ mode, session, currentUserId }: Wo
             ) : (
               <Flag className="w-4 h-4" aria-hidden="true" />
             )}
-            {mode === 'live' ? 'Finish' : 'Save Workout'}
+            {mode === 'live' ? 'Finish' : mode === 'review' ? 'Done' : 'Save Workout'}
           </button>
         </div>
       </div>
@@ -577,7 +640,11 @@ export default function WorkoutEditorScreen({ mode, session, currentUserId }: Wo
         {exercises.length === 0 && (
           <div className="text-center py-10 border border-dashed border-border-strong rounded-xl">
             <p className="text-sm text-muted">
-              {mode === 'live' ? 'Timer is running — add your first exercise.' : 'Add the exercises you did.'}
+              {mode === 'live'
+                ? 'Timer is running — add your first exercise.'
+                : mode === 'review'
+                  ? 'Add exercises or clips to this workout.'
+                  : 'Add the exercises you did.'}
             </p>
           </div>
         )}
@@ -601,9 +668,13 @@ export default function WorkoutEditorScreen({ mode, session, currentUserId }: Wo
 
       <ConfirmModal
         isOpen={discardOpen}
-        title="Discard Workout"
-        message="This deletes the session and everything you've logged. This cannot be undone."
-        confirmText="Discard"
+        title={mode === 'review' ? 'Delete Workout' : 'Discard Workout'}
+        message={
+          mode === 'review'
+            ? `This permanently deletes this workout and everything you logged. This cannot be undone.${session?.post_id ? ' Your shared post stays on the feed.' : ''}`
+            : "This deletes the session and everything you've logged. This cannot be undone."
+        }
+        confirmText={mode === 'review' ? 'Delete' : 'Discard'}
         onConfirm={handleDiscard}
         onCancel={() => setDiscardOpen(false)}
       />
