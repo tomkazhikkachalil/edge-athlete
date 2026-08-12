@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth';
 import AppHeader from '@/components/AppHeader';
@@ -28,18 +28,30 @@ export default function ConsentReviewPage() {
   const [state, setState] = useState<'loading' | 'ready' | 'forbidden'>('loading');
   const [acting, setActing] = useState('');
 
-  const load = useCallback(async () => {
-    const res = await fetch('/api/admin/consent-reviews');
-    if (res.status === 403 || res.status === 401) { setState('forbidden'); return; }
-    const data = await res.json();
-    setItems(data.pending ?? []);
-    setState('ready');
-  }, []);
-
+  // The loader is defined INSIDE the effect (that is what clears the lint
+  // rule) and published on a ref, so decide() can still `await` a refresh
+  // before re-enabling its row — a fire-and-forget key bump would re-enable
+  // the button while the list was still stale.
+  const loadRef = useRef<() => Promise<void>>(async () => {});
   useEffect(() => {
     if (!loading && !user) router.replace('/');
-    if (user) load();
-  }, [user, loading, router, load]);
+    if (!user) return;
+    let cancelled = false;
+    const run = async () => {
+      const res = await fetch('/api/admin/consent-reviews');
+      if (cancelled) return;
+      if (res.status === 403 || res.status === 401) { setState('forbidden'); return; }
+      const data = await res.json();
+      if (cancelled) return;
+      setItems(data.pending ?? []);
+      setState('ready');
+    };
+    loadRef.current = run;
+    run();
+    return () => {
+      cancelled = true;
+    };
+  }, [user, loading, router]);
 
   const decide = async (profileId: string, decision: 'approve' | 'reject') => {
     setActing(profileId);
@@ -49,7 +61,7 @@ export default function ConsentReviewPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ profileId, decision }),
       });
-      await load();
+      await loadRef.current();
     } finally {
       setActing('');
     }

@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Plus, Trophy } from 'lucide-react';
 import FilterBar from './filters/FilterBar';
 import MultiSelectDropdown from './filters/MultiSelectDropdown';
@@ -44,28 +44,35 @@ export default function AchievementsTab({ profileId, isOwnProfile = false }: Ach
   const [editing, setEditing] = useState<Achievement | null>(null);
   const [deleting, setDeleting] = useState<Achievement | null>(null);
 
-  const fetchAchievements = useCallback(async () => {
-    try {
+  // Inlined cancellable IIFE; retry and post-save refresh bump reloadKey
+  // (both were fire-and-forget calls, so nothing awaited them).
+  const [reloadKey, setReloadKey] = useState(0);
+  const refetchAchievements = () => setReloadKey(k => k + 1);
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
       setLoading(true);
       setLoadError(false);
-      const response = await fetch(`/api/achievements?profileId=${profileId}`, {
-        credentials: 'include',
-      });
-      if (!response.ok) throw new Error('Failed to fetch achievements');
-      const data = await response.json();
-      setAchievements(data.achievements || []);
-    } catch (err) {
-      console.error('Failed to load achievements:', err);
-      setLoadError(true);
-      setAchievements([]);
-    } finally {
-      setLoading(false);
-    }
-  }, [profileId]);
-
-  useEffect(() => {
-    fetchAchievements();
-  }, [fetchAchievements]);
+      try {
+        const response = await fetch(`/api/achievements?profileId=${profileId}`, {
+          credentials: 'include',
+        });
+        if (!response.ok) throw new Error('Failed to fetch achievements');
+        const data = await response.json();
+        if (!cancelled) setAchievements(data.achievements || []);
+      } catch (err) {
+        console.error('Failed to load achievements:', err);
+        if (cancelled) return;
+        setLoadError(true);
+        setAchievements([]);
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [profileId, reloadKey]);
 
   // Filter options derived from actual data — sports this athlete has
   // achievements in (plus General when any row has no sport), years present.
@@ -144,7 +151,7 @@ export default function AchievementsTab({ profileId, isOwnProfile = false }: Ach
       <div className="text-center py-16 px-4">
         <p className="text-tertiary mb-4">Couldn&apos;t load achievements.</p>
         <button
-          onClick={fetchAchievements}
+          onClick={refetchAchievements}
           className="inline-flex items-center gap-2 px-4 py-2 bg-brand text-white rounded-lg font-semibold text-sm hover:bg-brand-hover transition-colors"
         >
           Try again
@@ -246,7 +253,7 @@ export default function AchievementsTab({ profileId, isOwnProfile = false }: Ach
           setIsModalOpen(false);
           setEditing(null);
         }}
-        onSaved={fetchAchievements}
+        onSaved={refetchAchievements}
         editing={editing}
       />
 

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth';
 import AppHeader from '@/components/AppHeader';
@@ -31,18 +31,28 @@ export default function GuardianSupportPage() {
   const [confirmingDelete, setConfirmingDelete] = useState('');
   const [deleteText, setDeleteText] = useState('');
 
-  const load = useCallback(async () => {
-    const res = await fetch('/api/admin/guardian-support');
-    if (res.status === 403 || res.status === 401) { setState('forbidden'); return; }
-    const data = await res.json();
-    setItems(data.orphans ?? []);
-    setState('ready');
-  }, []);
-
+  // Loader defined inside the effect and published on a ref so handlers keep
+  // their `await load()` semantics — see the consent page for the rationale.
+  const loadRef = useRef<() => Promise<void>>(async () => {});
   useEffect(() => {
     if (!loading && !user) router.replace('/');
-    if (user) load();
-  }, [user, loading, router, load]);
+    if (!user) return;
+    let cancelled = false;
+    const run = async () => {
+      const res = await fetch('/api/admin/guardian-support');
+      if (cancelled) return;
+      if (res.status === 403 || res.status === 401) { setState('forbidden'); return; }
+      const data = await res.json();
+      if (cancelled) return;
+      setItems(data.orphans ?? []);
+      setState('ready');
+    };
+    loadRef.current = run;
+    run();
+    return () => {
+      cancelled = true;
+    };
+  }, [user, loading, router]);
 
   const act = async (profileId: string, body: object): Promise<Record<string, unknown> | null> => {
     setActing(profileId);
@@ -79,7 +89,7 @@ export default function GuardianSupportPage() {
     if (data) {
       setConfirmingDelete('');
       setDeleteText('');
-      await load();
+      await loadRef.current();
     }
   };
 

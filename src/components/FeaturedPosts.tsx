@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect } from 'react';
 import OptimizedImage from './OptimizedImage';
 import PostDetailModal from './PostDetailModal';
 import { formatGolfStatsSummary, formatGenericStatsSummary } from '@/lib/stats-summary';
@@ -43,27 +43,32 @@ export default function FeaturedPosts({
   const [posts, setPosts] = useState<FeaturedPost[]>([]);
   const [openPostId, setOpenPostId] = useState<string | null>(null);
 
-  const fetchPinned = useCallback(async () => {
-    try {
-      const response = await fetch(
-        `/api/posts?userId=${profileId}&pinned=true&limit=3`,
-        { credentials: 'include' }
-      );
-      if (!response.ok) {
-        setPosts([]);
-        return;
-      }
-      const data = await response.json();
-      setPosts(data.posts || []);
-    } catch (e) {
-      console.error('Failed to load featured posts:', e);
-      setPosts([]);
-    }
-  }, [profileId]);
-
+  // Inlined cancellable IIFE; the caller already drives refetches through the
+  // refreshKey prop, and unpinning is optimistic with a rollback.
   useEffect(() => {
-    if (profileId) fetchPinned();
-  }, [profileId, fetchPinned, refreshKey]);
+    if (!profileId) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const response = await fetch(
+          `/api/posts?userId=${profileId}&pinned=true&limit=3`,
+          { credentials: 'include' }
+        );
+        if (!response.ok) {
+          if (!cancelled) setPosts([]);
+          return;
+        }
+        const data = await response.json();
+        if (!cancelled) setPosts(data.posts || []);
+      } catch (e) {
+        console.error('Failed to load featured posts:', e);
+        if (!cancelled) setPosts([]);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [profileId, refreshKey]);
 
   const handleUnpin = async (postId: string) => {
     // Optimistic removal; refetch on failure to restore truth

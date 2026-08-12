@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import LazyImage from './LazyImage';
 import { formatDisplayName, getInitials } from '@/lib/formatters';
@@ -46,20 +46,26 @@ export default function LiveNowStrip({ variant = 'strip', showEmptyState = false
   const router = useRouter();
   const [rounds, setRounds] = useState<LiveRound[]>([]);
 
-  const load = useCallback(async () => {
-    try {
-      const res = await fetch('/api/golf/live-now', { credentials: 'include' });
-      if (!res.ok) return;
-      const data = await res.json();
-      setRounds(data.rounds || []);
-    } catch { /* strip is a nicety — never break the page */ }
-  }, []);
-
+  // Inlined cancellable IIFE. The 60s poll calls the SAME effect-local
+  // closure, so the cancelled flag also stops a late poll response landing
+  // after unmount.
   useEffect(() => {
-    load();
-    const interval = setInterval(load, REFRESH_MS);
-    return () => clearInterval(interval);
-  }, [load]);
+    let cancelled = false;
+    const run = async () => {
+      try {
+        const res = await fetch('/api/golf/live-now', { credentials: 'include' });
+        if (!res.ok) return;
+        const data = await res.json();
+        if (!cancelled) setRounds(data.rounds || []);
+      } catch { /* strip is a nicety — never break the page */ }
+    };
+    run();
+    const interval = setInterval(run, REFRESH_MS);
+    return () => {
+      cancelled = true;
+      clearInterval(interval);
+    };
+  }, []);
 
   if (rounds.length === 0) {
     if (!showEmptyState) return null;

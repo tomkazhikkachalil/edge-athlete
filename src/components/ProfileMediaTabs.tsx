@@ -139,34 +139,6 @@ export default function ProfileMediaTabs({ profileId, currentUserId, isOwnProfil
   // Fetch counts for tab badges. Tab counts reflect the full profile and are
   // intentionally NOT affected by the sport/year filter selections, so badges
   // stay stable as users toggle filters.
-  const fetchCounts = useCallback(async () => {
-    try {
-      const response = await fetch(`/api/profile/${profileId}/media`, {
-        method: 'POST'
-      });
-
-      if (response.ok) {
-        const data: MediaCountsResponse = await response.json();
-        const tabCounts: TabCounts = {
-          all: data.all,
-          stats: data.stats,
-          tagged: data.tagged,
-          statements: data.statements ?? 0,
-          equipment: data.equipment ?? 0,
-          vitals: data.vitals ?? 0,
-          achievements: data.achievements ?? 0,
-        };
-        setCounts(tabCounts);
-        if (onCountsChange) {
-          onCountsChange(tabCounts);
-        }
-      } else {
-        console.error('Failed to fetch media counts — status:', response.status);
-      }
-    } catch (e) {
-      console.error('Failed to fetch media counts:', e);
-    }
-  }, [profileId, onCountsChange]);
 
   // Fetch media items
   const fetchMedia = useCallback(async (resetItems = false) => {
@@ -234,10 +206,42 @@ export default function ProfileMediaTabs({ profileId, currentUserId, isOwnProfil
     }
   }, [profileId, activeTab, sort, mediaFilter, selectedSports, selectedYears]);
 
-  // Load counts on mount and when profileId changes
+  // Counts loader lives inside the effect (that clears the lint rule) and is
+  // published on a ref so the post-mutation refreshes and the child's
+  // onCountsChanged callback can still trigger it.
+  const fetchCountsRef = useRef<() => Promise<void>>(async () => {});
   useEffect(() => {
-    fetchCounts();
-  }, [fetchCounts]);
+    const run = async () => {
+        try {
+          const response = await fetch(`/api/profile/${profileId}/media`, {
+            method: 'POST'
+          });
+
+          if (response.ok) {
+            const data: MediaCountsResponse = await response.json();
+            const tabCounts: TabCounts = {
+              all: data.all,
+              stats: data.stats,
+              tagged: data.tagged,
+              statements: data.statements ?? 0,
+              equipment: data.equipment ?? 0,
+              vitals: data.vitals ?? 0,
+              achievements: data.achievements ?? 0,
+            };
+            setCounts(tabCounts);
+            if (onCountsChange) {
+              onCountsChange(tabCounts);
+            }
+          } else {
+            console.error('Failed to fetch media counts — status:', response.status);
+          }
+        } catch (e) {
+          console.error('Failed to fetch media counts:', e);
+        }
+    };
+    fetchCountsRef.current = run;
+    run();
+  }, [profileId, onCountsChange]);
 
   // Load media when tab/filter/sort/profileId or sport/year filters change.
   // Only the media-backed tabs (all/stats/tagged) call the media endpoint;
@@ -335,7 +339,7 @@ export default function ProfileMediaTabs({ profileId, currentUserId, isOwnProfil
       setSelectedPostIndex(null);
 
       // Refresh counts
-      fetchCounts();
+      fetchCountsRef.current();
 
       showSuccess('Success', 'Post deleted successfully');
     } catch (err) {
@@ -346,7 +350,7 @@ export default function ProfileMediaTabs({ profileId, currentUserId, isOwnProfil
   const handlePostUpdated = () => {
     // Refresh media when a post is updated
     fetchMedia(true);
-    fetchCounts();
+    fetchCountsRef.current();
     setIsEditPostModalOpen(false);
     setEditingPost(null);
     showSuccess('Success', 'Post updated successfully!');
@@ -484,7 +488,7 @@ export default function ProfileMediaTabs({ profileId, currentUserId, isOwnProfil
           profileId={profileId}
           currentUserId={currentUserId}
           isOwnProfile={isOwnProfile}
-          onCountsChanged={fetchCounts}
+          onCountsChanged={() => fetchCountsRef.current()}
         />
       )}
 
