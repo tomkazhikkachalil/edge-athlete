@@ -423,9 +423,12 @@ export default function VitalsTab({ profileId, currentUserId, isOwnProfile = fal
     [workouts]
   );
 
+  // Effect-owned deliberately: per-session dismissal lives in sessionStorage,
+  // and it re-reads per workout id, so it cannot move into render.
   useEffect(() => {
     if (!activeWorkout) return;
     try {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setBannerDismissed(
         sessionStorage.getItem(`ea:workout-banner-dismissed:${activeWorkout.id}`) === '1'
       );

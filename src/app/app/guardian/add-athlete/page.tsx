@@ -30,9 +30,12 @@ export default function AddAthletePage() {
 
   // Prefill from the guardian signup branch (held athlete DOB) and/or a
   // claimed athlete-initiated invite (name + DOB + pending row id).
+  // Effect-owned deliberately: the handoff is sessionStorage, unreadable
+  // during render without breaking hydration.
   useEffect(() => {
     if (typeof window === 'undefined') return;
     const held = window.sessionStorage.getItem('ea:athlete-dob');
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     if (held) setDob(held);
     try {
       const name = JSON.parse(window.sessionStorage.getItem('ea:athlete-name') || 'null');

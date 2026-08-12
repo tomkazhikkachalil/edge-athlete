@@ -36,8 +36,15 @@ export function useEditorSession(
 
   const [previewUrls, setPreviewUrls] = useState<Map<string, string>>(() => new Map());
 
+  // MUST stay effect-owned — do not "optimise" this into a useMemo. Render-
+  // owned object URLs were revoked by StrictMode's mount→unmount→remount
+  // while the memo kept the dead map, blanking images on tab switch (DEVLOG,
+  // July 26). Each mount mints its own URLs and its own cleanup revokes them;
+  // the one-render empty gap is why the crop stage renders nothing until a
+  // URL exists.
   useEffect(() => {
     const map = new Map(assets.map(asset => [asset.id, URL.createObjectURL(asset.file)]));
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setPreviewUrls(map);
     return () => {
       for (const url of map.values()) URL.revokeObjectURL(url);
