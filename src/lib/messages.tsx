@@ -157,6 +157,10 @@ export function MessagesProvider({ children }: { children: ReactNode }) {
       const controller = new AbortController();
       fetchAbortRef.current = controller;
 
+      // OUT OF SCOPE by decision: this provider coordinates an AbortController,
+      // a 30s poll and channel teardown. A subtle mistake here is an outage,
+      // not a glitch, so the loader stays a useCallback shared with them.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setLoading(true);
       Promise.all([
         fetchConversations(controller.signal),

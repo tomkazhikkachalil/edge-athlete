@@ -1,5 +1,62 @@
 # Development Log
 
+## August 12, 2026 — set-state-in-effect: the ratchet reaches zero (#144)
+
+Final batch of the lint cleanup Tom asked for. **`npm run lint` is now
+`--max-warnings 0`**, and `react-hooks/set-state-in-effect` is back at
+`error` alongside the other five React Compiler rules. The full arc:
+45 → 43 → 30 → 19 → 11 → 7 → **0**, over five reviewable PRs
+(#140–#144), the cap lowered in the same commit each time.
+
+What batch 4 itself did, the four "A-hard" sites:
+
+- **`ProfileMediaTabs` — converted.** The media loader moved inside its
+  effect and is published on `fetchMediaRef`, which both the
+  IntersectionObserver's load-more and the post-mutation refresh call.
+  Re-publishing on every filter change is the point: the observer always
+  holds the closure with the CURRENT filters. Observer deps drop to
+  `[hasMore, loadingMore]`.
+- **`FollowButton` — converted.** Same shape, except the loader RETURNS the
+  fresh `{followersCount, isFollowing, followStatus}` and the follow handler
+  consumes it, so the ref is typed to return that rather than `void`.
+- **`transfer/[profileId]` — annotated, deliberately.** Five call paths share
+  the loader (mount, a 30s poll, a visibilitychange refresh, two awaited
+  post-action refreshes). The ref pattern clears THIS rule but trips
+  `react-hooks/refs` five times instead — `post()` reads the ref and is handed
+  into JSX during render, which the compiler cannot prove is deferred.
+  Duplicating the body would be worse. The reason is in the code.
+- **`useSharedRound` — annotated, deliberately.** `refresh()` is part of the
+  hook's public API and is also called by the subscription handler, the
+  reconnect path and visibilitychange. Moving it into the effect means
+  re-exporting a wrapper and risking drift from the `cache: 'no-store'`
+  guarantee on live leaderboards.
+
+The three providers (`lib/auth.tsx`, `lib/messages.tsx`,
+`lib/notifications.tsx`) are annotated too, per Tom's scope call: a subtle
+error in login, realtime messaging or the notification cursor is an outage,
+not a glitch. Every annotation names its risk at the site, and unused
+directives are themselves reported, so none of them can rot silently.
+
+**A real bug turned up during verification, and it was pre-existing** (it
+reproduces on main with the batch reverted, so it is not fallout from the
+refactor): `handleTabChange` ran `setItems([])` unconditionally, so clicking
+the tab you were ALREADY on emptied the media grid — and because `activeTab`
+never changed, the fetch effect keyed on it did not re-run. The grid stayed
+on "No media yet" until a tab switch or a reload. Now a no-op when the tab is
+unchanged. That is the fifth genuine bug this cleanup has surfaced, after the
+duplicate GIF-trending fetch, the duplicate multi-sport activity fetch, the
+LiveNowStrip poll landing after unmount, and the stale-response races on the
+calendar/explore/dashboard filters.
+
+Verified on a real browser against a 25-post fixture (page size is 20, so the
+second page is real): page 1 renders, infinite scroll loads page 2 and issues
+the request, re-clicking the active tab keeps the grid, follow flips state and
+persists server-side, no page errors — 9/9, QA users deleted and the deletion
+confirmed by lookup. `eslint.config.mjs` and `CLAUDE.md` were rewritten to
+describe the zero-warning state, including the trap that cost a confusing
+43 → 52 spike mid-cleanup: **the rule reports at the setState line, not the
+`useEffect(` line**, and only for the first offender in an effect.
+
 ## August 11, 2026 — Maintenance sweep (activity-preview round)
 
 Requested checklist after #138:

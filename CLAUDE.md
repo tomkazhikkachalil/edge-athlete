@@ -48,18 +48,22 @@ npm run dev          # Dev server → http://localhost:3000 (Turbopack)
 npm run build        # Production build
 npm run start        # Serve the production build
 npm run typecheck    # tsc --noEmit
-npm run lint         # eslint . --max-warnings 45   ← see below
+npm run lint         # eslint . --max-warnings 0    ← see below
 npm run test         # vitest run (node-only; there is NO jsdom)
 npm run verify       # typecheck + lint + test + build — THE GATE
 ```
 
 **`npm run verify` is the gate.** Run it before every commit; nothing lands red.
 
-**`lint` carries a ratchet, not a threshold.** The `--max-warnings 45` cap tolerates
-45 known, documented warnings and fails on the 46th. When you legitimately remove
-warnings, *lower the cap in `package.json` in the same commit*. Raising it needs a
-reason in `DEVLOG.md`. The rationale for each remaining warning is in
-`eslint.config.mjs` — read it before trying to "fix" them.
+**`lint` is at zero and stays there.** The cap spent a year as a ratchet
+(45 → 43 → 30 → 19 → 11 → 7 → 0, lowered in the same commit that removed the
+warnings); as of August 2026 it is `--max-warnings 0`, so a warning fails
+`npm run verify` exactly like an error. Fix it, or add a targeted
+`eslint-disable-next-line` **with a reason at the site** — do not raise the cap.
+Raising it needs a reason in `DEVLOG.md`. Every disable still in the tree is
+explained in `eslint.config.mjs`; read that before trying to "fix" one, and note
+that `set-state-in-effect` reports at the *setState* line, not the `useEffect(`
+line.
 
 **Tests are node-only.** There is no jsdom and no testing-library, so only pure
 functions are unit-testable. Anything needing a DOM is verified in a browser, by
