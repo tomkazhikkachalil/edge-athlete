@@ -57,8 +57,11 @@ export default function ReactionBar({
   const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const suppressClickRef = useRef(false);
 
-  // Refresh recents whenever the picker opens — keeps the list fresh across tabs.
+  // Refresh recents whenever the picker opens — keeps the list fresh across
+  // tabs. Effect-owned deliberately: the MRU is localStorage, which cannot be
+  // read during render without breaking hydration.
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     if (showPicker) setRecents(readRecents());
   }, [showPicker]);
 

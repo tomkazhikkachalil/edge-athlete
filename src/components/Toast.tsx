@@ -16,7 +16,6 @@ interface ToastProps {
 }
 
 function Toast({ toast, onDismiss }: ToastProps) {
-  const [isVisible, setIsVisible] = useState(false);
   const [isExiting, setIsExiting] = useState(false);
 
   const handleDismiss = useCallback(() => {
@@ -27,10 +26,7 @@ function Toast({ toast, onDismiss }: ToastProps) {
   }, [toast.id, onDismiss]);
 
   useEffect(() => {
-    // Show toast
-    setIsVisible(true);
-    
-    // Auto-dismiss after duration
+    // Entrance is CSS (.ea-toast-in) — no isVisible flag to flip.
     const duration = toast.duration || 4000;
     const timer = setTimeout(() => {
       handleDismiss();
@@ -75,8 +71,8 @@ function Toast({ toast, onDismiss }: ToastProps) {
     <div
       className={`
         w-full max-w-md bg-surface border-2 rounded-lg shadow-lg pointer-events-auto
-        transform transition-all duration-300 ease-in-out ${getBgColor()}
-        ${isVisible && !isExiting ? 'translate-y-0 opacity-100' : '-translate-y-4 opacity-0'}
+        transform transition-all duration-300 ease-in-out ea-toast-in ${getBgColor()}
+        ${isExiting ? '-translate-y-4 opacity-0' : 'translate-y-0 opacity-100'}
       `}
       role="alert"
       aria-live="polite"

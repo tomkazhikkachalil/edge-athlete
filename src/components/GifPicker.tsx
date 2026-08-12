@@ -73,8 +73,10 @@ export default function GifPicker({ onGifSelect, onClose, variant = 'popover' }:
   const containerRef = useRef<HTMLDivElement>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Load recents once on mount
+  // Load recents once on mount. Effect-owned deliberately: the MRU lives in
+  // localStorage, and reading it during render breaks hydration.
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setRecents(readRecentGifs());
   }, []);
 
@@ -97,15 +99,14 @@ export default function GifPicker({ onGifSelect, onClose, variant = 'popover' }:
     }
   }, []);
 
-  // Load trending on mount
-  useEffect(() => {
-    fetchGifs('');
-  }, [fetchGifs]);
-
-  // Debounce search
+  // Search, debounced — and trending on mount, which is the same call with an
+  // empty query. This used to be two effects, so opening the picker fired the
+  // trending endpoint twice (once immediately, once 400ms later). One effect
+  // with a zero delay for the empty query keeps trending instant and drops
+  // the duplicate request.
   useEffect(() => {
     if (debounceRef.current) clearTimeout(debounceRef.current);
-    debounceRef.current = setTimeout(() => fetchGifs(query), 400);
+    debounceRef.current = setTimeout(() => fetchGifs(query), query.trim() ? 400 : 0);
     return () => {
       if (debounceRef.current) clearTimeout(debounceRef.current);
     };

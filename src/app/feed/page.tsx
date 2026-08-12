@@ -95,11 +95,14 @@ export default function FeedPage() {
   // need a Suspense wrap. The sport must be captured BEFORE replaceState
   // scrubs the URL.
   const [deepLinkSport, setDeepLinkSport] = useState<SportKey | null>(null);
+  // Effect-owned deliberately: reads window.location and scrubs it with
+  // replaceState — neither is possible during render.
   useEffect(() => {
     if (typeof window === 'undefined') return;
     const params = new URLSearchParams(window.location.search);
     if (params.get('create') === '1') {
       const sportKey = resolveSportKey(params.get('sport'));
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       if (isComposerSport(sportKey)) setDeepLinkSport(sportKey);
       setIsCreatePostModalOpen(true);
       window.history.replaceState(null, '', '/feed');

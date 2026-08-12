@@ -126,8 +126,11 @@ export function useSharedRound({
   // table-wide, so that branch also fires for other rounds' scores.
   const unknownEventRefreshAtRef = useRef(0);
 
+  // Connection state is effect-owned by definition: this effect owns the
+  // Supabase channel, its retry timer and its teardown.
   useEffect(() => {
     if (!enabled || !groupPostId) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setConnectionState('idle');
       return;
     }

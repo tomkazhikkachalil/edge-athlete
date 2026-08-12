@@ -586,6 +586,18 @@ body {
 
 .ea-dropdown-in { animation: ea-dropdown-in 140ms var(--ea-ease); }
 
+/* Toast entrance. CSS-owned rather than a mount effect flipping an
+ * `isVisible` flag: the flag cost a render and tripped
+ * react-hooks/set-state-in-effect for no benefit. Exit stays transition-based
+ * (the component swaps transform/opacity classes), which works because this
+ * animation has no fill-mode and is long finished by then. */
+@keyframes ea-toast-in {
+  from { opacity: 0; transform: translateY(-1rem); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.ea-toast-in { animation: ea-toast-in 300ms ease-in-out; }
+
 /* Long-press targets: a 400ms press must open OUR surface, not the OS text
  * selection (iOS loupe/callout) — the two fight, and selection wins ugly.
  * Coarse-scoped so desktop mouse selection (and copy) is untouched; on

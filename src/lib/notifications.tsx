@@ -365,10 +365,13 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
     }
   }, [user]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Set up real-time subscription for new and updated notifications
+  // Set up real-time subscription for new and updated notifications.
+  // Connection state is effect-owned by definition — this effect owns the
+  // channel's whole lifecycle.
   useEffect(() => {
     if (!user) return;
 
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setConnectionStatus('connecting');
 
     const channel = supabase

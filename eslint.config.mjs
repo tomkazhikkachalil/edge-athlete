@@ -18,12 +18,12 @@ export default defineConfig([
 
   // Rule overrides come AFTER the spreads — flat config is last-wins.
   //
-  // `npm run lint` passes `--max-warnings 45`, so these are a RATCHET, not a
-  // gate: the 45 known warnings below are tolerated, and warning number 46
-  // fails `npm run verify`. The cap is not 0 because the remaining 45 are a
-  // known, documented list (see the set-state-in-effect note below) and
-  // demanding 0 today would mean either a rushed sweep or a blanket disable —
-  // both worse than a number that can only go down.
+  // `npm run lint` passes `--max-warnings 30`, so these are a RATCHET, not a
+  // gate: the 30 known warnings below are tolerated, and warning number 31
+  // fails `npm run verify`. The cap is not 0 yet because the remainder is a
+  // known, documented list (see the set-state-in-effect note below) being
+  // worked down in reviewable batches — a number that can only go down beats
+  // a rushed sweep or a blanket disable.
   //
   // When you legitimately remove warnings, LOWER this cap in package.json in
   // the same commit. Raising it requires saying why in the DEVLOG.
@@ -48,19 +48,27 @@ export default defineConfig([
   // rules — refs, immutability, purity, static-components,
   // preserve-manual-memoization — are clean and stay at their default `error`.
   //
-  // set-state-in-effect is held at `warn` for the 45 that remain, deliberately
-  // and with a known list (DEVLOG, 2026-07-31). Two kinds are left:
+  // set-state-in-effect is held at `warn` for the 30 that remain (was 45 at
+  // the Next 16 upgrade, then 43; DEVLOG 2026-07-31 and the batch entries).
+  // Every remaining warning is a CALL SITE of a data-loading function invoked
+  // from an effect: the rule cannot see through a useCallback, so removing
+  // synchronous setState does NOT clear it. The fix is to inline the loader
+  // into its effect as a cancellable async IIFE — see
+  // src/components/workouts/RoutineManager.tsx or
+  // src/components/calendar/ActivityPreviewModal.tsx for the sanctioned shape,
+  // adding a `reloadKey` when event handlers also need to refetch.
   //
-  //   1. The rule flags the CALL SITE of any function containing setState,
-  //      invoked from an effect — it cannot see through a useCallback, so
-  //      removing every synchronous setState does NOT clear it. Satisfying it
-  //      means inlining ~31 data-fetching functions into their effects as
-  //      cancellable async IIFEs. Worth doing, but as its own PR with its own
-  //      testing, not inside a framework upgrade.
-  //   2. ~13 are legitimately effects: browser-API reads on mount that would
-  //      break hydration if moved into render (sessionStorage, location),
-  //      realtime connection lifecycle, and the media editor's object URLs,
-  //      which MUST stay effect-owned (see DEVLOG, the StrictMode revoke bug).
+  // The genuinely effect-owned cases no longer count here: they now carry a
+  // targeted `eslint-disable-next-line` with the reason at the site (storage
+  // and window.location reads that would break hydration, realtime connection
+  // lifecycle, and the media editor's object URLs — see the StrictMode revoke
+  // incident in DEVLOG, July 26). Annotating beats an opaque cap: the reason
+  // lives next to the code, and unused directives are themselves reported.
+  //
+  // NOTE the rule reports only the FIRST offending setState in an effect, and
+  // it reports at the setState line, not the `useEffect(` line — put the
+  // directive there or it lands as an unused directive AND leaves the
+  // original warning.
   //
   // Do not silence this by wrapping calls in `void (async () => …)()`. That
   // satisfies the analyzer without changing when anything executes.

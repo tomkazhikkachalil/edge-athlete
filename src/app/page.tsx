@@ -68,11 +68,13 @@ export default function Home() {
 
   // Surface OAuth callback errors (?error=...) in the login error box.
   // window.location instead of useSearchParams — avoids the Suspense
-  // boundary requirement.
+  // boundary requirement. Effect-owned deliberately: reads window.location
+  // and scrubs it with replaceState.
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const oauthError = params.get('error');
     if (oauthError) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setError(oauthError);
       window.history.replaceState(null, '', '/');
     }

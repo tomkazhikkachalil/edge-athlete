@@ -101,17 +101,22 @@ export default function ChatDock() {
   }, []);
 
   // Hydrate persisted layout once, then persist on every change.
+  // Effect-owned deliberately: the layout lives in localStorage, and reading
+  // or writing it during render would run on the server.
   useEffect(() => {
     if (!enabled || hydrated) return;
     const persisted = loadDockState();
     if (persisted) dispatch({ type: 'HYDRATE', state: persisted });
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setHydrated(true);
   }, [enabled, hydrated]);
 
   // Visibility preference: read once, then follow changes from the Messages
   // toggle (same tab, via CustomEvent) or another tab (storage event).
+  // Effect-owned deliberately: this is an external-store read-then-subscribe.
   useEffect(() => {
     if (!FEATURE_FLAGS.FEATURE_CHAT_DOCK) return;
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setHidden(isChatDockHidden());
     return subscribeChatDockVisibility(setHidden);
   }, []);
