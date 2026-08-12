@@ -1,5 +1,56 @@
 # Development Log
 
+## August 11, 2026 — Maintenance sweep (drill-down nav round)
+
+Requested checklist after #135:
+
+- **`npm audit`: 0 vulnerabilities** (dev + production trees).
+- Full gate green on merged main: tsc clean, lint at the **43** ratchet
+  exactly, **1251 tests** across 98 files, production build complete.
+  (No test delta this round — the nav change added no pure logic; the
+  behaviour is browser-verified, per the node-only testing rule.)
+- Tree clean on main at #135; deploy green and `/calendar` 200 on prod.
+- **0 open PRs.** 24 stale remote branches still parked — all confirmed to
+  belong to merged PRs; pruning them remains Tom's call.
+- **Merge-flow note**: #133 and #135 both failed to merge from the GitHub
+  UI while their Vercel preview check was still `pending` ("unstable"
+  merge state). Both landed cleanly via the API. Worth remembering that
+  `merge_commit_sha` is populated on OPEN mergeable PRs too — it is a
+  speculative test-merge, so the only trustworthy signals are
+  `merged: true` AND the commit being present on origin/main.
+
+## August 11, 2026 — Calendar drill-down: Month → Week → Day
+
+Tom's ask: selecting a date in Month view should open the WEEK containing
+it (no manual "Week" click), and each day header in the week should open
+that Day. Drag-to-create stays untouched.
+
+- **Phones deliberately keep Month → Day** (Tom's call after the trade-off
+  was surfaced): below `sm` the month cell tap is the ONLY route into a day
+  (chips are hidden, an `::after` overlay makes the whole 64px cell the
+  target), and a phone week is a 966px sideways-scrolling grid where the
+  tapped day can be off-screen. Week headers remain clickable there for
+  anyone who reaches Week via the toolbar.
+- **The breakpoint is read inside the click handler**
+  (`window.matchMedia('(min-width: 640px)').matches`), never during render.
+  The MessageInput matchMedia-in-an-effect precedent would have added a
+  `set-state-in-effect` warning, and lint sits AT the 43 ratchet — one more
+  warning fails the gate. A handler read needs no state, no effect and no
+  SSR branch.
+- **Week headers become buttons only when `onSelectDay && days.length > 1`**
+  so Day view keeps a plain header (no dead button / focus stop). Two
+  details that matter: `block` is required (a button is inline-block and
+  would collapse the stacked label), and the children moved from `<p>` to
+  `<span>` — `<p>` is not phrasing content and breaks click targets inside
+  a button (the TaggedTile comment records this exact bug class).
+- **"+N more" now routes to Day** via a separate `onOpenDay` prop; it means
+  "show me everything on this day", which Week doesn't answer.
+- `defaultDay` widened to week view so the plain "New event" button still
+  prefills the focused day after the extra hop.
+- Browser-verified 10/10 at 1280px and 390px, including a drag-to-create
+  regression assertion (still 08:00–10:00, carrying the drilled-down date)
+  and the unchanged phone path.
+
 ## August 11, 2026 — Maintenance sweep (drag-to-create round)
 
 Requested checklist after #133:
