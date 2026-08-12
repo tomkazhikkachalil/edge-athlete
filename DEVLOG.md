@@ -1,5 +1,69 @@
 # Development Log
 
+## August 12, 2026 — Maintenance sweep: untagging is broken in prod (migration 081)
+
+Second sweep of the day. The gate items were all clean; the value came from
+running the **full Playwright suite**, which the previous sweeps had not done.
+
+- **`npm audit`: 0 vulnerabilities** (dev + production trees).
+- Gate green on `b17a2ef`: tsc clean, **lint 0 warnings**, 1258 unit tests,
+  production build complete. Tree clean, **0 open PRs, 0 stale branches**.
+- Production deploy Ready; `/`, `/explore`, `/feed` all 200, `/notifications`
+  307 → `/app/notifications` and renders (the #145 fix holding).
+- **e2e: 18 specs, 17 passed, 1 failed → both outcomes were real findings.**
+
+**1. `golf-quick-entry` was a stale spec, not a broken flow.** It looked for
+hole inputs by placeholder `"−"` (U+2212 MINUS SIGN). Since the Aug 10
+scorecard convergence (#119–#121) a SOLO round renders the shared
+`MultiPlayerScorecardGrid`, whose placeholder is an ASCII `"-"`. The spec was
+last touched Aug 4 (#39), before that change. Updated to the ASCII hyphen with
+`exact: true` (the substring match would otherwise catch any hyphenated
+placeholder), and the stale comment about a "putts row sharing the
+placeholder" is gone — the shared grid uses checkboxes for stats. Re-run
+passes, which is the actual proof the golf flow still works end to end.
+
+**2. Untagging is broken in production.** The tagged spec passed while the
+server logged `untag marker upsert failed: record "new" has no field "tags"`.
+Probed directly against prod with the service role:
+
+    INSERT status='active'   -> 201 OK
+    INSERT status='removed'  -> 201 OK
+    UPDATE ... status        -> 400  42703  record "new" has no field "tags"
+
+So **every UPDATE on `post_tags` raises**. Root cause is the same failure mode
+as migration 025, from the same family of archived hot-fixes:
+`archive/old-migrations/fix-utility-functions-schema.sql` redefined
+`update_post_tags_updated_at()` as if it were attached to POSTS —
+`IF NEW.tags IS DISTINCT FROM OLD.tags` — and `post_tags` has no `tags`
+column. Migration 008's BEFORE UPDATE trigger has been raising ever since.
+
+What that costs users:
+
+- `DELETE /api/tags?tagId=…` — a tagged person removing THEMSELF goes through
+  `.update({status:'removed'})` and gets a hard **500**. They cannot untag
+  themselves by that path.
+- `DELETE /api/tags?postId=…` — the `status='removed'` marker upsert hits
+  `ON CONFLICT DO UPDATE` and fails. The route logs and continues, so the UI
+  looks right, but the marker never persists — and `mirror-tags.ts` reads
+  exactly that marker to keep an untagged participant untagged. **A group-round
+  resync re-tags someone who removed themself.**
+- Re-tagging anyone previously removed fails the same way.
+
+**Migration 081** restores the function to migration 008's intent (stamp
+`updated_at` unconditionally) and rebinds the trigger, with a verification
+block that performs the exact UPDATE that was failing and rolls itself back.
+
+**The tagged spec now pins the marker row, not the pixels.** Every UI
+assertion in that spec passed while this was broken — the route swallows the
+error — which is precisely how a bug from the 025 era survived this long. The new
+assertion reads `post_tags` with the service role and requires
+`status = 'removed'`. **It fails until 081 is applied**, deliberately.
+
+Lesson worth carrying: the unit gate, the build and a UI e2e suite were all
+green while a core privacy action was failing in production. The signals that
+caught it were a **server log line** during a passing test and a **direct
+database probe**. Read the test output, not just its exit code.
+
 ## August 12, 2026 — Maintenance sweep + a crashed page found by the two-width review
 
 Requested checklist after #144, plus Tom's ask to review mobile and desktop

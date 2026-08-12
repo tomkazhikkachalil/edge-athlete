@@ -19,6 +19,7 @@ test('tagged: tag → round auto-tag → hero → untag → privacy pins', async
   // ── Seed ──────────────────────────────────────────────────────────────
   // B posts, tagging A (the ordinary tag path).
   const apiB = await apiAs('state-b.json');
+  let taggedPostId = '';
   try {
     const postRes = await apiB.post('/api/posts', {
       data: {
@@ -32,6 +33,7 @@ test('tagged: tag → round auto-tag → hero → untag → privacy pins', async
       },
     });
     expect(postRes.ok(), await readErrorBody(postRes)).toBe(true);
+    taggedPostId = (await postRes.json()).post.id;   // pinned at the end of this spec
   } finally {
     await apiB.dispose();
   }
@@ -169,4 +171,21 @@ test('tagged: tag → round auto-tag → hero → untag → privacy pins', async
   await page.getByRole('button', { name: /tagged/i }).first().click();
   await expect(page.getByText('No tags yet')).toBeVisible({ timeout: 15_000 });
   await expect(page.getByRole('button', { name: `Range session with a teammate ${stamp}` })).toHaveCount(0);
+
+  // The untag must leave a status='removed' MARKER, not just disappear from
+  // the UI. src/lib/group-posts/mirror-tags.ts reads that marker to keep an
+  // untagged participant untagged; without it a group-round resync re-tags
+  // them. The UI assertions above all passed while this was broken in prod
+  // (the route logs the marker failure and continues), which is exactly how
+  // the bug survived — so pin the row, not the pixels.
+  // REQUIRES migration 081. Pre-081 every UPDATE on post_tags raises
+  // 42703 "record \"new\" has no field \"tags\"" and this fails.
+  const admin = adminClient();
+  const { data: markers, error: markerErr } = await admin
+    .from('post_tags')
+    .select('status')
+    .eq('post_id', taggedPostId)
+    .eq('tagged_profile_id', userA.id);
+  expect(markerErr).toBeNull();
+  expect(markers?.map(m => m.status)).toEqual(['removed']);
 });

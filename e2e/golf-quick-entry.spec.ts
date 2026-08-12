@@ -36,11 +36,14 @@ test('log an individual golf round and see the scorecard post', async ({ page })
   await page.getByRole('button', { name: '18 holes', exact: true }).click();
   await page.waitForTimeout(300);
 
-  // Hole scores: the front-9 tab renders 9 hole columns; the score row and
-  // putts row share placeholder "−" and the DOM is row-major, so the first
-  // nine matches are the SCORE cells (OUT/IN totals are computed cells, not
-  // inputs). Filling the front nine alone satisfies the submit gate.
-  const holeInputs = page.getByPlaceholder('−');
+  // Hole scores. Since the Aug 2026 scorecard convergence (#119-#121) a SOLO
+  // round renders the shared MultiPlayerScorecardGrid, so the placeholder is
+  // an ASCII "-", not the U+2212 "−" the old solo-only form used — hence
+  // exact: true, which also stops the substring match from catching any other
+  // placeholder containing a hyphen. Stats are checkboxes in this grid (no
+  // putts row), so every match IS a score cell; OUT/IN totals are computed.
+  // Filling the front nine alone satisfies the submit gate.
+  const holeInputs = page.getByPlaceholder('-', { exact: true });
   await expect(holeInputs.first()).toBeVisible({ timeout: 10_000 });
   for (let i = 0; i < 9; i++) {
     await holeInputs.nth(i).fill('4');
