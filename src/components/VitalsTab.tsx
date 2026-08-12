@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   VITAL_CATEGORIES,
@@ -355,38 +355,42 @@ export default function VitalsTab({ profileId, currentUserId, isOwnProfile = fal
   const [showStartSheet, setShowStartSheet] = useState(false);
   const [showRoutinesModal, setShowRoutinesModal] = useState(false);
 
-  const fetchData = useCallback(async () => {
-    try {
-      setError('');
-      const [vitalsRes, workoutsRes] = await Promise.all([
-        fetch(`/api/vitals?profileId=${profileId}`),
-        fetch(`/api/workouts?profileId=${profileId}&limit=50`, { credentials: 'include' }),
-      ]);
-      if (!vitalsRes.ok) {
-        const data = await vitalsRes.json();
-        setError(data.error || 'Failed to load vitals');
-        return;
-      }
-      const data = await vitalsRes.json();
-      setVitals(data.vitals || []);
-      setTrainingPosts(data.trainingPosts || []);
-      setAthleteBirthday(data.athleteBirthday || null);
-      setCurrentVitals(data.currentVitals || null);
-      if (workoutsRes.ok) {
-        const workoutData = await workoutsRes.json();
-        setWorkouts(workoutData.sessions || []);
-      }
-    } catch (e) {
-      console.error('Failed to load vitals data:', e);
-      setError('Failed to load vitals data');
-    } finally {
-      setLoading(false);
-    }
-  }, [profileId]);
 
+  // Loader defined inside the effect and published on a ref — four handlers
+  // refetch after a mutation (workout delete, vitals save, post create).
+  const fetchDataRef = useRef<() => Promise<void>>(async () => {});
   useEffect(() => {
-    fetchData();
-  }, [fetchData]);
+    const run = async () => {
+        try {
+          setError('');
+          const [vitalsRes, workoutsRes] = await Promise.all([
+            fetch(`/api/vitals?profileId=${profileId}`),
+            fetch(`/api/workouts?profileId=${profileId}&limit=50`, { credentials: 'include' }),
+          ]);
+          if (!vitalsRes.ok) {
+            const data = await vitalsRes.json();
+            setError(data.error || 'Failed to load vitals');
+            return;
+          }
+          const data = await vitalsRes.json();
+          setVitals(data.vitals || []);
+          setTrainingPosts(data.trainingPosts || []);
+          setAthleteBirthday(data.athleteBirthday || null);
+          setCurrentVitals(data.currentVitals || null);
+          if (workoutsRes.ok) {
+            const workoutData = await workoutsRes.json();
+            setWorkouts(workoutData.sessions || []);
+          }
+        } catch (e) {
+          console.error('Failed to load vitals data:', e);
+          setError('Failed to load vitals data');
+        } finally {
+          setLoading(false);
+        }
+    };
+    fetchDataRef.current = run;
+    run();
+  }, [profileId]);
 
   // Saved routines feed the Start Workout picker — owner only, and a failure
   // just degrades to the plain one-tap start. Inlined cancellable IIFE (not a
@@ -846,7 +850,7 @@ export default function VitalsTab({ profileId, currentUserId, isOwnProfile = fal
                       onShare={() => router.push(`/app/workout/${session.id}?share=1`)}
                       onDeleted={() => {
                         setWorkouts(ws => ws.filter(w => w.id !== session.id));
-                        fetchData();
+                        fetchDataRef.current();
                       }}
                     />
                   ))}
@@ -921,7 +925,7 @@ export default function VitalsTab({ profileId, currentUserId, isOwnProfile = fal
         onClose={() => setShowAddVital(false)}
         onSaved={() => {
           setShowAddVital(false);
-          fetchData();
+          fetchDataRef.current();
         }}
       />
 
@@ -929,7 +933,7 @@ export default function VitalsTab({ profileId, currentUserId, isOwnProfile = fal
         <VitalsSettingsModal
           currentVitals={currentVitals ?? { heightCm: null, weightDisplay: null, weightUnit: null }}
           onClose={() => setShowVitalsSettings(false)}
-          onSaved={fetchData}
+          onSaved={() => fetchDataRef.current()}
           onManageRoutines={() => {
             setShowVitalsSettings(false);
             setShowRoutinesModal(true);
@@ -964,7 +968,7 @@ export default function VitalsTab({ profileId, currentUserId, isOwnProfile = fal
           defaultPostCategory="training"
           onPostCreated={() => {
             setShowCreatePost(false);
-            fetchData();
+            fetchDataRef.current();
           }}
         />
       )}

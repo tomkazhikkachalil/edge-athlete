@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { createSupabaseBrowserClient } from '@/lib/supabase';
 import PostCard from './PostCard';
 import { useBodyScrollLock } from '@/hooks/useBodyScrollLock';
@@ -69,65 +69,76 @@ export default function PostDetailModal({
   const [error, setError] = useState<string | null>(null);
 
   // Fetch post data
-  const fetchPost = useCallback(async () => {
-    if (!postId) {
-      return;
-    }
 
-    setLoading(true);
-    setError(null);
-
-    try {
-      // Use API endpoint which handles RLS with admin client
-      const response = await fetch(`/api/posts?postId=${postId}`);
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to fetch post');
-      }
-
-      const { post: data } = await response.json();
-
-      if (!data) {
-        throw new Error('Post not found');
-      }
-
-      // Fetch saved_posts status for current user
-      const supabase = createSupabaseBrowserClient();
-      const { data: savedPosts } = await supabase
-        .from('saved_posts')
-        .select('profile_id')
-        .eq('post_id', postId);
-
-      // Transform data to match PostCard interface (API already formats most of it)
-      const transformedPost: PostData = {
-        ...data,
-        stats_data: data.stats_data ?? null,
-        media: data.media || [],
-        // Add saved_posts if user is logged in
-        saved_posts: savedPosts || []
-      };
-
-      setPost(transformedPost);
-    } catch (err: unknown) {
-      console.error('Error fetching post:', err);
-      setError(err instanceof Error ? err.message : 'Failed to load post');
-    } finally {
-      setLoading(false);
-    }
-  }, [postId]);
-
-  // Fetch post when modal opens or postId changes
+  // Loader defined inside the effect and published on a ref: the edit and
+  // delete handlers `await fetchPost()` before continuing, and the error
+  // state has a retry button. The close branch still resets synchronously.
+  const fetchPostRef = useRef<() => Promise<void>>(async () => {});
   useEffect(() => {
-    if (isOpen && postId) {
-      fetchPost();
-    } else if (!isOpen) {
-      // Reset state when modal closes
+    const run = async () => {
+        if (!postId) {
+          return;
+        }
+
+        setLoading(true);
+        setError(null);
+
+        try {
+          // Use API endpoint which handles RLS with admin client
+          const response = await fetch(`/api/posts?postId=${postId}`);
+
+          if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(errorData.error || 'Failed to fetch post');
+          }
+
+          const { post: data } = await response.json();
+
+          if (!data) {
+            throw new Error('Post not found');
+          }
+
+          // Fetch saved_posts status for current user
+          const supabase = createSupabaseBrowserClient();
+          const { data: savedPosts } = await supabase
+            .from('saved_posts')
+            .select('profile_id')
+            .eq('post_id', postId);
+
+          // Transform data to match PostCard interface (API already formats most of it)
+          const transformedPost: PostData = {
+            ...data,
+            stats_data: data.stats_data ?? null,
+            media: data.media || [],
+            // Add saved_posts if user is logged in
+            saved_posts: savedPosts || []
+          };
+
+          setPost(transformedPost);
+        } catch (err: unknown) {
+          console.error('Error fetching post:', err);
+          setError(err instanceof Error ? err.message : 'Failed to load post');
+        } finally {
+          setLoading(false);
+        }
+    };
+    fetchPostRef.current = run;
+    if (isOpen && postId) run();
+  }, [isOpen, postId]);
+
+  // Clearing on close is state SYNCHRONISATION, not a side effect, so it runs
+  // during render (the EventDetailModal pattern) — the previous post never
+  // paints for a frame on reopen, and it keeps the effect free of a
+  // synchronous setState.
+  const [syncedOpen, setSyncedOpen] = useState(isOpen);
+  if (syncedOpen !== isOpen) {
+    setSyncedOpen(isOpen);
+    if (!isOpen) {
       setPost(null);
       setLoading(false);
       setError(null);
     }
-  }, [isOpen, postId, fetchPost]);
+  }
 
   // Body scroll lock while open — refcounted hook, NOT raw body.style:
   // several always-mounted instances coexist per page (media grid, Featured
@@ -194,7 +205,7 @@ export default function PostDetailModal({
 
       if (!response.ok) {
         // Revert on error
-        await fetchPost();
+        await fetchPostRef.current();
       } else {
         const data = await response.json();
         setPost((prev) => prev ? ({
@@ -204,7 +215,7 @@ export default function PostDetailModal({
       }
     } catch (err) {
       console.error('Error toggling like:', err);
-      await fetchPost();
+      await fetchPostRef.current();
     }
   };
 
@@ -273,7 +284,7 @@ export default function PostDetailModal({
               </div>
               <p className="text-secondary">{error}</p>
               <button
-                onClick={fetchPost}
+                onClick={() => fetchPostRef.current()}
                 className="mt-4 px-4 py-2 bg-brand text-white rounded-lg hover:bg-brand-hover"
               >
                 Try Again
