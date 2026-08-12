@@ -61,11 +61,14 @@ export default function TimeGridView({
   events,
   onSelectEvent,
   onCreateRange,
+  onSelectDay,
 }: {
   days: Date[];
   events: EventListItem[];
   onSelectEvent: (id: string) => void;
   onCreateRange: (start: Date, end: Date) => void;
+  /** Week only: day headers become buttons that drill down to Day view. */
+  onSelectDay?: (day: Date) => void;
 }) {
   const scrollRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
@@ -279,21 +282,44 @@ export default function TimeGridView({
     <div className="bg-surface rounded-lg shadow-sm border border-border overflow-hidden">
       <div className="overflow-x-auto">
         <div style={{ minWidth: days.length > 1 ? days.length * 130 + 56 : undefined }}>
-          {/* Header: day labels */}
+          {/* Header: day labels. In Week view each header drills down to
+              Day view; in Day view it stays a plain div (no dead button).
+              Spans, not <p>s, inside the button — <p> isn't phrasing
+              content and breaks the click target. */}
           <div className="flex border-b border-border">
             <div className="w-14 shrink-0" />
-            {days.map(day => (
-              <div key={day.toISOString()} className="flex-1 py-2 text-center border-l border-border-subtle">
-                <p className="text-xs text-muted">{format(day, 'EEE')}</p>
-                <p
-                  className={`text-sm font-semibold inline-flex items-center justify-center w-7 h-7 rounded-full ${
-                    isSameDay(day, today) ? 'bg-brand text-white' : 'text-primary'
-                  }`}
+            {days.map(day => {
+              const label = (
+                <>
+                  <span className="block text-xs text-muted">{format(day, 'EEE')}</span>
+                  <span
+                    className={`text-sm font-semibold inline-flex items-center justify-center w-7 h-7 rounded-full ${
+                      isSameDay(day, today) ? 'bg-brand text-white' : 'text-primary'
+                    }`}
+                  >
+                    {day.getDate()}
+                  </span>
+                </>
+              );
+              const cellClass = 'flex-1 py-2 text-center border-l border-border-subtle';
+              return onSelectDay && days.length > 1 ? (
+                <button
+                  key={day.toISOString()}
+                  type="button"
+                  onClick={() => onSelectDay(day)}
+                  aria-label={`${format(day, 'EEEE, MMMM d')} — open day view`}
+                  // `block`: a button is inline-block by default, which would
+                  // collapse the stacked label. ~52px tall clears the 44px rule.
+                  className={`${cellClass} block hover:bg-brand-soft active:bg-brand-soft transition-colors ea-no-touch-select`}
                 >
-                  {day.getDate()}
-                </p>
-              </div>
-            ))}
+                  {label}
+                </button>
+              ) : (
+                <div key={day.toISOString()} className={cellClass}>
+                  {label}
+                </div>
+              );
+            })}
           </div>
 
           {/* All-day row */}

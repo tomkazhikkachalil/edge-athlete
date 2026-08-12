@@ -10,17 +10,22 @@ const WEEKDAY_LABELS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 const MAX_CHIPS = 3;
 
 // Month grid: ≥sm shows up to 3 chips + "+N more"; on phones the cells show
-// category dots. Tapping a day (or "+N more") focuses it in Day view — one
-// gesture, no popover machinery.
+// category dots. Tapping a day drills down — Week at ≥sm, Day on phones
+// (the caller decides; a phone week is a sideways-scrolling 966px grid).
+// "+N more" always goes straight to Day: it means "show me everything on
+// this day", which Week doesn't answer.
 export default function MonthView({
   focusDate,
   events,
   onSelectDay,
+  onOpenDay,
   onSelectEvent,
 }: {
   focusDate: Date;
   events: EventListItem[];
   onSelectDay: (day: Date) => void;
+  /** "+N more" destination; falls back to onSelectDay when absent. */
+  onOpenDay?: (day: Date) => void;
   onSelectEvent: (id: string) => void;
 }) {
   const weeks = monthMatrix(focusDate);
@@ -101,7 +106,7 @@ export default function MonthView({
                   {dayEvents.length > MAX_CHIPS && (
                     <button
                       type="button"
-                      onClick={() => onSelectDay(day)}
+                      onClick={() => (onOpenDay ?? onSelectDay)(day)}
                       className="text-left text-xs text-muted hover:text-brand-fg px-1.5"
                     >
                       +{dayEvents.length - MAX_CHIPS} more

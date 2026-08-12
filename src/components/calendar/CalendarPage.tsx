@@ -101,6 +101,18 @@ export default function CalendarPage({
     setView('day');
   };
 
+  // Month drill-down: Week at ≥sm, straight to Day on phones — a phone week
+  // is a 966px sideways-scrolling grid where the tapped day may be
+  // off-screen, and below sm the month cell tap is the ONLY way into a day.
+  // matchMedia is read in the handler, never during render (purity + no
+  // extra state/effect).
+  const openFromMonth = (day: Date) => {
+    setFocusDate(day);
+    const wide =
+      typeof window !== 'undefined' && window.matchMedia('(min-width: 640px)').matches;
+    setView(wide ? 'week' : 'day');
+  };
+
   const closeDetail = () => {
     setDetailEventId(null);
     // Drop a consumed ?event= deep link from the URL.
@@ -215,10 +227,10 @@ export default function CalendarPage({
 
       {/* Active view */}
       {view === 'month' && (
-        <MonthView focusDate={focusDate} events={events} onSelectDay={openDay} onSelectEvent={selectEvent} />
+        <MonthView focusDate={focusDate} events={events} onSelectDay={openFromMonth} onOpenDay={openDay} onSelectEvent={selectEvent} />
       )}
       {view === 'week' && (
-        <TimeGridView days={weekDays(focusDate)} events={events} onSelectEvent={selectEvent} onCreateRange={handleCreateRange} />
+        <TimeGridView days={weekDays(focusDate)} events={events} onSelectEvent={selectEvent} onCreateRange={handleCreateRange} onSelectDay={openDay} />
       )}
       {view === 'day' && (
         <TimeGridView days={[focusDate]} events={events} onSelectEvent={selectEvent} onCreateRange={handleCreateRange} />
@@ -243,7 +255,7 @@ export default function CalendarPage({
         }}
         onSaved={refetch}
         editing={editingEvent}
-        defaultDay={view === 'day' ? focusDate : undefined}
+        defaultDay={view === 'day' || view === 'week' ? focusDate : undefined}
         defaultRange={draftRange ?? undefined}
       />
       <EventDetailModal
