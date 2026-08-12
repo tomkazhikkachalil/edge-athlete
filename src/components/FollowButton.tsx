@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useAuth } from '@/lib/auth';
 import { useToast } from './Toast';
 import { useBodyScrollLock } from '@/hooks/useBodyScrollLock';
@@ -49,45 +49,49 @@ export default function FollowButton({
     lg: 'px-6 py-3 text-base min-h-[44px]'
   };
 
-  const loadFollowStats = useCallback(async () => {
-    try {
-      setStatsLoading(true);
-      const params = new URLSearchParams({ profileId });
-      if (currentUserId) {
-        params.append('currentUserId', currentUserId);
-      }
 
-      const response = await fetch(`/api/follow/stats?${params}`);
-
-      if (response.ok) {
-        const data = await response.json();
-        setFollowersCount(data.followersCount);
-        setIsFollowing(data.isFollowing);
-        setFollowStatus(data.followStatus);
-        setIsPrivate(data.isPrivate !== false);
-        return data as { followersCount: number; isFollowing: boolean; followStatus: string | null };
-      } else {
-        // If the table doesn't exist yet, just show default values
-        setFollowersCount(0);
-        setIsFollowing(false);
-        setFollowStatus(null);
-      }
-    } catch (e) {
-      console.error('Failed to load follow stats (FollowButton):', e);
-      setFollowersCount(0);
-      setIsFollowing(false);
-      setFollowStatus(null);
-    } finally {
-      setStatsLoading(false);
-    }
-  }, [profileId, currentUserId]);
-
-  // Load follow stats on component mount
+  // Loader lives inside the effect and is published on a ref: the follow
+  // handler consumes its RETURN value (fresh counts) after acting, so it
+  // cannot become a fire-and-forget reloadKey.
+  const loadFollowStatsRef = useRef<() => Promise<{ followersCount: number; isFollowing: boolean; followStatus: string | null } | undefined>>(
+    async () => undefined
+  );
   useEffect(() => {
-    if (profileId && currentUserId) {
-      loadFollowStats();
-    }
-  }, [profileId, currentUserId, loadFollowStats]);
+    const run = async () => {
+        try {
+          setStatsLoading(true);
+          const params = new URLSearchParams({ profileId });
+          if (currentUserId) {
+            params.append('currentUserId', currentUserId);
+          }
+
+          const response = await fetch(`/api/follow/stats?${params}`);
+
+          if (response.ok) {
+            const data = await response.json();
+            setFollowersCount(data.followersCount);
+            setIsFollowing(data.isFollowing);
+            setFollowStatus(data.followStatus);
+            setIsPrivate(data.isPrivate !== false);
+            return data as { followersCount: number; isFollowing: boolean; followStatus: string | null };
+          } else {
+            // If the table doesn't exist yet, just show default values
+            setFollowersCount(0);
+            setIsFollowing(false);
+            setFollowStatus(null);
+          }
+        } catch (e) {
+          console.error('Failed to load follow stats (FollowButton):', e);
+          setFollowersCount(0);
+          setIsFollowing(false);
+          setFollowStatus(null);
+        } finally {
+          setStatsLoading(false);
+        }
+    };
+    loadFollowStatsRef.current = run;
+    if (profileId && currentUserId) run();
+  }, [profileId, currentUserId]);
 
   const handleFollowClick = () => {
     if (!currentUserId) {
@@ -145,7 +149,7 @@ export default function FollowButton({
       // count to the parent. Locally computed ±1 was wrong for private
       // profiles: a pending fan request incremented the visible Fans count,
       // and cancelling one could render -1 (server only counts accepted).
-      const fresh = await loadFollowStats();
+      const fresh = await loadFollowStatsRef.current();
 
       // Notify parent component with server-accurate values
       onFollowChange?.(newFollowingStatus, fresh?.followersCount ?? followersCount);

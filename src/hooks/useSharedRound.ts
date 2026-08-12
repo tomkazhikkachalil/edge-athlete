@@ -104,7 +104,13 @@ export function useSharedRound({
   }, [postId, groupPostId]);
 
   // The seeded scorecard can be minutes old — sync once when going live.
+  // ANNOTATED, not refactored: refresh() is part of this hook's PUBLIC API
+  // (returned to callers, who consume its boolean) and is also called by the
+  // subscription handler, the reconnect path and visibilitychange. Moving it
+  // into this effect would mean re-exporting a wrapper and risking drift from
+  // the `cache: 'no-store'` guarantee on live leaderboards. Not worth it.
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     if (enabled) refresh();
   }, [enabled, refresh]);
 

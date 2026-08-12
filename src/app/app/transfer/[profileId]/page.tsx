@@ -58,7 +58,14 @@ export default function TransferPage() {
     if (!loading && initialAuthCheckComplete && !user) router.replace('/');
   }, [user, loading, initialAuthCheckComplete, router]);
 
+  // ANNOTATED, not refactored. Five call paths share this loader (mount, a 30s
+  // poll, a visibilitychange refresh, and two awaited post-action refreshes).
+  // Moving it inside the effect and publishing it on a ref clears THIS rule
+  // but trips react-hooks/refs five times instead: `post()` reads the ref and
+  // is handed into JSX during render, which the compiler cannot prove is
+  // deferred. Duplicating the body is worse. Left as-is deliberately.
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     if (user) load();
   }, [user, load]);
 

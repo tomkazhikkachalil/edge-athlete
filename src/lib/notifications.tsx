@@ -352,6 +352,9 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (user) {
       // PERFORMANCE OPTIMIZED: Load immediately - no artificial delays!
+      // OUT OF SCOPE by decision: fetchNotifications owns cursor pagination and
+      // is shared with the realtime channel and the "load more" handler.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       refreshUnreadCount();
       fetchNotifications({ reset: true });
     } else {

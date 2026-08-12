@@ -85,6 +85,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   // Load managed profiles whenever the signed-in user changes.
   useEffect(() => {
     if (user) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       refreshManagedProfiles();
     } else {
       setManagedProfiles([]);

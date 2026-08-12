@@ -141,70 +141,6 @@ export default function ProfileMediaTabs({ profileId, currentUserId, isOwnProfil
   // stay stable as users toggle filters.
 
   // Fetch media items
-  const fetchMedia = useCallback(async (resetItems = false) => {
-    // Sequence guard: if a newer fetch starts (fast tab/filter switching),
-    // this one's response is ignored so it can't overwrite the grid with
-    // stale data.
-    const seq = ++requestSeqRef.current;
-    try {
-      if (resetItems) {
-        setLoading(true);
-        setOffset(0);
-        offsetRef.current = 0;
-      } else {
-        setLoadingMore(true);
-      }
-
-      const currentOffset = resetItems ? 0 : offsetRef.current;
-      const params = new URLSearchParams({
-        tab: activeTab,
-        sort,
-        mediaType: mediaFilter,
-        limit: '20',
-        offset: currentOffset.toString()
-      });
-      if (selectedSports.length > 0) params.set('sportKeys', selectedSports.join(','));
-      if (selectedYears.length > 0) params.set('years', selectedYears.join(','));
-
-      const response = await fetch(`/api/profile/${profileId}/media?${params}`);
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(`Failed to fetch media: ${response.status} - ${errorText}`);
-      }
-
-      const data = await response.json();
-
-      // Ignore this response if a newer fetch has superseded it.
-      if (seq !== requestSeqRef.current) return;
-
-      if (resetItems) {
-        setItems(data.items || []);
-      } else {
-        setItems(prev => [...prev, ...(data.items || [])]);
-      }
-
-      setHasMore(data.hasMore || false);
-      const newOffset = data.nextOffset || currentOffset + (data.items?.length || 0);
-      setOffset(newOffset);
-      offsetRef.current = newOffset;
-    } catch (e) {
-      console.error('Failed to fetch profile media:', e);
-      // Ignore stale errors — a newer fetch owns the UI now.
-      if (seq !== requestSeqRef.current) return;
-      // Show empty state on error
-      if (resetItems) {
-        setItems([]);
-        setHasMore(false);
-      }
-    } finally {
-      // Only the latest request controls the loading state.
-      if (seq === requestSeqRef.current) {
-        setLoading(false);
-        setLoadingMore(false);
-      }
-    }
-  }, [profileId, activeTab, sort, mediaFilter, selectedSports, selectedYears]);
 
   // Counts loader lives inside the effect (that clears the lint rule) and is
   // published on a ref so the post-mutation refreshes and the child's
@@ -246,17 +182,88 @@ export default function ProfileMediaTabs({ profileId, currentUserId, isOwnProfil
   // Load media when tab/filter/sort/profileId or sport/year filters change.
   // Only the media-backed tabs (all/stats/tagged) call the media endpoint;
   // equipment/vitals/achievements render their own components.
+  // Paginated loader: defined inside the effect (clears the lint rule) and
+  // published on a ref for the IntersectionObserver's load-more and the
+  // post-mutation refresh. It keeps its own requestSeqRef/offsetRef guards,
+  // and re-publishing on every filter change means the observer always calls
+  // the closure holding the CURRENT filters.
+  const fetchMediaRef = useRef<(resetItems?: boolean) => Promise<void>>(async () => {});
   useEffect(() => {
+    const run = async (resetItems = false) => {
+        // Sequence guard: if a newer fetch starts (fast tab/filter switching),
+        // this one's response is ignored so it can't overwrite the grid with
+        // stale data.
+        const seq = ++requestSeqRef.current;
+        try {
+          if (resetItems) {
+            setLoading(true);
+            setOffset(0);
+            offsetRef.current = 0;
+          } else {
+            setLoadingMore(true);
+          }
+
+          const currentOffset = resetItems ? 0 : offsetRef.current;
+          const params = new URLSearchParams({
+            tab: activeTab,
+            sort,
+            mediaType: mediaFilter,
+            limit: '20',
+            offset: currentOffset.toString()
+          });
+          if (selectedSports.length > 0) params.set('sportKeys', selectedSports.join(','));
+          if (selectedYears.length > 0) params.set('years', selectedYears.join(','));
+
+          const response = await fetch(`/api/profile/${profileId}/media?${params}`);
+
+          if (!response.ok) {
+            const errorText = await response.text();
+            throw new Error(`Failed to fetch media: ${response.status} - ${errorText}`);
+          }
+
+          const data = await response.json();
+
+          // Ignore this response if a newer fetch has superseded it.
+          if (seq !== requestSeqRef.current) return;
+
+          if (resetItems) {
+            setItems(data.items || []);
+          } else {
+            setItems(prev => [...prev, ...(data.items || [])]);
+          }
+
+          setHasMore(data.hasMore || false);
+          const newOffset = data.nextOffset || currentOffset + (data.items?.length || 0);
+          setOffset(newOffset);
+          offsetRef.current = newOffset;
+        } catch (e) {
+          console.error('Failed to fetch profile media:', e);
+          // Ignore stale errors — a newer fetch owns the UI now.
+          if (seq !== requestSeqRef.current) return;
+          // Show empty state on error
+          if (resetItems) {
+            setItems([]);
+            setHasMore(false);
+          }
+        } finally {
+          // Only the latest request controls the loading state.
+          if (seq === requestSeqRef.current) {
+            setLoading(false);
+            setLoadingMore(false);
+          }
+        }
+    };
+    fetchMediaRef.current = run;
     if (!isMediaTab(activeTab)) return;
-    fetchMedia(true);
-  }, [activeTab, sort, mediaFilter, profileId, selectedSports, selectedYears, fetchMedia]);
+    run(true);
+  }, [activeTab, sort, mediaFilter, profileId, selectedSports, selectedYears]);
 
   // Infinite scroll observer
   useEffect(() => {
     const observer = new IntersectionObserver(
       entries => {
         if (entries[0].isIntersecting && hasMore && !loadingMore) {
-          fetchMedia(false);
+          fetchMediaRef.current(false);
         }
       },
       { threshold: 0.1 }
@@ -272,7 +279,7 @@ export default function ProfileMediaTabs({ profileId, currentUserId, isOwnProfil
         observer.unobserve(currentTarget);
       }
     };
-  }, [hasMore, loadingMore, fetchMedia]);
+  }, [hasMore, loadingMore]);
 
   const handleItemClick = (index: number) => {
     setSelectedPostIndex(index);
@@ -295,6 +302,10 @@ export default function ProfileMediaTabs({ profileId, currentUserId, isOwnProfil
   };
 
   const handleTabChange = (tab: TabType) => {
+    // Re-clicking the ALREADY-ACTIVE tab used to wipe the grid: setItems([])
+    // ran, but activeTab never changed, so the fetch effect (keyed on it) did
+    // not re-run and the empty state stuck until a tab switch or reload.
+    if (tab === activeTab) return;
     setActiveTab(tab);
     setItems([]);
     setOffset(0);
@@ -349,7 +360,7 @@ export default function ProfileMediaTabs({ profileId, currentUserId, isOwnProfil
 
   const handlePostUpdated = () => {
     // Refresh media when a post is updated
-    fetchMedia(true);
+    fetchMediaRef.current(true);
     fetchCountsRef.current();
     setIsEditPostModalOpen(false);
     setEditingPost(null);
