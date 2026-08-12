@@ -45,6 +45,65 @@ export function minutesIntoDay(date: Date): number {
   return date.getHours() * 60 + date.getMinutes();
 }
 
+// ── Time-grid geometry + drag-to-create math ────────────────────────────────
+// Shared by TimeGridView (rendering) and its drag-selection gesture, so the
+// px↔minutes conversion has exactly one definition.
+
+export const HOUR_PX = 48; // 24h × 48px = 1152px column
+export const DAY_MINUTES = 1440;
+export const SNAP_MINUTES = 30;
+
+/** Round to the nearest step, clamped to [0, DAY_MINUTES]. */
+export function snapMinutes(min: number, step = SNAP_MINUTES): number {
+  const snapped = Math.round(min / step) * step;
+  return Math.min(Math.max(snapped, 0), DAY_MINUTES);
+}
+
+/** Pixel offset into a day column → raw minutes, clamped to [0, DAY_MINUTES]. */
+export function yToMinutes(offsetPx: number): number {
+  return Math.min(Math.max((offsetPx / HOUR_PX) * 60, 0), DAY_MINUTES);
+}
+
+/**
+ * Ordered drag range from the anchor and current position (both snapped).
+ * Guarantees at least one SNAP_MINUTES slot, entirely within [0, DAY_MINUTES]
+ * — a zero-length drag at the day's end grows backward (1410–1440), never
+ * past midnight.
+ */
+export function normalizeDragRange(
+  anchorMin: number,
+  currentMin: number
+): { startMin: number; endMin: number } {
+  let startMin = Math.min(anchorMin, currentMin);
+  let endMin = Math.max(anchorMin, currentMin);
+  if (endMin - startMin < SNAP_MINUTES) {
+    if (startMin + SNAP_MINUTES <= DAY_MINUTES) endMin = startMin + SNAP_MINUTES;
+    else {
+      endMin = DAY_MINUTES;
+      startMin = DAY_MINUTES - SNAP_MINUTES;
+    }
+  }
+  return { startMin, endMin };
+}
+
+function timeLabel(min: number): string {
+  const wrapped = min % DAY_MINUTES; // 1440 renders as 12:00 AM
+  const h24 = Math.floor(wrapped / 60);
+  const m = wrapped % 60;
+  const h12 = h24 % 12 === 0 ? 12 : h24 % 12;
+  const suffix = h24 < 12 ? 'AM' : 'PM';
+  return `${h12}:${String(m).padStart(2, '0')} ${suffix}`;
+}
+
+/** "9:00 AM – 10:30 AM · 1h 30m" for the live drag-selection label. */
+export function rangeLabel(startMin: number, endMin: number): string {
+  const dur = endMin - startMin;
+  const h = Math.floor(dur / 60);
+  const m = dur % 60;
+  const durLabel = h === 0 ? `${m}m` : m === 0 ? `${h}h` : `${h}h ${m}m`;
+  return `${timeLabel(startMin)} – ${timeLabel(endMin)} · ${durLabel}`;
+}
+
 /** 'YYYY-MM-DD' of an instant in a zone (en-CA gives ISO ordering). */
 export function dayKeyInZone(ms: number, timeZone: string): string {
   return new Intl.DateTimeFormat('en-CA', {

@@ -69,12 +69,15 @@ function nextHalfHour(): Date {
   return now;
 }
 
-function emptyForm(defaultDay?: Date): FormState {
-  const start = nextHalfHour();
-  if (defaultDay) {
+function emptyForm(defaultDay?: Date, defaultRange?: { start: Date; end: Date }): FormState {
+  // A drag-selected range wins over the plain day default; an end at
+  // next-day midnight yields endTime '00:00', which buildTimestamps already
+  // treats as past-midnight.
+  const start = defaultRange ? new Date(defaultRange.start) : nextHalfHour();
+  if (!defaultRange && defaultDay) {
     start.setFullYear(defaultDay.getFullYear(), defaultDay.getMonth(), defaultDay.getDate());
   }
-  const end = new Date(start.getTime() + 3_600_000);
+  const end = defaultRange ? new Date(defaultRange.end) : new Date(start.getTime() + 3_600_000);
   return {
     title: '',
     date: `${start.getFullYear()}-${pad(start.getMonth() + 1)}-${pad(start.getDate())}`,
@@ -126,12 +129,16 @@ export default function EventFormModal({
   onSaved,
   editing,
   defaultDay,
+  defaultRange,
 }: {
   isOpen: boolean;
   onClose: () => void;
   onSaved: () => void;
   editing?: EventDetail | null;
   defaultDay?: Date;
+  /** Drag-selected start/end (grid drag-to-create). Must be referentially
+   *  stable for the modal's lifetime — the seeding compares by identity. */
+  defaultRange?: { start: Date; end: Date };
 }) {
   const { showSuccess } = useToast();
   const [form, setForm] = useState<FormState>(() => emptyForm());
@@ -169,9 +176,14 @@ export default function EventFormModal({
 
   // Seeding the form is state synchronisation — done during render so the
   // previous values never paint for a frame.
-  const [syncedOpen, setSyncedOpen] = useState({ isOpen, editing, defaultDay });
-  if (syncedOpen.isOpen !== isOpen || syncedOpen.editing !== editing || syncedOpen.defaultDay !== defaultDay) {
-    setSyncedOpen({ isOpen, editing, defaultDay });
+  const [syncedOpen, setSyncedOpen] = useState({ isOpen, editing, defaultDay, defaultRange });
+  if (
+    syncedOpen.isOpen !== isOpen ||
+    syncedOpen.editing !== editing ||
+    syncedOpen.defaultDay !== defaultDay ||
+    syncedOpen.defaultRange !== defaultRange
+  ) {
+    setSyncedOpen({ isOpen, editing, defaultDay, defaultRange });
     // Nested, NOT an early return: this runs in the component body now, so a
     // `return` here would skip every hook below it.
     if (isOpen) {
@@ -180,7 +192,7 @@ export default function EventFormModal({
         setChips(chipsFromEvent(editing));
         setMoreOpen(true);
       } else {
-        setForm(emptyForm(defaultDay));
+        setForm(emptyForm(defaultDay, defaultRange));
         setChips([]);
         setMoreOpen(false);
       }
@@ -195,11 +207,11 @@ export default function EventFormModal({
   useEffect(() => {
     if (!isOpen) return;
     snapRef.current = JSON.stringify({
-      form: editing ? formFromEvent(editing) : emptyForm(defaultDay),
+      form: editing ? formFromEvent(editing) : emptyForm(defaultDay, defaultRange),
       chips: editing ? chipsFromEvent(editing) : [],
       repeat: emptyRepeat(),
     });
-  }, [isOpen, editing, defaultDay]);
+  }, [isOpen, editing, defaultDay, defaultRange]);
 
   // The start day is always part of a weekly repeat and follows date changes.
   // This is an invariant over current state, so it is enforced during render.
