@@ -7,6 +7,12 @@ import {
   allDayDayLabels,
   eventOverlapsDay,
   assignLanes,
+  snapMinutes,
+  yToMinutes,
+  normalizeDragRange,
+  rangeLabel,
+  HOUR_PX,
+  DAY_MINUTES,
 } from '../grid';
 
 const timed = (starts: string, ends: string) => ({
@@ -153,5 +159,79 @@ describe('assignLanes', () => {
     ]);
     expect(laid.map(l => l.laneIndex).sort()).toEqual([0, 1, 2]);
     expect(laid.every(l => l.laneCount === 3)).toBe(true);
+  });
+});
+
+describe('snapMinutes', () => {
+  it('rounds to the nearest 30-minute slot', () => {
+    expect(snapMinutes(44)).toBe(30);
+    expect(snapMinutes(45)).toBe(60);
+    expect(snapMinutes(0)).toBe(0);
+    expect(snapMinutes(719)).toBe(720);
+  });
+
+  it('clamps to the day bounds', () => {
+    expect(snapMinutes(-5)).toBe(0);
+    expect(snapMinutes(1500)).toBe(DAY_MINUTES);
+  });
+
+  it('honours a custom step', () => {
+    expect(snapMinutes(44, 15)).toBe(45);
+  });
+});
+
+describe('yToMinutes', () => {
+  it('converts pixels at HOUR_PX per hour', () => {
+    expect(yToMinutes(HOUR_PX)).toBe(60);
+    expect(yToMinutes(HOUR_PX / 2)).toBe(30);
+  });
+
+  it('clamps outside the column', () => {
+    expect(yToMinutes(-10)).toBe(0);
+    expect(yToMinutes(24 * HOUR_PX + 50)).toBe(DAY_MINUTES);
+  });
+});
+
+describe('normalizeDragRange', () => {
+  it('orders a downward drag', () => {
+    expect(normalizeDragRange(540, 630)).toEqual({ startMin: 540, endMin: 630 });
+  });
+
+  it('swaps an upward drag', () => {
+    expect(normalizeDragRange(630, 540)).toEqual({ startMin: 540, endMin: 630 });
+  });
+
+  it('expands an equal pair to one slot', () => {
+    expect(normalizeDragRange(540, 540)).toEqual({ startMin: 540, endMin: 570 });
+  });
+
+  it('grows backward at the end of the day', () => {
+    expect(normalizeDragRange(1440, 1440)).toEqual({ startMin: 1410, endMin: 1440 });
+  });
+
+  it('stays inside the day at the start', () => {
+    expect(normalizeDragRange(0, 0)).toEqual({ startMin: 0, endMin: 30 });
+  });
+});
+
+describe('rangeLabel', () => {
+  it('formats a morning range with duration', () => {
+    expect(rangeLabel(540, 630)).toBe('9:00 AM – 10:30 AM · 1h 30m');
+  });
+
+  it('renders the exclusive midnight end as 12:00 AM', () => {
+    expect(rangeLabel(1380, 1440)).toBe('11:00 PM – 12:00 AM · 1h');
+  });
+
+  it('handles noon and short durations', () => {
+    expect(rangeLabel(720, 750)).toBe('12:00 PM – 12:30 PM · 30m');
+  });
+
+  it('starts the day at 12:00 AM', () => {
+    expect(rangeLabel(0, 30)).toBe('12:00 AM – 12:30 AM · 30m');
+  });
+
+  it('formats whole hours without minutes', () => {
+    expect(rangeLabel(600, 720)).toBe('10:00 AM – 12:00 PM · 2h');
   });
 });

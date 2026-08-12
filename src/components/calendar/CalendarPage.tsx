@@ -107,6 +107,16 @@ export default function CalendarPage({
     if (deepLinkEventId) router.replace('/calendar');
   };
 
+  // Drag-to-create hand-off: the range object is set ONCE per completed
+  // drag (the form modal's seeding compares it by identity) and cleared on
+  // close so a later plain "New event" doesn't inherit stale times.
+  const [draftRange, setDraftRange] = useState<{ start: Date; end: Date } | null>(null);
+  const handleCreateRange = useCallback((start: Date, end: Date) => {
+    setDraftRange({ start, end });
+    setEditingEvent(null);
+    setFormOpen(true);
+  }, []);
+
   // Completed-activity items have no events row — the detail modal would
   // 404. They deep-link to their home surface instead.
   const selectEvent = (id: string) => {
@@ -208,10 +218,10 @@ export default function CalendarPage({
         <MonthView focusDate={focusDate} events={events} onSelectDay={openDay} onSelectEvent={selectEvent} />
       )}
       {view === 'week' && (
-        <TimeGridView days={weekDays(focusDate)} events={events} onSelectEvent={selectEvent} />
+        <TimeGridView days={weekDays(focusDate)} events={events} onSelectEvent={selectEvent} onCreateRange={handleCreateRange} />
       )}
       {view === 'day' && (
-        <TimeGridView days={[focusDate]} events={events} onSelectEvent={selectEvent} />
+        <TimeGridView days={[focusDate]} events={events} onSelectEvent={selectEvent} onCreateRange={handleCreateRange} />
       )}
       {view === 'agenda' && (
         <AgendaView focusDate={focusDate} events={events} onSelectEvent={selectEvent} />
@@ -227,12 +237,14 @@ export default function CalendarPage({
         isOpen={formOpen}
         onClose={() => {
           setFormOpen(false);
+          setDraftRange(null);
           // Drop a consumed ?new=1 so refresh/back doesn't reopen the form.
           if (autoCreate) router.replace('/calendar');
         }}
         onSaved={refetch}
         editing={editingEvent}
         defaultDay={view === 'day' ? focusDate : undefined}
+        defaultRange={draftRange ?? undefined}
       />
       <EventDetailModal
         eventId={detailEventId}
