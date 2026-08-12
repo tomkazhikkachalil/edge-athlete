@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import {
+  buildWorkoutStatsData,
   computeSummary,
   formatElapsed,
   formatDuration,
@@ -118,5 +119,43 @@ describe('collectWorkoutMedia', () => {
 
   it('returns empty for media-less workouts', () => {
     expect(collectWorkoutMedia([exercise('Bench Press', [set({ reps: 5 })])])).toEqual([]);
+  });
+});
+
+describe('buildWorkoutStatsData', () => {
+  const summary = {
+    exerciseCount: 3,
+    totalSets: 11,
+    totalVolumeLbs: 12450,
+    topLine: 'Bench Press 185 lbs × 5',
+    perExerciseBest: {},
+  };
+
+  it('builds the feed payload WorkoutPostCard reads', () => {
+    expect(
+      buildWorkoutStatsData({ sessionId: 'w1', title: 'Push Day', durationSeconds: 2832, summary })
+    ).toEqual({
+      type: 'workout_session',
+      workout_session_id: 'w1',
+      title: 'Push Day',
+      duration_seconds: 2832,
+      exercise_count: 3,
+      total_sets: 11,
+      total_volume_lbs: 12450,
+      top_line: 'Bench Press 185 lbs × 5',
+    });
+  });
+
+  it('falls back to "Workout" for a null or blank title', () => {
+    expect(buildWorkoutStatsData({ sessionId: 'w1', title: null, durationSeconds: 60, summary }).title).toBe('Workout');
+    expect(buildWorkoutStatsData({ sessionId: 'w1', title: '   ', durationSeconds: 60, summary }).title).toBe('Workout');
+  });
+
+  it('carries an empty workout through without inventing values', () => {
+    const empty = { exerciseCount: 0, totalSets: 0, totalVolumeLbs: 0, topLine: null, perExerciseBest: {} };
+    const out = buildWorkoutStatsData({ sessionId: 'w2', title: 'Rest', durationSeconds: 0, summary: empty });
+    expect(out.exercise_count).toBe(0);
+    expect(out.total_volume_lbs).toBe(0);
+    expect(out.top_line).toBeNull();
   });
 });
