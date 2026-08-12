@@ -150,29 +150,34 @@ export default function CommentSection({
     return { rootComments: roots, repliesByParent: replies };
   }, [comments]);
 
-  const fetchComments = useCallback(async () => {
-    setIsLoading(true);
-    setError('');
-    try {
-      const response = await fetch(`/api/comments?postId=${postId}`);
-      if (!response.ok) throw new Error('Failed to fetch comments');
 
-      const data = await response.json();
-      setComments(data.comments || []);
-      mergeMentionProfiles(data.mentionProfiles);
-    } catch (e) {
-      console.error('Failed to load comments:', e);
-      setError('Failed to load comments');
-    } finally {
-      setIsLoading(false);
-    }
-  }, [postId, mergeMentionProfiles]);
-
+  // Inlined cancellable IIFE (the rule flags the call site of a setState-ing
+  // function invoked from an effect).
   useEffect(() => {
-    if (showComments) {
-      fetchComments();
-    }
-  }, [showComments, fetchComments]);
+    if (!showComments) return;
+    let cancelled = false;
+    (async () => {
+      setIsLoading(true);
+      setError('');
+      try {
+        const response = await fetch(`/api/comments?postId=${postId}`);
+        if (!response.ok) throw new Error('Failed to fetch comments');
+
+        const data = await response.json();
+        if (cancelled) return;
+        setComments(data.comments || []);
+        mergeMentionProfiles(data.mentionProfiles);
+      } catch (e) {
+        console.error('Failed to load comments:', e);
+        if (!cancelled) setError('Failed to load comments');
+      } finally {
+        if (!cancelled) setIsLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [showComments, postId, mergeMentionProfiles]);
 
   // Both mirror props — synchronise during render so neither is a frame late.
   const [syncedProps, setSyncedProps] = useState({ isOpen, initialCommentsCount });

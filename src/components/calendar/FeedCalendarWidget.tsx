@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import dynamic from 'next/dynamic';
 import { useRouter } from 'next/navigation';
 import { addDays, addMonths, format, isSameMonth, startOfDay } from 'date-fns';
@@ -79,26 +79,32 @@ export default function FeedCalendarWidget() {
 
   const weeks = useMemo(() => monthMatrix(focusMonth), [focusMonth]);
 
-  const load = useCallback(async () => {
-    try {
-      const from = startOfDay(weeks[0][0]).toISOString();
-      const to = addDays(startOfDay(weeks[5][6]), 1).toISOString();
-      const res = await fetch(
-        `/api/calendar/events?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`
-      );
-      if (!res.ok) throw new Error(`status ${res.status}`);
-      const data = await res.json();
-      setEvents(data.events ?? []);
-      setFailed(false);
-    } catch (e) {
-      console.error('[FEED CALENDAR] load failed:', e);
-      setFailed(true);
-    }
-  }, [weeks]);
-
+  // Inlined cancellable IIFE — see CalendarPage for the rationale. Retry
+  // bumps refetchKey.
   useEffect(() => {
-    load();
-  }, [load, refetchKey]);
+    let cancelled = false;
+    (async () => {
+      try {
+        const from = startOfDay(weeks[0][0]).toISOString();
+        const to = addDays(startOfDay(weeks[5][6]), 1).toISOString();
+        const res = await fetch(
+          `/api/calendar/events?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`
+        );
+        if (!res.ok) throw new Error(`status ${res.status}`);
+        const data = await res.json();
+        if (cancelled) return;
+        setEvents(data.events ?? []);
+        setFailed(false);
+      } catch (e) {
+        if (cancelled) return;
+        console.error('[FEED CALENDAR] load failed:', e);
+        setFailed(true);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [weeks, refetchKey]);
 
   const refetch = () => setRefetchKey(k => k + 1);
 

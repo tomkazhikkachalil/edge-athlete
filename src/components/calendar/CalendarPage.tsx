@@ -65,25 +65,33 @@ export default function CalendarPage({
     };
   }, [view, focusDate]);
 
-  const load = useCallback(async () => {
-    setLoading(true);
-    try {
-      const res = await fetch(
-        `/api/calendar/events?from=${encodeURIComponent(range.from.toISOString())}&to=${encodeURIComponent(range.to.toISOString())}`
-      );
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(data.error || 'Could not load your calendar');
-      setEvents(data.events ?? []);
-    } catch (e) {
-      showError('Calendar unavailable', e instanceof Error ? e.message : 'Please try again.');
-    } finally {
-      setLoading(false);
-    }
-  }, [range, showError]);
-
+  // Inlined cancellable IIFE rather than a useCallback called from an effect:
+  // the lint rule flags the CALL SITE of any function containing setState, and
+  // the guard also stops a slow response for an old range (rapid month paging)
+  // from overwriting a newer one. Handlers refetch by bumping refetchKey.
   useEffect(() => {
-    load();
-  }, [load, refetchKey]);
+    let cancelled = false;
+    (async () => {
+      setLoading(true);
+      try {
+        const res = await fetch(
+          `/api/calendar/events?from=${encodeURIComponent(range.from.toISOString())}&to=${encodeURIComponent(range.to.toISOString())}`
+        );
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(data.error || 'Could not load your calendar');
+        if (!cancelled) setEvents(data.events ?? []);
+      } catch (e) {
+        if (!cancelled) {
+          showError('Calendar unavailable', e instanceof Error ? e.message : 'Please try again.');
+        }
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [range, refetchKey, showError]);
 
   const refetch = () => setRefetchKey(k => k + 1);
 

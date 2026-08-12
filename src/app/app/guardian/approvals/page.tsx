@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Image from 'next/image';
 import { useAuth } from '@/lib/auth';
@@ -46,27 +46,34 @@ export default function GuardianApprovalsPage() {
   const [acting, setActing] = useState('');
   const [error, setError] = useState('');
 
-  const load = useCallback(async () => {
-    try {
-      const res = await fetch('/api/guardian/pending-posts');
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(data.error || 'Could not load pending posts');
-      setPosts(data.posts ?? []);
-      setError('');
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'Could not load pending posts');
-    } finally {
-      setState('ready');
-    }
-  }, []);
 
   useEffect(() => {
     if (!loading && initialAuthCheckComplete && !user) router.replace('/');
   }, [loading, initialAuthCheckComplete, user, router]);
 
+  // Inlined cancellable IIFE (decide() mutates local state optimistically
+  // rather than refetching, so no reload key is needed).
   useEffect(() => {
-    if (user) load();
-  }, [user, load]);
+    if (!user) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch('/api/guardian/pending-posts');
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(data.error || 'Could not load pending posts');
+        if (cancelled) return;
+        setPosts(data.posts ?? []);
+        setError('');
+      } catch (e) {
+        if (!cancelled) setError(e instanceof Error ? e.message : 'Could not load pending posts');
+      } finally {
+        if (!cancelled) setState('ready');
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [user]);
 
   const decide = async (postId: string, action: 'approve' | 'reject') => {
     setActing(postId);

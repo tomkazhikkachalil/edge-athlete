@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Image from 'next/image';
 import { isOptimizableImageSrc } from '@/lib/media/image-src';
@@ -43,38 +43,45 @@ export default function GuardianTransfersPage() {
   const [rows, setRows] = useState<AthleteRow[]>([]);
   const [error, setError] = useState('');
 
-  const load = useCallback(async () => {
-    try {
-      const res = await fetch('/api/guardian/athletes');
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(data.error || 'Could not load your athletes');
-      const athletes: ManagedAthlete[] = data.athletes ?? [];
-      const withTransfers = await Promise.all(
-        athletes.map(async athlete => {
-          if (athlete.supervision_state !== 'supervised') {
-            return { athlete, transfer: null };
-          }
-          const tr = await fetch(`/api/transfers?profileId=${athlete.id}`);
-          const trData = await tr.json().catch(() => ({}));
-          return { athlete, transfer: (tr.ok ? trData.transfer : null) ?? null };
-        })
-      );
-      setRows(withTransfers);
-      setError('');
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'Could not load your athletes');
-    } finally {
-      setState('ready');
-    }
-  }, []);
-
   useEffect(() => {
     if (!loading && initialAuthCheckComplete && !user) router.replace('/');
   }, [user, loading, initialAuthCheckComplete, router]);
 
+  // Inlined cancellable IIFE. The per-athlete transfer lookups fan out with
+  // Promise.all, so only the final setRows is guarded — the individual
+  // fetches have nothing to abandon.
   useEffect(() => {
-    if (user) load();
-  }, [user, load]);
+    if (!user) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch('/api/guardian/athletes');
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(data.error || 'Could not load your athletes');
+        const athletes: ManagedAthlete[] = data.athletes ?? [];
+        const withTransfers = await Promise.all(
+          athletes.map(async athlete => {
+            if (athlete.supervision_state !== 'supervised') {
+              return { athlete, transfer: null };
+            }
+            const tr = await fetch(`/api/transfers?profileId=${athlete.id}`);
+            const trData = await tr.json().catch(() => ({}));
+            return { athlete, transfer: (tr.ok ? trData.transfer : null) ?? null };
+          })
+        );
+        if (cancelled) return;
+        setRows(withTransfers);
+        setError('');
+      } catch (e) {
+        if (!cancelled) setError(e instanceof Error ? e.message : 'Could not load your athletes');
+      } finally {
+        if (!cancelled) setState('ready');
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [user]);
 
   if (!FEATURE_FLAGS.FEATURE_GUARDIAN_PROFILES || loading || !initialAuthCheckComplete || !user) {
     return (

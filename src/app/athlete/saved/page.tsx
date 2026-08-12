@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth';
 import { supabase } from '@/lib/supabase';
@@ -60,98 +60,103 @@ export default function SavedPostsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const fetchSavedPosts = useCallback(async () => {
-    if (!user) return;
 
-    try {
-      setLoading(true);
-      setError(null);
-
-      const { data, error: fetchError } = await supabase
-        .from('saved_posts')
-        .select(`
-          id,
-          created_at,
-          post:posts (
-            id,
-            caption,
-            sport_key,
-            stats_data,
-            visibility,
-            created_at,
-            likes_count,
-            comments_count,
-            saves_count,
-            tags,
-            hashtags,
-            profile:profiles (
-              id,
-              first_name,
-              middle_name,
-              last_name,
-              full_name,
-              avatar_url
-            ),
-            media:post_media (
-              id,
-              media_url,
-              media_type,
-              display_order
-            ),
-            likes:post_likes (
-              profile_id
-            ),
-            saved_posts (
-              profile_id
-            ),
-            golf_round:golf_rounds (
-              id,
-              course,
-              date,
-              gross_score,
-              par,
-              holes,
-              tee,
-              total_putts,
-              fir_percentage,
-              gir_percentage,
-              golf_holes (
-                hole_number,
-                par,
-                distance_yards,
-                strokes,
-                putts
-              )
-            )
-          )
-        `)
-        .eq('profile_id', user.id)
-        .order('created_at', { ascending: false });
-
-      if (fetchError) {
-        setError('Failed to load saved posts');
+  // Inlined cancellable IIFE; direct Supabase query, so the flag is the only
+  // guard against a late response landing after unmount.
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      if (!user) {
+        setLoading(false);
         return;
       }
+      if (!user) return;
 
-      // Filter out any saved posts where the post was deleted
-      const validSavedPosts = (data || []).filter((sp: SavedPost) => sp.post !== null);
+      try {
+        setLoading(true);
+        setError(null);
 
-      setSavedPosts(validSavedPosts as SavedPost[]);
-    } catch (e) {
-      console.error('Failed to load saved posts:', e);
-      setError('An error occurred while loading saved posts');
-    } finally {
-      setLoading(false);
-    }
+        const { data, error: fetchError } = await supabase
+          .from('saved_posts')
+          .select(`
+            id,
+            created_at,
+            post:posts (
+              id,
+              caption,
+              sport_key,
+              stats_data,
+              visibility,
+              created_at,
+              likes_count,
+              comments_count,
+              saves_count,
+              tags,
+              hashtags,
+              profile:profiles (
+                id,
+                first_name,
+                middle_name,
+                last_name,
+                full_name,
+                avatar_url
+              ),
+              media:post_media (
+                id,
+                media_url,
+                media_type,
+                display_order
+              ),
+              likes:post_likes (
+                profile_id
+              ),
+              saved_posts (
+                profile_id
+              ),
+              golf_round:golf_rounds (
+                id,
+                course,
+                date,
+                gross_score,
+                par,
+                holes,
+                tee,
+                total_putts,
+                fir_percentage,
+                gir_percentage,
+                golf_holes (
+                  hole_number,
+                  par,
+                  distance_yards,
+                  strokes,
+                  putts
+                )
+              )
+            )
+          `)
+          .eq('profile_id', user.id)
+          .order('created_at', { ascending: false });
+
+        if (fetchError) {
+          setError('Failed to load saved posts');
+          return;
+        }
+
+        // Filter out any saved posts where the post was deleted
+        const validSavedPosts = (data || []).filter((sp: SavedPost) => sp.post !== null);
+
+        if (!cancelled) setSavedPosts(validSavedPosts as SavedPost[]);
+      } catch (e) {
+        console.error('Failed to load saved posts:', e);
+        setError('An error occurred while loading saved posts');
+      } finally {
+        setLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
   }, [user]);
-
-  useEffect(() => {
-    if (user) {
-      fetchSavedPosts();
-    } else {
-      setLoading(false);
-    }
-  }, [user, fetchSavedPosts]);
 
   const handleLike = async (postId: string) => {
     if (!user) return;

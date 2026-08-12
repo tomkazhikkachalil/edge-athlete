@@ -9,7 +9,7 @@
  * strong sports/social network leads with.
  */
 
-import { useCallback, useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import AppHeader from '@/components/AppHeader';
 import LazyImage from '@/components/LazyImage';
@@ -70,32 +70,38 @@ export default function ExplorePage() {
     (a, b) => Number(b.enabled) - Number(a.enabled)
   );
 
-  const fetchExplore = useCallback(async (sport: SportKey | null) => {
-    setLoading(true);
-    setError(null);
-    try {
-      const params = new URLSearchParams();
-      if (sport) params.set('sport', sport);
-      const response = await fetch(`/api/explore?${params.toString()}`, {
-        credentials: 'include',
-      });
-      if (!response.ok) {
-        throw new Error(`Explore request failed (${response.status})`);
-      }
-      const data = await response.json();
-      setAthletes(data.athletes || []);
-      setPosts(data.posts || []);
-    } catch (e) {
-      console.error('[explore] fetch failed:', e);
-      setError('Could not load Explore right now. Please try again.');
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
+  // Inlined cancellable IIFE: the rule flags the call site of a setState-ing
+  // function, and the guard stops a slow response for a previously selected
+  // sport chip from landing after a newer one.
   useEffect(() => {
-    fetchExplore(selectedSport);
-  }, [selectedSport, fetchExplore]);
+    let cancelled = false;
+    (async () => {
+      setLoading(true);
+      setError(null);
+      try {
+        const params = new URLSearchParams();
+        if (selectedSport) params.set('sport', selectedSport);
+        const response = await fetch(`/api/explore?${params.toString()}`, {
+          credentials: 'include',
+        });
+        if (!response.ok) {
+          throw new Error(`Explore request failed (${response.status})`);
+        }
+        const data = await response.json();
+        if (cancelled) return;
+        setAthletes(data.athletes || []);
+        setPosts(data.posts || []);
+      } catch (e) {
+        console.error('[explore] fetch failed:', e);
+        if (!cancelled) setError('Could not load Explore right now. Please try again.');
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedSport]);
 
   return (
     <div className="min-h-screen bg-canvas">

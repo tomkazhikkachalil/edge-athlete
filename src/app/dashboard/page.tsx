@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth';
 import AppHeader from '@/components/AppHeader';
@@ -58,29 +58,34 @@ export default function AdminDashboardPage() {
     if (!authLoading && !user) router.push('/');
   }, [user, authLoading, router]);
 
-  const loadReports = useCallback(async (filter: StatusFilter) => {
-    setReportsLoading(true);
-    try {
-      const response = await fetch(`/api/admin/reports?status=${filter}`);
-      if (response.status === 403) {
-        setAuthorized(false);
-        return;
-      }
-      setAuthorized(true);
-      if (response.ok) {
-        const data = await response.json();
-        setReports(data.reports);
-      }
-    } catch (e) {
-      console.error('Failed to load reports:', e);
-    } finally {
-      setReportsLoading(false);
-    }
-  }, []);
-
+  // Inlined cancellable IIFE; the guard also stops a slow response for a
+  // previous status filter from overwriting a newer one.
   useEffect(() => {
-    if (user?.id) loadReports(statusFilter);
-  }, [user?.id, statusFilter, loadReports]);
+    if (!user?.id) return;
+    let cancelled = false;
+    (async () => {
+      setReportsLoading(true);
+      try {
+        const response = await fetch(`/api/admin/reports?status=${statusFilter}`);
+        if (response.status === 403) {
+          if (!cancelled) setAuthorized(false);
+          return;
+        }
+        if (!cancelled) setAuthorized(true);
+        if (response.ok) {
+          const data = await response.json();
+          if (!cancelled) setReports(data.reports);
+        }
+      } catch (e) {
+        console.error('Failed to load reports:', e);
+      } finally {
+        if (!cancelled) setReportsLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [user?.id, statusFilter]);
 
   // Clearing is synchronisation (render phase); the debounced fetch stays here.
   const [syncedUserQuery, setSyncedUserQuery] = useState({ authorized, userQuery });

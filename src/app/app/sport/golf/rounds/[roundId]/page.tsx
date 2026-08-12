@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth';
 import AppHeader from '@/components/AppHeader';
@@ -81,29 +81,34 @@ export default function GolfRoundDetailPage() {
     }
   }, [user, authLoading, router]);
 
-  const loadRound = useCallback(async () => {
-    if (!roundId) return;
-    try {
-      setLoading(true);
-      const response = await fetch(`/api/golf/rounds/${roundId}`);
-      if (!response.ok) {
-        setNotFound(true);
-        return;
-      }
-      const data = await response.json();
-      setRound(data.round);
-      setIsOwner(!!data.isOwner);
-    } catch (e) {
-      console.error('Failed to load golf round detail:', e);
-      setNotFound(true);
-    } finally {
-      setLoading(false);
-    }
-  }, [roundId]);
-
+  // Inlined cancellable IIFE (the rule flags the call site of a setState-ing
+  // function invoked from an effect).
   useEffect(() => {
-    if (user?.id) loadRound();
-  }, [user?.id, loadRound]);
+    if (!user?.id || !roundId) return;
+    let cancelled = false;
+    (async () => {
+      setLoading(true);
+      try {
+        const response = await fetch(`/api/golf/rounds/${roundId}`);
+        if (!response.ok) {
+          if (!cancelled) setNotFound(true);
+          return;
+        }
+        const data = await response.json();
+        if (cancelled) return;
+        setRound(data.round);
+        setIsOwner(!!data.isOwner);
+      } catch (e) {
+        console.error('Failed to load golf round detail:', e);
+        if (!cancelled) setNotFound(true);
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [user?.id, roundId]);
 
   const startEditing = () => {
     if (!round) return;

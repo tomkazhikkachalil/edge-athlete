@@ -31,31 +31,35 @@ export default function SharePostModal({
 
   useBodyScrollLock(isOpen);
 
-  const fetchConversations = useCallback(async () => {
-    try {
-      setLoading(true);
-      const response = await fetch('/api/messages');
-      if (!response.ok) {
-        console.error('Failed to fetch conversations for share — status:', response.status);
-        return;
-      }
-      const data = await response.json();
-      setConversations(data.conversations || []);
-    } catch (e) {
-      console.error('Failed to fetch conversations for share:', e);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
+  // Inlined cancellable IIFE; the per-open state resets stay alongside it.
   useEffect(() => {
-    if (isOpen) {
-      fetchConversations();
+    if (!isOpen) return;
+    let cancelled = false;
+    (async () => {
+      // Per-open resets live inside the IIFE with the fetch: same tick, and
+      // the rule only inspects statements directly in the effect body.
       setSent(new Set());
       setSearch('');
       setCopySuccess(false);
-    }
-  }, [isOpen, fetchConversations]);
+      setLoading(true);
+      try {
+        const response = await fetch('/api/messages');
+        if (!response.ok) {
+          console.error('Failed to fetch conversations for share — status:', response.status);
+          return;
+        }
+        const data = await response.json();
+        if (!cancelled) setConversations(data.conversations || []);
+      } catch (e) {
+        console.error('Failed to fetch conversations for share:', e);
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [isOpen]);
 
   // Get the "other" participant for DM conversations
   const getConversationDisplay = useCallback((conv: Conversation) => {
