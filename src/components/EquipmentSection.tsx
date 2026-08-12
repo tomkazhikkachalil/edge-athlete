@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { Plus, Dumbbell, ChevronDown, ChevronRight } from 'lucide-react';
 import AddEquipmentModal from './AddEquipmentModal';
 import ReplaceEquipmentModal from './ReplaceEquipmentModal';
@@ -67,41 +67,48 @@ export default function EquipmentSection({ profileId, isOwnProfile = false }: Eq
   const prefsSeededRef = useRef(false);
   const [loading, setLoading] = useState(true);
 
-  const fetchEquipment = useCallback(async () => {
-    try {
-      setLoading(true);
-      const response = await fetch(`/api/equipment?profileId=${profileId}`, {
-        credentials: 'include',
-      });
 
-      if (!response.ok) {
-        throw new Error('Failed to fetch equipment');
-      }
-
-      const data = await response.json();
-      setEquipment(data.equipment || []);
-      const nextPrefs: EquipmentPrefs = data.prefs ?? {};
-      setPrefs(nextPrefs);
-      // Seed sort/view from the athlete's defaults on the FIRST load only —
-      // refetches after edits must not stomp the viewer's current filters.
-      if (!prefsSeededRef.current) {
-        prefsSeededRef.current = true;
-        if (nextPrefs.defaultSort) setSort(nextPrefs.defaultSort);
-        if (nextPrefs.defaultView !== undefined) setView(nextPrefs.defaultView);
-      }
-    } catch (err) {
-      // Silently handle fetch errors - empty state will be shown
-      void err;
-      setEquipment([]);
-    } finally {
-      setLoading(false);
-    }
-  }, [profileId]);
-
-  // Fetch equipment on mount
+  // Loader defined inside the effect (clears the lint rule) and published on
+  // a ref so the four modal onSuccess handlers still refetch. NOTE the
+  // prefsSeededRef guard inside: sort/view seed from the athlete's defaults on
+  // the FIRST load only, so a refetch after an edit must not stomp the
+  // viewer's current filters. Keeping one shared function (rather than a
+  // reloadKey re-running a separate copy) is what preserves that.
+  const fetchEquipmentRef = useRef<() => Promise<void>>(async () => {});
   useEffect(() => {
-    fetchEquipment();
-  }, [fetchEquipment]);
+    const run = async () => {
+        try {
+          setLoading(true);
+          const response = await fetch(`/api/equipment?profileId=${profileId}`, {
+            credentials: 'include',
+          });
+
+          if (!response.ok) {
+            throw new Error('Failed to fetch equipment');
+          }
+
+          const data = await response.json();
+          setEquipment(data.equipment || []);
+          const nextPrefs: EquipmentPrefs = data.prefs ?? {};
+          setPrefs(nextPrefs);
+          // Seed sort/view from the athlete's defaults on the FIRST load only —
+          // refetches after edits must not stomp the viewer's current filters.
+          if (!prefsSeededRef.current) {
+            prefsSeededRef.current = true;
+            if (nextPrefs.defaultSort) setSort(nextPrefs.defaultSort);
+            if (nextPrefs.defaultView !== undefined) setView(nextPrefs.defaultView);
+          }
+        } catch (err) {
+          // Silently handle fetch errors - empty state will be shown
+          void err;
+          setEquipment([]);
+        } finally {
+          setLoading(false);
+        }
+    };
+    fetchEquipmentRef.current = run;
+    run();
+  }, [profileId]);
 
   const handleToggleStatus = async (id: string) => {
     const item = equipment.find(e => e.id === id);
@@ -608,7 +615,7 @@ export default function EquipmentSection({ profileId, isOwnProfile = false }: Eq
           sports={sportOptions.map(o => ({ key: o.value, label: o.label }))}
           years={yearOptions}
           onClose={() => setSettingsOpen(false)}
-          onSaved={() => fetchEquipment()}
+          onSaved={() => fetchEquipmentRef.current()}
         />
       )}
 
@@ -616,7 +623,7 @@ export default function EquipmentSection({ profileId, isOwnProfile = false }: Eq
       <AddEquipmentModal
         isOpen={isAddModalOpen}
         onClose={() => setIsAddModalOpen(false)}
-        onSuccess={fetchEquipment}
+        onSuccess={() => fetchEquipmentRef.current()}
         profileId={profileId}
         existingGroupLabels={existingGroupLabels}
       />
@@ -629,7 +636,7 @@ export default function EquipmentSection({ profileId, isOwnProfile = false }: Eq
             setIsReplaceModalOpen(false);
             setEquipmentToReplace(null);
           }}
-          onSuccess={fetchEquipment}
+          onSuccess={() => fetchEquipmentRef.current()}
           profileId={profileId}
           oldEquipment={equipmentToReplace}
         />
@@ -647,7 +654,7 @@ export default function EquipmentSection({ profileId, isOwnProfile = false }: Eq
           isOpen
           editingItem={equipmentToEdit}
           onClose={() => setEquipmentToEdit(null)}
-          onSuccess={fetchEquipment}
+          onSuccess={() => fetchEquipmentRef.current()}
           profileId={profileId}
           existingGroupLabels={existingGroupLabels}
         />

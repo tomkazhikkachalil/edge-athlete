@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import { isOptimizableImageSrc } from '@/lib/media/image-src';
@@ -95,26 +95,6 @@ export default function EventDetailModal({
   const [loadedAt, setLoadedAt] = useState(0);
   useBodyScrollLock(isOpen);
 
-  const load = useCallback(async () => {
-    if (!eventId) return;
-    setLoading(true);
-    try {
-      const res = await fetch(`/api/calendar/events/${eventId}`);
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) {
-        showError('Event unavailable', data.error || 'This event could not be loaded.');
-        onClose();
-        return;
-      }
-      setEvent(data.event);
-      setLoadedAt(Date.now());
-    } catch {
-      showError('Event unavailable', 'This event could not be loaded.');
-      onClose();
-    } finally {
-      setLoading(false);
-    }
-  }, [eventId, onClose, showError]);
 
   // Clearing the previous event is synchronisation, so the old one never
   // paints while the new fetch is in flight; the fetch stays an effect.
@@ -124,9 +104,34 @@ export default function EventDetailModal({
     if (isOpen && eventId) setEvent(null);
   }
 
+  // Loader defined inside the effect and published on a ref: respond() and
+  // the reminder handler both `await load()` before continuing, so a
+  // fire-and-forget reloadKey bump would let them run against stale state.
+  const loadRef = useRef<() => Promise<void>>(async () => {});
   useEffect(() => {
-    if (isOpen && eventId) load();
-  }, [isOpen, eventId, load]);
+    const run = async () => {
+        if (!eventId) return;
+        setLoading(true);
+        try {
+          const res = await fetch(`/api/calendar/events/${eventId}`);
+          const data = await res.json().catch(() => ({}));
+          if (!res.ok) {
+            showError('Event unavailable', data.error || 'This event could not be loaded.');
+            onClose();
+            return;
+          }
+          setEvent(data.event);
+          setLoadedAt(Date.now());
+        } catch {
+          showError('Event unavailable', 'This event could not be loaded.');
+          onClose();
+        } finally {
+          setLoading(false);
+        }
+    };
+    loadRef.current = run;
+    if (isOpen && eventId) run();
+  }, [isOpen, eventId, onClose, showError]);
 
   if (!isOpen) return null;
 
@@ -145,7 +150,7 @@ export default function EventDetailModal({
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) { showError('Could not respond', data.error || 'Please try again.'); return; }
-      await load();
+      await loadRef.current();
       onChanged();
       if (status === 'declined') {
         showSuccess('Declined', scope === 'series'
@@ -177,7 +182,7 @@ export default function EventDetailModal({
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) { showError('Could not save', data.error || 'Please try again.'); return; }
-      await load();
+      await loadRef.current();
     } catch {
       showError('Could not save', 'Please try again.');
     } finally {
