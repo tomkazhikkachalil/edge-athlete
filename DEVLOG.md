@@ -1,5 +1,57 @@
 # Development Log
 
+## August 12, 2026 — Audit: the archived hot-fix functions (sweep)
+
+Tom asked for an audit of the OTHER functions in the archived hot-fix sweep
+after 081 made it the fourth incident from that one file. **Fixes deliberately
+deferred; this entry is the finding.** Good news: the crash-class is closed.
+
+**Method.** Parsed all 7 `archive/old-migrations/fix-*schema*.sql` scripts
+(2,939 lines, **43 redefined functions**), extracted every `NEW.`/`OLD.` field
+each body touches, mapped each function to the table its trigger actually
+fires on (scanning every `CREATE TRIGGER` in `database/`), then diffed those
+fields against the **live** column lists pulled from PostgREST's OpenAPI
+schema (55 tables). The method validated itself by independently re-deriving
+all four known incidents before finding anything new.
+
+**Result — 4 field/table mismatches, and all four are already fixed:**
+
+| function | bound to | fixed by |
+|---|---|---|
+| `notify_profile_tagged` | `post_tags` [INSERT] | 025 |
+| `handle_updated_at` | `profiles`, `clubs`, `group_posts`, `events` [UPDATE] | 036 |
+| `update_group_post_timestamp` | `group_posts`, `group_post_participants` [UPDATE] | 037 |
+| `update_post_tags_updated_at` | `post_tags` [UPDATE] | 081 |
+
+**Verified live, not just on paper** — every table wired to one of these was
+probed with a real UPDATE against production: `profiles`, `events`,
+`group_posts`, `group_post_participants`, `post_tags`, `conversations`,
+`follows`. **7/7 OK.** The remaining 13 trigger functions in the sweep
+reference only fields their bound tables genuinely have.
+
+**Second risk class checked and cleared:** these scripts add
+`SET search_path = ''`, which breaks any UNQUALIFIED reference at runtime. A
+scan found 7 apparent hits, all false positives on inspection — comment prose
+("from hole scores") and the `IS DISTINCT FROM OLD` construct. The scripts
+qualify their tables; that is what "schema-qualified" in their filenames meant.
+
+**What this audit could NOT close, and why.** 24 of the 43 are RPC-only (no
+`NEW`/`OLD`, no trigger). An archived body can be live there and simply return
+**wrong results** without ever raising — black-box probing cannot find that.
+It needs `pg_proc.prosrc`, which is only reachable from SQL. So the deferred
+work is scoped, not vague: run
+`database/tests/diagnostics/diagnose-archived-hotfix-functions.sql`
+(added here, READ ONLY) and compare section 3's live bodies against the
+migration that owns each. Section 2 is the killer query — it finds any trigger
+function referencing a column its own table lacks, i.e. the exact shape of all
+four incidents, and should return **zero rows** now. Worth re-running after any
+future hot-fix. The profile-media RPCs deserve the closest read; they have
+their own incident history (068).
+
+**Sweep:** `npm audit` 0 vulnerabilities (dev + prod); gate green on
+`0693193` — tsc clean, lint 0 warnings, 1258 tests, build complete; 0 open
+PRs, 0 stale branches; production deploy Ready.
+
 ## August 12, 2026 — Maintenance sweep: untagging is broken in prod (migration 081)
 
 Second sweep of the day. The gate items were all clean; the value came from
