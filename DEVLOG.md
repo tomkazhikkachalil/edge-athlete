@@ -1,5 +1,56 @@
 # Development Log
 
+## August 12, 2026 — Maintenance sweep + a crashed page found by the two-width review
+
+Requested checklist after #144, plus Tom's ask to review mobile and desktop
+for breakage. The review is what earned this entry.
+
+- **`npm audit`: 0 vulnerabilities** (dev + production trees).
+- Full gate green on merged main: tsc clean, **lint at 0 warnings** (the
+  ratchet reached zero in #144 and is now a real gate), **1258 tests** across
+  98 files, production build complete.
+- **0 open PRs, 0 stale remote branches** — `chore/lint-warnings-batch-4` was
+  pruned after asserting `merged: true` AND that `a7a0c75` is an ancestor of
+  `main`, as separate steps.
+- Deploy for #144 green; the batch-4 suite re-run **against production** 9/9.
+
+**`/notifications` was throwing on production, at every width.**
+`ReferenceError: Cannot access 'BaseSportAdapter' before initialization` — the
+route rendered the error boundary instead of the page. Pre-existing, not
+fallout from the lint work (that commit touched `lib/notifications.tsx` by
+three comment lines only). Root cause is a module-init cycle:
+
+    copy.ts → AdapterRegistry → GolfAdapter → SportAdapter → copy.ts
+
+`SportAdapter` imports `getComingSoonMessage` from `copy.ts`, and `copy.ts`
+imported `getSportAdapter` from the registry. Whichever module the bundler
+evaluated first read a half-initialised binding, so `class GolfAdapter extends
+BaseSportAdapter` hit the temporal dead zone. It only bit routes whose chunk
+graph happened to evaluate `copy.ts` first, which is why one page died and the
+rest were fine — and why it survived this long.
+
+The offending import existed for exactly one function, `getSportRoute()`,
+which had **zero callers repo-wide**. Its own doc comment asserted "No import
+cycle: nothing under src/lib/sports imports copy.ts" — an invariant that had
+silently become false. Deleted rather than reshuffled, with a comment at the
+import site recording the rule and the failure mode. If a sport-aware route
+helper is wanted again it belongs under `src/lib/sports`, never in `copy.ts`.
+
+**The review harness is now `responsive_sweep.mjs`** — 9 surfaces × 2 widths
+(390×844 with touch/coarse pointer, 1440×900), asserting per surface: no error
+boundary, non-trivial content, and **no horizontal overflow**; then exercising
+the refactored loaders at both widths (media grid page 1, infinite scroll to
+page 2, re-clicking the active tab, tab switch away and back, vitals,
+equipment, follow with a 44px touch-target measurement). **81/81.** The check
+that caught this bug was "no error boundary" — the marker-regex checks it
+replaced would have missed a page that renders "Something went wrong"
+perfectly happily. Worth keeping that check first in any future sweep.
+
+- Carried forward, unchanged: `PostCard`'s author row wrapping inside
+  `PostDetailModal` at 390px, stat-line posts on the calendar (needs a
+  functional index on `stats_data->>'date'`), a guest "save routine to my
+  presets" action, and the `activity_id`/group-posts naming cleanup.
+
 ## August 12, 2026 — set-state-in-effect: the ratchet reaches zero (#144)
 
 Final batch of the lint cleanup Tom asked for. **`npm run lint` is now
