@@ -151,3 +151,27 @@ export function collectWorkoutMedia(exercises: EntryExercise[]): CollectedMedia[
   }
   return collected;
 }
+
+/**
+ * The denormalized `posts.stats_data` payload for a shared workout — the
+ * shape WorkoutPostCard renders in the feed. Built here (not inline at the
+ * share site) so the calendar's preview of an UNSHARED workout can render
+ * the exact same card without the two ever drifting apart.
+ */
+export function buildWorkoutStatsData(input: {
+  sessionId: string;
+  title: string | null;
+  durationSeconds: number;
+  summary: WorkoutSummary;
+}): Record<string, unknown> {
+  return {
+    type: 'workout_session',
+    workout_session_id: input.sessionId,
+    title: input.title?.trim() || 'Workout',
+    duration_seconds: input.durationSeconds,
+    exercise_count: input.summary.exerciseCount,
+    total_sets: input.summary.totalSets,
+    total_volume_lbs: input.summary.totalVolumeLbs,
+    top_line: input.summary.topLine,
+  };
+}

@@ -28,7 +28,9 @@ describe('workoutSessionToItem', () => {
     expect(item.category).toBe('workout');
     expect(item.starts_at).toBe('2026-08-10T14:00:00.000Z');
     expect(item.ends_at).toBe('2026-08-10T15:10:00.000Z');
-    expect(item.activity).toEqual({ source: 'workout', session_id: 'w1', duration_seconds: 4200 });
+    expect(item.activity).toEqual({
+      source: 'workout', session_id: 'w1', duration_seconds: 4200, post_id: null,
+    });
   });
 
   it('falls back to duration then a default when ended_at is null', () => {
@@ -66,6 +68,7 @@ describe('golfRoundToItem', () => {
     expect(item.category).toBe('game');
     expect(item.activity).toEqual({
       source: 'golf_round', round_id: 'g1', course: 'Pebble Beach', holes: 18, gross_score: 82,
+      post_id: null,
     });
   });
 });
@@ -99,5 +102,37 @@ describe('shouldSkipTrainingPost', () => {
     expect(shouldSkipTrainingPost(null)).toBe(false);
     expect(shouldSkipTrainingPost({})).toBe(false);
     expect(shouldSkipTrainingPost({ type: 'other' })).toBe(false);
+  });
+});
+
+describe('post_id resolution on the payload', () => {
+  it('carries a shared workout\'s post id', () => {
+    const item = workoutSessionToItem(
+      { id: 'w9', title: 'Shared', started_at: '2026-08-10T14:00:00.000Z', ended_at: null, duration_seconds: 600, post_id: 'p9' },
+      USER
+    );
+    expect(item.activity).toMatchObject({ source: 'workout', post_id: 'p9' });
+  });
+
+  it('defaults an unshared workout to null', () => {
+    const item = workoutSessionToItem(
+      { id: 'w8', title: null, started_at: '2026-08-10T14:00:00.000Z', ended_at: null, duration_seconds: null },
+      USER
+    );
+    expect(item.activity).toMatchObject({ post_id: null });
+  });
+
+  it('takes the golf post id from the caller (solo or mirrored group)', () => {
+    const row = { id: 'g7', date: '2026-08-09', course: 'St Andrews', holes: 18, gross_score: 79 };
+    expect(golfRoundToItem(row, USER, 'p7').activity).toMatchObject({ post_id: 'p7' });
+    expect(golfRoundToItem(row, USER).activity).toMatchObject({ post_id: null });
+  });
+
+  it('a training post is its own post id', () => {
+    const item = trainingPostToItem(
+      { id: 'p3', caption: 'Drills', created_at: '2026-08-08T18:00:00.000Z', stats_data: null },
+      USER
+    );
+    expect(item.activity).toEqual({ source: 'training_post', post_id: 'p3' });
   });
 });

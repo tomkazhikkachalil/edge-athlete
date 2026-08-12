@@ -6,10 +6,13 @@ import { useRouter } from 'next/navigation';
 import { addDays, addMonths, format, isSameMonth, startOfDay } from 'date-fns';
 import { monthMatrix, eventOverlapsDay, localDayKey } from '@/lib/calendar/grid';
 import { categoryColor } from '@/lib/calendar/categories';
-import { activityHref } from '@/lib/calendar/activity-overlay';
+import { useAuth } from '@/lib/auth';
+import type { ActivityPayload } from '@/lib/calendar/activity-overlay';
 import type { EventListItem } from './types';
 
 const EventDetailModal = dynamic(() => import('./EventDetailModal'), { ssr: false });
+const PostDetailModal = dynamic(() => import('@/components/PostDetailModal'), { ssr: false });
+const ActivityPreviewModal = dynamic(() => import('./ActivityPreviewModal'), { ssr: false });
 
 // Feed-sidebar calendar: upcoming events + a mini month that expands into a
 // per-day quick view. Reading and RSVPing happen right here (the detail
@@ -54,6 +57,7 @@ function EventRow({ event, onClick }: { event: EventListItem; onClick: () => voi
 
 export default function FeedCalendarWidget() {
   const router = useRouter();
+  const { user } = useAuth();
   const [focusMonth, setFocusMonth] = useState<Date>(() => new Date());
   const [events, setEvents] = useState<EventListItem[]>([]);
   const [failed, setFailed] = useState(false);
@@ -98,11 +102,19 @@ export default function FeedCalendarWidget() {
 
   const refetch = () => setRefetchKey(k => k + 1);
 
-  // Completed-activity overlay items have no events row — deep-link to
-  // their home surface instead of opening the (guaranteed-404) detail modal.
+  // Completed-activity overlay items have no events row — preview in place
+  // (the shared feed post, else a summary card) rather than opening the
+  // guaranteed-404 event detail modal. Reading happens in the widget; only
+  // mutations hand off to /calendar.
+  const [previewPostId, setPreviewPostId] = useState<string | null>(null);
+  const [previewActivity, setPreviewActivity] = useState<
+    { payload: ActivityPayload; title: string } | null
+  >(null);
+
   const selectEvent = (event: EventListItem) => {
     if (event.kind === 'activity' && event.activity) {
-      router.push(activityHref(event.activity));
+      if (event.activity.post_id) setPreviewPostId(event.activity.post_id);
+      else setPreviewActivity({ payload: event.activity, title: event.title });
       return;
     }
     setDetailEventId(event.id);
@@ -294,6 +306,20 @@ export default function FeedCalendarWidget() {
           setDetailEventId(null);
           router.push(`/calendar?event=${event.id}`);
         }}
+      />
+
+      {/* Completed activities: the shared feed post, or a summary card. */}
+      <PostDetailModal
+        postId={previewPostId}
+        isOpen={previewPostId !== null}
+        onClose={() => setPreviewPostId(null)}
+        currentUserId={user?.id}
+      />
+      <ActivityPreviewModal
+        activity={previewActivity?.payload ?? null}
+        title={previewActivity?.title ?? ''}
+        isOpen={previewActivity !== null}
+        onClose={() => setPreviewActivity(null)}
       />
     </div>
   );

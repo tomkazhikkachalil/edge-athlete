@@ -17,7 +17,13 @@ import {
   resolveEntries,
   writeDraft,
 } from '@/lib/workouts/draft';
-import { computeSummary, collectWorkoutMedia, formatElapsed, MAX_POST_MEDIA } from '@/lib/workouts/summary';
+import {
+  buildWorkoutStatsData,
+  computeSummary,
+  collectWorkoutMedia,
+  formatElapsed,
+  MAX_POST_MEDIA,
+} from '@/lib/workouts/summary';
 import { detectPRs, type PRCandidate } from '@/lib/workouts/pr-detection';
 import { serverToEntries, type ServerWorkoutSession } from '@/lib/workouts/serialize';
 
@@ -445,16 +451,12 @@ export default function WorkoutEditorScreen({ mode, session, currentUserId, init
             .slice(0, MAX_POST_MEDIA)
             .map((media, order) => ({ url: media.url, type: media.type, sortOrder: order })),
           taggedProfiles: [],
-          stats_data: {
-            type: 'workout_session',
-            workout_session_id: finishedSessionId,
-            title: title || 'Workout',
-            duration_seconds: finishedDuration,
-            exercise_count: summary.exerciseCount,
-            total_sets: summary.totalSets,
-            total_volume_lbs: summary.totalVolumeLbs,
-            top_line: summary.topLine,
-          },
+          stats_data: buildWorkoutStatsData({
+            sessionId: finishedSessionId,
+            title,
+            durationSeconds: finishedDuration,
+            summary,
+          }),
         }),
       });
       if (!response.ok) {

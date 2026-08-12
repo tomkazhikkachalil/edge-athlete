@@ -15,9 +15,19 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Admin = SupabaseClient<any, 'public', any>;
 
+// `post_id` is the feed post this activity was shared as, when there is one.
+// The calendar preview renders that post (PostDetailModal = the feed layout);
+// a null means the activity was never shared and gets a summary preview.
 export type ActivityPayload =
-  | { source: 'workout'; session_id: string; duration_seconds: number | null }
-  | { source: 'golf_round'; round_id: string; course: string; holes: number; gross_score: number | null }
+  | { source: 'workout'; session_id: string; duration_seconds: number | null; post_id: string | null }
+  | {
+      source: 'golf_round';
+      round_id: string;
+      course: string;
+      holes: number;
+      gross_score: number | null;
+      post_id: string | null;
+    }
   | { source: 'training_post'; post_id: string };
 
 export interface ActivityItem {
@@ -61,6 +71,8 @@ export interface WorkoutSessionSourceRow {
   started_at: string;
   ended_at: string | null;
   duration_seconds: number | null;
+  /** Set when the workout was shared to the feed (045). */
+  post_id?: string | null;
 }
 
 export function workoutSessionToItem(row: WorkoutSessionSourceRow, userId: string): ActivityItem {
@@ -81,7 +93,12 @@ export function workoutSessionToItem(row: WorkoutSessionSourceRow, userId: strin
     // all-day math, which never applies here.
     timezone: 'UTC',
     category: 'workout',
-    activity: { source: 'workout', session_id: row.id, duration_seconds: row.duration_seconds },
+    activity: {
+      source: 'workout',
+      session_id: row.id,
+      duration_seconds: row.duration_seconds,
+      post_id: row.post_id ?? null,
+    },
   };
 }
 
@@ -91,9 +108,19 @@ export interface GolfRoundSourceRow {
   course: string;
   holes: number;
   gross_score: number | null;
+  /** Set for rounds mirrored from a group/live round (039). */
+  group_post_id?: string | null;
 }
 
-export function golfRoundToItem(row: GolfRoundSourceRow, userId: string): ActivityItem {
+/**
+ * `postId` is resolved by the caller: solo rounds link through
+ * `posts.round_id`, mirrored group rounds through `posts.group_post_id`.
+ */
+export function golfRoundToItem(
+  row: GolfRoundSourceRow,
+  userId: string,
+  postId: string | null = null
+): ActivityItem {
   // All-day with UTC-midnight exclusive-end bounds (the 057 convention)
   const [y, m, d] = row.date.split('-').map(Number);
   const startMs = Date.UTC(y, m - 1, d);
@@ -113,6 +140,7 @@ export function golfRoundToItem(row: GolfRoundSourceRow, userId: string): Activi
       course: row.course,
       holes: row.holes,
       gross_score: row.gross_score,
+      post_id: postId,
     },
   };
 }
@@ -171,6 +199,51 @@ function utcDay(ms: number): string {
 }
 
 /**
+ * Map round id → the feed post it appears as, in ONE query. Solo rounds are
+ * linked by `posts.round_id`; a round mirrored from a group/live round shares
+ * the creator's post via `posts.group_post_id` (the viewer is a participant,
+ * so that post is the round as the feed shows it). Returns an empty map on
+ * failure — a missing post just means the summary preview is used.
+ */
+async function resolveRoundPostIds(
+  admin: Admin,
+  rounds: GolfRoundSourceRow[]
+): Promise<Map<string, string>> {
+  const out = new Map<string, string>();
+  if (rounds.length === 0) return out;
+  const roundIds = rounds.map(r => r.id);
+  const groupPostIds = [...new Set(rounds.map(r => r.group_post_id).filter(Boolean) as string[])];
+
+  const filters = [`round_id.in.(${roundIds.join(',')})`];
+  if (groupPostIds.length > 0) filters.push(`group_post_id.in.(${groupPostIds.join(',')})`);
+
+  const { data, error } = await admin
+    .from('posts')
+    .select('id, round_id, group_post_id, created_at')
+    .eq('status', 'published')
+    .or(filters.join(','))
+    .order('created_at', { ascending: true });
+  if (error || !data) return out;
+
+  const byRound = new Map<string, string>();
+  const byGroupPost = new Map<string, string>();
+  for (const post of data as { id: string; round_id: string | null; group_post_id: string | null }[]) {
+    // First (oldest) wins: a round can be referenced by more than one post.
+    if (post.round_id && !byRound.has(post.round_id)) byRound.set(post.round_id, post.id);
+    if (post.group_post_id && !byGroupPost.has(post.group_post_id)) {
+      byGroupPost.set(post.group_post_id, post.id);
+    }
+  }
+  for (const round of rounds) {
+    const direct = byRound.get(round.id);
+    const viaGroup = round.group_post_id ? byGroupPost.get(round.group_post_id) : undefined;
+    const postId = direct ?? viaGroup;
+    if (postId) out.set(round.id, postId);
+  }
+  return out;
+}
+
+/**
  * The caller's completed activities in [from, to) — three self-scoped
  * queries, each on an existing index. Failures degrade to an empty overlay
  * (the calendar's events must never be held hostage by a source table).
@@ -187,7 +260,7 @@ export async function fetchActivityOverlay(
   const [workouts, rounds, posts] = await Promise.all([
     admin
       .from('workout_sessions')
-      .select('id, title, started_at, ended_at, duration_seconds')
+      .select('id, title, started_at, ended_at, duration_seconds, post_id')
       .eq('profile_id', userId)
       .eq('status', 'completed')
       .gte('started_at', fromIso)
@@ -195,7 +268,7 @@ export async function fetchActivityOverlay(
       .then(({ data }) => (data ?? []) as WorkoutSessionSourceRow[]),
     admin
       .from('golf_rounds')
-      .select('id, date, course, holes, gross_score')
+      .select('id, date, course, holes, gross_score, group_post_id')
       .eq('profile_id', userId)
       .gte('date', utcDay(fromMs))
       .lte('date', utcDay(toMs))
@@ -210,9 +283,13 @@ export async function fetchActivityOverlay(
       .then(({ data }) => (data ?? []) as (TrainingPostSourceRow & { status: string | null })[]),
   ]);
 
+  // Round → feed post, one batched lookup: solo rounds link through
+  // posts.round_id, mirrored group rounds through posts.group_post_id (039).
+  const roundPostId = await resolveRoundPostIds(admin, rounds);
+
   return [
     ...workouts.map(row => workoutSessionToItem(row, userId)),
-    ...rounds.map(row => golfRoundToItem(row, userId)),
+    ...rounds.map(row => golfRoundToItem(row, userId, roundPostId.get(row.id) ?? null)),
     ...posts
       // Published only — guardian pending_approval/rejected stay off (051)
       .filter(post => post.status === 'published')

@@ -4,9 +4,10 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import dynamic from 'next/dynamic';
 import { useRouter } from 'next/navigation';
 import { addDays, addMonths, addWeeks, format, startOfDay } from 'date-fns';
+import { useAuth } from '@/lib/auth';
 import { useToast } from '@/components/Toast';
 import { monthMatrix, weekDays } from '@/lib/calendar/grid';
-import { activityHref } from '@/lib/calendar/activity-overlay';
+import type { ActivityPayload } from '@/lib/calendar/activity-overlay';
 import MonthView from './MonthView';
 import TimeGridView from './TimeGridView';
 import AgendaView from './AgendaView';
@@ -15,6 +16,8 @@ import type { CalendarViewKind, EventDetail, EventListItem } from './types';
 const EventFormModal = dynamic(() => import('./EventFormModal'), { ssr: false });
 const EventDetailModal = dynamic(() => import('./EventDetailModal'), { ssr: false });
 const CalendarSyncModal = dynamic(() => import('./CalendarSyncModal'), { ssr: false });
+const PostDetailModal = dynamic(() => import('@/components/PostDetailModal'), { ssr: false });
+const ActivityPreviewModal = dynamic(() => import('./ActivityPreviewModal'), { ssr: false });
 
 const VIEWS: { key: CalendarViewKind; label: string; icon: string }[] = [
   { key: 'month', label: 'Month', icon: 'fa-calendar' },
@@ -31,6 +34,7 @@ export default function CalendarPage({
   autoCreate?: boolean;
 }) {
   const router = useRouter();
+  const { user } = useAuth();
   const { showError } = useToast();
   const [view, setView] = useState<CalendarViewKind>('month');
   const [focusDate, setFocusDate] = useState<Date>(() => new Date());
@@ -129,12 +133,20 @@ export default function CalendarPage({
     setFormOpen(true);
   }, []);
 
-  // Completed-activity items have no events row — the detail modal would
-  // 404. They deep-link to their home surface instead.
+  // Completed-activity items have no events row (the calendar detail route
+  // would 404), so they preview in place instead: the real feed post when the
+  // activity was shared, otherwise a summary card. Reviewing history never
+  // leaves the calendar.
+  const [previewPostId, setPreviewPostId] = useState<string | null>(null);
+  const [previewActivity, setPreviewActivity] = useState<
+    { payload: ActivityPayload; title: string } | null
+  >(null);
+
   const selectEvent = (id: string) => {
     const item = events.find(e => e.id === id);
     if (item?.kind === 'activity' && item.activity) {
-      router.push(activityHref(item.activity));
+      if (item.activity.post_id) setPreviewPostId(item.activity.post_id);
+      else setPreviewActivity({ payload: item.activity, title: item.title });
       return;
     }
     setDetailEventId(id);
@@ -270,6 +282,21 @@ export default function CalendarPage({
         }}
       />
       <CalendarSyncModal isOpen={syncOpen} onClose={() => setSyncOpen(false)} />
+
+      {/* Completed activities preview in place: the shared feed post, or a
+          summary card when the activity was never shared. */}
+      <PostDetailModal
+        postId={previewPostId}
+        isOpen={previewPostId !== null}
+        onClose={() => setPreviewPostId(null)}
+        currentUserId={user?.id}
+      />
+      <ActivityPreviewModal
+        activity={previewActivity?.payload ?? null}
+        title={previewActivity?.title ?? ''}
+        isOpen={previewActivity !== null}
+        onClose={() => setPreviewActivity(null)}
+      />
     </div>
   );
 }
