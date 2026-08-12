@@ -50,60 +50,6 @@ export default function FollowersModal({ isOpen, onClose, profileId, initialTab 
   // not here — setting it synchronously from the effect that calls this is the
   // cascading render react-hooks/set-state-in-effect exists to prevent. This
   // has exactly one caller, so the two are equivalent.
-  const loadData = useCallback(async () => {
-    const seq = ++requestSeqRef.current;
-
-    try {
-      // Fetch followers of the profile being viewed
-      const followersResponse = await fetch(`/api/followers?profileId=${profileId}&type=followers`);
-      if (!followersResponse.ok) {
-        throw new Error('Failed to load fans');
-      }
-      const followersData = await followersResponse.json();
-
-      // Fetch following of the profile being viewed
-      const followingResponse = await fetch(`/api/followers?profileId=${profileId}&type=following`);
-      if (!followingResponse.ok) {
-        throw new Error('Failed to load fan of list');
-      }
-      const followingData = await followingResponse.json();
-
-      // Extract profile data from nested structure
-      const followersProfiles = (followersData.followers || []).map((item: { follower?: Profile }) => item.follower).filter(Boolean);
-      const followingProfiles = (followingData.following || []).map((item: { following?: Profile }) => item.following).filter(Boolean);
-
-      if (seq !== requestSeqRef.current) return; // stale response
-      setFollowers(followersProfiles);
-      setFollowing(followingProfiles);
-
-      // Fetch my own follow states WITH pending status, so a pending fan
-      // request renders as "Requested" instead of being conflated with
-      // not-following (clicking "Become a Fan" on a pending target silently
-      // cancelled the request).
-      if (user) {
-        const myStatesResponse = await fetch(`/api/followers?profileId=${user.id}&type=following&includeStatus=true`);
-        if (myStatesResponse.ok) {
-          const myStatesData = await myStatesResponse.json();
-          const accepted = new Set<string>();
-          const pending = new Set<string>();
-          for (const item of (myStatesData.following || []) as Array<{ status?: string; following?: Profile }>) {
-            const id = item.following?.id;
-            if (!id) continue;
-            if (item.status === 'pending') pending.add(id);
-            else accepted.add(id);
-          }
-          if (seq !== requestSeqRef.current) return; // stale response
-          setMyFollowing(accepted);
-          setMyPending(pending);
-        }
-      }
-    } catch (e) {
-      console.error('Failed to load fan/following data:', e);
-      setError('Failed to load data. Please try again.');
-    } finally {
-      if (seq === requestSeqRef.current) setLoading(false);
-    }
-  }, [profileId, user]);
 
   // Tab selection is state synchronisation (render phase); the fetch is a real
   // side effect (stays in an effect).
@@ -121,9 +67,69 @@ export default function FollowersModal({ isOpen, onClose, profileId, initialTab 
     }
   }
 
+  // Loader defined inside the effect (that is what clears the rule) and
+  // published on a ref so the retry button can still call it. It keeps its
+  // own requestSeqRef staleness guard.
+  const loadDataRef = useRef<() => Promise<void>>(async () => {});
   useEffect(() => {
-    if (isOpen) loadData();
-  }, [isOpen, loadData]);
+    if (!isOpen) return;
+    const run = async () => {
+        const seq = ++requestSeqRef.current;
+
+        try {
+          // Fetch followers of the profile being viewed
+          const followersResponse = await fetch(`/api/followers?profileId=${profileId}&type=followers`);
+          if (!followersResponse.ok) {
+            throw new Error('Failed to load fans');
+          }
+          const followersData = await followersResponse.json();
+
+          // Fetch following of the profile being viewed
+          const followingResponse = await fetch(`/api/followers?profileId=${profileId}&type=following`);
+          if (!followingResponse.ok) {
+            throw new Error('Failed to load fan of list');
+          }
+          const followingData = await followingResponse.json();
+
+          // Extract profile data from nested structure
+          const followersProfiles = (followersData.followers || []).map((item: { follower?: Profile }) => item.follower).filter(Boolean);
+          const followingProfiles = (followingData.following || []).map((item: { following?: Profile }) => item.following).filter(Boolean);
+
+          if (seq !== requestSeqRef.current) return; // stale response
+          setFollowers(followersProfiles);
+          setFollowing(followingProfiles);
+
+          // Fetch my own follow states WITH pending status, so a pending fan
+          // request renders as "Requested" instead of being conflated with
+          // not-following (clicking "Become a Fan" on a pending target silently
+          // cancelled the request).
+          if (user) {
+            const myStatesResponse = await fetch(`/api/followers?profileId=${user.id}&type=following&includeStatus=true`);
+            if (myStatesResponse.ok) {
+              const myStatesData = await myStatesResponse.json();
+              const accepted = new Set<string>();
+              const pending = new Set<string>();
+              for (const item of (myStatesData.following || []) as Array<{ status?: string; following?: Profile }>) {
+                const id = item.following?.id;
+                if (!id) continue;
+                if (item.status === 'pending') pending.add(id);
+                else accepted.add(id);
+              }
+              if (seq !== requestSeqRef.current) return; // stale response
+              setMyFollowing(accepted);
+              setMyPending(pending);
+            }
+          }
+        } catch (e) {
+          console.error('Failed to load fan/following data:', e);
+          setError('Failed to load data. Please try again.');
+        } finally {
+          if (seq === requestSeqRef.current) setLoading(false);
+        }
+    };
+    loadDataRef.current = run;
+    run();
+  }, [isOpen, profileId, user]);
 
   const handleProfileClick = (id: string) => {
     onClose();
@@ -323,7 +329,7 @@ export default function FollowersModal({ isOpen, onClose, profileId, initialTab 
               </div>
               <p className="text-primary font-medium">{error}</p>
               <button
-                onClick={loadData}
+                onClick={() => loadDataRef.current()}
                 className="mt-4 px-4 py-2 bg-brand text-white rounded-lg hover:bg-brand-hover"
               >
                 Try Again

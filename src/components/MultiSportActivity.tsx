@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { getSportDefinition, getSportAdapter, getPrimarySports, type SportKey } from '@/lib/sports';
 import { getPlaceholder } from '@/lib/config';
@@ -60,43 +60,34 @@ export default function MultiSportActivity({ profileId, onEdit, onDelete }: Mult
     return () => { cancelled = true; };
   }, [profileId]);
 
-  // Load activity data for a specific sport
-  const loadSportActivity = useCallback(async (sportKey: SportKey) => {
-    try {
-      setLoading(prev => ({ ...prev, [sportKey]: true }));
-
-      const adapter = getSportAdapter(sportKey);
-      const result = await adapter.getRecentActivity(profileId, 10);
-
-      setActivityData(prev => ({
-        ...prev,
-        [sportKey]: result.rows
-      }));
-    } catch (e) {
-      console.error('Failed to load multi-sport activity:', e);
-      setActivityData(prev => ({
-        ...prev,
-        [sportKey]: []
-      }));
-    } finally {
-      setLoading(prev => ({ ...prev, [sportKey]: false }));
-    }
-  }, [profileId]);
-
-  // Load initial data for active sport
+  // Load activity data for the active sport. The tab handler only sets the
+  // key — this effect is keyed on it, so the old extra call in
+  // handleTabChange was a duplicate fetch, not a cache check.
   useEffect(() => {
-    if (profileId && activeSportKey) {
-      loadSportActivity(activeSportKey);
-    }
-  }, [profileId, activeSportKey, loadSportActivity]);
+    if (!profileId || !activeSportKey) return;
+    const sportKey = activeSportKey;
+    let cancelled = false;
+    (async () => {
+      setLoading(prev => ({ ...prev, [sportKey]: true }));
+      try {
+        const adapter = getSportAdapter(sportKey);
+        const result = await adapter.getRecentActivity(profileId, 10);
+        if (cancelled) return;
+        setActivityData(prev => ({ ...prev, [sportKey]: result.rows }));
+      } catch (e) {
+        console.error('Failed to load multi-sport activity:', e);
+        if (!cancelled) setActivityData(prev => ({ ...prev, [sportKey]: [] }));
+      } finally {
+        if (!cancelled) setLoading(prev => ({ ...prev, [sportKey]: false }));
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [profileId, activeSportKey]);
 
   const handleTabChange = (sportKey: SportKey) => {
     setActiveSportKey(sportKey);
-
-    // Load data if not already loaded
-    if (!activityData[sportKey] && !loading[sportKey]) {
-      loadSportActivity(sportKey);
-    }
   };
 
   const handleAddActivity = () => {
