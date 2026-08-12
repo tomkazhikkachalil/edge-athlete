@@ -1,5 +1,61 @@
 # Development Log
 
+## August 11, 2026 — Maintenance sweep (drag-to-create round)
+
+Requested checklist after #133:
+
+- **`npm audit`: 0 vulnerabilities** (dev + production trees both clean).
+- Full gate green on merged main: tsc clean, lint at the **43** ratchet
+  exactly, **1251 tests** across 98 files (up 15 from the last sweep's
+  1236 — the snap/normalize/label drag math), production build complete.
+- Tree clean on main at the #133 merge, synced with origin; deploy green
+  and `/calendar` 200 on production.
+- **0 open PRs.** Housekeeping note: 24 stale remote branches remain, all
+  authoritatively confirmed to belong to MERGED PRs (checked against the
+  closed-PR records, not ancestry — squash merges make `--is-ancestor`
+  useless here). Left in place; pruning them is Tom's call.
+- **Process correction recorded**: #133 was pruned before its merge was
+  verified, which closed the PR (recovered from the local commit + a
+  reopen). Branch cleanup must now assert `merged: true` AND ancestry
+  first, as a separate step — never chained onto a pull.
+
+## August 11, 2026 — Drag-to-create events on the Week/Day grid
+
+Tom's ask: create events straight from the time grid, not only via the
+"New event" button — desktop click-drag, mobile press-and-hold-then-drag,
+30-minute snapping with a live highlight of start/end/duration; release
+opens the event form prefilled. Month view + the button unchanged.
+
+- **Math moved into `src/lib/calendar/grid.ts`** (`HOUR_PX`/`DAY_MINUTES`
+  now live there as the single source, imported by TimeGridView):
+  `snapMinutes`, `yToMinutes`, `normalizeDragRange` (upward-drag swap,
+  ≥1 slot, day-bounds — a zero-length drag at the end of the day grows
+  BACKWARD rather than past midnight), `rangeLabel`. 17 new unit tests.
+- **Gesture inline in TimeGridView** (repo precedent — no gesture hook
+  exists): mouse arms after 5px of movement so a plain click stays a
+  no-op; touch arms on a 400ms hold with a 10px slop cancel, so a plain
+  swipe still scrolls. Reuses the MessageBubble long-press canon (haptic
+  on fire, ghost-click `suppressClickRef` + 600ms expiry swallowed in
+  `onClickCapture`, gesture-scoped `onContextMenu` preventDefault) and
+  the TrimTimeline pointer canon (`setPointerCapture` + manual
+  pointermove/up/cancel listeners).
+- **Two things that had to be right**: the non-passive `touchmove`
+  preventDefault is attached ONLY after the hold completes (the finger is
+  already still, so the browser honors it; React's synthetic handler
+  can't), and the origin column's `getBoundingClientRect()` is re-read on
+  EVERY move because the column shifts as the inner scroller scrolls —
+  which the RAF edge auto-scroll depends on.
+- `defaultRange` on EventFormModal (four touch points: prop, `emptyForm`
+  branch, `syncedOpen` identity compare, dirty-close baseline deps) with
+  a referentially stable `draftRange` in CalendarPage — the modal seeds
+  by identity, so an inline object would reseed on every render.
+- **Lint trap**: a self-scheduling RAF callback can't reference its own
+  `useCallback` (react-hooks raises an ERROR, not a warning) — resolved
+  with a ref trampoline, the WorkoutEditorScreen `flushRef` pattern.
+- Browser-verified 8/8 at 1280px and 390px: live label mid-drag, prefilled
+  form, Escape cancels, plain click no-ops, upward drag normalizes, CDP
+  touch long-press-drag prefills, plain swipe still scrolls.
+
 ## August 11, 2026 — Maintenance sweep (routines + calendar-workouts round)
 
 Requested checklist after #129/#130/#131:
