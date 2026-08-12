@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { getInitials } from '@/lib/formatters';
 import LazyImage from './LazyImage';
@@ -32,29 +32,31 @@ export default function ConnectionSuggestions({
   const [loading, setLoading] = useState(true);
   const [dismissedIds, setDismissedIds] = useState<Set<string>>(new Set());
 
-  const loadSuggestions = useCallback(async () => {
-    try {
-      setLoading(true);
-      const response = await fetch(`/api/suggestions?profileId=${profileId}&limit=${limit}`);
-
-      if (response.ok) {
-        const data = await response.json();
-        setSuggestions(data.suggestions || []);
-      } else {
-        console.error('Failed to load connection suggestions — status:', response.status);
-      }
-    } catch (e) {
-      console.error('Failed to load connection suggestions:', e);
-    } finally {
-      setLoading(false);
-    }
-  }, [profileId, limit]);
-
+  // Inlined cancellable IIFE (the lint rule flags the call site of any
+  // function containing setState when invoked from an effect).
   useEffect(() => {
-    if (profileId) {
-      loadSuggestions();
-    }
-  }, [profileId, loadSuggestions]);
+    if (!profileId) return;
+    let cancelled = false;
+    (async () => {
+      setLoading(true);
+      try {
+        const response = await fetch(`/api/suggestions?profileId=${profileId}&limit=${limit}`);
+        if (response.ok) {
+          const data = await response.json();
+          if (!cancelled) setSuggestions(data.suggestions || []);
+        } else {
+          console.error('Failed to load connection suggestions — status:', response.status);
+        }
+      } catch (e) {
+        console.error('Failed to load connection suggestions:', e);
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [profileId, limit]);
 
   const handleDismiss = async (suggestedId: string) => {
     try {
