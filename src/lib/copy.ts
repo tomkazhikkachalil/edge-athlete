@@ -7,7 +7,13 @@
 
 import type { SportKey } from './sports/SportRegistry';
 import { getSportDefinition } from './sports/SportRegistry';
-import { getSportAdapter } from './sports/AdapterRegistry';
+// NOTHING ELSE from src/lib/sports may be imported here at runtime.
+// SportAdapter.ts imports getComingSoonMessage from this file, so any runtime
+// import back into the sports layer closes a cycle: copy → AdapterRegistry →
+// GolfAdapter → SportAdapter → copy. Whichever module the bundler evaluates
+// first then reads a half-initialised binding, and the page dies with
+// "Cannot access 'BaseSportAdapter' before initialization". A type-only
+// import is fine — it is erased. See DEVLOG 2026-08-12.
 
 // Global Copy Constants
 export const COPY = {
@@ -236,15 +242,12 @@ export function getActivityEncouragement(sportKey: SportKey): string {
   return COPY.EMPTY_STATES.ACTIVITY_ENCOURAGEMENT(activityType);
 }
 
-/**
- * Get sport-specific route — adapter-owned when the sport declares one
- * (golf's rounds page), generic activity route otherwise. No import cycle:
- * nothing under src/lib/sports imports copy.ts.
- */
-export function getSportRoute(sportKey: SportKey, activityId: string): string {
-  const ownedRoute = getSportAdapter(sportKey).getActivityHref(activityId);
-  return ownedRoute ?? COPY.ROUTES.SPORT_ACTIVITY(sportKey, activityId);
-}
+// getSportRoute() lived here and dispatched through getSportAdapter(). It had
+// ZERO callers repo-wide, and its doc comment asserted an invariant that had
+// since become false ("nothing under src/lib/sports imports copy.ts" —
+// SportAdapter.ts does). That single import was the whole cycle, so the dead
+// function is gone rather than reshuffled. If a sport-aware route helper is
+// wanted again, put it under src/lib/sports, never here.
 
 // Export specific sections for easy importing
 export const copy = COPY;
