@@ -57,23 +57,29 @@ export default function MonthView({
             return (
               <div
                 key={day.toISOString()}
-                className={`relative min-h-16 sm:min-h-24 border-r border-border-subtle last:border-r-0 p-1 ${
+                className={`relative min-h-16 sm:min-h-24 border-r border-border-subtle last:border-r-0 p-1 transition-colors sm:hover:bg-brand-soft ${
                   inMonth ? 'bg-surface' : 'bg-surface-muted'
                 }`}
               >
-                {/* The visible target is a 24px circle, well under the 44px
-                    touch minimum, and tapping a day is THE phone interaction
-                    for this view. Below `sm` an invisible ::after overlay makes
-                    the whole 64px cell tappable — the visual is unchanged, and
-                    it is safe here only because the event chips are hidden
-                    below `sm` (dots are not interactive), so nothing else in
-                    the cell competes for the tap. At `sm`+ the overlay is
-                    removed so the chips stay individually clickable. */}
+                {/* The visible target is a 24px circle, far under the 44px
+                    touch minimum, and selecting a day is THE interaction for
+                    this view — so an invisible ::after overlay makes the whole
+                    cell the hit area at EVERY width. (It used to be phone-only,
+                    which left desktop with just the tiny circle and nothing
+                    signalling it was clickable.) The overlay is a positioned
+                    pseudo-element, so it paints over static siblings; the chip
+                    column below carries `relative z-10` to stay above it and
+                    keep its own clicks. `cursor-pointer` because Tailwind v4
+                    buttons are `cursor: default`. */}
                 <button
                   type="button"
                   onClick={() => onSelectDay(day)}
                   aria-label={day.toDateString()}
-                  className={`w-6 h-6 sm:w-7 sm:h-7 flex items-center justify-center rounded-full text-xs sm:text-sm mb-0.5 hover:bg-brand-soft after:absolute after:inset-0 after:content-[''] sm:after:content-none ${
+                  // No unconditional hover:bg-* here: it collided with the
+                  // today branch's hover:bg-brand-hover (brand-soft won the
+                  // cascade), turning today's white number invisible on a
+                  // near-white wash. The cell owns the hover tint now.
+                  className={`w-6 h-6 sm:w-7 sm:h-7 flex items-center justify-center rounded-full text-xs sm:text-sm mb-0.5 cursor-pointer after:absolute after:inset-0 after:content-[''] ${
                     isToday
                       ? 'bg-brand text-white font-bold hover:bg-brand-hover'
                       : inMonth
@@ -98,8 +104,9 @@ export default function MonthView({
                   ))}
                 </div>
 
-                {/* ≥sm: chips. */}
-                <div className="hidden sm:flex flex-col gap-0.5">
+                {/* ≥sm: chips. `relative z-10` lifts them above the day
+                    button's full-cell ::after overlay so they stay clickable. */}
+                <div className="relative z-10 hidden sm:flex flex-col gap-0.5">
                   {dayEvents.slice(0, MAX_CHIPS).map(e => (
                     <EventChip key={e.id} event={e} onClick={() => onSelectEvent(e.id)} />
                   ))}
