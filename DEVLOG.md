@@ -1,5 +1,70 @@
 # Development Log
 
+## August 11, 2026 — Maintenance sweep (activity-preview round)
+
+Requested checklist after #138:
+
+- **`npm audit`: 0 vulnerabilities** (dev + production trees).
+- Full gate green on merged main: tsc clean, lint at the **43** ratchet
+  exactly, **1258 tests** across 98 files (up 7 from the last sweep —
+  `buildWorkoutStatsData` and the overlay `post_id` cases), production build
+  complete.
+- Tree clean on main at #138; deploy green and the preview suite re-run
+  **against production** 13/13 after it landed.
+- **0 open PRs and 0 stale remote branches** — the 24 merged leftovers were
+  pruned earlier today (each verified against its merged PR record first),
+  so origin now carries `main` only.
+- Session ledger: routines (#129, migration 079), calendar scheduling with
+  guest starts (#130, migration 080), activity-history overlay (#131),
+  drag-to-create (#133), Month→Week→Day drill-down (#135), the desktop
+  click-target fix (#137), in-place activity previews (#138), plus sweeps
+  #132/#134/#136. Both migrations run and verified before their deploys.
+- Carried forward: `PostCard`'s author row wrapping inside `PostDetailModal`
+  at 390px (pre-existing cosmetic), stat-line posts on the calendar (needs a
+  functional index on `stats_data->>'date'`), a guest "save routine to my
+  presets" action, and the older `activity_id`/group-posts naming cleanup.
+
+## August 11, 2026 — Completed activities preview in place (#138)
+
+Tom's ask: selecting a completed activity opened a separate page while
+upcoming events previewed in the calendar. Make completed ones use the same
+popup, laid out like the activity's post in the feed, with an optional link
+to the full details.
+
+- **Half of it already existed.** `PostDetailModal` IS the feed post in a
+  popup — it fetches by id and renders the real `PostCard` (media, workout
+  chips, golf scorecard, likes/comments). So any SHARED activity needed no
+  new UI; the work was knowing the post id.
+- **`ActivityPayload` now carries a resolved `post_id`.**
+  `workout_sessions.post_id` is a column we already select — free. Golf needs
+  a lookup, done as ONE batched query per range load: solo rounds link
+  through `posts.round_id`, mirrored group rounds through
+  `posts.group_post_id` (039), oldest post wins when a round is referenced
+  more than once. Failure returns an empty map — a missing post just means
+  the summary preview is used.
+- **Unshared activities get `ActivityPreviewModal`** — a workout finished but
+  never posted has no feed post to render. It uses the SAME feed components:
+  `WorkoutPostCard` driven by a synthesized `stats_data` (so the chips and
+  its Details expander are literally the feed's), and `GolfRoundCard` for
+  rounds. Footer keeps an "Open full details" link via `activityHref`, so
+  nothing is lost versus the old navigation; a 404 degrades to "Details
+  unavailable" plus that link.
+- **`buildWorkoutStatsData` extracted** into `summary.ts` and reused by the
+  share flow in `WorkoutEditorScreen` — the preview and the feed now build
+  that payload from one function and cannot drift.
+- Both `CalendarPage` and `FeedCalendarWidget` branch identically; the four
+  view components are untouched (routing stays centralised in `selectEvent`).
+- Ratchet note: the modal's fetch is an inlined cancellable IIFE, not a
+  `useCallback` called from an effect — the latter added a 44th warning and
+  failed the gate on the first run.
+- Verified 13/13 in-browser at 1280px and 390px **and again against
+  production** after deploy: shared → feed post popup, unshared → summary
+  popup with a working link, URL unchanged in every case, close returns to
+  the same view/date.
+- Known cosmetic nit, deliberately not fixed here (pre-existing, visible from
+  the feed too): `PostCard`'s author row wraps awkwardly inside
+  `PostDetailModal` at 390px.
+
 ## August 11, 2026 — Maintenance sweep (drill-down nav round)
 
 Requested checklist after #135:
