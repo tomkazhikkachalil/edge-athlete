@@ -1,5 +1,59 @@
 # Development Log
 
+## August 13, 2026 — Migration 085: the grants 040 missed (section 3 read clean)
+
+Tom ran section 3 of the diagnostic — the live `prosrc` of all 38
+archived-sweep functions, and the one class no probe can reach.
+
+**The bodies are CLEAN.** Every referenced table exists (`privacy_settings`,
+`golf_holes`, `connection_suggestions`, `handle_history`, `reserved_handles`,
+`notification_preferences`, `profile_access` all checked live), and the
+notification, media and golf bodies all carry their current-generation
+predicates — the `074`/`070` comments are right there in the installed source.
+So the "runs fine but returns wrong data" class is **closed** for these
+functions. That was the last open question from the archived-hot-fix thread.
+
+**Reading them surfaced a different problem: grants, not bodies.** Migration
+040 revoked EXECUTE on 12 server-side RPCs. Several of exactly the same kind
+were missed, and are callable today with the **public anon key** — the one that
+ships in the browser bundle. Verified by calling each with it:
+
+    search_by_handle                 CAN RUN
+    generate_connection_suggestions  CAN RUN
+    get_pending_requests_count       CAN RUN
+    check_handle_availability        CAN RUN
+    can_view_profile                 blocked   (040 got this one)
+
+`search_by_handle` is the sharp one, and the codebase already knew:
+`src/app/api/handles/search/route.ts:8-10` says *"private profiles must not
+surface in handle search … The search_by_handle RPC runs via the admin client
+and does NOT filter visibility"*, then compensates by dropping private profiles
+after the call. **Calling the RPC directly with the anon key bypasses that
+route entirely.** Not a live leak — zero private profiles currently have a
+handle — but latent: the first private user who sets one becomes enumerable by
+anyone.
+
+**The rule worth keeping: an app-layer filter is not a substitute for an
+EXECUTE grant.** The route can only protect the path that goes through the
+route.
+
+**Migration 085** extends 040's posture to `search_by_handle`,
+`generate_connection_suggestions`, `get_pending_requests_count`,
+`check_handle_availability` and `calculate_round_stats` — the last because it
+MUTATES (`golf_rounds.gross_score`, `par`, the percentages) and a browser key
+should not be able to fire it. Safe to revoke: every call site of all five uses
+the **admin** client, which ignores these grants. It also drops the redundant
+no-arg `get_unread_notification_count` overload that 083 left behind.
+
+**Diagnostic section 5 (new): the EXECUTE-grant inventory.** Read-only, and the
+deliberate answer to the one question probing cannot safely ask — seven of
+these functions MUTATE (`cleanup_old_notifications` deletes rows,
+`update_user_handle`, `create_managed_profile`, `grant_guardian_access`, …) and
+the only way to test executability by *calling* them is to run them against
+production. 040 revoked most by name, but nothing had ever verified the grants
+took. 5a lists everything anon/authenticated can execute with SECURITY DEFINER
+sorted first; 5b pins the mutating set at false/false.
+
 ## August 13, 2026 — Maintenance sweep (post-084): everything green
 
 Requested checklist after #150. Nothing needed fixing — recorded because a
