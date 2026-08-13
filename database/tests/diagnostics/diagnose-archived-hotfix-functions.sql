@@ -27,8 +27,14 @@
 -- without ever raising an error, so no amount of black-box probing finds it.
 -- That needs prosrc, which is only reachable from SQL. Hence this file.
 --
+-- A SECOND archived family does the same kind of damage a different way:
+--   archive/old-migrations/fix-function-search-paths{,-compatible}.sql
+-- pinned search_path = '' onto 47 functions WITHOUT qualifying their bodies,
+-- which broke two RPCs outright (see section 4 and migration 082).
+--
 -- HOW TO USE: run each query, eyeball section 3 in particular, and compare any
--- suspicious body against the migration that is supposed to own it.
+-- suspicious body against the migration that is supposed to own it. Section 4a
+-- is the one to re-run after ANY future hot-fix.
 -- ============================================================================
 
 -- ── 1. Every trigger in the database and the function behind it ─────────────
@@ -107,30 +113,61 @@ WHERE n.nspname = 'public'
   )
 ORDER BY p.proname;
 
--- ── 4. Functions with an EMPTY search_path that reference an unqualified
---       table. Empty search_path is correct practice, but ONLY if every
---       reference is schema-qualified; otherwise it fails at RUNTIME.
+-- ── 4. EMPTY search_path + unqualified references. Empty search_path is
+--       correct practice, but ONLY if every reference is schema-qualified;
+--       otherwise the function fails at RUNTIME with 42P01.
 --
---       *** THIS SECTION HAS ALREADY EARNED ITS KEEP. *** Running it on
---       Aug 12 2026 listed 17 functions; probing them found TWO broken live:
+--       *** THIS SECTION HAS ALREADY EARNED ITS KEEP TWICE. ***
+--       Aug 12 2026: listed 17 functions; probing found TWO broken live —
 --         get_unread_notification_count -> 42P01 relation "notifications"…
 --         get_tagged_posts              -> 42P01 relation "post_tags"…
---       Neither is called by the app, so nothing user-facing broke — but a
---       static scan of the archived SCRIPTS had wrongly declared this class
---       clear. The hazard is the CROSS PRODUCT: a hot-fix pinned
---       search_path='' onto a body that came from a different migration and
---       was never qualified. Only proconfig+prosrc together reveal it.
+--       (fixed by migration 082). A static scan of the archived SCRIPTS had
+--       wrongly declared this class clear: the hazard is the CROSS PRODUCT —
+--       a script pins search_path='' onto a body that came from a DIFFERENT
+--       migration and was never qualified. Only proconfig+prosrc reveal it.
+--
+--       Source of the empty pins is its own archived family, separate from
+--       the fix-*schema*.sql sweep:
+--         archive/old-migrations/fix-function-search-paths.sql
+--         archive/old-migrations/fix-function-search-paths-compatible.sql
+--       whose header states it "secures all exposed functions by setting
+--       search_path = '' (empty)" — 47 of them, no bodies rewritten.
 --
 --       READ THE proconfig COLUMN, not just the function name:
---         search_path=""       -> at risk, probe it
+--         search_path=""       -> AT RISK, probe it
 --         search_path=public   -> safe, unqualified names still resolve
---       The fix is one line each and migration 040 sets the precedent —
---       it deliberately pinned 'public' rather than '' for exactly this
---       reason: ALTER FUNCTION public.f() SET search_path = 'public';
-SELECT p.proname AS function_name, p.proconfig
+--       Remedy is one line, per migration 040's precedent:
+--         ALTER FUNCTION public.f(args) SET search_path = 'public';
+
+-- 4a. The full AT-RISK population: every function pinned to an EMPTY path.
+--     No heuristic — probe anything here that the app calls. 4b narrows it,
+--     but 4b is only a guess; this list is the ground truth.
+SELECT p.proname AS function_name,
+       pg_get_function_identity_arguments(p.oid) AS args,
+       p.proconfig
 FROM pg_proc p
 JOIN pg_namespace n ON n.oid = p.pronamespace
 WHERE n.nspname = 'public'
-  AND p.proconfig::text LIKE '%search_path=%'
-  AND p.prosrc ~* '\m(FROM|JOIN)\s+(?!public\.|pg_)[a-z_]'
+  AND p.proconfig::text ~ 'search_path=""'
+ORDER BY p.proname;
+
+-- 4b. Of those, the ones whose body appears to reference an unqualified
+--     relation. Checks EVERY relation position — the original version only
+--     looked at FROM/JOIN, so an unqualified name in an INSERT INTO / UPDATE /
+--     DELETE FROM position was just as broken and completely invisible.
+--     Still a heuristic: comment prose and constructs like
+--     `IS DISTINCT FROM OLD` produce false positives, so confirm by CALLING
+--     the function and looking for 42P01 rather than by reading the match.
+SELECT p.proname AS function_name,
+       pg_get_function_identity_arguments(p.oid) AS args
+FROM pg_proc p
+JOIN pg_namespace n ON n.oid = p.pronamespace
+WHERE n.nspname = 'public'
+  AND p.proconfig::text ~ 'search_path=""'
+  AND (
+        p.prosrc ~* '\m(FROM|JOIN)\s+(?!public\.|pg_|LATERAL\M|\()[a-z_]'
+     OR p.prosrc ~* '\mINSERT\s+INTO\s+(?!public\.|pg_)[a-z_]'
+     OR p.prosrc ~* '\mUPDATE\s+(?!public\.|pg_)[a-z_][a-z0-9_]*\s+SET\M'
+     OR p.prosrc ~* '\mDELETE\s+FROM\s+(?!public\.|pg_)[a-z_]'
+  )
 ORDER BY p.proname;
