@@ -1,5 +1,50 @@
 # Development Log
 
+## August 13, 2026 — Migration 082: the two broken RPCs, and a SECOND archived family
+
+Tom re-ran the diagnostic's section 4; the output was byte-identical to the
+day before, and a live re-probe confirmed both RPCs still raise:
+
+    get_unread_notification_count  ->  42P01  relation "notifications" does not exist
+    get_tagged_posts               ->  42P01  relation "post_tags" does not exist
+
+**Tracing them found a second archived family, separate from the
+`fix-*schema*.sql` sweep behind 025/036/037/081:**
+`archive/old-migrations/fix-function-search-paths.sql` (and its `-compatible`
+twin). Its own header says it "secures all exposed functions by setting
+`search_path = ''` (empty)" to clear 47 Supabase linter warnings — and it
+pinned that empty path onto bodies it never rewrote. Those bodies reference
+`notifications` and `post_tags` unqualified, so with an empty search_path
+nothing outside `pg_catalog` resolves and both functions raise on every call.
+
+Migration **040** met the same linter warnings later and got it right, pinning
+`'public'` with the note "these bodies use unqualified table names; pinning
+removes the hijack risk without rewriting bodies". **Migration 082 applies
+040's remedy to the two stragglers** — keyed on function NAME with dynamic
+SQL, because these have been redefined by several archived scripts and the
+live argument list is the only authority. It verifies by calling both.
+
+Still no user-facing impact: neither function is called by the app. The value
+is that the next person to wire one up doesn't lose a day to it.
+
+**A real gap in my own diagnostic, now closed.** Section 4 only matched
+`FROM`/`JOIN`, so a function with `search_path=''` whose unqualified reference
+sat in an `INSERT INTO x`, `UPDATE x SET` or `DELETE FROM x` position was
+**just as broken and completely invisible**. It is now two queries: **4a**
+lists the full at-risk population (every function pinned to an empty path, no
+heuristic — this is the ground truth to re-run after any future hot-fix), and
+**4b** narrows to bodies that appear unqualified in ANY relation position.
+Confirm 4b by CALLING the function and looking for 42P01, never by reading the
+match — comment prose and `IS DISTINCT FROM OLD` both produce false positives,
+which is exactly how the first pass of this audit talked itself into
+"class clear".
+
+Standing lesson from this whole thread, worth more than either fix: **a static
+scan of the archived scripts cannot find these.** Every one of the six
+incidents came from the cross product of a hot-fix's metadata against a body
+defined somewhere else. Pair live `proconfig` with live `prosrc`, then confirm
+by calling the thing.
+
 ## August 12, 2026 — Audit: the archived hot-fix functions (sweep)
 
 Tom asked for an audit of the OTHER functions in the archived hot-fix sweep
