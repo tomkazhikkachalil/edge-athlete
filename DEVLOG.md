@@ -1,5 +1,50 @@
 # Development Log
 
+## August 13, 2026 — 082 rolled back entirely; migration 083 does it properly
+
+Tom merged #148, ran 082, and got:
+
+    42703  column "recipient_id" does not exist
+    QUERY:  SELECT COUNT(*) FROM notifications
+            WHERE recipient_id = user_id AND read = FALSE
+
+**The whole script rolled back.** The Supabase SQL editor runs a script as ONE
+transaction, and 082 ended with a verification block that called the repaired
+function to prove it worked. The call raised, the exception propagated, and
+Postgres discarded the `ALTER`s with it. A live probe confirmed it: both
+functions still fail with the ORIGINAL `42P01`, so **nothing was applied**.
+That is a flaw in how I wrote 082, not something Tom did.
+
+Two things follow, and the second is the more useful one:
+
+**1. `get_unread_notification_count` was doubly stale.** Repinning let it
+resolve `notifications`, and it failed again immediately on columns: the body
+queries `recipient_id` and `read`, while the live table has `user_id` and
+`is_read`. That body predates the current notifications schema, so the function
+needed REPLACING, not repinning — 082's premise was simply wrong for it.
+`get_tagged_posts` does still only need the repin; `post_tags`' live columns
+match what migration 008 wrote.
+
+**2. "I ran it and got an error" means NOTHING WAS APPLIED.** Not "applied but
+the check failed". Always re-probe live before concluding anything about state.
+Every migration I have written this week ends in a verification block that
+`RAISE EXCEPTION`s on failure — which is *correct* for a pre-flight guard that
+should abort before touching anything, and *wrong* for a post-change check,
+where it throws away a good fix because the proof of it failed.
+
+**Migration 083** supersedes 082: it DROPs and recreates
+`get_unread_notification_count` with a correct, schema-qualified body (and
+re-applies migration 040's `REVOKE`, since recreating a function resets its
+grants to default — easy to miss), repins `get_tagged_posts`, and wraps every
+check in `BEGIN … EXCEPTION WHEN OTHERS THEN RAISE WARNING` so a failed check
+reports without discarding the repair. One subtlety worth keeping: the
+parameter is named `user_id` and so is the column, so the parameter has to be
+qualified as `get_unread_notification_count.user_id` — otherwise
+`user_id = user_id` compares the column to itself and every row matches.
+
+`database/MIGRATIONS.md` now carries this as a convention with the template,
+since it will outlive this thread.
+
 ## August 13, 2026 — Migration 082: the two broken RPCs, and a SECOND archived family
 
 Tom re-ran the diagnostic's section 4; the output was byte-identical to the
