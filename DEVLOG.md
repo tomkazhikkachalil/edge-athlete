@@ -1,5 +1,48 @@
 # Development Log
 
+## August 13, 2026 — Maintenance sweep (post-085): all green
+
+Requested checklist after #152. Nothing needed fixing; recorded because a sweep
+that finds nothing is only worth anything if it says what it ran.
+
+- **`npm audit`: 0 vulnerabilities** (dev + production trees).
+- Gate green on `b9e4cd6`: tsc clean, **lint 0 warnings**, **1258 tests** across
+  98 files, production build complete.
+- **e2e 18/18**, and the SERVER-SIDE log lines read as well as the exit code —
+  the signal that caught the untag bug on Aug 12 while every UI assertion
+  passed. No error lines this run.
+- **Read-only RPC sweep: 26 healthy, 0 broken** (was 24/2 before 084).
+- **Grant posture holding: 12/12** — the five RPCs 085 revoked stay blocked for
+  anon, service role still executes all of them, `can_view_profile` holds as
+  the control, and one `get_unread_notification_count` overload remains.
+- **Two-width production sweep: 81/81** — 9 surfaces at 390×844 (touch) and
+  1440×900: no error boundary, real content, no horizontal overflow, plus the
+  refactored loaders exercised at both widths.
+- **0 open PRs, 0 stale branches**, tree clean; deploy Ready; `/`, `/feed`,
+  `/explore` 200 and `/notifications` 307 → renders.
+- Migrations `081`–`085` all run and verified live this week.
+
+**Where the database thread ended.** Both classes from the archived hot-fixes
+are closed: stale BODIES (six functions — 081, 083's pair, 084's pair, plus the
+025/036/037 history) and stale GRANTS (085's five). Section 3 was read in full
+and is clean, so "runs fine but returns the wrong answer" is closed too for
+these functions.
+
+**The one item still open** is the seven MUTATING RPCs —
+`cleanup_old_notifications` (deletes rows), `mark_all_notifications_read`,
+`create_notification`, `update_user_handle`, `create_profile_with_owner`,
+`create_managed_profile`, `grant_guardian_access`. 040 revoked most by name but
+nothing has ever verified the grants took, and they must NOT be probed by
+calling — that means running them against production. Diagnostic **section 5**
+(committed in #152) answers it with zero risk: 5a lists everything
+anon/authenticated can execute with SECURITY DEFINER sorted first, 5b pins the
+mutating set at false/false.
+
+Carried forward unchanged: `PostCard`'s author row wrapping inside
+`PostDetailModal` at 390px, stat-line posts on the calendar (needs a functional
+index on `stats_data->>'date'`), a guest "save routine to my presets" action,
+and the `activity_id`/group-posts naming cleanup.
+
 ## August 13, 2026 — Migration 085: the grants 040 missed (section 3 read clean)
 
 Tom ran section 3 of the diagnostic — the live `prosrc` of all 38
