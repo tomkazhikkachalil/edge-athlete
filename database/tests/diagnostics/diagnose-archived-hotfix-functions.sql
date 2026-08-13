@@ -182,3 +182,57 @@ WHERE n.nspname = 'public'
      OR p.prosrc ~* '\mDELETE\s+FROM\s+(?!public\.|pg_)[a-z_]'
   )
 ORDER BY p.proname;
+
+-- ── 5. EXECUTE-GRANT INVENTORY — who can call what ─────────────────────────
+--       READ ONLY, and the deliberate answer to the one question probing
+--       cannot safely ask. SEVEN of these functions MUTATE:
+--         cleanup_old_notifications   (DELETEs rows)
+--         mark_all_notifications_read
+--         create_notification
+--         update_user_handle
+--         create_profile_with_owner
+--         create_managed_profile
+--         grant_guardian_access
+--       The only way to test executability by CALLING them is to run them
+--       against production. So don't — read the grants instead.
+--
+--       Migration 040 revoked most server-side RPCs by name, and 085 caught
+--       five it missed (search_by_handle, generate_connection_suggestions,
+--       get_pending_requests_count, check_handle_availability,
+--       calculate_round_stats — all reachable with the PUBLIC ANON KEY).
+--       Nothing has ever verified the grants actually took. This does.
+--
+--       THE RULE 085 EXISTS TO ENFORCE: an app-layer filter is NOT a
+--       substitute for an EXECUTE grant. /api/handles/search carefully drops
+--       private profiles after calling search_by_handle — and anyone could
+--       call that RPC directly with the anon key and skip the route entirely.
+
+-- 5a. Every function anon or authenticated can execute. Each row is a
+--     decision: does a browser key genuinely need this?
+SELECT p.proname AS function_name,
+       pg_get_function_identity_arguments(p.oid) AS args,
+       has_function_privilege('anon',          p.oid, 'EXECUTE') AS anon_can_execute,
+       has_function_privilege('authenticated', p.oid, 'EXECUTE') AS authed_can_execute,
+       p.prosecdef AS is_security_definer
+FROM pg_proc p
+JOIN pg_namespace n ON n.oid = p.pronamespace
+WHERE n.nspname = 'public'
+  AND (has_function_privilege('anon',          p.oid, 'EXECUTE')
+    OR has_function_privilege('authenticated', p.oid, 'EXECUTE'))
+ORDER BY p.prosecdef DESC, p.proname;
+-- SECURITY DEFINER rows sort first on purpose: those bypass RLS, so a stray
+-- grant there is the most dangerous kind.
+
+-- 5b. The mutating set specifically — these should ALL be false/false.
+SELECT p.proname AS function_name,
+       has_function_privilege('anon',          p.oid, 'EXECUTE') AS anon_can_execute,
+       has_function_privilege('authenticated', p.oid, 'EXECUTE') AS authed_can_execute
+FROM pg_proc p
+JOIN pg_namespace n ON n.oid = p.pronamespace
+WHERE n.nspname = 'public'
+  AND p.proname IN (
+    'cleanup_old_notifications','mark_all_notifications_read','create_notification',
+    'update_user_handle','create_profile_with_owner','create_managed_profile',
+    'grant_guardian_access','calculate_round_stats'
+  )
+ORDER BY p.proname;
