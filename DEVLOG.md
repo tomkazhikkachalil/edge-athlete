@@ -1,5 +1,54 @@
 # Development Log
 
+## August 13, 2026 — Migration 084: two more stale RPCs, found by calling them
+
+A third detection route turned out to be the cheapest of the lot: **call every
+read-only RPC PostgREST exposes and watch what raises.** 24 were healthy; two
+were not:
+
+    get_golf_scorecard      ->  42703  column "ghs.scorecard_id" does not exist
+    get_group_post_details  ->  42703  column "gp.owner_id"      does not exist
+
+Nothing calls either — not the app, not an RLS policy, not another function.
+Tom chose repair over dropping them.
+
+**They were an older GENERATION, not a mis-pin.** The live signatures were
+`get_group_post_details(target_group_post_id)` and
+`get_golf_scorecard(target_scorecard_id)`, while migration 004 defines both as
+taking a group post id. `target_scorecard_id` is the tell: that body predates
+the schema where hole scores hang off a participant. So 084 restores 004's
+contract, and has to DROP first — `CREATE OR REPLACE` cannot rename a parameter.
+
+Before writing a line of it, every column 004 references was checked against the
+live schema (7 tables, 58 references, via PostgREST's OpenAPI definitions). All
+present, so this is a faithful restore rather than a rewrite.
+
+**004's own golf body was latently broken, and a verbatim restore would have
+shipped that.** At its line 761 the hole-scores subquery ends with a
+query-level `ORDER BY hole_number` over an aggregate with no `GROUP BY` — 42803.
+plpgsql does not validate SQL inside a body at CREATE time, so it would have
+been created happily and failed on first call. 084 hoists the ORDER BY into the
+aggregate, `json_object_agg(k, v ORDER BY k)`, which is what it always meant.
+The sibling ORDER BYs (participants, media) were already inside their
+aggregates and are reproduced unchanged. Worth remembering: **"restore the
+canonical version" is only safe if you actually read the canonical version.**
+
+**The REVOKE is the point of the migration, not housekeeping.** Both functions
+are SECURITY DEFINER and return group posts, participants and joined profiles
+data bypassing RLS. Migration 040 tightened grants on the other server-side
+RPCs but never mentions these two — being broken has been masking it, and
+`CREATE` grants EXECUTE to PUBLIC by default. Repairing them without revoking
+would have converted two dead functions into a way to read private group posts:
+the fix would have been the regression.
+
+**Refined rule for this whole audit thread.** Probing catches stale SCHEMA
+references — relation (42P01) or column (42703). What it cannot catch is a body
+that runs fine and returns the WRONG DATA. That is still the open risk for the
+remaining archived RPCs, and section 3 of the diagnostic is the only route to
+it. Also recorded there: never blanket-call the MUTATING RPCs
+(`cleanup_*`, `mark_*`, `update_*`, `create_*`) as a probe — on production they
+would alter or delete real data. Eleven of those remain deliberately unprobed.
+
 ## August 13, 2026 — 082 rolled back entirely; migration 083 does it properly
 
 Tom merged #148, ran 082, and got:
