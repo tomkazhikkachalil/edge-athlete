@@ -1,5 +1,87 @@
 # Development Log
 
+## August 12, 2026 — Audit: the archived hot-fix functions (sweep)
+
+Tom asked for an audit of the OTHER functions in the archived hot-fix sweep
+after 081 made it the fourth incident from that one file. **Fixes deliberately
+deferred; this entry is the finding.** Good news: the crash-class is closed.
+
+**Method.** Parsed all 7 `archive/old-migrations/fix-*schema*.sql` scripts
+(2,939 lines, **43 redefined functions**), extracted every `NEW.`/`OLD.` field
+each body touches, mapped each function to the table its trigger actually
+fires on (scanning every `CREATE TRIGGER` in `database/`), then diffed those
+fields against the **live** column lists pulled from PostgREST's OpenAPI
+schema (55 tables). The method validated itself by independently re-deriving
+all four known incidents before finding anything new.
+
+**Result — 4 field/table mismatches, and all four are already fixed:**
+
+| function | bound to | fixed by |
+|---|---|---|
+| `notify_profile_tagged` | `post_tags` [INSERT] | 025 |
+| `handle_updated_at` | `profiles`, `clubs`, `group_posts`, `events` [UPDATE] | 036 |
+| `update_group_post_timestamp` | `group_posts`, `group_post_participants` [UPDATE] | 037 |
+| `update_post_tags_updated_at` | `post_tags` [UPDATE] | 081 |
+
+**Verified live, not just on paper** — every table wired to one of these was
+probed with a real UPDATE against production: `profiles`, `events`,
+`group_posts`, `group_post_participants`, `post_tags`, `conversations`,
+`follows`. **7/7 OK.** The remaining 13 trigger functions in the sweep
+reference only fields their bound tables genuinely have.
+
+**Second risk class — my static scan was WRONG, and live probing caught it.**
+These scripts add `SET search_path = ''`, which breaks any UNQUALIFIED
+reference at runtime. Scanning the archived bodies found only false positives
+(comment prose, the `IS DISTINCT FROM OLD` construct), so the first pass of
+this audit called the class clear. **It is not.** Tom ran the diagnostic's
+section 4 against the live database, which listed 17 functions carrying a
+pinned `search_path`; probing the 11 with an EMPTY path found **two genuinely
+broken in production**:
+
+    get_unread_notification_count  ->  42P01  relation "notifications" does not exist
+    get_tagged_posts               ->  42P01  relation "post_tags" does not exist
+
+The static scan could never have found these, and the reason is worth
+remembering: it compared each ARCHIVED body against itself. The real hazard is
+the **cross product** — the hot-fix pinned `search_path = ''` onto a function
+whose body came from a DIFFERENT migration and was never qualified. Only the
+live pairing of `proconfig` with `prosrc` shows it.
+
+**Neither is called by the app** (`grep` across `src/` is clean; the unread
+badge and the Tagged tab use other paths — the tagged tab runs on
+`get_profile_tagged_media`, which migration 040 pinned to `'public'`). So
+there is no user-visible impact today: they are dead, exposed, and broken.
+**Fix deferred at Tom's request.** It is one line each, and migration 040
+already establishes the pattern — that migration deliberately pinned
+`'public'` rather than `''` with the comment "these bodies use unqualified
+table names; pinning removes the hijack risk without rewriting bodies". The
+same `ALTER FUNCTION … SET search_path = 'public'` closes both.
+
+The other nine empty-path functions were probed and are healthy, including the
+guardian RPCs `create_profile_with_owner` and `create_managed_profile` (both
+reached their bodies and failed on a NOT NULL violation, which is proof the
+body executed), the `consent_records` append-only guard (raised its own
+`P0001`), and `calculate_golf_participant_totals`. `split_full_name` is
+covered transitively — `create_profile_with_owner` calls it. The six functions
+pinned to `'public'` rather than `''` are safe by construction.
+
+**What this audit could NOT close, and why.** 24 of the 43 are RPC-only (no
+`NEW`/`OLD`, no trigger). An archived body can be live there and simply return
+**wrong results** without ever raising — black-box probing cannot find that.
+It needs `pg_proc.prosrc`, which is only reachable from SQL. So the deferred
+work is scoped, not vague: run
+`database/tests/diagnostics/diagnose-archived-hotfix-functions.sql`
+(added here, READ ONLY) and compare section 3's live bodies against the
+migration that owns each. Section 2 is the killer query — it finds any trigger
+function referencing a column its own table lacks, i.e. the exact shape of all
+four incidents, and should return **zero rows** now. Worth re-running after any
+future hot-fix. The profile-media RPCs deserve the closest read; they have
+their own incident history (068).
+
+**Sweep:** `npm audit` 0 vulnerabilities (dev + prod); gate green on
+`0693193` — tsc clean, lint 0 warnings, 1258 tests, build complete; 0 open
+PRs, 0 stale branches; production deploy Ready.
+
 ## August 12, 2026 — Maintenance sweep: untagging is broken in prod (migration 081)
 
 Second sweep of the day. The gate items were all clean; the value came from
