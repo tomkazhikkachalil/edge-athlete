@@ -32,6 +32,17 @@
 -- pinned search_path = '' onto 47 functions WITHOUT qualifying their bodies,
 -- which broke two RPCs outright (see section 4 and migration 082).
 --
+-- A THIRD detection route, and the cheapest: just CALL every read-only RPC and
+-- watch for 42P01 (stale relation) or 42703 (stale column). That sweep found
+-- get_golf_scorecard and get_group_post_details — bodies from an older schema
+-- generation, repaired in migration 084. Worth repeating; the scratchpad
+-- harness is rpc_sweep.mjs. NEVER blanket-call the MUTATING RPCs that way
+-- (cleanup_*, mark_*, update_*, create_*) — on production they would alter or
+-- delete real data. Those still need the static read in section 3.
+--
+-- What NO probe can catch: a body that runs fine and returns the WRONG DATA.
+-- Section 3 is the only route to those.
+--
 -- HOW TO USE: run each query, eyeball section 3 in particular, and compare any
 -- suspicious body against the migration that is supposed to own it. Section 4a
 -- is the one to re-run after ANY future hot-fix.
