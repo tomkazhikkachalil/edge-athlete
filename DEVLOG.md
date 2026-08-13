@@ -1,5 +1,50 @@
 # Development Log
 
+## August 13, 2026 — Maintenance sweep (post-084): everything green
+
+Requested checklist after #150. Nothing needed fixing — recorded because a
+sweep that finds nothing is only meaningful if it says what it actually ran.
+
+- **`npm audit`: 0 vulnerabilities** (dev + production trees).
+- Gate green on `f9abaf6`: tsc clean, **lint 0 warnings** (the ratchet reached
+  zero in #144 and is a real gate now), **1258 tests** across 98 files,
+  production build complete.
+- **e2e: 18/18.** Also read the SERVER-SIDE log lines, not just the exit code —
+  that is what exposed the untag bug on Aug 12 while every UI assertion passed.
+  Only the known `middleware`-deprecation notice appears, which
+  `src/middleware.ts` documents as deliberate.
+- **Two-width production sweep: 81/81** — 9 surfaces at 390×844 (touch, coarse
+  pointer) and 1440×900, each asserting no error boundary, real content and no
+  horizontal overflow, then exercising the refactored loaders at both widths
+  (media grid, infinite scroll to page 2, active-tab re-click, tab switch away
+  and back, vitals, equipment, follow with a 44px touch-target measurement).
+- **0 open PRs, 0 stale branches**, tree clean; production deploy Ready.
+- Migrations `081`–`084` all run and verified live this week.
+
+**Session ledger.** Lint: 45 → **0** across #140–#144, with
+`set-state-in-effect` back at `error`; five real bugs fell out of it (duplicate
+GIF trending fetch, duplicate multi-sport activity fetch, LiveNowStrip poll
+landing after unmount, stale-response races on calendar/explore/dashboard, and
+the media grid emptying when you re-clicked the tab you were already on).
+Then the database thread: the `BaseSportAdapter` import cycle that crashed
+`/notifications` (#145), and **six stale functions** — `081` untagging,
+`083`'s `search_path` pair, `084`'s group-post pair — all traceable to two
+archived hot-fix families.
+
+**Still open, both beyond what probing can reach:** section 4a of the
+diagnostic (the full empty-`search_path` population, which covers trigger-only
+and mutating functions the RPC sweep skips), and the **11 mutating RPCs**
+(`cleanup_old_notifications`, `mark_all_notifications_read`,
+`update_user_handle`, `create_managed_profile`, `grant_guardian_access`, …)
+that must never be blanket-called as a probe on production. Section 3 of the
+diagnostic is the route to both, and to the one class no probe can ever catch:
+a body that runs fine and returns the wrong answer.
+
+Carried forward unchanged: `PostCard`'s author row wrapping inside
+`PostDetailModal` at 390px, stat-line posts on the calendar (needs a functional
+index on `stats_data->>'date'`), a guest "save routine to my presets" action,
+and the `activity_id`/group-posts naming cleanup.
+
 ## August 13, 2026 — Migration 084: two more stale RPCs, found by calling them
 
 A third detection route turned out to be the cheapest of the lot: **call every
