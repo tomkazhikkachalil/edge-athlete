@@ -29,11 +29,41 @@ probed with a real UPDATE against production: `profiles`, `events`,
 `follows`. **7/7 OK.** The remaining 13 trigger functions in the sweep
 reference only fields their bound tables genuinely have.
 
-**Second risk class checked and cleared:** these scripts add
-`SET search_path = ''`, which breaks any UNQUALIFIED reference at runtime. A
-scan found 7 apparent hits, all false positives on inspection — comment prose
-("from hole scores") and the `IS DISTINCT FROM OLD` construct. The scripts
-qualify their tables; that is what "schema-qualified" in their filenames meant.
+**Second risk class — my static scan was WRONG, and live probing caught it.**
+These scripts add `SET search_path = ''`, which breaks any UNQUALIFIED
+reference at runtime. Scanning the archived bodies found only false positives
+(comment prose, the `IS DISTINCT FROM OLD` construct), so the first pass of
+this audit called the class clear. **It is not.** Tom ran the diagnostic's
+section 4 against the live database, which listed 17 functions carrying a
+pinned `search_path`; probing the 11 with an EMPTY path found **two genuinely
+broken in production**:
+
+    get_unread_notification_count  ->  42P01  relation "notifications" does not exist
+    get_tagged_posts               ->  42P01  relation "post_tags" does not exist
+
+The static scan could never have found these, and the reason is worth
+remembering: it compared each ARCHIVED body against itself. The real hazard is
+the **cross product** — the hot-fix pinned `search_path = ''` onto a function
+whose body came from a DIFFERENT migration and was never qualified. Only the
+live pairing of `proconfig` with `prosrc` shows it.
+
+**Neither is called by the app** (`grep` across `src/` is clean; the unread
+badge and the Tagged tab use other paths — the tagged tab runs on
+`get_profile_tagged_media`, which migration 040 pinned to `'public'`). So
+there is no user-visible impact today: they are dead, exposed, and broken.
+**Fix deferred at Tom's request.** It is one line each, and migration 040
+already establishes the pattern — that migration deliberately pinned
+`'public'` rather than `''` with the comment "these bodies use unqualified
+table names; pinning removes the hijack risk without rewriting bodies". The
+same `ALTER FUNCTION … SET search_path = 'public'` closes both.
+
+The other nine empty-path functions were probed and are healthy, including the
+guardian RPCs `create_profile_with_owner` and `create_managed_profile` (both
+reached their bodies and failed on a NOT NULL violation, which is proof the
+body executed), the `consent_records` append-only guard (raised its own
+`P0001`), and `calculate_golf_participant_totals`. `split_full_name` is
+covered transitively — `create_profile_with_owner` calls it. The six functions
+pinned to `'public'` rather than `''` are safe by construction.
 
 **What this audit could NOT close, and why.** 24 of the 43 are RPC-only (no
 `NEW`/`OLD`, no trigger). An archived body can be live there and simply return

@@ -108,10 +108,25 @@ WHERE n.nspname = 'public'
 ORDER BY p.proname;
 
 -- ── 4. Functions with an EMPTY search_path that reference an unqualified
---       table. Empty search_path is correct practice, but only if every
+--       table. Empty search_path is correct practice, but ONLY if every
 --       reference is schema-qualified; otherwise it fails at RUNTIME.
---       The static audit found none in the archived scripts (they qualify
---       their tables), but this checks what is actually installed.
+--
+--       *** THIS SECTION HAS ALREADY EARNED ITS KEEP. *** Running it on
+--       Aug 12 2026 listed 17 functions; probing them found TWO broken live:
+--         get_unread_notification_count -> 42P01 relation "notifications"…
+--         get_tagged_posts              -> 42P01 relation "post_tags"…
+--       Neither is called by the app, so nothing user-facing broke — but a
+--       static scan of the archived SCRIPTS had wrongly declared this class
+--       clear. The hazard is the CROSS PRODUCT: a hot-fix pinned
+--       search_path='' onto a body that came from a different migration and
+--       was never qualified. Only proconfig+prosrc together reveal it.
+--
+--       READ THE proconfig COLUMN, not just the function name:
+--         search_path=""       -> at risk, probe it
+--         search_path=public   -> safe, unqualified names still resolve
+--       The fix is one line each and migration 040 sets the precedent —
+--       it deliberately pinned 'public' rather than '' for exactly this
+--       reason: ALTER FUNCTION public.f() SET search_path = 'public';
 SELECT p.proname AS function_name, p.proconfig
 FROM pg_proc p
 JOIN pg_namespace n ON n.oid = p.pronamespace
