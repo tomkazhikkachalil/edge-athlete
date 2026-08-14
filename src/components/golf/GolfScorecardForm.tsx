@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import MultiPlayerScorecardGrid, { type PlayerHoleScore, type PlayerScoreData } from '@/components/golf/MultiPlayerScorecardGrid';
 import { useToast } from '@/components/Toast';
+import { useDebouncedCallback } from '@/hooks/useDebouncedCallback';
 import { useAuth } from '@/lib/auth';
 import type { GolfCourse } from '@/lib/golf-courses-db';
 import { holeDataToPlayerScores, applyPlayerScoreChange } from '@/lib/golf/hole-adapters';
@@ -106,16 +107,17 @@ export default function GolfScorecardForm({ onDataChange }: GolfScorecardFormPro
   }
 
 
-  // Search for golf courses
-  const searchCourses = useCallback(async (query: string) => {
-    if (query.length < 2) {
-      setAvailableCourses([]);
-      return;
-    }
-
+  // Search for golf courses. Debounced + abortable: this is called straight
+  // out of the input's onChange, so undebounced it fired one request per
+  // keystroke. Suggestions now start at 1 character (migration 087 indexed
+  // golf_rounds.course).
+  const runCourseSearch = useCallback(async (signal: AbortSignal, query: string) => {
     setSearchLoading(true);
     try {
-      const response = await fetch(`/api/golf/courses?q=${encodeURIComponent(query)}&limit=8`);
+      const response = await fetch(
+        `/api/golf/courses?q=${encodeURIComponent(query)}&limit=8`,
+        { signal }
+      );
       if (response.ok) {
         const data = await response.json();
         setAvailableCourses(data.courses || []);
@@ -123,12 +125,23 @@ export default function GolfScorecardForm({ onDataChange }: GolfScorecardFormPro
         console.error('Failed to search golf courses (scorecard) — status:', response.status);
       }
     } catch (e) {
+      if (e instanceof DOMException && e.name === 'AbortError') return;
       console.error('Failed to search golf courses (scorecard):', e);
       setAvailableCourses([]);
     } finally {
-      setSearchLoading(false);
+      if (!signal.aborted) setSearchLoading(false);
     }
   }, []);
+
+  const debouncedCourseSearch = useDebouncedCallback(runCourseSearch);
+
+  const searchCourses = useCallback((query: string) => {
+    if (query.trim().length < 1) {
+      setAvailableCourses([]);
+      return;
+    }
+    debouncedCourseSearch(query.trim());
+  }, [debouncedCourseSearch]);
 
   // Auto-populate course data when a course is selected
   const selectCourse = useCallback((course: GolfCourse, selectedTee: string = teeBox) => {
@@ -349,7 +362,7 @@ export default function GolfScorecardForm({ onDataChange }: GolfScorecardFormPro
               }}
               onFocus={() => {
                 setCourseSearchOpen(true);
-                if (courseSearchQuery.length >= 2) {
+                if (courseSearchQuery.trim().length >= 1) {
                   searchCourses(courseSearchQuery);
                 }
               }}

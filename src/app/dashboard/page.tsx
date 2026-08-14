@@ -6,6 +6,7 @@ import { useAuth } from '@/lib/auth';
 import AppHeader from '@/components/AppHeader';
 import { useToast } from '@/components/Toast';
 import { formatDisplayName } from '@/lib/formatters';
+import { SUGGEST_DEBOUNCE_MS } from '@/lib/search/typeahead';
 
 // Admin console (replaces the orphaned legacy dashboard page — its buttons
 // had no onClick handlers). Access = ADMIN_EMAILS allowlist, enforced
@@ -91,12 +92,12 @@ export default function AdminDashboardPage() {
   const [syncedUserQuery, setSyncedUserQuery] = useState({ authorized, userQuery });
   if (syncedUserQuery.authorized !== authorized || syncedUserQuery.userQuery !== userQuery) {
     setSyncedUserQuery({ authorized, userQuery });
-    if (!authorized || userQuery.trim().length < 2) setUsers([]);
+    if (!authorized || userQuery.trim().length < 1) setUsers([]);
   }
 
   // Debounced user search
   useEffect(() => {
-    if (!authorized || userQuery.trim().length < 2) return;
+    if (!authorized || userQuery.trim().length < 1) return;
     const timer = setTimeout(async () => {
       setSearching(true);
       try {
@@ -110,7 +111,7 @@ export default function AdminDashboardPage() {
       } finally {
         setSearching(false);
       }
-    }, 300);
+    }, SUGGEST_DEBOUNCE_MS);
     return () => clearTimeout(timer);
   }, [userQuery, authorized]);
 
@@ -335,10 +336,10 @@ export default function AdminDashboardPage() {
                 </tbody>
               </table>
             </div>
-          ) : userQuery.trim().length >= 2 ? (
+          ) : userQuery.trim().length >= 1 ? (
             <p className="text-sm text-muted">No users match.</p>
           ) : (
-            <p className="text-xs text-faint">Type at least 2 characters to search.</p>
+            <p className="text-xs text-faint">Type to search users.</p>
           )}
         </section>
       </div>

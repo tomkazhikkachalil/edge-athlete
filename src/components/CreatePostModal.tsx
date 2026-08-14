@@ -58,13 +58,15 @@ interface MediaFile {
 // GolfRoundData moved to src/components/golf/GolfComposerSection.tsx with the
 // rest of the golf composer state (sport-cleanup D-2).
 
+// Nullable: these come straight from /api/search, which returns explicit
+// nulls for unset name fields.
 interface ProfileData {
   id: string;
-  first_name?: string;
-  last_name?: string;
-  full_name?: string;
-  name?: string;
-  avatar_url?: string;
+  first_name?: string | null;
+  last_name?: string | null;
+  full_name?: string | null;
+  name?: string | null;
+  avatar_url?: string | null;
 }
 
 interface SharedRoundDetails {

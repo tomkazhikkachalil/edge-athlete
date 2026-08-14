@@ -1,10 +1,12 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import Image from 'next/image';
 import { isOptimizableImageSrc } from '@/lib/media/image-src';
 import { formatDisplayName, getInitials } from '@/lib/formatters';
 import { MAX_GUESTS } from '@/lib/calendar/events';
+import { useTypeahead } from '@/hooks/useTypeahead';
+import { rankPeople, type PersonSuggestion } from '@/lib/search/people';
 
 export interface GuestChip {
   kind: 'profile' | 'email';
@@ -12,16 +14,6 @@ export interface GuestChip {
   label: string;
   handle?: string | null;
   avatarUrl?: string | null;
-}
-
-interface SearchProfile {
-  id: string;
-  first_name: string | null;
-  middle_name: string | null;
-  last_name: string | null;
-  full_name: string | null;
-  avatar_url: string | null;
-  handle: string | null;
 }
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -35,36 +27,43 @@ export default function GuestPicker({
   chips: GuestChip[];
   onChange: (chips: GuestChip[]) => void;
 }) {
-  const [query, setQuery] = useState('');
-  const [results, setResults] = useState<SearchProfile[]>([]);
   const [open, setOpen] = useState(false);
   const [error, setError] = useState('');
   const containerRef = useRef<HTMLDivElement>(null);
 
-  // Clearing results for a too-short query is synchronisation (render phase);
-  // the debounced fetch stays an effect.
-  const [syncedQuery, setSyncedQuery] = useState(query);
-  if (syncedQuery !== query) {
-    setSyncedQuery(query);
-    if (query.trim().length < 2) setResults([]);
-  }
+  const fetcher = useCallback(async (q: string, signal: AbortSignal) => {
+    const res = await fetch(
+      `/api/calendar/invite-search?q=${encodeURIComponent(q)}`,
+      { signal }
+    );
+    if (!res.ok) throw new Error(`invite-search failed: ${res.status}`);
+    const data = await res.json();
+    return (data.profiles ?? []) as PersonSuggestion[];
+  }, []);
 
-  useEffect(() => {
-    const q = query.trim();
-    if (q.length < 2) return;
-    const timer = setTimeout(async () => {
-      try {
-        const res = await fetch(`/api/calendar/invite-search?q=${encodeURIComponent(q)}`);
-        if (!res.ok) return;
-        const data = await res.json();
-        setResults(data.profiles ?? []);
-        setOpen(true);
-      } catch {
-        // best-effort; typing again retries
-      }
-    }, 300);
-    return () => clearTimeout(timer);
-  }, [query]);
+  // 'people:mutual' — this endpoint's audience (public + follows in EITHER
+  // direction) is wider than the public one. The scope keeps those result sets
+  // in separate cache namespaces so one can never be served to the other.
+  const {
+    query,
+    setQuery,
+    items: results,
+    reset: resetSearch,
+  } = useTypeahead<PersonSuggestion>({
+    scope: 'people:mutual',
+    fetcher,
+    narrow: rankPeople,
+    limit: 8,
+  });
+
+  // Opening the dropdown is a side effect of having results, and must not
+  // re-close it while the user is still typing.
+  const hasResults = results.length > 0;
+  const [syncedHasResults, setSyncedHasResults] = useState(hasResults);
+  if (syncedHasResults !== hasResults) {
+    setSyncedHasResults(hasResults);
+    if (hasResults) setOpen(true);
+  }
 
   useEffect(() => {
     const onDown = (e: MouseEvent) => {
@@ -82,8 +81,7 @@ export default function GuestPicker({
       return;
     }
     onChange([...chips, chip]);
-    setQuery('');
-    setResults([]);
+    resetSearch();
     setOpen(false);
   };
 
