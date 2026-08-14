@@ -23,9 +23,11 @@ export async function GET(request: NextRequest) {
     const supabase = getSupabaseAdmin();
 
     // Optional auth — search is public, but private profiles must not appear
-    // in results for anyone but their owner. (The underlying search_profiles /
-    // ILIKE queries run through the RLS-bypassing admin client and do NOT
-    // filter visibility, so we enforce it here.)
+    // in results for anyone but their owner. Everything here runs on the
+    // RLS-bypassing admin client, so visibility is this route's job to decide:
+    // it passes the audience into search_people (athletes) and filters post
+    // authors below. What changed in 087 is only WHERE the athlete filter is
+    // applied — inside the query, so the LIMIT lands after it.
     let viewerId: string | null = null;
     try {
       const user = await requireAuth(request);
