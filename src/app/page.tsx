@@ -266,6 +266,7 @@ export default function Home() {
         });
         if (res.ok) {
           // Cookies were set server-side — hard reload picks up the session.
+          // eslint-disable-next-line @next/next/no-location-assign-relative-destination -- cookies were set server-side; a hard reload is how the session is picked up
           window.location.href = '/athlete';
           return;
         }

@@ -142,6 +142,7 @@ export default function DeleteAccountModal({ isOpen, onClose }: DeleteAccountMod
       }
 
       // Success - redirect to goodbye page
+      // eslint-disable-next-line @next/next/no-location-assign-relative-destination -- the account (and session) no longer exists — nothing to soft-navigate with
       window.location.href = '/goodbye';
     } catch (error) {
       console.error('Account deletion error:', error);

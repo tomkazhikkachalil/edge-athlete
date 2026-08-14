@@ -96,6 +96,7 @@ export default function ActivatePage() {
       // Hard reload, not router.push: the session cookies were set by the
       // activate API mid-page, so the auth provider must boot fresh to see
       // them (same pattern as username login on the home page).
+      // eslint-disable-next-line @next/next/no-location-assign-relative-destination -- session cookies were set mid-page; the auth provider must boot fresh
       window.location.href = '/athlete';
     } catch {
       setError('Could not save your choices. Please try again.');

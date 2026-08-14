@@ -157,6 +157,7 @@ export default function AccountSettings({ onEditProfile }: AccountSettingsProps)
                 if (onEditProfile) {
                   onEditProfile();
                 } else {
+                  // eslint-disable-next-line @next/next/no-location-assign-relative-destination -- fallback exit from a settings surface; full reload keeps profile state honest
                   window.location.href = '/athlete';
                 }
               }}

@@ -91,6 +91,30 @@ export default defineConfig([
     },
   },
 
+  // ── @next/next/no-location-assign-relative-destination ────────────────────
+  // Arrived ON by default with eslint-config-next 16.3.1 (Aug 14 2026) and
+  // reported 11 warnings, all pre-existing. Every one is an intentional HARD
+  // navigation across an auth/session boundary, and each now carries an
+  // inline disable with its reason at the site:
+  //
+  //   src/lib/auth.tsx (x2)                     sign-out, incl. the error path
+  //   src/app/page.tsx                          username login
+  //   src/app/activate/[token]/page.tsx         post-activation session pickup
+  //   src/app/invite/[token]/page.tsx           new guardian access row
+  //   src/app/goodbye/page.tsx                  post sign-out
+  //   src/components/settings/DeleteAccountModal.tsx  account no longer exists
+  //   src/components/settings/AccountSettings.tsx     exit to profile
+  //   src/components/MultiSportActivity.tsx     route self-redirects per sport
+  //   src/app/error.tsx, src/app/global-error.tsx     boundary recovery
+  //
+  // The rule's suggested fix (router.push) is WRONG for all of them: the whole
+  // point is to discard client + Supabase state and let middleware re-run. For
+  // global-error.tsx it is not even possible — the app shell is gone above that
+  // boundary, so router/Link do not exist, as its own comment says.
+  //
+  // Deliberately NOT switched off wholesale: a new, accidental
+  // `window.location.href` in ordinary UI code is still worth catching.
+
   // Stated explicitly rather than inherited from the package default: this is
   // the single line standing between us and a ~34,800-problem lint run, and it
   // should not live in a transitive default nobody can see.
