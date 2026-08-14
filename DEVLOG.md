@@ -1,5 +1,121 @@
 # Development Log
 
+## August 13, 2026 — Instant search everywhere (migration 087)
+
+Tom: *"the search function throughout the app isn't amazing… the primary search
+seems to be broken. I want suggestions to start coming in as the user types the
+first letter… Right now you have to enter the entire first name to even see
+options."*
+
+**The primary search was broken, and the 2-character floor was the smaller
+half.** `/api/search` resolved athletes through `search_profiles`, which matches
+with `websearch_to_tsquery('english', q)` — **whole words, no prefix operator**.
+`Tho` could never match `Thomas`. Worse, the common two-letter inputs (`to`,
+`in`, `an`, `is`) are English **stop words** that compile to an *empty* tsquery
+and match nothing at all. The ILIKE fallback that would have rescued both cases
+only ran when the RPC **threw**, never when it returned zero rows — so those
+queries returned nothing, forever. `handle` was never in the vector either, so
+**@handles were unsearchable** and every athlete row came back with
+`handle: null` (`route.ts:96` faithfully copying a column the function does not
+return).
+
+Around it sat **eleven typed-search surfaces** with five debounce values
+(0/250/300/400/500 ms) and four different minimum-length rules. Three fired
+guaranteed-400 requests on the first keystroke. Six had no out-of-order guard.
+Both golf course pickers called `fetch` inline from `onChange` — **one request
+per keystroke**. And no `pg_trgm` index existed anywhere, so every `ILIKE '%q%'`
+in the app was a sequential scan on `profiles`.
+
+### Migration 087
+
+- **Two kinds of index, deliberately.** A trigram GIN cannot serve a `LIKE`
+  pattern under 3 characters — there is no complete trigram to probe with — so a
+  trigram-only design would have made the 1-character case, the exact case Tom
+  asked for, the *slowest* one. Short queries use `COLLATE "C"` btrees
+  (prefix-only, which is also the better answer for one letter); ≥3 characters
+  adds trigram substring matching. 11 indexes, including `golf_rounds.course`.
+- **`search_people()`** — one ranked primitive: exact handle → handle prefix →
+  name prefix → word-boundary prefix → substring.
+- **The prefix tiers are explicit range bounds, not `LIKE`.** This is the part
+  that would have silently not worked: inside a plpgsql function the pattern is
+  a *parameter*, and Postgres only rewrites `LIKE` into an indexable range when
+  the pattern is a plan-time constant. Under a generic plan the index would
+  exist and simply never be used. The substring tier keeps `LIKE`, because a
+  trigram GIN extracts its probe trigrams at execution time and does not care.
+- **Privacy stays in the app layer**, per the rule at
+  `mentions/search/route.ts:9-11`. `search_people` takes the allowed-id set as
+  an argument; each route still computes its own audience. But the filter is now
+  *inside* the query, so the `LIMIT` lands **after** privacy instead of before —
+  private profiles no longer eat result slots and push public matches off the
+  end. `SECURITY INVOKER`, revoked from anon/authenticated.
+
+**SECURITY, found during the audit.** `search_profiles`, `search_posts` and
+`search_clubs` were missed by migrations 040, 085 **and** 086 and remained
+executable with the **public anon key** — and `search_profiles` has *no
+visibility filter*, so private profiles' names, avatars, school and location
+were enumerable straight from a browser. Exactly the class 085 was written to
+close ("an app-layer filter is NOT a substitute for an EXECUTE grant"). All
+three revoked. `profiles.email` dropped from the search vector for the same
+reason — it made accounts discoverable by email address through that same
+anon-callable function.
+
+### The client
+
+One `useTypeahead` replaces eleven hand-rolled copies: 1-char minimum, a shared
+**120 ms** debounce, `AbortController`, the sequence guard, a per-session cache,
+and listbox keyboard state. Two repo constraints shaped it — `set-state-in-effect`
+is an *error*, so everything knowable without the network is settled by
+render-phase synchronisation; and refs may not be **read** during render
+(`react-hooks/refs`), so the cache is `useState`-held with a non-mutating read.
+
+**Progressive narrowing** is what makes it feel instant rather than merely fast:
+results for a shorter prefix are filtered locally and painted in the same frame
+while the longer query is still in flight. Guarded on the cached set being
+*complete* — narrowing a **truncated** set can miss the very row the longer
+query wants and show a confidently wrong list. That guard is the subtle bug
+here and it is unit-tested.
+
+`AdvancedSearchBar` also gains keyboard navigation. Its results were unfocusable
+`div`s with no roles, so ⌘K opened a panel a keyboard user could not reach at
+all. Clubs stay out of the tab order rather than becoming reachable dead ends
+(`/club/[id]` still does not exist). A failed request now says so instead of
+rendering "No results" — that confusion is what let the original bug survive.
+
+### Deploy safety
+
+Migrations here are applied by hand, so a merge that beat 087 would take all
+search down. On `42883`/`PGRST202` only, `searchPeople` falls back to a correct
+prefix query and logs **"MIGRATION 087 HAS NOT BEEN RUN"** on every call. Worse
+than the RPC, but not wrong — and impossible to miss. Any other error still
+throws.
+
+### Verified
+
+Gate green (1293 tests, +35 new, lint 0, build clean). Browser probe **30/30**
+at 1440×900 and 390×844: one character suggests, one keystroke is one request,
+a fast burst coalesces, typing narrows, **backspace repaints from cache with
+zero new requests**, arrows drive `aria-activedescendant` with exactly one
+option selected, Enter opens the active result, no horizontal overflow, no
+uncaught errors. The fallback path was exercised for real against a database
+without 087 applied.
+
+**Still to do:** run 087 in the Supabase editor, then re-run section 5 of
+`database/tests/diagnostics/diagnose-archived-hotfix-functions.sql` to confirm
+the four search functions are service-role only, and probe production.
+
+Noted, not acted on: guardian/supervised profiles are rows in `profiles`
+filtered only by `visibility`, so a *public* supervised profile is discoverable
+in one keystroke — but it was already discoverable at two, and via `/explore`
+browse, so this changes no exposure class. The feature is flag-gated off in
+production. Worth an explicit predicate if supervised profiles ever default to
+public. A WAF rate-limit rule on the search endpoints is the natural follow-up
+now that request volume rises (`src/lib/rate-limit.ts` is per-instance and
+means little on Vercel).
+
+Carried forward unchanged: `PostCard`'s author row wrapping inside
+`PostDetailModal` at 390px, stat-line posts on the calendar, a guest "save
+routine to my presets" action, and the `activity_id`/group-posts naming cleanup.
+
 ## August 13, 2026 — Maintenance sweep (post-086): all green, audit thread closed
 
 Requested checklist after #154. Nothing needed fixing.
