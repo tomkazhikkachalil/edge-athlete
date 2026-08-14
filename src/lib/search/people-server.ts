@@ -20,7 +20,7 @@
  */
 
 import { getSupabaseAdmin } from '@/lib/auth-server';
-import { normalizeQuery, type PersonSuggestion } from './people';
+import { normalizeQuery, rankPeople, type PersonSuggestion } from './people';
 
 export interface SearchPeopleParams {
   /** Raw user input; normalised here, so callers need not pre-clean it. */
@@ -67,11 +67,75 @@ export async function searchPeople({
     exclude_id: excludeId,
   });
 
-  // Surfaced, never swallowed: a broken search must show up in logs rather
-  // than looking like "no results". Callers decide the status code.
-  if (error) throw error;
+  if (error) {
+    // The one recoverable case: the code deployed before migration 087 ran, so
+    // the function does not exist yet (42883 from Postgres, PGRST202 from
+    // PostgREST's schema cache). Without this, a merge that beats the
+    // migration takes ALL search down rather than degrading.
+    //
+    // The fallback is a correct prefix query, not the old full-text path — it
+    // is worse than the RPC (no ranking, privacy filtered after the LIMIT)
+    // but not WRONG, and it shouts in the logs so a missing migration cannot
+    // sit there quietly. That distinction is the whole point: the original bug
+    // survived for months precisely because a broken search looked like an
+    // empty one.
+    const code = (error as { code?: string }).code;
+    if (code === '42883' || code === 'PGRST202') {
+      console.error(
+        '[search] search_people is missing — MIGRATION 087 HAS NOT BEEN RUN. ' +
+        'Serving degraded, unranked results. Run database/migrations/087_search_core.sql.'
+      );
+      return searchPeopleFallback(q, visibleIds, includePublic, limit, requireHandle, excludeId);
+    }
+    // Anything else is a real failure: surfaced, never swallowed.
+    throw error;
+  }
 
   return (data ?? []) as PersonSuggestion[];
+}
+
+const FALLBACK_FIELDS =
+  'id, handle, first_name, middle_name, last_name, full_name, avatar_url, location, sport, school, visibility';
+
+/** Prefix-only match over the same columns. See the note at its call site. */
+async function searchPeopleFallback(
+  q: string,
+  visibleIds: readonly string[],
+  includePublic: boolean,
+  limit: number,
+  requireHandle: boolean,
+  excludeId: string | null
+): Promise<PersonSuggestion[]> {
+  const admin = getSupabaseAdmin();
+  // Escape PostgREST ilike wildcards in user input.
+  const escaped = q.replace(/[%_]/g, ch => `\\${ch}`);
+  const prefix = `${escaped}%`;
+
+  let query = admin
+    .from('profiles')
+    .select(FALLBACK_FIELDS)
+    .or(
+      `handle.ilike.${prefix},first_name.ilike.${prefix},` +
+      `last_name.ilike.${prefix},full_name.ilike.${prefix}`
+    )
+    .limit(limit);
+
+  if (requireHandle) query = query.not('handle', 'is', null);
+  if (excludeId) query = query.neq('id', excludeId);
+  if (visibleIds.length > 0) {
+    query = query.or(
+      `visibility.eq.public,id.in.(${visibleIds.join(',')})`
+    );
+  } else if (includePublic) {
+    query = query.eq('visibility', 'public');
+  } else {
+    return [];
+  }
+
+  const { data, error } = await query;
+  if (error) throw error;
+  // Rank client-side so the degraded path still orders sensibly.
+  return rankPeople((data ?? []) as PersonSuggestion[], q);
 }
 
 /**
