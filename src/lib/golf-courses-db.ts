@@ -414,22 +414,39 @@ export const GOLF_COURSES_DATABASE: GolfCourse[] = [
   }
 ];
 
-// Search function for golf courses
+// Search function for golf courses.
+//
+// An EMPTY query means "show me what's here" and returns the head of the list
+// as a browse affordance. A 1-character query is a real search and must
+// filter — this used to fall into the same branch as empty (`length < 2`),
+// which was invisible while the API floor was 2 characters and would have
+// started returning arbitrary courses the moment it dropped to 1.
 export function searchGolfCourses(query: string, limit: number = 10): GolfCourse[] {
-  if (!query || query.length < 2) {
+  const searchTerm = query.trim().toLowerCase();
+  if (!searchTerm) {
     return GOLF_COURSES_DATABASE.slice(0, limit);
   }
 
-  const searchTerm = query.toLowerCase();
+  // Prefix matches first — 'a' should offer Augusta before Baltusrol, which
+  // merely contains an 'a'. Mirrors the ladder in src/lib/search/people.ts.
+  const scored: Array<{ course: GolfCourse; rank: number }> = [];
+  for (const course of GOLF_COURSES_DATABASE) {
+    const fields = [
+      course.name.toLowerCase(),
+      course.location.city.toLowerCase(),
+      course.location.state.toLowerCase(),
+      course.designer?.toLowerCase() ?? '',
+    ].filter(Boolean);
 
-  return GOLF_COURSES_DATABASE
-    .filter(course =>
-      course.name.toLowerCase().includes(searchTerm) ||
-      course.location.city.toLowerCase().includes(searchTerm) ||
-      course.location.state.toLowerCase().includes(searchTerm) ||
-      course.designer?.toLowerCase().includes(searchTerm)
-    )
-    .slice(0, limit);
+    if (fields.some(f => f.startsWith(searchTerm))) scored.push({ course, rank: 0 });
+    else if (fields.some(f => f.split(/\s+/).some(w => w.startsWith(searchTerm)))) scored.push({ course, rank: 1 });
+    else if (fields.some(f => f.includes(searchTerm))) scored.push({ course, rank: 2 });
+  }
+
+  return scored
+    .sort((a, b) => a.rank - b.rank || a.course.name.localeCompare(b.course.name))
+    .slice(0, limit)
+    .map(s => s.course);
 }
 
 // Get course by ID

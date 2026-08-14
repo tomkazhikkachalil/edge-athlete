@@ -1,19 +1,24 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useCallback, useMemo } from 'react';
 import Image from 'next/image';
 import { useToast } from './Toast';
 import { useBodyScrollLock } from '@/hooks/useBodyScrollLock';
+import { useTypeahead } from '@/hooks/useTypeahead';
+import { rankPeople, type PersonSuggestion } from '@/lib/search/people';
 
+// Nullable, not optional: /api/search has always returned explicit nulls for
+// unset name fields. The old `?: string` shape only compiled because the
+// results were typed `any` on the way in.
 interface Profile {
   id: string;
-  full_name?: string;
-  first_name?: string;
-  middle_name?: string;
-  last_name?: string;
-  avatar_url?: string;
-  sport?: string;
-  school?: string;
+  full_name?: string | null;
+  first_name?: string | null;
+  middle_name?: string | null;
+  last_name?: string | null;
+  avatar_url?: string | null;
+  sport?: string | null;
+  school?: string | null;
 }
 
 interface TagPeopleModalProps {
@@ -35,57 +40,40 @@ export default function TagPeopleModal({
   onSelectionComplete,
   selectionMode = false
 }: TagPeopleModalProps) {
-  const [searchQuery, setSearchQuery] = useState('');
-  const [searchResults, setSearchResults] = useState<Profile[]>([]);
   const [selectedProfiles, setSelectedProfiles] = useState<Profile[]>([]);
-  const [loading, setLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const { showSuccess, showError } = useToast();
 
-  // Declared above the effect that references it: react-hooks/immutability
-  // requires declaration before access in source order.
-  async function searchProfiles() {
-    try {
-      setLoading(true);
-      const response = await fetch(`/api/search?q=${encodeURIComponent(searchQuery)}&type=athletes`);
+  const fetcher = useCallback(async (q: string, signal: AbortSignal) => {
+    const response = await fetch(
+      `/api/search?q=${encodeURIComponent(q)}&type=athletes`,
+      { signal }
+    );
+    if (!response.ok) throw new Error(`Search failed: ${response.status}`);
+    const data = await response.json();
+    return (data.results?.athletes ?? []) as PersonSuggestion[];
+  }, []);
 
-      if (!response.ok) {
-        throw new Error('Search failed');
-      }
+  // Already-tagged people are filtered out AFTER ranking, so changing the tag
+  // list never invalidates the cache or refires the search.
+  const existingKey = existingTags.join(',');
+  const filter = useMemo(() => {
+    const taken = new Set(existingKey ? existingKey.split(',') : []);
+    return (rows: PersonSuggestion[]) => rows.filter(p => !taken.has(p.id));
+  }, [existingKey]);
 
-      const data = await response.json();
-      const profiles = data.results?.athletes || data.athletes || [];
-
-      const filtered = profiles.filter(
-        (profile: Profile) => !existingTags.includes(profile.id)
-      );
-
-      setSearchResults(filtered);
-    } catch (e) {
-      console.error('Failed to search profiles for tagging:', e);
-      setSearchResults([]);
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  // Clearing results for a short query is synchronisation (render phase); the
-  // debounced search stays an effect.
-  const [syncedSearchQuery, setSyncedSearchQuery] = useState(searchQuery);
-  if (syncedSearchQuery !== searchQuery) {
-    setSyncedSearchQuery(searchQuery);
-    if (searchQuery.length < 2) setSearchResults([]);
-  }
-
-  useEffect(() => {
-    if (searchQuery.length >= 2) {
-      const timer = setTimeout(() => {
-        searchProfiles();
-      }, 300); // Debounce search
-      return () => clearTimeout(timer);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [searchQuery]);
+  const {
+    query: searchQuery,
+    setQuery: setSearchQuery,
+    items: searchResults,
+    loading,
+    reset: resetSearch,
+  } = useTypeahead<PersonSuggestion>({
+    scope: 'people:public',
+    fetcher,
+    narrow: rankPeople,
+    filter,
+  });
 
 
   const toggleProfile = (profile: Profile) => {
@@ -110,8 +98,7 @@ export default function TagPeopleModal({
         onSelectionComplete(selectedProfiles.map(p => p.id), selectedProfiles);
       }
       setSelectedProfiles([]);
-      setSearchQuery('');
-      setSearchResults([]);
+      resetSearch();
       onClose();
       return;
     }
@@ -231,14 +218,14 @@ export default function TagPeopleModal({
             </div>
           )}
 
-          {!loading && searchQuery.length < 2 && (
+          {!loading && searchQuery.trim().length < 1 && (
             <div className="p-8 text-center">
               <i className="fas fa-search text-3xl text-gray-300 dark:text-stone-600 mb-2"></i>
               <p className="text-tertiary text-sm">Type to search for people</p>
             </div>
           )}
 
-          {!loading && searchQuery.length >= 2 && searchResults.length === 0 && (
+          {!loading && searchQuery.trim().length >= 1 && searchResults.length === 0 && (
             <div className="p-8 text-center">
               <i className="fas fa-user-slash text-3xl text-gray-300 dark:text-stone-600 mb-2"></i>
               <p className="text-secondary font-medium mb-1">No people found</p>

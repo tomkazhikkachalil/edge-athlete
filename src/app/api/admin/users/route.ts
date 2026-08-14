@@ -15,7 +15,13 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const q = searchParams.get('q')?.trim() || '';
 
-    if (q.length < 2) {
+    // Suggest from the first keystroke like every other search in the app.
+    // Deliberately NOT folded onto searchPeople: this one also matches email
+    // and intentionally ignores visibility, and adding an "unfiltered" mode to
+    // a function whose whole job is the privacy filter is how the 085/086 bugs
+    // happened. It stays a plain substring scan — it is requireAdmin-gated and
+    // low-traffic, so it does not need 087's index path.
+    if (q.length < 1) {
       return NextResponse.json({ users: [] });
     }
 

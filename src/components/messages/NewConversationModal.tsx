@@ -1,12 +1,14 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useCallback, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import LazyImage from '@/components/LazyImage';
 import { formatDisplayName, getInitials } from '@/lib/formatters';
 import { useMessages } from '@/lib/messages';
 import { useDirtyClose } from '@/hooks/useDirtyClose';
 import { useBodyScrollLock } from '@/hooks/useBodyScrollLock';
+import { useTypeahead } from '@/hooks/useTypeahead';
+import { rankPeople, type PersonSuggestion } from '@/lib/search/people';
 import ConfirmModal from '@/components/ConfirmModal';
 import { COPY } from '@/lib/copy';
 import {
@@ -17,14 +19,9 @@ import {
   toggleGroupMember,
 } from './group-draft';
 
-interface SearchProfile {
-  id: string;
-  first_name: string | null;
-  last_name: string | null;
-  full_name: string | null;
-  avatar_url: string | null;
-  handle: string | null;
-}
+// The shared search shape — the local narrower duplicate drifted from what
+// /api/search actually returns.
+type SearchProfile = PersonSuggestion;
 
 interface Props {
   onClose: () => void;
@@ -39,9 +36,28 @@ export default function NewConversationModal({ onClose }: Props) {
   const router = useRouter();
   const { fetchConversations } = useMessages();
   const [tab, setTab] = useState<Tab>('dm');
-  const [searchQuery, setSearchQuery] = useState('');
-  const [searchResults, setSearchResults] = useState<SearchProfile[]>([]);
-  const [searching, setSearching] = useState(false);
+  const searchFetcher = useCallback(async (q: string, signal: AbortSignal) => {
+    const res = await fetch(`/api/search?q=${encodeURIComponent(q)}&type=athletes`, { signal });
+    if (!res.ok) throw new Error(`search failed: ${res.status}`);
+    const data = await res.json();
+    return (data.results?.athletes ?? []) as SearchProfile[];
+  }, []);
+
+  // Shared typeahead: 1-char minimum, 120ms debounce, abort, cache and the
+  // sequence guard this modal used to hand-roll. It previously gated on
+  // `!searchQuery.trim()` alone against an endpoint with a 2-character floor,
+  // so the first keystroke was a guaranteed 400 plus a console error.
+  const {
+    query: searchQuery,
+    setQuery: setSearchQuery,
+    items: searchResults,
+    loading: searching,
+    reset: resetSearch,
+  } = useTypeahead<SearchProfile>({
+    scope: 'people:public',
+    fetcher: searchFetcher,
+    narrow: rankPeople,
+  });
   const [groupName, setGroupName] = useState('');
   const [selectedMembers, setSelectedMembers] = useState<SearchProfile[]>([]);
   const [creating, setCreating] = useState(false);
@@ -53,43 +69,6 @@ export default function NewConversationModal({ onClose }: Props) {
     selectedMembers.length > 0 || groupName.trim() !== '' || searchQuery.trim() !== '';
 
   const { requestClose, confirmOpen, confirmDiscard, cancelDiscard } = useDirtyClose(isDirty, onClose);
-
-  // Debounced + sequence-guarded search: without the guard, out-of-order
-  // responses could display results for a stale query.
-  const searchSeq = useRef(0);
-  // Clearing is synchronisation (render phase); the guarded fetch stays here.
-  const [syncedSearch, setSyncedSearch] = useState(searchQuery);
-  if (syncedSearch !== searchQuery) {
-    setSyncedSearch(searchQuery);
-    if (!searchQuery.trim()) {
-      setSearchResults([]);
-      setSearching(false);
-    }
-  }
-
-  useEffect(() => {
-    if (!searchQuery.trim()) return;
-    const seq = ++searchSeq.current;
-    const timer = setTimeout(async () => {
-      setSearching(true);
-      try {
-        const res = await fetch(`/api/search?q=${encodeURIComponent(searchQuery)}&type=athletes`);
-        if (seq !== searchSeq.current) return; // stale response
-        if (res.ok) {
-          const data = await res.json();
-          if (seq !== searchSeq.current) return;
-          setSearchResults(data.results?.athletes || []);
-        } else {
-          console.error('Failed to search athletes (new conversation) — status:', res.status);
-        }
-      } catch (e) {
-        console.error('Failed to search athletes (new conversation):', e);
-      } finally {
-        if (seq === searchSeq.current) setSearching(false);
-      }
-    }, 300);
-    return () => clearTimeout(timer);
-  }, [searchQuery]);
 
   const handleSearch = (q: string) => setSearchQuery(q);
 
@@ -174,7 +153,7 @@ export default function NewConversationModal({ onClose }: Props) {
         {/* Tabs */}
         <div className="flex border-b border-border shrink-0">
           <button
-            onClick={() => { setTab('dm'); setSearchQuery(''); setSearchResults([]); setError(''); }}
+            onClick={() => { setTab('dm'); resetSearch(); setError(''); }}
             className={`flex-1 py-3 text-sm font-medium border-b-2 transition-colors ${
               tab === 'dm' ? 'border-brand text-brand-fg' : 'border-transparent text-muted hover:text-secondary'
             }`}
@@ -182,7 +161,7 @@ export default function NewConversationModal({ onClose }: Props) {
             <i className="fas fa-user mr-2"></i>Direct Message
           </button>
           <button
-            onClick={() => { setTab('group'); setSearchQuery(''); setSearchResults([]); setError(''); }}
+            onClick={() => { setTab('group'); resetSearch(); setError(''); }}
             className={`flex-1 py-3 text-sm font-medium border-b-2 transition-colors ${
               tab === 'group' ? 'border-brand text-brand-fg' : 'border-transparent text-muted hover:text-secondary'
             }`}

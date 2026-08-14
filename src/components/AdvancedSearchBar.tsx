@@ -1,12 +1,21 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import Image from 'next/image';
 import { useAuth } from '@/lib/auth';
 import { formatDisplayName, getInitials } from '@/lib/formatters';
 import { SPORT_REGISTRY } from '@/lib/sports/SportRegistry';
-import { SearchResults, SearchAthleteResult, SearchPostResult, SearchClubResult } from '@/types/search';
+import { SearchAthleteResult, SearchPostResult, SearchClubResult } from '@/types/search';
+import { useTypeahead } from '@/hooks/useTypeahead';
+
+// One flat, ordered list of the ACTIVATABLE results, so arrow-key navigation
+// has a single index to walk. Clubs are deliberately not in here: their rows
+// are inert (the /club/[id] route does not exist), and letting the keyboard
+// land on a row that does nothing is worse than not reaching it at all.
+type NavItem =
+  | { kind: 'athlete'; id: string; athlete: SearchAthleteResult }
+  | { kind: 'post'; id: string; post: SearchPostResult };
 
 interface SearchFilters {
   sport?: string;
@@ -20,64 +29,115 @@ interface SearchFilters {
 export default function AdvancedSearchBar() {
   const router = useRouter();
   const { user } = useAuth();
-  const [query, setQuery] = useState('');
-  const [results, setResults] = useState<SearchResults>({ athletes: [], posts: [], clubs: [] });
-  const [loading, setLoading] = useState(false);
   const [showResults, setShowResults] = useState(false);
   const [showFilters, setShowFilters] = useState(false);
   const searchRef = useRef<HTMLDivElement>(null);
+  // Clubs live outside the typeahead's item list because they are not
+  // keyboard-activatable (see NavItem). Same request, separate bucket.
+  const [clubs, setClubs] = useState<SearchClubResult[]>([]);
 
   // Filter state
   const [filters, setFilters] = useState<SearchFilters>({
     type: 'all'
   });
 
-  // Debounced search
-  // Declared above the effect that references it: react-hooks/immutability
-  // requires declaration before access in source order.
-  async function performSearch() {
-    setLoading(true);
-    try {
-      const params = new URLSearchParams({ q: query });
-      if (filters.type !== 'all') params.append('type', filters.type);
-      if (filters.sport) params.append('sport', filters.sport);
-      if (filters.school) params.append('school', filters.school);
-      if (filters.league) params.append('league', filters.league);
-      if (filters.dateFrom) params.append('dateFrom', filters.dateFrom);
-      if (filters.dateTo) params.append('dateTo', filters.dateTo);
+  // The advanced filters are part of the request, so they are part of the
+  // cache key too — otherwise switching sport would serve the previous
+  // sport's cached rows.
+  const filterKey = JSON.stringify(filters);
 
-      const response = await fetch(`/api/search?${params}`);
-      const data = await response.json();
+  const fetcher = useCallback(async (q: string, signal: AbortSignal) => {
+    const active: SearchFilters = JSON.parse(filterKey);
+    const params = new URLSearchParams({ q });
+    if (active.type !== 'all') params.append('type', active.type);
+    if (active.sport) params.append('sport', active.sport);
+    if (active.school) params.append('school', active.school);
+    if (active.league) params.append('league', active.league);
+    if (active.dateFrom) params.append('dateFrom', active.dateFrom);
+    if (active.dateTo) params.append('dateTo', active.dateTo);
 
-      setResults(data.results || { athletes: [], posts: [], clubs: [] });
-      setShowResults(true);
-    } catch (e) {
-      console.error('Failed to perform advanced search:', e);
-    } finally {
-      setLoading(false);
-    }
+    const response = await fetch(`/api/search?${params}`, { signal });
+    if (!response.ok) throw new Error(`Search failed: ${response.status}`);
+    const data = await response.json();
+
+    setClubs((data.results?.clubs ?? []) as SearchClubResult[]);
+
+    const athletes = (data.results?.athletes ?? []) as SearchAthleteResult[];
+    const posts = (data.results?.posts ?? []) as SearchPostResult[];
+    return [
+      ...athletes.map((a): NavItem => ({ kind: 'athlete', id: a.id, athlete: a })),
+      ...posts.map((p): NavItem => ({ kind: 'post', id: p.id, post: p })),
+    ];
+  }, [filterKey]);
+
+  // No `narrow` here, deliberately. Progressive narrowing needs a local
+  // predicate that agrees with the server, and this endpoint mixes ranked
+  // people with full-text posts — approximating that client-side could show
+  // confidently wrong results. Exact cache hits still make backspacing
+  // instant, which is the bulk of the win.
+  const {
+    query,
+    setQuery,
+    items,
+    loading,
+    failed,
+    activeIndex,
+    setActiveIndex,
+    onKeyDown: onListKeyDown,
+    reset: resetSearch,
+  } = useTypeahead<NavItem>({
+    scope: `search:all:${filterKey}`,
+    fetcher,
+    limit: 35,
+  });
+
+  const athletes = useMemo(
+    () => items.flatMap(i => (i.kind === 'athlete' ? [i.athlete] : [])),
+    [items]
+  );
+  const posts = useMemo(
+    () => items.flatMap(i => (i.kind === 'post' ? [i.post] : [])),
+    [items]
+  );
+
+  // Opening on results is synchronisation, not an effect.
+  const hasAnything = items.length > 0 || clubs.length > 0;
+  const [syncedHasAnything, setSyncedHasAnything] = useState(hasAnything);
+  if (syncedHasAnything !== hasAnything) {
+    setSyncedHasAnything(hasAnything);
+    if (hasAnything) setShowResults(true);
   }
 
-  // Clearing is synchronisation (render phase); the debounced search stays.
-  const [syncedShortQuery, setSyncedShortQuery] = useState(query);
-  if (syncedShortQuery !== query) {
-    setSyncedShortQuery(query);
-    if (query.length < 2) {
-      setResults({ athletes: [], posts: [], clubs: [] });
+  const activate = useCallback((item: NavItem) => {
+    if (item.kind === 'athlete') {
+      router.push(user?.id === item.athlete.id ? '/athlete' : `/athlete/${item.athlete.id}`);
+    } else {
+      router.push(`/feed?post=${item.post.id}`);
+    }
+    setShowResults(false);
+    resetSearch();
+  }, [router, user?.id, resetSearch]);
+
+  // Arrow keys move, Enter opens, Escape closes the dropdown before the
+  // surrounding panel gets the event. Without this the ⌘K shortcut opened a
+  // result list a keyboard user could not reach at all — the rows were plain
+  // unfocusable divs.
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (onListKeyDown(e)) return;
+    if (e.key === 'Enter' && showResults && items[activeIndex]) {
+      e.preventDefault();
+      activate(items[activeIndex]);
+      return;
+    }
+    if (e.key === 'Escape' && showResults) {
+      e.preventDefault();
+      e.stopPropagation();
       setShowResults(false);
     }
-  }
+  };
 
-  useEffect(() => {
-    if (query.length < 2) return;
-
-    const timer = setTimeout(() => {
-      performSearch();
-    }, 300);
-
-    return () => clearTimeout(timer);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [query, filters]);
+  const listboxId = 'ea-search-results';
+  const optionId = (i: number) => `${listboxId}-option-${i}`;
 
   // Click outside to close
   useEffect(() => {
@@ -107,10 +167,20 @@ export default function AdvancedSearchBar() {
           type="text"
           name="ea-search"
           autoComplete="off"
+          role="combobox"
+          aria-expanded={showResults && items.length > 0}
+          aria-controls={listboxId}
+          aria-autocomplete="list"
+          aria-activedescendant={
+            showResults && items[activeIndex] ? optionId(activeIndex) : undefined
+          }
           value={query}
           onChange={(e) => setQuery(e.target.value)}
+          onKeyDown={handleKeyDown}
           placeholder="Search athletes, posts, clubs..."
-          className="w-full px-4 py-2.5 pl-10 pr-14 sm:pr-32 border border-border-strong rounded-lg focus:ring-2 focus:ring-violet-500 focus:border-violet-500 outline-none transition-all"
+          /* No focus:ring-* — focus styling is global in globals.css, and a
+             local override here fought the app-wide :focus-visible ring. */
+          className="w-full px-4 py-2.5 pl-10 pr-14 sm:pr-32 border border-border-strong rounded-lg outline-none transition-all"
         />
         <i className="fas fa-search absolute left-3 top-1/2 transform -translate-y-1/2 text-faint"></i>
 
@@ -252,35 +322,51 @@ export default function AdvancedSearchBar() {
       )}
 
       {/* Search Results Dropdown */}
-      {showResults && query.length >= 2 && (
-        <div className="absolute top-full mt-2 w-full bg-surface-raised border border-border rounded-lg shadow-lg max-h-96 overflow-y-auto z-40">
-          {results.athletes.length === 0 && results.posts.length === 0 && results.clubs.length === 0 ? (
+      {showResults && query.trim().length >= 1 && (
+        <div
+          id={listboxId}
+          role="listbox"
+          aria-label="Search results"
+          className="absolute top-full mt-2 w-full bg-surface-raised border border-border rounded-lg shadow-lg max-h-96 overflow-y-auto z-40"
+        >
+          {failed ? (
+            /* A failed request must not read as "nothing matched" — that
+               confusion is what let the original search bug survive. */
             <div className="p-4 text-center text-muted">
-              <i className="fas fa-search text-2xl mb-2"></i>
-              <p>No results found</p>
+              <i className="fas fa-triangle-exclamation text-2xl mb-2"></i>
+              <p>Search is unavailable right now. Try again in a moment.</p>
             </div>
+          ) : items.length === 0 && clubs.length === 0 ? (
+            loading ? (
+              <div className="p-4 text-center text-muted">
+                <i className="fas fa-circle-notch fa-spin text-2xl mb-2"></i>
+                <p>Searching…</p>
+              </div>
+            ) : (
+              <div className="p-4 text-center text-muted">
+                <i className="fas fa-search text-2xl mb-2"></i>
+                <p>No results found</p>
+              </div>
+            )
           ) : (
             <>
               {/* Athletes Section */}
-              {results.athletes.length > 0 && (
+              {athletes.length > 0 && (
                 <div className="border-b border-border-subtle">
                   <div className="px-4 py-2 bg-surface-muted border-b border-border-subtle">
                     <h3 className="text-sm font-semibold text-secondary">Athletes</h3>
                   </div>
-                  {results.athletes.map((athlete: SearchAthleteResult) => (
+                  {athletes.map((athlete: SearchAthleteResult, i: number) => (
                     <div
                       key={athlete.id}
-                      onClick={() => {
-                        // Navigate to own profile if clicking own profile
-                        if (user?.id === athlete.id) {
-                          router.push('/athlete');
-                        } else {
-                          router.push(`/athlete/${athlete.id}`);
-                        }
-                        setShowResults(false);
-                        setQuery('');
-                      }}
-                      className="px-4 py-3 hover:bg-surface-muted cursor-pointer transition-colors flex items-center gap-3"
+                      id={optionId(i)}
+                      role="option"
+                      aria-selected={activeIndex === i}
+                      onMouseEnter={() => setActiveIndex(i)}
+                      onClick={() => activate({ kind: 'athlete', id: athlete.id, athlete })}
+                      className={`px-4 py-3 cursor-pointer transition-colors flex items-center gap-3 ${
+                        activeIndex === i ? 'bg-surface-muted' : 'hover:bg-surface-muted'
+                      }`}
                     >
                       {athlete.avatar_url ? (
                         <Image
@@ -322,20 +408,25 @@ export default function AdvancedSearchBar() {
               )}
 
               {/* Posts Section */}
-              {results.posts.length > 0 && (
+              {posts.length > 0 && (
                 <div className="border-b border-border-subtle">
                   <div className="px-4 py-2 bg-surface-muted border-b border-border-subtle">
                     <h3 className="text-sm font-semibold text-secondary">Posts</h3>
                   </div>
-                  {results.posts.map((post: SearchPostResult) => (
+                  {posts.map((post: SearchPostResult, i: number) => {
+                    // Posts follow athletes in the flat nav list.
+                    const navIndex = athletes.length + i;
+                    return (
                     <div
                       key={post.id}
-                      onClick={() => {
-                        router.push(`/feed?post=${post.id}`);
-                        setShowResults(false);
-                        setQuery('');
-                      }}
-                      className="px-4 py-3 hover:bg-surface-muted cursor-pointer transition-colors flex items-center gap-3"
+                      id={optionId(navIndex)}
+                      role="option"
+                      aria-selected={activeIndex === navIndex}
+                      onMouseEnter={() => setActiveIndex(navIndex)}
+                      onClick={() => activate({ kind: 'post', id: post.id, post })}
+                      className={`px-4 py-3 cursor-pointer transition-colors flex items-center gap-3 ${
+                        activeIndex === navIndex ? 'bg-surface-muted' : 'hover:bg-surface-muted'
+                      }`}
                     >
                       {post.post_media?.[0] && (
                         <Image
@@ -355,12 +446,13 @@ export default function AdvancedSearchBar() {
                         </p>
                       </div>
                     </div>
-                  ))}
+                    );
+                  })}
                 </div>
               )}
 
               {/* Clubs Section */}
-              {results.clubs.length > 0 && (
+              {clubs.length > 0 && (
                 <div>
                   <div className="px-4 py-2 bg-surface-muted border-b border-border-subtle">
                     <h3 className="text-sm font-semibold text-secondary">Clubs</h3>
@@ -369,7 +461,7 @@ export default function AdvancedSearchBar() {
                       /club/[id], a route that does not exist, so every club
                       result was a 404 — a dead end, which this app's navigation
                       rules forbid. Restore the handler when the route ships. */}
-                  {results.clubs.map((club: SearchClubResult) => (
+                  {clubs.map((club: SearchClubResult) => (
                     <div
                       key={club.id}
                       className="px-4 py-3"

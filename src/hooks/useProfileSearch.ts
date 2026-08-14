@@ -1,74 +1,75 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useMemo } from 'react';
+import { useTypeahead } from './useTypeahead';
+import { rankPeople, type PersonSuggestion } from '@/lib/search/people';
+import { SUGGEST_MIN_CHARS } from '@/lib/search/typeahead';
 
-// Headless people-search for the "start a conversation" flows. Debounce +
-// out-of-order guard + the /api/search contract, in one place — it was about to
-// exist a third time when the dock gained a group composer.
+// Headless people-search for the "start a conversation" flows, now a thin
+// wrapper over useTypeahead so it shares one debounce, one cache and one set
+// of keyboard semantics with every other search box in the app.
 //
-// Headless on purpose: the dock's 32px result rows and the board's 40px ones are
-// different densities by design, so there is no shared JSX worth extracting,
-// only the fetching.
+// Headless on purpose: the dock's 32px result rows and the board's 40px ones
+// are different densities by design, so there is no shared JSX worth
+// extracting, only the fetching.
 
-export interface SearchProfile {
-  id: string;
-  first_name: string | null;
-  last_name: string | null;
-  full_name: string | null;
-  avatar_url: string | null;
-  handle: string | null;
-}
+/** Kept as an alias so existing imports of this name still resolve. */
+export type SearchProfile = PersonSuggestion;
 
 export interface UseProfileSearchOptions {
-  /** Below this the query is not sent and results are cleared. The API itself
-   *  400s under 2 characters. */
+  /**
+   * Below this the query is not sent and results are cleared. Defaults to 1 —
+   * suggestions now start on the first keystroke, and the API returns an empty
+   * result rather than a 400 for a query it considers too short.
+   */
   minChars?: number;
   /** Usually the current user — filtered out client-side. */
   excludeId?: string;
   debounceMs?: number;
 }
 
+const LIMIT = 20;
+
 export function useProfileSearch({
-  minChars = 2,
+  minChars = SUGGEST_MIN_CHARS,
   excludeId,
-  debounceMs = 300,
+  debounceMs,
 }: UseProfileSearchOptions = {}) {
-  const [query, setQuery] = useState('');
-  const [results, setResults] = useState<SearchProfile[]>([]);
-  const [searching, setSearching] = useState(false);
-  const seqRef = useRef(0);
+  const fetcher = useCallback(async (q: string, signal: AbortSignal) => {
+    const res = await fetch(`/api/search?q=${encodeURIComponent(q)}&type=athletes`, { signal });
+    if (!res.ok) throw new Error(`search failed: ${res.status}`);
+    const data = await res.json();
+    return (data.results?.athletes ?? []) as PersonSuggestion[];
+  }, []);
 
-  // Clearing results for a too-short query is synchronisation (render phase);
-  // the debounced fetch stays an effect.
-  const [syncedQuery, setSyncedQuery] = useState(query);
-  if (syncedQuery !== query) {
-    setSyncedQuery(query);
-    if (query.trim().length < minChars) setResults([]);
-    else setSearching(true);
-  }
+  const filter = useCallback(
+    (rows: PersonSuggestion[]) => (excludeId ? rows.filter(p => p.id !== excludeId) : rows),
+    [excludeId]
+  );
 
-  useEffect(() => {
-    const q = query.trim();
-    if (q.length < minChars) return;
-    // Sequence guard: a slow early response must not overwrite a fast later one.
-    const seq = ++seqRef.current;
-    const timer = setTimeout(async () => {
-      try {
-        const res = await fetch(`/api/search?q=${encodeURIComponent(q)}&type=athletes`);
-        if (!res.ok || seq !== seqRef.current) return;
-        const data = await res.json();
-        if (seq === seqRef.current) {
-          const athletes = (data.results?.athletes ?? []) as SearchProfile[];
-          setResults(excludeId ? athletes.filter(p => p.id !== excludeId) : athletes);
-        }
-      } catch {
-        // typing again retries
-      } finally {
-        if (seq === seqRef.current) setSearching(false);
-      }
-    }, debounceMs);
-    return () => clearTimeout(timer);
-  }, [query, minChars, excludeId, debounceMs]);
+  const typeahead = useTypeahead<PersonSuggestion>({
+    scope: 'people:public',
+    fetcher,
+    narrow: rankPeople,
+    filter,
+    limit: LIMIT,
+    minChars,
+    debounceMs,
+  });
 
-  return { query, setQuery, results, searching };
+  // Preserves the original { query, setQuery, results, searching } contract.
+  return useMemo(
+    () => ({
+      query: typeahead.query,
+      setQuery: typeahead.setQuery,
+      results: typeahead.items,
+      searching: typeahead.loading,
+      failed: typeahead.failed,
+      activeIndex: typeahead.activeIndex,
+      setActiveIndex: typeahead.setActiveIndex,
+      onKeyDown: typeahead.onKeyDown,
+      reset: typeahead.reset,
+    }),
+    [typeahead]
+  );
 }

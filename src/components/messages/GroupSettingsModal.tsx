@@ -1,10 +1,12 @@
 'use client';
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useCallback, useMemo } from 'react';
 import LazyImage from '@/components/LazyImage';
 import { formatDisplayName, getInitials } from '@/lib/formatters';
 import type { Conversation, ConversationParticipant } from '@/types/messages';
 import { useBodyScrollLock } from '@/hooks/useBodyScrollLock';
+import { useTypeahead } from '@/hooks/useTypeahead';
+import { rankPeople, type PersonSuggestion } from '@/lib/search/people';
 
 interface Props {
   conversation: Conversation;
@@ -23,9 +25,7 @@ export default function GroupSettingsModal({ conversation, currentUserId, onClos
   const [savingName, setSavingName] = useState(false);
   const [error, setError] = useState('');
   const [addingMembers, setAddingMembers] = useState(false);
-  const [searchQuery, setSearchQuery] = useState('');
-  const [searchResults, setSearchResults] = useState<{ id: string; first_name: string | null; last_name: string | null; full_name: string | null; avatar_url: string | null; handle: string | null }[]>([]);
-  const [searching, setSearching] = useState(false);
+
 
   const myParticipant = conversation.my_participant;
   const isAdmin = myParticipant?.role === 'admin';
@@ -43,35 +43,37 @@ export default function GroupSettingsModal({ conversation, currentUserId, onClos
     setName(conversation.name || '');
   }
 
-  // Clearing results for an empty query is synchronisation — do it during
-  // render so stale hits never paint. The debounced fetch stays an effect.
-  const [syncedQuery, setSyncedQuery] = useState(searchQuery);
-  if (syncedQuery !== searchQuery) {
-    setSyncedQuery(searchQuery);
-    if (!searchQuery.trim()) setSearchResults([]);
-  }
+  const searchFetcher = useCallback(async (q: string, signal: AbortSignal) => {
+    const res = await fetch(`/api/search?q=${encodeURIComponent(q)}&type=athletes`, { signal });
+    if (!res.ok) throw new Error(`search failed: ${res.status}`);
+    const data = await res.json();
+    return (data.results?.athletes ?? []) as PersonSuggestion[];
+  }, []);
 
-  useEffect(() => {
-    if (!searchQuery.trim()) return;
-    const timer = setTimeout(async () => {
-      setSearching(true);
-      try {
-        const res = await fetch(`/api/search?q=${encodeURIComponent(searchQuery)}&type=athletes`);
-        if (res.ok) {
-          const data = await res.json();
-          const existingIds = new Set(activeParticipants.map(p => p.profile_id));
-          setSearchResults((data.results?.athletes || []).filter((p: { id: string }) => !existingIds.has(p.id)));
-        } else {
-          console.error('Failed to search athletes (group settings) — status:', res.status);
-        }
-      } catch (e) {
-        console.error('Failed to search athletes (group settings):', e);
-      } finally {
-        setSearching(false);
-      }
-    }, 300);
-    return () => clearTimeout(timer);
-  }, [searchQuery, activeParticipants]);
+  // Existing members are excluded as a POST-ranking filter, not inside the
+  // fetch. Previously `activeParticipants` was an effect dependency, so adding
+  // someone re-ran the whole search; now it only re-filters what is already on
+  // screen.
+  const memberFilter = useCallback(
+    (rows: PersonSuggestion[]) => {
+      const existing = new Set(activeParticipants.map(p => p.profile_id));
+      return rows.filter(p => !existing.has(p.id));
+    },
+    [activeParticipants]
+  );
+
+  const {
+    query: searchQuery,
+    setQuery: setSearchQuery,
+    items: searchResults,
+    loading: searching,
+    reset: resetSearch,
+  } = useTypeahead<PersonSuggestion>({
+    scope: 'people:public',
+    fetcher: searchFetcher,
+    narrow: rankPeople,
+    filter: memberFilter,
+  });
 
   const handleSaveName = async () => {
     if (!name.trim() || name.trim() === conversation.name) return;
@@ -130,8 +132,7 @@ export default function GroupSettingsModal({ conversation, currentUserId, onClos
         const d = await res.json();
         throw new Error(d.error || 'Failed to add member');
       }
-      setSearchQuery('');
-      setSearchResults([]);
+      resetSearch();
       // Refresh conversation to get updated participants
       const convRes = await fetch(`/api/messages/${conversation.id}`);
       if (convRes.ok) {

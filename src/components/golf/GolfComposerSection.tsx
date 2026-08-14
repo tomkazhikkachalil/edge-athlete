@@ -15,6 +15,7 @@
 
 import { useState, useCallback, useRef, useEffect } from 'react';
 import { useToast } from '@/components/Toast';
+import { useDebouncedCallback } from '@/hooks/useDebouncedCallback';
 import GolfScorecardForm from '@/components/golf/GolfScorecardForm';
 import TagPeopleModal from '@/components/TagPeopleModal';
 import MultiPlayerScorecardGrid, { type PlayerScoreData, type PlayerHoleScore } from '@/components/golf/MultiPlayerScorecardGrid';
@@ -97,13 +98,15 @@ export function defaultGolfComposerValue(): GolfComposerValue {
   };
 }
 
+// Nullable: these come straight from /api/search, which returns explicit
+// nulls for unset name fields.
 interface ProfileData {
   id: string;
-  first_name?: string;
-  last_name?: string;
-  full_name?: string;
-  name?: string;
-  avatar_url?: string;
+  first_name?: string | null;
+  last_name?: string | null;
+  full_name?: string | null;
+  name?: string | null;
+  avatar_url?: string | null;
 }
 
 export default function GolfComposerSection({
@@ -164,16 +167,16 @@ export default function GolfComposerSection({
   // Shared round score entry
   const [playerScores, setPlayerScores] = useState<PlayerScoreData[]>([]);
 
-  // Search for golf courses (for shared rounds)
-  const searchCourses = useCallback(async (query: string) => {
-    if (query.length < 2) {
-      setAvailableCourses([]);
-      return;
-    }
-
+  // Search for golf courses (for shared rounds). Debounced + abortable: it is
+  // called straight out of the input's onChange, so undebounced it fired one
+  // request per keystroke. Suggestions start at 1 character.
+  const runCourseSearch = useCallback(async (signal: AbortSignal, query: string) => {
     setSearchLoading(true);
     try {
-      const response = await fetch(`/api/golf/courses?q=${encodeURIComponent(query)}&limit=8`);
+      const response = await fetch(
+        `/api/golf/courses?q=${encodeURIComponent(query)}&limit=8`,
+        { signal }
+      );
       if (response.ok) {
         const data = await response.json();
         setAvailableCourses(data.courses || []);
@@ -181,12 +184,23 @@ export default function GolfComposerSection({
         console.error('Failed to search golf courses — status:', response.status);
       }
     } catch (e) {
+      if (e instanceof DOMException && e.name === 'AbortError') return;
       console.error('Failed to search golf courses:', e);
       setAvailableCourses([]);
     } finally {
-      setSearchLoading(false);
+      if (!signal.aborted) setSearchLoading(false);
     }
   }, []);
+
+  const debouncedCourseSearch = useDebouncedCallback(runCourseSearch);
+
+  const searchCourses = useCallback((query: string) => {
+    if (query.trim().length < 1) {
+      setAvailableCourses([]);
+      return;
+    }
+    debouncedCourseSearch(query.trim());
+  }, [debouncedCourseSearch]);
 
   // Select a course from search results (for shared rounds)
   const selectCourse = useCallback((course: GolfCourse) => {
@@ -277,7 +291,9 @@ export default function GolfComposerSection({
         const name = profile.first_name && profile.last_name
           ? `${profile.first_name} ${profile.last_name}`
           : profile.full_name || profile.name || 'Unknown User';
-        return { id: profile.id, name, avatar_url: profile.avatar_url };
+        // Normalise null -> undefined at this boundary: the search API returns
+        // explicit nulls, while the participant state downstream is optional.
+        return { id: profile.id, name, avatar_url: profile.avatar_url ?? undefined };
       });
 
       // Merge new profiles with existing participant data (don't replace)
@@ -539,7 +555,7 @@ export default function GolfComposerSection({
                       }}
                       onFocus={() => {
                         setCourseSearchOpen(true);
-                        if (courseSearchQuery.length >= 2) {
+                        if (courseSearchQuery.trim().length >= 1) {
                           searchCourses(courseSearchQuery);
                         }
                       }}
