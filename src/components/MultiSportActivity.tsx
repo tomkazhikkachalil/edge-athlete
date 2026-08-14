@@ -249,6 +249,7 @@ export default function MultiSportActivity({ profileId, onEdit, onDelete }: Mult
                         if (adapter.isEnabled()) {
                           // Generic per-sport activity route; it handles any
                           // sport-specific redirects (e.g. golf → rounds view).
+                          // eslint-disable-next-line @next/next/no-location-assign-relative-destination -- per-sport route performs its own server-side redirects
                           window.location.href = `/app/sport/${activeSportKey}/activity/${row.id}`;
                         }
                         // Disabled sports: no-op (detail coming soon)

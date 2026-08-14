@@ -88,6 +88,7 @@ export default function GlobalError({
                 alone can re-mount the same broken tree forever. */}
             <button
               type="button"
+              // eslint-disable-next-line @next/next/no-location-assign-relative-destination -- the app shell is gone above this boundary — router/Link do not exist here
               onClick={() => window.location.assign('/')}
               style={{
                 padding: '0.75rem 1.5rem',

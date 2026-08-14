@@ -17,6 +17,7 @@ export default function GoodbyePage() {
     await supabase.auth.signOut();
 
     // Then redirect with full page reload
+    // eslint-disable-next-line @next/next/no-location-assign-relative-destination -- post sign-out; a full reload is what clears client auth state
     window.location.href = '/';
   };
 

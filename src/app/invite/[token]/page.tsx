@@ -132,6 +132,7 @@ export default function InvitePage() {
                     if (data.granted) {
                       // Co-guardian grant: access exists now — hard reload so
                       // managedProfiles refreshes from the new access row.
+                      // eslint-disable-next-line @next/next/no-location-assign-relative-destination -- guardian access row is new; managedProfiles must refetch from scratch
                       window.location.href = '/athlete';
                       return;
                     }

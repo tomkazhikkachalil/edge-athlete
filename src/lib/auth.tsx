@@ -379,10 +379,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setProfile(null);
 
       // Force redirect to login page with full page reload to ensure clean state
+      // eslint-disable-next-line @next/next/no-location-assign-relative-destination -- sign-out must reload to guarantee clean state
       window.location.href = '/';
     } catch (error) {
       console.error('Error signing out:', error);
       // Even on error, try to redirect
+      // eslint-disable-next-line @next/next/no-location-assign-relative-destination -- sign-out error path must still reload to guarantee clean state
       window.location.href = '/';
     }
   };

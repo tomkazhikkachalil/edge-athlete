@@ -52,6 +52,7 @@ export default function Error({
           </button>
           <button
             type="button"
+            // eslint-disable-next-line @next/next/no-location-assign-relative-destination -- error-boundary recovery must discard the broken tree, not soft-navigate
             onClick={() => window.location.assign('/')}
             className="px-6 py-3 bg-surface-sunken text-primary rounded-lg font-semibold hover:bg-gray-200 dark:hover:bg-stone-800 transition-colors"
           >
