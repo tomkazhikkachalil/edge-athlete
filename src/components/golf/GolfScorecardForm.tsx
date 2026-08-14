@@ -133,15 +133,18 @@ export default function GolfScorecardForm({ onDataChange }: GolfScorecardFormPro
     }
   }, []);
 
-  const debouncedCourseSearch = useDebouncedCallback(runCourseSearch);
+  const [debouncedCourseSearch, cancelCourseSearch] = useDebouncedCallback(runCourseSearch);
 
   const searchCourses = useCallback((query: string) => {
     if (query.trim().length < 1) {
+      // CANCEL, don't just return: an armed timer would still fire and refill
+      // the list the user just cleared.
+      cancelCourseSearch();
       setAvailableCourses([]);
       return;
     }
     debouncedCourseSearch(query.trim());
-  }, [debouncedCourseSearch]);
+  }, [debouncedCourseSearch, cancelCourseSearch]);
 
   // Auto-populate course data when a course is selected
   const selectCourse = useCallback((course: GolfCourse, selectedTee: string = teeBox) => {
@@ -378,7 +381,7 @@ export default function GolfScorecardForm({ onDataChange }: GolfScorecardFormPro
 
             {/* Enhanced course suggestions dropdown */}
             {courseSearchOpen && (searchLoading || availableCourses.length > 0) && (
-              <div className="absolute z-10 w-full mt-1 bg-surface-raised border border-border-strong rounded-lg shadow-lg max-h-64 overflow-y-auto">
+              <div className="absolute z-10 w-full mt-1 bg-surface-raised border border-border-strong rounded-lg shadow-lg max-h-64 overflow-y-auto overscroll-contain">
                 {searchLoading ? (
                   <div className="px-3 py-4 text-center text-muted">
                     <i className="fas fa-spinner fa-spin mr-2"></i>

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { GolfCourseService } from '@/lib/golf-course-service';
 import { getSupabaseAdmin, requireAuth } from '@/lib/auth-server';
 import { getCourseByName as getStaticCourseByName, type GolfCourse } from '@/lib/golf-courses-db';
+import { likePatternFor } from '@/lib/search/patterns';
 
 export async function GET(request: NextRequest) {
   try {
@@ -62,7 +63,9 @@ export async function GET(request: NextRequest) {
         const { data: roundCourses } = await admin
           .from('golf_rounds')
           .select('profile_id, course, course_location, par, holes, tee, course_rating, slope_rating, date')
-          .ilike('course', `%${query.replace(/[\%_]/g, '\\$&')}%`)
+          // Prefix-only under 3 chars: '%a%' matched nearly every round ever
+          // logged, which is what made 1-character course search noise.
+          .ilike('course', likePatternFor(query))
           .order('date', { ascending: false })
           .limit(100);
 

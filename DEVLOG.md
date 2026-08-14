@@ -1,5 +1,73 @@
 # Development Log
 
+## August 13, 2026 — Two search regressions: invisible results, frozen composer
+
+Tom, after #156: *"the golf course search is very broken, I can't scroll once I
+start typing, it seems frozen"* and *"when I search something in the main search
+bar, nothing appears to show."* Two separate causes, both **measured** rather
+than reasoned about.
+
+**Header search — results rendered underneath the backdrop.** `HeaderSearch`
+wraps `AdvancedSearchBar` in `min-h-0 flex-1 overflow-y-auto`, and that wrapper
+is only as tall as the input: **46 px**, bottom edge y=118, while the
+absolutely-positioned results sat at y=126–294 — entirely below it. A hit-test
+at the first result returned the modal **backdrop**. Clipped, painted under the
+overlay, unclickable. Both the results and the ~500 px filters panel are now
+inline flow content, so the dialog grows and its own scroller does the job its
+comment says it was added for.
+
+**The wrapper predates this work** (PR #89). It was invisible until now because
+the old whole-word search returned nothing for most queries — fixing search
+exposed it. Same story for the golf backdrop below. Worth remembering: *fixing
+a feature that returned nothing surfaces every rendering bug downstream of it.*
+
+Deleting `showResults` removed a second, independent bug: it was armed only by a
+`hasAnything` false→true **edge**, so once an outside click cleared it a new
+query with results never reopened it — and `clubs` were cleared by nothing at
+all, pinning that edge true for the component's life. Its loading/empty/error
+branches were therefore unreachable dead code, which is why a zero-result or
+failed query rendered total silence. Clubs now live in the hook's result array
+(inert, `isNavigable` keeps arrow keys off them) so they clear, cache and
+sequence-guard **by construction** instead of by remembering to.
+
+Two more `useTypeahead` defects found in the same pass: `scope` was not in the
+cache key, so changing a filter re-used the previous filter's rows and filters
+were a silent no-op after any cached query; and the sequence counter was bumped
+*after* the cache short-circuit, so an in-flight request for the previous query
+could clobber rows just served from cache.
+
+**Golf course field — a full-viewport overlay ate every gesture.**
+`GolfComposerSection` rendered a transparent `fixed inset-0` click-catcher
+whenever the dropdown had results. Being `position: fixed`, a scroll gesture on
+it chains to the **document** — which `useBodyScrollLock` has set to
+`overflow: hidden`. Nothing moves, and every tap elsewhere in the modal is
+swallowed. The backdrop is old; what changed is the 1-character floor plus
+`ilike('%a%')` over `golf_rounds` matching nearly every round, so results became
+effectively always non-empty and the overlay went up on keystroke one and
+stayed. Replaced with `usePopoverDismiss`, whose own header already documents
+invisible backdrops as the anti-pattern it exists to replace. Escape now closes
+the dropdown *first* and stops, instead of discarding the whole post.
+
+`useDebouncedCallback` gained `cancel()`. Without it the short-query branch
+early-returned while leaving the timer armed — type then backspace inside 120 ms
+and it still fired, refilling the list (and the overlay) over an emptied field.
+Course matching is now prefix-only under 3 characters (`likePatternFor`, 12
+tests), which is what makes 1-character course search a suggestion rather than
+noise.
+
+**Verified.** Gate green (1305 tests). e2e 18/18, server log read as well as
+exit codes. Signed-in browser probe **22/22** at 1440×900 and 390×844 including
+touch — both golf course fields keep the modal scrolling, the form still
+receives presses, no new full-viewport overlay, Escape closes only the dropdown,
+clearing cancels the pending search. Header-search probe **10/10**.
+
+**The lesson worth keeping.** The probe that passed 30/30 before this shipped
+asserted `[role="option"]` element **count**. A clipped element still has a
+box and still reports `isVisible()`. *Counting is not seeing.* The probe now
+hit-tests `document.elementFromPoint` at the first row and checks the list's box
+lies inside its nearest scrollable ancestor — the two assertions that would have
+caught this before merge.
+
 ## August 13, 2026 — Instant search everywhere (migration 087)
 
 Tom: *"the search function throughout the app isn't amazing… the primary search
