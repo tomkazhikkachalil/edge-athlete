@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import MultiPlayerScorecardGrid, { type PlayerHoleScore, type PlayerScoreData } from '@/components/golf/MultiPlayerScorecardGrid';
 import { useToast } from '@/components/Toast';
 import { useDebouncedCallback } from '@/hooks/useDebouncedCallback';
@@ -81,6 +81,7 @@ export default function GolfScorecardForm({ onDataChange }: GolfScorecardFormPro
 
   // Course search
   const [courseSearchOpen, setCourseSearchOpen] = useState(false);
+  const courseDropdownRef = useRef<HTMLDivElement>(null);
   const [courseSearchQuery, setCourseSearchQuery] = useState('');
   const [availableCourses, setAvailableCourses] = useState<GolfCourse[]>([]);
   const [searchLoading, setSearchLoading] = useState(false);
@@ -134,6 +135,21 @@ export default function GolfScorecardForm({ onDataChange }: GolfScorecardFormPro
   }, []);
 
   const [debouncedCourseSearch, cancelCourseSearch] = useDebouncedCallback(runCourseSearch);
+
+  // Same clipping fix as the shared-round field and AddEquipmentModal: this
+  // dropdown is `absolute` inside the composer's `overflow-y-auto` body, so it
+  // is cut off at that ancestor's edge rather than overflowing it. No-op when
+  // already fully visible.
+  const courseDropdownOpen = courseSearchOpen && (searchLoading || availableCourses.length > 0);
+  useEffect(() => {
+    if (!courseDropdownOpen) return;
+    // rAF: the panel must be laid out before it can be measured.
+    const id = requestAnimationFrame(() =>
+      courseDropdownRef.current?.scrollIntoView({ block: 'nearest', behavior: 'smooth' })
+    );
+    return () => cancelAnimationFrame(id);
+  }, [courseDropdownOpen, availableCourses.length]);
+
 
   const searchCourses = useCallback((query: string) => {
     if (query.trim().length < 1) {
@@ -380,8 +396,11 @@ export default function GolfScorecardForm({ onDataChange }: GolfScorecardFormPro
             />
 
             {/* Enhanced course suggestions dropdown */}
-            {courseSearchOpen && (searchLoading || availableCourses.length > 0) && (
-              <div className="absolute z-10 w-full mt-1 bg-surface-raised border border-border-strong rounded-lg shadow-lg max-h-64 overflow-y-auto overscroll-contain">
+            {courseDropdownOpen && (
+              <div
+                ref={courseDropdownRef}
+                className="absolute z-10 w-full mt-1 bg-surface-raised border border-border-strong rounded-lg shadow-lg max-h-64 overflow-y-auto overscroll-contain"
+              >
                 {searchLoading ? (
                   <div className="px-3 py-4 text-center text-muted">
                     <i className="fas fa-spinner fa-spin mr-2"></i>
