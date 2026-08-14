@@ -208,11 +208,28 @@ export default function GolfComposerSection({
 
   // Outside press + Escape, instead of a viewport-covering backdrop div.
   const courseFieldRef = useRef<HTMLDivElement>(null);
+  const courseDropdownRef = useRef<HTMLDivElement>(null);
   const closeCourseSearch = useCallback(() => {
     setCourseSearchOpen(false);
     setAvailableCourses([]);
   }, []);
-  usePopoverDismiss(courseFieldRef, courseSearchOpen && availableCourses.length > 0, closeCourseSearch);
+  const courseDropdownOpen = courseSearchOpen && availableCourses.length > 0;
+  usePopoverDismiss(courseFieldRef, courseDropdownOpen, closeCourseSearch);
+
+  // The dropdown is `absolute` inside the composer's `overflow-y-auto` body, so
+  // it is CLIPPED at that ancestor's edge — measured at 240px tall hanging out
+  // of a scroller that ended 138px earlier, i.e. most of the list was
+  // invisible and unclickable. Nudge it into view, the same fix
+  // AddEquipmentModal.tsx already uses for its brand/model panels (which is
+  // why those measure clean). No-op when the list is already fully visible.
+  useEffect(() => {
+    if (!courseDropdownOpen) return;
+    // rAF: the panel must be laid out before it can be measured.
+    const id = requestAnimationFrame(() =>
+      courseDropdownRef.current?.scrollIntoView({ block: 'nearest', behavior: 'smooth' })
+    );
+    return () => cancelAnimationFrame(id);
+  }, [courseDropdownOpen, availableCourses.length]);
 
   // Select a course from search results (for shared rounds)
   const selectCourse = useCallback((course: GolfCourse) => {
@@ -582,7 +599,7 @@ export default function GolfComposerSection({
                         // the composer's own Escape would otherwise discard
                         // the whole post. Innermost layer closes first, the
                         // same rule the message action sheet follows.
-                        if (e.key === 'Escape' && courseSearchOpen && availableCourses.length > 0) {
+                        if (e.key === 'Escape' && courseDropdownOpen) {
                           e.preventDefault();
                           e.stopPropagation();
                           closeCourseSearch();
@@ -611,8 +628,11 @@ export default function GolfComposerSection({
                       swallowed. Dismissal is now usePopoverDismiss (outside
                       press + Escape), which is the house pattern precisely
                       because invisible backdrops do this. */}
-                  {courseSearchOpen && availableCourses.length > 0 && (
-                    <div className="absolute z-20 w-full mt-1 bg-surface-raised border border-border-strong rounded-lg shadow-lg max-h-60 overflow-y-auto overscroll-contain">
+                  {courseDropdownOpen && (
+                    <div
+                      ref={courseDropdownRef}
+                      className="absolute z-20 w-full mt-1 bg-surface-raised border border-border-strong rounded-lg shadow-lg max-h-60 overflow-y-auto overscroll-contain"
+                    >
                       {availableCourses.map((course) => (
                         <button
                           key={course.id}
