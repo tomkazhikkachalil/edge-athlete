@@ -1,5 +1,58 @@
 # Development Log
 
+## August 14, 2026 — Maintenance sweep (post-159): all green, one flake fixed
+
+Requested full checklist. Recorded because a sweep that finds nothing is only
+worth anything if it says what it ran.
+
+- **`npm audit`: 0 vulnerabilities**, dev and production trees.
+- **Full gate green** on merged `main` (`af741d9`): tsc clean, **lint 0
+  warnings**, **1301 tests** across 101 files, production build compiled.
+- **e2e 22/22 locally AND 22/22 against production** (`npm run test:e2e:prod`).
+- **Grant posture holding.** `search_profiles`, `search_posts`, `search_clubs`,
+  `search_people` and `update_user_handle` all reject the public anon key (404),
+  `mark_all_notifications_read` 401 — with a control read proving the key itself
+  is valid, so those are permission results and not a dead key.
+- **Production surfaces:** 12 pages checked; `/`, `/explore`, `/feed`,
+  `/calendar`, `/live`, `/messages`, `/settings`, `/terms`, `/privacy`, `/u/…`,
+  `/athlete` all 200, `/notifications` 307 → renders. Read-only APIs 200
+  (`/api/golf/live-now` 401 anonymously, which is correct).
+- **Two-width sweep 10/10** at 1440×900 and 390×844: no error boundary, real
+  content, no horizontal overflow, no uncaught page errors.
+- **0 open PRs, 0 stale branches** (159 merged and pruned after asserting
+  `merged:true`), tree clean, deploy Ready. Migrations `081`–`087` all run and
+  verified.
+
+**Dependencies deliberately NOT bumped.** Minor updates are available (Next
+16.2.12→16.3.1, supabase-js, @sentry/nextjs, lucide-react, nodemailer,
+eslint-config-next). A maintenance sweep is not the place to take them, and
+TypeScript 7 / ESLint 10 remain blocked by the ecosystem as before. Listed here
+so the next session can pick them up as their own change.
+
+### The one real finding: feed-post's flake, fixed rather than retried away
+
+`feed-post` had flaked three times against production. It was tempting to call
+it environmental and move on — the retry added in #159 was already absorbing it.
+Instead: `POST /api/posts` was driven directly against production and came back
+**200 with the post persisting through a reload**, so the product is fine and
+the race is the feed's refetch after the composer closes.
+
+Its two 15s windows are now **30s** (with the test timeout raised to 120s to
+leave headroom). That does not weaken the assertion — a post that never appears
+still fails — it only stops a slow-but-correct render being reported as a
+defect. Verified: 22/22 against production with **no flaky marker**, and 22/22
+locally.
+
+### A false alarm worth writing down
+
+The first two-width sweep reported 8 error-boundary failures. All false: the
+check used `/Something went wrong|Application error|500/i`, and the bare `500`
+matched a **webpack chunk id** in Next's serialised RSC payload (`I[500325,…]`).
+Corrected to real boundary copy only, plus `innerText` rather than `textContent`
+so the script payload is not scanned at all. The sibling of the trap already in
+DEVLOG — marker regexes passing on a crashed page — is this one failing on a
+healthy page. Assert on what the user can see.
+
 ## August 14, 2026 — The e2e suite can smoke a real deployment: 22/22 on production
 
 Tom, after confirming search feels good in prod: *"run the whole e2e suite
