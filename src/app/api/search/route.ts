@@ -1,9 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseAdmin, requireAuth } from '@/lib/auth-server';
 import { FEATURE_FLAGS } from '@/lib/features';
+import { searchPeople } from '@/lib/search/people-server';
 
-// Feature flag for full-text search (set to false to use old ILIKE method)
-const USE_FULLTEXT_SEARCH = true;
+// Minimum query length, per kind of result.
+//
+// People suggest from the FIRST keystroke: migration 087 makes a 1-character
+// prefix an index range scan, and a name prefix is exactly what someone means
+// by one letter. Post and club search stays at 2 — they run on full-text over
+// free-form prose, where one letter matches near-arbitrarily.
+const PEOPLE_MIN_CHARS = 1;
+const CONTENT_MIN_CHARS = 2;
 
 // Sanitize user input for use in PostgREST .or() / .ilike() filters.
 // Escapes characters that could break out of the filter expression.
@@ -39,10 +46,15 @@ export async function GET(request: NextRequest) {
     const dateTo = searchParams.get('dateTo')?.trim();
 
 
-    if (!query || query.length < 2) {
+    // An empty query is "nothing typed yet", not a client error. The old 400
+    // under 2 characters made every typeahead in the app either wait for a
+    // second keystroke or log a guaranteed failure on the first one.
+    if (!query || query.length < PEOPLE_MIN_CHARS) {
       return NextResponse.json({
-        error: 'Search query must be at least 2 characters'
-      }, { status: 400 });
+        query: query ?? '',
+        results: { athletes: [], posts: [], clubs: [] },
+        total: 0
+      });
     }
 
     const results: {
@@ -55,117 +67,64 @@ export async function GET(request: NextRequest) {
       clubs: []
     };
 
-    // Search Athletes/Profiles
+    // ── Athletes ────────────────────────────────────────────────────────────
+    // Ranked, indexed and prefix-first via search_people (migration 087).
+    //
+    // This replaces the old search_profiles RPC, which matched with
+    // websearch_to_tsquery — WHOLE WORDS ONLY, so 'Tho' never found 'Thomas'
+    // and the common two-letter inputs ('to', 'in', 'is') were English STOP
+    // WORDS that matched nothing at all. Its ILIKE fallback never rescued
+    // either case because it only ran when the RPC THREW, not when it came
+    // back empty. It also never returned `handle`, so @handles were
+    // unsearchable and every row here carried handle: null.
+    //
+    // The visibility filter now lives INSIDE the query rather than running
+    // over the results afterwards, so the LIMIT lands after privacy instead
+    // of before it — private profiles no longer consume result slots and push
+    // public matches off the end.
     if (type === 'all' || type === 'athletes') {
-      try {
-        if (USE_FULLTEXT_SEARCH) {
-          // Use optimized full-text search function
+      // sport/school are post-filters over the ranked set, so widen the
+      // window when one is active or the filter could empty a full page.
+      const hasFacets = Boolean(sport || school);
+      let athletes = await searchPeople({
+        query,
+        visibleIds: viewerId ? [viewerId] : [],
+        includePublic: true,
+        limit: hasFacets ? 100 : 20,
+      });
 
-          const { data: athletes, error: athletesError } = await supabase
-            .rpc('search_profiles', {
-              search_query: query,
-              max_results: 20
-            });
-
-          if (!athletesError && athletes) {
-            // Apply additional filters (sport, school) client-side for now
-            let filtered = athletes;
-            if (sport) {
-              filtered = filtered.filter((a: { sport?: string }) => a.sport === sport);
-            }
-            if (school) {
-              filtered = filtered.filter((a: { school?: string }) =>
-                a.school?.toLowerCase().includes(school.toLowerCase())
-              );
-            }
-
-            results.athletes = filtered.map((athlete: {
-              id: string;
-              full_name: string | null;
-              first_name: string | null;
-              middle_name: string | null;
-              last_name: string | null;
-              avatar_url: string | null;
-              location: string | null;
-              sport: string | null;
-              school: string | null;
-              visibility: string | null;
-              handle?: string | null;
-            }) => ({
-              id: athlete.id,
-              handle: athlete.handle ?? null,
-              full_name: athlete.full_name,
-              first_name: athlete.first_name,
-              middle_name: athlete.middle_name,
-              last_name: athlete.last_name,
-              avatar_url: athlete.avatar_url,
-              location: athlete.location,
-              sport: athlete.sport,
-              school: athlete.school,
-              visibility: athlete.visibility
-            }));
-          } else if (athletesError) {
-            console.error('[SEARCH] Athletes full-text error:', athletesError);
-            // Fallback to ILIKE on error
-            throw athletesError;
-          }
-        } else {
-          throw new Error('Fallback to ILIKE');
-        }
-      } catch {
-        // Fallback to ILIKE search if full-text search fails
-        const safeQuery = sanitizeForFilter(query);
-        const searchPattern = `%${safeQuery}%`;
-
-        const athleteQuery = supabase
-          .from('profiles')
-          .select('id, full_name, first_name, middle_name, last_name, avatar_url, visibility, location, sport, school, handle')
-          .or(`full_name.ilike.${searchPattern},first_name.ilike.${searchPattern},middle_name.ilike.${searchPattern},last_name.ilike.${searchPattern},location.ilike.${searchPattern}`);
-
-        if (sport) {
-          athleteQuery.eq('sport', sport);
-        }
-        if (school) {
-          athleteQuery.ilike('school', `%${school}%`);
-        }
-
-        const { data: athletes, error: athletesError } = await athleteQuery
-          .order('full_name', { ascending: true, nullsFirst: false })
-          .limit(20);
-
-        if (!athletesError && athletes) {
-          results.athletes = athletes.map(athlete => ({
-            id: athlete.id,
-            full_name: athlete.full_name,
-            first_name: athlete.first_name,
-            middle_name: athlete.middle_name,
-            last_name: athlete.last_name,
-            avatar_url: athlete.avatar_url,
-            location: athlete.location,
-            sport: athlete.sport,
-            school: athlete.school,
-            visibility: athlete.visibility,
-            handle: athlete.handle
-          }));
-        } else if (athletesError) {
-          console.error('[SEARCH] Athletes ILIKE error:', athletesError);
-        }
+      if (sport) {
+        athletes = athletes.filter(a => a.sport === sport);
       }
+      if (school) {
+        const needle = school.toLowerCase();
+        athletes = athletes.filter(a => a.school?.toLowerCase().includes(needle));
+      }
+
+      results.athletes = hasFacets ? athletes.slice(0, 20) : athletes;
     }
 
     // Search Posts (by caption, hashtags, tags)
-    if (type === 'all' || type === 'posts') {
+    if ((type === 'all' || type === 'posts') && query.length >= CONTENT_MIN_CHARS) {
       try {
-        if (USE_FULLTEXT_SEARCH) {
-          // Use optimized full-text search function
-
+        {
           const { data: postsBasic, error: postsError } = await supabase
             .rpc('search_posts', {
               search_query: query,
               max_results: 15
             });
 
-          if (!postsError && postsBasic) {
+          // An EMPTY result is a fallback trigger, not an answer. search_posts
+          // runs websearch_to_tsquery, so a stop word ('to', 'in', 'is') or a
+          // partial word compiles to a query that matches nothing — the ILIKE
+          // path below finds it. Previously only a thrown error got here,
+          // which is why those queries returned nothing forever.
+          if (postsError || !postsBasic || postsBasic.length === 0) {
+            if (postsError) console.error('[SEARCH] Posts full-text error:', postsError);
+            throw postsError ?? new Error('no full-text post matches');
+          }
+
+          {
             // Fetch full post details with profile and media
             const postIds = postsBasic.map((p: { id: string }) => p.id);
 
@@ -215,16 +174,14 @@ export async function GET(request: NextRequest) {
 
               results.posts = posts || [];
             }
-          } else if (postsError) {
-            console.error('[SEARCH] Posts full-text error:', postsError);
-            throw postsError;
           }
-        } else {
-          throw new Error('Fallback to ILIKE');
         }
       } catch {
-        // Fallback to ILIKE search if full-text search fails
-        const searchPattern = `%${query}%`;
+        // Fallback: substring match on the caption. Reached when the RPC
+        // errored OR returned nothing (see above).
+        // sanitizeForFilter was missing here while every sibling path had it —
+        // this one built its pattern from raw input.
+        const searchPattern = `%${sanitizeForFilter(query)}%`;
 
         let postQuery = supabase
           .from('posts')
@@ -279,25 +236,22 @@ export async function GET(request: NextRequest) {
     }
 
     // Search Clubs
-    if (type === 'all' || type === 'clubs') {
+    if ((type === 'all' || type === 'clubs') && query.length >= CONTENT_MIN_CHARS) {
       try {
-        if (USE_FULLTEXT_SEARCH) {
-          // Use optimized full-text search function
-
+        {
           const { data: clubs, error: clubsError } = await supabase
             .rpc('search_clubs', {
               search_query: query,
               max_results: 10
             });
 
-          if (!clubsError && clubs) {
-            results.clubs = clubs;
-          } else if (clubsError) {
-            console.error('[SEARCH] Clubs full-text error:', clubsError);
-            throw clubsError;
+          // Same stop-word/partial-word trap as posts: empty falls through to
+          // the substring path rather than being reported as "no clubs".
+          if (clubsError || !clubs || clubs.length === 0) {
+            if (clubsError) console.error('[SEARCH] Clubs full-text error:', clubsError);
+            throw clubsError ?? new Error('no full-text club matches');
           }
-        } else {
-          throw new Error('Fallback to ILIKE');
+          results.clubs = clubs;
         }
       } catch {
         // Fallback to ILIKE search if full-text search fails
@@ -318,11 +272,11 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    // Privacy filter: drop private profiles from athlete results unless the
-    // requester is that profile's owner. Covers both the full-text and ILIKE
-    // paths in one place.
-    results.athletes = (results.athletes as Array<{ id: string; visibility: string | null }>)
-      .filter(a => a.visibility === 'public' || a.id === viewerId);
+    // NOTE: athletes need no privacy pass here any more. search_people applies
+    // `visibility = 'public' OR id = ANY(visible_ids)` inside the query, so the
+    // LIMIT lands after the filter. Filtering here instead (as this route used
+    // to) let private profiles consume slots in the top 20 and silently drop
+    // public matches off the end.
 
     // Privacy filter for POSTS: drop posts authored by private profiles
     // unless the viewer is the author or an accepted follower. The RPC/ILIKE

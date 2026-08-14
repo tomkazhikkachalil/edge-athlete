@@ -1,4 +1,26 @@
 -- FULL-TEXT SEARCH - COMPACT VERSION (Copy all and run in Supabase SQL Editor)
+--
+-- ⚠️ PARTLY SUPERSEDED BY database/migrations/087_search_core.sql. Read that
+--    first; re-running this file WILL undo part of it.
+--
+--    087 now owns:
+--      * profiles_search_vector_update()  — redefined WITHOUT email (it made
+--        profiles discoverable by email address through an anon-callable RPC).
+--        Part 3 below is the stale version.
+--      * all EXECUTE grants on search_profiles / search_posts / search_clubs,
+--        which were reachable with the public anon key. search_profiles has no
+--        visibility filter, so that was a private-profile enumeration hole.
+--      * people search generally — search_people() replaced search_profiles as
+--        the source for /api/search, which no longer calls the function in
+--        Part 7. websearch_to_tsquery matches WHOLE WORDS, so 'Tho' never
+--        found 'Thomas' and stop words like 'to'/'in' matched nothing at all.
+--
+--    This file still owns the POSTS and CLUBS vectors, their triggers, and
+--    their search functions, which /api/search continues to use.
+--
+--    Provenance note: this directory sits outside the numbered migration
+--    sequence, so nothing here is tracked as applied. New search DDL belongs
+--    in database/migrations/.
 
 -- 1. Add search columns
 ALTER TABLE profiles ADD COLUMN IF NOT EXISTS search_vector tsvector;

@@ -55,7 +55,9 @@ export async function GET(request: NextRequest) {
         viewerId = user.id;
       } catch { /* anonymous search still gets platform courses */ }
 
-      if (query.length >= 2) {
+      // 1 char, like every other search: golf_rounds.course gained prefix and
+      // trigram indexes in migration 087.
+      if (query.length >= 1) {
         const admin = getSupabaseAdmin();
         const { data: roundCourses } = await admin
           .from('golf_rounds')
