@@ -1,5 +1,68 @@
 # Development Log
 
+## August 14, 2026 — Dependency minors taken, incl. Next 16.3.1 (#161)
+
+The bumps the last sweep listed and deliberately deferred. **Only the lockfile
+moved** — every range is already `^`, so `package.json` is untouched:
+
+| package | from | to |
+|---|---|---|
+| next | 16.2.12 | **16.3.1** |
+| eslint-config-next | 16.2.12 | 16.3.1 |
+| @sentry/nextjs | 10.69.0 | 10.70.0 |
+| @supabase/supabase-js | 2.111.0 | 2.112.3 |
+| lucide-react | 1.28.0 | 1.31.0 |
+| mediabunny | 1.52.2 | 1.53.1 |
+| nodemailer | 9.0.3 | 9.0.5 |
+
+**Not taken, and not by accident.** `typescript` 7, `eslint` 10 and
+`@types/node` 26 are majors and stay ecosystem-blocked as before.
+`@supabase/ssr` 0.12.4 sits outside `^0.7.0` — 0.x minors are breaking by
+semver, so it needs its own change with its own verification.
+
+### The new lint rule, and why nothing was "fixed" to satisfy it
+
+`eslint-config-next` 16.3.1 turns on
+**`@next/next/no-location-assign-relative-destination`**, which reported **11
+pre-existing warnings**. Lint is `--max-warnings 0`, so a dependency bump alone
+turned the gate red.
+
+All 11 were read before anything was touched. Every one is an intentional **hard
+navigation across an auth/session boundary**: sign-out (×2), username login,
+post-activation session pickup, a new guardian access row, post sign-out,
+account deletion, and the two error boundaries.
+
+The rule's suggested fix — `router.push` — is **wrong for all of them**. The
+whole point of those calls is to discard client and Supabase state and let
+middleware re-run; a soft navigation would carry the stale state forward, which
+is the bug they exist to avoid. For `global-error.tsx` it is not even possible:
+the app shell is gone above that boundary, so router/Link do not exist there —
+as its own comment already said.
+
+So behaviour is **unchanged**. Each site carries an inline disable **with its
+reason** (the house rule), and `eslint.config.mjs` gained a block listing all 11
+and why, per the convention that every disable in the tree is explained there.
+The rule is deliberately **not** switched off wholesale — a new, accidental
+`window.location.href` in ordinary UI code is still worth catching.
+
+This is the general shape worth remembering: when a dependency turns on a new
+rule, the question is *"is the rule right about this code?"*, not *"how do I
+make the warning go away?"*. Here it was wrong 11 times out of 11, and silently
+"fixing" it would have broken sign-out.
+
+### Next 16.3.1
+
+The `middleware` → `proxy` deprecation is **unchanged** — still a warning, not
+an error — so the deliberately-kept `middleware` convention needs nothing.
+
+### Verified
+
+Gate green (tsc clean, **lint 0**, **1301 tests**, build compiled) · **e2e
+22/22 local** on a clean `.next` · **e2e 22/22 against production** after
+deploy · post-deploy smoke 200 across 11 surfaces, including `/goodbye`,
+`/activate/[token]` and `/invite/[token]` — the auth pages the new rule touched.
+0 open PRs, 0 stale branches, tree clean.
+
 ## August 14, 2026 — Maintenance sweep (post-159): all green, one flake fixed
 
 Requested full checklist. Recorded because a sweep that finds nothing is only
