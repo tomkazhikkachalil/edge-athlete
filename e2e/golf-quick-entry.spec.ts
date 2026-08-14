@@ -56,3 +56,30 @@ test('log an individual golf round and see the scorecard post', async ({ page })
     .toBeHidden({ timeout: 20_000 });
   await expect(page.getByText(courseName).first()).toBeVisible({ timeout: 20_000 });
 });
+
+// The SHARED path (the "Playing now" default). Score Entry used to be gated on
+// having playing partners, so composing a solo round showed no scorecard at all
+// and your own scores could not be entered. The creator's row is now seeded up
+// front — and, critically, seeding it must NOT count as unsaved work.
+test('shared golf round: the creator is on the scorecard before any partner', async ({ page }) => {
+  await page.goto('/feed');
+  await page.getByRole('button', { name: /what's on your mind/i }).click();
+  await page.getByRole('button', { name: /general post/i }).click();
+  const sportSelector = page.locator('div[class*="z-[60]"]');
+  await sportSelector.getByPlaceholder('Search sports...').fill('golf');
+  await sportSelector.getByRole('button', { name: /golf/i }).first().click();
+
+  // Present immediately — no partner added, nothing typed.
+  await expect(page.getByRole('heading', { name: 'Score Entry' })).toBeVisible({ timeout: 15_000 });
+
+  const playerRows = page.locator('table').first().locator('tbody tr');
+  await expect(playerRows).toHaveCount(1);
+  // ...and the row is the composer, not a placeholder. globalSetup names
+  // user A "Edge QA Alpha", so the grid's short name starts "Edge".
+  await expect(playerRows.first()).toContainText('Edge');
+
+  // The regression this guards: a seeded row is not work in progress, so
+  // closing an untouched composer must not ask to discard anything.
+  await page.getByRole('button', { name: 'Close modal' }).click();
+  await expect(page.getByText(/discard/i)).toHaveCount(0);
+});

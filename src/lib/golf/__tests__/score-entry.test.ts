@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   firstUnscoredHole,
+  hasAnyEnteredScore,
   parseDraft,
   mergeDraftIntoHoles,
   DRAFT_TTL_MS,
@@ -146,5 +147,42 @@ describe('mergeDraftIntoHoles', () => {
     expect(holes[0].penalties).toEqual(['out_of_bounds', 'drop', 'drop']);
     expect(holes[1].penalties).toEqual(['water']);
     expect(restored).toEqual([5, 6]);
+  });
+});
+
+describe('hasAnyEnteredScore', () => {
+  const row = (...strokes: Array<number | undefined>) => ({
+    hole_scores: strokes.map((s, i) => ({ hole_number: i + 1, strokes: s })),
+  });
+
+  it('is false for the blank creator row the composer seeds on open', () => {
+    // The regression this guards: if a seeded row counted as work, opening the
+    // golf composer and closing it would prompt to discard nothing.
+    expect(hasAnyEnteredScore([row(undefined, undefined, undefined)])).toBe(false);
+  });
+
+  it('is false for no players at all', () => {
+    expect(hasAnyEnteredScore([])).toBe(false);
+  });
+
+  it('is false for a row with no holes', () => {
+    expect(hasAnyEnteredScore([{ hole_scores: [] }])).toBe(false);
+  });
+
+  it('treats a 0 as not-a-score', () => {
+    // A field mid-clear can hold 0; it is not a golf score.
+    expect(hasAnyEnteredScore([row(0, 0)])).toBe(false);
+  });
+
+  it('is true as soon as one real stroke is entered', () => {
+    expect(hasAnyEnteredScore([row(undefined, 4)])).toBe(true);
+  });
+
+  it('is true when any player has entered, not just the first', () => {
+    expect(hasAnyEnteredScore([row(undefined), row(undefined), row(5)])).toBe(true);
+  });
+
+  it('ignores negative strokes', () => {
+    expect(hasAnyEnteredScore([row(-1)])).toBe(false);
   });
 });

@@ -15,6 +15,8 @@
 
 import { useState, useCallback, useRef, useEffect } from 'react';
 import { useToast } from '@/components/Toast';
+import { useAuth } from '@/lib/auth';
+import { hasAnyEnteredScore } from '@/lib/golf/score-entry';
 import { useDebouncedCallback } from '@/hooks/useDebouncedCallback';
 import { usePopoverDismiss } from '@/hooks/usePopoverDismiss';
 import GolfScorecardForm from '@/components/golf/GolfScorecardForm';
@@ -117,6 +119,10 @@ export default function GolfComposerSection({
   onCaptionGenerated,
 }: SportComposerExtraProps) {
   const { showError } = useToast();
+  // activeProfile first, so a guardian composing AS a managed athlete seeds
+  // that athlete's row rather than their own (GolfScorecardForm does the same).
+  const { profile, activeProfile } = useAuth();
+  const displayProfile = activeProfile ?? profile;
 
   // Golf specific data
   const [golfRoundData, setGolfRoundData] = useState<GolfRoundData | null>(null);
@@ -310,6 +316,50 @@ export default function GolfComposerSection({
     );
   }, []);
 
+  // ── The creator's own row ───────────────────────────────────────────────────
+  // Score Entry used to be gated on having PLAYING PARTNERS, so on the default
+  // "Playing now" path — where you are the only player — it never appeared at
+  // all, and you could not enter your own scores while composing. The creator
+  // is a first-class participant everywhere else (the server inserts them with
+  // role:'creator', the live round renders them as an ordinary player), so seed
+  // their row here and let the grid render from the moment golf is selected.
+  //
+  // playerScores ONLY — deliberately not sharedRoundParticipants(Data). Those
+  // two drive the Playing Partners chips and the submitted participant_ids;
+  // leaving them alone keeps that section unchanged and keeps the payload
+  // identical, because /api/group-posts already prepends the creator when the
+  // array omits them (so `position` stays 0).
+  //
+  // Render-phase, not an effect: this is state SYNCHRONISATION (the same idiom
+  // as the roundType pin above), and the guard is self-clearing — once the row
+  // exists the condition is false.
+  const creatorName = displayProfile
+    ? (displayProfile.first_name && displayProfile.last_name
+        ? `${displayProfile.first_name} ${displayProfile.last_name}`
+        : displayProfile.full_name || 'You')
+    : null;
+
+  if (
+    active &&
+    roundType === 'shared' &&
+    userId &&
+    creatorName &&
+    !playerScores.some(p => p.participant_id === userId)
+  ) {
+    initializePlayerScores(
+      [{ id: userId, name: creatorName, avatar_url: displayProfile?.avatar_url ?? undefined }],
+      sharedRoundDetails.holesPlayed
+    );
+  }
+
+  // NB: sharedRoundDetails.holesPlayed is a constant 18 on the shared path —
+  // nothing in this component ever sets it (the 9/18 control belongs to the
+  // INDIVIDUAL form). So every row is built with 18 slots and none ever needs
+  // resizing. If a hole-count control is ever added here, note that
+  // initializePlayerScores does NOT resize existing rows and
+  // handlePlayerScoreChange only maps over slots that already exist, so rows
+  // would have to be extended when the count grows.
+
   // Handle shared round participant selection
   const handleParticipantSelection = (selectedIds: string[], selectedProfiles?: ProfileData[]) => {
     // Merge new selections with existing participants (don't replace)
@@ -398,12 +448,14 @@ export default function GolfComposerSection({
           Boolean(golfRoundData && golfRoundData.courseName && golfRoundData.holesData?.some((h: HoleData) => h.score !== undefined))
         : // Shared rounds need at least course name, date, and at least one participant
           // Weather fields are optional - can be added later or left blank
+          // Course + date only. Playing partners are NOT required: you are
+          // always on the scorecard yourself, so a solo round is a complete
+          // round whether it is live or already played. (This used to demand a
+          // participant for already-played rounds, which is why the old "+ Add
+          // Myself" button existed.)
           Boolean(
             sharedRoundDetails.courseName.trim().length > 0 &&
-            sharedRoundDetails.date &&
-            // Live ("playing now") rounds can be solo; batch shared rounds
-            // need at least one other player
-            (sharedRoundParticipants.length > 0 || !sharedRoundDetails.alreadyPlayed)
+            sharedRoundDetails.date
           );
 
     // Golf's share of the composer's unsaved-work check.
@@ -419,7 +471,11 @@ export default function GolfComposerSection({
       sharedRoundDetails.courseName.trim() !== '' ||
       manualParEntry.length > 0 ||
       manualYardageEntry.length > 0 ||
-      playerScores.length > 0;
+      // A seeded row is not work. Counting playerScores.length here would make
+      // the composer dirty the instant golf is selected, so every close would
+      // prompt to discard work nobody started — the same bug the roundType note
+      // above records. Only an actual stroke counts.
+      hasAnyEnteredScore(playerScores);
 
     onChange({
       golfRoundData,
@@ -1032,7 +1088,8 @@ export default function GolfComposerSection({
                   ) : sharedRoundDetails.alreadyPlayed ? (
                     <div className="text-sm text-tertiary bg-surface rounded-lg p-3 border border-border-strong">
                       <i className="fas fa-info-circle mr-1"></i>
-                      Add at least one participant to create a shared round
+                      You&apos;re on the scorecard already — add playing partners
+                      if you weren&apos;t alone.
                     </div>
                   ) : (
                     // Live rounds are solo by default — nothing here is
@@ -1050,8 +1107,10 @@ export default function GolfComposerSection({
             </div>
           )}
 
-          {/* Score Entry Section (when shared round with participants) */}
-          {roundType === 'shared' && sharedRoundParticipantsData.length > 0 && (
+          {/* Score Entry Section. Shown for EVERY shared round, including the
+              solo "Playing now" default — playerScores always carries the
+              creator's row, so gating on partners hid your own scorecard. */}
+          {roundType === 'shared' && (
             <div className="mb-6">
               <div className={GOLF_SECTION_CARD}>
                 <h3 className="text-lg font-semibold text-primary mb-4 flex items-center">
