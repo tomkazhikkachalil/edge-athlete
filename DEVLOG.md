@@ -1,5 +1,67 @@
 # Development Log
 
+## August 13, 2026 — Picker audit finished: the clipped one was golf, not guests
+
+Tom asked me to seed the data and check the two pickers #157 left unverified.
+**The result inverted my prediction**, which is the entire value of measuring
+rather than reasoning.
+
+- **Calendar guests: PASS.** No clipping at either width.
+- **Equipment brand/model: PASS.** `AddEquipmentModal.tsx:185-192` already nudges
+  its panels into view — commented *"on short viewports the panel can open
+  clipped below the form's scroll area"*. The team hit this class before and
+  mitigated it; the mitigation measures clean.
+- **Golf course dropdown: FAIL** — and that is a surface I had already declared
+  verified in #157. At 1280px the list rendered at y=567–807 inside a scroller
+  ending at 669: ~138px hanging outside, invisible and unclickable.
+
+**How I missed it the first time.** The #157 probe checked that the modal still
+*scrolled* and that the *input* was reachable — the two things the freeze bug was
+about. It never checked whether the dropdown **rows** were visible. Exactly the
+same blind spot as the header-search bug, one surface over. Fixing the thing you
+were looking at does not verify the thing you weren't.
+
+Fixed with the pattern already proven here rather than a new one: rAF
+`scrollIntoView({ block: 'nearest' })` guarded on the list being open, on **both**
+course fields (shared-round and individual-round), mirroring `AddEquipmentModal`.
+
+### The assertion is now committed, not a throwaway probe
+
+`e2e/helpers/overlay.ts` + `e2e/dropdown-visibility.spec.ts` — 4 new tests
+covering all four typed-search surfaces at 1280 and 390 (suite **18 → 22**).
+`assertSuggestionsUsable` checks the two things three successive throwaway probes
+did not:
+
+1. the first row's centre hit-tests to a node **inside the list**, and
+2. the list's box lies inside its **nearest scrollable ancestor**.
+
+It takes **CSS selectors, not roles**, deliberately: only the header search has
+`listbox`/`option` roles; the guest picker and equipment panels are plain `div`s
+of `<button>`s, so a role-based locator would match nothing and pass vacuously —
+the very failure mode being fixed. It polls, because some lists legitimately
+animate into place; a genuinely clipped one never settles and still fails.
+
+**Proven as a detector, not a tautology:** with the golf fix reverted the spec
+fails even after 4s of polling; with it, it passes.
+
+### Reaching these surfaces — my earlier diagnosis was mostly wrong
+
+I had said the probe skipped them because "a fresh QA user has no follows or
+gear". Mostly untrue:
+
+- **Equipment needs no seeding.** The modal's sport list is a static registry
+  list, not the profile's. It opens on `general`, which has **no brand catalog**,
+  so Golf must be selected first — and the toolbar button's accessible name is
+  `Add equipment` (from `aria-label`) while its visible text is `Add Equipment`.
+- **The guest picker was behind a "More options" disclosure** and simply was not
+  in the DOM. `/calendar?new=1` also opens the form directly, avoiding a
+  responsive-label hazard (`New event` ≥640px, `New` below, no `aria-label`).
+- **One real seed:** an accepted follow A→B, since both QA users are created
+  private and the helper hard-asserts it. `deleteQaUser` already removes follows
+  both ways, so it cleans itself up.
+
+Gate green, **e2e 22/22**.
+
 ## August 13, 2026 — Two search regressions: invisible results, frozen composer
 
 Tom, after #156: *"the golf course search is very broken, I can't scroll once I
