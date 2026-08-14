@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import { useState, useCallback, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import Image from 'next/image';
 import { useAuth } from '@/lib/auth';
@@ -9,13 +9,22 @@ import { SPORT_REGISTRY } from '@/lib/sports/SportRegistry';
 import { SearchAthleteResult, SearchPostResult, SearchClubResult } from '@/types/search';
 import { useTypeahead } from '@/hooks/useTypeahead';
 
-// One flat, ordered list of the ACTIVATABLE results, so arrow-key navigation
-// has a single index to walk. Clubs are deliberately not in here: their rows
-// are inert (the /club/[id] route does not exist), and letting the keyboard
-// land on a row that does nothing is worse than not reaching it at all.
-type NavItem =
+// ONE ordered result array for all three kinds. Clubs live in here even
+// though they are inert (the /club/[id] route does not exist, so their rows
+// do nothing) — `isNavigable` keeps the arrow keys off them.
+//
+// Clubs used to be separate component state written only inside `fetcher`.
+// That was a real bug: nothing ever cleared them, so a stale club row
+// outlived the query that produced it, a discarded out-of-order response
+// still wrote them, and they were never re-served from the cache. Keeping
+// every kind in the hook's array means they clear, cache and
+// sequence-guard together, by construction.
+type ResultItem =
   | { kind: 'athlete'; id: string; athlete: SearchAthleteResult }
-  | { kind: 'post'; id: string; post: SearchPostResult };
+  | { kind: 'post'; id: string; post: SearchPostResult }
+  | { kind: 'club'; id: string; club: SearchClubResult };
+
+const isNavigableResult = (i: ResultItem) => i.kind !== 'club';
 
 interface SearchFilters {
   sport?: string;
@@ -29,12 +38,7 @@ interface SearchFilters {
 export default function AdvancedSearchBar() {
   const router = useRouter();
   const { user } = useAuth();
-  const [showResults, setShowResults] = useState(false);
   const [showFilters, setShowFilters] = useState(false);
-  const searchRef = useRef<HTMLDivElement>(null);
-  // Clubs live outside the typeahead's item list because they are not
-  // keyboard-activatable (see NavItem). Same request, separate bucket.
-  const [clubs, setClubs] = useState<SearchClubResult[]>([]);
 
   // Filter state
   const [filters, setFilters] = useState<SearchFilters>({
@@ -60,13 +64,14 @@ export default function AdvancedSearchBar() {
     if (!response.ok) throw new Error(`Search failed: ${response.status}`);
     const data = await response.json();
 
-    setClubs((data.results?.clubs ?? []) as SearchClubResult[]);
-
     const athletes = (data.results?.athletes ?? []) as SearchAthleteResult[];
     const posts = (data.results?.posts ?? []) as SearchPostResult[];
+    const clubRows = (data.results?.clubs ?? []) as SearchClubResult[];
+    // Navigable kinds first so activeIndex maps to render order.
     return [
-      ...athletes.map((a): NavItem => ({ kind: 'athlete', id: a.id, athlete: a })),
-      ...posts.map((p): NavItem => ({ kind: 'post', id: p.id, post: p })),
+      ...athletes.map((a): ResultItem => ({ kind: 'athlete', id: a.id, athlete: a })),
+      ...posts.map((p): ResultItem => ({ kind: 'post', id: p.id, post: p })),
+      ...clubRows.map((c): ResultItem => ({ kind: 'club', id: c.id, club: c })),
     ];
   }, [filterKey]);
 
@@ -79,16 +84,18 @@ export default function AdvancedSearchBar() {
     query,
     setQuery,
     items,
+    navigable,
     loading,
     failed,
     activeIndex,
     setActiveIndex,
     onKeyDown: onListKeyDown,
     reset: resetSearch,
-  } = useTypeahead<NavItem>({
+  } = useTypeahead<ResultItem>({
     scope: `search:all:${filterKey}`,
     fetcher,
-    limit: 35,
+    isNavigable: isNavigableResult,
+    limit: 45,
   });
 
   const athletes = useMemo(
@@ -99,58 +106,44 @@ export default function AdvancedSearchBar() {
     () => items.flatMap(i => (i.kind === 'post' ? [i.post] : [])),
     [items]
   );
+  const clubs = useMemo(
+    () => items.flatMap(i => (i.kind === 'club' ? [i.club] : [])),
+    [items]
+  );
 
-  // Opening on results is synchronisation, not an effect.
-  const hasAnything = items.length > 0 || clubs.length > 0;
-  const [syncedHasAnything, setSyncedHasAnything] = useState(hasAnything);
-  if (syncedHasAnything !== hasAnything) {
-    setSyncedHasAnything(hasAnything);
-    if (hasAnything) setShowResults(true);
-  }
+  // Results show whenever something has been typed — no open/closed state.
+  //
+  // There used to be a `showResults` flag flipped by a hasAnything false->true
+  // transition plus an outside-mousedown listener. It had a real bug (once an
+  // outside click set it false, a NEW query that also had results never
+  // reopened it, because there was no transition to observe), and with the
+  // results inline it has nothing left to do: this component only ever renders
+  // inside the ⌘K dialog, which owns its own dismissal.
+  const hasQuery = query.trim().length > 0;
 
-  const activate = useCallback((item: NavItem) => {
+  const activate = useCallback((item: ResultItem) => {
     if (item.kind === 'athlete') {
       router.push(user?.id === item.athlete.id ? '/athlete' : `/athlete/${item.athlete.id}`);
-    } else {
+    } else if (item.kind === 'post') {
       router.push(`/feed?post=${item.post.id}`);
+    } else {
+      return; // clubs are inert
     }
-    setShowResults(false);
     resetSearch();
   }, [router, user?.id, resetSearch]);
 
-  // Arrow keys move, Enter opens, Escape closes the dropdown before the
-  // surrounding panel gets the event. Without this the ⌘K shortcut opened a
-  // result list a keyboard user could not reach at all — the rows were plain
-  // unfocusable divs.
+  // Arrow keys move, Enter opens. Escape is deliberately NOT handled here —
+  // it belongs to the dialog, which closes the whole panel.
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (onListKeyDown(e)) return;
-    if (e.key === 'Enter' && showResults && items[activeIndex]) {
+    if (e.key === 'Enter' && navigable[activeIndex]) {
       e.preventDefault();
-      activate(items[activeIndex]);
-      return;
-    }
-    if (e.key === 'Escape' && showResults) {
-      e.preventDefault();
-      e.stopPropagation();
-      setShowResults(false);
+      activate(navigable[activeIndex]);
     }
   };
 
   const listboxId = 'ea-search-results';
   const optionId = (i: number) => `${listboxId}-option-${i}`;
-
-  // Click outside to close
-  useEffect(() => {
-    function handleClickOutside(event: MouseEvent) {
-      if (searchRef.current && !searchRef.current.contains(event.target as Node)) {
-        setShowResults(false);
-        setShowFilters(false);
-      }
-    }
-
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, []);
 
 
   const clearFilters = () => {
@@ -160,7 +153,7 @@ export default function AdvancedSearchBar() {
   const hasActiveFilters = filters.sport || filters.school || filters.league || filters.dateFrom || filters.dateTo || filters.type !== 'all';
 
   return (
-    <div ref={searchRef} className="relative w-full">
+    <div className="w-full">
       {/* Search Input */}
       <div className="relative flex items-center">
         <input
@@ -168,12 +161,10 @@ export default function AdvancedSearchBar() {
           name="ea-search"
           autoComplete="off"
           role="combobox"
-          aria-expanded={showResults && items.length > 0}
+          aria-expanded={navigable.length > 0}
           aria-controls={listboxId}
           aria-autocomplete="list"
-          aria-activedescendant={
-            showResults && items[activeIndex] ? optionId(activeIndex) : undefined
-          }
+          aria-activedescendant={navigable[activeIndex] ? optionId(activeIndex) : undefined}
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           onKeyDown={handleKeyDown}
@@ -214,7 +205,7 @@ export default function AdvancedSearchBar() {
 
       {/* Advanced Filters Panel */}
       {showFilters && (
-        <div className="absolute top-full mt-2 w-full bg-surface-raised border border-border rounded-lg shadow-lg p-4 z-50">
+        <div className="mt-2 w-full bg-surface-raised border border-border rounded-lg p-4">
           <div className="flex items-center justify-between mb-4">
             <h3 className="font-semibold text-primary">Advanced Filters</h3>
             {hasActiveFilters && (
@@ -321,13 +312,20 @@ export default function AdvancedSearchBar() {
         </div>
       )}
 
-      {/* Search Results Dropdown */}
-      {showResults && query.trim().length >= 1 && (
+      {/* Results — INLINE flow content, not an absolutely-positioned dropdown.
+          The dialog wraps this component in `min-h-0 flex-1 overflow-y-auto`
+          (HeaderSearch.tsx), and that wrapper is only as tall as the input, so
+          a floating `absolute top-full` list rendered entirely BELOW it: 46px
+          container, list at y=126-294, clipped away with the modal backdrop
+          painting where the results should be. Measured, not guessed.
+          Inline, the dialog grows to fit and its own scroller does the work
+          its comment says it was added for. */}
+      {hasQuery && (
         <div
           id={listboxId}
           role="listbox"
           aria-label="Search results"
-          className="absolute top-full mt-2 w-full bg-surface-raised border border-border rounded-lg shadow-lg max-h-96 overflow-y-auto z-40"
+          className="mt-2 w-full bg-surface-raised border border-border rounded-lg overflow-hidden"
         >
           {failed ? (
             /* A failed request must not read as "nothing matched" — that

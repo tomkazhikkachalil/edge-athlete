@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   SUGGEST_DEBOUNCE_MS,
   SUGGEST_MIN_CHARS,
@@ -28,6 +28,13 @@ export interface UseTypeaheadOptions<T> {
   narrow?: (items: T[], query: string) => T[];
   /** Applied after fetching and after narrowing — excluded ids, self, etc. */
   filter?: (items: T[]) => T[];
+  /**
+   * Which results the keyboard can land on. Omit and every item is
+   * navigable. Lets a consumer keep inert rows (clubs, headings) in the same
+   * result array — so they clear, cache and sequence-guard with everything
+   * else — without the arrow keys stopping on a row that does nothing.
+   */
+  isNavigable?: (item: T) => boolean;
   /** Page size the fetcher requests; used to detect a truncated result set. */
   limit?: number;
   minChars?: number;
@@ -47,6 +54,7 @@ export function useTypeahead<T>({
   fetcher,
   narrow,
   filter,
+  isNavigable,
   limit = 20,
   minChars = SUGGEST_MIN_CHARS,
   debounceMs = SUGGEST_DEBOUNCE_MS,
@@ -80,7 +88,7 @@ export function useTypeahead<T>({
     setActiveIndex(0);
 
     const trimmed = query.trim();
-    const key = trimmed.toLowerCase();
+    const key = `${scope}::${trimmed.toLowerCase()}`;
 
     if (trimmed.length < minChars) {
       setItems([]);
@@ -113,10 +121,13 @@ export function useTypeahead<T>({
     const trimmed = query.trim();
     if (trimmed.length < minChars) return;
 
-    const key = trimmed.toLowerCase();
+    const key = `${scope}::${trimmed.toLowerCase()}`;
+    // Bump the sequence BEFORE the cache short-circuit. Otherwise a request
+    // still in flight for the previous query satisfies the guard below and
+    // clobbers the cached rows we just painted.
+    const seq = ++seqRef.current;
     if (cacheRead(cache, key)) return; // already served during render
 
-    const seq = ++seqRef.current;
     const timer = setTimeout(async () => {
       abortRef.current?.abort();
       const controller = new AbortController();
@@ -158,18 +169,25 @@ export function useTypeahead<T>({
     setActiveIndex(0);
   }, []);
 
+  // What the arrow keys walk. Equals `items` unless the consumer marked some
+  // rows inert, in which case those still render but are never focused.
+  const navigable = useMemo(
+    () => (isNavigable ? items.filter(isNavigable) : items),
+    [items, isNavigable]
+  );
+
   /** Returns true when the event was consumed by the listbox. */
   const onKeyDown = useCallback(
     (e: React.KeyboardEvent): boolean => {
-      if (items.length === 0) return false;
+      if (navigable.length === 0) return false;
       switch (e.key) {
         case 'ArrowDown':
           e.preventDefault();
-          setActiveIndex(i => (i + 1) % items.length);
+          setActiveIndex(i => (i + 1) % navigable.length);
           return true;
         case 'ArrowUp':
           e.preventDefault();
-          setActiveIndex(i => (i - 1 + items.length) % items.length);
+          setActiveIndex(i => (i - 1 + navigable.length) % navigable.length);
           return true;
         case 'Home':
           e.preventDefault();
@@ -177,19 +195,21 @@ export function useTypeahead<T>({
           return true;
         case 'End':
           e.preventDefault();
-          setActiveIndex(items.length - 1);
+          setActiveIndex(navigable.length - 1);
           return true;
         default:
           return false;
       }
     },
-    [items.length]
+    [navigable.length]
   );
 
   return {
     query,
     setQuery,
     items,
+    /** The subset the keyboard walks; `activeIndex` indexes into THIS. */
+    navigable,
     loading,
     /** The request errored — show a failure state, NOT "no results". */
     failed,

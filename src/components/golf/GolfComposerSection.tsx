@@ -16,6 +16,7 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
 import { useToast } from '@/components/Toast';
 import { useDebouncedCallback } from '@/hooks/useDebouncedCallback';
+import { usePopoverDismiss } from '@/hooks/usePopoverDismiss';
 import GolfScorecardForm from '@/components/golf/GolfScorecardForm';
 import TagPeopleModal from '@/components/TagPeopleModal';
 import MultiPlayerScorecardGrid, { type PlayerScoreData, type PlayerHoleScore } from '@/components/golf/MultiPlayerScorecardGrid';
@@ -192,15 +193,26 @@ export default function GolfComposerSection({
     }
   }, []);
 
-  const debouncedCourseSearch = useDebouncedCallback(runCourseSearch);
+  const [debouncedCourseSearch, cancelCourseSearch] = useDebouncedCallback(runCourseSearch);
 
   const searchCourses = useCallback((query: string) => {
     if (query.trim().length < 1) {
+      // CANCEL, don't just return: an armed timer would still fire and refill
+      // the list the user just cleared — and with it the dropdown.
+      cancelCourseSearch();
       setAvailableCourses([]);
       return;
     }
     debouncedCourseSearch(query.trim());
-  }, [debouncedCourseSearch]);
+  }, [debouncedCourseSearch, cancelCourseSearch]);
+
+  // Outside press + Escape, instead of a viewport-covering backdrop div.
+  const courseFieldRef = useRef<HTMLDivElement>(null);
+  const closeCourseSearch = useCallback(() => {
+    setCourseSearchOpen(false);
+    setAvailableCourses([]);
+  }, []);
+  usePopoverDismiss(courseFieldRef, courseSearchOpen && availableCourses.length > 0, closeCourseSearch);
 
   // Select a course from search results (for shared rounds)
   const selectCourse = useCallback((course: GolfCourse) => {
@@ -211,6 +223,9 @@ export default function GolfComposerSection({
     }));
     setCourseSearchOpen(false);
     setCourseSearchQuery('');
+    // Cancel first: a response already in flight would otherwise land after
+    // this and refill the list, re-opening the dropdown over a chosen course.
+    cancelCourseSearch();
     setAvailableCourses([]);
 
     // Auto-populate par and yardage from course data
@@ -227,7 +242,7 @@ export default function GolfComposerSection({
     // Clear manual entry since we have course data
     setManualParEntry([]);
     setManualYardageEntry([]);
-  }, [sharedRoundDetails.teeColor, sharedRoundDetails.holesPlayed]);
+  }, [sharedRoundDetails.teeColor, sharedRoundDetails.holesPlayed, cancelCourseSearch]);
 
   // Initialize player scores when participants are added
   const initializePlayerScores = useCallback((participants: {id: string; name: string; avatar_url?: string}[], holes: number) => {
@@ -534,8 +549,11 @@ export default function GolfComposerSection({
                   Course Details
                 </h3>
 
-                {/* Course Name with Search */}
-                <div className="mb-4 relative">
+                {/* Course Name with Search. The ref bounds "inside" for
+                    usePopoverDismiss — a press anywhere else closes the
+                    dropdown, and unlike the backdrop it used to render, that
+                    press still reaches whatever it landed on. */}
+                <div ref={courseFieldRef} className="mb-4 relative">
                   <label className={GOLF_LABEL}>
                     Course Name *
                   </label>
@@ -559,6 +577,17 @@ export default function GolfComposerSection({
                           searchCourses(courseSearchQuery);
                         }
                       }}
+                      onKeyDown={(e) => {
+                        // Escape closes the DROPDOWN first and stops there —
+                        // the composer's own Escape would otherwise discard
+                        // the whole post. Innermost layer closes first, the
+                        // same rule the message action sheet follows.
+                        if (e.key === 'Escape' && courseSearchOpen && availableCourses.length > 0) {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          closeCourseSearch();
+                        }
+                      }}
                       placeholder="Search for a golf course..."
                       className={`${GOLF_INPUT} pr-10`}
                     />
@@ -572,38 +601,36 @@ export default function GolfComposerSection({
                     )}
                   </div>
 
-                  {/* Course Search Results Dropdown */}
+                  {/* Course Search Results Dropdown.
+                      There used to be a `fixed inset-0 z-10` click-catcher
+                      here. It FROZE the composer: being `position: fixed` it
+                      covered the whole viewport above the modal body, and a
+                      scroll gesture landing on it chained to the document —
+                      which useBodyScrollLock has set to overflow:hidden. So
+                      nothing moved, and every tap elsewhere in the modal was
+                      swallowed. Dismissal is now usePopoverDismiss (outside
+                      press + Escape), which is the house pattern precisely
+                      because invisible backdrops do this. */}
                   {courseSearchOpen && availableCourses.length > 0 && (
-                    <>
-                      {/* Backdrop to close dropdown */}
-                      <div
-                        className="fixed inset-0 z-10"
-                        onClick={() => {
-                          setCourseSearchOpen(false);
-                          setAvailableCourses([]);
-                        }}
-                      />
-                      {/* Dropdown */}
-                      <div className="absolute z-20 w-full mt-1 bg-surface-raised border border-border-strong rounded-lg shadow-lg max-h-60 overflow-y-auto overscroll-contain">
-                        {availableCourses.map((course) => (
-                          <button
-                            key={course.id}
-                            onClick={() => selectCourse(course)}
-                            className="w-full px-4 py-3 text-left hover:bg-green-50 dark:hover:bg-green-950/40 transition-colors border-b border-border-subtle last:border-b-0"
-                          >
-                            <div className="font-semibold text-primary">{course.name}</div>
-                            {course.city && course.state && (
-                              <div className="text-sm text-tertiary">
-                                {course.city}, {course.state}
-                              </div>
-                            )}
-                            <div className="text-xs text-muted mt-1">
-                              Par {course.totalPar} • {course.holes.length} holes
+                    <div className="absolute z-20 w-full mt-1 bg-surface-raised border border-border-strong rounded-lg shadow-lg max-h-60 overflow-y-auto overscroll-contain">
+                      {availableCourses.map((course) => (
+                        <button
+                          key={course.id}
+                          onClick={() => selectCourse(course)}
+                          className="w-full px-4 py-3 text-left hover:bg-green-50 dark:hover:bg-green-950/40 transition-colors border-b border-border-subtle last:border-b-0"
+                        >
+                          <div className="font-semibold text-primary">{course.name}</div>
+                          {course.city && course.state && (
+                            <div className="text-sm text-tertiary">
+                              {course.city}, {course.state}
                             </div>
-                          </button>
-                        ))}
-                      </div>
-                    </>
+                          )}
+                          <div className="text-xs text-muted mt-1">
+                            Par {course.totalPar} • {course.holes.length} holes
+                          </div>
+                        </button>
+                      ))}
+                    </div>
                   )}
 
                   {/* Selected Course Badge */}

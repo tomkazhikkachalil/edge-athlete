@@ -15,11 +15,16 @@ import { SUGGEST_DEBOUNCE_MS } from '@/lib/search/typeahead';
  * all — one network request per keystroke.
  *
  * The callback receives an AbortSignal; a newer call aborts the previous one.
+ *
+ * Returns `[run, cancel]`. **`cancel` is not optional in practice**: a caller
+ * that early-returns on a too-short query without cancelling leaves the pending
+ * timer armed, so it still fires and repopulates a list the user just cleared.
+ * That is a real bug this hook caused in the golf course pickers.
  */
 export function useDebouncedCallback<A extends unknown[]>(
   fn: (signal: AbortSignal, ...args: A) => void | Promise<void>,
   delayMs: number = SUGGEST_DEBOUNCE_MS
-) {
+): [(...args: A) => void, () => void] {
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const abortRef = useRef<AbortController | null>(null);
   const fnRef = useRef(fn);
@@ -38,7 +43,7 @@ export function useDebouncedCallback<A extends unknown[]>(
     []
   );
 
-  return useCallback(
+  const run = useCallback(
     (...args: A) => {
       if (timerRef.current) clearTimeout(timerRef.current);
       timerRef.current = setTimeout(() => {
@@ -50,4 +55,16 @@ export function useDebouncedCallback<A extends unknown[]>(
     },
     [delayMs]
   );
+
+  /** Drop the pending call AND any request already in flight. */
+  const cancel = useCallback(() => {
+    if (timerRef.current) {
+      clearTimeout(timerRef.current);
+      timerRef.current = null;
+    }
+    abortRef.current?.abort();
+    abortRef.current = null;
+  }, []);
+
+  return [run, cancel];
 }
