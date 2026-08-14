@@ -1,5 +1,51 @@
 # Development Log
 
+## August 13, 2026 — Migration 086: handle-hijack grant (SECURITY)
+
+Section 5 of the diagnostic (the EXECUTE-grant inventory added in 085) did its
+job on its first real run: two functions are executable by anon AND
+authenticated that must not be.
+
+**`update_user_handle(uuid, text)` — the serious one, an account-handle
+takeover.** Its permission check
+(`jwt_role='service_role' OR p_profile_id=auth.uid() OR has_profile_access(...)`)
+lives ONLY inside the `IF current_handle IS NULL` first-time-set branch
+(migration 054). The CHANGE path — the rename after the 7-day rate-limit check,
+and the casing update — has NO permission check; it trusts the caller to be the
+service-role app route. But the overload is granted to anon/authenticated, so
+it is reachable with the public anon key. For any profile that already has a
+handle, the first-set gate is skipped and the rename proceeds subject only to
+availability and the rate limit — i.e. anyone can change anyone's handle. 054's
+header claims "anon stays blocked (role claim check)", which was only ever true
+for the branch 054 was editing; the change path was never guarded because the
+GRANT was meant to be the guard, and the grant was never set.
+
+**`mark_all_notifications_read(uuid)`** — 040 revoked the no-arg overload by
+name, but a parameterized `(uuid)` overload exists and was missed. It takes an
+arbitrary user_id, so a browser key can mark any user's notifications read.
+Lower severity (integrity, not disclosure) but still a cross-account write.
+
+**Revoke is safe — no feature depends on the grant.** `update_user_handle`'s
+only caller is `/api/handles/update`, via the ADMIN client (service_role
+ignores these grants); `complete-profile` mentions it only in a comment.
+`mark_all_notifications_read` has NO app caller of the RPC at all —
+`/api/notifications/mark-all-read` does a direct table UPDATE. Both overloads
+are dead to the app.
+
+**Migration 086** revokes every overload of both names from
+`PUBLIC, anon, authenticated`, keyed on the live signature (085's pattern),
+with the non-aborting verification block.
+
+Standing note this reinforces: 085 was the RIGHT move to add section 5 rather
+than call the mutating functions to test them — it found a real account-takeover
+grant with zero risk. The general lesson from the whole thread holds: a
+permission check inside ONE code-path of a SECURITY DEFINER function is not a
+substitute for the EXECUTE grant, because a direct caller reaches every path.
+
+I did NOT verify this by exploiting it — a live handle-takeover test was
+correctly refused by the tool sandbox. The finding stands on the grant
+(section 5) plus the code path (054 lines 40-48 vs 63+), which is conclusive.
+
 ## August 13, 2026 — Maintenance sweep (post-085): all green
 
 Requested checklist after #152. Nothing needed fixing; recorded because a sweep
