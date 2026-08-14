@@ -1,5 +1,42 @@
 # Development Log
 
+## August 14, 2026 — The e2e suite can smoke a real deployment: 22/22 on production
+
+Tom, after confirming search feels good in prod: *"run the whole e2e suite
+against production."* It could not — three things were pinned to localhost.
+
+- `playwright.config.ts` `use.baseURL`, **and the `webServer` block**. That
+  second one matters: left alone it builds and serves locally, so you would be
+  testing the wrong code and never exercising what is actually deployed.
+- **`mintStorageState`'s auth cookie** — `domain: 'localhost', secure: false`.
+  This was the sharp one. A cookie minted `secure: false` is **never sent over
+  https**, so the whole suite would have run **signed out** against a
+  deployment, quietly passing every assertion that only proves the logged-out
+  view renders. A green run would have meant nothing.
+- `apiAs`'s baseURL — plus one hand-built request context in `tagged.spec.ts`
+  that bypasses `apiAs` entirely. That one was found by *running* it
+  (`ECONNREFUSED ::1:3000` mid-suite), not by grepping first.
+
+All three now derive from **`E2E_BASE_URL`** (default localhost).
+`npm run test:e2e:prod` is the entry point.
+
+**What this changes, and what it does not.** Only which *server* handles the
+requests. The suite has always run against the real Supabase project — there is
+no staging — so the data side is identical to a local run: same tables, same
+disposable users, same teardown. Worth stating plainly, because "run the tests
+against production" sounds riskier than it is here.
+
+**Result: 22/22 against production, no retries consumed.** Local stays 22/22.
+
+**On the two flakes, recorded rather than buried.** Before any retry existed,
+`feed-post` and `follow-request` each failed once. Both were investigated rather
+than waved off: `POST /api/posts` was driven directly against production and
+returned 200 with the post persisting through a reload, and `follow-request`
+passed on re-run. The product is fine; the 15s assertion windows are marginal
+over a network against a cold serverless function. Retries are now 1 for a
+remote target as well as CI — with a comment stating that anything failing
+**twice** is a real defect, not something to retry away.
+
 ## August 13, 2026 — Picker audit finished: the clipped one was golf, not guests
 
 Tom asked me to seed the data and check the two pickers #157 left unverified.
