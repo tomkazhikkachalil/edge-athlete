@@ -20,6 +20,24 @@ const ENV_KEYS = [
 ] as const;
 
 /** Load .env.local into process.env for keys not already set (CI sets them). */
+/**
+ * Which deployment the suite drives. Defaults to the local dev/prod server;
+ * set E2E_BASE_URL to smoke a real deployment, e.g.
+ *   E2E_BASE_URL=https://edge-athlete.vercel.app npm run test:e2e
+ *
+ * NOTE this changes only WHICH SERVER handles the requests. The suite has
+ * always run against the real Supabase project (there is no staging), so the
+ * data side is identical either way — same tables, same disposable users,
+ * same teardown.
+ */
+export const E2E_BASE_URL = (process.env.E2E_BASE_URL ?? 'http://localhost:3000').replace(/\/$/, '');
+
+/** Cookie scope for the target — localhost is http, a deployment is https. */
+export function baseUrlCookieScope(): { domain: string; secure: boolean } {
+  const url = new URL(E2E_BASE_URL);
+  return { domain: url.hostname, secure: url.protocol === 'https:' };
+}
+
 export function loadEnv(): void {
   const envPath = join(process.cwd(), '.env.local');
   if (!existsSync(envPath)) return;
@@ -147,14 +165,17 @@ export async function mintStorageState(user: QaUser): Promise<{
     'base64-' +
     Buffer.from(JSON.stringify(data.session)).toString('base64url');
 
+  const scope = baseUrlCookieScope();
   const cookie = {
     name: `sb-${projectRef}-auth-token`,
     value,
-    domain: 'localhost',
+    domain: scope.domain,
     path: '/',
     expires: -1,
     httpOnly: false,
-    secure: false,
+    // A cookie minted `secure: false` is simply not sent over https, so the
+    // whole suite would run signed-out against a deployment.
+    secure: scope.secure,
     sameSite: 'Lax' as const,
   };
   if (value.length > 3180) {
@@ -298,7 +319,7 @@ export async function apiAs(
   stateFile: 'state.json' | 'state-b.json'
 ): Promise<APIRequestContext> {
   return request.newContext({
-    baseURL: 'http://localhost:3000',
+    baseURL: E2E_BASE_URL,
     storageState: join(process.cwd(), 'e2e', '.auth', stateFile),
   });
 }

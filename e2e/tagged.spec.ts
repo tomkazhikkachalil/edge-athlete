@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { apiAs, loadQaUser, readErrorBody, adminClient } from './helpers/qa-user';
+import { apiAs, loadQaUser, readErrorBody, adminClient, E2E_BASE_URL } from './helpers/qa-user';
 import { request as pwRequest } from '@playwright/test';
 
 // The Tagged tab round-trip: B tags A in a post; A shares a round with B
@@ -102,7 +102,10 @@ test('tagged: tag → round auto-tag → hero → untag → privacy pins', async
   // "anonymous" pin was silently running as A (viewer = tagged athlete, the
   // one grant that bypasses the owner clause).
   const anonApi = await pwRequest.newContext({
-    baseURL: 'http://localhost:3000',
+    // E2E_BASE_URL, not a hardcoded localhost — this context is built by hand
+    // rather than through apiAs, so it would otherwise still call the local
+    // server while the rest of the suite smokes a deployment.
+    baseURL: E2E_BASE_URL,
     storageState: { cookies: [], origins: [] },
   });
   try {
