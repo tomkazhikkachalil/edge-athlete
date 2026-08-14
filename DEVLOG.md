@@ -99,9 +99,40 @@ option selected, Enter opens the active result, no horizontal overflow, no
 uncaught errors. The fallback path was exercised for real against a database
 without 087 applied.
 
-**Still to do:** run 087 in the Supabase editor, then re-run section 5 of
-`database/tests/diagnostics/diagnose-archived-hotfix-functions.sql` to confirm
-the four search functions are service-role only, and probe production.
+### 087 is RUN and verified live (Aug 13)
+
+Verified from **outside** the database first, so the migration's own report was
+never the only witness:
+
+- **The fallback warning stopped.** Before 087 every search call logged
+  `MIGRATION 087 HAS NOT BEEN RUN`; after, **zero**, with no errors — proof
+  `search_people` exists and is the path being taken.
+- **All five ranking tiers, against real data:** `t` → both profiles (handle
+  prefix, tie-broken by name length exactly as specified), `to` → Thomas
+  (**the stop word that returned nothing before**), `kaz` → last-name prefix,
+  `hikka` → mid-word substring, `tom.kazhikkachalil` → exact handle. @handles
+  are searchable and non-null for the first time.
+- **The revokes hold, proven with controls rather than a bare 404:** all four
+  search functions 404 to the public anon key, while that same key still gets
+  **200** on a normal table read, and — the decisive one — `search_posts`
+  returns **9 rows** for the service role while 404ing for anon. It exists and
+  works; anon simply cannot reach it.
+- **Anonymous search returned `visibility: "public"` on every row**, nothing
+  else.
+- Then the SQL-only half via
+  `database/tests/diagnostics/verify-087-search-core.sql` (new, read-only,
+  re-runnable): **5/5 OK** — 11/11 indexes, email out of the vector, all four
+  functions anon-blocked, `search_people` still executable by `service_role`,
+  and a live 1-character call. That call returns 0 rows for `a`, which is
+  correct: under 3 characters matching is prefix-only and no profile's name
+  starts with `a`.
+- **e2e 18/18** (including `tagged` and `round-invite`, which drive the
+  migrated pickers), **browser probe 30/30** at both widths, server-side log
+  lines read as well as exit codes — clean.
+
+One flake worth recording rather than burying: Enter-to-open failed once at
+1440px. Re-running that exact sequence went **6/6** — a cold-compile timeout in
+the harness on the first context after wiping `.next`, not a product bug.
 
 Noted, not acted on: guardian/supervised profiles are rows in `profiles`
 filtered only by `visibility`, so a *public* supervised profile is discoverable
