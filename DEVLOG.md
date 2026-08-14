@@ -1,5 +1,41 @@
 # Development Log
 
+## August 13, 2026 — Maintenance sweep (post-086): all green, audit thread closed
+
+Requested checklist after #154. Nothing needed fixing.
+
+- **`npm audit`: 0 vulnerabilities** (dev + production trees).
+- Gate green on `909d6b3`: tsc clean, **lint 0 warnings**, **1258 tests** across
+  98 files, production build complete.
+- **e2e 18/18**, server-side log lines read as well as the exit code — clean.
+- **Read-only RPC sweep: 26 healthy, 0 broken.**
+- **Grant posture holding — 085: 12/12, 086: 4/4.** Every sensitive RPC across
+  both migrations is anon-blocked, service role still executes them, and the
+  legitimate own-handle change through `/api/handles/update` still writes.
+- **Two-width production sweep: 81/81** (390×844 touch + 1440×900).
+- **0 open PRs, 0 stale branches**, tree clean; deploy Ready; `/`, `/feed`,
+  `/explore` 200, `/notifications` 307 → renders.
+- Migrations `081`–`086` all run and verified live.
+
+**The archived-hot-fix audit is closed, end to end.** Three classes, all
+resolved and each verified live:
+- **Stale bodies** — 081 (untag trigger), 083 (`get_unread_notification_count`
+  columns + the `search_path` pair), 084 (`get_group_post_details` /
+  `get_golf_scorecard`), on top of the 025/036/037 trigger history.
+- **Stale grants** — 085 (five server-side RPCs incl. the latent
+  `search_by_handle` leak) and 086 (the `update_user_handle` **handle-takeover**
+  and the missed `mark_all_notifications_read(uuid)` overload).
+- **"Runs fine, returns wrong data"** — section 3 read in full, clean.
+
+The diagnostic (`database/tests/diagnostics/diagnose-archived-hotfix-functions.sql`)
+carries all five detection routes and section 5's grant inventory; re-run
+section 2 after any future hot-fix and section 5 after any new RPC.
+
+Carried forward unchanged: `PostCard`'s author row wrapping inside
+`PostDetailModal` at 390px, stat-line posts on the calendar (needs a functional
+index on `stats_data->>'date'`), a guest "save routine to my presets" action,
+and the `activity_id`/group-posts naming cleanup.
+
 ## August 13, 2026 — Migration 086: handle-hijack grant (SECURITY)
 
 Section 5 of the diagnostic (the EXECUTE-grant inventory added in 085) did its
