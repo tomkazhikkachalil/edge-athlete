@@ -1,5 +1,107 @@
 # Development Log
 
+## August 15, 2026 — Live golf score entry, end to end (#163–#166)
+
+Four PRs from Tom's walk through the golf flow, plus the maintenance sweep
+below. All merged, deployed and verified in production.
+
+### #163 — the creator is on the scorecard from the start
+
+*"the user that is already playing doesn't get shown… Score Entry should already
+be there with the user who is creating the post."*
+
+Score Entry was gated on `sharedRoundParticipantsData.length > 0` — the *playing
+partners* array, which never contains the creator. On the default "Playing now"
+path there are no partners, so the card never mounted and **you could not enter
+your own scores at all**. Seeded from `useAuth`'s `activeProfile ?? profile`, so
+a guardian composing *as* a managed athlete seeds that athlete.
+
+Seeded into `playerScores` only — deliberately **not**
+`sharedRoundParticipants(Data)`, which drive the Playing Partners chips and the
+submitted `participant_ids`. That keeps the payload identical, because
+`/api/group-posts` already prepends the creator when the array omits them, so
+`position` stays 0.
+
+**The trap:** `isDirty` counted `playerScores.length > 0`, so a seeded row would
+have made the composer dirty the instant golf was selected — prompting "discard
+your work?" on every close, the same bug the comment above it records being
+fixed once via `roundType`. Now `hasAnyEnteredScore`, a pure tested helper shared
+with the submit path. **A row is not work; a stroke is.**
+
+### #164 — the live player chips were being sliced
+
+The player-switcher row sets `overflow-x-auto`, which per spec computes
+`overflow-y` to `auto` as well. That resolves its automatic minimum size to **0**,
+so flex-shrink squashed it, and being a scrollport it then *clipped* the pills
+instead of overflowing them. Row height against the 40px chips, before → after:
+**40 → 57** at 1280×800, **24 → 57** at 740×420. Clipped at *every* size, not
+just short viewports as first assumed — worth having measured.
+
+Fix: `shrink-0`. `SharedRoundFullCard` already wraps its scrolling tab strip in a
+`shrink-0` parent; this row merged both roles and was missed.
+
+### #165 / #166 — side-by-side wheels, and when a default counts
+
+Two stacked 5-column button grids became two scroll wheels. Strokes now offers
+**1–15**, matching the API — the old grid started at 2, so **a hole-in-one was
+un-enterable**. No picker existed in the repo (no `scroll-snap` anywhere), so
+`NumberWheel` is new, with geometry and key bindings split into
+`src/lib/golf/wheel.ts` (23 tests).
+
+**Why the defaults were the hard part.** `strokes === null` is the *only* thing
+separating "hole played" from "hole not played" anywhere in the app, and
+downstream a `golf_hole_scores` **row existing** is what "played" means
+(`holes_completed` is a raw `COUNT(*)` in a DB trigger). Written in as values,
+the defaults would have flipped rounds to `completed` — which `round-status`
+makes **terminal** — and mirrored invented even-par rounds into permanent
+history and handicap data. In batch mode one "Save Scores" tap would have posted
+**18 invented pars** with no navigation at all.
+
+#165 shipped with "advancing records the resting values". Tom refined it (#166)
+to the rule that now holds: **a hole counts only once a wheel is TOUCHED, and
+moving on confirms it.** Touching neither records nothing however you leave the
+hole; touching one fills the other from its resting position.
+
+That forced a second change: an untouched wheel still painted its resting number
+as a solid filled pill, which reads as *recorded*. It now shows a **dashed,
+muted frame** until a value is committed. A control that looks decided but stores
+nothing would be worse than the grid it replaced.
+
+**Two stale-state traps caught before shipping:** `updateCurrentHole` rebuilds
+from the `holeData` closure, so committing strokes and putts as two calls would
+have silently dropped the first; and `persistHole` read the same stale array, so
+committing then persisting in one tick would have saved **nothing**. Both fixed
+with a multi-field `patchCurrentHole` that returns the resulting hole.
+
+Everything above was verified by **reading rows back out of the database**, not
+by trusting the screen — which is where a wrong rule would show.
+
+## August 15, 2026 — Maintenance sweep (post-166): all green
+
+Requested full checklist. Nothing needed fixing.
+
+- **`npm audit`: 0 vulnerabilities** (dev + production trees).
+- **Gate green** on merged `main` (`af303dd`): tsc clean, **lint 0 warnings**,
+  **1331 tests** across 102 files, production build compiled.
+- **e2e 23/23 locally and 23/23 against production.**
+- **Grant posture holding** — `search_profiles`, `search_posts`, `search_clubs`,
+  `search_people` and `update_user_handle` all reject the public anon key, with a
+  control read proving the key itself is valid (so those are permission results,
+  not a dead key).
+- **12 production pages** checked: all 200, `/notifications` 307 → renders.
+  Read-only APIs 200.
+- **Two-width sweep 10/10** at 1440×900 and 390×844: no error boundary, real
+  content, no horizontal overflow, no uncaught page errors.
+- **0 open PRs, 0 stale branches**, tree clean, deploy Ready. Migrations
+  `081`–`087` unchanged and verified.
+
+**Dependencies deliberately not bumped.** `@supabase/ssr` 0.12.4 is outside its
+`^0.7.0` range (0.x minors are breaking by semver and it needs its own
+verification); `typescript` 7, `eslint` 10 and `@types/node` 26 remain
+ecosystem-blocked. One in-range minor is available — `mediabunny` 1.53.1 →
+1.54.0 — deliberately left for a change of its own rather than folded into a
+sweep.
+
 ## August 14, 2026 — Dependency minors taken, incl. Next 16.3.1 (#161)
 
 The bumps the last sweep listed and deliberately deferred. **Only the lockfile
