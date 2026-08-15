@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import Image from 'next/image';
 import { isOptimizableImageSrc } from '@/lib/media/image-src';
+import NumberWheel from '@/components/golf/NumberWheel';
 import { holePar } from '@/lib/golf/scoring';
 import {
   firstUnscoredHole,
@@ -43,6 +44,16 @@ export interface ScoreEntryPlayer {
   holesCompleted: number;
   isSelf: boolean;
 }
+
+// Wheel ranges. Strokes matches what the API accepts (1-15,
+// scorecards/[id]/scores route) — the old button grid started at 2, so a
+// hole-in-one could not be entered at all.
+const STROKES_MIN = 1;
+const STROKES_MAX = 15;
+const PUTTS_MIN = 0;
+const PUTTS_MAX = 10;
+/** Two putts is the ordinary hole; see the DEFAULTS note by the wheels. */
+const PUTTS_DEFAULT = 2;
 
 interface ScoreEntryModalProps {
   groupPostId: string;
@@ -189,6 +200,10 @@ export default function ScoreEntryModal({
   const [holeData, setHoleData] = useState<HoleData[]>(initialSession.holes);
 
   const currentHoleData = holeData[currentHole - 1];
+  // Where the strokes wheel rests while nothing is entered. Par falls back to 4
+  // when the round carries no course hole data (scoring.ts holePar), so on such
+  // a round every hole rests on 4.
+  const restingStrokes = currentHoleData?.par ?? 4;
 
   // Best-effort flush of the current dirty hole when the page is being left
   // (navigate away, tab switch, tab kill where the browser cooperates).
@@ -240,9 +255,16 @@ export default function ScoreEntryModal({
     };
   }, [isLive, participantId]);
 
-  const updateCurrentHole = (field: keyof HoleData, value: number | boolean | string[] | null) => {
+  /** Patch several fields of the current hole at once.
+   *
+   *  Multi-field on purpose: this rebuilds `next` from the `holeData` CLOSURE,
+   *  so two back-to-back single-field calls would each start from the stale
+   *  array and the first write would be lost. Returns the resulting hole so a
+   *  caller that must act on it immediately (persistHole) does not have to wait
+   *  for the state update to land. */
+  const patchCurrentHole = (patch: Partial<HoleData>): HoleData | null => {
     const next = holeData.map((h, idx) =>
-      idx === currentHole - 1 ? { ...h, [field]: value } : h
+      idx === currentHole - 1 ? { ...h, ...patch } : h
     );
     const nextDirty = new Set(dirtyHoles).add(currentHole);
     setHoleData(next);
@@ -265,6 +287,11 @@ export default function ScoreEntryModal({
       }
     }
     writeDraft(participantId, draftHoles);
+    return next[currentHole - 1] ?? null;
+  };
+
+  const updateCurrentHole = (field: keyof HoleData, value: number | boolean | string[] | null) => {
+    patchCurrentHole({ [field]: value } as Partial<HoleData>);
   };
 
   const handleStrokeClick = (strokes: number) => {
@@ -301,11 +328,13 @@ export default function ScoreEntryModal({
 
   // Live mode: persist a single hole (if it has a score and is dirty).
   // Returns true if OK to proceed (saved or nothing to save), false on error.
-  const persistHole = async (holeNum: number): Promise<boolean> => {
+  // `override` carries a hole just committed in the same tick, whose state
+  // update has not landed in `holeData` yet.
+  const persistHole = async (holeNum: number, override?: HoleData | null): Promise<boolean> => {
     if (!isLive || !onSaveHole) return true;
-    const hole = holeData[holeNum - 1];
+    const hole = override ?? holeData[holeNum - 1];
     if (!hole || hole.strokes === null) return true; // nothing complete to save
-    if (!dirtyHoles.has(holeNum) && savedHoles.has(holeNum)) return true; // unchanged
+    if (!override && !dirtyHoles.has(holeNum) && savedHoles.has(holeNum)) return true; // unchanged
 
     setSavingHole(holeNum);
     setError(null);
@@ -331,12 +360,33 @@ export default function ScoreEntryModal({
     }
   };
 
+  // ── DEFAULTS: when a resting wheel becomes a recorded score ────────────────
+  // Only when the user moves PAST the hole (Next) or explicitly finishes
+  // (footer Done / Save Scores). Landing on a hole records nothing, and neither
+  // do Previous, jump-to-hole, switching player, or closing with the X —
+  // otherwise merely navigating would invent scores for holes nobody played,
+  // and "holes actually played" is what a partial round is scored against.
+  //
+  // Note updateCurrentHole marks the hole dirty regardless of whether the value
+  // changed, which is exactly what we want here: a genuine par has to be
+  // written explicitly or it would never be marked dirty and never saved.
+  // Returns the committed hole so the caller can persist it WITHOUT waiting for
+  // the state update — persistHole would otherwise read the stale null and save
+  // nothing at all.
+  const commitRestingScores = (): HoleData | null => {
+    const hole = holeData[currentHole - 1];
+    if (!hole || hole.strokes !== null) return null;
+    return patchCurrentHole({
+      strokes: restingStrokes,
+      ...(hole.putts === null ? { putts: PUTTS_DEFAULT } : {}),
+    });
+  };
+
   const handleNext = async () => {
-    if (!currentHoleData.strokes) {
-      setError('Please enter a stroke count before continuing');
-      return;
-    }
-    if (isLive && !(await persistHole(currentHole))) return; // save before advancing
+    // No "enter a stroke count" guard any more — advancing IS the entry. The
+    // wheel already shows par/2, so Next on an untouched hole records that.
+    const committed = commitRestingScores();
+    if (isLive && !(await persistHole(currentHole, committed))) return; // save before advancing
     if (currentHole < holesPlayed) {
       setCurrentHole(prev => prev + 1);
       setError(null);
@@ -364,9 +414,14 @@ export default function ScoreEntryModal({
   // Live mode: holes are already saved as you go, so "Done" just flushes the
   // current hole and closes. Also used as the close handler so nothing dirty
   // is lost when the user taps ✕.
-  const handleDone = async () => {
+  // `commitCurrent` distinguishes the two callers that share this handler:
+  // the footer's Done button means "this is my round", so an untouched current
+  // hole is recorded at its resting par/2. The header X means "get me out of
+  // here" and must record nothing.
+  const handleDone = async (commitCurrent: boolean) => {
+    const committed = commitCurrent ? commitRestingScores() : null;
     setSaving(true);
-    const ok = await persistHole(currentHole);
+    const ok = await persistHole(currentHole, committed);
     setSaving(false);
     if (ok) {
       // No clearDraft here: persistHole prunes each hole from the draft as
@@ -473,8 +528,18 @@ export default function ScoreEntryModal({
   const enteringForOther = activePlayer ? !activePlayer.isSelf : !!playerName;
 
   const handleSave = async () => {
+    // "Save Scores" is the explicit finish in batch mode, so it commits the
+    // current hole's resting wheels like the live Done button does. Work from
+    // the returned array rather than `holeData` — the state update has not
+    // landed yet, so the freshly committed hole would otherwise be dropped by
+    // the strokes !== null filter below.
+    const committed = commitRestingScores();
+    const effective = committed
+      ? holeData.map((h, idx) => (idx === currentHole - 1 ? committed : h))
+      : holeData;
+
     // Validate: at least some scores entered
-    const hasScores = holeData.some(h => h.strokes !== null);
+    const hasScores = effective.some(h => h.strokes !== null);
     if (!hasScores) {
       setError('Please enter scores for at least one hole');
       return;
@@ -485,7 +550,7 @@ export default function ScoreEntryModal({
 
     try {
       // Filter out holes with no strokes entered
-      const scores = holeData
+      const scores = effective
         .filter(h => h.strokes !== null)
         .map(h => ({
           hole_number: h.hole_number!,
@@ -550,7 +615,7 @@ export default function ScoreEntryModal({
               )}
             </div>
             <button
-              onClick={isLive ? handleDone : onClose}
+              onClick={isLive ? () => handleDone(false) : onClose}
               className="text-white hover:text-white/80 text-xl font-bold min-w-[44px] min-h-[44px] -m-2 flex items-center justify-center"
               aria-label="Close"
             >
@@ -646,46 +711,40 @@ export default function ScoreEntryModal({
             </div>
           </div>
 
-          {/* Strokes Entry */}
-          <div className="mb-6">
-            {/* GOLF_LABEL (golf-form-styles) with mb-3 — the extra gap is deliberate for tap targets */}
-            <label className="block text-sm font-medium text-secondary mb-3">Strokes</label>
-            <div className="grid grid-cols-5 gap-2">
-              {[2, 3, 4, 5, 6, 7, 8, 9, 10, 11].map(num => (
-                <button
-                  key={num}
-                  onClick={() => handleStrokeClick(num)}
-                  className={`py-3 px-2 rounded-lg font-bold text-lg transition-colors ${
-                    currentHoleData.strokes === num
-                      ? 'bg-green-600 text-white'
-                      : 'bg-surface-sunken text-primary hover:bg-border'
-                  }`}
-                >
-                  {num}
-                </button>
-              ))}
-            </div>
-          </div>
+          {/* Strokes + Putts, side by side. Each wheel RESTS on the common
+              answer — this hole's par, and two putts — so a routine hole is
+              zero interaction and only a different result needs a flick.
 
-          {/* Putts Entry */}
-          <div className="mb-6">
-            {/* GOLF_LABEL (golf-form-styles) with mb-3 — the extra gap is deliberate for tap targets */}
-            <label className="block text-sm font-medium text-secondary mb-3">Putts (optional)</label>
-            <div className="grid grid-cols-5 gap-2">
-              {[0, 1, 2, 3, 4].map(num => (
-                <button
-                  key={num}
-                  onClick={() => handlePuttClick(num)}
-                  className={`py-3 px-2 rounded-lg font-bold text-lg transition-colors ${
-                    currentHoleData.putts === num
-                      ? 'bg-brand text-white'
-                      : 'bg-surface-sunken text-primary hover:bg-border'
-                  }`}
-                >
-                  {num}
-                </button>
-              ))}
-            </div>
+              The resting position is NOT a value. currentHoleData.strokes
+              stays null until the user scrolls a wheel or advances past the
+              hole (see DEFAULTS below), because `strokes === null` is the only
+              thing separating "played" from "not played" anywhere in this app:
+              it gates the autosave, persistHole, the batch submit filter, the
+              resume position and the progress bar — and downstream a
+              golf_hole_scores ROW EXISTING is what "hole played" means, with
+              holes_completed a raw COUNT(*) in a DB trigger. Writing a default
+              in here would flip rounds to `completed` (terminal — they cannot
+              be reopened) and mirror invented even-par rounds into permanent
+              history and handicap data. */}
+          <div className="grid grid-cols-2 gap-3 mb-6">
+            <NumberWheel
+              label="Strokes"
+              min={STROKES_MIN}
+              max={STROKES_MAX}
+              value={currentHoleData?.strokes ?? null}
+              defaultValue={restingStrokes}
+              onChange={handleStrokeClick}
+              tone="green"
+            />
+            <NumberWheel
+              label="Putts"
+              min={PUTTS_MIN}
+              max={PUTTS_MAX}
+              value={currentHoleData?.putts ?? null}
+              defaultValue={PUTTS_DEFAULT}
+              onChange={handlePuttClick}
+              tone="brand"
+            />
           </div>
 
           {/* Optional Stats */}
@@ -909,7 +968,7 @@ export default function ScoreEntryModal({
               </button>
             ) : isLive ? (
               <button
-                onClick={handleDone}
+                onClick={() => handleDone(true)}
                 disabled={saving || savingHole !== null}
                 className="flex-1 bg-brand hover:bg-brand-hover disabled:bg-violet-400 disabled:cursor-not-allowed text-white font-bold py-3 px-4 rounded-lg transition-colors"
               >
