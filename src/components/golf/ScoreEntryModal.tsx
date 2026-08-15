@@ -571,9 +571,19 @@ export default function ScoreEntryModal({
         {/* Player switcher (creator view) — tap a chip to enter that
             player's scores; the current hole saves first */}
         {players && players.length > 1 && onSwitchPlayer && (
-          // shrink-0 on chips AND avatars: without it the flex row squashed
-          // the 20px avatars into ovals before it started scrolling.
-          <div className="bg-surface-muted border-b border-border px-3 py-2 flex gap-2 overflow-x-auto scrollbar-hide">
+          // shrink-0 on the ROW as well as the chips and avatars.
+          //
+          // The row is a flex item of the max-h-modal panel, and `overflow-x-auto`
+          // computes overflow-y to `auto` too — so (a) its automatic minimum size
+          // resolves to 0 instead of its content height, letting it be squashed,
+          // and (b) being a scrollport it then CLIPS the chips rather than
+          // overflowing them. Measured before this class: the row collapsed to
+          // 40px at 1280x800 (losing exactly its py-2) and to 24px at 740x420,
+          // slicing the 40px pills — "the border is too high and it cuts off the
+          // names". SharedRoundFullCard already wraps its own scrolling tab strip
+          // in a shrink-0 parent for this reason; this row merged both roles and
+          // was missed.
+          <div className="shrink-0 bg-surface-muted border-b border-border px-3 py-2 flex gap-2 overflow-x-auto scrollbar-hide">
             {players.map(p => {
               const active = p.participantId === participantId;
               return (
