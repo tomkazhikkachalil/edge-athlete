@@ -155,8 +155,13 @@ export default function NumberWheel({
       <div className="relative">
         <div
           aria-hidden="true"
-          className={`pointer-events-none absolute inset-x-0 z-10 rounded-lg border-2 ${
-            tone === 'green' ? 'border-green-600' : 'border-brand'
+          // Dashed and muted until a value is committed. A solid frame around a
+          // resting suggestion reads as "recorded", and it is not — nothing is
+          // stored until the user touches the wheel and moves on.
+          className={`pointer-events-none absolute inset-x-0 z-10 rounded-lg ${
+            value === null
+              ? 'border-2 border-dashed border-border-strong'
+              : `border-2 ${tone === 'green' ? 'border-green-600' : 'border-brand'}`
           }`}
           style={{ top: WHEEL_PAD, height: WHEEL_ITEM_H }}
         />
@@ -187,8 +192,11 @@ export default function NumberWheel({
                   onClick={() => { scrollTo(v, true); commit(v); }}
                   className={`snap-center flex items-center justify-center font-bold text-xl select-none cursor-pointer transition-colors ${
                     isCurrent
-                      ? `${selected} rounded-lg`
-                      : value === null ? 'text-tertiary' : 'text-secondary'
+                      ? value === null
+                        // Suggested, not chosen — no fill.
+                        ? 'text-tertiary rounded-lg'
+                        : `${selected} rounded-lg`
+                      : value === null ? 'text-faint' : 'text-secondary'
                   }`}
                   style={{ height: WHEEL_ITEM_H }}
                 >
