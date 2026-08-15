@@ -294,11 +294,21 @@ export default function ScoreEntryModal({
     patchCurrentHole({ [field]: value } as Partial<HoleData>);
   };
 
+  // Which holes the user has actually TOUCHED a wheel on. A wheel resting at
+  // par/2 is a suggestion, not an answer — this set is what turns it into one,
+  // and nothing else marks a hole as being scored.
+  const [wheelTouched, setWheelTouched] = useState<Set<number>>(new Set());
+  const markWheelTouched = () => {
+    setWheelTouched(prev => (prev.has(currentHole) ? prev : new Set(prev).add(currentHole)));
+  };
+
   const handleStrokeClick = (strokes: number) => {
+    markWheelTouched();
     updateCurrentHole('strokes', strokes);
   };
 
   const handlePuttClick = (putts: number) => {
+    markWheelTouched();
     updateCurrentHole('putts', putts);
   };
 
@@ -361,30 +371,39 @@ export default function ScoreEntryModal({
   };
 
   // ── DEFAULTS: when a resting wheel becomes a recorded score ────────────────
-  // Only when the user moves PAST the hole (Next) or explicitly finishes
-  // (footer Done / Save Scores). Landing on a hole records nothing, and neither
-  // do Previous, jump-to-hole, switching player, or closing with the X —
-  // otherwise merely navigating would invent scores for holes nobody played,
-  // and "holes actually played" is what a partial round is scored against.
+  // TWO conditions, both required:
+  //   1. the user TOUCHED a wheel on this hole, and
+  //   2. they moved on from it (Next, or an explicit finish) — the confirmation.
   //
-  // Note updateCurrentHole marks the hole dirty regardless of whether the value
-  // changed, which is exactly what we want here: a genuine par has to be
-  // written explicitly or it would never be marked dirty and never saved.
-  // Returns the committed hole so the caller can persist it WITHOUT waiting for
-  // the state update — persistHole would otherwise read the stale null and save
-  // nothing at all.
+  // Touching neither wheel records nothing at all, however you leave the hole.
+  // That keeps "holes actually played" honest: a partial round is scored
+  // against the pars of the holes actually played, and downstream a
+  // golf_hole_scores ROW EXISTING is what "played" means (holes_completed is a
+  // raw COUNT(*) in a DB trigger). Auto-recording an untouched hole would also
+  // let a round reach `completed` — which round-status makes terminal — purely
+  // by paging through it.
+  //
+  // Once a wheel IS touched the hole is being scored, so the OTHER wheel is
+  // filled from its resting position at confirmation: set strokes and leave
+  // putts alone and you get the 2 putts the wheel was showing you.
+  //
+  // Note updateCurrentHole marks a hole dirty regardless of whether the value
+  // changed, which is what we want — a genuine par must be written explicitly
+  // or it would never be marked dirty and never saved.
   const commitRestingScores = (): HoleData | null => {
+    if (!wheelTouched.has(currentHole)) return null;
     const hole = holeData[currentHole - 1];
-    if (!hole || hole.strokes !== null) return null;
-    return patchCurrentHole({
-      strokes: restingStrokes,
-      ...(hole.putts === null ? { putts: PUTTS_DEFAULT } : {}),
-    });
+    if (!hole) return null;
+    const patch: Partial<HoleData> = {};
+    if (hole.strokes === null) patch.strokes = restingStrokes;
+    if (hole.putts === null) patch.putts = PUTTS_DEFAULT;
+    if (Object.keys(patch).length === 0) return null;
+    return patchCurrentHole(patch);
   };
 
   const handleNext = async () => {
-    // No "enter a stroke count" guard any more — advancing IS the entry. The
-    // wheel already shows par/2, so Next on an untouched hole records that.
+    // No "enter a stroke count" guard: an untouched hole is a SKIPPED hole, not
+    // an error. It simply records nothing and you move on.
     const committed = commitRestingScores();
     if (isLive && !(await persistHole(currentHole, committed))) return; // save before advancing
     if (currentHole < holesPlayed) {
