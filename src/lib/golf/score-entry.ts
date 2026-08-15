@@ -183,3 +183,25 @@ export function clearDraft(participantId: string): void {
     s.removeItem(draftKey(participantId));
   } catch { /* best-effort */ }
 }
+
+// ── "Has anything actually been entered?" ─────────────────────────────────────
+
+/**
+ * True when at least one player has a real stroke recorded.
+ *
+ * The distinction matters because a scorecard ROW existing is not the same as
+ * a score existing. The composer seeds a blank row for the post's creator so
+ * the Score Entry grid is there from the moment golf is selected — if row
+ * COUNT were treated as "unsaved work", opening the composer and closing it
+ * again would prompt you to discard work you never started. (That exact bug
+ * shipped once before via `roundType`; see the comment on the composer's
+ * isDirty derivation.)
+ *
+ * `strokes > 0` rather than `!== undefined`: a 0 is not a golf score, and the
+ * grid can hold one transiently while a field is being cleared.
+ */
+export function hasAnyEnteredScore(
+  players: ReadonlyArray<{ hole_scores: ReadonlyArray<{ strokes?: number }> }>
+): boolean {
+  return players.some(p => p.hole_scores.some(h => h.strokes !== undefined && h.strokes > 0));
+}

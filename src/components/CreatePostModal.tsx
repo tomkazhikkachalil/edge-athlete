@@ -443,11 +443,12 @@ export default function CreatePostModal({
     if (!isValidForSubmission()) {
       // Provide specific error message based on post type
       if (postType === 'golf' && golfValue.roundType === 'shared') {
-        const { sharedRoundDetails, sharedRoundParticipants } = golfValue;
+        const { sharedRoundDetails } = golfValue;
         const missing: string[] = [];
         if (!sharedRoundDetails.courseName.trim()) missing.push('course name');
         if (!sharedRoundDetails.date) missing.push('date');
-        if (sharedRoundParticipants.length === 0 && sharedRoundDetails.alreadyPlayed) missing.push('participants');
+        // Playing partners are no longer required: the composer puts you on
+        // the scorecard yourself, so a solo shared round is complete.
         if (sharedRoundDetails.roundTypeIndoorOutdoor === 'outdoor') {
           if (!sharedRoundDetails.weather.trim()) missing.push('weather');
           if (!sharedRoundDetails.temperature.trim()) missing.push('temperature');
@@ -1023,13 +1024,10 @@ export default function CreatePostModal({
                   ? (() => {
                       // Name the ACTUAL missing fields — a dead grey button
                       // with a stale generic hint reads as "broken"
-                      const { sharedRoundDetails, sharedRoundParticipants } = golfValue;
+                      const { sharedRoundDetails } = golfValue;
                       const missing: string[] = [];
                       if (!sharedRoundDetails.courseName.trim()) missing.push('course name');
                       if (!sharedRoundDetails.date) missing.push('date');
-                      if (sharedRoundDetails.alreadyPlayed && sharedRoundParticipants.length === 0) {
-                        missing.push('at least one participant');
-                      }
                       return missing.length > 0
                         ? `Missing: ${missing.join(', ')}`
                         : 'Please complete the round details';
