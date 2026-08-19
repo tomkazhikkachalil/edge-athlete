@@ -1,5 +1,32 @@
 # Development Log
 
+## August 19, 2026 — Guardian profiles LAUNCHED to production
+
+Tom's call, same evening the family console merged. The feature had been
+feature-complete since Jul 28 and dark behind
+`NEXT_PUBLIC_FEATURE_GUARDIAN_PROFILES` ever since ("awaiting Tom's
+walkthrough, then the flag").
+
+Launch steps, in order:
+1. `NEXT_PUBLIC_FEATURE_GUARDIAN_PROFILES=1` added to Vercel **Production**
+   env (via `vercel env add`). Build-time inlined — takes effect on the next
+   deploy, which is…
+2. …this commit: the CI smoke job gets the same flag, so the prod smoke
+   build matches the prod app build and `guardian-console.spec.ts` ARMS
+   instead of green-skipping on its flag probe.
+3. Post-deploy: full flag-ON probe against production (guardian signup
+   surface, athlete creation, console, safety PATCH + consent gate, child
+   login, athlete-side guardians — all with disposable fixtures, deleted
+   after).
+
+What this turns on for real users: DOB-gated signup branches, "Your
+athletes" in the account menu + the family console, managed-athlete
+creation with forced private/nobody defaults, consent capture (admin review
+via /dashboard/consent — ADMIN_EMAILS is already set in prod), supervised
+username/PIN login, post approval queues, and the transfer ceremony.
+Guardian/transfer emails send only where SMTP is configured; every send
+site degrades gracefully without it.
+
 ## August 19, 2026 — Family console, PR 3: the athlete's side + the first guardian e2e
 
 The last v1 piece: the custody link legible from BOTH ends, and regression
