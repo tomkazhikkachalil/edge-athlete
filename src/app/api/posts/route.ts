@@ -4,6 +4,8 @@ import { requireAuth, getSupabaseAdmin } from '@/lib/auth-server';
 import { GROUP_SCORECARD_SELECT, transformGroupPostToScorecard } from '@/lib/golf/scorecard-transform';
 import { isActiveParticipant, isRoundLive } from '@/lib/golf/round-status';
 import { canPin, MAX_PINNED_POSTS } from '@/lib/posts/pinning';
+import { deletePostCascade } from '@/lib/posts/delete-post-server';
+import { deleteRoundCascade } from '@/lib/golf/round-delete-server';
 import { FEATURE_FLAGS } from '@/lib/features';
 import { resolveRepostTarget, canViewSharedPost, validateRepostBody } from '@/lib/reposts';
 import { normalizePostIdentity } from '@/lib/posts/post-category';
@@ -1257,7 +1259,7 @@ export async function DELETE(request: NextRequest) {
     // First, verify the post belongs to the authenticated user
     const { data: post, error: fetchError } = await supabase
       .from('posts')
-      .select('profile_id')
+      .select('profile_id, group_post_id')
       .eq('id', postId)
       .single();
 
@@ -1270,74 +1272,28 @@ export async function DELETE(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized to delete this post' }, { status: 403 });
     }
 
-    // Remove the media FILES from storage (best effort — DB rows cascade,
-    // but files never did, orphaning storage forever). Only paths we manage,
-    // and only files nothing else still references: shared-workout posts
-    // reuse the workout's per-set media URLs, so deleting the post must not
-    // strip the clips out of the workout history.
-    const { data: mediaRows } = await supabase
-      .from('post_media')
-      .select('media_url')
-      .eq('post_id', postId);
-    if (mediaRows && mediaRows.length > 0) {
-      const urls = [...new Set(mediaRows.map(r => r.media_url).filter(Boolean))] as string[];
-      const referenced = await Promise.all(
-        urls.map(async url => {
-          const [postRef, setRef] = await Promise.all([
-            supabase
-              .from('post_media')
-              .select('id', { count: 'exact', head: true })
-              .eq('media_url', url)
-              .neq('post_id', postId),
-            supabase
-              .from('workout_sets')
-              .select('id', { count: 'exact', head: true })
-              // JSON string, NOT an array: supabase-js turns an array arg into
-              // a Postgres array literal ({...}), which 22P02s on a jsonb column
-              .contains('media', JSON.stringify([{ url }])),
-          ]);
-          // Can't verify → keep the file rather than break another reference
-          if (postRef.error || setRef.error) return true;
-          return (postRef.count ?? 0) > 0 || (setRef.count ?? 0) > 0;
-        })
-      );
-      const byBucket = new Map<string, string[]>();
-      urls.forEach((url, i) => {
-        if (referenced[i]) return;
-        const m = /\/storage\/v1\/object\/public\/([^/]+)\/(.+)$/.exec(url);
-        if (m) {
-          const paths = byBucket.get(m[1]) || [];
-          paths.push(decodeURIComponent(m[2]));
-          byBucket.set(m[1], paths);
-        }
-      });
-      for (const [bucket, paths] of byBucket) {
-        const { error: storageError } = await supabase.storage.from(bucket).remove(paths);
-        if (storageError) console.warn('[DELETE] Storage cleanup failed:', storageError);
+    // A round's post IS the round (Tom's call, Aug 19): deleting it deletes
+    // the whole round — group post, scores, mirrors — through the shared
+    // cascade. Anything else would orphan a live round that keeps resolving
+    // at /live and feeding stats. The post owner is the round creator by
+    // construction, so the cascade's own authz check passes; if the round
+    // row is somehow already gone (legacy orphan), fall through and delete
+    // just the post.
+    if (post.group_post_id) {
+      const roundResult = await deleteRoundCascade(supabase, post.group_post_id, user.id);
+      if (roundResult.status === 'deleted') {
+        return NextResponse.json({ success: true, message: 'Round deleted successfully' });
       }
+      if (roundResult.status === 'error') {
+        return NextResponse.json({ error: roundResult.message }, { status: 500 });
+      }
+      // not_found / forbidden → legacy orphan or mismatched creator: the
+      // caller still owns THIS post, so plain post deletion proceeds.
     }
 
-    // Delete associated media records first (cascade should handle this, but being explicit)
-    await supabase
-      .from('post_media')
-      .delete()
-      .eq('post_id', postId);
-
-    // Delete associated likes
-    await supabase
-      .from('post_likes')
-      .delete()
-      .eq('post_id', postId);
-
-    // Delete the post
-    const { error: deleteError } = await supabase
-      .from('posts')
-      .delete()
-      .eq('id', postId);
-
-    if (deleteError) {
-      console.error('[DELETE] Post deletion error:', deleteError);
-      return NextResponse.json({ error: 'Failed to delete post' }, { status: 500 });
+    const result = await deletePostCascade(supabase, postId);
+    if (!result.ok) {
+      return NextResponse.json({ error: result.error }, { status: 500 });
     }
 
     return NextResponse.json({ success: true, message: 'Post deleted successfully' });

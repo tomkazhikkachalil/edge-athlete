@@ -723,6 +723,14 @@ export default function FeedPage() {
             window.history.replaceState(null, '', '/feed');
           }}
           currentUserId={user?.id}
+          // End Round lands here (/feed?post=). Without onDelete the trash
+          // used to render and silently no-op — the "delete after end round
+          // won't let me" bug. Reuses the list's handler, then closes.
+          onDelete={(postId) => {
+            handleDelete(postId);
+            setDeepLinkPostId(null);
+            window.history.replaceState(null, '', '/feed');
+          }}
         />
       )}
 

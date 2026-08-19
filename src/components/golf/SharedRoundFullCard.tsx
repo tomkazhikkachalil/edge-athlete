@@ -8,6 +8,9 @@ import { pickOverviewMedia } from '@/lib/media/hero';
 import { isRoundLive, isActiveParticipant, effectiveRoundStatus } from '@/lib/golf/round-status';
 import { useBodyScrollLock } from '@/hooks/useBodyScrollLock';
 import { asGameFormat, calcStablefordTotal, calcMatchStatus, GAME_FORMAT_LABELS } from '@/lib/golf/formats';
+import { useDeleteRound } from '@/hooks/useDeleteRound';
+import { countPartnersWithScores } from '@/lib/golf/round-delete';
+import { COPY } from '@/lib/copy';
 import ConfirmModal from '../ConfirmModal';
 import MediaTile from '../media/MediaTile';
 import MediaGrid from '../media/MediaGrid';
@@ -36,6 +39,9 @@ interface SharedRoundFullCardProps {
   onAddScores?: (participantId: string) => void;
   /** Called after the creator ends the round so the parent refetches the scorecard. */
   onStatusChange?: () => void;
+  /** Called after the creator deletes the round. Also GATES the header's
+   *  Delete button — surfaces that don't pass it don't get the button. */
+  onDeleted?: () => void;
   /**
    * Called after media is added, reassigned or removed — a plain refetch.
    *
@@ -95,7 +101,8 @@ export default function SharedRoundFullCard({
   onClose,
   onAddScores,
   onStatusChange,
-  onMediaChanged
+  onMediaChanged,
+  onDeleted
 }: SharedRoundFullCardProps) {
   const { group_post, golf_data, participants } = scorecard;
   // Mounted only while open — lock background scroll for the whole lifetime
@@ -103,8 +110,10 @@ export default function SharedRoundFullCard({
 
   const [activeTab, setActiveTab] = useState<RoundTabId>('overview');
   const [showEndConfirm, setShowEndConfirm] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [endingRound, setEndingRound] = useState(false);
   const [endRoundError, setEndRoundError] = useState<string | null>(null);
+  const { deleteRound, deleting } = useDeleteRound(group_post.id, onDeleted);
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
 
   // Flat, view-ready list — ordered by hole so the lightbox's prev/next walks
@@ -569,6 +578,19 @@ export default function SharedRoundFullCard({
                   <i className="fas fa-flag-checkered"></i>
                   {/* Icon-only below sm — the label crowds the modal title at 360px */}
                   <span className="hidden sm:inline">{endingRound ? 'Ending…' : 'End Round'}</span>
+                </button>
+              )}
+              {/* Delete Round — covers 'pending' too (a zero-score round can't
+                  even be ended); completed rounds delete via the post trash. */}
+              {isCreator && group_post.status !== 'completed' && onDeleted && (
+                <button
+                  onClick={() => setShowDeleteConfirm(true)}
+                  disabled={deleting}
+                  className="flex items-center gap-2 bg-white/15 hover:bg-red-600/80 disabled:opacity-60 text-white text-sm font-bold px-3 py-2 rounded-lg transition-colors min-h-[44px] min-w-[44px] justify-center"
+                  aria-label="Delete round"
+                >
+                  <i className={`fas ${deleting ? 'fa-spinner fa-spin' : 'fa-trash'}`}></i>
+                  <span className="hidden sm:inline">Delete</span>
                 </button>
               )}
               <button
@@ -1078,6 +1100,25 @@ export default function SharedRoundFullCard({
         confirmButtonClass="bg-brand hover:bg-brand-hover"
         onConfirm={handleEndRound}
         onCancel={() => setShowEndConfirm(false)}
+      />
+
+      {/* Delete Round confirmation */}
+      <ConfirmModal
+        isOpen={showDeleteConfirm}
+        title={COPY.FORMS.DELETE_ROUND_TITLE}
+        message={
+          countPartnersWithScores(participants, group_post.creator_id) > 0
+            ? COPY.FORMS.DELETE_ROUND_CONFIRM_PARTNERS(
+                countPartnersWithScores(participants, group_post.creator_id)
+              )
+            : COPY.FORMS.DELETE_ROUND_CONFIRM
+        }
+        confirmText={COPY.FORMS.DELETE_ROUND_ACTION}
+        onConfirm={() => {
+          setShowDeleteConfirm(false);
+          deleteRound();
+        }}
+        onCancel={() => setShowDeleteConfirm(false)}
       />
     </div>
   );

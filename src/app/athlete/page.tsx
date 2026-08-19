@@ -902,6 +902,28 @@ export default function AthleteProfilePage() {
           }
         }}
         currentUserId={user?.id}
+        // Without onDelete the owner's trash renders and silently no-ops.
+        onDelete={async (postId) => {
+          try {
+            const response = await fetch(`/api/posts?postId=${postId}`, {
+              method: 'DELETE',
+              credentials: 'include',
+            });
+            if (!response.ok) {
+              const errorData = await response.json().catch(() => ({}));
+              throw new Error(errorData.error || 'Failed to delete post');
+            }
+            setOpenPostId(null);
+            if (window.location.search.includes('post=')) {
+              window.history.replaceState(null, '', '/athlete');
+            }
+            if (user?.id) loadAthleteData(user.id, true);
+            showSuccess('Success', 'Post deleted successfully');
+          } catch (e) {
+            console.error('Failed to delete post:', e);
+            showError('Error', 'Failed to delete post');
+          }
+        }}
       />
 
       {/* Performance Modal */}

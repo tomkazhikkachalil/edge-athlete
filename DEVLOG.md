@@ -1,5 +1,58 @@
 # Development Log
 
+## August 19, 2026 — Delete a round without posting it
+
+*"Right now when I input scores, I have to post in order for me to delete it…
+Even if I select delete after end round, it won't let me."* Both halves were
+real, and neither was the feature missing — it was three separate defects
+stacked:
+
+1. **The feed post exists from round creation** (there is no "post it" step)
+   but is HIDDEN from the feed while the round is live (`isRoundLive` filter
+   in /api/posts). So the only working delete — the feed trash — was
+   unreachable until the round completed. That's "I have to post it first."
+2. **The Delete he could reach was a dead button.** End Round lands on
+   `/feed?post=<id>`, whose `PostDetailModal` mount passed no `onDelete` —
+   and `PostCard` rendered the trash on `isOwner` alone while its confirm
+   handler silently no-ops without the prop. Confirm, nothing happens, no
+   error. That's "it won't let me."
+3. **Even the working delete orphaned the round.** `DELETE /api/posts` only
+   removed the posts row; group_posts + scores + `golf_rounds` mirrors
+   survived (FKs are SET NULL), still resolving at /live, still in Live Now,
+   still feeding stats and handicap.
+
+**The semantic (Tom's call): a round's post IS the round.** One server
+cascade — `deleteRoundCascade` (src/lib/golf/round-delete-server.ts) —
+deletes the stat mirrors FIRST (after the group-post delete their FK nulls
+and they become unfindable), then the feed post through `deletePostCascade`
+(extracted verbatim from DELETE /api/posts — same storage ref-check that
+protects shared-workout clips), then group_posts with `count: 'exact'` so a
+0-row delete is an error, never a silent success (the old handler's exact
+bug: an RLS refusal reported success). Creator-only, app-layer authz on the
+admin client per the API conventions.
+
+**Surfaces:**
+- `/live` — Delete on both `SharedRoundQuickView` and `SharedRoundFullCard`,
+  creator-only, gated on the new `onDeleted` prop so feed/profile mounts are
+  unchanged. Shows for **pending** (the zero-score round that previously
+  could be neither ended nor deleted) and active; completed rounds delete
+  via the post trash. Confirm copy counts partners' entered scores
+  (`countPartnersWithScores`, pure + tested — the `!= null` case was caught
+  by its own test: an absent total must not count as a score).
+- **Post trash is now round-aware**: deleting a round's post runs the round
+  cascade, and the confirm says so (`DELETE_ROUND_*` copy). Legacy orphaned
+  rounds (post without a surviving group post) fall back to plain post
+  deletion.
+- **The dead-button class is closed structurally**: `PostCard` renders the
+  trash only when `onDelete` is actually wired. The `/feed?post=` and
+  `/athlete` mounts got real handlers; `/athlete/[id]` deliberately did NOT —
+  owners are redirected off that page, so the gate alone is the fix there.
+
+New spec `e2e/round-delete.spec.ts`: live-round delete end-to-end (UI →
+redirect → 404 → Live Now clean), completed-round delete via the once-dead
+deep-link trash, and the participant-403 negative that pins the
+0-row-silent-success hole shut.
+
 ## August 19, 2026 — Score wheels: ± steppers, condensed, and the device-pass fixes
 
 Tom's device pass on #165/#166: the wheels work, but he wanted **− / + step

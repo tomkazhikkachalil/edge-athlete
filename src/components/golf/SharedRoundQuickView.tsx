@@ -5,6 +5,9 @@ import { formatDisplayName, getInitials } from '@/lib/formatters';
 import { isRoundLive, isActiveParticipant, effectiveRoundStatus } from '@/lib/golf/round-status';
 import { asGameFormat, calcStablefordTotal, calcMatchStatus, GAME_FORMAT_LABELS } from '@/lib/golf/formats';
 import { useEndRound } from '@/hooks/useEndRound';
+import { useDeleteRound } from '@/hooks/useDeleteRound';
+import { countPartnersWithScores } from '@/lib/golf/round-delete';
+import { COPY } from '@/lib/copy';
 import LazyImage from '../LazyImage';
 import ConfirmModal from '../ConfirmModal';
 import type { CompleteGolfScorecard } from '@/types/group-posts';
@@ -18,6 +21,10 @@ interface SharedRoundQuickViewProps {
   stale?: boolean;
   /** Called after the creator ends the round from this card. */
   onStatusChange?: () => void;
+  /** Called after the creator deletes the round from this card. Also GATES
+   *  the Delete button — surfaces that don't pass it (feed/profile cards)
+   *  don't get the button and keep deleting via the post trash instead. */
+  onDeleted?: () => void;
 }
 
 export default function SharedRoundQuickView({
@@ -25,11 +32,14 @@ export default function SharedRoundQuickView({
   onExpand,
   currentUserId,
   stale = false,
-  onStatusChange
+  onStatusChange,
+  onDeleted
 }: SharedRoundQuickViewProps) {
   const { group_post, golf_data, participants } = scorecard;
   const [showEndConfirm, setShowEndConfirm] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const { endRound, ending } = useEndRound(group_post.id, onStatusChange);
+  const { deleteRound, deleting } = useDeleteRound(group_post.id, onDeleted);
 
   // Filter confirmed participants with scores
   const confirmedWithScores = participants.filter(
@@ -377,6 +387,22 @@ export default function SharedRoundQuickView({
             Manage
           </button>
         )}
+
+        {/* Delete Round — the way OUT of a round that shouldn't exist,
+            including the 'pending' zero-score round that can't even be
+            ended. Completed rounds delete via the post trash instead (the
+            post is back in the feed by then), so this hides on completed. */}
+        {isOwner && group_post.status !== 'completed' && onDeleted && (
+          <button
+            onClick={() => setShowDeleteConfirm(true)}
+            disabled={deleting}
+            className="flex items-center justify-center gap-2 border border-red-600 text-red-600 hover:bg-red-50 dark:hover:bg-red-950/40 disabled:opacity-60 font-bold py-2 px-4 rounded-lg transition-colors text-sm min-h-[44px]"
+            aria-label="Delete round"
+          >
+            <i className={`fas ${deleting ? 'fa-spinner fa-spin' : 'fa-trash'}`}></i>
+            Delete
+          </button>
+        )}
       </div>
 
       <ConfirmModal
@@ -389,6 +415,24 @@ export default function SharedRoundQuickView({
           endRound();
         }}
         onCancel={() => setShowEndConfirm(false)}
+      />
+
+      <ConfirmModal
+        isOpen={showDeleteConfirm}
+        title={COPY.FORMS.DELETE_ROUND_TITLE}
+        message={
+          countPartnersWithScores(participants, group_post.creator_id) > 0
+            ? COPY.FORMS.DELETE_ROUND_CONFIRM_PARTNERS(
+                countPartnersWithScores(participants, group_post.creator_id)
+              )
+            : COPY.FORMS.DELETE_ROUND_CONFIRM
+        }
+        confirmText={COPY.FORMS.DELETE_ROUND_ACTION}
+        onConfirm={() => {
+          setShowDeleteConfirm(false);
+          deleteRound();
+        }}
+        onCancel={() => setShowDeleteConfirm(false)}
       />
     </div>
   );

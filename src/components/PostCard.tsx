@@ -20,6 +20,8 @@ import SharedRoundFullCard from './golf/SharedRoundFullCard';
 import ScoreEntryModal from './golf/ScoreEntryModal';
 import { getSportName, getSportIcon, getSportColor } from '@/lib/config/sports-config';
 import { isActiveParticipant, isRoundLive } from '@/lib/golf/round-status';
+import { countPartnersWithScores } from '@/lib/golf/round-delete';
+import { COPY } from '@/lib/copy';
 import { formatDisplayName, getInitials } from '@/lib/formatters';
 import WorkoutPostCard from './workouts/WorkoutPostCard';
 import { getHandle } from '@/lib/profile-display';
@@ -491,13 +493,18 @@ function PostCard({
               >
                 <i className="fas fa-edit text-sm"></i>
               </button>
-              <button
-                onClick={handleDeleteClick}
-                className="text-primary hover:text-red-600 transition-colors p-2 min-w-[44px] min-h-[44px] rounded-full hover:bg-red-50 dark:hover:bg-red-950/40 flex items-center justify-center"
-                title="Delete post"
-              >
-                <i className="fas fa-trash text-sm"></i>
-              </button>
+              {/* Only when the mount actually wired onDelete — the confirm
+                  handler no-ops without it, and a trash icon that silently
+                  does nothing already shipped once (the /feed?post= mount). */}
+              {onDelete && (
+                <button
+                  onClick={handleDeleteClick}
+                  className="text-primary hover:text-red-600 transition-colors p-2 min-w-[44px] min-h-[44px] rounded-full hover:bg-red-50 dark:hover:bg-red-950/40 flex items-center justify-center"
+                  title="Delete post"
+                >
+                  <i className="fas fa-trash text-sm"></i>
+                </button>
+              )}
             </>
           )}
         </div>
@@ -796,12 +803,26 @@ function PostCard({
         />
       </div>
 
-      {/* Delete Confirmation Modal */}
+      {/* Delete Confirmation Modal. For a round's post the delete IS the
+          round delete (server cascades group post, scores, mirrors), so the
+          copy says so — including partners' scores when they have any. */}
       <ConfirmModal
         isOpen={showDeleteConfirm}
-        title="Delete Post"
-        message="Are you sure you want to permanently delete this post? This action cannot be undone."
-        confirmText="Delete"
+        title={post.group_scorecard ? COPY.FORMS.DELETE_ROUND_TITLE : 'Delete Post'}
+        message={
+          post.group_scorecard
+            ? (() => {
+                const partners = countPartnersWithScores(
+                  post.group_scorecard.participants,
+                  post.group_scorecard.group_post.creator_id
+                );
+                return partners > 0
+                  ? COPY.FORMS.DELETE_ROUND_CONFIRM_PARTNERS(partners)
+                  : COPY.FORMS.DELETE_ROUND_CONFIRM;
+              })()
+            : 'Are you sure you want to permanently delete this post? This action cannot be undone.'
+        }
+        confirmText={post.group_scorecard ? COPY.FORMS.DELETE_ROUND_ACTION : 'Delete'}
         cancelText="Cancel"
         confirmButtonClass="bg-red-600 hover:bg-red-700"
         onConfirm={handleDeleteConfirm}

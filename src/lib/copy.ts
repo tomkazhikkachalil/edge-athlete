@@ -115,6 +115,14 @@ export const COPY = {
     DISCARD_CONFIRM: "You have unsaved changes. If you close now, they'll be lost.",
     DISCARD_ACTION: 'Discard',
     KEEP_EDITING: 'Keep editing',
+    // Round deletion is TOTAL — group post, scorecard, scores, feed post and
+    // stat mirrors all go (Tom's call, Aug 19: a round's post IS the round).
+    DELETE_ROUND_TITLE: 'Delete this round?',
+    DELETE_ROUND_CONFIRM:
+      'The round, its scorecard, and its post will be permanently deleted. This cannot be undone.',
+    DELETE_ROUND_CONFIRM_PARTNERS: (n: number) =>
+      `The round, its scorecard, and its post will be permanently deleted — including scores entered by ${n} playing partner${n === 1 ? '' : 's'}. This cannot be undone.`,
+    DELETE_ROUND_ACTION: 'Delete Round',
   },
 
   // Error Messages
