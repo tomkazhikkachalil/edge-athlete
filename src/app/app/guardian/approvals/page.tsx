@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 import Image from 'next/image';
 import { useAuth } from '@/lib/auth';
 import BrandBar from '@/components/BrandBar';
@@ -106,6 +107,13 @@ export default function GuardianApprovalsPage() {
     <div className="min-h-screen flex flex-col bg-brand-soft">
       <BrandBar />
       <main className="flex-grow w-full max-w-2xl mx-auto px-4 py-8">
+        <Link
+          href="/app/guardian"
+          className="inline-flex items-center gap-2 text-sm font-semibold text-brand-fg-strong hover:text-violet-800 dark:hover:text-violet-300 mb-4 min-h-[44px]"
+        >
+          <i className="fas fa-chevron-left text-xs"></i>
+          Family console
+        </Link>
         <h1 className="text-xl sm:text-2xl font-bold text-violet-800 dark:text-violet-200 mb-1">Approval queue</h1>
         <p className="text-sm text-tertiary mb-6">
           Posts your athletes have created are held here until you approve them.

@@ -3,6 +3,11 @@
 import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import BrandBar from '@/components/BrandBar';
+import {
+  MESSAGING_OPTIONS,
+  type Visibility,
+  type MessagingPermission,
+} from '@/lib/profile-privacy';
 
 // ── Post-transfer activation + review ────────────────────────────────────────
 // The link from the "your account is now yours" email. Three beats, one page:
@@ -10,16 +15,6 @@ import BrandBar from '@/components/BrandBar';
 // their profile. Closing the tab mid-review is fine: the server already
 // stamped onboarded_at and the restrictive defaults (private / nobody)
 // simply stay in place.
-
-type Visibility = 'public' | 'private';
-type MessagingPermission = 'everyone' | 'fans_only' | 'mutual_fans' | 'nobody';
-
-const MESSAGING_OPTIONS: { value: MessagingPermission; label: string; description: string }[] = [
-  { value: 'everyone', label: 'Everyone', description: 'Any Edge Athlete user can send you a direct message.' },
-  { value: 'fans_only', label: 'Fans only', description: 'Only athletes who follow you can send you messages.' },
-  { value: 'mutual_fans', label: 'Mutual fans', description: 'Only athletes you both follow each other can message you.' },
-  { value: 'nobody', label: 'Nobody', description: 'Direct messages stay off. No one can message you.' },
-];
 
 export default function ActivatePage() {
   const params = useParams();
