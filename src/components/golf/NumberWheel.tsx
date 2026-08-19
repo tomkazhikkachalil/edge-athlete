@@ -5,6 +5,7 @@ import {
   WHEEL_ITEM_H,
   WHEEL_HEIGHT,
   WHEEL_PAD,
+  clampToRange,
   wheelValues,
   valueForScrollTop,
   scrollTopForValue,
@@ -118,6 +119,31 @@ export default function NumberWheel({
     }, 120);
   };
 
+  // Where supported, scrollend is the authoritative "the wheel stopped" —
+  // an iOS momentum fling can outlast the 120ms debounce above, which then
+  // commits a mid-flight value (later scroll frames re-fire it, but each
+  // intermediate commit is a real onChange). scrollend fires exactly once,
+  // after snap settling; browsers without it keep the debounce path.
+  const handleScrollEnd = () => {
+    if (programmatic.current || disabled) return;
+    if (settleTimer.current) clearTimeout(settleTimer.current);
+    const el = listRef.current;
+    if (!el) return;
+    commit(valueForScrollTop(el.scrollTop, min, max));
+  };
+
+  // ±1 precision fallback for when scrolling by exactly one is fiddly on a
+  // phone. Steps from the RESTING value, so on an untouched wheel the first
+  // tap commits resting±1 (and thereby marks the hole touched, same as a
+  // flick). Bounds are enforced by disabling the button, and clamped again
+  // here for safety.
+  const step = (delta: 1 | -1) => {
+    if (disabled) return;
+    const next = clampToRange(resting + delta, min, max);
+    scrollTo(next, true);
+    commit(next);
+  };
+
   useEffect(() => () => { if (settleTimer.current) clearTimeout(settleTimer.current); }, []);
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
@@ -145,10 +171,35 @@ export default function NumberWheel({
     : 'bg-brand text-white border-brand';
 
   return (
-    <div className="min-w-0">
-      <label id={labelId} className="block text-sm font-medium text-secondary mb-2">
-        {label}
-      </label>
+    <div className="min-w-0 w-full max-w-40 mx-auto">
+      {/* − / + are pointer-only redundancy for coarse-pointer precision; the
+          spinbutton below already owns the full keyboard/AT contract, so the
+          buttons stay out of the tab order and the accessibility tree. */}
+      <div className="flex items-center justify-between mb-1">
+        <button
+          type="button"
+          tabIndex={-1}
+          aria-hidden="true"
+          disabled={disabled || resting <= min}
+          onClick={() => step(-1)}
+          className="ea-icon-btn inline-flex items-center justify-center shrink-0 disabled:opacity-40 disabled:pointer-events-none"
+        >
+          <i className="fas fa-minus text-sm" />
+        </button>
+        <label id={labelId} className="text-sm font-medium text-secondary text-center">
+          {label}
+        </label>
+        <button
+          type="button"
+          tabIndex={-1}
+          aria-hidden="true"
+          disabled={disabled || resting >= max}
+          onClick={() => step(1)}
+          className="ea-icon-btn inline-flex items-center justify-center shrink-0 disabled:opacity-40 disabled:pointer-events-none"
+        >
+          <i className="fas fa-plus text-sm" />
+        </button>
+      </div>
 
       {/* The frame carries the centre highlight so the wheel itself stays a
           plain scrollport — a border on the scrolling element would move. */}
@@ -168,6 +219,7 @@ export default function NumberWheel({
         <div
           ref={listRef}
           onScroll={handleScroll}
+          onScrollEnd={handleScrollEnd}
           onKeyDown={handleKeyDown}
           role="spinbutton"
           tabIndex={disabled ? -1 : 0}
@@ -180,7 +232,9 @@ export default function NumberWheel({
           aria-valuetext={value !== null ? String(value) : `Not entered, showing ${resting}`}
           aria-disabled={disabled || undefined}
           // shrink-0 + a fixed height: see the note at the top of this file.
-          className="shrink-0 snap-y snap-mandatory overflow-y-auto scrollbar-hide rounded-lg bg-surface-sunken outline-none"
+          // overscroll-contain: an end-of-range fling must not chain to the
+          // modal body behind the wheel (house pattern for every scroller).
+          className="shrink-0 snap-y snap-mandatory overflow-y-auto overscroll-contain touch-pan-y scrollbar-hide rounded-lg bg-surface-sunken outline-none"
           style={{ height: WHEEL_HEIGHT, scrollPaddingBlock: WHEEL_PAD }}
         >
           <div style={{ paddingTop: WHEEL_PAD, paddingBottom: WHEEL_PAD }}>
@@ -190,13 +244,13 @@ export default function NumberWheel({
                 <div
                   key={v}
                   onClick={() => { scrollTo(v, true); commit(v); }}
-                  className={`snap-center flex items-center justify-center font-bold text-xl select-none cursor-pointer transition-colors ${
+                  className={`snap-center flex items-center justify-center font-bold select-none cursor-pointer transition-colors ${
                     isCurrent
                       ? value === null
                         // Suggested, not chosen — no fill.
-                        ? 'text-tertiary rounded-lg'
-                        : `${selected} rounded-lg`
-                      : value === null ? 'text-faint' : 'text-secondary'
+                        ? 'text-xl text-tertiary rounded-lg'
+                        : `text-xl ${selected} rounded-lg`
+                      : value === null ? 'text-base text-faint' : 'text-base text-secondary'
                   }`}
                   style={{ height: WHEEL_ITEM_H }}
                 >

@@ -1,5 +1,46 @@
 # Development Log
 
+## August 19, 2026 — Score wheels: ± steppers, condensed, and the device-pass fixes
+
+Tom's device pass on #165/#166: the wheels work, but he wanted **− / + step
+buttons** ("incase they have issues scroll by one number — it's a good option
+to have") and the wheels **condensed** ("very large… could be condensed
+slightly to look nice on screen").
+
+**Steppers.** Each wheel's bare label became a header row — `[−] Label [+]`,
+`.ea-icon-btn` circles (40px visual, 44px effective target; legal here because
+they sit OUTSIDE the scrollport — the CLIPPING RULE only kills extenders
+inside overflow ancestors). `step(±1)` clamps via the already-tested
+`clampToRange` and goes through the same `commit → onChange` path as a flick,
+so a stepper tap marks the hole touched with **zero ScoreEntryModal API
+change**. Buttons disable at min/max. They're `tabIndex={-1}` +
+`aria-hidden` — pointer-only redundancy; the `role="spinbutton"` already owns
+the full keyboard/AT contract, and two more tab stops per wheel would slow
+exactly the users who don't need them. − / + glyphs, not arrows: wheel values
+increase DOWNWARD, so up/down arrows would be ambiguous.
+
+**Condense.** Geometry untouched (44px rows are the touch floor and must be
+real). What shrank: wheels capped at `max-w-40` centered (they were stretching
+to the full grid column on desktop), non-center rows `text-xl → text-base`,
+hole number `text-5xl → text-4xl`, two `mb-6 → mb-4`. Net: the hole-header +
+wheels block is ~12px SHORTER than before, with the steppers added.
+
+**Device-pass fixes from my own sweep** (the wheels were verified at emulated
+viewports on Aug 15, never with touch mechanics):
+- The wheel scrollport was the ONLY scroller in the repo without
+  `overscroll-contain` — an end-of-range fling chained to the modal body.
+  Added, plus `touch-pan-y`.
+- `onScrollEnd` now commits alongside the 120ms debounce: an iOS momentum
+  fling can outlast the debounce, which then commits mid-flight values (each
+  one a real onChange). scrollend is authoritative where supported; browsers
+  without it keep the debounce path unchanged.
+
+Verified: 32/32 browser checks at 390×844 (hasTouch) and 1280×800 against a
+real live round — initial dashed state, + commits resting+1 and flips the
+frame solid, − steps back, clamp/disable at bounds, scroll-commit,
+ArrowDown, `overscroll-behavior-y: contain` computed, footprint measured,
+screenshots read. Gate green; golf e2e 2/2.
+
 ## August 19, 2026 — RPC posture re-verified; one legacy overload flushed out (088)
 
 The diagnostic's standing instruction is to re-run the grant inventory after
