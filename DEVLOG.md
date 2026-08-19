@@ -1,5 +1,34 @@
 # Development Log
 
+## August 19, 2026 — Family console, PR 3: the athlete's side + the first guardian e2e
+
+The last v1 piece: the custody link legible from BOTH ends, and regression
+coverage for a feature that had none.
+
+- **`GuardiansCard`** at the top of settings → Privacy (a privacy fact, not
+  profile-page content — listing guardians publicly would leak the
+  relationship): a supervised athlete sees who manages their profile —
+  avatar, name, "Guardian · since {date}" — with copy explaining what that
+  means and that it ends at handover. Renders nothing for unsupervised
+  profiles or an empty list; fetches `/api/profile/guardians` (PR 1).
+- **`e2e/guardian-console.spec.ts`** — the guardian feature shipped Jul 28
+  with ZERO committed e2e coverage (all verification was ad-hoc harnesses).
+  Four serial tests: flag probe (green-skips in CI where the flag is dark —
+  a 404 from the create route means feature off, a 400 means on), athlete
+  creation, console roster + chips + attention strip, the safety PATCH
+  persisting + the consent-gated public flip reverting, and a child
+  PIN-login asserting the guardians endpoint. Cleanup is `test.afterAll`,
+  NOT a fifth test — serial mode skips remaining tests after a failure,
+  which would orphan the child's `@minors.invalid` shadow user (the QA
+  sweep only matches `edgeqa-*`).
+
+Console v1 is complete. Deferred to later rounds, per the plan: content
+attribution (guardian-authored posts are still written as the child),
+aggregated notifications, guardian-initiated co-guardian invites/revoke,
+a safety-policy object, and the org-shaped generalization. When the
+guardian feature ships to prod, add `NEXT_PUBLIC_FEATURE_GUARDIAN_PROFILES=1`
+to the CI smoke env so this spec arms there too.
+
 ## August 19, 2026 — Family console, PR 2: the console itself
 
 The management surface over PR 1's server layer. Two new pages, both behind
