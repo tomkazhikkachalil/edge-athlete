@@ -97,7 +97,7 @@ export async function POST(request: NextRequest) {
 
 - **`auth/activate` and `auth/username-login`** use inline `createServerClient`
   with `await cookies()` because they must **set** session cookies — something
-  the shared helper structurally can't do (its `set`/`remove` are no-ops).
+  the shared helper structurally can't do (its `setAll` is a no-op).
   Same story for `src/app/auth/callback/route.ts` and `src/middleware.ts`.
 - **`account/delete` and `auth/reauthenticate`** keep their own gate + password
   re-verification (`'Unauthorized'` / `'Invalid password'` bodies): destructive
