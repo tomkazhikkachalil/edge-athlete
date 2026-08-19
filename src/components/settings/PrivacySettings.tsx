@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { useAuth } from '@/lib/auth';
 import { useToast } from '@/components/Toast';
+import GuardiansCard from './GuardiansCard';
 
 export default function PrivacySettings() {
   const { profile, refreshProfile } = useAuth();
@@ -47,6 +48,8 @@ export default function PrivacySettings() {
 
   return (
     <div className="space-y-6">
+      {/* Supervised profiles see who manages them (renders nothing otherwise) */}
+      <GuardiansCard />
       <div>
         <h3 className="text-lg font-semibold text-primary mb-4">Profile Visibility</h3>
         <p className="text-tertiary text-sm mb-6">
