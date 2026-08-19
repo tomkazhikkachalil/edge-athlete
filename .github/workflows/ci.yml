@@ -50,6 +50,10 @@ jobs:
       NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
       NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
       SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+      # Guardian profiles launched to prod Aug 19 2026 — the smoke build must
+      # match the prod build so guardian-console.spec.ts arms instead of
+      # green-skipping on its flag probe.
+      NEXT_PUBLIC_FEATURE_GUARDIAN_PROFILES: '1'
     steps:
       - name: Gate on secrets
         id: gate
