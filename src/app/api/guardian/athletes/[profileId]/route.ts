@@ -1,8 +1,95 @@
 import { NextRequest, NextResponse } from 'next/server';
 import * as Sentry from '@sentry/nextjs';
-import { requireAuth, getSupabaseAdmin, getProfileRole } from '@/lib/auth-server';
+import { requireAuth, getSupabaseAdmin, getProfileRole, requireProfileRole } from '@/lib/auth-server';
 import { FEATURE_FLAGS } from '@/lib/features';
 import { hardDeleteAccount } from '@/lib/account-deletion';
+import { getConsentState } from '@/lib/consent';
+
+// ── PATCH /api/guardian/athletes/[profileId] ──────────────────────────────────
+// Family console: a guardian adjusts a managed athlete's safety posture.
+// Strict whitelist — visibility and messaging_permission only. PUT
+// /api/profile is deliberately self-locked, so this is the ONLY route that
+// lets a guardian change these after creation (which forces private/nobody).
+//
+// This is also the first real requireProfileRole call site: the permission
+// matrix (profile-roles.ts) grants guardians 'manage_privacy', and this
+// route enforces it rather than hand-rolling the role check.
+//
+// NOTE (v1): no audit row is written — profile_access_audit is scoped to
+// access-role changes. A safety-settings audit trail is a later round.
+
+const VISIBILITY_VALUES = ['public', 'private'] as const;
+const MESSAGING_VALUES = ['everyone', 'fans_only', 'mutual_fans', 'nobody'] as const;
+
+export async function PATCH(
+  request: NextRequest,
+  { params }: { params: Promise<{ profileId: string }> }
+) {
+  try {
+    const { profileId } = await params;
+    if (!FEATURE_FLAGS.FEATURE_GUARDIAN_PROFILES) {
+      return NextResponse.json({ error: 'Not available' }, { status: 404 });
+    }
+    await requireProfileRole(request, profileId, 'manage_privacy');
+
+    const body = await request.json().catch(() => ({}));
+    const update: Record<string, string> = {};
+    if (body.visibility !== undefined) {
+      if (!VISIBILITY_VALUES.includes(body.visibility)) {
+        return NextResponse.json({ error: 'Invalid visibility value' }, { status: 400 });
+      }
+      update.visibility = body.visibility;
+    }
+    if (body.messaging_permission !== undefined) {
+      if (!MESSAGING_VALUES.includes(body.messaging_permission)) {
+        return NextResponse.json({ error: 'Invalid messaging permission value' }, { status: 400 });
+      }
+      update.messaging_permission = body.messaging_permission;
+    }
+    if (Object.keys(update).length === 0) {
+      return NextResponse.json({ error: 'Nothing to update' }, { status: 400 });
+    }
+
+    const admin = getSupabaseAdmin();
+    const { data: child } = await admin
+      .from('profiles')
+      .select('supervision_state')
+      .eq('id', profileId)
+      .maybeSingle();
+    if (!child || child.supervision_state !== 'supervised') {
+      return NextResponse.json({
+        error: 'Only supervised athlete profiles can be managed here. Transferred accounts belong to their owner.'
+      }, { status: 409 });
+    }
+
+    // Going public requires approved consent — same promise the publish gate
+    // enforces (posts/route.ts): nothing is visible until consent approves.
+    if (update.visibility === 'public') {
+      const consent = await getConsentState(admin, profileId);
+      if (consent !== 'approved') {
+        return NextResponse.json({
+          error: 'Complete the consent review before making this profile public.'
+        }, { status: 403 });
+      }
+    }
+
+    const { error: updateError } = await admin
+      .from('profiles')
+      .update({ ...update, updated_at: new Date().toISOString() })
+      .eq('id', profileId);
+    if (updateError) {
+      console.error('[GUARDIAN] safety update failed:', updateError);
+      return NextResponse.json({ error: 'Could not save the change. Please try again.' }, { status: 500 });
+    }
+
+    return NextResponse.json({ ok: true });
+  } catch (error) {
+    if (error instanceof Response) return error;
+    console.error('[GUARDIAN] patch athlete error:', error);
+    Sentry.captureException(error, { tags: { area: 'guardian-athletes' } });
+    return NextResponse.json({ error: 'An unexpected error occurred' }, { status: 500 });
+  }
+}
 
 // ── DELETE /api/guardian/athletes/[profileId] ─────────────────────────────────
 // Consent withdrawal: a guardian permanently deletes a managed supervised

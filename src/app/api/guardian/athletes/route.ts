@@ -11,6 +11,8 @@ import {
 } from '@/lib/config/minors-config';
 import { randomBytes } from 'crypto';
 import { validateSupervisedHandle } from '@/lib/supervised-credentials';
+import { buildAthleteSummaries } from '@/lib/guardian-rollup';
+import { ACTIVE_TRANSFER_STATES } from '@/lib/transfers';
 
 // ── /api/guardian/athletes ────────────────────────────────────────────────────
 // Step B: a guardian creates (and lists) managed athlete profiles.
@@ -31,13 +33,52 @@ export async function GET(request: NextRequest) {
     const admin = getSupabaseAdmin();
     const { data, error } = await admin
       .from('profile_access')
-      .select('granted_at, profiles!profile_access_profile_id_fkey(id, first_name, last_name, display_name, handle, avatar_url, dob, supervision_state, visibility)')
+      .select('granted_at, profiles!profile_access_profile_id_fkey(id, first_name, last_name, display_name, handle, avatar_url, dob, supervision_state, visibility, messaging_permission)')
       .eq('user_id', user.id)
       .eq('role', 'guardian')
       .order('granted_at', { ascending: true });
     if (error) throw error;
+
+    const athletes = (data ?? []).map(r => r.profiles as unknown as { id: string });
+    const ids = athletes.map(a => a.id);
+
+    // Console rollup: four batched IN-queries — constant query count however
+    // many athletes a guardian manages (the transfers page used to fan out
+    // one /api/transfers call per athlete instead).
+    if (ids.length === 0) {
+      return NextResponse.json({ athletes: [] });
+    }
+    const [consentQ, supervisedQ, pendingQ, transferQ] = await Promise.all([
+      admin
+        .from('consent_records')
+        .select('profile_id, action')
+        .in('profile_id', ids)
+        .order('created_at', { ascending: false }),
+      admin
+        .from('profile_access')
+        .select('user_id, profile_id')
+        .in('profile_id', ids)
+        .eq('role', 'supervised'),
+      admin
+        .from('posts')
+        .select('profile_id')
+        .in('profile_id', ids)
+        .eq('status', 'pending_approval'),
+      admin
+        .from('profile_transfers')
+        .select('profile_id, state')
+        .in('profile_id', ids)
+        .in('state', [...ACTIVE_TRANSFER_STATES]),
+    ]);
+    const summaries = buildAthleteSummaries(
+      ids,
+      consentQ.data ?? [],
+      supervisedQ.data ?? [],
+      pendingQ.data ?? [],
+      transferQ.data ?? []
+    );
     return NextResponse.json({
-      athletes: (data ?? []).map(r => r.profiles),
+      athletes: athletes.map(a => ({ ...a, ...summaries[a.id] })),
     });
   } catch (error) {
     if (error instanceof Response) return error;
