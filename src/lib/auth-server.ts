@@ -35,16 +35,15 @@ export function getServerClient(request: NextRequest) {
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     {
       cookies: {
-        get(name: string) {
+        getAll() {
           const cookieHeader = request.headers.get('cookie');
-          if (!cookieHeader) return undefined;
-          return parseCookieHeader(cookieHeader)[name];
+          if (!cookieHeader) return [];
+          return Object.entries(parseCookieHeader(cookieHeader)).map(
+            ([name, value]) => ({ name, value })
+          );
         },
-        set() {
+        setAll() {
           // Not used in API routes - cookies are set client-side
-        },
-        remove() {
-          // Not used in API routes - cookies are removed client-side
         },
       },
     }

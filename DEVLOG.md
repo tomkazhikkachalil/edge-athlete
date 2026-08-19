@@ -1,5 +1,51 @@
 # Development Log
 
+## August 19, 2026 — @supabase/ssr 0.7.0 → 0.12.4, off the deprecated cookie API
+
+The auth-layer upgrade deferred out of the morning's sweep, done as its own
+round. 0.12.0 is a full rewrite of the library around the `getAll`/`setAll`
+cookie methods; the old `get`/`set`/`remove` shape still *runs* (0.12.4
+reassembles chunks through sequential `get` calls and warns), but it is the
+path the library itself says "can lead to issues such as random logouts [and]
+early session termination". Two of our six `@supabase/ssr` sites were still on
+it:
+
+- **`src/middleware.ts`** — converted to the canonical Next.js
+  `getAll`/`setAll` middleware pattern (read from `request.cookies`, write
+  through to both the request and a rebuilt response). The `CookieOptions`
+  type import went with it.
+- **`src/lib/auth-server.ts` `getServerClient`** — `getAll` adapts our tested
+  `parseCookieHeader` map to the `{name, value}[]` shape; `setAll` stays a
+  deliberate no-op (API routes never write cookies — that contract is
+  documented in `src/app/api/CLAUDE.md`, wording updated).
+
+The other four sites needed nothing: the OAuth callback, username-login and
+activate routes were already on `getAll`/`setAll`, and the browser client
+takes no cookie config.
+
+**Why the conversion mattered more than the version:** typecheck would never
+have flagged this — 0.12.4's types still accept the deprecated shape. Left
+alone it would have kept working while emitting the deprecation warning and
+running the legacy chunk-probing path on every request through middleware.
+
+**Verification, in production-shaped conditions:**
+
+- Full e2e smoke suite against the local production build: 23/23 (one
+  first-run failure was `net::ERR_NETWORK_IO_SUSPENDED` — macOS suspending a
+  backgrounded headless Chrome, not the app; the spec passes 3/3 in
+  isolation).
+- The suite's QA sessions are minted in the exact `base64-` cookie format
+  0.7 wrote, so a green run doubles as proof that **existing prod sessions
+  survive the upgrade** — nobody gets logged out by the deploy.
+- A dedicated probe for the path e2e can't reach (fresh minted sessions never
+  refresh): an **expired** 0.7-format session with a valid refresh token,
+  sent at `/feed`. The 0.12 middleware refreshed it and re-wrote the
+  session cookie (still `base64-` format — the write format did not flip).
+  Probe lesson: Python's `dict(headers)` collapses duplicate `Set-Cookie`
+  headers — the first probe run "failed" by discarding the very header it
+  was asserting on. Use `headers.get_all('Set-Cookie')`.
+- `npm run verify` green.
+
 ## August 19, 2026 — Maintenance sweep: in-range minors, all green
 
 Session-open sweep found nothing broken: no open PRs, main deployed green,
