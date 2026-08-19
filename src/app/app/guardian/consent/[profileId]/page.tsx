@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { useParams, useRouter } from 'next/navigation';
+import Link from 'next/link';
 import { useAuth } from '@/lib/auth';
 import BrandBar from '@/components/BrandBar';
 import { FEATURE_FLAGS } from '@/lib/features';
@@ -70,7 +71,16 @@ export default function ConsentPage() {
   return (
     <div className="min-h-screen flex flex-col bg-brand-soft">
       <BrandBar />
-      <div className="flex-grow flex items-center justify-center p-4">
+      <div className="flex-grow flex flex-col items-center justify-center gap-3 p-4">
+        <div className="w-full max-w-2xl">
+        <Link
+          href="/app/guardian"
+          className="self-start inline-flex items-center gap-2 text-sm font-semibold text-brand-fg-strong hover:text-violet-800 dark:hover:text-violet-300 min-h-[44px]"
+        >
+          <i className="fas fa-chevron-left text-xs"></i>
+          Family console
+        </Link>
+        </div>
         <div className="w-full max-w-2xl bg-surface rounded-lg shadow-lg p-6 sm:p-8">
           {state === 'forbidden' && (
             <p className="text-sm text-tertiary text-center py-8">

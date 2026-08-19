@@ -13,7 +13,7 @@ import { FEATURE_FLAGS } from '@/lib/features';
 // the guardian purely via profile_access, and login credentials (username +
 // password/PIN) are issued by the guardian in a later phase.
 export default function AddAthletePage() {
-  const { user, loading, initialAuthCheckComplete } = useAuth();
+  const { user, loading, initialAuthCheckComplete, refreshManagedProfiles } = useAuth();
   const router = useRouter();
 
   const [firstName, setFirstName] = useState('');
@@ -95,6 +95,9 @@ export default function AddAthletePage() {
       window.sessionStorage.removeItem('ea:athlete-dob');
       window.sessionStorage.removeItem('ea:athlete-name');
       window.sessionStorage.removeItem('ea:pending-profile-id');
+      // The new athlete must appear in the header switcher immediately —
+      // without this the dropdown stays stale until a reload.
+      await refreshManagedProfiles();
       setPendingProfileId('');
       setCreatedName(firstName.trim());
       setCreatedId(result.profileId ?? '');
@@ -139,6 +142,13 @@ export default function AddAthletePage() {
                   className="w-full border border-brand text-brand-fg-strong py-3 px-4 rounded-md hover:bg-brand-soft transition text-sm font-medium"
                 >
                   Add another athlete
+                </button>
+                <button
+                  type="button"
+                  onClick={() => router.push('/app/guardian')}
+                  className="w-full border border-border-strong text-secondary py-3 px-4 rounded-md hover:bg-surface-muted transition text-sm font-medium"
+                >
+                  Go to family console
                 </button>
                 <button
                   type="button"

@@ -1,5 +1,44 @@
 # Development Log
 
+## August 19, 2026 — Family console, PR 2: the console itself
+
+The management surface over PR 1's server layer. Two new pages, both behind
+the flag, both AppHeader chrome — the console is a recurring signed-in
+destination like /settings, while the linear guardian flows (add-athlete,
+consent, credentials, transfer) keep BrandBar.
+
+- **`/app/guardian`** — the hub. A "Needs you" strip (pending approvals,
+  transfers awaiting the guardian, incomplete consent, no-login-yet) over a
+  roster of athlete cards: avatar, name, age, @handle, chips (consent /
+  login / visibility / active transfer), red pending-count badge, and three
+  actions per card — Switch into (the acting-as context), View profile,
+  Manage. One fetch; the rollup payload carries everything.
+- **`/app/guardian/athlete/[profileId]`** — one athlete's custody view:
+  identity header, LIVE safety controls (visibility + messaging radio cards
+  driving PR 1's PATCH, optimistic with revert-on-failure — the consent-gate
+  403 surfaces verbatim), and sections linking to consent, credentials and
+  transfer. This kills the deep-link-only problem: consent and credentials
+  are reachable again after the creation funnel closes.
+- **Wiring:** the AppHeader "Your athletes" block (both copies — desktop
+  dropdown and mobile drawer, deliberately duplicated) trades its two queue
+  rows for one "Family console" row; add-athlete now awaits
+  `refreshManagedProfiles()` after creation (the dropdown-staleness bug) and
+  offers "Go to family console"; the four sibling pages get a back link; the
+  transfers page drops its per-athlete `/api/transfers` fan-out and reads
+  `activeTransfer` off the roster payload.
+- **`src/lib/profile-privacy.ts`** — MESSAGING_OPTIONS extracted from the
+  activation review card (which re-imports it) + VISIBILITY_OPTIONS, so the
+  console's Safety section and the post-transfer review can't drift.
+
+Verified in the browser (dev, flag on): 22/22 checks at 1280×800 + 390×844 —
+roster + chips + strip, messaging change persisted, **visibility→public
+blocked pre-consent with the server's message and the optimistic value
+reverted**, deep links present, dropdown row, child PIN login, the athlete's
+GET /api/profile/guardians naming the guardian, no horizontal overflow, no
+page errors. Two probe traps re-confirmed: `isVisible()` doesn't wait (use
+`waitFor`), and text locators match the always-mounted off-canvas drawer —
+scope to `main`.
+
 ## August 19, 2026 — Family console, PR 1: the server layer
 
 Tom's brief: the parent account is a guardianship layer over independent

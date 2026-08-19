@@ -7,8 +7,9 @@ import { isOptimizableImageSrc } from '@/lib/media/image-src';
 import { useAuth } from '@/lib/auth';
 import BrandBar from '@/components/BrandBar';
 import { FEATURE_FLAGS } from '@/lib/features';
+import Link from 'next/link';
 import { formatDisplayName, getInitials } from '@/lib/formatters';
-import { transferStateChip, type ClientTransfer } from '@/lib/transfer-ui';
+import { transferStateChip, type TransferState } from '@/lib/transfer-ui';
 
 // ── Guardian transfers overview ──────────────────────────────────────────────
 // One row per managed athlete with the state of their account handover.
@@ -23,11 +24,9 @@ interface ManagedAthlete {
   handle: string | null;
   avatar_url: string | null;
   supervision_state: string | null;
-}
-
-interface AthleteRow {
-  athlete: ManagedAthlete;
-  transfer: ClientTransfer | null;
+  /** Rollup from /api/guardian/athletes — replaces the old per-athlete
+   *  /api/transfers fan-out (one request per athlete, now zero). */
+  activeTransfer: { state: TransferState } | null;
 }
 
 const CHIP_TONES = {
@@ -40,16 +39,15 @@ export default function GuardianTransfersPage() {
   const router = useRouter();
   const { user, loading, initialAuthCheckComplete } = useAuth();
   const [state, setState] = useState<'loading' | 'ready'>('loading');
-  const [rows, setRows] = useState<AthleteRow[]>([]);
+  const [rows, setRows] = useState<ManagedAthlete[]>([]);
   const [error, setError] = useState('');
 
   useEffect(() => {
     if (!loading && initialAuthCheckComplete && !user) router.replace('/');
   }, [user, loading, initialAuthCheckComplete, router]);
 
-  // Inlined cancellable IIFE. The per-athlete transfer lookups fan out with
-  // Promise.all, so only the final setRows is guarded — the individual
-  // fetches have nothing to abandon.
+  // Inlined cancellable IIFE. One request: the roster payload carries each
+  // athlete's active transfer state (family-console rollup).
   useEffect(() => {
     if (!user) return;
     let cancelled = false;
@@ -58,19 +56,8 @@ export default function GuardianTransfersPage() {
         const res = await fetch('/api/guardian/athletes');
         const data = await res.json().catch(() => ({}));
         if (!res.ok) throw new Error(data.error || 'Could not load your athletes');
-        const athletes: ManagedAthlete[] = data.athletes ?? [];
-        const withTransfers = await Promise.all(
-          athletes.map(async athlete => {
-            if (athlete.supervision_state !== 'supervised') {
-              return { athlete, transfer: null };
-            }
-            const tr = await fetch(`/api/transfers?profileId=${athlete.id}`);
-            const trData = await tr.json().catch(() => ({}));
-            return { athlete, transfer: (tr.ok ? trData.transfer : null) ?? null };
-          })
-        );
         if (cancelled) return;
-        setRows(withTransfers);
+        setRows(data.athletes ?? []);
         setError('');
       } catch (e) {
         if (!cancelled) setError(e instanceof Error ? e.message : 'Could not load your athletes');
@@ -95,6 +82,13 @@ export default function GuardianTransfersPage() {
     <div className="min-h-screen flex flex-col bg-brand-soft">
       <BrandBar />
       <main className="flex-grow w-full max-w-2xl mx-auto px-4 py-8">
+        <Link
+          href="/app/guardian"
+          className="inline-flex items-center gap-2 text-sm font-semibold text-brand-fg-strong hover:text-violet-800 dark:hover:text-violet-300 mb-4 min-h-[44px]"
+        >
+          <i className="fas fa-chevron-left text-xs"></i>
+          Family console
+        </Link>
         <h1 className="text-xl sm:text-2xl font-bold text-violet-800 dark:text-violet-200 mb-1">Account transfers</h1>
         <p className="text-sm text-tertiary mb-6">
           When an athlete is old enough, you can hand their account over to them.
@@ -115,13 +109,13 @@ export default function GuardianTransfersPage() {
             You&apos;re not supervising any athlete accounts.
           </div>
         ) : (
-          rows.map(({ athlete, transfer }) => {
+          rows.map(athlete => {
             const name = formatDisplayName(athlete.first_name, null, athlete.last_name, athlete.display_name);
             const transferred = athlete.supervision_state === 'self';
             const chip = transferred
               ? { label: 'Transferred', tone: 'gray' as const }
-              : transfer
-                ? transferStateChip(transfer.state)
+              : athlete.activeTransfer
+                ? transferStateChip(athlete.activeTransfer.state)
                 : { label: 'Supervised', tone: 'gray' as const };
             const inner = (
               <>

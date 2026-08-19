@@ -500,29 +500,19 @@ export default function AppHeader({ onCreatePost, onEditProfile }: AppHeaderProp
                               </span>
                             </button>
                           ))}
+                          {/* One door to the management surface — approvals
+                              and transfers live inside the console now. */}
                           {managedProfiles.length > 0 && (
-                            <>
-                              <button
-                                onClick={() => {
-                                  router.push('/app/guardian/approvals');
-                                  setIsProfileDropdownOpen(false);
-                                }}
-                                className="w-full text-left px-4 py-2 text-sm text-brand-fg-strong hover:bg-brand-soft flex items-center gap-3"
-                              >
-                                <i className="fas fa-list-check w-4"></i>
-                                <span>Approval queue</span>
-                              </button>
-                              <button
-                                onClick={() => {
-                                  router.push('/app/guardian/transfers');
-                                  setIsProfileDropdownOpen(false);
-                                }}
-                                className="w-full text-left px-4 py-2 text-sm text-brand-fg-strong hover:bg-brand-soft flex items-center gap-3"
-                              >
-                                <i className="fas fa-right-left w-4"></i>
-                                <span>Account transfers</span>
-                              </button>
-                            </>
+                            <button
+                              onClick={() => {
+                                router.push('/app/guardian');
+                                setIsProfileDropdownOpen(false);
+                              }}
+                              className="w-full text-left px-4 py-2 text-sm text-brand-fg-strong hover:bg-brand-soft flex items-center gap-3"
+                            >
+                              <i className="fas fa-people-roof w-4"></i>
+                              <span>Family console</span>
+                            </button>
                           )}
                           <button
                             onClick={() => {
@@ -748,29 +738,19 @@ export default function AppHeader({ onCreatePost, onEditProfile }: AppHeaderProp
                     </span>
                   </button>
                 ))}
+                {/* One door to the management surface — approvals and
+                    transfers live inside the console now. */}
                 {managedProfiles.length > 0 && (
-                  <>
-                    <button
-                      onClick={() => {
-                        router.push('/app/guardian/approvals');
-                        setIsMobileMenuOpen(false);
-                      }}
-                      className="flex items-center gap-3 w-full px-4 py-3 text-left text-brand-fg-strong hover:bg-brand-soft rounded-lg transition-colors"
-                    >
-                      <i className="fas fa-list-check w-5 text-center"></i>
-                      <span className="font-medium">Approval queue</span>
-                    </button>
-                    <button
-                      onClick={() => {
-                        router.push('/app/guardian/transfers');
-                        setIsMobileMenuOpen(false);
-                      }}
-                      className="flex items-center gap-3 w-full px-4 py-3 text-left text-brand-fg-strong hover:bg-brand-soft rounded-lg transition-colors"
-                    >
-                      <i className="fas fa-right-left w-5 text-center"></i>
-                      <span className="font-medium">Account transfers</span>
-                    </button>
-                  </>
+                  <button
+                    onClick={() => {
+                      router.push('/app/guardian');
+                      setIsMobileMenuOpen(false);
+                    }}
+                    className="flex items-center gap-3 w-full px-4 py-3 text-left text-brand-fg-strong hover:bg-brand-soft rounded-lg transition-colors"
+                  >
+                    <i className="fas fa-people-roof w-5 text-center"></i>
+                    <span className="font-medium">Family console</span>
+                  </button>
                 )}
                 <button
                   onClick={() => {
