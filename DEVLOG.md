@@ -1,5 +1,19 @@
 # Development Log
 
+## August 19, 2026 — Maintenance sweep: in-range minors, all green
+
+Session-open sweep found nothing broken: no open PRs, main deployed green,
+`npm run verify` passing, `npm audit` clean. Took the three in-range minor
+updates — lucide-react 1.31.0 → 1.33.0, mediabunny 1.53.1 → 1.55.1, vitest
+4.1.10 → 4.1.11 (lockfile-only; all within existing ranges) — and re-ran the
+full gate green.
+
+Deliberately **not** taken: `@supabase/ssr` 0.7.0 → 0.12.4. That is five
+minors across the auth/session layer (browser client, middleware refresh,
+cookie handling) and gets its own round with a real regression pass, not a
+ride-along in a sweep. eslint 10 and TypeScript 7 majors remain
+ecosystem-blocked (see the August 12 lint round).
+
 ## August 15, 2026 — Live golf score entry, end to end (#163–#166)
 
 Four PRs from Tom's walk through the golf flow, plus the maintenance sweep
