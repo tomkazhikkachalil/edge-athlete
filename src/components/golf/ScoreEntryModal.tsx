@@ -714,8 +714,8 @@ export default function ScoreEntryModal({
         {/* Content */}
         <div className="flex-1 min-h-0 overflow-y-auto p-4 sm:p-6">
           {/* Current Hole Display */}
-          <div className="text-center mb-6">
-            <div className="text-5xl font-black text-green-900 dark:text-green-100 mb-2">
+          <div className="text-center mb-4">
+            <div className="text-4xl font-black text-green-900 dark:text-green-100 mb-2">
               Hole {currentHoleData.hole_number}
             </div>
             <div className="text-sm text-tertiary">
@@ -745,7 +745,7 @@ export default function ScoreEntryModal({
               in here would flip rounds to `completed` (terminal — they cannot
               be reopened) and mirror invented even-par rounds into permanent
               history and handicap data. */}
-          <div className="grid grid-cols-2 gap-3 mb-6">
+          <div className="grid grid-cols-2 gap-3 mb-4">
             <NumberWheel
               label="Strokes"
               min={STROKES_MIN}
