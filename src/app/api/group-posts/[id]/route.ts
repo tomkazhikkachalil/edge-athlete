@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerAuth, getSupabaseAdmin } from '@/lib/auth-server';
+import { deleteRoundCascade } from '@/lib/golf/round-delete-server';
 import { mirrorCompletedRound, mirrorRoundMedia } from '@/lib/golf/round-mirror';
 
 /**
@@ -219,36 +220,40 @@ export async function PATCH(
 
 /**
  * DELETE /api/group-posts/[id]
- * Delete a group post (only creator can delete)
+ * Delete a round completely (creator only): group post + children (cascade),
+ * the linked feed post (storage-safe), and the golf_rounds stat mirrors —
+ * via the shared deleteRoundCascade. The previous version deleted through
+ * the RLS client without checking the row count, so an RLS refusal reported
+ * success while deleting nothing — and it left the feed post and mirrors
+ * behind. It also had no callers; the live-round Delete button is the first.
  */
 export async function DELETE(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   // Verify authentication
-  const { supabase, user, error: authError } = await getServerAuth(request);
+  const { user, error: authError } = await getServerAuth(request);
   if (authError || !user) {
     return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
   }
 
   try {
     const { id } = await params;
+    const result = await deleteRoundCascade(getSupabaseAdmin(), id, user.id);
 
-    // Delete group post - RLS will ensure only creator can delete
-    // CASCADE will handle deletion of participants, media, and sport-specific data
-    const { error: deleteError } = await supabase
-      .from('group_posts')
-      .delete()
-      .eq('id', id);
-
-    if (deleteError) {
-      console.error('Error deleting group post:', deleteError);
-      return NextResponse.json({ error: 'Failed to delete group post' }, { status: 500 });
+    switch (result.status) {
+      case 'deleted':
+        return NextResponse.json({ message: 'Round deleted successfully' });
+      case 'not_found':
+        return NextResponse.json({ error: 'Round not found' }, { status: 404 });
+      case 'forbidden':
+        return NextResponse.json(
+          { error: 'Only the round creator can delete it' },
+          { status: 403 }
+        );
+      case 'error':
+        return NextResponse.json({ error: result.message }, { status: 500 });
     }
-
-    return NextResponse.json({
-      message: 'Group post deleted successfully',
-    });
   } catch (error) {
     console.error('Unexpected error in DELETE /api/group-posts/[id]:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });

@@ -185,6 +185,9 @@ export default function LiveRoundPage() {
         // scorecard is at the top of the feed. replace(), not push() — the back
         // button must not return to a scorer for a round that is over.
         onStatusChange={() => router.replace(viewPostHref)}
+        // Deleting the round removes the post too — plain /feed, and
+        // replace() for the same back-button reason as above.
+        onDeleted={() => router.replace('/feed')}
       />
 
       {entry.mode === 'score' && !scoringParticipantId && (
@@ -212,6 +215,7 @@ export default function LiveRoundPage() {
           // A media edit refetches in place. NOT onStatusChange, which on this
           // page navigates away to the finished post.
           onMediaChanged={refresh}
+          onDeleted={() => router.replace('/feed')}
         />
       )}
 
