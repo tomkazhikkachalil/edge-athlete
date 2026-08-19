@@ -1,5 +1,40 @@
 # Development Log
 
+## August 19, 2026 — Family console, PR 1: the server layer
+
+Tom's brief: the parent account is a guardianship layer over independent
+athlete identities, and it deserves a real management surface — a family
+console. The data layer already agrees (profile_access relationship, the
+transfer ceremony, deferred credentials); what's missing is the console.
+This PR is the server half; the UI lands next.
+
+- **`GET /api/guardian/athletes` now returns the whole picture in one call:**
+  each athlete carries `consentState`, `hasLogin`, `pendingPostCount`,
+  `activeTransfer`, and `messaging_permission` on top of the identity
+  fields. Four batched IN-queries in a `Promise.all` — constant query count
+  however many athletes a guardian manages. The shaping is pure and tested
+  (`src/lib/guardian-rollup.ts`, 10 tests), including the trap: `hasLogin`
+  means a supervised SELF-row — a supervised row pointing at another profile
+  must never read as "has login".
+- **`PATCH /api/guardian/athletes/[profileId]`** — the first route that lets
+  a guardian change a managed athlete's safety posture after creation
+  (creation forces private/nobody; `PUT /api/profile` is deliberately
+  self-locked). Strict whitelist: `visibility`, `messaging_permission`.
+  Going public 403s until consent is approved — the same promise the
+  publish gate enforces. Notably, this is the **first real
+  `requireProfileRole` call site**: the permission matrix has granted
+  guardians `manage_privacy` since 048, and until now every route
+  hand-rolled its role check instead.
+- **`GET /api/profile/guardians`** — the custody link, legible from the
+  athlete's end (principle: a relationship visible from only one side goes
+  invisible the moment it matters). Admin client on purpose: a supervised
+  child holds no access row on their guardian's profile, so a browser RLS
+  join returns NULL whenever the guardian is private.
+- No audit row on the safety PATCH in v1 — `profile_access_audit` is scoped
+  to access-role changes; a safety-settings audit is its own later round.
+
+Everything stays behind `FEATURE_GUARDIAN_PROFILES` (still dark in prod).
+
 ## August 19, 2026 — Delete a round without posting it
 
 *"Right now when I input scores, I have to post in order for me to delete it…
