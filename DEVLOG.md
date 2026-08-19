@@ -1,5 +1,53 @@
 # Development Log
 
+## August 19, 2026 — RPC posture re-verified; one legacy overload flushed out (088)
+
+The diagnostic's standing instruction is to re-run the grant inventory after
+any new RPC. 087 added four (search_people + the three search_* revokes), and
+grants silently reset if a function is ever recreated — so this round
+re-proved the whole Aug 13 posture black-box against the live DB: every
+sensitive RPC called with the REAL anon key and a REAL authenticated user's
+token (disposable QA user, deleted after), expecting 42501 both times.
+
+**Posture: clean, 26/26.** All of 085's five, 086's two (both overloads),
+087's four, 068's media family, the guardian creation trio,
+create_notification, can_view_profile, get_actor_display_name — BLOCKED for
+anon and authenticated. get_unread_message_count correctly anon-blocked /
+authed-allowed. The six RLS helpers (is_group_post_*,
+is_conversation_participant, can_view_group_post, has_profile_access) still
+execute for authenticated — the direction that must NOT flip, since revoking
+those breaks row visibility. Read-only health sweep with the service role:
+no 42P01/42703 anywhere.
+
+**The finding: `get_tagged_posts` has TWO live overloads.** PostgREST said so
+itself — any call passing only `target_profile_id` returns HTTP 300 PGRST203
+naming both candidates: the canonical 4-arg (008, revoked, verified blocked)
+and a legacy 1-arg `(target_profile_id uuid)` from the archived
+search-path-era scripts. The legacy one was never covered by 040's revoke
+(keyed on the 4-arg signature), and 083's proname-keyed repin set
+`search_path='public'` on BOTH — reviving whatever the pre-008 body does.
+Not a live leak: the same ambiguity that breaks resolution means PostgREST
+can never route TO it, and SQL access is service-role territory. But latent +
+unrevoked + unowned body is exactly the archived-hot-fix pattern with four
+incidents on its record. **Migration 088** drops it (zero app callers of any
+get_tagged_posts overload — the tagged tab reads get_profile_tagged_media /
+_summary), with 083-style non-aborting verification plus a re-runnable
+SELECT grid. Post-run bonus: single-named-arg rpc calls stop 300ing.
+
+**Two probe lessons, cheap now, expensive later:**
+- PGRST203 (HTTP 300) fires BEFORE the permission check — a probe that reads
+  "not 403" as "executed" calls an ambiguity a grant regression. Overload
+  ambiguity also makes a grant genuinely UNPROBEABLE via PostgREST; only
+  section 5 (SQL) can read it.
+- The LIVE `generate_connection_suggestions` takes `p_`-prefixed params; the
+  repo migration's copy takes unprefixed ones. The app's call sites are the
+  ground truth for live param names — a PGRST202 "not found" against
+  repo-sourced names may just mean the repo body is not what's installed
+  (the known schema-provenance drift). Same story blocks name-guessing
+  `get_pending_requests_count` (no app caller, revoked per 085; its live
+  param name matches none of user_id/p_user_id/profile_id — one-line
+  pg_proc lookup for a curious night, nothing depends on it).
+
 ## August 19, 2026 — @supabase/ssr 0.7.0 → 0.12.4, off the deprecated cookie API
 
 The auth-layer upgrade deferred out of the morning's sweep, done as its own
