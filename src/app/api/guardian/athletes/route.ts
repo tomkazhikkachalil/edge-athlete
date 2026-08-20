@@ -197,6 +197,22 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: friendly }, { status: 409 });
     }
 
+    // Digest routing (Round 4): the child's notifications reach the GUARDIAN's
+    // inbox via the daily digest, which drives off notification_preferences.
+    // email_enabled is platform-wide opt-IN (default false) — here the
+    // guardian is the recipient and creating the profile is the opt-in;
+    // executeTransfer flips it back to false so the new adult owner starts
+    // at the platform default. Best-effort.
+    const { error: prefsError } = await admin
+      .from('notification_preferences')
+      .upsert(
+        { user_id: profileId, email_enabled: true },
+        { onConflict: 'user_id', ignoreDuplicates: true }
+      );
+    if (prefsError) {
+      console.error('[GUARDIAN] notification prefs seed failed:', prefsError);
+    }
+
     // Athlete-initiated path: finalize the claimed pending request.
     const pendingProfileId =
       typeof body.pendingProfileId === 'string' ? body.pendingProfileId : null;

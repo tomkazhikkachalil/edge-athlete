@@ -48,10 +48,33 @@ export async function runNotificationDigest(supabase: SupabaseClient, appUrl: st
 
       const { data: profile } = await supabase
         .from('profiles')
-        .select('email, first_name, last_name, full_name')
+        .select('email, first_name, last_name, full_name, supervision_state')
         .eq('id', pref.user_id)
         .maybeSingle();
-      if (!profile?.email || isSyntheticEmail(profile.email)) continue;
+      if (!profile?.email) continue;
+
+      if (isSyntheticEmail(profile.email)) {
+        // A supervised child's synthetic address can never receive mail —
+        // route their digest to the guardian(s) instead (Round 4). The
+        // routing ends structurally at transfer: guardian rows are removed
+        // and the child gains a real email.
+        if (profile.supervision_state !== 'supervised') continue;
+        const { data: guardianRows } = await supabase
+          .from('profile_access')
+          .select('profiles!profile_access_user_id_fkey(email)')
+          .eq('profile_id', pref.user_id)
+          .eq('role', 'guardian');
+        const guardianEmails = (guardianRows ?? [])
+          .map(r => (r.profiles as unknown as { email: string | null })?.email)
+          .filter((e): e is string => !!e && !isSyntheticEmail(e));
+        for (const guardianEmail of guardianEmails) {
+          await emailService.sendChildDigest(
+            guardianEmail, profile.first_name || 'Your athlete', notifs, appUrl
+          );
+          sent++;
+        }
+        continue;
+      }
 
       const displayName =
         [profile.first_name, profile.last_name].filter(Boolean).join(' ') ||

@@ -30,7 +30,7 @@ export async function PATCH(
     if (!FEATURE_FLAGS.FEATURE_GUARDIAN_PROFILES) {
       return NextResponse.json({ error: 'Not available' }, { status: 404 });
     }
-    await requireProfileRole(request, profileId, 'manage_privacy');
+    const { user: actor } = await requireProfileRole(request, profileId, 'manage_privacy');
 
     const body = await request.json().catch(() => ({}));
     const update: Record<string, string> = {};
@@ -53,7 +53,7 @@ export async function PATCH(
     const admin = getSupabaseAdmin();
     const { data: child } = await admin
       .from('profiles')
-      .select('supervision_state')
+      .select('supervision_state, visibility, messaging_permission')
       .eq('id', profileId)
       .maybeSingle();
     if (!child || child.supervision_state !== 'supervised') {
@@ -80,6 +80,23 @@ export async function PATCH(
     if (updateError) {
       console.error('[GUARDIAN] safety update failed:', updateError);
       return NextResponse.json({ error: 'Could not save the change. Please try again.' }, { status: 500 });
+    }
+
+    // Audit trail (091): who changed the safety posture, old → new. One row
+    // per changed field; best-effort (a missing table pre-091, or any insert
+    // failure, must never fail the change itself).
+    const auditRows = Object.entries(update)
+      .filter(([field, value]) => (child as Record<string, unknown>)[field] !== value)
+      .map(([field, value]) => ({
+        profile_id: profileId,
+        actor_id: actor.id,
+        field,
+        old_value: ((child as Record<string, unknown>)[field] as string | null) ?? null,
+        new_value: value,
+      }));
+    if (auditRows.length > 0) {
+      const { error: auditError } = await admin.from('safety_settings_audit').insert(auditRows);
+      if (auditError) console.error('[GUARDIAN] safety audit insert failed:', auditError);
     }
 
     return NextResponse.json({ ok: true });

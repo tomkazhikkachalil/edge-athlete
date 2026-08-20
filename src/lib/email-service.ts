@@ -392,6 +392,63 @@ This email was sent from your website's contact form.
   }
 
   /**
+   * A supervised athlete's digest, routed to their GUARDIAN (the child's
+   * synthetic address can never receive mail). Same shape as
+   * sendNotificationDigest with honest recipient copy — the guardian is
+   * reading about the child, not about themselves.
+   */
+  async sendChildDigest(
+    to: string,
+    childFirstName: string,
+    items: Array<{ title: string; created_at: string }>,
+    appUrl: string
+  ): Promise<void> {
+    const count = items.length;
+    const name = escapeHtml(childFirstName || 'Your athlete');
+    const rows = items
+      .slice(0, 10)
+      .map(
+        i => `<tr><td style="padding:8px 0;border-bottom:1px solid #eee;color:#333;font-size:14px;">${escapeHtml(i.title)}</td></tr>`
+      )
+      .join('');
+    const more = count > 10 ? `<p style="color:#888;font-size:13px;">…and ${count - 10} more.</p>` : '';
+
+    const htmlContent = `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+        ${logoHeader(appUrl)}
+        <h2 style="color:#6d28d9;">${name} has ${count} new notification${count === 1 ? '' : 's'}</h2>
+        <p style="color:#333;font-size:15px;">
+          You manage ${name}'s Edge Athlete profile, so their activity comes to you:
+        </p>
+        <table style="width:100%;border-collapse:collapse;margin:16px 0;">${rows}</table>
+        ${more}
+        <a href="${appUrl}/app/guardian"
+           style="display:inline-block;background:#7c3aed;color:#fff;text-decoration:none;padding:10px 20px;border-radius:6px;font-size:14px;margin-top:8px;">
+          Open the family console
+        </a>
+        <p style="color:#aaa;font-size:12px;margin-top:24px;border-top:1px solid #eee;padding-top:16px;">
+          You're receiving this as ${name}'s guardian. This routing ends when
+          their account is handed over to them.
+        </p>
+      </div>
+    `;
+
+    const textContent =
+      `${childFirstName || 'Your athlete'} has ${count} new notification${count === 1 ? '' : 's'} on Edge Athlete:\n\n` +
+      items.slice(0, 10).map(i => `• ${i.title}`).join('\n') +
+      (count > 10 ? `\n…and ${count - 10} more.` : '') +
+      `\n\nFamily console: ${appUrl}/app/guardian`;
+
+    await this.transporter.sendMail({
+      from: process.env.EMAIL_FROM || 'noreply@yourdomain.com',
+      to,
+      subject: `${childFirstName || 'Your athlete'} has ${count} new notification${count === 1 ? '' : 's'} on Edge Athlete`,
+      text: textContent,
+      html: htmlContent,
+    });
+  }
+
+  /**
    * Test email connection
    */
   async testConnection(): Promise<boolean> {
