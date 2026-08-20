@@ -7,7 +7,13 @@ import BrandBar from '@/components/BrandBar';
 import ConfirmModal from '@/components/ConfirmModal';
 import { FEATURE_FLAGS } from '@/lib/features';
 import { formatDisplayName } from '@/lib/formatters';
-import { formatCountdown, type ClientTransfer, type ViewerRole } from '@/lib/transfer-ui';
+import {
+  formatCountdown,
+  terminalTransferNotice,
+  type ClientTransfer,
+  type LastTransfer,
+  type ViewerRole,
+} from '@/lib/transfer-ui';
 
 // ── Transfer of control ──────────────────────────────────────────────────────
 // ONE page for BOTH parties: the guardian and the supervised athlete each see
@@ -24,6 +30,7 @@ export default function TransferPage() {
 
   const [view, setView] = useState<'loading' | 'forbidden' | 'ready'>('loading');
   const [transfer, setTransfer] = useState<ClientTransfer | null>(null);
+  const [lastTransfer, setLastTransfer] = useState<LastTransfer | null>(null);
   const [viewerRole, setViewerRole] = useState<ViewerRole | null>(null);
   const [error, setError] = useState('');
   const [acting, setActing] = useState(false);
@@ -47,6 +54,7 @@ export default function TransferPage() {
       const data = await res.json().catch(() => ({}));
       if (!res.ok) { setError(data.error || 'Could not load the transfer.'); setView('ready'); return; }
       setTransfer(data.transfer ?? null);
+      setLastTransfer(data.lastTransfer ?? null);
       setViewerRole(data.viewerRole ?? null);
       setView('ready');
     } catch {
@@ -248,6 +256,14 @@ export default function TransferPage() {
               </div>
             ) : (
               <>
+                {/* Round D: a dead previous attempt (aborted/failed/expired)
+                    is acknowledged instead of silently looping back here. */}
+                {lastTransfer && terminalTransferNotice(lastTransfer.state, isGuardian ? 'guardian' : 'supervised') && (
+                  <div className="bg-surface-muted border border-border rounded-md px-4 py-3 text-sm text-secondary mb-4">
+                    <i className="fas fa-circle-info text-faint mr-2"></i>
+                    {terminalTransferNotice(lastTransfer.state, isGuardian ? 'guardian' : 'supervised')}
+                  </div>
+                )}
                 <h2 className="text-xl sm:text-2xl font-bold text-violet-800 dark:text-violet-200 mb-2">
                   {isGuardian ? 'Hand over this account' : 'Take over your account'}
                 </h2>

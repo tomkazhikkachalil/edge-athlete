@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import Image from 'next/image';
 import { useAuth } from '@/lib/auth';
-import BrandBar from '@/components/BrandBar';
+import AppHeader from '@/components/AppHeader';
 import { FEATURE_FLAGS } from '@/lib/features';
 import { formatDisplayName } from '@/lib/formatters';
 
@@ -141,15 +141,18 @@ export default function GuardianApprovalsPage() {
 
   if (!FEATURE_FLAGS.FEATURE_GUARDIAN_PROFILES || loading || !initialAuthCheckComplete || !user) {
     return (
-      <div className="min-h-screen bg-brand-soft flex items-center justify-center">
+      <div className="min-h-screen bg-canvas flex items-center justify-center">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-brand"></div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen flex flex-col bg-brand-soft">
-      <BrandBar />
+    <div className="min-h-screen flex flex-col bg-canvas">
+      {/* Console chrome (Round D): approvals/transfers are recurring signed-in
+          destinations like the console itself — funnel chrome (BrandBar) is
+          for linear flows. */}
+      <AppHeader showSearch={false} />
       <main className="flex-grow w-full max-w-2xl mx-auto px-4 py-8">
         <Link
           href="/app/guardian"

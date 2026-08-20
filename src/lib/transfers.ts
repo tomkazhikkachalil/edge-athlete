@@ -319,10 +319,13 @@ export async function runTransferSweep(admin: SupabaseClient, appUrl?: string) {
   }
 
   // 2. Expire stalled intermediate states (14 days without progress).
+  // 'initiated' is in the list (Round D): a guardian who started a handover
+  // whose athlete never added an email used to stall forever — the only
+  // active state the sweep didn't age out.
   const { data: stalled } = await admin
     .from('profile_transfers')
     .update({ state: 'expired' })
-    .in('state', ['requested', 'credentials_pending', 'dual_confirm'])
+    .in('state', ['requested', 'initiated', 'credentials_pending', 'dual_confirm'])
     .lt('updated_at', stepExpiryCutoff())
     .select('id');
   summary.expired = stalled?.length ?? 0;

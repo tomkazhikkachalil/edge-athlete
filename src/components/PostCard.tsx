@@ -76,6 +76,10 @@ interface Post {
     full_name: string | null;
     handle: string | null;
   } | null;
+  /** Approval pipeline (051): 'published' | 'pending_approval' | 'rejected'.
+   *  Non-published posts only ever reach their own author (or a guardian via
+   *  the single-post gate), so the banner below needs no viewer check. */
+  status?: string;
   media: PostMedia[];
   likes?: { profile_id: string }[];
   saved_posts?: { profile_id: string }[];
@@ -416,6 +420,20 @@ function PostCard({
 
   return (
     <div className="bg-surface rounded-lg shadow-md border-2 border-border-strong overflow-hidden mb-6">
+      {/* Round D: a held/rejected post is visible to its author — say what
+          state it's in instead of letting it look published. */}
+      {post.status === 'pending_approval' && (
+        <div className="px-4 py-2 bg-amber-50 dark:bg-amber-950/40 border-b border-amber-200 dark:border-amber-900 text-xs font-medium text-amber-800 dark:text-amber-200 flex items-center gap-2">
+          <i className="fas fa-hourglass-half" aria-hidden="true"></i>
+          Waiting for a guardian&apos;s OK — not visible to anyone else yet.
+        </div>
+      )}
+      {post.status === 'rejected' && (
+        <div className="px-4 py-2 bg-surface-sunken border-b border-border text-xs font-medium text-tertiary flex items-center gap-2">
+          <i className="fas fa-circle-minus" aria-hidden="true"></i>
+          Not approved by a guardian — not visible to anyone else.
+        </div>
+      )}
       {/* Header. p-4 below sm: 24px padding each side cost a 390px card a
           third of its author-row budget. */}
       <div className="p-4 sm:p-base flex items-center justify-between">

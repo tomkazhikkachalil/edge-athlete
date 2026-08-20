@@ -3,6 +3,7 @@ import {
   buildAthleteSummaries,
   consentChip,
   loginChip,
+  messagingChip,
   visibilityChip,
 } from '../guardian-rollup';
 import type { ConsentState } from '../consent';
@@ -105,5 +106,20 @@ describe('chips', () => {
     expect(visibilityChip('private')).toEqual({ label: 'Private', tone: 'gray' });
     expect(visibilityChip('public')).toEqual({ label: 'Public', tone: 'violet' });
     expect(visibilityChip(null).label).toBe('Private');
+  });
+});
+
+describe('messagingChip', () => {
+  it('mirrors the MESSAGING_OPTIONS vocabulary', () => {
+    expect(messagingChip('everyone')).toEqual({ label: 'Messages: everyone', tone: 'amber' });
+    expect(messagingChip('fans_only')).toEqual({ label: 'Messages: fans', tone: 'violet' });
+    expect(messagingChip('mutual_fans')).toEqual({ label: 'Messages: mutual fans', tone: 'violet' });
+    expect(messagingChip('nobody')).toEqual({ label: 'Messages: off', tone: 'gray' });
+  });
+
+  it('unknown/null reads as the locked-down default, gray not alarming', () => {
+    expect(messagingChip(null).tone).toBe('gray');
+    expect(messagingChip(undefined).tone).toBe('gray');
+    expect(messagingChip('garbage').tone).toBe('gray');
   });
 });

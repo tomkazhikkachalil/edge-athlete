@@ -95,3 +95,16 @@ export function visibilityChip(visibility: string | null | undefined): Chip {
     ? { label: 'Public', tone: 'violet' }
     : { label: 'Private', tone: 'gray' };
 }
+
+/** Who may message the athlete (Round D — the one safety control the console
+ *  card didn't surface). Values mirror MESSAGING_OPTIONS in profile-privacy.
+ *  'everyone' is the only state a guardian should glance twice at → amber;
+ *  unknown/null reads as the locked-down default → gray. */
+export function messagingChip(permission: string | null | undefined): Chip {
+  switch (permission) {
+    case 'everyone': return { label: 'Messages: everyone', tone: 'amber' };
+    case 'fans_only': return { label: 'Messages: fans', tone: 'violet' };
+    case 'mutual_fans': return { label: 'Messages: mutual fans', tone: 'violet' };
+    default: return { label: 'Messages: off', tone: 'gray' };
+  }
+}

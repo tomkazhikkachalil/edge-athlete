@@ -20,13 +20,30 @@ export async function GET(request: NextRequest) {
     const role = await getProfileRole(user.id, profileId);
     if (!role) return NextResponse.json({ error: 'Not permitted' }, { status: 403 });
 
-    const { data } = await getSupabaseAdmin()
+    const admin = getSupabaseAdmin();
+    const { data } = await admin
       .from('profile_transfers')
       .select('id, state, initiated_by, athlete_contact_email, contact_verified_at, athlete_confirmed_at, guardian_confirmed_at, cooling_off_ends_at, guardian_post_role, created_at')
       .eq('profile_id', profileId)
       .in('state', [...ACTIVE_TRANSFER_STATES])
       .maybeSingle();
-    return NextResponse.json({ transfer: data ?? null, viewerRole: role });
+
+    // Nothing active: report the latest terminal row too (Round D), so a
+    // dead attempt (aborted/failed/expired) renders honestly instead of the
+    // page looping back to a bare "Start the handover".
+    let lastTransfer = null;
+    if (!data) {
+      const { data: terminal } = await admin
+        .from('profile_transfers')
+        .select('state, updated_at')
+        .eq('profile_id', profileId)
+        .in('state', ['completed', 'aborted', 'failed', 'expired'])
+        .order('updated_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      lastTransfer = terminal ?? null;
+    }
+    return NextResponse.json({ transfer: data ?? null, lastTransfer, viewerRole: role });
   } catch (error) {
     if (error instanceof Response) return error;
     return NextResponse.json({ error: 'Could not load transfer' }, { status: 500 });

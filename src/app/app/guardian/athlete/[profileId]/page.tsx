@@ -121,11 +121,21 @@ export default function GuardianAthletePage() {
   const params = useParams();
   const router = useRouter();
   const profileId = params.profileId as string;
-  const { user, loading, initialAuthCheckComplete } = useAuth();
+  const { user, loading, initialAuthCheckComplete, refreshManagedProfiles } = useAuth();
   const { showSuccess, showError } = useToast();
   const [state, setState] = useState<'loading' | 'ready'>('loading');
   const [athlete, setAthlete] = useState<ConsoleAthlete | null>(null);
+  // Round D: a failed roster fetch is an ERROR, not "not one of your
+  // athletes" — the two used to collapse into the same screen.
+  const [loadError, setLoadError] = useState(false);
+  const [retryKey, setRetryKey] = useState(0);
   const [saving, setSaving] = useState(false);
+  // Danger zone (consent withdrawal = permanent deletion) — inline typed
+  // confirm; this page used to send guardians to the credentials screen.
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [deleteConfirm, setDeleteConfirm] = useState('');
+  const [deleteBusy, setDeleteBusy] = useState(false);
+  const [deleteError, setDeleteError] = useState('');
 
   // Co-guardian lifecycle (Round 3): the custody links + pending invites.
   const [guardians, setGuardians] = useState<GuardianRow[]>([]);
@@ -160,11 +170,13 @@ export default function GuardianAthletePage() {
       try {
         const res = await fetch('/api/guardian/athletes');
         const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(data.error || 'Could not load');
         if (cancelled) return;
         const found = (data.athletes ?? []).find((a: ConsoleAthlete) => a.id === profileId) ?? null;
         setAthlete(found);
+        setLoadError(false);
       } catch {
-        if (!cancelled) setAthlete(null);
+        if (!cancelled) { setAthlete(null); setLoadError(true); }
       } finally {
         if (!cancelled) setState('ready');
       }
@@ -172,7 +184,7 @@ export default function GuardianAthletePage() {
     return () => {
       cancelled = true;
     };
-  }, [user, profileId]);
+  }, [user, profileId, retryKey]);
 
   useEffect(() => {
     if (!user || !profileId) return;
@@ -317,6 +329,34 @@ export default function GuardianAthletePage() {
     }
   };
 
+  // Same typed-confirm contract as the credentials page's danger zone: the
+  // server re-checks confirmHandle, this gate just keeps the button honest.
+  const expectedDeleteConfirm = (athlete?.handle || athlete?.first_name || '').toLowerCase();
+  const deleteConfirmMatches =
+    !!expectedDeleteConfirm &&
+    deleteConfirm.trim().toLowerCase().replace(/^@/, '') === expectedDeleteConfirm;
+
+  const handleDelete = async () => {
+    setDeleteError('');
+    setDeleteBusy(true);
+    try {
+      const res = await fetch(`/api/guardian/athletes/${profileId}`, {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ confirmHandle: deleteConfirm }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) { setDeleteError(data.error || 'Could not delete the profile.'); return; }
+      await refreshManagedProfiles();
+      showSuccess('Profile deleted', 'The profile and its content are permanently gone.');
+      router.replace('/app/guardian');
+    } catch {
+      setDeleteError('Could not delete the profile. Please try again.');
+    } finally {
+      setDeleteBusy(false);
+    }
+  };
+
   // Optimistic safety change with revert — the 403 consent-gate message from
   // the server is surfaced verbatim so the guardian learns the WHY.
   const applySafety = async (patch: {
@@ -372,6 +412,21 @@ export default function GuardianAthletePage() {
 
         {state === 'loading' ? (
           <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-brand mx-auto my-12"></div>
+        ) : loadError ? (
+          <div className="bg-surface border border-border rounded-lg p-6 text-center">
+            <h1 className="text-h3 font-bold text-primary mb-2">Couldn&apos;t load this athlete</h1>
+            <p role="alert" className="text-sm text-tertiary mb-4">
+              Something went wrong on our side — your athletes are unaffected.
+            </p>
+            <button
+              type="button"
+              onClick={() => { setState('loading'); setRetryKey(k => k + 1); }}
+              className="inline-flex items-center gap-2 px-4 py-2 min-h-[44px] bg-brand text-white rounded-lg font-semibold hover:bg-brand-hover"
+            >
+              <i className="fas fa-rotate-right text-xs"></i>
+              Try again
+            </button>
+          </div>
         ) : !athlete ? (
           <div className="bg-surface border border-border rounded-lg p-6 text-center">
             <h1 className="text-h3 font-bold text-primary mb-2">Not one of your athletes</h1>
@@ -642,19 +697,67 @@ export default function GuardianAthletePage() {
                   </Link>
                 </section>
 
-                {/* Danger zone */}
+                {/* Danger zone — the confirm lives HERE now (Round D); this
+                    used to link to the credentials screen, of all places. */}
                 <section className="border border-red-200 dark:border-red-900 rounded-lg p-5">
                   <h2 className="text-base font-bold text-red-600 dark:text-red-400 mb-1">Danger zone</h2>
                   <p className="text-xs text-tertiary mb-3">
                     Withdrawing consent permanently deletes this profile and all
                     of its content.
                   </p>
-                  <Link
-                    href={`/app/guardian/credentials/${athlete.id}`}
-                    className="inline-flex items-center px-3 py-2 min-h-[44px] border border-red-300 dark:border-red-800 rounded-lg text-sm font-semibold text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/40 transition-colors"
-                  >
-                    Withdraw consent &amp; delete
-                  </Link>
+                  {!deleteOpen ? (
+                    <button
+                      type="button"
+                      onClick={() => { setDeleteOpen(true); setDeleteConfirm(''); setDeleteError(''); }}
+                      className="inline-flex items-center px-3 py-2 min-h-[44px] border border-red-300 dark:border-red-800 rounded-lg text-sm font-semibold text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/40 transition-colors"
+                    >
+                      Withdraw consent &amp; delete
+                    </button>
+                  ) : (
+                    <div>
+                      <p className="text-sm text-secondary mb-2">
+                        This permanently deletes {athlete.first_name ?? 'this athlete'}&apos;s profile,
+                        posts, media, and login. <span className="font-medium">It cannot be undone.</span>
+                      </p>
+                      <p className="text-xs text-muted mb-3">
+                        Signed consent records are retained as required for compliance.
+                      </p>
+                      {deleteError && (
+                        <div role="alert" className="bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-800 text-red-600 dark:text-red-400 px-4 py-3 rounded-md text-sm mb-3">
+                          {deleteError}
+                        </div>
+                      )}
+                      <label htmlFor="delete-confirm" className="block text-sm font-medium text-secondary mb-1">
+                        Type <span className="font-mono text-red-700 dark:text-red-300">{athlete.handle ?? athlete.first_name ?? ''}</span> to confirm
+                      </label>
+                      <input
+                        type="text"
+                        id="delete-confirm"
+                        value={deleteConfirm}
+                        onChange={e => setDeleteConfirm(e.target.value)}
+                        autoComplete="off"
+                        className="w-full px-4 py-3 text-sm text-primary border border-border-strong rounded-md mb-3 bg-surface"
+                      />
+                      <div className="flex gap-3">
+                        <button
+                          type="button"
+                          onClick={handleDelete}
+                          disabled={!deleteConfirmMatches || deleteBusy}
+                          className="bg-red-600 text-white px-4 py-2 min-h-[44px] rounded-lg text-sm font-semibold hover:bg-red-700 transition disabled:opacity-50"
+                        >
+                          {deleteBusy ? <><i className="fas fa-spinner fa-spin mr-2"></i>Deleting…</> : 'Permanently delete'}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setDeleteOpen(false)}
+                          disabled={deleteBusy}
+                          className="border border-border-strong text-secondary px-4 py-2 min-h-[44px] rounded-lg text-sm font-semibold hover:bg-surface-muted transition disabled:opacity-50"
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    </div>
+                  )}
                 </section>
               </>
             )}

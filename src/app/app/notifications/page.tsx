@@ -53,6 +53,11 @@ export default function NotificationsPage() {
       return [
         'achievement', 'system_announcement', 'club_update', 'team_update',
         'event_invite', 'event_update', 'event_cancelled', 'event_response',
+        // Guardian/custody events (Round D — these used to fall through to
+        // "All" only): approvals traffic, transfer progress, consent results.
+        'post_pending_approval', 'post_approval_result',
+        'comment_pending_approval', 'comment_approval_result',
+        'transfer_update', 'consent_result', 'athlete_added',
       ].includes(notification.type);
     }
     return true; // 'all'
@@ -123,6 +128,17 @@ export default function NotificationsPage() {
       case 'club_update':
       case 'team_update':
         return 'fa-users';
+      case 'post_pending_approval':
+      case 'comment_pending_approval':
+        return 'fa-hourglass-half';
+      case 'post_approval_result':
+      case 'comment_approval_result':
+      case 'consent_result':
+        return 'fa-user-shield';
+      case 'transfer_update':
+        return 'fa-right-left';
+      case 'athlete_added':
+        return 'fa-child-reaching';
       default:
         return 'fa-bell';
     }

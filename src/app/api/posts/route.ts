@@ -482,6 +482,7 @@ export async function POST(request: NextRequest) {
       post_category: completePost.post_category ?? null,
       stats_data: completePost.stats_data,
       visibility: completePost.visibility,
+      status: completePost.status ?? 'published',
       tags: completePost.tags || [],
       hashtags: completePost.hashtags || [],
       created_at: completePost.created_at,
@@ -782,6 +783,7 @@ export async function GET(request: NextRequest) {
         post_category: post.post_category ?? null,
         stats_data: post.stats_data,
         visibility: post.visibility,
+        status: post.status ?? 'published',
         tags: post.tags || [],
         hashtags: post.hashtags || [],
         created_at: post.created_at,
@@ -867,10 +869,15 @@ export async function GET(request: NextRequest) {
       query = query.eq('profile_id', userId);
     }
 
-    // Approval queue: unpublished posts never reach list surfaces.
+    // Approval queue: unpublished posts never reach list surfaces — EXCEPT
+    // for their own author (Round D, mirroring the comments viewer clause):
+    // a supervised child must see their pending/rejected posts on their own
+    // surfaces instead of watching them silently vanish.
     // Flag-gated — posts.status doesn't exist until migration 051 runs.
     if (FEATURE_FLAGS.FEATURE_GUARDIAN_PROFILES) {
-      query = query.eq('status', 'published');
+      query = currentUserId
+        ? query.or(`status.eq.published,profile_id.eq.${currentUserId}`)
+        : query.eq('status', 'published');
     }
 
     if (pinnedOnly) {
@@ -1042,6 +1049,7 @@ export async function GET(request: NextRequest) {
           post_category: post.post_category ?? null,
           stats_data: post.stats_data,
           visibility: post.visibility,
+          status: post.status ?? 'published',
           tags: post.tags || [],
           hashtags: post.hashtags || [],
           created_at: post.created_at,
@@ -1187,7 +1195,10 @@ export async function PATCH(request: NextRequest) {
           title: action === 'approve'
             ? 'Your post was approved and is now live'
             : "Your post wasn't approved",
-          actionUrl: action === 'approve' ? `/feed?post=${postId}` : null,
+          // Rejected posts stay openable by their author (Round D): the
+          // single-post gate lets the author through, so the notification can
+          // finally land somewhere instead of being a dead bell entry.
+          actionUrl: `/feed?post=${postId}`,
           actorId: user.id,
           metadata: { post_id: postId, result: action },
         });

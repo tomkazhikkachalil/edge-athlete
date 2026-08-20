@@ -24,6 +24,11 @@ export default function CredentialsPage() {
   const [issued, setIssued] = useState<{ username: string; mode: string } | null>(null);
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  // Round D: managedProfiles fills in AFTER auth completes, so "not in the
+  // list" only means "not yours" once a fresh load has finished. Before this
+  // guard, a bogus/foreign profileId rendered the form with placeholder copy
+  // and a delete confirm that could never match.
+  const [rosterReady, setRosterReady] = useState(false);
   // Danger zone (consent withdrawal = permanent deletion)
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState('');
@@ -34,10 +39,47 @@ export default function CredentialsPage() {
     if (!loading && initialAuthCheckComplete && !user) router.replace('/');
   }, [user, loading, initialAuthCheckComplete, router]);
 
-  if (!FEATURE_FLAGS.FEATURE_GUARDIAN_PROFILES || loading || !initialAuthCheckComplete || !user) {
+  useEffect(() => {
+    if (!user) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        await refreshManagedProfiles();
+      } finally {
+        if (!cancelled) setRosterReady(true);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [user, refreshManagedProfiles]);
+
+  if (!FEATURE_FLAGS.FEATURE_GUARDIAN_PROFILES || loading || !initialAuthCheckComplete || !user || !rosterReady) {
     return (
       <div className="min-h-screen bg-brand-soft flex items-center justify-center">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-brand"></div>
+      </div>
+    );
+  }
+
+  if (!athlete) {
+    return (
+      <div className="min-h-screen flex flex-col bg-brand-soft">
+        <BrandBar />
+        <div className="flex-grow flex items-center justify-center p-4">
+          <div className="w-full max-w-lg bg-surface rounded-lg shadow-lg p-6 sm:p-8 text-center">
+            <h2 className="text-xl font-bold text-primary mb-2">Not one of your athletes</h2>
+            <p className="text-sm text-tertiary mb-4">
+              This profile isn&apos;t managed by your account.
+            </p>
+            <Link
+              href="/app/guardian"
+              className="inline-flex items-center px-4 py-2 min-h-[44px] bg-brand text-white rounded-lg font-semibold hover:bg-brand-hover"
+            >
+              Back to the console
+            </Link>
+          </div>
+        </div>
       </div>
     );
   }
@@ -80,8 +122,10 @@ export default function CredentialsPage() {
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) { setDeleteError(data.error || 'Could not delete the profile.'); return; }
-      await refreshManagedProfiles();
+      // Navigate BEFORE the roster refresh: refreshing first re-renders this
+      // page with the athlete gone, flashing the not-found guard (Round D).
       router.push('/athlete');
+      await refreshManagedProfiles();
     } catch {
       setDeleteError('Could not delete the profile. Please try again.');
     } finally {
