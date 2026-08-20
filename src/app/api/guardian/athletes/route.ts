@@ -34,7 +34,7 @@ export async function GET(request: NextRequest) {
     const admin = getSupabaseAdmin();
     const { data, error } = await admin
       .from('profile_access')
-      .select('granted_at, profiles!profile_access_profile_id_fkey(id, first_name, last_name, display_name, handle, avatar_url, dob, supervision_state, visibility, messaging_permission)')
+      .select('granted_at, profiles!profile_access_profile_id_fkey(id, first_name, last_name, display_name, handle, avatar_url, dob, supervision_state, visibility, messaging_permission, comment_moderation)')
       .eq('user_id', user.id)
       .eq('role', 'guardian')
       .order('granted_at', { ascending: true });
@@ -175,6 +175,10 @@ export async function POST(request: NextRequest) {
         // Minor-safety defaults — restrictive until consent approves more:
         visibility: 'private',
         messaging_permission: 'nobody',
+        // Explicit for the same reason as created_at below: the RPC's
+        // jsonb_populate_record turns absent fields into explicit NULLs,
+        // which bypass column defaults — and this column is NOT NULL (095).
+        comment_moderation: 'held',
         supervision_state: 'supervised',
         dob_locked: true,
         jurisdiction,

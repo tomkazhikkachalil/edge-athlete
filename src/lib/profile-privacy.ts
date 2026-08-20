@@ -23,3 +23,11 @@ export const VISIBILITY_OPTIONS: PrivacyOption<Visibility>[] = [
   { value: 'private', label: 'Private', description: 'Only approved followers can see the profile, posts and stats. People must send a follow request.' },
   { value: 'public', label: 'Public', description: 'Anyone can see the profile, posts and stats, and it may appear in search results.' },
 ];
+
+// Guardian comment-moderation toggle (095) — supervised athletes only.
+export type CommentModeration = 'instant' | 'held';
+
+export const COMMENT_MODERATION_OPTIONS: PrivacyOption<CommentModeration>[] = [
+  { value: 'held', label: 'Held for your review', description: 'Comments they write stay invisible until you approve them in the approvals queue.' },
+  { value: 'instant', label: 'Instant', description: 'Comments they write appear immediately, like posts from any other athlete.' },
+];

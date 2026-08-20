@@ -4,6 +4,8 @@ import { useState } from 'react';
 import { useAuth } from '@/lib/auth';
 import { useToast } from '@/components/Toast';
 import type { MessagingPermission } from '@/types/messages';
+import GuardiansCard from './GuardiansCard';
+import SupervisedSettingCard from './SupervisedSettingCard';
 
 interface PermissionOption {
   value: MessagingPermission;
@@ -86,14 +88,29 @@ export default function MessagingSettings() {
     }
   };
 
+  const supervised = profile?.supervision_state === 'supervised';
+  const current = options.find((o) => o.value === permission) ?? options[0];
+
   return (
     <div className="space-y-6">
+      {/* Supervised profiles see who manages them (renders nothing otherwise) */}
+      <GuardiansCard />
       <div>
         <h3 className="text-lg font-semibold text-primary mb-2">Who Can Message You</h3>
         <p className="text-tertiary text-sm mb-6">
-          Control who is allowed to send you direct messages on Edge Athlete.
+          {supervised
+            ? 'This setting controls who can exchange messages with you.'
+            : 'Control who is allowed to send you direct messages on Edge Athlete.'}
         </p>
 
+        {supervised ? (
+          <SupervisedSettingCard
+            icon={current.icon}
+            iconColor={current.iconColor}
+            label={current.label}
+            description={current.description}
+          />
+        ) : (
         <div className="space-y-3">
           {options.map((opt) => (
             <button
@@ -127,6 +144,7 @@ export default function MessagingSettings() {
             </button>
           ))}
         </div>
+        )}
       </div>
 
       <div className="bg-brand-soft border border-violet-200 dark:border-violet-800 rounded-lg p-4">

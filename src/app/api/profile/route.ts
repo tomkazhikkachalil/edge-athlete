@@ -161,16 +161,29 @@ export async function PUT(request: NextRequest) {
       cleanedProfileData.dob = null;
     }
 
-    // DOB corrections are never self-service on locked/supervised profiles —
-    // a one-click DOB edit would otherwise be an exit from supervision.
-    // Corrections route through guardian/support (guardian-profiles feature).
-    if (supabaseAdmin && (cleanedProfileData.dob !== undefined || cleanedProfileData.birthday !== undefined)) {
-      const { data: dobGate } = await supabaseAdmin
+    // Guardian-locked fields are never self-service on supervised profiles.
+    // Safety posture (visibility, messaging, comment moderation) belongs to
+    // the guardian console — a PIN-logged child flipping themselves public
+    // would bypass the consent gate the guardian route enforces. DOB
+    // additionally locks via dob_locked (an exit from supervision otherwise).
+    // Strip, don't 403: profile PUTs are batched edits (the shipped DOB
+    // precedent), and the Settings UI renders these read-only for supervised
+    // users — the strip is defense against crafted requests.
+    const SUPERVISED_LOCKED_FIELDS = [
+      'visibility', 'messaging_permission', 'comment_moderation', 'dob', 'birthday',
+    ] as const;
+    const touchesGated = SUPERVISED_LOCKED_FIELDS.some(
+      (f) => cleanedProfileData[f] !== undefined
+    );
+    if (supabaseAdmin && touchesGated) {
+      const { data: gate } = await supabaseAdmin
         .from('profiles')
         .select('dob_locked, supervision_state')
         .eq('id', userId)
         .maybeSingle();
-      if (dobGate?.dob_locked || dobGate?.supervision_state === 'supervised') {
+      if (gate?.supervision_state === 'supervised') {
+        for (const f of SUPERVISED_LOCKED_FIELDS) delete cleanedProfileData[f];
+      } else if (gate?.dob_locked) {
         delete cleanedProfileData.dob;
         delete cleanedProfileData.birthday;
       }
