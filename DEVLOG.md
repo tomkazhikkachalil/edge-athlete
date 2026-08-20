@@ -1,5 +1,32 @@
 # Development Log
 
+## August 20, 2026 — Maintenance sweep: all green after a three-round day
+
+Post-round sweep after #182 (guardian comments acting-as, migration 093),
+#183 (Supabase-backed rate limiting, migration 094) and #184 (multi-sport
+§6 cleanup) all merged and prod-probed the same day.
+
+- `npm run verify` on main: lint at zero, 1378 tests / 106 files, build
+  clean, 116 static pages.
+- `npm audit`: 0 vulnerabilities (prod and dev).
+- Outdated majors are the standing ecosystem blocks, unchanged: TypeScript
+  7, ESLint 10, @types/node 26 — all pinned by Next/plugin compatibility.
+- e2e: 35 specs; two specs (follow-request, guardian-console) flaked twice
+  today ONLY in full-suite runs started right after heavy dev-server load,
+  and passed on every isolated rerun plus one clean full run. Environmental,
+  but now a pattern — if it shows a third time, suspect suite-order
+  resource contention, not the specs.
+- Deploy incident from the day, recorded: Vercel missed the merge-push
+  webhook for #183 (branch preview built, no production deployment for the
+  merge sha). An empty commit re-fired it. Check the GitHub deployments API
+  for the merge sha whenever a merge doesn't deploy.
+- Untracked and deliberately left: `.agents/`, `.claude/skills/`,
+  `skills-lock.json` (Resend marketplace vendor docs) — Tom's
+  commit-vs-gitignore call, still open.
+- Still pending outside the repo: GoDaddy has not published the
+  edgeathlete.ca zone (Resend SPF/DKIM unverified → outbound email 550s);
+  the watch and delivery probe stay armed.
+
 ## August 20, 2026 — Multi-sport cleanup: §6 closed, and the honest half was already done
 
 The MULTI_SPORT_ROADMAP §6 batch — audited first, which mattered: **4 of the
