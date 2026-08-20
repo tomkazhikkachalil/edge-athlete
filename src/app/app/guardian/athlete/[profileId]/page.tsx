@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import Image from 'next/image';
@@ -8,6 +8,7 @@ import { isOptimizableImageSrc } from '@/lib/media/image-src';
 import { useAuth } from '@/lib/auth';
 import { useToast } from '@/components/Toast';
 import AppHeader from '@/components/AppHeader';
+import ConfirmModal from '@/components/ConfirmModal';
 import { FEATURE_FLAGS } from '@/lib/features';
 import { formatDisplayName, getInitials, formatAge } from '@/lib/formatters';
 import { transferStateChip } from '@/lib/transfer-ui';
@@ -23,6 +24,21 @@ import {
   type MessagingPermission,
 } from '@/lib/profile-privacy';
 import type { ConsentState } from '@/lib/consent';
+
+interface GuardianRow {
+  user_id: string;
+  first_name: string | null;
+  last_name: string | null;
+  full_name: string | null;
+  avatar_url: string | null;
+  since: string | null;
+}
+
+interface PendingInvite {
+  id: string;
+  invited_email: string;
+  expires_at: string;
+}
 
 // ── Per-athlete management ────────────────────────────────────────────────────
 // One athlete's custody view: identity, live safety controls (the PATCH this
@@ -108,6 +124,28 @@ export default function GuardianAthletePage() {
   const [athlete, setAthlete] = useState<ConsoleAthlete | null>(null);
   const [saving, setSaving] = useState(false);
 
+  // Co-guardian lifecycle (Round 3): the custody links + pending invites.
+  const [guardians, setGuardians] = useState<GuardianRow[]>([]);
+  const [pendingInvites, setPendingInvites] = useState<PendingInvite[]>([]);
+  const [inviteEmail, setInviteEmail] = useState('');
+  const [inviteBusy, setInviteBusy] = useState(false);
+  const [manualInviteUrl, setManualInviteUrl] = useState('');
+  const [removeTarget, setRemoveTarget] = useState<GuardianRow | null>(null);
+  const [removing, setRemoving] = useState(false);
+
+  const refetchGuardians = useCallback(async () => {
+    try {
+      const res = await fetch(`/api/guardian/athletes/${profileId}/guardians`);
+      const data = await res.json().catch(() => ({}));
+      if (res.ok) {
+        setGuardians(data.guardians ?? []);
+        setPendingInvites(data.pendingInvites ?? []);
+      }
+    } catch {
+      // The section is informational — a failed load must not break the page.
+    }
+  }, [profileId]);
+
   useEffect(() => {
     if (!loading && initialAuthCheckComplete && !user) router.replace('/');
   }, [user, loading, initialAuthCheckComplete, router]);
@@ -132,6 +170,99 @@ export default function GuardianAthletePage() {
       cancelled = true;
     };
   }, [user, profileId]);
+
+  useEffect(() => {
+    if (!user || !profileId) return;
+    // Inlined cancellable IIFE (house pattern) — the async hop also keeps the
+    // set-state-in-effect rule honest about no synchronous setState here.
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch(`/api/guardian/athletes/${profileId}/guardians`);
+        const data = await res.json().catch(() => ({}));
+        if (cancelled || !res.ok) return;
+        setGuardians(data.guardians ?? []);
+        setPendingInvites(data.pendingInvites ?? []);
+      } catch {
+        // informational section — never break the page
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [user, profileId]);
+
+  const submitInvite = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (inviteBusy || !inviteEmail.trim()) return;
+    setInviteBusy(true);
+    setManualInviteUrl('');
+    try {
+      const res = await fetch(`/api/guardian/athletes/${profileId}/guardians`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: inviteEmail.trim() }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || 'Could not send the invite');
+      setInviteEmail('');
+      if (data.emailSent) {
+        showSuccess('Invite sent', 'They have 7 days to accept.');
+      } else {
+        // SMTP off — the URL is the reliable channel (admin-page precedent).
+        setManualInviteUrl(data.inviteUrl ?? '');
+        showSuccess('Invite created', 'Email is not configured — share the link below.');
+      }
+      refetchGuardians();
+    } catch (err) {
+      showError('Invite failed', err instanceof Error ? err.message : 'Please try again');
+    } finally {
+      setInviteBusy(false);
+    }
+  };
+
+  const cancelInvite = async (inviteId: string) => {
+    try {
+      const res = await fetch(`/api/guardian/athletes/${profileId}/guardians`, {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ inviteId }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || 'Could not cancel the invite');
+      showSuccess('Invite cancelled', 'You can invite someone else any time.');
+      refetchGuardians();
+    } catch (err) {
+      showError('Cancel failed', err instanceof Error ? err.message : 'Please try again');
+    }
+  };
+
+  const confirmRemove = async () => {
+    if (!removeTarget || removing) return;
+    setRemoving(true);
+    try {
+      const res = await fetch(`/api/guardian/athletes/${profileId}/guardians`, {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ guardianUserId: removeTarget.user_id }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || 'Could not remove the guardian');
+      const removedSelf = removeTarget.user_id === user?.id;
+      setRemoveTarget(null);
+      showSuccess('Guardian removed', removedSelf ? 'You no longer manage this athlete.' : undefined);
+      if (removedSelf) {
+        // No longer a guardian of this profile — the console is the way out.
+        router.replace('/app/guardian');
+        return;
+      }
+      refetchGuardians();
+    } catch (err) {
+      showError('Remove failed', err instanceof Error ? err.message : 'Please try again');
+    } finally {
+      setRemoving(false);
+    }
+  };
 
   // Optimistic safety change with revert — the 403 consent-gate message from
   // the server is surfaced verbatim so the guardian learns the WHY.
@@ -293,6 +424,108 @@ export default function GuardianAthletePage() {
                   </Link>
                 </section>
 
+                {/* Guardians — the custody links themselves (Round 3) */}
+                <section className="bg-surface border border-border rounded-lg p-5 mb-4">
+                  <h2 className="text-base font-bold text-primary mb-1">Guardians</h2>
+                  <p className="text-xs text-tertiary mb-3">
+                    Who manages this profile. An athlete can have up to two
+                    guardians; there must always be at least one.
+                  </p>
+                  <ul className="space-y-2 mb-3">
+                    {guardians.map(g => {
+                      const gName = formatDisplayName(g.first_name, null, g.last_name, g.full_name);
+                      const isSelf = g.user_id === user.id;
+                      return (
+                        <li key={g.user_id} className="flex items-center gap-3">
+                          <div className="relative w-8 h-8 rounded-full overflow-hidden bg-violet-100 dark:bg-violet-950/60 flex items-center justify-center shrink-0">
+                            {g.avatar_url ? (
+                              <Image
+                                src={g.avatar_url}
+                                alt=""
+                                fill
+                                sizes="32px"
+                                className="object-cover"
+                                unoptimized={!isOptimizableImageSrc(g.avatar_url)}
+                              />
+                            ) : (
+                              <span className="text-xs font-semibold text-brand-fg-strong">{getInitials(gName)}</span>
+                            )}
+                          </div>
+                          <div className="min-w-0 flex-grow">
+                            <p className="text-sm font-semibold text-primary truncate">
+                              {gName}
+                              {isSelf && <span className="font-normal text-muted"> (you)</span>}
+                            </p>
+                            {g.since && (
+                              <p className="text-xs text-muted">
+                                since {new Date(g.since).toLocaleDateString('en-US', { month: 'short', year: 'numeric' })}
+                              </p>
+                            )}
+                          </div>
+                          {/* Removing is only offered while a second guardian
+                              remains — a supervised profile never drops to zero. */}
+                          {guardians.length >= 2 && (
+                            <button
+                              type="button"
+                              onClick={() => setRemoveTarget(g)}
+                              className="shrink-0 px-3 py-2 min-h-[44px] inline-flex items-center border border-red-300 dark:border-red-800 rounded-lg text-sm font-semibold text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/40 transition-colors"
+                            >
+                              Remove
+                            </button>
+                          )}
+                        </li>
+                      );
+                    })}
+                  </ul>
+
+                  {pendingInvites.map(inv => (
+                    <div key={inv.id} className="flex items-center justify-between gap-3 bg-surface-sunken rounded-lg px-3 py-2 mb-2">
+                      <p className="text-sm text-secondary min-w-0 truncate">
+                        <i className="fas fa-envelope text-xs mr-2 text-muted"></i>
+                        {inv.invited_email}
+                        <span className="text-xs text-muted"> · invited, expires {new Date(inv.expires_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</span>
+                      </p>
+                      <button
+                        type="button"
+                        onClick={() => cancelInvite(inv.id)}
+                        className="shrink-0 min-h-[44px] px-2 inline-flex items-center text-sm font-semibold text-secondary hover:text-red-600 transition-colors"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  ))}
+
+                  {guardians.length < 2 && (
+                    <form onSubmit={submitInvite} className="flex flex-wrap items-center gap-2 mt-3">
+                      <input
+                        type="email"
+                        value={inviteEmail}
+                        onChange={e => setInviteEmail(e.target.value)}
+                        placeholder="Co-guardian's email"
+                        aria-label="Co-guardian's email"
+                        disabled={inviteBusy}
+                        className="flex-grow min-w-[180px] px-3 py-2 min-h-[44px] border border-border-strong rounded-lg text-sm bg-surface text-primary"
+                      />
+                      <button
+                        type="submit"
+                        disabled={inviteBusy || !inviteEmail.trim()}
+                        className="px-3 py-2 min-h-[44px] inline-flex items-center gap-2 border border-violet-300 dark:border-violet-800 rounded-lg text-sm font-semibold text-brand-fg-strong hover:bg-brand-soft disabled:opacity-60 transition-colors"
+                      >
+                        <i className={`fas ${inviteBusy ? 'fa-spinner fa-spin' : 'fa-user-plus'} text-xs`}></i>
+                        Invite co-guardian
+                      </button>
+                    </form>
+                  )}
+
+                  {manualInviteUrl && (
+                    <div className="mt-3 text-xs text-tertiary">
+                      Email is not configured — share this link with them directly
+                      (valid 7 days):
+                      <code className="block mt-1 p-2 bg-surface-sunken rounded select-all break-all">{manualInviteUrl}</code>
+                    </div>
+                  )}
+                </section>
+
                 {/* Transfer */}
                 <section className="bg-surface border border-border rounded-lg p-5 mb-4 flex items-center justify-between gap-3 flex-wrap">
                   <div>
@@ -332,6 +565,19 @@ export default function GuardianAthletePage() {
           </>
         )}
       </main>
+
+      <ConfirmModal
+        isOpen={!!removeTarget}
+        title={removeTarget?.user_id === user?.id ? 'Stop managing this athlete?' : 'Remove this guardian?'}
+        message={
+          removeTarget?.user_id === user?.id
+            ? `You'll no longer manage ${athlete?.first_name || 'this athlete'}'s profile. The other guardian keeps full custody.`
+            : `${removeTarget ? formatDisplayName(removeTarget.first_name, null, removeTarget.last_name, removeTarget.full_name) : ''} will no longer manage ${athlete?.first_name || 'this athlete'}'s profile. You keep full custody.`
+        }
+        confirmText={removing ? 'Removing…' : 'Remove'}
+        onConfirm={confirmRemove}
+        onCancel={() => setRemoveTarget(null)}
+      />
     </div>
   );
 }

@@ -1,5 +1,5 @@
 import { test, expect, request } from '@playwright/test';
-import { apiAs, readErrorBody, E2E_BASE_URL } from './helpers/qa-user';
+import { apiAs, loadQaUser, readErrorBody, E2E_BASE_URL } from './helpers/qa-user';
 
 // Family console (Aug 19) — the first guardian e2e coverage. The guardian
 // feature is behind the build-time flag FEATURE_GUARDIAN_PROFILES: ON in
@@ -123,6 +123,54 @@ test('athlete side: child login sees their guardian; a pending post rings the gu
   } finally {
     await child.dispose();
     await api.dispose();
+  }
+});
+
+test('co-guardian lifecycle: invite → claim → roster of two → revoke → last-guardian block', async () => {
+  test.skip(!flagOn, 'guardian flag off');
+  const userB = loadQaUser('user-b.json');
+  const apiA = await apiAs('state.json');
+  const apiB = await apiAs('state-b.json');
+  try {
+    // A invites B by email; the URL is returned regardless of SMTP.
+    const invite = await apiA.post(`/api/guardian/athletes/${childId}/guardians`, {
+      data: { email: userB.email },
+    });
+    expect(invite.ok(), await readErrorBody(invite)).toBe(true);
+    const { inviteUrl } = await invite.json();
+    const token = String(inviteUrl).split('/invite/')[1];
+    expect(token?.length).toBeGreaterThan(20);
+
+    // B claims — the existing claim route validates and grants.
+    const claim = await apiB.post(`/api/invites/${token}/claim`);
+    expect(claim.ok(), await readErrorBody(claim)).toBe(true);
+
+    // Roster of two, and the second-invite gate closes.
+    const list = await apiA.get(`/api/guardian/athletes/${childId}/guardians`);
+    expect(list.ok(), await readErrorBody(list)).toBe(true);
+    expect((await list.json()).guardians.length).toBe(2);
+    const third = await apiA.post(`/api/guardian/athletes/${childId}/guardians`, {
+      data: { email: 'edgeqa-third@example.com' },
+    });
+    expect(third.status()).toBe(409);
+
+    // A revokes B; roster back to one.
+    const revoke = await apiA.delete(`/api/guardian/athletes/${childId}/guardians`, {
+      data: { guardianUserId: userB.id },
+    });
+    expect(revoke.ok(), await readErrorBody(revoke)).toBe(true);
+    const after = await apiA.get(`/api/guardian/athletes/${childId}/guardians`);
+    expect((await after.json()).guardians.length).toBe(1);
+
+    // The invariant: the last guardian cannot remove themselves.
+    const me = loadQaUser('user.json');
+    const selfRemove = await apiA.delete(`/api/guardian/athletes/${childId}/guardians`, {
+      data: { guardianUserId: me.id },
+    });
+    expect(selfRemove.status()).toBe(409);
+  } finally {
+    await apiB.dispose();
+    await apiA.dispose();
   }
 });
 

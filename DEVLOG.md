@@ -1,5 +1,45 @@
 # Development Log
 
+## August 19, 2026 — Family console Round 3: the co-guardian lifecycle
+
+Principle 3: custody is a relationship with a lifecycle — invited → active →
+revoked. Until tonight only an ADMIN could invite a second guardian, and
+NOBODY could revoke one: the matrix granted guardians `manage_access` since
+048 and nothing implemented it.
+
+- **New route `/api/guardian/athletes/[profileId]/guardians`** (the second
+  real `requireProfileRole` call site, action `manage_access`):
+  - GET — the custody links (guardians + since) and pending
+    `guardian_additional` invites (unconsumed, unexpired).
+  - POST {email} — mirror of the admin invite flow verbatim:
+    `createGuardianInvite` + SMTP-conditional `sendCoGuardianInvite`,
+    response `{ok, inviteUrl, emailSent}` — the URL is the reliable channel
+    when SMTP is off. Cap `< 2` checked here AND re-checked at claim.
+  - DELETE {inviteId} — cancel by expiring (the signup route's idiom; no
+    deletes on guardian_invites). DELETE {guardianUserId} — revoke: audit
+    row first (`revoked`, append-only, survives everything), then the access
+    row, `count:'exact'`. **The invariant lives at the route layer: the last
+    guardian of a supervised profile cannot be removed** — the DB backstop is
+    partial (with a credentials self-row the delete would succeed and orphan
+    the child; profile-roles.ts has documented this caveat since 048).
+- **Console UI**: a Guardians section on the per-athlete page (between Login
+  and Transfer — custody before hand-over): guardian rows with "(you)" and
+  since-dates, Remove (only rendered with two guardians; ConfirmModal copy
+  distinguishes removing yourself — allowed, leaving the family is
+  legitimate — from removing the co-guardian; self-removal routes back to
+  the console), pending-invite rows with Cancel, and the invite form with
+  the share-this-link fallback. Claim side needed NOTHING — the existing
+  /invite/[token] flow validates, grants, and notifies `athlete_added`.
+- e2e: a co-guardian leg in guardian-console.spec.ts — invite → B claims →
+  roster of two → third invite 409s → revoke → **last-guardian self-removal
+  409s** (the invariant pinned as a test).
+- Lint note: the guardians fetch effect uses the inlined-cancellable-IIFE
+  house pattern; a bare `refetchGuardians()` call in the effect trips
+  `set-state-in-effect` (error tier since Aug 12).
+
+No new migrations. Verification gated on 090 (this branch stacks on Round 2,
+whose read embeds need the column) — e2e + browser pass run once it lands.
+
 ## August 19, 2026 — Family console Round 2: attribution (migration 090)
 
 Principle 10: "everything the guardian does is done on behalf of." A guardian
