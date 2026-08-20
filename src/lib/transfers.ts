@@ -308,11 +308,19 @@ export async function runTransferSweep(admin: SupabaseClient, appUrl?: string) {
     if (!error) {
       summary.flagged++;
       // Make the state's name honest: until Aug 2026 'eligible_notified'
-      // notified NOBODY. Best-effort bell to every guardian.
-      const { notifyGuardians, profileFirstName } = await import('./guardian-notify');
+      // notified NOBODY. Best-effort bell to every guardian — and to the
+      // CHILD (Round E): they used to learn of their own eligibility only
+      // by logging in and noticing the banner.
+      const { notifyGuardians, notifyUser, profileFirstName } = await import('./guardian-notify');
       await notifyGuardians(admin, p.id, {
         type: 'transfer_update',
         title: `${await profileFirstName(admin, p.id)} is old enough to take over their account`,
+        actionUrl: `/app/transfer/${p.id}`,
+      });
+      await notifyUser(admin, p.id, {
+        type: 'transfer_update',
+        title: "You're old enough to take over your account!",
+        message: 'Ask your guardian to start the handover whenever you like.',
         actionUrl: `/app/transfer/${p.id}`,
       });
     }

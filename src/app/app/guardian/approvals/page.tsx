@@ -165,7 +165,8 @@ export default function GuardianApprovalsPage() {
         <p className="text-sm text-tertiary mb-6">
           Posts — and, when you&apos;ve chosen review, comments — your athletes have
           created are held here until you approve them. Nothing is visible to
-          anyone else until you do.
+          anyone else until you do. The one exception: shared golf rounds
+          publish right away, because they&apos;re scored live with other players.
         </p>
 
         {error && (

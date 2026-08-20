@@ -3,7 +3,6 @@ import { getSupabaseAdmin, getServerAuth } from '@/lib/auth-server';
 import { notifyGroupInvites } from '@/lib/golf/group-notifications';
 import { initialRoundStatus } from '@/lib/golf/round-status';
 import { GROUP_TYPE_TO_SPORT, GROUP_POST_TYPES, type GroupPostType } from '@/types/group-posts';
-import { FEATURE_FLAGS } from '@/lib/features';
 
 /**
  * GET /api/group-posts
@@ -122,34 +121,19 @@ export async function POST(request: NextRequest) {
     // the round AS the athlete — the composer already shows the child as
     // the creator, and before this the round silently landed on the
     // PARENT's profile. Same gate as posts/comments, verbatim semantics.
-    let actorId = user.id;
     const targetProfileId =
       typeof body.targetProfileId === 'string' ? body.targetProfileId : null;
-    if (targetProfileId && targetProfileId !== user.id) {
-      if (!FEATURE_FLAGS.FEATURE_GUARDIAN_PROFILES) {
-        return NextResponse.json({ error: 'Not available' }, { status: 404 });
-      }
-      const { getProfileRole } = await import('@/lib/auth-server');
-      const role = await getProfileRole(user.id, targetProfileId);
-      if (role !== 'guardian') {
-        return NextResponse.json(
-          { error: 'You do not have permission to post to this profile' },
-          { status: 403 }
-        );
-      }
-      const { getConsentState } = await import('@/lib/consent');
-      const consent = await getConsentState(getSupabaseAdmin(), targetProfileId);
-      if (consent !== 'approved') {
-        return NextResponse.json(
-          { error: 'Parental consent must be approved before anything can be posted to this profile.' },
-          { status: 403 }
-        );
-      }
-      actorId = targetProfileId;
+    const { resolveActingProfile } = await import('@/lib/guardian-gate');
+    const gate = await resolveActingProfile(
+      user.id, targetProfileId, 'You do not have permission to post to this profile'
+    );
+    if (!gate.ok) {
+      return NextResponse.json({ error: gate.error }, { status: gate.status });
     }
-    // Acting-as writes bypass RLS (creator_id ≠ auth.uid): the branch above
+    const actorId = gate.actorId;
+    // Acting-as writes bypass RLS (creator_id ≠ auth.uid): the gate above
     // IS the authorization (house rule, same as posts/comments).
-    const db = actorId !== user.id ? getSupabaseAdmin() : supabase;
+    const db = gate.actingAs ? getSupabaseAdmin() : supabase;
 
     // Optional golf scorecard payload — created here, in the SAME request as
     // the group post, so a round can never exist without its scorecard (the
@@ -374,10 +358,21 @@ export async function POST(request: NextRequest) {
     // feed surface of its own — without this row, shared rounds never appear
     // anywhere (the feed renders posts, and GET /api/posts attaches the
     // group scorecard via posts.group_post_id).
+    //
+    // DELIBERATE EXCEPTION (decided Aug 20 2026, recorded in DEVLOG): this
+    // insert takes the DB default status='published' even when the creator
+    // is a SUPERVISED child — shared rounds are scored live with other
+    // players, so holding the feed post for guardian approval is unworkable.
+    // The approvals page names this carve-out. Every other supervised write
+    // goes through the pending pipeline; do not "fix" this without a product
+    // decision.
     const { data: feedPost, error: feedPostError } = await db
       .from('posts')
       .insert({
         profile_id: actorId,
+        // Attribution (090): a guardian created this round as their athlete —
+        // the byline names the human author, same as posts and comments.
+        ...(gate.actingAs ? { created_by_user_id: user.id } : {}),
         sport_key: GROUP_TYPE_TO_SPORT[type as GroupPostType] ?? 'general',
         caption: description || title,
         visibility: visibility || 'public',

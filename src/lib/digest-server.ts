@@ -81,16 +81,21 @@ export async function runNotificationDigest(supabase: SupabaseClient, appUrl: st
         const guardianEmails = (guardianRows ?? [])
           .map(r => (r.profiles as unknown as { email: string | null })?.email)
           .filter((e): e is string => !!e && !isSyntheticEmail(e));
+        let allGuardiansSent = true;
         for (const guardianEmail of guardianEmails) {
-          await emailService.sendChildDigest(
+          const ok = await emailService.sendChildDigest(
             guardianEmail, profile.first_name || 'Your athlete', notifs, appUrl
           );
-          sent++;
+          if (ok) sent++;
+          else allGuardiansSent = false;
         }
-        // All guardian sends succeeded (a throw lands in the per-user
-        // catch below and the watermark stays put — a retry may re-send to
-        // an earlier guardian, which is a harmless duplicate).
-        await advanceWatermark();
+        // Watermark advances only when EVERY guardian send succeeded
+        // (Round E, mirroring the main digest's rule). On partial failure
+        // it holds without throwing, so the loop continues to the next
+        // child and this digest retries next run — accepted tradeoff: a
+        // persistently bouncing co-guardian re-sends to the healthy one
+        // until fixed, which beats silently dropping the digest.
+        if (allGuardiansSent) await advanceWatermark();
         continue;
       }
 
