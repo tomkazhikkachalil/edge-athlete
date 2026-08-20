@@ -1,5 +1,37 @@
 # Development Log
 
+## August 20, 2026 — Maintenance sweep: guardian arc closed out
+
+Full gate re-run on main after the #188 + #189 merges — green across the
+board: typecheck clean, `eslint . --max-warnings 0` at zero, **1400 tests /
+109 files**, production build compiled.
+
+Prod-probe results for the two rounds, both against live deploys with
+disposable fixtures (created, asserted to exist, and deleted with
+verification):
+
+- **Round D (#188) — 12/12.** Authors see their own `pending_approval`
+  posts (with the `status` field in the transform); strangers and anonymous
+  viewers don't. `GET /api/transfers` returns the latest terminal row as
+  `lastTransfer` when nothing is active.
+- **Round E (#189) — 18/18.** Gate error copy byte-identical through
+  `guardian-gate.ts` across posts/comments/group-posts; acting-as shared
+  round lands on the child with `created_by_user_id` = the guardian and
+  `status='published'` (the documented exception); the comments
+  self-targetProfileId moderation bypass stays fixed under a real child
+  session; **age-in bells verified through the real prod cron** — both the
+  child's ("You're old enough to take over your account!") and the
+  guardians' fire.
+
+The guardian parent/child arc has **no code work remaining**. Open items
+are ops/Tom-side: the GoDaddy zone for edgeathlete.ca is still unpublished
+(Resend unverified → outbound mail 550s, degraded-but-honest everywhere),
+and the device walkthrough + legal pass (which should cover the
+shared-round carve-out, since `CONSENT_STATEMENT` was deliberately left
+unchanged). Design-first backlog, unscheduled: messaging tier re-check on
+send, DB-level last-guardian backstop, safety-policy object, org
+generalization, aggregated guardian notifications.
+
 ## August 20, 2026 — Guardian hardening round: one gate, honest exceptions (Round E)
 
 Post-arc hardening from the two-agent audit of what remained for the
