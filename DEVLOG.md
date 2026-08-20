@@ -1,6 +1,42 @@
 # Development Log
 
-## August 20, 2026 — The carried-forward four, finally cleared (migration 092)
+## August 20, 2026 — Guardian Round 5: comments acting-as (migration 093)
+
+The last deferred piece of "one session, many contexts": a guardian switched
+into their athlete could POST as them but not COMMENT as them. Comments now
+honor the same `targetProfileId` contract as the post composer — guardian
+role re-check + approved consent, or 403 — with `created_by_user_id`
+attribution (093, 090's exact shape: ON DELETE SET NULL, partial index) and
+a muted `via {guardian}` byline next to the timestamp. **Deploy order is
+strict like 090**: the GET/POST embeds select the column, so 093 runs before
+merge.
+
+Decisions and traps worth recording:
+
+- **Both embeds switched to column-name hints** (`profile:profile_id(...)`),
+  because adding the second post_comments→profiles FK makes bare
+  `profile:profiles(...)` PGRST201-ambiguous — the saved-page lesson applied
+  proactively instead of reactively this time.
+- **RLS Trap B**: `post_comments`' INSERT policy is `auth.uid() = profile_id`
+  and the table is NOT in 052's guardian-write list. Rather than a policy
+  migration, the acting-as branch writes via the admin client
+  (`writer = authorId !== user.id ? admin : supabase`) — normal comments
+  keep RLS defense-in-depth, and the guardian branch is already fully
+  authorized in app code, which is the house model (72/85 routes bypass RLS).
+- **DELETE extended for moderation**: a guardian can delete comments on
+  their managed athlete's identity (matrix: guardians hold
+  write_content/approve_content). Client shows the button via
+  `managedProfiles`, server re-checks the role and deletes via admin.
+- **Notifications stay child-actored** (trigger uses NEW.profile_id;
+  mentions fan-out and the taggable set key off the CHILD — it's the child's
+  comment, so the child's follow graph is the correct semantic). Attribution
+  lives in the column + byline, not notification actors — same scope call
+  as Round 2.
+- Migration-lag retry (42703/PGRST204 → drop the column from the insert and
+  retry) carried over from the posts route, so a stale PostgREST schema
+  cache degrades to an unattributed comment instead of a failed one.
+
+
 
 The four items every sweep since Aug 11 has carried forward verbatim, done
 in one round while email DNS propagates.
