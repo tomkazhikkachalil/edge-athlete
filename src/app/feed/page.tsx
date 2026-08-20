@@ -42,6 +42,14 @@ interface Post {
     full_name: string | null;
     avatar_url: string | null;
   };
+  /** Attribution (090): the human author when a guardian posted on behalf. */
+  created_by?: {
+    id: string;
+    first_name: string | null;
+    last_name: string | null;
+    full_name: string | null;
+    handle: string | null;
+  } | null;
   media: {
     id: string;
     media_url: string;

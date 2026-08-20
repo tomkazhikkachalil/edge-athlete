@@ -67,6 +67,15 @@ interface Post {
   comments_count: number;
   saves_count?: number;
   profile: Profile;
+  /** Attribution (090): the human author when a guardian posted on behalf of
+   *  this profile. Null/absent for self-authored posts. */
+  created_by?: {
+    id: string;
+    first_name: string | null;
+    last_name: string | null;
+    full_name: string | null;
+    handle: string | null;
+  } | null;
   media: PostMedia[];
   likes?: { profile_id: string }[];
   saved_posts?: { profile_id: string }[];
@@ -459,6 +468,17 @@ function PostCard({
                   </>
                 )}
               </div>
+              {/* Attribution (090): a guardian wrote this on the athlete's
+                  behalf — say so. The card's identity is the athlete, so the
+                  byline names only the human author. */}
+              {post.created_by && post.created_by.id !== post.profile.id && (
+                <span className="text-xs text-muted flex items-center gap-1 min-w-0">
+                  <i className="fas fa-user-shield" aria-hidden="true"></i>
+                  <span className="truncate">
+                    Posted by {formatDisplayName(post.created_by.first_name, null, post.created_by.last_name, post.created_by.full_name)}
+                  </span>
+                </span>
+              )}
             </div>
           </div>
         </button>
