@@ -1,5 +1,50 @@
 # Development Log
 
+## August 20, 2026 — Guardian hardening round: one gate, honest exceptions (Round E)
+
+Post-arc hardening from the two-agent audit of what remained for the
+parent/child relationship. No migration; deploy order free.
+
+- **DECIDED: a supervised child's shared round keeps publishing
+  immediately** (Tom's call, recorded here + in a comment at the group-posts
+  feed-post insert). Shared rounds are scored live with other players, so
+  holding the feed post is unworkable; the approvals page now names the
+  carve-out so the "nothing is visible until you approve" promise stays
+  honest. `CONSENT_STATEMENT` was deliberately NOT touched — wording changes
+  raise a `minors-consent-v1` policy-version question; the carve-out is
+  flagged for the legal pass instead.
+- **One acting-as gate** (`src/lib/guardian-gate.ts`,
+  `resolveActingProfile`, decision-table tested via an io seam): posts,
+  comments, and group-posts hand-rolled the identical flag→404 /
+  guardian→403 / consent→403 ladder, which is exactly how group-posts once
+  shipped a drifted copy. Error bodies/status codes are byte-identical to
+  before (probes assert the copy; the consent line is an exported
+  constant now).
+- **Real bugfix the refactor surfaced:** the comments moderation branch was
+  keyed on `!targetProfileId`, so a supervised child sending
+  `targetProfileId` = their own id skipped the held-comments pipeline. Now
+  keyed on the gate's `actingAs` (posts' `else if` shape was already safe).
+- **Round byline:** the shared-round feed post now stamps
+  `created_by_user_id` when a guardian creates the round acting-as — the
+  "Posted by {guardian}" byline (090) finally renders on rounds too.
+- **`sendChildDigest` joins `deliver()`:** an SMTP failure used to throw
+  into digest-server's per-user catch, freeze the watermark, and re-send
+  the digest to every guardian on every run (firing daily while DNS is
+  unverified). Now the watermark advances only when every guardian send
+  succeeded, and partial failure holds it without throwing. Accepted
+  tradeoff, commented: a persistently bouncing co-guardian re-sends to the
+  healthy one until fixed.
+- **Age-in tells the child too:** the daily sweep's eligibility flag now
+  rings the child's bell ("You're old enough to take over your account!")
+  alongside the guardians' — they used to learn only by logging in and
+  noticing the banner.
+- Two stale "later round" comments corrected (safety-settings audit shipped
+  in 091; child-digest routing shipped in Round 4).
+
+Still deliberately out (see the Round E plan): retroactive messaging-tier
+enforcement on send, DB-level last-guardian backstop, safety-policy object,
+org generalization, aggregated guardian notifications.
+
 ## August 20, 2026 — Guardian polish round: honest states everywhere (Round D)
 
 The last round of the guardian completion arc. No migration; deploy order

@@ -424,7 +424,7 @@ This email was sent from your website's contact form.
     childFirstName: string,
     items: Array<{ title: string; created_at: string }>,
     appUrl: string
-  ): Promise<void> {
+  ): Promise<boolean> {
     const count = items.length;
     const name = escapeHtml(childFirstName || 'Your athlete');
     const rows = items
@@ -461,7 +461,10 @@ This email was sent from your website's contact form.
       (count > 10 ? `\n…and ${count - 10} more.` : '') +
       `\n\nFamily console: ${appUrl}/app/guardian`;
 
-    await this.transporter.sendMail({
+    // deliver(), not raw sendMail (Round E): a thrown SMTP failure used to
+    // land in digest-server's per-user catch, freeze the watermark, and
+    // re-send this digest to every guardian on every subsequent run.
+    return this.deliver('child_digest', {
       from: process.env.EMAIL_FROM || 'noreply@yourdomain.com',
       to,
       subject: `${childFirstName || 'Your athlete'} has ${count} new notification${count === 1 ? '' : 's'} on Edge Athlete`,

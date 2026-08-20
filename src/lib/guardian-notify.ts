@@ -8,8 +8,9 @@
 //
 // Recipients are always addressed by their OWN user_id, so the existing
 // bell/notifications page/RLS need no changes. A supervised child's rows
-// reach them on their next PIN login (the email digest skips synthetic
-// addresses — routing a child's digest to the guardian is a later round).
+// reach them on their next PIN login, and the email digest routes a
+// synthetic-address child's items to their guardians (sendChildDigest,
+// digest-server.ts).
 
 import type { SupabaseClient } from '@supabase/supabase-js';
 

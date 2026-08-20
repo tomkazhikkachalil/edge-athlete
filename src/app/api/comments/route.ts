@@ -152,38 +152,28 @@ export async function POST(request: NextRequest) {
     // athlete via targetProfileId (the posts route's pattern, verbatim
     // semantics: guardian row re-checked server-side, approved consent
     // required, attribution recorded in created_by_user_id).
-    let authorId = profile.id;
+    // Shared acting-as gate (guardian-gate.ts) — flag 404 → guardian 403 →
+    // approved-consent 403, identical semantics to posts and group-posts.
     const targetProfileId =
       typeof body.targetProfileId === 'string' ? body.targetProfileId : null;
-    if (targetProfileId && targetProfileId !== user.id) {
-      if (!FEATURE_FLAGS.FEATURE_GUARDIAN_PROFILES) {
-        return NextResponse.json({ error: 'Not available' }, { status: 404 });
-      }
-      const { getProfileRole } = await import('@/lib/auth-server');
-      const role = await getProfileRole(user.id, targetProfileId);
-      if (role !== 'guardian') {
-        return NextResponse.json(
-          { error: 'You do not have permission to comment as this profile' },
-          { status: 403 }
-        );
-      }
-      const { getConsentState } = await import('@/lib/consent');
-      const consent = await getConsentState(getSupabaseAdmin(), targetProfileId);
-      if (consent !== 'approved') {
-        return NextResponse.json(
-          { error: 'Parental consent must be approved before anything can be posted to this profile.' },
-          { status: 403 }
-        );
-      }
-      authorId = targetProfileId;
+    const { resolveActingProfile } = await import('@/lib/guardian-gate');
+    const gate = await resolveActingProfile(
+      user.id, targetProfileId, 'You do not have permission to comment as this profile'
+    );
+    if (!gate.ok) {
+      return NextResponse.json({ error: gate.error }, { status: gate.status });
     }
+    const authorId = gate.actingAs ? gate.actorId : profile.id;
 
     // Supervised minors commenting as THEMSELVES: the guardian's per-athlete
     // comment_moderation toggle decides instant vs held-for-review (095).
     // Mirrors the posts pending pipeline; guardian acting-as comments are
     // the guardian's own words and are never held.
+    // Keyed on the GATE result, not on raw targetProfileId (Round E): the old
+    // `!targetProfileId` check let a child send targetProfileId = their own
+    // id and skip moderation entirely.
     let commentStatus: 'published' | 'pending_approval' = 'published';
-    if (!targetProfileId && FEATURE_FLAGS.FEATURE_GUARDIAN_PROFILES) {
+    if (!gate.actingAs && FEATURE_FLAGS.FEATURE_GUARDIAN_PROFILES) {
       const { getProfileRole } = await import('@/lib/auth-server');
       const selfRole = await getProfileRole(user.id, user.id);
       if (selfRole === 'supervised') {

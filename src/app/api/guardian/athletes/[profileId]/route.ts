@@ -16,8 +16,9 @@ import { getClientIp } from '@/lib/rate-limit';
 // matrix (profile-roles.ts) grants guardians 'manage_privacy', and this
 // route enforces it rather than hand-rolling the role check.
 //
-// NOTE (v1): no audit row is written — profile_access_audit is scoped to
-// access-role changes. A safety-settings audit trail is a later round.
+// Every change writes a safety_settings_audit row (091): old→new value plus
+// the acting guardian, appended best-effort in the PATCH below.
+// (profile_access_audit stays scoped to access-ROLE changes.)
 
 const VISIBILITY_VALUES = ['public', 'private'] as const;
 const MESSAGING_VALUES = ['everyone', 'fans_only', 'mutual_fans', 'nobody'] as const;

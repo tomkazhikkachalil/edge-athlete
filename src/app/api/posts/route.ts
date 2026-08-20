@@ -118,34 +118,20 @@ export async function POST(request: NextRequest) {
     const { postType, postCategory } = identity;
 
     // Content owner: the session user, or — guardian-profiles — a managed
-    // athlete via targetProfileId. Server-authoritative: the guardian row is
-    // re-checked here, and publishing to a supervised profile requires
-    // APPROVED parental consent.
-    let userId = user.id;
+    // athlete via targetProfileId. The shared gate (guardian-gate.ts) is
+    // server-authoritative: guardian row re-checked, publishing to a
+    // supervised profile requires APPROVED parental consent.
     const targetProfileId =
       typeof body.targetProfileId === 'string' ? body.targetProfileId : null;
-    if (targetProfileId && targetProfileId !== user.id) {
-      if (!FEATURE_FLAGS.FEATURE_GUARDIAN_PROFILES) {
-        return NextResponse.json({ error: 'Not available' }, { status: 404 });
-      }
-      const { getProfileRole } = await import('@/lib/auth-server');
-      const role = await getProfileRole(user.id, targetProfileId);
-      if (role !== 'guardian') {
-        return NextResponse.json(
-          { error: 'You do not have permission to post to this profile' },
-          { status: 403 }
-        );
-      }
-      const { getConsentState } = await import('@/lib/consent');
-      const consent = await getConsentState(supabase, targetProfileId);
-      if (consent !== 'approved') {
-        return NextResponse.json(
-          { error: 'Parental consent must be approved before anything can be posted to this profile.' },
-          { status: 403 }
-        );
-      }
-      userId = targetProfileId;
-    } else if (FEATURE_FLAGS.FEATURE_GUARDIAN_PROFILES) {
+    const { resolveActingProfile } = await import('@/lib/guardian-gate');
+    const gate = await resolveActingProfile(
+      user.id, targetProfileId, 'You do not have permission to post to this profile'
+    );
+    if (!gate.ok) {
+      return NextResponse.json({ error: gate.error }, { status: gate.status });
+    }
+    const userId = gate.actorId;
+    if (!gate.actingAs && FEATURE_FLAGS.FEATURE_GUARDIAN_PROFILES) {
       // Supervised minors posting to their OWN profile: content queues for
       // guardian approval — they can write, never publish (resolver matrix).
       const { getProfileRole } = await import('@/lib/auth-server');
