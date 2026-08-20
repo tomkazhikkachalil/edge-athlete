@@ -1,11 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAuth, getSupabaseAdmin } from '@/lib/auth-server';
+import { enforceRateLimit } from '@/lib/rate-limit';
 
 export async function POST(request: NextRequest) {
   try {
     const supabase = getSupabaseAdmin();
     // Require authentication
     const user = await requireAuth(request);
+    const limited = await enforceRateLimit(request, 'upload', { userId: user.id });
+    if (limited) return limited;
+
 
     const formData = await request.formData();
     const file = formData.get('file') as File;

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseAdmin, requireAuth } from '@/lib/auth-server';
+import { enforceRateLimit } from '@/lib/rate-limit';
 
 export async function GET(request: NextRequest) {
   try {
@@ -22,6 +23,11 @@ export async function GET(request: NextRequest) {
         { status: 400 }
       );
     }
+
+    // IP-keyed on purpose: this route is deliberately anon-friendly (signup
+    // flow), and it's an enumeration surface.
+    const limited = await enforceRateLimit(request, 'handle-check');
+    if (limited) return limited;
 
     // Call the database function to check availability
     const { data, error } = await supabase

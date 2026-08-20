@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAuth } from '@/lib/auth-server';
+import { enforceRateLimit } from '@/lib/rate-limit';
 
 const GIPHY_BASE = 'https://api.giphy.com/v1/gifs';
 const LIMIT = 20;
@@ -18,7 +19,11 @@ interface GiphyGif {
 // Returns: { gifs: [{ id, url, preview_url }] }
 export async function GET(request: NextRequest) {
   try {
-    await requireAuth(request);
+    const user = await requireAuth(request);
+
+    // Giphy is a paid third-party quota — don't let one account drain it.
+    const limited = await enforceRateLimit(request, 'gif-search', { userId: user.id });
+    if (limited) return limited;
 
     const apiKey = process.env.GIPHY_API_KEY;
     if (!apiKey) {

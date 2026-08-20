@@ -3,6 +3,7 @@ import * as Sentry from '@sentry/nextjs';
 import { requireAuth, getSupabaseAdmin } from '@/lib/auth-server';
 import { peekGuardianInvite, redeemGuardianInvite } from '@/lib/guardian-invites';
 import { FEATURE_FLAGS } from '@/lib/features';
+import { enforceRateLimit } from '@/lib/rate-limit';
 
 // ── POST /api/invites/[token]/claim ───────────────────────────────────────────
 // A logged-in guardian claims a guardian invite. Peek-then-typed-redeem:
@@ -24,6 +25,9 @@ export async function POST(
 ) {
   try {
     const user = await requireAuth(request);
+    const limited = await enforceRateLimit(request, 'invite-claim', { userId: user.id });
+    if (limited) return limited;
+
     if (!FEATURE_FLAGS.FEATURE_GUARDIAN_PROFILES) {
       return NextResponse.json({ error: 'Not available' }, { status: 404 });
     }

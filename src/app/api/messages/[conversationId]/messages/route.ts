@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { requireAuth, getSupabaseAdmin } from '@/lib/auth-server';
 import { extractHandles } from '@/lib/mentions';
 import { notifyChatMentions } from '@/lib/mentions/notify';
+import { enforceRateLimit } from '@/lib/rate-limit';
 
 // ── POST /api/messages/[conversationId]/messages ──────────────────────────────
 // Send a message. Media must be pre-uploaded via /api/upload/post-media.
@@ -12,6 +13,9 @@ export async function POST(
   try {
     const supabase = getSupabaseAdmin();
     const user = await requireAuth(request);
+    const limited = await enforceRateLimit(request, 'message-send', { userId: user.id });
+    if (limited) return limited;
+
     const { conversationId } = await params;
     const body = await request.json();
     const { type, content, media_url, media_type, shared_post_id, shared_profile_id, parent_message_id } = body;

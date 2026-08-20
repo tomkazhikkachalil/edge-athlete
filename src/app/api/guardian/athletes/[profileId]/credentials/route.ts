@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import * as Sentry from '@sentry/nextjs';
 import { requireAuth, getSupabaseAdmin, getProfileRole } from '@/lib/auth-server';
 import { FEATURE_FLAGS } from '@/lib/features';
+import { enforceRateLimit } from '@/lib/rate-limit';
 import {
   isPinShaped,
   derivePinPassword,
@@ -22,6 +23,9 @@ export async function POST(
 ) {
   try {
     const user = await requireAuth(request);
+    const limited = await enforceRateLimit(request, 'credentials-set', { userId: user.id });
+    if (limited) return limited;
+
     const { profileId } = await params;
     if (!FEATURE_FLAGS.FEATURE_GUARDIAN_PROFILES) {
       return NextResponse.json({ error: 'Not available' }, { status: 404 });

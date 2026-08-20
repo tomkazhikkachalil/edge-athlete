@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseAdmin, requireAuth } from '@/lib/auth-server';
+import { enforceRateLimit } from '@/lib/rate-limit';
 
 const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
 // Extensions derived from the validated MIME type — never from the client
@@ -20,6 +21,9 @@ export async function POST(request: NextRequest) {
   try {
     // Auth required — anonymous uploads were a storage/cost abuse vector.
     const user = await requireAuth(request);
+    const limited = await enforceRateLimit(request, 'upload', { userId: user.id });
+    if (limited) return limited;
+
     const userId = user.id;
     const supabase = getSupabaseAdmin();
 

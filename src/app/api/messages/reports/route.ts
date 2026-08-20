@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAuth, getSupabaseAdmin } from '@/lib/auth-server';
+import { enforceRateLimit } from '@/lib/rate-limit';
 
 const VALID_REASONS = new Set(['spam', 'harassment', 'hateful', 'sexual', 'violence', 'other']);
 const MAX_DETAILS_LEN = 1000;
@@ -16,6 +17,9 @@ export async function POST(request: NextRequest) {
   try {
     const supabase = getSupabaseAdmin();
     const user = await requireAuth(request);
+    const limited = await enforceRateLimit(request, 'message-report', { userId: user.id });
+    if (limited) return limited;
+
     const body = await request.json();
     const { reason, details, messageId, reportedProfileId } = body as {
       reason?: string;

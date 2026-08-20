@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseAdmin, getServerAuth } from '@/lib/auth-server';
+import { enforceRateLimit } from '@/lib/rate-limit';
 
 export async function POST(request: NextRequest) {
   try {
@@ -17,6 +18,9 @@ export async function POST(request: NextRequest) {
     if (userError || !user) {
       return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
     }
+
+    const limited = await enforceRateLimit(request, 'like', { userId: user.id });
+    if (limited) return limited;
 
     const profileId = user.id;
 

@@ -1,11 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseAdmin, requireAuth } from '@/lib/auth-server';
+import { enforceRateLimit } from '@/lib/rate-limit';
 
 export async function POST(request: NextRequest) {
   try {
     // The liking profile is ALWAYS the session user — never a body-supplied
     // profileId (that let anyone forge/remove likes as any user).
     const user = await requireAuth(request);
+    const limited = await enforceRateLimit(request, 'like', { userId: user.id });
+    if (limited) return limited;
+
     const supabase = getSupabaseAdmin();
     const body = await request.json();
     const { postId } = body;

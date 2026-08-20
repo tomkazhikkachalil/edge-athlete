@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase';
 import { requireAuth } from '@/lib/auth-server';
+import { enforceRateLimit } from '@/lib/rate-limit';
 
 // Server is the security boundary: explicit allowlist (no SVG — it can carry
 // scripts and this URL is rendered across the app), extensions derived from
@@ -18,6 +19,9 @@ export async function POST(request: NextRequest) {
     // profile, never a body-supplied userId (that let anyone overwrite any
     // user's avatar).
     const user = await requireAuth(request);
+    const limited = await enforceRateLimit(request, 'upload', { userId: user.id });
+    if (limited) return limited;
+
 
     const formData = await request.formData();
     const file = formData.get('avatar') as File;

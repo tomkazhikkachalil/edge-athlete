@@ -4,6 +4,7 @@ import { requireProfileRole, getSupabaseAdmin } from '@/lib/auth-server';
 import { FEATURE_FLAGS } from '@/lib/features';
 import { createGuardianInvite } from '@/lib/guardian-invites';
 import { emailService } from '@/lib/email-service';
+import { enforceRateLimit } from '@/lib/rate-limit';
 
 // ── /api/guardian/athletes/[profileId]/guardians ──────────────────────────────
 // The co-guardian lifecycle, guardian-facing (previously admin-only): list
@@ -100,6 +101,9 @@ export async function POST(
       return NextResponse.json({ error: 'Not available' }, { status: 404 });
     }
     const { user } = await requireProfileRole(request, profileId, 'manage_access');
+    const limited = await enforceRateLimit(request, 'co-guardian-invite', { userId: user.id });
+    if (limited) return limited;
+
     const { admin, child } = await requireSupervised(profileId);
 
     const body = await request.json().catch(() => ({}));
