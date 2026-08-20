@@ -3,6 +3,7 @@ import { getServerAuth, getSupabaseAdmin } from '@/lib/auth-server';
 import { mirrorRoundMedia } from '@/lib/golf/round-mirror';
 import { isValidSegment, segmentSchemaFor } from '@/lib/sports/segment-schemas';
 import { resolveSportKey } from '@/lib/sports/resolve-sport-key';
+import { GROUP_TYPE_TO_SPORT, type GroupPostType } from '@/types/group-posts';
 
 /**
  * POST /api/group-posts/[id]/media
@@ -63,7 +64,10 @@ export async function POST(
       : (round?.post as { sport_key?: string } | null | undefined)?.sport_key;
     const sportKey =
       resolveSportKey(postSportKey) ??
-      resolveSportKey((round?.type ?? '').replace(/_(round|game|match|session)$/, ''));
+      // The declared type→sport map, not a suffix-stripping regex: the regex
+      // could invent a sport the feed post never carried (basketball_game →
+      // 'basketball' while its post says 'general').
+      resolveSportKey(GROUP_TYPE_TO_SPORT[round?.type as GroupPostType] ?? null);
 
     let segmentNumber: number | null = null;
     if (rawSegment !== undefined && rawSegment !== null) {

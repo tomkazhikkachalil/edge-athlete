@@ -1,5 +1,57 @@
 # Development Log
 
+## August 20, 2026 — The carried-forward four, finally cleared (migration 092)
+
+The four items every sweep since Aug 11 has carried forward verbatim, done
+in one round while email DNS propagates.
+
+**1. The 390px author-row wrap (PostCard in PostDetailModal).** Measured,
+not eyeballed: the modal's `p-4` content padding was the ENTIRE 32px delta
+vs the feed (306px vs 274px of header budget), and the owner cluster's three
+44px buttons are incompressible, so 100% of any deficit lands on the author
+column — whose meta row was `flex-wrap` and stacked into extra lines instead
+of truncating. Fixes: modal `p-2` below sm; meta row drops `flex-wrap` for
+min-w-0 + truncate (degrade by ellipsis like the name row); header `p-4
+sm:p-base`; `shrink-0` on the owner cluster to make its incompressibility
+explicit. Verified: 44px two-line author block at 390, zero overflow.
+
+**2. Stat-line posts on the calendar (092).** A logged hockey/basketball/…
+game now appears as an all-day item on the DATE THE ATHLETE ENTERED
+(`stats_data->>'date'`), not created_at — log Saturday's game on Monday and
+it lands on Saturday. Mirrors the golf pattern (UTC-midnight exclusive-end,
+057 convention); the post IS the item so the client's existing
+PostDetailModal routing needs zero changes; malformed/garbage dates return
+null rather than rendering at epoch (tested). Migration 092 adds the partial
+functional index `(profile_id, stats_data->>'date') WHERE type='stat_line'`
+— the unindexed JSONB date was the whole reason this sat deferred, since the
+overlay runs on every calendar load. Graceful unindexed, so deploy order is
+flexible.
+
+**3. Guest "save to my routines".** A guest on a workout event could start
+their own session but the routine vanished from their world afterwards. Now
+a Bookmark button under the Start CTA copies it into their own presets via
+the existing owner-scoped POST /api/workout-routines (WorkoutCard's
+handleSaveRoutine precedent; the guest already legitimately holds the
+exercise list from the detail GET). Organizer doesn't see it — offering it
+to them guarantees a same-name 409. Verified end-to-end with a real invited
+guest; fixture lesson: the events POST takes `guests.profile_ids`
+(snake_case) and silently ignores unknown keys.
+
+**4. The `activity_id` cleanup — the honest verdict.** There is no
+activity_id to rename: the deferred item is ADOPTING a generic linkage to
+replace `posts.round_id`, and both the DEVLOG (Aug 10) and
+MULTI_SPORT_ROADMAP gate that on sport #2's data model being real — the
+shape (one FK? polymorphic pair? activities view?) is undecidable with one
+deep-table sport, and paying a live `posts` migration + 5 RPC drop/recreates
+to guess would be waste. It stays deferred ON PURPOSE. The genuinely safe
+subset shipped: the group-posts vocabulary now has ONE source
+(`GROUP_POST_TYPES` — the API route validated against a byte-identical
+inline copy), and the two media routes' suffix-stripping regex
+(`type.replace(/_(round|game|match|session)$/)`) became a
+`GROUP_TYPE_TO_SPORT` lookup — the regex could invent a sport the feed post
+never carried (basketball_game → 'basketball' while its post says
+'general').
+
 ## August 19, 2026 — Family console Round 4: hardening the record (migration 091)
 
 The completeness round: audit trail, the discoverability decision, transfer

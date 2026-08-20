@@ -416,8 +416,9 @@ function PostCard({
 
   return (
     <div className="bg-surface rounded-lg shadow-md border-2 border-border-strong overflow-hidden mb-6">
-      {/* Header */}
-      <div className="p-base flex items-center justify-between">
+      {/* Header. p-4 below sm: 24px padding each side cost a 390px card a
+          third of its author-row budget. */}
+      <div className="p-4 sm:p-base flex items-center justify-between">
         <button
           onClick={() => {
             // Navigate to own profile page if viewing own post, otherwise to athlete's profile
@@ -427,7 +428,7 @@ function PostCard({
               router.push(`/athlete/${post.profile.id}`);
             }
           }}
-          className="flex items-center gap-4 hover:bg-surface-muted p-1 rounded-lg transition-colors flex-1 min-w-0 text-left"
+          className="flex items-center gap-3 sm:gap-4 hover:bg-surface-muted p-1 rounded-lg transition-colors flex-1 min-w-0 text-left"
         >
           {/* Profile Avatar */}
           {post.profile.avatar_url ? (
@@ -456,14 +457,17 @@ function PostCard({
                   <span className="text-sm text-primary font-medium truncate flex-shrink-[2]">{getHandle(post.profile)}</span>
                 )}
               </div>
-              <div className="flex items-center gap-2 flex-wrap">
-                <span className="text-sm text-secondary font-medium">{timeAgo}</span>
+              {/* No flex-wrap: under squeeze this row must degrade by
+                  ellipsis like the name row above it, not stack into extra
+                  lines (the "author row wraps at 390px" nit). */}
+              <div className="flex items-center gap-2 min-w-0">
+                <span className="text-sm text-secondary font-medium whitespace-nowrap">{timeAgo}</span>
                 {chipKey && (
                   <>
                     <span className="text-sm text-secondary font-medium">•</span>
-                    <div className="flex items-center gap-1">
+                    <div className="flex items-center gap-1 min-w-0">
                       <SportGlyph sportKey={chipKey} color={sportColor} />
-                      <span className="text-sm text-secondary font-semibold">{getSportName(chipKey)}</span>
+                      <span className="text-sm text-secondary font-semibold truncate">{getSportName(chipKey)}</span>
                     </div>
                   </>
                 )}
@@ -483,7 +487,10 @@ function PostCard({
           </div>
         </button>
 
-        <div className="flex items-center gap-2">
+        {/* shrink-0 makes the cluster's incompressibility explicit (44px
+            buttons never shrank anyway — the author column takes the squeeze
+            and truncates). */}
+        <div className="flex items-center gap-2 shrink-0">
           {/* Privacy indicator */}
           {post.visibility === 'private' && (
             <div className="text-xs text-muted bg-surface-sunken px-2 py-1 rounded">

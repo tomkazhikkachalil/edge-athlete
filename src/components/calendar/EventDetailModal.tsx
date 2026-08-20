@@ -5,7 +5,7 @@ import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import { isOptimizableImageSrc } from '@/lib/media/image-src';
 import { format } from 'date-fns';
-import { X, CalendarDays, Dumbbell, Play } from 'lucide-react';
+import { X, CalendarDays, Dumbbell, Play, Bookmark } from 'lucide-react';
 import { useAuth } from '@/lib/auth';
 import { canStartEventWorkout } from '@/lib/calendar/event-routine';
 import { useBodyScrollLock } from '@/hooks/useBodyScrollLock';
@@ -90,6 +90,8 @@ export default function EventDetailModal({
   const [pendingResponse, setPendingResponse] = useState<MyStatus | null>(null);
   const [savingReminder, setSavingReminder] = useState(false);
   const [startingWorkout, setStartingWorkout] = useState(false);
+  const [savingRoutine, setSavingRoutine] = useState(false);
+  const [routineSaved, setRoutineSaved] = useState(false);
   // Captured at fetch time (render must stay pure); the modal refetches on
   // every open, so the CTA's day-window gate is evaluated freshly per open.
   const [loadedAt, setLoadedAt] = useState(0);
@@ -213,6 +215,41 @@ export default function EventDetailModal({
     } catch (err) {
       showError('Error', err instanceof Error ? err.message : 'Failed to start workout');
       setStartingWorkout(false);
+    }
+  };
+
+  // Guest "save to my routines": the routine copies into the VIEWER's own
+  // presets (no FK back — same immutability copy-on-start relies on). The
+  // guest already legitimately holds the exercise list (the detail GET gave
+  // it to them), and /api/workout-routines is strictly owner-scoped, so this
+  // creates rows only in their own account. WorkoutCard's handleSaveRoutine
+  // is the precedent.
+  const saveRoutineToPresets = async () => {
+    if (!event?.routine || savingRoutine) return;
+    setSavingRoutine(true);
+    try {
+      const res = await fetch('/api/workout-routines', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+          name: event.routine.name,
+          exercises: event.routine.exercises,
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        // 409 = same-name routine already saved; 400 = the 30-routine cap.
+        showError('Not saved', data.error || 'Could not save the routine');
+        return;
+      }
+      setRoutineSaved(true);
+      showSuccess('Routine saved', `Pick “${event.routine.name}” next time you start a workout.`);
+    } catch (err) {
+      console.error('Failed to save routine:', err);
+      showError('Not saved', 'Could not save the routine. Please try again.');
+    } finally {
+      setSavingRoutine(false);
     }
   };
 
@@ -368,6 +405,20 @@ export default function EventDetailModal({
                           : 'Available on the day of the event'}
                       </p>
                     )
+                  )}
+                  {/* Guests keep a copy: the routine otherwise vanishes from
+                      their world after the event. Organizers own it already
+                      (offering it to them guarantees a same-name 409). */}
+                  {!isOrganizer && !cancelled && (
+                    <button
+                      type="button"
+                      onClick={saveRoutineToPresets}
+                      disabled={savingRoutine || routineSaved}
+                      className="mt-2 w-full flex items-center justify-center gap-2 border border-border-strong text-secondary py-2 rounded-lg text-sm font-semibold hover:bg-surface-muted transition min-h-[44px] disabled:opacity-60"
+                    >
+                      <Bookmark className="w-4 h-4" aria-hidden="true" />
+                      {routineSaved ? 'Saved to my routines' : 'Save to my routines'}
+                    </button>
                   )}
                 </div>
               );
