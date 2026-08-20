@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import * as Sentry from '@sentry/nextjs';
 import { requireAdmin, getSupabaseAdmin } from '@/lib/auth-server';
 import { stateFromAction } from '@/lib/consent';
+import { getClientIp } from '@/lib/rate-limit';
 
 // ── /api/admin/consent-reviews ────────────────────────────────────────────────
 // Admin review queue for signed-form parental consent. Reviews are NEW
@@ -107,7 +108,7 @@ export async function POST(request: NextRequest) {
       threshold_age: granted.threshold_age,
       evidence_path: granted.evidence_path,
       reviewed_by: reviewer.id,
-      ip: request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || null,
+      ip: getClientIp(request),
       user_agent: request.headers.get('user-agent'),
     });
     if (insertError) throw insertError;

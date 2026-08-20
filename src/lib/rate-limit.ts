@@ -1,74 +1,103 @@
-interface RateLimitEntry {
-  count: number;
-  resetTime: number;
+// Supabase-backed rate limiting (migration 094). The previous in-memory Map
+// limiter was per-lambda — on Vercel that meant limit × live instances,
+// reset on every cold start — and guarded 3 routes. This one is shared
+// across instances: one atomic rate_limit_hit() RPC per check.
+//
+// Usage in a route (mirrors parseBody's return-a-ready-response convention):
+//
+//   const limited = await enforceRateLimit(request, 'post-create', { userId: user.id });
+//   if (limited) return limited;
+//
+// Fail-open on purpose: if the RPC errors (e.g. 094 not applied yet), the
+// request proceeds and we log + Sentry once per cold start — availability
+// over strictness, and it makes the migration's deploy order flexible.
+// Limits/actions live in ./rate-limit-core.ts (pure, unit-tested).
+
+import { NextRequest, NextResponse } from 'next/server';
+import * as Sentry from '@sentry/nextjs';
+import { getSupabaseAdmin } from '@/lib/auth-server';
+import {
+  RATE_LIMITS,
+  buildRateLimitKey,
+  clampRetryAfter,
+  firstForwardedIp,
+  type RateLimitAction,
+  type RateLimitRule,
+} from '@/lib/rate-limit-core';
+
+export * from '@/lib/rate-limit-core';
+
+/**
+ * Client IP as Vercel's proxy reports it (first x-forwarded-for hop), or
+ * null when absent (e.g. localhost dev). Nullable on purpose: audit-trail
+ * call sites store null, the limiter substitutes 'unknown'.
+ */
+export function getClientIp(request: NextRequest): string | null {
+  return firstForwardedIp(request.headers.get('x-forwarded-for'));
 }
 
-class RateLimiter {
-  private attempts = new Map<string, RateLimitEntry>();
-  private readonly maxAttempts: number;
-  private readonly windowMs: number;
+let failOpenReported = false;
 
-  constructor(maxAttempts = 5, windowMinutes = 15) {
-    this.maxAttempts = maxAttempts;
-    this.windowMs = windowMinutes * 60 * 1000;
+/**
+ * Check-and-consume one hit against the named action's budget.
+ * Returns a ready 429 NextResponse when over the limit, null otherwise.
+ */
+export async function enforceRateLimit(
+  request: NextRequest,
+  action: RateLimitAction,
+  opts?: { userId?: string; extraKey?: string }
+): Promise<NextResponse | null> {
+  // Widen to the interface: `as const` narrows away optional `message` on
+  // entries that don't declare it.
+  const rule: RateLimitRule = RATE_LIMITS[action];
+
+  let identifier: string;
+  if (rule.keyBy === 'user') {
+    if (opts?.userId) {
+      identifier = opts.userId;
+    } else {
+      // Programmer error — a user-keyed action called without a user. Fall
+      // back to IP so the request is still limited rather than unlimited.
+      console.error(`[RATE-LIMIT] action "${action}" is user-keyed but no userId was passed`);
+      identifier = getClientIp(request) ?? 'unknown';
+    }
+  } else {
+    identifier = getClientIp(request) ?? 'unknown';
   }
 
-  private getKey(identifier: string, action: string): string {
-    return `${action}:${identifier}`;
-  }
+  const key = buildRateLimitKey(action, identifier, opts?.extraKey);
 
-  private cleanupExpired(): void {
-    const now = Date.now();
-    for (const [key, entry] of this.attempts.entries()) {
-      if (entry.resetTime <= now) {
-        this.attempts.delete(key);
+  try {
+    const { data, error } = await getSupabaseAdmin()
+      .rpc('rate_limit_hit', {
+        p_key: key,
+        p_max: rule.max,
+        p_window_seconds: rule.windowSeconds,
+      })
+      .single();
+
+    if (error) throw error;
+
+    const row = data as { allowed: boolean; retry_after_seconds: number };
+    if (row.allowed) return null;
+
+    return NextResponse.json(
+      { error: rule.message ?? 'Too many requests. Please try again later.' },
+      {
+        status: 429,
+        headers: { 'Retry-After': String(clampRetryAfter(row.retry_after_seconds)) },
       }
-    }
-  }
-
-  check(identifier: string, action: string): { allowed: boolean; remainingAttempts: number; resetTime: number } {
-    this.cleanupExpired();
-    
-    const key = this.getKey(identifier, action);
-    const now = Date.now();
-    const entry = this.attempts.get(key);
-
-    if (!entry || entry.resetTime <= now) {
-      // First attempt or window expired
-      this.attempts.set(key, {
-        count: 1,
-        resetTime: now + this.windowMs
+    );
+  } catch (error) {
+    console.error(`[RATE-LIMIT] fail-open on "${action}":`, error);
+    if (!failOpenReported) {
+      failOpenReported = true;
+      Sentry.captureMessage('rate-limit: fail-open (rate_limit_hit RPC unavailable?)', {
+        level: 'warning',
+        tags: { area: 'rate-limit' },
+        extra: { action },
       });
-      return {
-        allowed: true,
-        remainingAttempts: this.maxAttempts - 1,
-        resetTime: now + this.windowMs
-      };
     }
-
-    if (entry.count >= this.maxAttempts) {
-      return {
-        allowed: false,
-        remainingAttempts: 0,
-        resetTime: entry.resetTime
-      };
-    }
-
-    // Increment count
-    entry.count++;
-    return {
-      allowed: true,
-      remainingAttempts: this.maxAttempts - entry.count,
-      resetTime: entry.resetTime
-    };
-  }
-
-  reset(identifier: string, action: string): void {
-    const key = this.getKey(identifier, action);
-    this.attempts.delete(key);
+    return null;
   }
 }
-
-// Create singleton instances for different actions
-export const loginRateLimiter = new RateLimiter(5, 15); // 5 attempts per 15 minutes
-export const apiRateLimiter = new RateLimiter(100, 1); // 100 requests per minute

@@ -4,6 +4,7 @@ import { requireAuth, getSupabaseAdmin, getProfileRole, requireProfileRole } fro
 import { FEATURE_FLAGS } from '@/lib/features';
 import { hardDeleteAccount } from '@/lib/account-deletion';
 import { getConsentState } from '@/lib/consent';
+import { getClientIp } from '@/lib/rate-limit';
 
 // ── PATCH /api/guardian/athletes/[profileId] ──────────────────────────────────
 // Family console: a guardian adjusts a managed athlete's safety posture.
@@ -178,7 +179,7 @@ export async function DELETE(
         policy_version: lastConsent.policy_version,
         jurisdiction: lastConsent.jurisdiction,
         threshold_age: lastConsent.threshold_age,
-        ip: request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || null,
+        ip: getClientIp(request),
         user_agent: request.headers.get('user-agent'),
       });
       if (consentError) {

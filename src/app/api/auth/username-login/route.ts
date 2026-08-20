@@ -4,7 +4,7 @@ import { createServerClient } from '@supabase/ssr';
 import { getSupabaseAdmin } from '@/lib/auth-server';
 import { FEATURE_FLAGS } from '@/lib/features';
 import { isPinShaped, derivePinPassword } from '@/lib/supervised-credentials';
-import { loginRateLimiter } from '@/lib/rate-limit';
+import { enforceRateLimit } from '@/lib/rate-limit';
 
 // ── POST /api/auth/username-login ─────────────────────────────────────────────
 // Supervised-minor sign-in: username (= handle) + password-or-PIN. The route
@@ -27,13 +27,13 @@ export async function POST(request: NextRequest) {
     const secret = typeof body.secret === 'string' ? body.secret : '';
     if (!username || !secret) return invalid();
 
-    const ip = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || 'unknown';
-    if (!loginRateLimiter.check(`${ip}:${username}`, 'username-login').allowed) {
-      return NextResponse.json(
-        { error: 'Too many attempts. Please wait a few minutes.' },
-        { status: 429 }
-      );
-    }
+    // Two buckets: per-IP first (a distributed attacker probing MANY
+    // usernames from one IP), then per-(ip,username) for the classic
+    // brute-force on one account.
+    const ipLimited = await enforceRateLimit(request, 'username-login-ip');
+    if (ipLimited) return ipLimited;
+    const limited = await enforceRateLimit(request, 'username-login', { extraKey: username });
+    if (limited) return limited;
 
     const admin = getSupabaseAdmin();
     const { data: child } = await admin

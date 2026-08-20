@@ -5,7 +5,7 @@ import * as Sentry from '@sentry/nextjs';
 import { getSupabaseAdmin } from '@/lib/auth-server';
 import { FEATURE_FLAGS } from '@/lib/features';
 import { redeemGuardianInvite } from '@/lib/guardian-invites';
-import { loginRateLimiter } from '@/lib/rate-limit';
+import { enforceRateLimit } from '@/lib/rate-limit';
 
 // ── POST /api/auth/activate ───────────────────────────────────────────────────
 // Post-transfer account activation: the new owner consumes their single-use
@@ -31,13 +31,8 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const ip = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || 'unknown';
-    if (!loginRateLimiter.check(ip, 'activate').allowed) {
-      return NextResponse.json(
-        { error: 'Too many attempts. Please wait a few minutes.' },
-        { status: 429 }
-      );
-    }
+    const limited = await enforceRateLimit(request, 'activate');
+    if (limited) return limited;
 
     const admin = getSupabaseAdmin();
     const invite = await redeemGuardianInvite(admin, token, 'athlete_activation');
