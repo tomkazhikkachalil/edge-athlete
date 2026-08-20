@@ -113,9 +113,13 @@ export default function InvitePage() {
                 disabled={claiming}
                 onClick={async () => {
                   if (!user) {
-                    // Not signed in: to login/signup; the invite link in their
-                    // email brings them back here afterward.
-                    router.push('/');
+                    // Not signed in: to login/signup with a return path —
+                    // the token must survive the round trip (sessionStorage
+                    // as belt-and-braces for the same-browser OAuth path,
+                    // whose callback has no next-param support).
+                    const returnPath = `/invite/${encodeURIComponent(token)}`;
+                    try { window.sessionStorage.setItem('ea:invite-return', returnPath); } catch { /* best-effort */ }
+                    router.push(`/?next=${encodeURIComponent(returnPath)}`);
                     return;
                   }
                   // Signed-in guardian: claim (consumes the single-use token)
@@ -133,7 +137,7 @@ export default function InvitePage() {
                       // Co-guardian grant: access exists now — hard reload so
                       // managedProfiles refreshes from the new access row.
                       // eslint-disable-next-line @next/next/no-location-assign-relative-destination -- guardian access row is new; managedProfiles must refetch from scratch
-                      window.location.href = '/athlete';
+                      window.location.href = '/app/guardian';
                       return;
                     }
                     try {

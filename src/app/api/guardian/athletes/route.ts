@@ -221,6 +221,15 @@ export async function POST(request: NextRequest) {
       console.error('[GUARDIAN] notification prefs seed failed:', prefsError);
     }
 
+    // Creating an athlete IS a parent's onboarding (097 funnel): stamp the
+    // guardian's own onboarded_at so routing stops offering them wizards.
+    // Idempotent, best-effort.
+    await admin
+      .from('profiles')
+      .update({ onboarded_at: new Date().toISOString() })
+      .eq('id', user.id)
+      .is('onboarded_at', null);
+
     // Athlete-initiated path: finalize the claimed pending request.
     const pendingProfileId =
       typeof body.pendingProfileId === 'string' ? body.pendingProfileId : null;

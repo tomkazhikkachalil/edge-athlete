@@ -94,20 +94,21 @@ export async function POST(request: NextRequest) {
           invitedEmail: guardianEmail,
           pendingProfileId: pending.id,
         });
+        // deliver() returns an honest boolean; failed sends are rescued via
+        // the admin parked-profiles re-mint (dashboard/guardians).
+        let guardianEmailSent = false;
         if (invite && process.env.SMTP_USER && process.env.SMTP_PASS) {
           const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://edge-athlete.vercel.app';
-          try {
-            await emailService.sendGuardianInvite(
-              guardianEmail, first_name, `${appUrl}/invite/${invite.rawToken}`, appUrl, !!existingGuardian
-            );
-          } catch (mailError) {
-            console.error('[OAUTH-PROFILE] guardian invite email failed:', mailError);
-            Sentry.captureException(mailError, { tags: { area: 'guardian-invite' } });
-          }
+          guardianEmailSent = await emailService.sendGuardianInvite(
+            guardianEmail, first_name, `${appUrl}/invite/${invite.rawToken}`, appUrl, !!existingGuardian
+          );
         }
         return NextResponse.json({
           parked: true,
-          message: "Almost there! We've emailed your parent or guardian a link to finish setting up your profile.",
+          guardianEmailSent,
+          message: guardianEmailSent
+            ? "Almost there! We've emailed your parent or guardian a link to finish setting up your profile."
+            : "Almost there! We couldn't send the email to your parent or guardian just now — ask them to contact support, or try again later.",
         });
       }
     }

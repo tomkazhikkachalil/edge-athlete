@@ -1,5 +1,61 @@
 # Development Log
 
+## August 20, 2026 — Guardian funnel round: the portal's two front doors, unjammed (migrations 096 + 097)
+
+Round B of the guardian completion arc. Round A closed the safety holes;
+this one fixes the two entry funnels that made the portal FEEL broken —
+both were dead ends, one by a missing branch, one because prod email 550s
+(unverified sender domain) with no fallback anywhere.
+
+- **Parents finally have an onboarding.** Signup's guardian branch stored
+  `user_type:'athlete'`, so every parent got dumped into the ATHLETE wizard
+  ("What sports do you play?") and never saw their child. Now: 097 adds
+  'parent' to the user_type CHECK; signup forces it server-side; all three
+  routing touchpoints (landing, complete-profile, OAuth callback) send
+  un-onboarded parents to add-athlete (prefilled from the held DOB) and
+  onboarded parents to the console; creating an athlete stamps the parent's
+  onboarded_at; a "Skip for now" escape prevents trapping; and /onboarding
+  grew a rescue branch — anyone already managing athletes is auto-stamped
+  and routed to the console, which also rescues pre-097 parents and
+  invite-claim guardians stranded in the wizard.
+- **Email tells the truth now.** email-service gained transport timeouts
+  (a wedged handshake held serverless functions open) and a deliver()
+  wrapper — the guardian-flow senders return an honest emailSent boolean
+  and Sentry-tag failures instead of throwing into per-caller catches (one
+  of which, the transfer OTP's, was FULLY silent: zero telemetry while
+  every in-flight transfer froze). The minor-signup and OAuth parked
+  responses now carry honest copy when the invite email fails.
+- **Parked minor sign-ups are rescuable.** pending_profiles rows have no
+  profile, so they were invisible to every admin surface — and the raw
+  invite token exists only in the (failed) email. The guardian-support
+  admin route now lists them and can RE-MINT an invite (expire old, mint
+  fresh, return the URL to the admin — no email attempt; the admin shares
+  the link, per the owner's call). Every minor stranded since the DNS broke
+  is now reachable from /dashboard/guardians.
+- **Stuck transfers are rescuable.** submit_contact reports emailSent; the
+  transfer page stops claiming "Check your email" when nothing was sent;
+  an admin reissue_transfer_otp action returns the plaintext code to read
+  out (15-min expiry, single-use, Sentry breadcrumb). Post-transfer
+  activation failure now leaves the new owner a bell notification pointing
+  at /forgot-password (their recovery path) instead of a silent lockout.
+- **The digest stops burning its watermark.** last_digest_at advanced
+  BEFORE the send — a failed send permanently ate those notifications.
+  Now it advances only after success (or when there's nothing to send).
+- **The contact form persists first.** It hard-500'd on send failure —
+  cutting off the support channel for exactly the people email outages
+  lock out. 096 adds contact_messages (service-role only); the row is the
+  source of truth, the email best-effort with a delivered flag.
+- Smaller honesty fixes: CreatePostModal surfaces the server's error (the
+  consent-403 was an unfixable "Please try again"); the co-guardian
+  manual-link copy no longer claims "Email is not configured" when the
+  send failed; pending co-guardian invites get a "Get new link" button
+  (links were shown once, in component state); the signed-out invite-claim
+  CTA carries `?next=` + a sessionStorage fallback (sanitized by a pure
+  safeInternalPath helper) so the token survives the sign-in round trip;
+  co-guardian accept lands on the console, not /athlete; and the approvals
+  queue plays VIDEOS (guardians were approving videos rendered as a 96px
+  icon they could not watch).
+
 ## August 20, 2026 — Guardian safety round: closing the holes a child could walk through (migration 095)
 
 Tom's walkthrough verdict ("the parent portal seems broken/unfinished")

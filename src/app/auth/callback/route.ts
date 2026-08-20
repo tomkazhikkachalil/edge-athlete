@@ -69,11 +69,14 @@ export async function GET(request: Request) {
   try {
     const { data: profile } = await getSupabaseAdmin()
       .from('profiles')
-      .select('id, onboarded_at')
+      .select('id, onboarded_at, user_type')
       .eq('id', data.user.id)
       .maybeSingle();
     if (profile) {
-      dest = profile.onboarded_at ? '/athlete' : '/onboarding';
+      // Parents (097) route to the console/add-athlete, never the wizard.
+      dest = profile.user_type === 'parent'
+        ? (profile.onboarded_at ? '/app/guardian' : '/app/guardian/add-athlete')
+        : (profile.onboarded_at ? '/athlete' : '/onboarding');
     }
   } catch (lookupError) {
     // Fall through to complete-profile — its own already-has-profile gate

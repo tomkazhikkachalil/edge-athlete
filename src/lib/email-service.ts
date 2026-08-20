@@ -1,4 +1,5 @@
 import nodemailer from 'nodemailer';
+import * as Sentry from '@sentry/nextjs';
 
 // Email clients need absolute image URLs — no relative paths.
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL || 'https://edge-athlete.vercel.app';
@@ -38,13 +39,34 @@ export class EmailService {
         user: process.env.SMTP_USER,
         pass: process.env.SMTP_PASS,
       },
+      // A wedged SMTP handshake must not hold a serverless function open.
+      connectionTimeout: 10_000,
+      greetingTimeout: 10_000,
+      socketTimeout: 15_000,
     });
+  }
+
+  /**
+   * Send with a RESULT instead of a throw: callers get an honest emailSent
+   * boolean (SMTP creds being SET does not mean sends succeed — an
+   * unverified sender domain 550s every message). Failures log + Sentry-tag
+   * so a dead mail pipe is visible.
+   */
+  private async deliver(kind: string, mail: Parameters<nodemailer.Transporter['sendMail']>[0]): Promise<boolean> {
+    try {
+      await this.transporter.sendMail(mail);
+      return true;
+    } catch (err) {
+      console.error(`[EMAIL] send failed (${kind}):`, err);
+      Sentry.captureException(err, { tags: { area: 'email', email_kind: kind } });
+      return false;
+    }
   }
 
   /**
    * Send contact form email
    */
-  async sendContactEmail(data: ContactEmailData): Promise<void> {
+  async sendContactEmail(data: ContactEmailData): Promise<boolean> {
     const { name, email, message } = data;
     
     const htmlContent = `
@@ -81,7 +103,7 @@ ${message}
 This email was sent from your website's contact form.
     `;
 
-    await this.transporter.sendMail({
+    return this.deliver('contact', {
       from: process.env.EMAIL_FROM || 'noreply@yourdomain.com',
       to: process.env.CONTACT_EMAIL || process.env.EMAIL_FROM,
       subject: `Contact Form: Message from ${name}`,
@@ -116,7 +138,7 @@ This email was sent from your website's contact form.
     inviteUrl: string,
     appUrl: string,
     guardianHasAccount = false
-  ): Promise<void> {
+  ): Promise<boolean> {
     const cta = guardianHasAccount
       ? 'Log in and review their request'
       : 'Review and set up their profile';
@@ -144,7 +166,7 @@ This email was sent from your website's contact form.
         </div>
       </div>
     `;
-    await this.transporter.sendMail({
+    return this.deliver('guardian_invite', {
       from: process.env.EMAIL_FROM || 'noreply@yourdomain.com',
       to,
       subject: `Action needed: ${athleteFirstName || 'a young athlete'} wants to join Edge Athlete`,
@@ -246,7 +268,7 @@ This email was sent from your website's contact form.
     athleteFirstName: string,
     inviteUrl: string,
     appUrl: string
-  ): Promise<void> {
+  ): Promise<boolean> {
     const name = athleteFirstName ? escapeHtml(athleteFirstName) : 'a young athlete';
     const htmlContent = `
       <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
@@ -272,7 +294,7 @@ This email was sent from your website's contact form.
         </div>
       </div>
     `;
-    await this.transporter.sendMail({
+    return this.deliver('co_guardian_invite', {
       from: process.env.EMAIL_FROM || 'noreply@yourdomain.com',
       to,
       subject: `You've been invited to help manage ${athleteFirstName || 'a young athlete'}'s Edge Athlete profile`,
@@ -286,8 +308,8 @@ This email was sent from your website's contact form.
    * owner's "the account is yours" email. The link carries the raw
    * single-use athlete_activation token.
    */
-  async sendAccountActivation(to: string, activationUrl: string, appUrl: string): Promise<void> {
-    await this.transporter.sendMail({
+  async sendAccountActivation(to: string, activationUrl: string, appUrl: string): Promise<boolean> {
+    return this.deliver('account_activation', {
       from: process.env.EMAIL_FROM || 'noreply@yourdomain.com',
       to,
       subject: 'Your Edge Athlete account is now yours',
@@ -321,8 +343,8 @@ This email was sent from your website's contact form.
   /**
    * Transfer contact-verification code (guardian-profiles transfer flow).
    */
-  async sendTransferCode(to: string, code: string, appUrl: string): Promise<void> {
-    await this.transporter.sendMail({
+  async sendTransferCode(to: string, code: string, appUrl: string): Promise<boolean> {
+    return this.deliver('transfer_code', {
       from: process.env.EMAIL_FROM || 'noreply@yourdomain.com',
       to,
       subject: `${code} is your Edge Athlete verification code`,

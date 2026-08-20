@@ -211,11 +211,23 @@ export default function GuardianApprovalsPage() {
                 {media.length > 0 && (
                   <div className="flex gap-2 flex-wrap mb-3">
                     {media.map(m => (
-                      <div key={m.id} className="relative w-24 h-24 rounded-md overflow-hidden bg-surface-sunken">
+                      <div
+                        key={m.id}
+                        className={`relative rounded-md overflow-hidden bg-surface-sunken ${
+                          m.media_type === 'video' ? 'w-full max-w-sm' : 'w-24 h-24'
+                        }`}
+                      >
                         {m.media_type === 'video' ? (
-                          <div className="w-full h-full flex items-center justify-center text-faint">
-                            <i className="fas fa-video text-xl"></i>
-                          </div>
+                          // Review means WATCHING it — a guardian must never
+                          // approve a video they cannot see. Full playback,
+                          // not a 96px icon tile.
+                          <video
+                            src={m.media_url}
+                            poster={m.thumbnail_url ?? undefined}
+                            controls
+                            preload="metadata"
+                            className="w-full max-h-64 bg-black"
+                          />
                         ) : (
                           <Image
                             src={m.thumbnail_url || m.media_url}

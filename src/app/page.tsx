@@ -7,6 +7,7 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import BrandBar from '@/components/BrandBar';
 import { supabase } from '@/lib/supabase';
+import { safeInternalPath } from '@/lib/safe-internal-path';
 import WaitlistPopup from '@/components/WaitlistPopup';
 import HandleSelector from '@/components/HandleSelector';
 import OAuthButtons from '@/components/OAuthButtons';
@@ -60,7 +61,29 @@ export default function Home() {
   useEffect(() => {
     if (loading || !initialAuthCheckComplete) return;
     if (user && profile) {
-      router.push(profile.onboarded_at ? '/athlete' : '/onboarding');
+      // Return path (?next= or the invite page's sessionStorage fallback):
+      // an invite claim must survive the sign-in round trip. Sanitized —
+      // internal absolute paths only, never an open redirect.
+      const params = new URLSearchParams(window.location.search);
+      let returnPath = safeInternalPath(params.get('next'));
+      if (!returnPath) {
+        try {
+          returnPath = safeInternalPath(window.sessionStorage.getItem('ea:invite-return'));
+        } catch { /* storage unavailable */ }
+      }
+      if (returnPath) {
+        try { window.sessionStorage.removeItem('ea:invite-return'); } catch { /* ignore */ }
+        router.push(returnPath);
+        return;
+      }
+      // Parents (097) live in the family console, never the athlete
+      // wizard/profile — their first run goes straight to add-athlete
+      // (prefilled from the DOB the signup flow stored).
+      if (profile.user_type === 'parent') {
+        router.push(profile.onboarded_at ? '/app/guardian' : '/app/guardian/add-athlete');
+      } else {
+        router.push(profile.onboarded_at ? '/athlete' : '/onboarding');
+      }
     } else if (user && !profile) {
       router.push('/auth/complete-profile');
     }

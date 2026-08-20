@@ -34,7 +34,12 @@ export default function CompleteProfilePage() {
     if (!user) {
       router.replace('/');
     } else if (profile) {
-      router.replace(profile.onboarded_at ? '/athlete' : '/onboarding');
+      // Parents (097) route to the console/add-athlete, never the wizard.
+      if (profile.user_type === 'parent') {
+        router.replace(profile.onboarded_at ? '/app/guardian' : '/app/guardian/add-athlete');
+      } else {
+        router.replace(profile.onboarded_at ? '/athlete' : '/onboarding');
+      }
     }
   }, [user, profile, loading, initialAuthCheckComplete, router]);
 
