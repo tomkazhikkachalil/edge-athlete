@@ -1099,6 +1099,19 @@ export async function GET(request: NextRequest) {
  * an explicit 400 instead of silent eviction: with 3 slots, auto-unpinning
  * the wrong one is worse than asking.
  */
+// Acting-as parity (Round C): may this session manage content that lives on
+// ownerId's profile? Owner always; a guardian of the profile via the matrix
+// ('write_content'). The first thing a guardian tries after posting as their
+// athlete is editing/deleting/pinning that post — hard owner-only checks
+// made "Post as" a one-way door.
+async function sessionMayManagePostContent(userId: string, ownerId: string): Promise<boolean> {
+  if (userId === ownerId) return true;
+  if (!FEATURE_FLAGS.FEATURE_GUARDIAN_PROFILES) return false;
+  const { getProfileRole } = await import('@/lib/auth-server');
+  const { resolveProfileAction } = await import('@/lib/profile-roles');
+  return resolveProfileAction(await getProfileRole(userId, ownerId), 'write_content');
+}
+
 export async function PATCH(request: NextRequest) {
   try {
     const supabase = getSupabaseAdmin();
@@ -1182,7 +1195,7 @@ export async function PATCH(request: NextRequest) {
       return NextResponse.json({ ok: true, status: action === 'approve' ? 'published' : 'rejected' });
     }
 
-    if (post.profile_id !== user.id) {
+    if (!(await sessionMayManagePostContent(user.id, post.profile_id))) {
       return NextResponse.json({ error: 'You can only pin your own posts' }, { status: 403 });
     }
 
@@ -1264,8 +1277,8 @@ export async function PUT(request: NextRequest) {
       return NextResponse.json({ error: 'Post not found' }, { status: 404 });
     }
 
-    // Check ownership
-    if (existingPost.profile_id !== user.id) {
+    // Ownership or guardianship of the post's profile (Round C parity)
+    if (!(await sessionMayManagePostContent(user.id, existingPost.profile_id))) {
       return NextResponse.json({ error: 'Unauthorized to edit this post' }, { status: 403 });
     }
 
@@ -1364,8 +1377,8 @@ export async function DELETE(request: NextRequest) {
       return NextResponse.json({ error: 'Post not found' }, { status: 404 });
     }
 
-    // Check ownership
-    if (post.profile_id !== user.id) {
+    // Ownership or guardianship of the post's profile (Round C parity)
+    if (!(await sessionMayManagePostContent(user.id, post.profile_id))) {
       return NextResponse.json({ error: 'Unauthorized to delete this post' }, { status: 403 });
     }
 
@@ -1377,7 +1390,11 @@ export async function DELETE(request: NextRequest) {
     // row is somehow already gone (legacy orphan), fall through and delete
     // just the post.
     if (post.group_post_id) {
-      const roundResult = await deleteRoundCascade(supabase, post.group_post_id, user.id);
+      // The cascade's own check requires the ROUND CREATOR — which is the
+      // post's owner by construction. The session user was already verified
+      // above (owner or guardian), so pass the owner id: a guardian deleting
+      // their athlete's round must not trip the creator check.
+      const roundResult = await deleteRoundCascade(supabase, post.group_post_id, post.profile_id);
       if (roundResult.status === 'deleted') {
         return NextResponse.json({ success: true, message: 'Round deleted successfully' });
       }

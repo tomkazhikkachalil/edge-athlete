@@ -1,5 +1,41 @@
 # Development Log
 
+## August 20, 2026 — Guardian parity round: "Post as" stops being a one-way door
+
+Round C of the guardian completion arc. No migration; deploy order free.
+
+- **Manage what you posted as your athlete.** Post edit, delete, and pin
+  were hard `profile_id !== user.id` checks — the first thing a guardian
+  tries after posting as their child is editing that post, and it 403'd.
+  All three now go through `sessionMayManagePostContent` (owner, or
+  guardian via the profile-roles matrix's `write_content` — the matrix's
+  first adoption at these routes). The round-delete cascade gets the post
+  OWNER as its actor (the cascade checks the round creator; the guardian
+  was already verified app-layer).
+- **The shared-golf-round misattribution is fixed.** GolfComposerSection
+  seeds the CHILD's identity when acting-as, but shared-round-submit
+  posted without `targetProfileId` — the round silently landed on the
+  parent's profile. The group-posts route now accepts `targetProfileId`
+  with the verbatim posts gate (guardian row + approved consent), and
+  creator_id, the creator participant row, the feed post, and invite
+  notifications all key off the athlete. Acting-as writes go through the
+  admin client (RLS's `auth.uid() = creator_id` can't hold — house rule).
+- **Guardians set their athlete's photo.** Children created via the
+  console have no avatar and can't take their own. `upload/avatar`
+  accepts `targetProfileId` (guardian re-check server-side), and the
+  per-athlete console page grew an "Add a photo / Change photo" control.
+- **Scope fence, documented-out on purpose**: likes, follows, saves,
+  messages, calendar, workouts, vitals, equipment and achievements do NOT
+  honor acting-as. Social-graph actions by proxy on a minor's identity
+  are a safety smell, not a missing feature; the content loop (posts,
+  comments, rounds, photo) is the parity that matters. Rate limits key
+  acting-as writes to the GUARDIAN's user id — one human, one budget.
+- **Open design call, flagged not guessed**: a SUPERVISED child creating
+  a *shared* round publishes its feed post immediately — shared rounds
+  bypass the held-posts pipeline (live scoring with other players makes
+  holding genuinely awkward). Needs a product decision; recorded here and
+  in the plan rather than silently inheriting either behavior.
+
 ## August 20, 2026 — Guardian funnel round: the portal's two front doors, unjammed (migrations 096 + 097)
 
 Round B of the guardian completion arc. Round A closed the safety holes;

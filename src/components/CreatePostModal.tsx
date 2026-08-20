@@ -478,6 +478,9 @@ export default function CreatePostModal({
           uploadMediaWithPoster,
           showSuccess,
           showError,
+          // Guardian "Posting as": the composer seeds the ATHLETE's identity
+          // (GolfComposerSection displayProfile) — the server must agree.
+          targetProfileId: activeProfile?.id ?? null,
         });
 
         // Parents still do their refresh work — the user comes back to that

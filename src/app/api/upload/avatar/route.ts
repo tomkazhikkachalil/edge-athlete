@@ -25,7 +25,28 @@ export async function POST(request: NextRequest) {
 
     const formData = await request.formData();
     const file = formData.get('avatar') as File;
-    const userId = user.id;
+
+    // Acting-as (Round C): a guardian may set their managed athlete's
+    // avatar (children created via the console have none, and can't take
+    // their own). Server-authoritative: the guardian row is re-checked;
+    // everyone else writes to their own profile only.
+    let userId = user.id;
+    const targetProfileId = formData.get('targetProfileId');
+    if (typeof targetProfileId === 'string' && targetProfileId && targetProfileId !== user.id) {
+      const { FEATURE_FLAGS } = await import('@/lib/features');
+      if (!FEATURE_FLAGS.FEATURE_GUARDIAN_PROFILES) {
+        return NextResponse.json({ error: 'Not available' }, { status: 404 });
+      }
+      const { getProfileRole } = await import('@/lib/auth-server');
+      const role = await getProfileRole(user.id, targetProfileId);
+      if (role !== 'guardian') {
+        return NextResponse.json(
+          { error: 'You do not have permission to change this profile' },
+          { status: 403 }
+        );
+      }
+      userId = targetProfileId;
+    }
 
     if (!file) {
       console.error('Avatar API: No file provided');
