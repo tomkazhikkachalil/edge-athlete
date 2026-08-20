@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { getSupabaseAdmin } from '@/lib/auth-server';
 import { emailService } from '@/lib/email-service';
 import { parseBody, emailString } from '@/lib/validation';
+import { enforceRateLimit } from '@/lib/rate-limit';
 
 // Landing-page values ('Club', 'League'…) arrive mixed-case → normalize.
 const WaitlistSchema = z.object({
@@ -15,6 +16,9 @@ const WaitlistSchema = z.object({
 
 export async function POST(request: NextRequest) {
   try {
+    const limited = await enforceRateLimit(request, 'waitlist');
+    if (limited) return limited;
+
     const parsed = await parseBody(request, WaitlistSchema);
     if (!parsed.success) return parsed.response;
     const { email: normalizedEmail, userType: normalizedType } = parsed.data;

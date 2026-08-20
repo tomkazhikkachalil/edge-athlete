@@ -11,6 +11,7 @@ import { resolveRepostTarget, canViewSharedPost, validateRepostBody } from '@/li
 import { normalizePostIdentity } from '@/lib/posts/post-category';
 import { createGolfRoundEntities } from '@/lib/golf/post-write';
 import { fetchGolfRoundById, fetchGolfRoundsByIds } from '@/lib/golf/post-read';
+import { enforceRateLimit } from '@/lib/rate-limit';
 
 // Interface for tagged profiles
 interface TaggedProfile {
@@ -90,6 +91,9 @@ export async function POST(request: NextRequest) {
     const supabase = getSupabaseAdmin();
     // Require authentication
     const user = await requireAuth(request);
+    const limited = await enforceRateLimit(request, 'post-create', { userId: user.id });
+    if (limited) return limited;
+
 
     const body = await request.json();
     const {

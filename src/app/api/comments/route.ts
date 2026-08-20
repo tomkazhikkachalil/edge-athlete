@@ -4,6 +4,7 @@ import { extractHandles } from '@/lib/mentions';
 import { notifyCommentMentions } from '@/lib/mentions/notify';
 import { canViewProfile } from '@/lib/privacy';
 import { FEATURE_FLAGS } from '@/lib/features';
+import { enforceRateLimit } from '@/lib/rate-limit';
 
 // GET - Fetch comments for a post
 export async function GET(request: NextRequest) {
@@ -121,6 +122,9 @@ export async function POST(request: NextRequest) {
         { status: 401 }
       );
     }
+
+    const limited = await enforceRateLimit(request, 'comment-create', { userId: user.id });
+    if (limited) return limited;
 
     // Get user's profile to get profile_id
     const { data: profile, error: profileError } = await supabase

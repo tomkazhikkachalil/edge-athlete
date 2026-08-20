@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerClient } from '@/lib/auth-server';
+import { enforceRateLimit } from '@/lib/rate-limit';
 
 export async function POST(request: NextRequest) {
   try {
@@ -19,6 +20,10 @@ export async function POST(request: NextRequest) {
     if (!email || !password) {
       return NextResponse.json({ error: 'Email and password are required' }, { status: 400 });
     }
+
+    // Brute-force surface (signInWithPassword below) — IP-keyed like login.
+    const limited = await enforceRateLimit(request, 'reauth');
+    if (limited) return limited;
 
     // Verify the email matches the current user
     if (email !== user.email) {

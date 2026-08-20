@@ -13,6 +13,7 @@ import { randomBytes } from 'crypto';
 import { validateSupervisedHandle } from '@/lib/supervised-credentials';
 import { buildAthleteSummaries } from '@/lib/guardian-rollup';
 import { ACTIVE_TRANSFER_STATES } from '@/lib/transfers';
+import { enforceRateLimit } from '@/lib/rate-limit';
 
 // ── /api/guardian/athletes ────────────────────────────────────────────────────
 // Step B: a guardian creates (and lists) managed athlete profiles.
@@ -93,6 +94,9 @@ export async function POST(request: NextRequest) {
     if (!FEATURE_FLAGS.FEATURE_GUARDIAN_PROFILES) {
       return NextResponse.json({ error: 'Not available' }, { status: 404 });
     }
+    const limited = await enforceRateLimit(request, 'guardian-athlete-create', { userId: user.id });
+    if (limited) return limited;
+
     const body = await request.json().catch(() => ({}));
     const first_name = typeof body.first_name === 'string' ? body.first_name.trim() : '';
     const last_name = typeof body.last_name === 'string' ? body.last_name.trim() : '';

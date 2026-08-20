@@ -3,6 +3,7 @@ import * as Sentry from '@sentry/nextjs';
 import { requireAuth, getSupabaseAdmin, getProfileRole } from '@/lib/auth-server';
 import { FEATURE_FLAGS } from '@/lib/features';
 import { getConsentState, CONSENT_POLICY_VERSION } from '@/lib/consent';
+import { getClientIp } from '@/lib/rate-limit';
 
 // ── /api/guardian/athletes/[profileId]/consent ────────────────────────────────
 // Signed-form parental consent (Phase 3b). GUARDIAN-ONLY — consent is a
@@ -99,7 +100,7 @@ export async function POST(
       jurisdiction: athlete?.jurisdiction ?? 'DEFAULT',
       threshold_age: athlete?.minor_threshold_age ?? 16,
       evidence_path: evidencePath,
-      ip: request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || null,
+      ip: getClientIp(request),
       user_agent: request.headers.get('user-agent'),
     });
     if (insertError) {

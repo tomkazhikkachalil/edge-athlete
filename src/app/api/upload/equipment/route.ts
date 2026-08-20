@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAuth, getSupabaseAdmin } from '@/lib/auth-server';
 import { ALLOWED_IMAGE_MIME } from '@/lib/media/validation';
+import { enforceRateLimit } from '@/lib/rate-limit';
 
 /**
  * POST /api/upload/equipment — photo for an athlete_equipment row.
@@ -28,6 +29,9 @@ const MAX_EQUIPMENT_BYTES = 5 * 1024 * 1024;
 export async function POST(request: NextRequest) {
   try {
     const user = await requireAuth(request);
+    const limited = await enforceRateLimit(request, 'upload', { userId: user.id });
+    if (limited) return limited;
+
     const supabase = getSupabaseAdmin();
 
     const formData = await request.formData();

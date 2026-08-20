@@ -4,6 +4,7 @@ import { supabaseAdmin } from '@/lib/supabase';
 import { FEATURE_FLAGS } from '@/lib/features';
 import { hardDeleteAccount } from '@/lib/account-deletion';
 import { formatDisplayName } from '@/lib/formatters';
+import { enforceRateLimit } from '@/lib/rate-limit';
 
 export async function DELETE(request: NextRequest) {
   try {
@@ -32,6 +33,10 @@ export async function DELETE(request: NextRequest) {
     if (!user.email) {
       return NextResponse.json({ error: 'User email not found' }, { status: 400 });
     }
+
+    // Brute-force surface (signInWithPassword below).
+    const limited = await enforceRateLimit(request, 'account-delete', { userId });
+    if (limited) return limited;
 
     const { error: signInError } = await supabase.auth.signInWithPassword({
       email: user.email,

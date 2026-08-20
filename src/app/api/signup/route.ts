@@ -11,6 +11,7 @@ import {
 } from '@/lib/config/minors-config';
 import { createGuardianInvite } from '@/lib/guardian-invites';
 import { emailService } from '@/lib/email-service';
+import { enforceRateLimit } from '@/lib/rate-limit';
 
 export async function POST(request: NextRequest) {
   try {
@@ -24,6 +25,10 @@ export async function POST(request: NextRequest) {
         { status: 400 }
       );
     }
+
+    // Before any DB/auth/SMTP work — the most expensive unauthenticated route.
+    const limited = await enforceRateLimit(request, 'signup');
+    if (limited) return limited;
 
     // ── DOB gate (guardian-profiles) ────────────────────────────────────────
     // ROUTING TABLE (the actor guard is load-bearing — pending_guardian must

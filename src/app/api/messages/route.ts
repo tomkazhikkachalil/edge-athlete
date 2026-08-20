@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAuth, getSupabaseAdmin } from '@/lib/auth-server';
 import type { Conversation, ConversationParticipant, Message } from '@/types/messages';
+import { enforceRateLimit } from '@/lib/rate-limit';
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -204,6 +205,9 @@ export async function POST(request: NextRequest) {
   try {
     const supabase = getSupabaseAdmin();
     const user = await requireAuth(request);
+    const limited = await enforceRateLimit(request, 'conversation-create', { userId: user.id });
+    if (limited) return limited;
+
     const body = await request.json();
     const { type, participantId, name, participantIds } = body;
 

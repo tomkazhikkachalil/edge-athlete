@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { emailService } from '@/lib/email-service';
-import { apiRateLimiter } from '@/lib/rate-limit';
+import { enforceRateLimit } from '@/lib/rate-limit';
 import { parseBody, emailString, boundedText } from '@/lib/validation';
 
 const ContactSchema = z.object({
@@ -18,16 +18,8 @@ const ContactSchema = z.object({
  */
 export async function POST(request: NextRequest) {
   try {
-    // Get IP for rate limiting
-    const ip = request.headers.get('x-forwarded-for') || 'unknown';
-    const rateLimitCheck = apiRateLimiter.check(ip, 'contact');
-    
-    if (!rateLimitCheck.allowed) {
-      return NextResponse.json(
-        { error: 'Too many requests. Please try again later.' },
-        { status: 429 }
-      );
-    }
+    const limited = await enforceRateLimit(request, 'contact');
+    if (limited) return limited;
 
     // Parse + validate request body (zod)
     const parsed = await parseBody(request, ContactSchema);
