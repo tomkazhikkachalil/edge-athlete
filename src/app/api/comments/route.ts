@@ -357,8 +357,11 @@ export async function DELETE(request: NextRequest) {
     }
 
     // Get the post_id + author before deleting so we can update the cached
-    // count and decide the guardian path.
-    const { data: commentData } = await supabase
+    // count and decide the guardian path. Admin lookup on purpose: the RLS
+    // client may not be able to SELECT a private post's comments, which
+    // would silently skip the guardian branch. Nothing here is returned to
+    // the caller — authorization is the role check + the RLS delete below.
+    const { data: commentData } = await getSupabaseAdmin()
       .from('post_comments')
       .select('post_id, profile_id')
       .eq('id', commentId)
