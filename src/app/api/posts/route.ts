@@ -243,6 +243,7 @@ export async function POST(request: NextRequest) {
       activity_mode?: string;
       shared_post_id?: string;
       post_category?: string;
+      created_by_user_id?: string;
     } = {
       profile_id: userId,
       sport_key: postType, // Use postType as sport_key for our unified approach
@@ -250,6 +251,9 @@ export async function POST(request: NextRequest) {
       visibility: visibility,
       // Supervised authors queue for guardian approval (guardian-profiles).
       ...(body.__forcePendingApproval ? { status: 'pending_approval' } : {}),
+      // Attribution (090): when a guardian posts on behalf of a managed
+      // athlete, record the HUMAN author. NULL for normal self-posts.
+      ...(userId !== user.id ? { created_by_user_id: user.id } : {}),
       tags: taggedProfiles, // Store tagged people IDs (not category tags)
       hashtags: hashtags,
       likes_count: 0,
@@ -296,6 +300,22 @@ export async function POST(request: NextRequest) {
     ) {
       console.warn('[POST] activity_mode column missing (migration 020 not applied) — retrying insert without it');
       delete postData.activity_mode;
+      ({ data: post, error: postError } = await supabase
+        .from('posts')
+        .insert(postData)
+        .select()
+        .single());
+    }
+
+    // Same migration-lag guard for attribution (migration 090).
+    if (
+      postError &&
+      postData.created_by_user_id !== undefined &&
+      (postError.code === '42703' || postError.code === 'PGRST204') &&
+      (postError.message || '').includes('created_by_user_id')
+    ) {
+      console.warn('[POST] created_by_user_id column missing (migration 090 not applied) — retrying insert without it');
+      delete postData.created_by_user_id;
       ({ data: post, error: postError } = await supabase
         .from('posts')
         .insert(postData)
@@ -395,6 +415,13 @@ export async function POST(request: NextRequest) {
           visibility,
           handle
         ),
+        created_by:created_by_user_id (
+          id,
+          first_name,
+          last_name,
+          full_name,
+          handle
+        ),
         post_likes (
           profile_id
         )
@@ -466,6 +493,7 @@ export async function POST(request: NextRequest) {
         avatar_url: completePost.profiles.avatar_url,
         handle: completePost.profiles.handle
       },
+      created_by: completePost.created_by ?? null,
       media: (completePost.post_media || [])
         .sort((a: { display_order: number }, b: { display_order: number }) => a.display_order - b.display_order)
         .map((media: { id: string; media_url: string; media_type: string; display_order: number; thumbnail_url: string | null }) => ({
@@ -573,6 +601,13 @@ export async function GET(request: NextRequest) {
             last_name,
             avatar_url,
             visibility,
+            handle
+          ),
+          created_by:created_by_user_id (
+            id,
+            first_name,
+            last_name,
+            full_name,
             handle
           ),
           post_likes (
@@ -760,6 +795,9 @@ export async function GET(request: NextRequest) {
           avatar_url: post.profiles.avatar_url,
           handle: post.profiles.handle
         },
+        // Attribution (090): the human author, when a guardian posted on
+        // behalf of this profile. Null for self-authored posts.
+        created_by: post.created_by ?? null,
         media: (post.post_media || [])
           .sort((a: { display_order: number }, b: { display_order: number }) => a.display_order - b.display_order)
           .map((media: { id: string; media_url: string; media_type: string; display_order: number; thumbnail_url: string | null }) => ({
@@ -804,6 +842,13 @@ export async function GET(request: NextRequest) {
           last_name,
           avatar_url,
           visibility,
+          handle
+        ),
+        created_by:created_by_user_id (
+          id,
+          first_name,
+          last_name,
+          full_name,
           handle
         ),
         post_likes (
@@ -1011,6 +1056,9 @@ export async function GET(request: NextRequest) {
           avatar_url: post.profiles.avatar_url,
           handle: post.profiles.handle
         },
+        // Attribution (090): the human author, when a guardian posted on
+        // behalf of this profile. Null for self-authored posts.
+        created_by: post.created_by ?? null,
         media: (post.post_media || [])
           .sort((a: { display_order: number }, b: { display_order: number }) => a.display_order - b.display_order)
           .map((media: { id: string; media_url: string; media_type: string; display_order: number; thumbnail_url: string | null }) => ({

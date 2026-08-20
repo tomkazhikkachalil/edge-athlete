@@ -291,7 +291,7 @@ export default function FamilyConsolePage() {
                           }`}
                         >
                           <i className={`fas ${isActive ? 'fa-circle-check' : 'fa-right-left'} text-xs`}></i>
-                          {isActive ? 'Acting as — switch back' : 'Switch into'}
+                          {isActive ? 'Posting as — switch back' : 'Post as'}
                         </button>
                       )}
                       <Link

@@ -19,7 +19,10 @@ export default function ActingAsBanner() {
       <div className="flex flex-wrap items-center justify-center gap-x-3 gap-y-1 text-sm">
         <i className="fas fa-user-shield text-amber-700 shrink-0"></i>
         <span className="text-amber-900 font-medium min-w-0 truncate">
-          Acting as {formatDisplayName(activeProfile.first_name, null, activeProfile.last_name)}
+          {/* "Posting as", not "Acting as": switching affects composing only —
+              settings, messages and notifications stay the guardian's own.
+              The family console is the management surface. */}
+          Posting as {formatDisplayName(activeProfile.first_name, null, activeProfile.last_name)}
         </span>
         <button
           type="button"

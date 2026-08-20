@@ -39,6 +39,14 @@ interface Post {
   comments_count: number;
   saves_count?: number;
   profile: Profile;
+  /** Attribution (090): the human author when a guardian posted on behalf. */
+  created_by?: {
+    id: string;
+    first_name: string | null;
+    last_name: string | null;
+    full_name: string | null;
+    handle: string | null;
+  } | null;
   media: PostMedia[];
   likes?: { profile_id: string }[];
   saved_posts?: { profile_id: string }[];
@@ -93,13 +101,20 @@ export default function SavedPostsPage() {
               saves_count,
               tags,
               hashtags,
-              profile:profiles (
+              profile:profile_id (
                 id,
                 first_name,
                 middle_name,
                 last_name,
                 full_name,
                 avatar_url
+              ),
+              created_by:created_by_user_id (
+                id,
+                first_name,
+                last_name,
+                full_name,
+                handle
               ),
               media:post_media (
                 id,

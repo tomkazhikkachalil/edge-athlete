@@ -1,5 +1,35 @@
 # Development Log
 
+## August 19, 2026 — Family console Round 2: attribution (migration 090)
+
+Principle 10: "everything the guardian does is done on behalf of." A guardian
+composing via targetProfileId used to produce a post indistinguishable from
+the child's own.
+
+- **Migration 090**: `posts.created_by_user_id` (FK → profiles, ON DELETE
+  SET NULL — attribution is informational; deleting the guardian's account
+  must never take the athlete's post) + partial index. NULL for self-posts.
+  ⚠️ STRICT deploy order, unlike 089: the read paths SELECT the column, so
+  090 runs BEFORE this merges.
+- **Write**: the posts POST sets it whenever `userId !== user.id`, with the
+  activity_mode-style migration-lag retry as belt-and-braces.
+- **Read**: `created_by:created_by_user_id(...)` embed + forward in all
+  three post transforms (single, list, and the POST echo). PostDetailModal
+  spreads `...data`, so it forwards for free.
+- **The trap the exploration caught**: a second posts→profiles FK makes the
+  saved-posts page's bare `profile:profiles(...)` embed ambiguous (PGRST201)
+  — switched to the column-name hint `profile:profile_id(...)` in the same
+  change, plus the created_by embed. (That page reads via browser RLS, so
+  the byline hides there when the viewer can't see a private guardian's
+  profile — the API paths use the admin client and always carry it.)
+- **Byline**: PostCard shows a muted `fa-user-shield` "Posted by {guardian}"
+  line when `created_by` differs from the profile — the card's identity is
+  already the athlete, so "for {athlete}" would be redundant.
+- **Banner honesty**: "Acting as" → "Posting as" (and the console's button
+  vocabulary matches). Switching affects composing only; settings, messages
+  and notifications stay the guardian's own — the console is the management
+  surface. Extending acting-as to comments stays deferred.
+
 ## August 19, 2026 — Family console Round 1: guardians get notified (migration 089)
 
 The console answers "what needs me?" only when opened; nothing pushed.
