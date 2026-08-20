@@ -1,28 +1,52 @@
 /**
- * Utility functions for formatting stats summaries in profile media tiles
+ * Two-line stats summary for profile media tiles and featured cards.
+ *
+ * Pure and sport-dispatched here — NOT on SportAdapter — for the same reason
+ * as post-headline.ts: adapters are async and network-backed, while this
+ * takes already-fetched row data and must run inline in a render. Callers
+ * hand over whatever they have (a golf round row, a stats_data payload) and
+ * the dispatch lives in one place instead of an if/else at every tile.
+ *
+ * Moved from src/lib/stats-summary.ts (August 2026) so the sport dispatch
+ * sits with the rest of the sport seams.
  */
 
 import { getStatSchema, isStatLineData, formatResult } from '@/lib/sports/stat-schemas';
 import { formatDuration, formatVolume } from '@/lib/workouts/summary';
 
-interface GolfRoundData {
+/** The subset of a golf round row the summary needs. TaggedTile's rows carry
+ *  only the first four fields — the quick-stat line degrades gracefully. */
+export interface GolfRoundSummaryInput {
   course?: string | null;
-  gross_score?: number | null;  // Changed from total_score
+  gross_score?: number | null;
   par?: number | null;
   holes?: number | null;
-  gir_percentage?: number | null;  // Greens in regulation percentage
-  fir_percentage?: number | null;  // Fairways in regulation percentage
+  gir_percentage?: number | null;
+  fir_percentage?: number | null;
   total_putts?: number | null;
 }
 
-interface StatsSummary {
+export interface StatsSummary {
   primaryLine: string;
   secondaryLine: string | null;
 }
 
 /**
- * Calculate score relative to par (e.g., "+2", "-1", "E")
+ * The one public entry point: golf rounds win over stats_data when both are
+ * present (a golf post's stats_data is plumbing, not the round).
  */
+export function buildStatsSummary(input: {
+  golfRound?: GolfRoundSummaryInput | null;
+  statsData?: Record<string, unknown> | null;
+}): StatsSummary | null {
+  if (input.golfRound) {
+    const golf = golfStatsSummary(input.golfRound);
+    if (golf) return golf;
+  }
+  return genericStatsSummary(input.statsData ?? null);
+}
+
+/** Score relative to par (e.g., "+2", "-1", "E"). */
 function getScoreToPar(totalScore: number, par: number): string {
   const diff = totalScore - par;
   if (diff === 0) return 'E';
@@ -30,42 +54,21 @@ function getScoreToPar(totalScore: number, par: number): string {
   return `${diff}`;
 }
 
-/**
- * Format holes count (e.g., "18H", "9H")
- */
-function formatHoles(holes: number): string {
-  return `${holes}H`;
-}
-
-/**
- * Get the best available quick stat from golf round data
- * Priority: GIR > Fairways > Putts
- */
-function getQuickStat(round: GolfRoundData): string | null {
-  // Try GIR first (percentage)
+/** Best available quick stat: GIR > Fairways > Putts. */
+function getQuickStat(round: GolfRoundSummaryInput): string | null {
   if (round.gir_percentage !== null && round.gir_percentage !== undefined) {
     return `GIR ${round.gir_percentage.toFixed(0)}%`;
   }
-
-  // Try Fairways (percentage)
   if (round.fir_percentage !== null && round.fir_percentage !== undefined) {
     return `FWY ${round.fir_percentage.toFixed(0)}%`;
   }
-
-  // Try Putts (total number)
   if (round.total_putts !== null && round.total_putts !== undefined) {
     return `${round.total_putts} putts`;
   }
-
   return null;
 }
 
-/**
- * Generate stats summary for golf rounds
- */
-export function formatGolfStatsSummary(golfRound: GolfRoundData | null): StatsSummary | null {
-  if (!golfRound) return null;
-
+function golfStatsSummary(golfRound: GolfRoundSummaryInput): StatsSummary | null {
   const { course, gross_score, par, holes } = golfRound;
 
   // Need at least a score to show anything meaningful
@@ -73,42 +76,29 @@ export function formatGolfStatsSummary(golfRound: GolfRoundData | null): StatsSu
     return null;
   }
 
-  // Primary line: Course • Score (relative to par if available)
   const courseName = course || 'Round';
   let scoreDisplay = `${gross_score}`;
-
   if (par !== null && par !== undefined) {
-    const scoreToPar = getScoreToPar(gross_score, par);
-    scoreDisplay = `${gross_score} (${scoreToPar})`;
+    scoreDisplay = `${gross_score} (${getScoreToPar(gross_score, par)})`;
   }
-
   const primaryLine = `${courseName} • ${scoreDisplay}`;
 
-  // Secondary line: Holes • Quick stat (if available)
   const parts: string[] = [];
-
   if (holes !== null && holes !== undefined) {
-    parts.push(formatHoles(holes));
+    parts.push(`${holes}H`);
   }
-
   const quickStat = getQuickStat(golfRound);
   if (quickStat) {
     parts.push(quickStat);
   }
 
-  const secondaryLine = parts.length > 0 ? parts.join(' • ') : null;
-
   return {
     primaryLine,
-    secondaryLine
+    secondaryLine: parts.length > 0 ? parts.join(' • ') : null,
   };
 }
 
-/**
- * Generate generic stats summary from stats_data object
- * This is a fallback for non-golf stats
- */
-export function formatGenericStatsSummary(statsData: Record<string, unknown> | null): StatsSummary | null {
+function genericStatsSummary(statsData: Record<string, unknown> | null): StatsSummary | null {
   if (!statsData || Object.keys(statsData).length === 0) {
     return null;
   }
@@ -189,7 +179,7 @@ export function formatGenericStatsSummary(statsData: Record<string, unknown> | n
 
   return {
     primaryLine: primaryStats.join(' • '),
-    secondaryLine: null
+    secondaryLine: null,
   };
 }
 

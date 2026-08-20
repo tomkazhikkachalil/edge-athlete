@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import OptimizedImage from './OptimizedImage';
 import PostDetailModal from './PostDetailModal';
-import { formatGolfStatsSummary, formatGenericStatsSummary } from '@/lib/stats-summary';
+import { buildStatsSummary } from '@/lib/sports/stats-summary';
 import type { GolfRound } from '@/types/golf';
 
 // Shape of the posts-list API response we consume (subset)
@@ -137,12 +137,9 @@ function FeaturedTile({
   // only when there are none. Caption-first meant a captioned stat post
   // showed prose where its number should be — and a featured tile exists to
   // make someone click. Same summary helpers the media grid uses.
-  let textContent: string | null = null;
-  if (post.golf_round) {
-    textContent = formatGolfStatsSummary(post.golf_round)?.primaryLine ?? null;
-  } else if (post.stats_data) {
-    textContent = formatGenericStatsSummary(post.stats_data)?.primaryLine ?? null;
-  }
+  let textContent: string | null =
+    buildStatsSummary({ golfRound: post.golf_round, statsData: post.stats_data })
+      ?.primaryLine ?? null;
   if (!textContent) textContent = post.caption;
 
   return (

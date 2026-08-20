@@ -109,7 +109,7 @@ export default function SettingsPage() {
     );
   }
 
-  const tabs: { id: SettingsTab; label: string; icon: string; disabled?: boolean }[] = [
+  const tabs: { id: SettingsTab; label: string; icon: string }[] = [
     { id: 'account', label: 'Account', icon: 'fa-user-cog' },
     { id: 'privacy', label: 'Privacy', icon: 'fa-shield-alt' },
     { id: 'appearance', label: 'Appearance', icon: 'fa-moon' },
@@ -152,23 +152,15 @@ export default function SettingsPage() {
                 <button
                   key={tab.id}
                   ref={(el) => { tabRefs.current[tab.id] = el; }}
-                  onClick={() => !tab.disabled && setActiveTab(tab.id)}
-                  disabled={tab.disabled}
+                  onClick={() => setActiveTab(tab.id)}
                   className={`flex shrink-0 items-center gap-2 px-4 sm:px-6 py-4 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
                     activeTab === tab.id
                       ? 'border-brand text-brand-fg'
-                      : tab.disabled
-                      ? 'border-transparent text-faint cursor-not-allowed'
                       : 'border-transparent text-tertiary hover:text-primary hover:border-border-strong'
                   }`}
                 >
                   <i className={`fas ${tab.icon}`}></i>
                   <span>{tab.label}</span>
-                  {tab.disabled && (
-                    <span className="text-xs bg-surface-sunken text-muted px-2 py-0.5 rounded-full">
-                      Coming Soon
-                    </span>
-                  )}
                 </button>
               ))}
             </nav>

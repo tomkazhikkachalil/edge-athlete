@@ -178,37 +178,10 @@ export const COPY = {
     GENERIC_ERROR: 'Failed to save changes',
   },
 
-  // Feature-Specific Copy
-  FEATURES: {
-    GOLF: {
-      HANDICAP_HELP: 'Official USGA Handicap Index',
-      TEE_PREFERENCES: {
-        black: 'Black (Championship)',
-        blue: 'Blue (Back/Tips)',
-        white: 'White (Men\'s Regular)',
-        red: 'Red (Forward/Ladies)',
-        gold: 'Gold (Senior)',
-      },
-      DOMINANT_HAND: {
-        right: 'Right-handed',
-        left: 'Left-handed',
-      },
-    },
-    HOCKEY: {
-      COMING_SOON: 'Hockey stats and equipment tracking coming soon!',
-    },
-    VOLLEYBALL: {
-      COMING_SOON: 'Volleyball performance metrics coming soon!',
-    },
-  },
-
-  // Route Information (for debugging/development)
-  ROUTES: {
-    PUBLIC_PROFILE: (username: string) => `/u/${username}`,
-    PRIVATE_PROFILE: '/app/profile',
-    SPORT_ACTIVITY: (sportKey: SportKey, activityId: string) => `/app/sport/${sportKey}/activity/${activityId}`,
-    GOLF_ROUND: (roundId: string) => `/app/sport/golf/rounds/${roundId}`,
-  },
+  // FEATURES (per-sport label sets) and ROUTES were deleted August 2026:
+  // zero consumers. Sport-specific field labels live in
+  // src/lib/sports/settings-schemas.ts; sport activity routing goes through
+  // SportAdapter.getActivityHref().
 } as const;
 
 // Helper functions for dynamic copy generation

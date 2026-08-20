@@ -52,9 +52,11 @@ export default function SportActivityDetailPage() {
           return;
         }
 
-        // For golf, redirect to the specific golf route
-        if (sportKey === 'golf' && adapter.isEnabled()) {
-          router.replace(`/app/sport/golf/rounds/${activityId}`);
+        // Deep-table sports declare their own activity route on the adapter
+        // (golf → /app/sport/golf/rounds/[id]); no per-sport branching here.
+        const activityHref = adapter.getActivityHref(activityId);
+        if (activityHref && adapter.isEnabled()) {
+          router.replace(activityHref);
           return;
         }
 

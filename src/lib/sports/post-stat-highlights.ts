@@ -120,7 +120,7 @@ interface BuildInput {
 }
 
 /** Golf's supporting stats, in the priority the app already uses elsewhere
- *  (see getQuickStat in stats-summary.ts): GIR, then fairways, then putts. */
+ *  (see getQuickStat in sports/stats-summary.ts): GIR, then fairways, then putts. */
 function golfSupport(round: GolfRoundLike | null | undefined): StatTile[] {
   if (!round) return [];
   const tiles: StatTile[] = [];
