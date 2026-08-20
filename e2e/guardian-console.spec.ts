@@ -85,7 +85,7 @@ test('per-athlete: safety change persists; going public is consent-gated', async
     .toBe(true);
 });
 
-test('athlete side: child login sees their guardian', async () => {
+test('athlete side: child login sees their guardian; a pending post rings the guardian bell', async ({ page }) => {
   test.skip(!flagOn, 'guardian flag off');
   const api = await apiAs('state.json');
   const child = await request.newContext({ baseURL: E2E_BASE_URL });
@@ -108,6 +108,18 @@ test('athlete side: child login sees their guardian', async () => {
     // exists rather than a specific name (one guardian row, role guardian).
     expect(body.guardians?.length).toBe(1);
     expect(body.guardians[0].role).toBe('guardian');
+
+    // Round 1 (guardian notifications): a supervised author's post is forced
+    // to pending_approval AND pushes a notification to the guardian's bell.
+    const post = await child.post('/api/posts', {
+      data: { caption: `qa pending ${stamp}`, visibility: 'private' },
+    });
+    expect(post.ok(), await readErrorBody(post)).toBe(true);
+
+    await page.goto('/app/notifications');
+    await expect(
+      page.getByText('Junior shared a post that needs your review').first()
+    ).toBeVisible({ timeout: 15_000 });
   } finally {
     await child.dispose();
     await api.dispose();

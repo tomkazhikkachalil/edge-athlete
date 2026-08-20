@@ -3,6 +3,7 @@ import * as Sentry from '@sentry/nextjs';
 import { requireAuth, getSupabaseAdmin, getProfileRole } from '@/lib/auth-server';
 import { FEATURE_FLAGS } from '@/lib/features';
 import { ACTIVE_TRANSFER_STATES } from '@/lib/transfers';
+import { notifyGuardians, profileFirstName } from '@/lib/guardian-notify';
 
 // ── /api/transfers ────────────────────────────────────────────────────────────
 // GET ?profileId= → the active transfer (guardian/supervised/owner view).
@@ -81,6 +82,14 @@ export async function POST(request: NextRequest) {
         .eq('id', existing.id)
         .select('id, state')
         .single();
+      if (targetState === 'requested') {
+        await notifyGuardians(admin, profileId, {
+          type: 'transfer_update',
+          title: `${await profileFirstName(admin, profileId)} asked to take over their account`,
+          actionUrl: `/app/transfer/${profileId}`,
+          actorId: profileId,
+        });
+      }
       return NextResponse.json({ transfer: updated });
     }
 
@@ -96,6 +105,14 @@ export async function POST(request: NextRequest) {
       .select('id, state')
       .single();
     if (error) throw error;
+    if (targetState === 'requested') {
+      await notifyGuardians(admin, profileId, {
+        type: 'transfer_update',
+        title: `${await profileFirstName(admin, profileId)} asked to take over their account`,
+        actionUrl: `/app/transfer/${profileId}`,
+        actorId: profileId,
+      });
+    }
     return NextResponse.json({ transfer: created }, { status: 201 });
   } catch (error) {
     if (error instanceof Response) return error;

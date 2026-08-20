@@ -1,5 +1,40 @@
 # Development Log
 
+## August 19, 2026 — Family console Round 1: guardians get notified (migration 089)
+
+The console answers "what needs me?" only when opened; nothing pushed.
+Migration 052 deliberately kept notifications self-only, 053 added
+`guardian_invite`/`athlete_added` types that nothing ever wrote, and a
+supervised child's activity reached no one's bell. Round 1 is the push half.
+
+**Design fact that kept this small: every notification is addressed TO the
+recipient's own user_id**, so the existing bell, notifications page, unread
+count and RLS all work untouched. Unknown types already render their DB
+title + a bell icon (the round-invite spec depends on exactly this), so no
+display changes either.
+
+- `src/lib/guardian-notify.ts` — `notifyGuardians` / `notifyUser`, the
+  group-notifications pattern verbatim: direct admin-client inserts
+  (create_notification's preference gate has no branch for these types and
+  would silently drop them), ALL best-effort — a failed bell never fails the
+  action. Pure `guardianRecipients` (dedupe + exclude-actor) node-tested.
+- **Migration 089** — full-list re-ADD of `notifications_type_check` (the
+  028/053/059 house pattern; base list = 059's, the LAST migration to touch
+  it — 053's guardian types survived 059, verified) + four new types:
+  `post_pending_approval`, `post_approval_result`, `transfer_update`,
+  `consent_result`. Re-runnable SELECT grid.
+- **Write sites:** supervised author's post enters the queue → guardians
+  (→ approvals); guardian approves/rejects → the CHILD's bell; athlete
+  requests their transfer → guardians; contact verified → guardians
+  ("needs your confirmation"); one-sided dual-confirm → the awaited party;
+  **the age-in sweep event — `eligible_notified` had notified NOBODY despite
+  its name** → guardians; admin consent decision → guardians; co-guardian
+  claim → the existing guardian (`athlete_added`, actor excluded).
+- **Deploy-order note:** the DB is shared (no staging), so until 089 runs the
+  new inserts violate the live CHECK constraint — and degrade EXACTLY as
+  designed: the triggering action succeeds, the bell stays silent, one server
+  log line. Verified deliberately before 089 was run.
+
 ## August 19, 2026 — Guardian profiles LAUNCHED to production
 
 Tom's call, same evening the family console merged. The feature had been

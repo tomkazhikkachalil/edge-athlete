@@ -99,6 +99,17 @@ export async function POST(
         });
         return NextResponse.json({ error: 'Could not grant access. Please try again.' }, { status: 500 });
       }
+      // Tell the EXISTING guardian(s) a co-guardian joined (best-effort; the
+      // new guardian is excluded — they just did it).
+      {
+        const { notifyGuardians } = await import('@/lib/guardian-notify');
+        await notifyGuardians(admin, childId, {
+          type: 'athlete_added',
+          title: `A co-guardian now manages ${child.first_name ?? 'your athlete'} with you`,
+          actionUrl: `/app/guardian/athlete/${childId}`,
+          actorId: user.id,
+        }, user.id);
+      }
       return NextResponse.json({
         ok: true,
         granted: true,
