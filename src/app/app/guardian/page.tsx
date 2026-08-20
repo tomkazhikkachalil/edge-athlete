@@ -13,6 +13,7 @@ import { transferStateChip } from '@/lib/transfer-ui';
 import {
   consentChip,
   loginChip,
+  messagingChip,
   visibilityChip,
   type Chip,
 } from '@/lib/guardian-rollup';
@@ -110,6 +111,7 @@ export default function FamilyConsolePage() {
   const [state, setState] = useState<'loading' | 'ready'>('loading');
   const [athletes, setAthletes] = useState<ConsoleAthlete[]>([]);
   const [error, setError] = useState('');
+  const [retryKey, setRetryKey] = useState(0);
 
   useEffect(() => {
     if (!loading && initialAuthCheckComplete && !user) router.replace('/');
@@ -135,7 +137,7 @@ export default function FamilyConsolePage() {
     return () => {
       cancelled = true;
     };
-  }, [user]);
+  }, [user, retryKey]);
 
   if (!FEATURE_FLAGS.FEATURE_GUARDIAN_PROFILES || loading || !initialAuthCheckComplete || !user) {
     return (
@@ -180,14 +182,22 @@ export default function FamilyConsolePage() {
           and what each profile is allowed to do.
         </p>
 
-        {error && (
-          <div role="alert" className="bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-800 text-red-600 dark:text-red-400 px-4 py-3 rounded-md text-sm mb-4">
-            {error}
-          </div>
-        )}
-
         {state === 'loading' ? (
           <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-brand mx-auto my-12"></div>
+        ) : error ? (
+          // Round D: a fetch failure is NOT an empty roster — no "add your
+          // first athlete" CTA on top of an error, just the truth + a retry.
+          <div className="bg-surface border border-border rounded-lg p-8 text-center">
+            <div role="alert" className="text-sm text-red-600 dark:text-red-400 mb-4">{error}</div>
+            <button
+              type="button"
+              onClick={() => { setError(''); setState('loading'); setRetryKey(k => k + 1); }}
+              className="inline-flex items-center gap-2 px-4 py-2 min-h-[44px] bg-brand hover:bg-brand-hover text-white rounded-lg text-sm font-semibold transition-colors"
+            >
+              <i className="fas fa-rotate-right text-xs"></i>
+              Try again
+            </button>
+          </div>
         ) : (
           <>
             {attention.length > 0 && (
@@ -272,6 +282,7 @@ export default function FamilyConsolePage() {
                           <ChipPill chip={consentChip(a.consentState)} />
                           <ChipPill chip={loginChip(a.hasLogin)} />
                           <ChipPill chip={visibilityChip(a.visibility)} />
+                          <ChipPill chip={messagingChip(a.messaging_permission)} />
                           {a.activeTransfer && (
                             <ChipPill chip={transferStateChip(a.activeTransfer.state as Parameters<typeof transferStateChip>[0])} />
                           )}

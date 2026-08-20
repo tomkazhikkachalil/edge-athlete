@@ -14,6 +14,42 @@ export type TransferState =
 
 export type ViewerRole = 'owner' | 'guardian' | 'supervised' | 'viewer';
 
+// Terminal states (Round D). GET /api/transfers reports the LATEST terminal
+// row as `lastTransfer` when nothing is active, so a dead attempt renders
+// honestly instead of looping back to a bare "Start the handover".
+export type TerminalTransferState = 'completed' | 'aborted' | 'failed' | 'expired';
+
+export interface LastTransfer {
+  state: TerminalTransferState;
+  updated_at: string | null;
+}
+
+/** One-liner shown above the start-over CTA when the previous attempt died.
+ *  'completed' intentionally returns null — a finished handover flips
+ *  supervision_state to 'self', which the pages already render as
+ *  "Already handed over"; a banner would just repeat it. */
+export function terminalTransferNotice(
+  state: TerminalTransferState,
+  viewer: 'guardian' | 'supervised'
+): string | null {
+  switch (state) {
+    case 'completed':
+      return null;
+    case 'aborted':
+      return viewer === 'guardian'
+        ? 'The last handover was called off before it finished. Nothing changed — you can start again whenever you like.'
+        : 'The last handover was called off. Nothing changed — you can ask again whenever you like.';
+    case 'expired':
+      return viewer === 'guardian'
+        ? 'The last handover attempt sat unfinished for two weeks and expired. Nothing changed — start again when you’re both ready.'
+        : 'The last handover attempt expired because it sat unfinished. Nothing changed — ask again when you’re ready.';
+    case 'failed':
+      return viewer === 'guardian'
+        ? 'The last handover ran into a problem on our side and couldn’t finish. Nothing was lost — you can try again, and we’ve been notified.'
+        : 'The last handover ran into a problem on our side. Nothing was lost — your guardian can start it again.';
+  }
+}
+
 // Shape returned by GET /api/transfers (active transfers only).
 export interface ClientTransfer {
   id: string;

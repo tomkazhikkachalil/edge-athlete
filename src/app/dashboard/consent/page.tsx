@@ -25,8 +25,9 @@ export default function ConsentReviewPage() {
   const { user, loading } = useAuth();
   const router = useRouter();
   const [items, setItems] = useState<PendingItem[]>([]);
-  const [state, setState] = useState<'loading' | 'ready' | 'forbidden'>('loading');
+  const [state, setState] = useState<'loading' | 'ready' | 'forbidden' | 'error'>('loading');
   const [acting, setActing] = useState('');
+  const [retryKey, setRetryKey] = useState(0);
 
   // The loader is defined INSIDE the effect (that is what clears the lint
   // rule) and published on a ref, so decide() can still `await` a refresh
@@ -38,20 +39,26 @@ export default function ConsentReviewPage() {
     if (!user) return;
     let cancelled = false;
     const run = async () => {
-      const res = await fetch('/api/admin/consent-reviews');
-      if (cancelled) return;
-      if (res.status === 403 || res.status === 401) { setState('forbidden'); return; }
-      const data = await res.json();
-      if (cancelled) return;
-      setItems(data.pending ?? []);
-      setState('ready');
+      // Round D: a thrown fetch used to strand the page on the spinner.
+      try {
+        const res = await fetch('/api/admin/consent-reviews');
+        if (cancelled) return;
+        if (res.status === 403 || res.status === 401) { setState('forbidden'); return; }
+        if (!res.ok) { setState('error'); return; }
+        const data = await res.json();
+        if (cancelled) return;
+        setItems(data.pending ?? []);
+        setState('ready');
+      } catch {
+        if (!cancelled) setState('error');
+      }
     };
     loadRef.current = run;
     run();
     return () => {
       cancelled = true;
     };
-  }, [user, loading, router]);
+  }, [user, loading, router, retryKey]);
 
   const decide = async (profileId: string, decision: 'approve' | 'reject') => {
     setActing(profileId);
@@ -82,6 +89,21 @@ export default function ConsentReviewPage() {
         )}
         {state === 'forbidden' && (
           <p className="text-sm text-tertiary">Admin access required.</p>
+        )}
+        {state === 'error' && (
+          <div className="bg-surface border border-border rounded-lg p-6 text-center">
+            <p role="alert" className="text-sm text-tertiary mb-4">
+              Couldn&apos;t load the review queue.
+            </p>
+            <button
+              type="button"
+              onClick={() => { setState('loading'); setRetryKey(k => k + 1); }}
+              className="inline-flex items-center gap-2 px-4 py-2 min-h-[44px] bg-brand text-white rounded-lg text-sm font-semibold hover:bg-brand-hover transition"
+            >
+              <i className="fas fa-rotate-right text-xs"></i>
+              Try again
+            </button>
+          </div>
         )}
         {state === 'ready' && items.length === 0 && (
           <p className="text-sm text-muted bg-surface border border-border rounded-lg p-6 text-center">

@@ -32,6 +32,9 @@ interface Post {
   sport_key: string | null;
   stats_data: Record<string, unknown> | null;
   visibility: string;
+  /** Approval pipeline (051) — present so PostCard can badge the author's
+   *  own pending/rejected posts (Round D). */
+  status?: string;
   created_at: string;
   likes_count: number;
   comments_count: number;

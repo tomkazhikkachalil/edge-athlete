@@ -3,7 +3,9 @@ import {
   transferStateChip,
   formatCountdown,
   bannerCopy,
+  terminalTransferNotice,
   type TransferState,
+  type TerminalTransferState,
 } from '../transfer-ui';
 
 const ACTIVE_STATES: TransferState[] = [
@@ -71,5 +73,29 @@ describe('bannerCopy', () => {
     for (const state of ACTIVE_STATES) {
       expect(bannerCopy(state).length).toBeGreaterThan(0);
     }
+  });
+});
+
+describe('terminalTransferNotice', () => {
+  const TERMINAL: TerminalTransferState[] = ['completed', 'aborted', 'failed', 'expired'];
+
+  it('completed is silent — the pages already render "Already handed over"', () => {
+    expect(terminalTransferNotice('completed', 'guardian')).toBeNull();
+    expect(terminalTransferNotice('completed', 'supervised')).toBeNull();
+  });
+
+  it('every dead state explains itself to both viewers', () => {
+    for (const state of TERMINAL.filter(s => s !== 'completed')) {
+      for (const viewer of ['guardian', 'supervised'] as const) {
+        const notice = terminalTransferNotice(state, viewer);
+        expect(notice, `${state}/${viewer}`).toBeTruthy();
+        // Every dead-state notice must reassure that nothing changed/was lost.
+        expect(notice!.toLowerCase()).toMatch(/nothing (changed|was lost)/);
+      }
+    }
+  });
+
+  it('failed keeps the athlete copy actionable by the guardian, not the child', () => {
+    expect(terminalTransferNotice('failed', 'supervised')).toContain('guardian');
   });
 });

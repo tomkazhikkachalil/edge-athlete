@@ -1,5 +1,52 @@
 # Development Log
 
+## August 20, 2026 — Guardian polish round: honest states everywhere (Round D)
+
+The last round of the guardian completion arc. No migration; deploy order
+free. Theme: every screen tells the truth about what state it's in.
+
+- **Error is not empty, and not "not yours".** The console hub no longer
+  renders "add your first athlete" on top of a fetch failure (error card +
+  retry instead); the per-athlete page splits fetch-error ("Couldn't load…"
+  + retry) from genuinely-not-managed ("Not one of your athletes"); the
+  consent page and the admin consent queue no longer spin forever on a
+  thrown fetch (both get an error state + retry — the consent page also
+  stops rendering the SUBMIT form on a non-403 server error, which invited
+  double submissions); the credentials page finally guards a bogus/foreign
+  profileId behind a fresh `refreshManagedProfiles()` (before, it rendered
+  the form with placeholder copy and a delete confirm that could never
+  match). Its delete handler also navigates BEFORE refreshing the roster so
+  the new guard can't flash mid-deletion.
+- **Danger zone lives where it says it does.** The per-athlete page's
+  "Withdraw consent & delete" used to link to the *credentials* screen; it
+  now opens an inline typed-confirm (same `confirmHandle` contract, same
+  DELETE route) right there in the section that warned you about it.
+- **Approvals + transfers get console chrome.** Both are recurring signed-in
+  destinations, so they now wear `AppHeader` on `bg-canvas` like the console
+  — `BrandBar` stays on the linear funnels (add-athlete, consent,
+  credentials, the transfer ceremony).
+- **A held post is visible to its author.** The posts list gate grows the
+  same viewer clause comments got in Round A (`status.eq.published OR
+  profile_id.eq.viewer`), `status` rides all three post transforms, and
+  PostCard banners the author's own pending ("Waiting for a guardian's OK")
+  and rejected posts. The reject notification finally links somewhere:
+  `/feed?post=` — the single-post gate already lets the author through.
+- **Guardian notifications join the System tab** (they used to exist only
+  under "All"): both pending-approval types, both approval results,
+  `transfer_update`, `consent_result`, `athlete_added` — with icons.
+- **The console roster shows the messaging setting** (`messagingChip`) —
+  the one safety control the card didn't surface. 'everyone' is amber on
+  purpose; everything else is calm.
+- **Transfer terminal states render honestly.** GET /api/transfers now
+  returns the latest terminal row (`lastTransfer`) when nothing is active,
+  and the transfer page acknowledges a dead attempt (aborted/failed/expired
+  each get their own copy via `terminalTransferNotice`, tested) instead of
+  looping back to a bare "Start the handover". 'completed' is deliberately
+  silent — `supervision_state='self'` already renders "Already handed
+  over". And `initiated` joins the sweep's 14-day expiry list: a handover
+  whose athlete never added an email was the only active state that could
+  stall forever.
+
 ## August 20, 2026 — Guardian parity round: "Post as" stops being a one-way door
 
 Round C of the guardian completion arc. No migration; deploy order free.

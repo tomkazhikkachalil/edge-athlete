@@ -17,9 +17,10 @@ export default function ConsentPage() {
   const { user, loading, initialAuthCheckComplete } = useAuth();
   const profileId = params.profileId as string;
 
-  const [state, setState] = useState<'loading' | 'none' | 'pending_review' | 'approved' | 'rejected' | 'forbidden'>('loading');
+  const [state, setState] = useState<'loading' | 'none' | 'pending_review' | 'approved' | 'rejected' | 'forbidden' | 'load_error'>('loading');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
+  const [retryKey, setRetryKey] = useState(0);
   const fileRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -29,13 +30,19 @@ export default function ConsentPage() {
   useEffect(() => {
     if (!user) return;
     (async () => {
-      const res = await fetch(`/api/guardian/athletes/${profileId}/consent`);
-      if (res.status === 403) { setState('forbidden'); return; }
-      if (!res.ok) { setState('none'); return; }
-      const data = await res.json();
-      setState(data.state ?? 'none');
+      // Round D: an unhandled fetch rejection used to leave the spinner
+      // spinning forever — a network blip needs an exit, not a hang.
+      try {
+        const res = await fetch(`/api/guardian/athletes/${profileId}/consent`);
+        if (res.status === 403) { setState('forbidden'); return; }
+        if (!res.ok) { setState('load_error'); return; }
+        const data = await res.json();
+        setState(data.state ?? 'none');
+      } catch {
+        setState('load_error');
+      }
     })();
-  }, [user, profileId]);
+  }, [user, profileId, retryKey]);
 
   if (!FEATURE_FLAGS.FEATURE_GUARDIAN_PROFILES || loading || !initialAuthCheckComplete || !user || state === 'loading') {
     return (
@@ -86,6 +93,23 @@ export default function ConsentPage() {
             <p className="text-sm text-tertiary text-center py-8">
               Only this athlete&apos;s guardian can manage consent.
             </p>
+          )}
+
+          {state === 'load_error' && (
+            <div className="text-center py-8">
+              <p role="alert" className="text-sm text-tertiary mb-4">
+                We couldn&apos;t load the consent status. Nothing is wrong with
+                your submission — please try again.
+              </p>
+              <button
+                type="button"
+                onClick={() => { setState('loading'); setRetryKey(k => k + 1); }}
+                className="inline-flex items-center gap-2 px-4 py-2 min-h-[44px] bg-brand text-white rounded-lg text-sm font-semibold hover:bg-brand-hover transition"
+              >
+                <i className="fas fa-rotate-right text-xs"></i>
+                Try again
+              </button>
+            </div>
           )}
 
           {(state === 'pending_review' || state === 'approved') && (
