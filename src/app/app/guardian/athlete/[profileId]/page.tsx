@@ -225,6 +225,26 @@ export default function GuardianAthletePage() {
     }
   };
 
+  const [avatarBusy, setAvatarBusy] = useState(false);
+  const uploadAthleteAvatar = async (file: File) => {
+    if (!athlete || avatarBusy) return;
+    setAvatarBusy(true);
+    try {
+      const fd = new FormData();
+      fd.append('avatar', file);
+      fd.append('targetProfileId', athlete.id);
+      const res = await fetch('/api/upload/avatar', { method: 'POST', body: fd });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || 'Upload failed');
+      setAthlete({ ...athlete, avatar_url: data.avatar_url });
+      showSuccess('Photo updated', `${athlete.first_name || 'Their'} profile photo is live.`);
+    } catch (e) {
+      showError('Photo not updated', e instanceof Error ? e.message : 'Please try again');
+    } finally {
+      setAvatarBusy(false);
+    }
+  };
+
   // Cancel + re-invite the same address; the POST returns the fresh URL,
   // which the manual-link block displays (component state — a refresh loses
   // it, hence the affordance instead of trying to re-derive a token).
@@ -383,13 +403,32 @@ export default function GuardianAthletePage() {
                   <span className="text-lg font-semibold text-brand-fg-strong">{getInitials(name)}</span>
                 )}
               </div>
-              <div className="min-w-0">
+              <div className="min-w-0 flex-1">
                 <h1 className="text-xl font-bold text-primary truncate">{name}</h1>
                 <p className="text-sm text-muted truncate">
                   {athlete.handle && <>@{athlete.handle} · </>}
                   {athlete.dob && <>{formatAge(athlete.dob)} · </>}
                   {transferred ? 'Transferred' : 'Supervised'}
                 </p>
+                {/* Acting-as parity (Round C): children created here have no
+                    photo and can't take their own — the guardian sets it. */}
+                {!transferred && (
+                  <label className={`inline-flex items-center gap-1.5 mt-1 text-xs font-semibold cursor-pointer min-h-[32px] ${avatarBusy ? 'text-muted' : 'text-brand-fg-strong hover:text-violet-800 dark:hover:text-violet-300'}`}>
+                    <i className={`fas ${avatarBusy ? 'fa-spinner fa-spin' : 'fa-camera'} text-[11px]`} aria-hidden="true"></i>
+                    {athlete.avatar_url ? 'Change photo' : 'Add a photo'}
+                    <input
+                      type="file"
+                      accept="image/jpeg,image/png,image/webp,image/gif"
+                      className="sr-only"
+                      disabled={avatarBusy}
+                      onChange={e => {
+                        const f = e.target.files?.[0];
+                        if (f) uploadAthleteAvatar(f);
+                        e.target.value = '';
+                      }}
+                    />
+                  </label>
+                )}
               </div>
             </div>
 

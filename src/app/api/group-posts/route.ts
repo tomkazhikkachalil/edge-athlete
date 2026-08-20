@@ -3,6 +3,7 @@ import { getSupabaseAdmin, getServerAuth } from '@/lib/auth-server';
 import { notifyGroupInvites } from '@/lib/golf/group-notifications';
 import { initialRoundStatus } from '@/lib/golf/round-status';
 import { GROUP_TYPE_TO_SPORT, GROUP_POST_TYPES, type GroupPostType } from '@/types/group-posts';
+import { FEATURE_FLAGS } from '@/lib/features';
 
 /**
  * GET /api/group-posts
@@ -117,6 +118,39 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Acting-as (Round C): a guardian switched into their athlete creates
+    // the round AS the athlete — the composer already shows the child as
+    // the creator, and before this the round silently landed on the
+    // PARENT's profile. Same gate as posts/comments, verbatim semantics.
+    let actorId = user.id;
+    const targetProfileId =
+      typeof body.targetProfileId === 'string' ? body.targetProfileId : null;
+    if (targetProfileId && targetProfileId !== user.id) {
+      if (!FEATURE_FLAGS.FEATURE_GUARDIAN_PROFILES) {
+        return NextResponse.json({ error: 'Not available' }, { status: 404 });
+      }
+      const { getProfileRole } = await import('@/lib/auth-server');
+      const role = await getProfileRole(user.id, targetProfileId);
+      if (role !== 'guardian') {
+        return NextResponse.json(
+          { error: 'You do not have permission to post to this profile' },
+          { status: 403 }
+        );
+      }
+      const { getConsentState } = await import('@/lib/consent');
+      const consent = await getConsentState(getSupabaseAdmin(), targetProfileId);
+      if (consent !== 'approved') {
+        return NextResponse.json(
+          { error: 'Parental consent must be approved before anything can be posted to this profile.' },
+          { status: 403 }
+        );
+      }
+      actorId = targetProfileId;
+    }
+    // Acting-as writes bypass RLS (creator_id ≠ auth.uid): the branch above
+    // IS the authorization (house rule, same as posts/comments).
+    const db = actorId !== user.id ? getSupabaseAdmin() : supabase;
+
     // Optional golf scorecard payload — created here, in the SAME request as
     // the group post, so a round can never exist without its scorecard (the
     // old client-side follow-up call could fail and leave a card that renders
@@ -197,10 +231,10 @@ export async function POST(request: NextRequest) {
 
     // Create group post. "Already played" rounds post as completed (FINAL,
     // never LIVE); live rounds start pending and advance from score activity.
-    const { data: groupPost, error: createError } = await supabase
+    const { data: groupPost, error: createError } = await db
       .from('group_posts')
       .insert({
-        creator_id: user.id,
+        creator_id: actorId,
         type,
         title,
         description,
@@ -230,14 +264,14 @@ export async function POST(request: NextRequest) {
       // response was lost, deleting group_posts alone would strand a
       // caption-only post with no scorecard. Sweep it first; a no-op for
       // failures before the feed-post step.
-      const { error: postCleanupError } = await supabase
+      const { error: postCleanupError } = await db
         .from('posts')
         .delete()
         .eq('group_post_id', groupPost.id);
       if (postCleanupError) {
         console.error('Feed-post cleanup after failed creation also failed:', postCleanupError);
       }
-      const { error: cleanupError } = await supabase
+      const { error: cleanupError } = await db
         .from('group_posts')
         .delete()
         .eq('id', groupPost.id);
@@ -257,19 +291,19 @@ export async function POST(request: NextRequest) {
     // Every surface orders by position, so what the creator saw while
     // building the round is what everyone sees everywhere after.
     const rawIds = Array.isArray(participant_ids) ? [...new Set(participant_ids as string[])] : [];
-    const orderedIds = rawIds.includes(user.id) ? rawIds : [user.id, ...rawIds];
+    const orderedIds = rawIds.includes(actorId) ? rawIds : [actorId, ...rawIds];
     const positionOf = (id: string) => orderedIds.indexOf(id);
 
     // Add creator as participant with 'creator' role
-    const { error: creatorError } = await supabase
+    const { error: creatorError } = await db
       .from('group_post_participants')
       .insert({
         group_post_id: groupPost.id,
-        profile_id: user.id,
+        profile_id: actorId,
         role: 'creator',
         status: 'confirmed', // Creator is auto-confirmed
         attested_at: new Date().toISOString(),
-        position: positionOf(user.id),
+        position: positionOf(actorId),
       });
 
     if (creatorError) {
@@ -288,7 +322,7 @@ export async function POST(request: NextRequest) {
     // inserted above — re-inserting hits UNIQUE(group_post_id, profile_id)
     // and aborted EVERY round created via that button (found in the July 25
     // two-phone test).
-    const inviteeIds = rawIds.filter(id => id !== user.id);
+    const inviteeIds = rawIds.filter(id => id !== actorId);
     if (inviteeIds.length > 0) {
       const participantInserts = inviteeIds.map((profile_id: string) => ({
         group_post_id: groupPost.id,
@@ -299,7 +333,7 @@ export async function POST(request: NextRequest) {
         position: positionOf(profile_id),
       }));
 
-      const { error: participantsError } = await supabase
+      const { error: participantsError } = await db
         .from('group_post_participants')
         .insert(participantInserts);
 
@@ -313,7 +347,7 @@ export async function POST(request: NextRequest) {
     // Golf scorecard data — same-request so the round and its scorecard are
     // atomic (see validation above).
     if (type === 'golf_round' && golf_data !== undefined) {
-      const { error: golfDataError } = await supabase
+      const { error: golfDataError } = await db
         .from('golf_scorecard_data')
         .insert({
           group_post_id: groupPost.id,
@@ -340,10 +374,10 @@ export async function POST(request: NextRequest) {
     // feed surface of its own — without this row, shared rounds never appear
     // anywhere (the feed renders posts, and GET /api/posts attaches the
     // group scorecard via posts.group_post_id).
-    const { data: feedPost, error: feedPostError } = await supabase
+    const { data: feedPost, error: feedPostError } = await db
       .from('posts')
       .insert({
-        profile_id: user.id,
+        profile_id: actorId,
         sport_key: GROUP_TYPE_TO_SPORT[type as GroupPostType] ?? 'general',
         caption: description || title,
         visibility: visibility || 'public',
@@ -366,7 +400,7 @@ export async function POST(request: NextRequest) {
 
     // Reverse link (round → its feed post): the resume banner and an RLS
     // clause read it. Best-effort — posts.group_post_id is the primary link.
-    let { error: linkError } = await supabase
+    let { error: linkError } = await db
       .from('group_posts')
       .update({ post_id: feedPost.id })
       .eq('id', groupPost.id);
@@ -375,7 +409,7 @@ export async function POST(request: NextRequest) {
       // failure is a transient connection blip rather than anything a second
       // attempt would repeat.
       console.error('Failed to backfill group_posts.post_id, retrying:', linkError);
-      ({ error: linkError } = await supabase
+      ({ error: linkError } = await db
         .from('group_posts')
         .update({ post_id: feedPost.id })
         .eq('id', groupPost.id));
@@ -391,15 +425,15 @@ export async function POST(request: NextRequest) {
           supabase: getSupabaseAdmin(),
           groupPostId: groupPost.id,
           title,
-          actionUrl: `/athlete/${user.id}?post=${feedPost.id}`,
+          actionUrl: `/athlete/${actorId}?post=${feedPost.id}`,
         },
-        user.id,
+        actorId,
         inviteeIds
       );
     }
 
     // Fetch complete group post with participants
-    const { data: completeGroupPost, error: completeError } = await supabase
+    const { data: completeGroupPost, error: completeError } = await db
       .from('group_posts')
       .select(`
         *,

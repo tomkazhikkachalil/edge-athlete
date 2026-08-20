@@ -17,6 +17,10 @@ export interface SharedRoundSubmitContext<M extends { type: 'image' | 'video' }>
   caption: string;
   visibility: 'public' | 'private';
   mediaFiles: M[];
+  /** Guardian acting-as: the athlete the round belongs to. The composer
+   *  already SHOWS the athlete as the creator — without this the round
+   *  silently landed on the guardian's profile. */
+  targetProfileId?: string | null;
   /** Uploads one media file (+ its video poster frame) — stays owned by the
    *  composer, which knows the editor's file shapes. */
   uploadMediaWithPoster: (file: M) => Promise<{ url: string; thumbnailUrl?: string }>;
@@ -49,6 +53,7 @@ export async function submitSharedRound<M extends { type: 'image' | 'video' }>(
     headers: { 'Content-Type': 'application/json' },
     credentials: 'include',
     body: JSON.stringify({
+      ...(ctx.targetProfileId ? { targetProfileId: ctx.targetProfileId } : {}),
       type: 'golf_round',
       title: `Golf at ${sharedRoundDetails.courseName}`,
       description: caption.trim() || undefined,
