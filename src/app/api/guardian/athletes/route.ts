@@ -175,6 +175,10 @@ export async function POST(request: NextRequest) {
         // Minor-safety defaults — restrictive until consent approves more:
         visibility: 'private',
         messaging_permission: 'nobody',
+        // Explicit for the same reason as created_at below: the RPC's
+        // jsonb_populate_record turns absent fields into explicit NULLs,
+        // which bypass column defaults — and this column is NOT NULL (095).
+        comment_moderation: 'held',
         supervision_state: 'supervised',
         dob_locked: true,
         jurisdiction,
