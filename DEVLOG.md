@@ -1,5 +1,48 @@
 # Development Log
 
+## August 20, 2026 — Guardian safety round: closing the holes a child could walk through (migration 095)
+
+Tom's walkthrough verdict ("the parent portal seems broken/unfinished")
+triggered a three-agent audit. Nothing was stubbed — but four real safety
+holes were open, and this round closes them. Rounds B–D (funnel/email
+resilience, acting-as parity, console polish) are planned and follow.
+
+- **A supervised child could undo every guardian setting.** `PUT
+  /api/profile` gated only DOB; a PIN-logged child in Settings could flip
+  themselves public + open DMs, bypassing the console's consent gate. Now a
+  `SUPERVISED_LOCKED_FIELDS` strip (visibility, messaging_permission,
+  comment_moderation, dob, birthday) generalizes the shipped DOB precedent —
+  strip, not 403, so batched edits still save their unlocked fields. The
+  Settings UI shows supervised users a read-only "Managed by your guardian"
+  card instead of dead buttons (visible on purpose; hiding the posture
+  teaches nothing).
+- **Child comments were live-on-insert** while the approvals page promised
+  "nothing is visible until you approve." Comments now have the posts
+  pipeline (095): `post_comments.status`, count trigger that counts only
+  published (and re-syncs on status flips), notify trigger that skips held
+  rows, a per-athlete guardian toggle (`profiles.comment_moderation`,
+  default HELD — Tom's call: guardian toggle, not always-held), the
+  approvals queue's Comments section, deferred mention/owner fan-out on
+  approval, and author-visible "Held for your guardian's review" chips.
+  The comments GET is now viewer-aware: everyone sees published; the author
+  also sees their own pending/rejected.
+- **messaging_permission had no outbound half** — a child set to 'nobody'
+  could still initiate DMs to anyone. For a supervised sender the setting
+  is now symmetric ("who can talk WITH your child"): full graph check at
+  conversation-create, and a 'nobody' kill-switch on every send (the
+  emergency lever bites immediately on existing conversations; graph tiers
+  on existing conversations are a documented cut).
+- **Consent was never checked on the child's own posts.** The child can
+  still WRITE pending posts (invisible — don't punish the child for the
+  guardian's paperwork), but guardian APPROVAL now requires approved
+  consent (403 `consent_required`, same for comment approval). Reject
+  stays ungated — a rejection is data minimization.
+
+Design-validation footnote: the audit flagged the posts route's consent
+check and notify calls as "RLS client, always fails" — false alarm. Both
+handlers bind `const supabase = getSupabaseAdmin()` locally; the variable
+NAME lies, the client doesn't. Verified before "fixing".
+
 ## August 20, 2026 — Maintenance sweep: all green after a three-round day
 
 Post-round sweep after #182 (guardian comments acting-as, migration 093),

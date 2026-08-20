@@ -211,6 +211,23 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const { type, participantId, name, participantIds } = body;
 
+    // Supervised senders: their own messaging_permission is SYMMETRIC — it
+    // governs who they can exchange messages with, both directions ("who can
+    // talk with your child"). Adults are never gated here; recipients keep
+    // their own inbound checks below.
+    const { data: senderProfile } = await supabase
+      .from('profiles')
+      .select('supervision_state, messaging_permission')
+      .eq('id', user.id)
+      .maybeSingle();
+    const senderSupervised = senderProfile?.supervision_state === 'supervised';
+    const senderPermission = (senderProfile?.messaging_permission || 'everyone') as
+      import('@/lib/supervised-gates').MessagingPermission;
+    const GUARDIAN_BLOCK_COPY = "Your guardian's messaging setting doesn't allow this conversation.";
+    if (senderSupervised && senderPermission === 'nobody') {
+      return NextResponse.json({ error: GUARDIAN_BLOCK_COPY }, { status: 403 });
+    }
+
     if (type === 'direct') {
       if (!participantId || !UUID_RE.test(participantId)) {
         return NextResponse.json({ error: 'Valid participantId is required for direct messages' }, { status: 400 });
@@ -268,6 +285,18 @@ export async function POST(request: NextRequest) {
         ]);
         if (!follows1 || !follows2) {
           return NextResponse.json({ error: 'This user only accepts messages from mutual fans' }, { status: 403 });
+        }
+      }
+
+      // Outbound half for a supervised sender (nobody already rejected above).
+      if (senderSupervised && senderPermission !== 'everyone') {
+        const { outboundAllowed } = await import('@/lib/supervised-gates');
+        const [{ data: iFollowRow }, { data: followsMeRow }] = await Promise.all([
+          supabase.from('follows').select('id').eq('follower_id', user.id).eq('following_id', participantId).eq('status', 'accepted').maybeSingle(),
+          supabase.from('follows').select('id').eq('follower_id', participantId).eq('following_id', user.id).eq('status', 'accepted').maybeSingle(),
+        ]);
+        if (!outboundAllowed(senderPermission, !!iFollowRow, !!followsMeRow)) {
+          return NextResponse.json({ error: GUARDIAN_BLOCK_COPY }, { status: 403 });
         }
       }
 
@@ -388,6 +417,17 @@ export async function POST(request: NextRequest) {
           (perm === 'mutual_fans' && !(iFollow.has(member.id) && followsMe.has(member.id)))
         ) {
           return NextResponse.json({ error: 'One or more selected users are not accepting messages from you' }, { status: 403 });
+        }
+      }
+
+      // Outbound half for a supervised sender — reuses the follow sets just
+      // computed (nobody already rejected above).
+      if (senderSupervised && senderPermission !== 'everyone') {
+        const { outboundAllowed } = await import('@/lib/supervised-gates');
+        for (const id of otherIds) {
+          if (!outboundAllowed(senderPermission, iFollow.has(id), followsMe.has(id))) {
+            return NextResponse.json({ error: GUARDIAN_BLOCK_COPY }, { status: 403 });
+          }
         }
       }
 

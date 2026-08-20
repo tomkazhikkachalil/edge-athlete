@@ -22,6 +22,24 @@ interface PendingMedia {
   display_order: number;
 }
 
+interface PendingComment {
+  id: string;
+  post_id: string;
+  profile_id: string;
+  content: string | null;
+  gif_url: string | null;
+  created_at: string;
+  profile: {
+    id: string;
+    first_name: string | null;
+    last_name: string | null;
+    full_name: string | null;
+    handle: string | null;
+    avatar_url: string | null;
+  } | null;
+  post: { id: string; caption: string | null; profile_id: string } | null;
+}
+
 interface PendingPost {
   id: string;
   profile_id: string;
@@ -44,6 +62,7 @@ export default function GuardianApprovalsPage() {
   const { user, loading, initialAuthCheckComplete } = useAuth();
   const [state, setState] = useState<'loading' | 'ready'>('loading');
   const [posts, setPosts] = useState<PendingPost[]>([]);
+  const [comments, setComments] = useState<PendingComment[]>([]);
   const [acting, setActing] = useState('');
   const [error, setError] = useState('');
 
@@ -59,11 +78,17 @@ export default function GuardianApprovalsPage() {
     let cancelled = false;
     (async () => {
       try {
-        const res = await fetch('/api/guardian/pending-posts');
-        const data = await res.json().catch(() => ({}));
-        if (!res.ok) throw new Error(data.error || 'Could not load pending posts');
+        const [postsRes, commentsRes] = await Promise.all([
+          fetch('/api/guardian/pending-posts'),
+          fetch('/api/guardian/pending-comments'),
+        ]);
+        const data = await postsRes.json().catch(() => ({}));
+        const commentData = await commentsRes.json().catch(() => ({}));
+        if (!postsRes.ok) throw new Error(data.error || 'Could not load pending posts');
         if (cancelled) return;
         setPosts(data.posts ?? []);
+        // Comment queue is additive (095): a failed load never hides posts.
+        setComments(commentsRes.ok ? (commentData.comments ?? []) : []);
         setError('');
       } catch (e) {
         if (!cancelled) setError(e instanceof Error ? e.message : 'Could not load pending posts');
@@ -95,6 +120,25 @@ export default function GuardianApprovalsPage() {
     }
   };
 
+  const decideComment = async (comment: PendingComment, action: 'approve' | 'reject') => {
+    setActing(comment.id);
+    setError('');
+    try {
+      const res = await fetch('/api/comments', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ commentId: comment.id, postId: comment.post_id, action }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || 'Could not update the comment');
+      setComments(prev => prev.filter(c => c.id !== comment.id));
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Could not update the comment');
+    } finally {
+      setActing('');
+    }
+  };
+
   if (!FEATURE_FLAGS.FEATURE_GUARDIAN_PROFILES || loading || !initialAuthCheckComplete || !user) {
     return (
       <div className="min-h-screen bg-brand-soft flex items-center justify-center">
@@ -116,8 +160,9 @@ export default function GuardianApprovalsPage() {
         </Link>
         <h1 className="text-xl sm:text-2xl font-bold text-violet-800 dark:text-violet-200 mb-1">Approval queue</h1>
         <p className="text-sm text-tertiary mb-6">
-          Posts your athletes have created are held here until you approve them.
-          Nothing is visible to anyone else until you do.
+          Posts — and, when you&apos;ve chosen review, comments — your athletes have
+          created are held here until you approve them. Nothing is visible to
+          anyone else until you do.
         </p>
 
         {error && (
@@ -128,12 +173,14 @@ export default function GuardianApprovalsPage() {
 
         {state === 'loading' ? (
           <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-brand mx-auto my-12"></div>
-        ) : posts.length === 0 ? (
+        ) : posts.length === 0 && comments.length === 0 ? (
           <div className="text-sm text-muted bg-surface border border-border rounded-lg p-6 text-center">
             <i className="fas fa-circle-check text-violet-400 text-2xl mb-2 block"></i>
-            All caught up — no posts are waiting for approval.
+            All caught up — nothing is waiting for approval.
           </div>
         ) : (
+          <>
+          {
           posts.map(post => {
             const athleteName = formatDisplayName(
               post.profiles?.first_name, null, post.profiles?.last_name, post.profiles?.full_name
@@ -207,7 +254,68 @@ export default function GuardianApprovalsPage() {
                 </div>
               </div>
             );
-          })
+          })}
+
+          {comments.length > 0 && (
+            <>
+              <h2 className="text-base font-bold text-violet-800 dark:text-violet-200 mt-8 mb-3">
+                Comments
+              </h2>
+              {comments.map(comment => {
+                const athleteName = formatDisplayName(
+                  comment.profile?.first_name, null, comment.profile?.last_name, comment.profile?.full_name
+                );
+                return (
+                  <div key={comment.id} className="bg-surface border border-border rounded-lg p-5 mb-4">
+                    <div className="flex items-center justify-between mb-2">
+                      <p className="text-sm font-semibold text-primary">{athleteName}</p>
+                      <p className="text-xs text-muted">
+                        {new Date(comment.created_at).toLocaleDateString(undefined, {
+                          month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit',
+                        })}
+                      </p>
+                    </div>
+                    {comment.content && (
+                      <p className="text-sm text-primary whitespace-pre-wrap mb-2">{comment.content}</p>
+                    )}
+                    {comment.gif_url && (
+                      // Review means SEEING it — same rule as post media.
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={comment.gif_url} alt="GIF in comment" className="max-h-40 rounded-md mb-2" />
+                    )}
+                    {comment.post?.caption && (
+                      <p className="text-xs text-muted mb-3 truncate">
+                        On: “{comment.post.caption}”
+                      </p>
+                    )}
+                    <div className="flex gap-3">
+                      <button
+                        onClick={() => decideComment(comment, 'approve')}
+                        disabled={acting === comment.id}
+                        className="bg-brand text-white px-4 py-2 rounded-md text-sm font-medium hover:bg-brand-hover transition disabled:opacity-50"
+                      >
+                        {acting === comment.id ? (
+                          <i className="fas fa-spinner fa-spin mr-2"></i>
+                        ) : (
+                          <i className="fas fa-check mr-2"></i>
+                        )}
+                        Approve
+                      </button>
+                      <button
+                        onClick={() => decideComment(comment, 'reject')}
+                        disabled={acting === comment.id}
+                        className="border border-red-300 dark:border-red-700 text-red-600 dark:text-red-400 px-4 py-2 rounded-md text-sm font-medium hover:bg-red-50 dark:hover:bg-red-950/40 transition disabled:opacity-50"
+                      >
+                        <i className="fas fa-xmark mr-2"></i>
+                        Reject
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+            </>
+          )}
+          </>
         )}
       </main>
     </div>

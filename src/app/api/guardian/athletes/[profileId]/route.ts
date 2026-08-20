@@ -21,6 +21,7 @@ import { getClientIp } from '@/lib/rate-limit';
 
 const VISIBILITY_VALUES = ['public', 'private'] as const;
 const MESSAGING_VALUES = ['everyone', 'fans_only', 'mutual_fans', 'nobody'] as const;
+const COMMENT_MODERATION_VALUES = ['instant', 'held'] as const;
 
 export async function PATCH(
   request: NextRequest,
@@ -47,6 +48,14 @@ export async function PATCH(
       }
       update.messaging_permission = body.messaging_permission;
     }
+    // Comment moderation (095): instant vs held-for-review. No consent gate —
+    // unlike going public, tightening/relaxing moderation exposes nothing.
+    if (body.comment_moderation !== undefined) {
+      if (!COMMENT_MODERATION_VALUES.includes(body.comment_moderation)) {
+        return NextResponse.json({ error: 'Invalid comment moderation value' }, { status: 400 });
+      }
+      update.comment_moderation = body.comment_moderation;
+    }
     if (Object.keys(update).length === 0) {
       return NextResponse.json({ error: 'Nothing to update' }, { status: 400 });
     }
@@ -54,7 +63,7 @@ export async function PATCH(
     const admin = getSupabaseAdmin();
     const { data: child } = await admin
       .from('profiles')
-      .select('supervision_state, visibility, messaging_permission')
+      .select('supervision_state, visibility, messaging_permission, comment_moderation')
       .eq('id', profileId)
       .maybeSingle();
     if (!child || child.supervision_state !== 'supervised') {

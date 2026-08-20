@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { useAuth } from '@/lib/auth';
 import { useToast } from '@/components/Toast';
 import GuardiansCard from './GuardiansCard';
+import SupervisedSettingCard from './SupervisedSettingCard';
 
 export default function PrivacySettings() {
   const { profile, refreshProfile } = useAuth();
@@ -56,6 +57,21 @@ export default function PrivacySettings() {
           Control who can see your profile, posts, and athletic performance data.
         </p>
 
+        {profile?.supervision_state === 'supervised' ? (
+          // Supervised profiles: visibility belongs to the guardian console.
+          // The server strips it from self-service PUTs; show the posture
+          // read-only instead of dead buttons.
+          <SupervisedSettingCard
+            icon={visibility === 'public' ? 'fa-globe' : 'fa-lock'}
+            iconColor={visibility === 'public' ? 'text-brand-fg' : 'text-purple-600 dark:text-purple-400'}
+            label={visibility === 'public' ? 'Public' : 'Private'}
+            description={
+              visibility === 'public'
+                ? 'Anyone can see your profile, posts, and stats.'
+                : 'Only approved followers can see your posts and stats.'
+            }
+          />
+        ) : (
         <div className="space-y-4">
           {/* Public Option */}
           <button
@@ -121,6 +137,7 @@ export default function PrivacySettings() {
             </div>
           </button>
         </div>
+        )}
       </div>
 
       {/* Additional Privacy Info */}

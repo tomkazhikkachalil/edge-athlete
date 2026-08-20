@@ -24,6 +24,25 @@ export async function POST(
       return NextResponse.json({ error: 'Message type is required' }, { status: 400 });
     }
 
+    // Supervised sender kill-switch: 'nobody' bites immediately, even on
+    // existing conversations — it's the emergency lever a guardian pulls.
+    // (Graph-based tiers are enforced at conversation-create; re-checking
+    // the whole graph on every send is deliberately out of scope.)
+    const { data: senderProfile } = await supabase
+      .from('profiles')
+      .select('supervision_state, messaging_permission')
+      .eq('id', user.id)
+      .maybeSingle();
+    if (
+      senderProfile?.supervision_state === 'supervised' &&
+      senderProfile?.messaging_permission === 'nobody'
+    ) {
+      return NextResponse.json(
+        { error: "Your guardian's messaging setting doesn't allow this conversation." },
+        { status: 403 }
+      );
+    }
+
     // Guard: verify user is an active participant
     const { data: myParticipant } = await supabase
       .from('conversation_participants')

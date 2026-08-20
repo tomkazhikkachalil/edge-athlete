@@ -19,6 +19,8 @@ type Admin = SupabaseClient<any, 'public', any>;
 export type GuardianNotificationType =
   | 'post_pending_approval'
   | 'post_approval_result'
+  | 'comment_pending_approval'
+  | 'comment_approval_result'
   | 'transfer_update'
   | 'consent_result'
   | 'athlete_added';

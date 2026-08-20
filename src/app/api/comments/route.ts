@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getSupabaseAdmin, getServerClient, getServerAuth } from '@/lib/auth-server';
+import { getSupabaseAdmin, getServerAuth } from '@/lib/auth-server';
 import { extractHandles } from '@/lib/mentions';
 import { notifyCommentMentions } from '@/lib/mentions/notify';
 import { canViewProfile } from '@/lib/privacy';
@@ -26,11 +26,15 @@ export async function GET(request: NextRequest) {
     const limit = Math.min(Math.max(parseInt(searchParams.get('limit') || '100', 10) || 100, 1), 200);
     const offset = Math.max(parseInt(searchParams.get('offset') || '0', 10) || 0, 0);
 
-    const supabase = getServerClient(request);
+    // Viewer-aware (095): everyone sees published; an authenticated viewer
+    // ALSO sees their own pending/rejected comments (a supervised child must
+    // see where their held comment went). Guardians review in the approvals
+    // queue, not inline.
+    const { supabase, user: viewer } = await getServerAuth(request);
 
     // Fetch comments with profile data and likes
     // Sort: pinned first, then by likes (most liked on top), then chronological
-    const { data: comments, error } = await supabase
+    let commentsQuery = supabase
       .from('post_comments')
       .select(`
         *,
@@ -52,7 +56,11 @@ export async function GET(request: NextRequest) {
         ),
         comment_likes(profile_id)
       `)
-      .eq('post_id', postId)
+      .eq('post_id', postId);
+    commentsQuery = viewer
+      ? commentsQuery.or(`status.eq.published,profile_id.eq.${viewer.id}`)
+      : commentsQuery.eq('status', 'published');
+    const { data: comments, error } = await commentsQuery
       .order('is_pinned', { ascending: false, nullsFirst: false })
       .order('likes_count', { ascending: false })
       .order('created_at', { ascending: true })
@@ -170,6 +178,25 @@ export async function POST(request: NextRequest) {
       authorId = targetProfileId;
     }
 
+    // Supervised minors commenting as THEMSELVES: the guardian's per-athlete
+    // comment_moderation toggle decides instant vs held-for-review (095).
+    // Mirrors the posts pending pipeline; guardian acting-as comments are
+    // the guardian's own words and are never held.
+    let commentStatus: 'published' | 'pending_approval' = 'published';
+    if (!targetProfileId && FEATURE_FLAGS.FEATURE_GUARDIAN_PROFILES) {
+      const { getProfileRole } = await import('@/lib/auth-server');
+      const selfRole = await getProfileRole(user.id, user.id);
+      if (selfRole === 'supervised') {
+        const { data: modRow } = await getSupabaseAdmin()
+          .from('profiles')
+          .select('comment_moderation')
+          .eq('id', user.id)
+          .maybeSingle();
+        const { resolveCommentStatus } = await import('@/lib/supervised-gates');
+        commentStatus = resolveCommentStatus(selfRole, modRow?.comment_moderation);
+      }
+    }
+
     // A reply's parent must belong to the SAME post (a crafted request could
     // otherwise thread a reply under a comment on a different post)
     if (parentCommentId) {
@@ -236,6 +263,9 @@ export async function POST(request: NextRequest) {
       // Attribution (093): the human author when a guardian comments on
       // behalf. NULL for normal self-comments.
       ...(authorId !== user.id ? { created_by_user_id: user.id } : {}),
+      // Moderation (095): held comments are invisible until a guardian
+      // approves. Omit when published — the DB default covers it.
+      ...(commentStatus === 'pending_approval' ? { status: 'pending_approval' } : {}),
     };
     const COMMENT_RETURN = `
         *,
@@ -288,14 +318,34 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Count actual rows and sync cached column
+    // Count actual rows and sync cached column — published only (095): a
+    // held comment must not bump the public count.
     const { count } = await admin
       .from('post_comments')
       .select('id', { count: 'exact', head: true })
-      .eq('post_id', postId);
+      .eq('post_id', postId)
+      .eq('status', 'published');
 
     const trueCount = count ?? 0;
     await admin.from('posts').update({ comments_count: trueCount }).eq('id', postId);
+
+    // Held comment: no fan-out of any kind until approval (the DB post-owner
+    // trigger is also status-guarded). Tell the guardians instead.
+    if (commentStatus === 'pending_approval') {
+      const { notifyGuardians, profileFirstName } = await import('@/lib/guardian-notify');
+      const childName = await profileFirstName(admin, authorId);
+      await notifyGuardians(admin, authorId, {
+        type: 'comment_pending_approval',
+        title: `${childName} wrote a comment that needs your review`,
+        actionUrl: '/app/guardian/approvals',
+        actorId: authorId,
+        metadata: { comment_id: comment.id, post_id: postId },
+      });
+      return NextResponse.json(
+        { comment, commentsCount: trueCount, mentionProfiles: [], held: true },
+        { status: 201 }
+      );
+    }
 
     // Mention notifications — best-effort, and only to people who can see
     // the post's owner (never mint a dead-link notification for someone the
@@ -409,14 +459,15 @@ export async function DELETE(request: NextRequest) {
       );
     }
 
-    // Count actual rows and sync cached column
+    // Count actual rows and sync cached column — published only (095)
     let commentsCount = 0;
     if (postId) {
       const admin = getSupabaseAdmin();
       const { count } = await admin
         .from('post_comments')
         .select('id', { count: 'exact', head: true })
-        .eq('post_id', postId);
+        .eq('post_id', postId)
+        .eq('status', 'published');
 
       commentsCount = count ?? 0;
       await admin.from('posts').update({ comments_count: commentsCount }).eq('id', postId);
@@ -432,15 +483,16 @@ export async function DELETE(request: NextRequest) {
   }
 }
 
-// PATCH - Pin or unpin a comment (post owner only)
+// PATCH - Pin/unpin a comment (post owner), or approve/reject a held
+// comment (guardian of the comment's author — 095 moderation queue)
 export async function PATCH(request: NextRequest) {
   try {
     const body = await request.json();
     const { commentId, postId, action } = body;
 
-    if (!commentId || !postId || !['pin', 'unpin'].includes(action)) {
+    if (!commentId || !postId || !['pin', 'unpin', 'approve', 'reject'].includes(action)) {
       return NextResponse.json(
-        { error: 'commentId, postId, and action (pin/unpin) are required' },
+        { error: "commentId, postId, and action (pin/unpin/approve/reject) are required" },
         { status: 400 }
       );
     }
@@ -450,8 +502,110 @@ export async function PATCH(request: NextRequest) {
       return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
     }
 
-    // Verify caller is the post owner
     const admin = getSupabaseAdmin();
+
+    // ── Moderation-queue actions (guardian-profiles, 095) ────────────────────
+    if (action === 'approve' || action === 'reject') {
+      if (!FEATURE_FLAGS.FEATURE_GUARDIAN_PROFILES) {
+        return NextResponse.json({ error: 'Not available' }, { status: 404 });
+      }
+      const { data: heldComment } = await admin
+        .from('post_comments')
+        .select('id, post_id, profile_id, status, content, mentions')
+        .eq('id', commentId)
+        .eq('post_id', postId)
+        .maybeSingle();
+      if (!heldComment) {
+        return NextResponse.json({ error: 'Comment not found' }, { status: 404 });
+      }
+      const { getProfileRole } = await import('@/lib/auth-server');
+      const { resolveProfileAction } = await import('@/lib/profile-roles');
+      const role = await getProfileRole(user.id, heldComment.profile_id);
+      if (!resolveProfileAction(role, 'approve_content')) {
+        return NextResponse.json({ error: 'Guardian access required' }, { status: 403 });
+      }
+      if (heldComment.status !== 'pending_approval') {
+        return NextResponse.json({ error: 'This comment is not awaiting approval' }, { status: 400 });
+      }
+      // Publishing a child's words requires approved consent — same gate as
+      // post approval (A4). Rejection is data minimization and stays open.
+      if (action === 'approve') {
+        const { getConsentState } = await import('@/lib/consent');
+        const consent = await getConsentState(admin, heldComment.profile_id);
+        if (consent !== 'approved') {
+          return NextResponse.json(
+            { error: 'Complete the consent review before approving.', code: 'consent_required' },
+            { status: 403 }
+          );
+        }
+      }
+
+      const { error: statusError } = await admin
+        .from('post_comments')
+        .update({ status: action === 'approve' ? 'published' : 'rejected' })
+        .eq('id', commentId);
+      if (statusError) {
+        return NextResponse.json({ error: 'Failed to update comment' }, { status: 500 });
+      }
+      // The count trigger re-syncs on UPDATE OF status (095).
+
+      if (action === 'approve') {
+        // The fan-out the held path skipped, now that the words are public.
+        // 1. Post owner (the DB trigger only fires on INSERT) — best-effort.
+        const { data: parentPost } = await admin
+          .from('posts')
+          .select('profile_id')
+          .eq('id', heldComment.post_id)
+          .maybeSingle();
+        if (parentPost && parentPost.profile_id !== heldComment.profile_id) {
+          const { profileFirstName } = await import('@/lib/guardian-notify');
+          const actorName = await profileFirstName(admin, heldComment.profile_id);
+          await admin.rpc('create_notification', {
+            p_user_id: parentPost.profile_id,
+            p_type: 'comment',
+            p_actor_id: heldComment.profile_id,
+            p_title: `${actorName} commented on your post`,
+            p_action_url: '/feed',
+            p_post_id: heldComment.post_id,
+            p_comment_id: heldComment.id,
+            p_metadata: { post_id: heldComment.post_id, comment_id: heldComment.id },
+          });
+        }
+        // 2. Deferred @mention notifications (visibility re-checked).
+        const mentionIds: string[] = Array.isArray(heldComment.mentions) ? heldComment.mentions : [];
+        if (mentionIds.length > 0 && parentPost) {
+          const visible: string[] = [];
+          for (const m of mentionIds) {
+            const { canView } = await canViewProfile(parentPost.profile_id, m);
+            if (canView) visible.push(m);
+          }
+          await notifyCommentMentions(admin, {
+            postId: heldComment.post_id,
+            commentId: heldComment.id,
+            authorId: heldComment.profile_id,
+            mentionedIds: visible,
+            content: heldComment.content,
+          });
+        }
+      }
+
+      // Tell the child what happened (their bell, next PIN login).
+      {
+        const { notifyUser } = await import('@/lib/guardian-notify');
+        await notifyUser(admin, heldComment.profile_id, {
+          type: 'comment_approval_result',
+          title: action === 'approve'
+            ? 'Your comment was approved and is now visible'
+            : "Your comment wasn't approved",
+          actionUrl: action === 'approve' ? `/feed?post=${heldComment.post_id}` : null,
+          actorId: user.id,
+          metadata: { comment_id: commentId, post_id: heldComment.post_id, result: action },
+        });
+      }
+      return NextResponse.json({ ok: true, status: action === 'approve' ? 'published' : 'rejected' });
+    }
+
+    // ── Pin/unpin (post owner only) ──────────────────────────────────────────
     const { data: post } = await admin
       .from('posts')
       .select('profile_id')

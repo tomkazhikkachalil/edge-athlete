@@ -1142,6 +1142,22 @@ export async function PATCH(request: NextRequest) {
       if (post.status !== 'pending_approval') {
         return NextResponse.json({ error: 'This post is not awaiting approval' }, { status: 400 });
       }
+      // Publishing a child's content requires approved consent — the same
+      // promise the acting-as branch and the go-public gate enforce. The
+      // child can WRITE pending posts regardless (invisible, so nothing is
+      // displayed pre-consent); the guardian-facing approval is the
+      // chokepoint where the consent CTA is actionable. Reject stays
+      // ungated: a rejection is data minimization.
+      if (action === 'approve') {
+        const { getConsentState } = await import('@/lib/consent');
+        const consent = await getConsentState(supabase, post.profile_id);
+        if (consent !== 'approved') {
+          return NextResponse.json(
+            { error: 'Complete the consent review before approving posts.', code: 'consent_required' },
+            { status: 403 }
+          );
+        }
+      }
       const { error: statusError } = await supabase
         .from('posts')
         .update({ status: action === 'approve' ? 'published' : 'rejected' })

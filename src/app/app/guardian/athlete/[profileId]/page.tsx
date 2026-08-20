@@ -20,8 +20,10 @@ import {
 import {
   VISIBILITY_OPTIONS,
   MESSAGING_OPTIONS,
+  COMMENT_MODERATION_OPTIONS,
   type Visibility,
   type MessagingPermission,
+  type CommentModeration,
 } from '@/lib/profile-privacy';
 import type { ConsentState } from '@/lib/consent';
 
@@ -57,6 +59,7 @@ interface ConsoleAthlete {
   supervision_state: string | null;
   visibility: string | null;
   messaging_permission: string | null;
+  comment_moderation: string | null;
   consentState: ConsentState;
   hasLogin: boolean;
   pendingPostCount: number;
@@ -266,7 +269,11 @@ export default function GuardianAthletePage() {
 
   // Optimistic safety change with revert — the 403 consent-gate message from
   // the server is surfaced verbatim so the guardian learns the WHY.
-  const applySafety = async (patch: { visibility?: Visibility; messaging_permission?: MessagingPermission }) => {
+  const applySafety = async (patch: {
+    visibility?: Visibility;
+    messaging_permission?: MessagingPermission;
+    comment_moderation?: CommentModeration;
+  }) => {
     if (!athlete || saving) return;
     const before = athlete;
     setAthlete({ ...athlete, ...patch });
@@ -383,7 +390,7 @@ export default function GuardianAthletePage() {
                     ))}
                   </div>
                   <h3 className="text-sm font-semibold text-secondary mb-2">Who can send messages</h3>
-                  <div className="space-y-2">
+                  <div className="space-y-2 mb-5">
                     {MESSAGING_OPTIONS.map(option => (
                       <RadioCard
                         key={option.value}
@@ -391,6 +398,18 @@ export default function GuardianAthletePage() {
                         selected={athlete.messaging_permission === option.value}
                         disabled={saving}
                         onSelect={v => applySafety({ messaging_permission: v })}
+                      />
+                    ))}
+                  </div>
+                  <h3 className="text-sm font-semibold text-secondary mb-2">Comments they write</h3>
+                  <div className="space-y-2">
+                    {COMMENT_MODERATION_OPTIONS.map(option => (
+                      <RadioCard
+                        key={option.value}
+                        option={option}
+                        selected={(athlete.comment_moderation ?? 'held') === option.value}
+                        disabled={saving}
+                        onSelect={v => applySafety({ comment_moderation: v })}
                       />
                     ))}
                   </div>

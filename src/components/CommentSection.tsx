@@ -270,9 +270,8 @@ export default function CommentSection({
         })
       });
 
-      if (!response.ok) throw new Error('Failed to post comment');
-
-      const data = await response.json();
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.error || 'Failed to post comment');
       setComments(prev => [...prev, data.comment]);
       mergeMentionProfiles(data.mentionProfiles);
       setNewComment('');
@@ -284,7 +283,7 @@ export default function CommentSection({
       onCommentCountChange?.(newCount);
     } catch (e) {
       console.error('Failed to post comment:', e);
-      setError('Failed to post comment');
+      setError(e instanceof Error ? e.message : 'Failed to post comment');
     } finally {
       setIsSubmitting(false);
     }
@@ -312,9 +311,8 @@ export default function CommentSection({
         })
       });
 
-      if (!response.ok) throw new Error('Failed to post reply');
-
-      const data = await response.json();
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.error || 'Failed to post reply');
       setComments(prev => [...prev, data.comment]);
       mergeMentionProfiles(data.mentionProfiles);
       setReplyText('');
@@ -326,7 +324,7 @@ export default function CommentSection({
       onCommentCountChange?.(newCount);
     } catch (e) {
       console.error('Failed to post reply:', e);
-      setError('Failed to post reply');
+      setError(e instanceof Error ? e.message : 'Failed to post reply');
     } finally {
       setIsSubmitting(false);
     }
@@ -548,6 +546,21 @@ export default function CommentSection({
           {/* Action bar */}
           <div className="mt-1 px-3 flex items-center gap-3 text-xs text-muted">
             <span>{formatTimeAgo(comment.created_at)}</span>
+
+            {/* Moderation (095): only the author ever receives non-published
+                rows, so these chips are self-view only by construction. */}
+            {comment.status === 'pending_approval' && (
+              <span className="inline-flex items-center gap-1 text-amber-600 dark:text-amber-400">
+                <i className="fas fa-clock" aria-hidden="true"></i>
+                Held for your guardian&apos;s review
+              </span>
+            )}
+            {comment.status === 'rejected' && (
+              <span className="inline-flex items-center gap-1 text-red-500 dark:text-red-400">
+                <i className="fas fa-ban" aria-hidden="true"></i>
+                Not approved
+              </span>
+            )}
 
             {/* Attribution (093): a guardian wrote this on the athlete's
                 behalf — say so, quietly. */}
