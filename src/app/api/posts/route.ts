@@ -319,6 +319,21 @@ export async function POST(request: NextRequest) {
       }, { status: 500 });
     }
 
+    // Guardian-profiles: a supervised author's post just entered the approval
+    // queue — push it to their guardians' bells (best-effort, never fails the
+    // post).
+    if (body.__forcePendingApproval && post?.id) {
+      const { notifyGuardians, profileFirstName } = await import('@/lib/guardian-notify');
+      const childName = await profileFirstName(supabase, userId);
+      await notifyGuardians(supabase, userId, {
+        type: 'post_pending_approval',
+        title: `${childName} shared a post that needs your review`,
+        actionUrl: '/app/guardian/approvals',
+        actorId: userId,
+        metadata: { post_id: post.id },
+      });
+    }
+
     // Add media files if provided
     if (media && media.length > 0) {
       const mediaRecords = media.map((file: { url: string; type: string; sortOrder?: number; thumbnailUrl?: string }, index: number) => ({
@@ -1081,6 +1096,20 @@ export async function PATCH(request: NextRequest) {
         .eq('id', postId);
       if (statusError) {
         return NextResponse.json({ error: 'Failed to update post' }, { status: 500 });
+      }
+      // Tell the supervised author what happened (their bell — they see it on
+      // their next PIN login). Best-effort.
+      {
+        const { notifyUser } = await import('@/lib/guardian-notify');
+        await notifyUser(supabase, post.profile_id, {
+          type: 'post_approval_result',
+          title: action === 'approve'
+            ? 'Your post was approved and is now live'
+            : "Your post wasn't approved",
+          actionUrl: action === 'approve' ? `/feed?post=${postId}` : null,
+          actorId: user.id,
+          metadata: { post_id: postId, result: action },
+        });
       }
       return NextResponse.json({ ok: true, status: action === 'approve' ? 'published' : 'rejected' });
     }

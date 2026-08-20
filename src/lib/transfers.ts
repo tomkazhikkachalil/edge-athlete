@@ -290,7 +290,17 @@ export async function runTransferSweep(admin: SupabaseClient, appUrl?: string) {
       initiated_by: 'system',
       dob_snapshot: p.dob,
     });
-    if (!error) summary.flagged++;
+    if (!error) {
+      summary.flagged++;
+      // Make the state's name honest: until Aug 2026 'eligible_notified'
+      // notified NOBODY. Best-effort bell to every guardian.
+      const { notifyGuardians, profileFirstName } = await import('./guardian-notify');
+      await notifyGuardians(admin, p.id, {
+        type: 'transfer_update',
+        title: `${await profileFirstName(admin, p.id)} is old enough to take over their account`,
+        actionUrl: `/app/transfer/${p.id}`,
+      });
+    }
   }
 
   // 2. Expire stalled intermediate states (14 days without progress).

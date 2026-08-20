@@ -112,6 +112,24 @@ export async function POST(request: NextRequest) {
     });
     if (insertError) throw insertError;
 
+    // Tell the guardians the review landed (best-effort). Approved unlocks
+    // publishing and the go-public toggle; rejected sends them back to the
+    // consent page.
+    {
+      const { notifyGuardians, profileFirstName } = await import('@/lib/guardian-notify');
+      const childName = await profileFirstName(admin, profileId);
+      await notifyGuardians(admin, profileId, {
+        type: 'consent_result',
+        title: decision === 'review_approved'
+          ? `Consent approved — ${childName}'s profile can now publish`
+          : `Consent for ${childName} was not approved`,
+        actionUrl: decision === 'review_approved'
+          ? `/app/guardian/athlete/${profileId}`
+          : `/app/guardian/consent/${profileId}`,
+        metadata: { decision },
+      });
+    }
+
     return NextResponse.json({ ok: true, state: stateFromAction(decision) });
   } catch (error) {
     if (error instanceof Response) return error;

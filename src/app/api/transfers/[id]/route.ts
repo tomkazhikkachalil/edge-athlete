@@ -11,6 +11,7 @@ import {
   type TransferRow,
 } from '@/lib/transfers';
 import { emailService } from '@/lib/email-service';
+import { notifyGuardians, notifyUser, profileFirstName } from '@/lib/guardian-notify';
 
 // ── POST /api/transfers/[id] — state transitions ──────────────────────────────
 // { action: 'submit_contact' | 'verify_contact' | 'confirm' | 'cancel', ... }
@@ -103,6 +104,14 @@ export async function POST(
       await admin.from('profile_transfers')
         .update({ state: 'dual_confirm', contact_verified_at: new Date().toISOString() })
         .eq('id', id);
+      // The athlete just verified their contact — the guardian's confirmation
+      // is now the blocking step. Best-effort bell.
+      await notifyGuardians(admin, transfer.profile_id, {
+        type: 'transfer_update',
+        title: `${await profileFirstName(admin, transfer.profile_id)}'s account transfer needs your confirmation`,
+        actionUrl: `/app/transfer/${transfer.profile_id}`,
+        actorId: transfer.profile_id,
+      });
       return NextResponse.json({ ok: true, state: 'dual_confirm' });
     }
 
@@ -134,6 +143,24 @@ export async function POST(
         patch.cooling_off_ends_at = coolingOffEnd();
       }
       await admin.from('profile_transfers').update(patch).eq('id', id);
+      // One side just confirmed and the other hasn't — tell the awaited party.
+      if (!bothConfirmed) {
+        if (role === 'guardian') {
+          await notifyUser(admin, transfer.profile_id, {
+            type: 'transfer_update',
+            title: 'Your guardian confirmed — your account transfer needs your confirmation',
+            actionUrl: `/app/transfer/${transfer.profile_id}`,
+            actorId: user.id,
+          });
+        } else {
+          await notifyGuardians(admin, transfer.profile_id, {
+            type: 'transfer_update',
+            title: `${await profileFirstName(admin, transfer.profile_id)} confirmed — the transfer needs your confirmation`,
+            actionUrl: `/app/transfer/${transfer.profile_id}`,
+            actorId: transfer.profile_id,
+          });
+        }
+      }
       return NextResponse.json({
         ok: true,
         state: bothConfirmed ? 'cooling_off' : 'dual_confirm',
