@@ -1,5 +1,47 @@
 # Development Log
 
+## August 20, 2026 — Rate limiting that actually limits (migration 094)
+
+The July roadmap's Sprint 1.3 never really landed: `rate-limit.ts` was an
+in-memory Map — per-lambda on Vercel, so the real limit was max × live
+instances and reset on every cold start — and it guarded 3 routes. Signup
+(auth user + SMTP), uploads, follows, messages, comments, likes, guardian
+athlete-creation and invite-claim were all unthrottled, nearly all of them
+writing through the RLS-bypassing admin client. Now: one atomic
+`rate_limit_hit()` RPC per check against a shared `rate_limits` table
+(fixed window, single upsert, row lock = no lost increments; ~1% opportunistic
+GC instead of a cron). Supabase-backed on purpose — zero new deps/services;
+the Upstash plan from July stalled for a month on exactly that account setup.
+
+Decisions worth recording:
+
+- **Fail-open, loudly.** RPC error (including PGRST202 when 094 hasn't run)
+  → request proceeds, console.error + one Sentry warning per cold start.
+  Availability over strictness, and it makes 094's deploy order flexible —
+  proven by a dev probe run before the migration: all guarded routes behave
+  exactly as before, never 429/500.
+- **`rate-limit-core.ts` split**: config + key/header arithmetic is pure
+  (no framework imports) so node-only vitest covers it — `RATE_LIMITS` is
+  the single tuning surface, and `validateRateLimitConfig` runs in the test
+  suite so a bad entry fails the gate.
+- **Two buckets on username-login**: the old per-(ip,username) key let a
+  distributed attacker probe many usernames from one IP; a plain-IP bucket
+  (20/15min) now sits in front of the per-account one (5/15min).
+- **Contact's raw-XFF-as-key bug fixed**: it keyed on the entire
+  comma-joined header, so a spoofed prepended hop minted a fresh bucket.
+  `getClientIp()` (first hop, trimmed) is now the one helper — the 3 inline
+  XFF audit sites use it too. 429s now carry `Retry-After`; the auth routes
+  keep their exact "Too many attempts" copy via per-action `message`.
+- **Dead client-direct `signUp` deleted from auth.tsx** — zero callers, and
+  it bypassed /api/signup's DOB/consent gate and the new rate limit.
+- **Additions beyond the roadmap list**: `auth/reauthenticate` and
+  `account/delete` (both run `signInWithPassword` — brute-force surfaces),
+  `handles/check` (enumeration), `gifs/search` (paid Giphy quota).
+- **Deliberately out of scope**: forgot-password (client-direct
+  `resetPasswordForEmail`; Supabase GoTrue's limiter covers it), the search
+  GETs (a Vercel WAF rule is the right tool — still on the dashboard
+  wishlist), `handles/update` (its own 7-day DB limit since 054).
+
 ## August 20, 2026 — Guardian Round 5: comments acting-as (migration 093)
 
 The last deferred piece of "one session, many contexts": a guardian switched
