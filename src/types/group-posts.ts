@@ -7,15 +7,20 @@
 // CORE GROUP POST TYPES
 // ============================================
 
-export type GroupPostType =
-  | 'golf_round'
-  | 'hockey_game'
-  | 'volleyball_match'
-  | 'basketball_game'
-  | 'social_event'
-  | 'practice_session'
-  | 'tournament_round'
-  | 'watch_party';
+/** The single source of the group-post vocabulary — the API route validates
+ *  against THIS list (it used to keep its own byte-identical copy). */
+export const GROUP_POST_TYPES = [
+  'golf_round',
+  'hockey_game',
+  'volleyball_match',
+  'basketball_game',
+  'social_event',
+  'practice_session',
+  'tournament_round',
+  'watch_party',
+] as const;
+
+export type GroupPostType = (typeof GROUP_POST_TYPES)[number];
 
 export type GroupPostVisibility = 'public' | 'private' | 'participants_only';
 

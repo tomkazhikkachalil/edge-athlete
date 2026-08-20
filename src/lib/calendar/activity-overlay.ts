@@ -11,6 +11,8 @@
 // opening EventDetailModal on them (a guaranteed 404).
 
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { isStatLineData } from '@/lib/sports/stat-schemas';
+import { SPORT_REGISTRY, type SportKey } from '@/lib/sports/SportRegistry';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Admin = SupabaseClient<any, 'public', any>;
@@ -28,7 +30,8 @@ export type ActivityPayload =
       gross_score: number | null;
       post_id: string | null;
     }
-  | { source: 'training_post'; post_id: string };
+  | { source: 'training_post'; post_id: string }
+  | { source: 'stat_line'; post_id: string; sport_key: string };
 
 export interface ActivityItem {
   id: string;
@@ -154,13 +157,61 @@ export interface TrainingPostSourceRow {
 
 /**
  * Workout-share posts are covered by their workout_sessions row (dedupe via
- * stats_data.type) and stat-line posts are deferred (unindexed JSONB date) —
- * both are skipped in v1.
+ * stats_data.type) and stat-line posts have their OWN date-positioned query
+ * (092) — both must be skipped here or they'd double up.
  */
 export function shouldSkipTrainingPost(statsData: unknown): boolean {
   if (typeof statsData !== 'object' || statsData === null) return false;
   const type = (statsData as Record<string, unknown>).type;
   return type === 'workout_session' || type === 'stat_line';
+}
+
+export interface StatLinePostSourceRow {
+  id: string;
+  stats_data: unknown;
+}
+
+const YMD_RE = /^\d{4}-\d{2}-\d{2}$/;
+
+/**
+ * A stat-line post (logged hockey/basketball/… game) as an all-day calendar
+ * item on the DATE THE ATHLETE ENTERED (stats_data.date), not created_at —
+ * you can log Saturday's game on Monday. Returns null when the stat line is
+ * malformed or its date isn't a clean YYYY-MM-DD (never render at epoch).
+ * The post IS the calendar item, so post_id always resolves and the client
+ * opens PostDetailModal — no new preview branch needed.
+ */
+export function statLinePostToItem(
+  row: StatLinePostSourceRow,
+  userId: string
+): ActivityItem | null {
+  if (!isStatLineData(row.stats_data)) return null;
+  const line = row.stats_data;
+  if (!line.date || !YMD_RE.test(line.date)) return null;
+
+  const [y, m, d] = line.date.split('-').map(Number);
+  const startMs = Date.UTC(y, m - 1, d);
+  const sportName =
+    SPORT_REGISTRY[line.sport_key as SportKey]?.display_name ?? 'Game';
+  const title = line.opponent
+    ? `✓ vs ${line.opponent}${line.result ? ` (${line.result})` : ''}`
+    : `✓ ${sportName}`;
+  return {
+    ...baseItem,
+    id: `activity:statline:${row.id}`,
+    organizer_id: userId,
+    title,
+    starts_at: new Date(startMs).toISOString(),
+    ends_at: new Date(startMs + 86_400_000).toISOString(),
+    all_day: true,
+    timezone: 'UTC',
+    category: 'game',
+    activity: {
+      source: 'stat_line',
+      post_id: row.id,
+      sport_key: line.sport_key,
+    },
+  };
 }
 
 export function trainingPostToItem(row: TrainingPostSourceRow, userId: string): ActivityItem {
@@ -189,6 +240,8 @@ export function activityHref(activity: ActivityPayload): string {
     case 'golf_round':
       return `/app/sport/golf/rounds/${activity.round_id}`;
     case 'training_post':
+      return `/feed?post=${activity.post_id}`;
+    case 'stat_line':
       return `/feed?post=${activity.post_id}`;
   }
 }
@@ -257,7 +310,7 @@ export async function fetchActivityOverlay(
   const fromIso = new Date(fromMs).toISOString();
   const toIso = new Date(toMs).toISOString();
 
-  const [workouts, rounds, posts] = await Promise.all([
+  const [workouts, rounds, posts, statLines] = await Promise.all([
     admin
       .from('workout_sessions')
       .select('id, title, started_at, ended_at, duration_seconds, post_id')
@@ -281,6 +334,16 @@ export async function fetchActivityOverlay(
       .gte('created_at', fromIso)
       .lt('created_at', toIso)
       .then(({ data }) => (data ?? []) as (TrainingPostSourceRow & { status: string | null })[]),
+    // Stat-line game logs, positioned by the athlete-entered date (092's
+    // partial functional index covers exactly this filter shape).
+    admin
+      .from('posts')
+      .select('id, stats_data, status')
+      .eq('profile_id', userId)
+      .filter('stats_data->>type', 'eq', 'stat_line')
+      .gte('stats_data->>date', utcDay(fromMs))
+      .lte('stats_data->>date', utcDay(toMs))
+      .then(({ data }) => (data ?? []) as (StatLinePostSourceRow & { status: string | null })[]),
   ]);
 
   // Round → feed post, one batched lookup: solo rounds link through
@@ -295,5 +358,9 @@ export async function fetchActivityOverlay(
       .filter(post => post.status === 'published')
       .filter(post => !shouldSkipTrainingPost(post.stats_data))
       .map(row => trainingPostToItem(row, userId)),
+    ...statLines
+      .filter(post => post.status === 'published')
+      .map(row => statLinePostToItem(row, userId))
+      .filter((item): item is ActivityItem => item !== null),
   ];
 }

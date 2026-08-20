@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseAdmin, getServerAuth } from '@/lib/auth-server';
 import { notifyGroupInvites } from '@/lib/golf/group-notifications';
 import { initialRoundStatus } from '@/lib/golf/round-status';
-import { GROUP_TYPE_TO_SPORT, type GroupPostType } from '@/types/group-posts';
+import { GROUP_TYPE_TO_SPORT, GROUP_POST_TYPES, type GroupPostType } from '@/types/group-posts';
 
 /**
  * GET /api/group-posts
@@ -177,20 +177,12 @@ export async function POST(request: NextRequest) {
           }))
       : null;
 
-    // Validate type
-    const validTypes = [
-      'golf_round',
-      'hockey_game',
-      'volleyball_match',
-      'basketball_game',
-      'social_event',
-      'practice_session',
-      'tournament_round',
-      'watch_party',
-    ];
-    if (!validTypes.includes(type)) {
+    // Validate type against the ONE vocabulary (types/group-posts.ts) — this
+    // used to be a byte-identical inline copy that sport #2 would have had to
+    // update in two places.
+    if (!(GROUP_POST_TYPES as readonly string[]).includes(type)) {
       return NextResponse.json(
-        { error: `Invalid type. Must be one of: ${validTypes.join(', ')}` },
+        { error: `Invalid type. Must be one of: ${GROUP_POST_TYPES.join(', ')}` },
         { status: 400 }
       );
     }

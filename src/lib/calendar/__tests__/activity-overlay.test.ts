@@ -3,6 +3,7 @@ import {
   workoutSessionToItem,
   golfRoundToItem,
   trainingPostToItem,
+  statLinePostToItem,
   shouldSkipTrainingPost,
 } from '../activity-overlay';
 
@@ -134,5 +135,58 @@ describe('post_id resolution on the payload', () => {
       USER
     );
     expect(item.activity).toEqual({ source: 'training_post', post_id: 'p3' });
+  });
+});
+
+describe('statLinePostToItem', () => {
+  const line = (over: Record<string, unknown> = {}) => ({
+    id: 'p1',
+    stats_data: {
+      type: 'stat_line',
+      sport_key: 'ice_hockey',
+      date: '2026-08-15',
+      opponent: 'Bears',
+      result: 'W',
+      stats: { goals: 2 },
+      ...over,
+    },
+  });
+
+  it('positions on the ATHLETE-ENTERED date as an all-day item', () => {
+    const item = statLinePostToItem(line(), USER)!;
+    expect(item.id).toBe('activity:statline:p1');
+    expect(item.kind).toBe('activity');
+    expect(item.all_day).toBe(true);
+    expect(item.timezone).toBe('UTC');
+    expect(item.category).toBe('game');
+    expect(item.starts_at).toBe('2026-08-15T00:00:00.000Z');
+    // UTC-midnight exclusive end (057 convention, same as golf)
+    expect(item.ends_at).toBe('2026-08-16T00:00:00.000Z');
+  });
+
+  it('titles with opponent and result when present', () => {
+    expect(statLinePostToItem(line(), USER)!.title).toBe('✓ vs Bears (W)');
+    expect(statLinePostToItem(line({ result: undefined }), USER)!.title).toBe('✓ vs Bears');
+    expect(statLinePostToItem(line({ opponent: undefined }), USER)!.title).toBe('✓ Ice Hockey');
+  });
+
+  it('payload routes to the post itself', () => {
+    const item = statLinePostToItem(line(), USER)!;
+    expect(item.activity).toEqual({
+      source: 'stat_line',
+      post_id: 'p1',
+      sport_key: 'ice_hockey',
+    });
+  });
+
+  it('returns null rather than rendering at epoch: missing or garbage date', () => {
+    expect(statLinePostToItem(line({ date: undefined }), USER)).toBeNull();
+    expect(statLinePostToItem(line({ date: 'yesterday' }), USER)).toBeNull();
+    expect(statLinePostToItem(line({ date: '2026-8-15' }), USER)).toBeNull();
+  });
+
+  it('returns null for malformed stat lines', () => {
+    expect(statLinePostToItem({ id: 'p1', stats_data: null }, USER)).toBeNull();
+    expect(statLinePostToItem({ id: 'p1', stats_data: { type: 'workout_session' } }, USER)).toBeNull();
   });
 });

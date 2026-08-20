@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerClient, getServerAuth, getSupabaseAdmin } from '@/lib/auth-server';
 import { isValidSegment, segmentSchemaFor } from '@/lib/sports/segment-schemas';
 import { resolveSportKey } from '@/lib/sports/resolve-sport-key';
+import { GROUP_TYPE_TO_SPORT, type GroupPostType } from '@/types/group-posts';
 import type { SportKey } from '@/lib/sports';
 
 /**
@@ -44,7 +45,9 @@ async function resolveSport(
 
   return (
     resolveSportKey(postSportKey) ??
-    resolveSportKey((round?.type ?? '').replace(/_(round|game|match|session)$/, ''))
+    // The declared type→sport map, not a suffix-stripping regex (see the
+    // sibling media route).
+    resolveSportKey(GROUP_TYPE_TO_SPORT[round?.type as GroupPostType] ?? null)
   );
 }
 
