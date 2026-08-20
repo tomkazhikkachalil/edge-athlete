@@ -1,5 +1,44 @@
 # Development Log
 
+## August 20, 2026 — Multi-sport cleanup: §6 closed, and the honest half was already done
+
+The MULTI_SPORT_ROADMAP §6 batch — audited first, which mattered: **4 of the
+7 items had already shipped** and the doc never learned (hashtag catalogs →
+registry fields + post-tags.ts; the hole_number column drop → migration 076,
+Aug 10; getSportRoute → deleted with the #145 cycle fix; the /u Golf Stats
+card → sport-aware). Auditing the doc against the code before writing code
+saved most of the round. What actually changed:
+
+- **copy.ts sheds its dead weight**: the `FEATURES` (golf tee/hand labels,
+  hockey/volleyball coming-soons) and `ROUTES` blocks had ZERO consumers —
+  the live sources are settings-schemas.ts and
+  `SportAdapter.getActivityHref()`. Deleted, tombstone comment left.
+- **Golf redirect de-special-cased**: `activity/[id]/page.tsx` now asks
+  `adapter.getActivityHref()` instead of `if (sportKey === 'golf')` — the
+  seam existed since the adapter round; the page just never used it.
+- **Stats summary is now a sport seam**: `formatGolfStatsSummary` +
+  `formatGenericStatsSummary` merged into ONE pure dispatcher,
+  `buildStatsSummary()` in `src/lib/sports/stats-summary.ts` — NOT onto the
+  adapter class, on purpose: adapters are async and network-backed, this
+  takes already-fetched rows (post-headline.ts's documented reasoning).
+  FeaturedPosts/TaggedTile/ProfileMediaTabs lost their per-sport branching;
+  the golf path finally has unit tests (it had none).
+- **The two sport registries: documented, derived, NOT merged.** They are
+  different things — `SportRegistry` is the closed-union product registry;
+  `sports-config` is an open-keyed display lexicon whose whole job is
+  labeling strings the product doesn't support (`training`, legacy
+  `general`, the ~20 achievement-picker sports — narrowing those to 10
+  would be a regression). The real bug was drift, fixed by deriving the
+  lexicon's names for registry sports from `SPORT_REGISTRY`; the lexicon's
+  7 consumer-less exports (categories, tailwind maps, metadata) are gone.
+  Icons stay split by design: FontAwesome strings (registry) vs Lucide
+  components (lexicon) can't share a field.
+- **Settings' unreachable "Coming Soon" pill removed** — all 7 tabs have
+  been live since Sprint 5; the `disabled` field and pill render path were
+  dead UI.
+- **MIGRATIONS.md corrected**: it still described hole_number as "still
+  dual-written" ten days after 076 dropped the column.
+
 ## August 20, 2026 — Rate limiting that actually limits (migration 094)
 
 The July roadmap's Sprint 1.3 never really landed: `rate-limit.ts` was an

@@ -3,7 +3,7 @@
 import { formatDistanceToNow } from 'date-fns';
 import { Heart, MessageCircle, Layers, X, Flag, TrendingUp, BarChart3 } from 'lucide-react';
 import MediaTile from '../media/MediaTile';
-import { formatGolfStatsSummary, formatGenericStatsSummary } from '@/lib/stats-summary';
+import { buildStatsSummary } from '@/lib/sports/stats-summary';
 import { isOptimizableImageSrc } from '@/lib/media/image-src';
 import Image from 'next/image';
 
@@ -61,7 +61,7 @@ function taggerName(item: TaggedItem): string {
 /** Text/stats body for media-less posts — golf gets its score line. */
 function FallbackBody({ item }: { item: TaggedItem }) {
   if (item.golf_round) {
-    const summary = formatGolfStatsSummary(item.golf_round);
+    const summary = buildStatsSummary({ golfRound: item.golf_round });
     if (summary) {
       return (
         <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-gradient-to-br from-green-50 via-emerald-50 to-green-100 dark:from-green-950/40 dark:via-emerald-950/40 dark:to-green-950/60 p-3">
@@ -79,7 +79,7 @@ function FallbackBody({ item }: { item: TaggedItem }) {
     }
   }
   if (item.stats_data && Object.keys(item.stats_data).length > 0) {
-    const summary = formatGenericStatsSummary(item.stats_data);
+    const summary = buildStatsSummary({ statsData: item.stats_data });
     if (summary) {
       return (
         <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-gradient-to-br from-violet-50 via-purple-50 to-violet-100 dark:from-violet-950/40 dark:via-purple-950/40 dark:to-violet-950/60 p-3">

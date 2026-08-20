@@ -15,7 +15,7 @@ import TaggedTab from './TaggedTab';
 import SportYearFilter from './SportYearFilter';
 import FilterBar from './filters/FilterBar';
 import { useToast } from './Toast';
-import { formatGenericStatsSummary } from '@/lib/stats-summary';
+import { buildStatsSummary } from '@/lib/sports/stats-summary';
 import VitalsTab from './VitalsTab';
 import { getAllSports, SPORT_NAMES } from '@/lib/config/sports-config';
 
@@ -779,7 +779,7 @@ function MediaGridItem({ item, viewerId, onClick }: MediaGridItemProps) {
 
     // Non-golf stat lines keep the schema-driven summary.
     if (hasStats && item.stats_data) {
-      const summary = formatGenericStatsSummary(item.stats_data);
+      const summary = buildStatsSummary({ statsData: item.stats_data });
       if (summary) {
         return (
           <div className="flex h-full flex-col items-center justify-center gap-1.5 p-3">

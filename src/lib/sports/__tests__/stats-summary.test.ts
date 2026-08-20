@@ -1,5 +1,9 @@
 import { describe, it, expect } from 'vitest';
-import { formatGenericStatsSummary } from '../stats-summary';
+import { buildStatsSummary } from '../stats-summary';
+
+// The generic path, exercised through the one public dispatcher.
+const formatGenericStatsSummary = (statsData: Record<string, unknown> | null) =>
+  buildStatsSummary({ statsData });
 
 describe('formatGenericStatsSummary — workout sessions', () => {
   // The exact payload shape WorkoutEditorScreen writes.
@@ -85,5 +89,50 @@ describe('formatGenericStatsSummary — generic fallback hygiene', () => {
     expect(formatGenericStatsSummary({ type: 'mystery', mystery_id: 'x' })).toBeNull();
     expect(formatGenericStatsSummary({})).toBeNull();
     expect(formatGenericStatsSummary(null)).toBeNull();
+  });
+});
+
+describe('buildStatsSummary — golf dispatch', () => {
+  it('formats course, score-to-par, holes and the best quick stat', () => {
+    const s = buildStatsSummary({
+      golfRound: {
+        course: 'Eagle Creek', gross_score: 74, par: 72, holes: 18,
+        gir_percentage: 61.1, fir_percentage: 50, total_putts: 30,
+      },
+    });
+    expect(s).toEqual({ primaryLine: 'Eagle Creek • 74 (+2)', secondaryLine: '18H • GIR 61%' });
+  });
+
+  it('handles even par and the FWY/putts fallbacks', () => {
+    expect(buildStatsSummary({ golfRound: { gross_score: 72, par: 72, holes: 18, fir_percentage: 57.2 } }))
+      .toEqual({ primaryLine: 'Round • 72 (E)', secondaryLine: '18H • FWY 57%' });
+    expect(buildStatsSummary({ golfRound: { course: 'Pines', gross_score: 40, par: 36, holes: 9, total_putts: 16 } }))
+      .toEqual({ primaryLine: 'Pines • 40 (+4)', secondaryLine: '9H • 16 putts' });
+  });
+
+  it("TaggedTile's narrow shape (no quick stats) degrades to holes only", () => {
+    expect(buildStatsSummary({ golfRound: { course: 'Ottawa Hunt', gross_score: 81, par: 72, holes: 18 } }))
+      .toEqual({ primaryLine: 'Ottawa Hunt • 81 (+9)', secondaryLine: '18H' });
+  });
+
+  it('a golf round without a score falls through to stats_data', () => {
+    const s = buildStatsSummary({
+      golfRound: { course: 'Eagle Creek' },
+      statsData: { type: 'workout_session', top_line: 'Deadlift 300 lbs × 6' },
+    });
+    expect(s?.primaryLine).toBe('Deadlift 300 lbs × 6');
+  });
+
+  it('golf wins over stats_data when both are present', () => {
+    const s = buildStatsSummary({
+      golfRound: { gross_score: 90, holes: 18 },
+      statsData: { type: 'workout_session', top_line: 'nope' },
+    });
+    expect(s?.primaryLine).toBe('Round • 90');
+  });
+
+  it('nothing at all → null', () => {
+    expect(buildStatsSummary({})).toBeNull();
+    expect(buildStatsSummary({ golfRound: null, statsData: null })).toBeNull();
   });
 });

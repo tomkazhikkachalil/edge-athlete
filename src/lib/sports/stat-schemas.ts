@@ -3,7 +3,7 @@
  *  - the composer form fields (StatLineForm)
  *  - feed rendering (StatLineCard)
  *  - profile aggregates (/api/sports/stat-lines) via profileTiles
- *  - media-tile summaries (stats-summary.ts)
+ *  - media-tile summaries (sports/stats-summary.ts)
  *
  * Data model ("build for today, architect for tomorrow"):
  * Stat-line sports store one structured object in posts.stats_data:

@@ -16,22 +16,14 @@ export {
   getAppLimit,
 } from './app-config';
 
-// Sports configuration
+// Sports display lexicon (labels/icons/colors for arbitrary sport keys —
+// the PRODUCT registry is src/lib/sports/SportRegistry.ts)
 export {
-  SPORT_ICONS,
-  SPORT_COLORS,
   SPORT_NAMES,
-  SPORT_CATEGORIES,
-  SPORT_TAILWIND_COLORS,
   getSportIcon,
   getSportColor,
   getSportName,
-  getSportCategory,
-  getSportMetadata,
-  getSportTailwindClasses,
   getAllSports,
-  getSportsByCategory,
-  type SportMetadata,
 } from './sports-config';
 
 // Sport metrics configuration
