@@ -242,6 +242,12 @@ export async function executeTransfer(
       await admin.from('profiles')
         .update({ supervision_state: 'self' })
         .eq('id', transfer.profile_id);
+      // Digest routing ends with supervision: the guardian opted the child's
+      // digest ON at creation (they were the recipient); the new adult owner
+      // starts at the platform default (opt-in, false) — best-effort.
+      await admin.from('notification_preferences')
+        .update({ email_enabled: false })
+        .eq('user_id', transfer.profile_id);
       await admin.from('profile_transfers')
         .update({ state: 'completed', completed_at: new Date().toISOString(), executed_steps: steps })
         .eq('id', transfer.id);

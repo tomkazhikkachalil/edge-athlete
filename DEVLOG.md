@@ -1,5 +1,45 @@
 # Development Log
 
+## August 19, 2026 — Family console Round 4: hardening the record (migration 091)
+
+The completeness round: audit trail, the discoverability decision, transfer
+regression coverage, and the child's digest finally reaching an inbox.
+
+- **Safety-settings audit (091)**: `safety_settings_audit` — who changed a
+  supervised athlete's visibility/messaging, when, old → new. House pattern
+  from profile_access_audit: NO foreign keys (the trail survives deletion of
+  either party), append-only via the shared `forbid_mutation()` trigger, RLS
+  on with zero policies. The Round-1 PATCH now writes one row per changed
+  field, best-effort — a missing table pre-091 (or any insert failure) never
+  fails the change itself.
+- **Discoverability — DECIDED, documented, no code**: a supervised profile a
+  guardian sets PUBLIC (already consent-gated) is searchable like anyone —
+  the public toggle IS the discoverability consent, and being found is the
+  recruiting mission. Private supervised profiles stay invisible, as today.
+  (Tom's call; the alternative — never searchable while supervised — was
+  considered and rejected.)
+- **Transfer-ceremony e2e** (`e2e/transfer-ceremony.spec.ts`): the most
+  complex state machine in the app had zero committed coverage. Four serial
+  tests: initiate → independent-contact submit → **wrong-code refusal BEFORE
+  the good code** (success advances the state, so a later bad attempt 409s
+  on state, not 400 on code — learned by running it) → dual_confirm →
+  guardian-only confirm stays dual_confirm AND rings the athlete's bell
+  (Round-1 integration) → athlete confirm with guardianPostRole → cooling_off
+  with a deadline → either-party cancel. The OTP seam: codes are stored as
+  `sha256(transferId:code)`, so the spec seeds its own row for a known code
+  via the service role — no mailbox needed.
+- **Child digest → guardian inbox**: the daily digest skipped synthetic
+  `@minors.invalid` addresses, so a supervised child's notifications reached
+  NOBODY. Now: a supervised child's digest routes to every guardian's real
+  email via the new `sendChildDigest` (honest copy — "{child} has N new
+  notifications", family-console CTA, "this routing ends at handover").
+  Two structural fixes to make it real: managed-athlete creation seeds the
+  child's `notification_preferences` row with `email_enabled: true` (the
+  digest drives off that table, and it's platform-wide opt-IN — here the
+  guardian is the recipient and creating the profile is the opt-in), and
+  `executeTransfer` flips it back to false so the new adult owner starts at
+  the platform default.
+
 ## August 19, 2026 — Family console Round 3: the co-guardian lifecycle
 
 Principle 3: custody is a relationship with a lifecycle — invited → active →
