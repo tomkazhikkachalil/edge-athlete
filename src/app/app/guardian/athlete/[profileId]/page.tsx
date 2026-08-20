@@ -212,13 +212,43 @@ export default function GuardianAthletePage() {
       if (data.emailSent) {
         showSuccess('Invite sent', 'They have 7 days to accept.');
       } else {
-        // SMTP off — the URL is the reliable channel (admin-page precedent).
+        // Send failed OR SMTP unset — either way the URL is the reliable
+        // channel; never claim a configuration problem we can't see.
         setManualInviteUrl(data.inviteUrl ?? '');
-        showSuccess('Invite created', 'Email is not configured — share the link below.');
+        showSuccess('Invite created', "We couldn't email it — share the link below.");
       }
       refetchGuardians();
     } catch (err) {
       showError('Invite failed', err instanceof Error ? err.message : 'Please try again');
+    } finally {
+      setInviteBusy(false);
+    }
+  };
+
+  // Cancel + re-invite the same address; the POST returns the fresh URL,
+  // which the manual-link block displays (component state — a refresh loses
+  // it, hence the affordance instead of trying to re-derive a token).
+  const regenInvite = async (inviteId: string, email: string) => {
+    if (inviteBusy) return;
+    setInviteBusy(true);
+    try {
+      await fetch(`/api/guardian/athletes/${profileId}/guardians`, {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ inviteId }),
+      });
+      const res = await fetch(`/api/guardian/athletes/${profileId}/guardians`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || 'Could not create a new link');
+      setManualInviteUrl(data.inviteUrl ?? '');
+      showSuccess('New link ready', data.emailSent ? 'Also emailed to them.' : 'Share the link below.');
+      refetchGuardians();
+    } catch (err) {
+      showError('Could not get a new link', err instanceof Error ? err.message : 'Please try again');
     } finally {
       setInviteBusy(false);
     }
@@ -506,6 +536,14 @@ export default function GuardianAthletePage() {
                       </p>
                       <button
                         type="button"
+                        onClick={() => regenInvite(inv.id, inv.invited_email)}
+                        disabled={inviteBusy}
+                        className="shrink-0 min-h-[44px] px-2 inline-flex items-center text-sm font-semibold text-brand-fg-strong hover:text-violet-800 dark:hover:text-violet-300 transition-colors disabled:opacity-60"
+                      >
+                        Get new link
+                      </button>
+                      <button
+                        type="button"
                         onClick={() => cancelInvite(inv.id)}
                         className="shrink-0 min-h-[44px] px-2 inline-flex items-center text-sm font-semibold text-secondary hover:text-red-600 transition-colors"
                       >
@@ -538,8 +576,8 @@ export default function GuardianAthletePage() {
 
                   {manualInviteUrl && (
                     <div className="mt-3 text-xs text-tertiary">
-                      Email is not configured — share this link with them directly
-                      (valid 7 days):
+                      We couldn&apos;t email this invite — share the link with
+                      them directly (valid 7 days):
                       <code className="block mt-1 p-2 bg-surface-sunken rounded select-all break-all">{manualInviteUrl}</code>
                     </div>
                   )}

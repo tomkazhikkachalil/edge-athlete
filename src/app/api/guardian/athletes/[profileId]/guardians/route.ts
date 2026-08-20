@@ -140,13 +140,8 @@ export async function POST(
     // guardian can share it manually when SMTP is off) — admin precedent.
     let emailSent = false;
     if (process.env.SMTP_USER && process.env.SMTP_PASS) {
-      try {
-        await emailService.sendCoGuardianInvite(email, child.first_name ?? '', inviteUrl, appUrl);
-        emailSent = true;
-      } catch (e) {
-        console.error('[CO-GUARDIANS] invite email failed:', e);
-        Sentry.captureException(e, { tags: { area: 'co-guardians' } });
-      }
+      // deliver() catches + Sentry-tags internally and returns the truth.
+      emailSent = await emailService.sendCoGuardianInvite(email, child.first_name ?? '', inviteUrl, appUrl);
     }
     return NextResponse.json({ ok: true, inviteUrl, emailSent });
   } catch (error) {

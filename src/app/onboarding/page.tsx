@@ -21,7 +21,7 @@ type Step = 1 | 2 | 3 | 4;
 
 export default function OnboardingPage() {
   const router = useRouter();
-  const { user, profile, loading, refreshProfile, signOut } = useAuth();
+  const { user, profile, loading, refreshProfile, signOut, managedProfiles } = useAuth();
 
   const [step, setStep] = useState<Step>(1);
   const [selectedSports, setSelectedSports] = useState<SportKey[]>([]);
@@ -42,6 +42,27 @@ export default function OnboardingPage() {
   useEffect(() => {
     if (profile?.onboarded_at && !finishing) router.push('/athlete');
   }, [profile?.onboarded_at, finishing, router]);
+
+  // Guardian rescue (097 funnel fix): anyone who lands here while already
+  // managing athletes is a parent/guardian, not an athlete — parents who
+  // signed up pre-097 (stored as user_type 'athlete') and invite-claim
+  // guardians both got dumped into this wizard. Stamp and route to the
+  // console; "What sports do you play?" is the wrong first question.
+  useEffect(() => {
+    if (loading || finishing || !user) return;
+    const isParent = profile?.user_type === 'parent' || managedProfiles.length > 0;
+    if (!isParent || profile?.onboarded_at) return;
+    (async () => {
+      try {
+        await fetch('/api/profile', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ profileData: { onboarded_at: new Date().toISOString() } }),
+        });
+      } catch { /* non-fatal — console still works un-stamped */ }
+      router.replace('/app/guardian');
+    })();
+  }, [loading, finishing, user, profile?.user_type, profile?.onboarded_at, managedProfiles.length, router]);
 
   const displayName = formatDisplayName(
     profile?.first_name, null, profile?.last_name, profile?.full_name

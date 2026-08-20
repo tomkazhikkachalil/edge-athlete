@@ -123,25 +123,26 @@ export async function POST(request: NextRequest) {
           invitedEmail: guardianEmail,
           pendingProfileId: pending.id,
         });
+        // deliver() returns an honest boolean (and Sentry-tags failures) —
+        // parked either way; a failed send is rescued via the admin
+        // parked-profiles re-mint (dashboard/guardians).
+        let guardianEmailSent = false;
         if (invite && process.env.SMTP_USER && process.env.SMTP_PASS) {
           const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://edge-athlete.vercel.app';
-          try {
-            await emailService.sendGuardianInvite(
-              guardianEmail,
-              profileData?.first_name || '',
-              `${appUrl}/invite/${invite.rawToken}`,
-              appUrl,
-              guardianHasAccount
-            );
-          } catch (mailError) {
-            // Parked either way; guardian can be re-invited from support.
-            console.error('[SIGNUP] guardian invite email failed:', mailError);
-            Sentry.captureException(mailError, { tags: { area: 'guardian-invite' } });
-          }
+          guardianEmailSent = await emailService.sendGuardianInvite(
+            guardianEmail,
+            profileData?.first_name || '',
+            `${appUrl}/invite/${invite.rawToken}`,
+            appUrl,
+            guardianHasAccount
+          );
         }
         return NextResponse.json({
           parked: true,
-          message: "Almost there! We've emailed your parent or guardian a link to finish setting up your profile.",
+          guardianEmailSent,
+          message: guardianEmailSent
+            ? "Almost there! We've emailed your parent or guardian a link to finish setting up your profile."
+            : "Almost there! We couldn't send the email to your parent or guardian just now — ask them to contact support, or try signing up again later.",
         });
       }
     }
@@ -275,7 +276,10 @@ export async function POST(request: NextRequest) {
         gender: profileData.gender || null,
         location: profileData.location || null,
         postal_code: profileData.postal_code || null,
-        user_type: profileData.user_type || 'athlete',
+        // Guardian-branch signups ARE parents (097): server-authoritative,
+        // never the client's value — routing sends 'parent' accounts to the
+        // family console instead of the athlete onboarding wizard.
+        user_type: actorRole === 'guardian' ? 'parent' : (profileData.user_type || 'athlete'),
         full_name: fullName || null,
         handle: profileData.handle ? profileData.handle.toLowerCase().trim() : null,
         display_name: profileData.nickname || fullName || profileData.handle || 'Athlete',

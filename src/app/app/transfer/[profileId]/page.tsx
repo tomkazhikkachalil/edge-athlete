@@ -31,6 +31,7 @@ export default function TransferPage() {
   const [confirmingCancel, setConfirmingCancel] = useState(false);
   // Athlete credentials step:
   const [email, setEmail] = useState('');
+  const [codeEmailSent, setCodeEmailSent] = useState<boolean | null>(null);
   const [code, setCode] = useState('');
   const [editingEmail, setEditingEmail] = useState(false);
   const [codeResent, setCodeResent] = useState(false);
@@ -98,6 +99,9 @@ export default function TransferPage() {
         body: JSON.stringify(body),
       });
       const data = await res.json().catch(() => ({}));
+      // submit_contact reports whether the code email actually went out —
+      // the "Check your email" copy must not lie when it didn't.
+      if (typeof data.emailSent === 'boolean') setCodeEmailSent(data.emailSent);
       if (!res.ok) {
         setError(data.error || 'Something went wrong. Please try again.');
         // Terminal (410) or aborted (409) transfers: re-fetch so the stale
@@ -340,11 +344,22 @@ export default function TransferPage() {
             </>
           ) : state === 'credentials_pending' && isAthlete ? (
             <>
-              <h2 className="text-xl sm:text-2xl font-bold text-violet-800 dark:text-violet-200 mb-2">Check your email</h2>
-              <p className="text-sm text-tertiary mb-6">
-                We emailed a 6-digit code to <span className="font-semibold text-primary">{transfer?.athlete_contact_email}</span>.
-                It works for 15 minutes.
-              </p>
+              <h2 className="text-xl sm:text-2xl font-bold text-violet-800 dark:text-violet-200 mb-2">
+                {codeEmailSent === false ? 'We could not send the email' : 'Check your email'}
+              </h2>
+              {codeEmailSent === false ? (
+                <p className="text-sm text-tertiary mb-6">
+                  The code for <span className="font-semibold text-primary">{transfer?.athlete_contact_email}</span> could
+                  not be emailed right now. Ask your guardian to contact support —
+                  they can have a code read out to you — or try &quot;Send a new
+                  code&quot; in a little while.
+                </p>
+              ) : (
+                <p className="text-sm text-tertiary mb-6">
+                  We emailed a 6-digit code to <span className="font-semibold text-primary">{transfer?.athlete_contact_email}</span>.
+                  It works for 15 minutes.
+                </p>
+              )}
               {codeResent && (
                 <div className="bg-brand-soft border border-violet-200 dark:border-violet-800 text-brand-fg-strong px-4 py-3 rounded-md text-sm mb-4">
                   A new code is on its way.

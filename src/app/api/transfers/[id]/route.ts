@@ -79,16 +79,19 @@ export async function POST(
         );
       }
       const code = await issueContactOtp(admin, id, transfer.profile_id, email);
+      // deliver() catches + Sentry-tags internally; the honest boolean lets
+      // the transfer page stop claiming "we emailed you" when we didn't
+      // (this catch used to be fully silent — the one send failure in the
+      // app with zero telemetry).
+      let emailSent = false;
       if (process.env.SMTP_USER && process.env.SMTP_PASS) {
         const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://edge-athlete.vercel.app';
-        try {
-          await emailService.sendTransferCode(email, code, appUrl);
-        } catch { /* code row is the source of truth */ }
+        emailSent = await emailService.sendTransferCode(email, code, appUrl);
       }
       await admin.from('profile_transfers')
         .update({ state: 'credentials_pending', athlete_contact_email: email.toLowerCase() })
         .eq('id', id);
-      return NextResponse.json({ ok: true, state: 'credentials_pending' });
+      return NextResponse.json({ ok: true, state: 'credentials_pending', emailSent });
     }
 
     // ── verify_contact ────────────────────────────────────────────────────

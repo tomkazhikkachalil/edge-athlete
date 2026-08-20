@@ -38,27 +38,41 @@ export async function runNotificationDigest(supabase: SupabaseClient, appUrl: st
       }
       const { data: notifs } = await notifQuery;
 
-      // Always advance the watermark (even with 0 new).
-      await supabase
+      // Watermark discipline: advance immediately when there's nothing to
+      // send, otherwise only AFTER a successful send. Advancing before the
+      // send permanently burned the window when the send failed — those
+      // notifications were never digested again (live data loss while the
+      // sender domain was unverified and every send 550'd).
+      const advanceWatermark = () => supabase
         .from('notification_preferences')
         .update({ last_digest_at: nowIso })
         .eq('user_id', pref.user_id);
 
-      if (!notifs || notifs.length === 0) continue;
+      if (!notifs || notifs.length === 0) {
+        await advanceWatermark();
+        continue;
+      }
 
       const { data: profile } = await supabase
         .from('profiles')
         .select('email, first_name, last_name, full_name, supervision_state')
         .eq('id', pref.user_id)
         .maybeSingle();
-      if (!profile?.email) continue;
+      if (!profile?.email) {
+        // Structurally undeliverable — don't retry forever.
+        await advanceWatermark();
+        continue;
+      }
 
       if (isSyntheticEmail(profile.email)) {
         // A supervised child's synthetic address can never receive mail —
         // route their digest to the guardian(s) instead (Round 4). The
         // routing ends structurally at transfer: guardian rows are removed
         // and the child gains a real email.
-        if (profile.supervision_state !== 'supervised') continue;
+        if (profile.supervision_state !== 'supervised') {
+          await advanceWatermark();
+          continue;
+        }
         const { data: guardianRows } = await supabase
           .from('profile_access')
           .select('profiles!profile_access_user_id_fkey(email)')
@@ -73,6 +87,10 @@ export async function runNotificationDigest(supabase: SupabaseClient, appUrl: st
           );
           sent++;
         }
+        // All guardian sends succeeded (a throw lands in the per-user
+        // catch below and the watermark stays put — a retry may re-send to
+        // an earlier guardian, which is a harmless duplicate).
+        await advanceWatermark();
         continue;
       }
 
@@ -81,6 +99,7 @@ export async function runNotificationDigest(supabase: SupabaseClient, appUrl: st
         profile.full_name || '';
       await emailService.sendNotificationDigest(profile.email, displayName, notifs, appUrl);
       sent++;
+      await advanceWatermark();
     } catch (userError) {
       // One user's failure never stops the batch
       console.error('[DIGEST] failed for user', pref.user_id, userError);

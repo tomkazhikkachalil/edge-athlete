@@ -194,17 +194,26 @@ export async function executeTransfer(
       // of truth, and /forgot-password on the new email always works). A
       // crash before the journal below re-runs this step: a second valid
       // single-use token + duplicate email — harmless by design.
+      let activationEmailSent = false;
       if (appUrl && process.env.SMTP_USER && process.env.SMTP_PASS) {
-        try {
-          const { emailService } = await import('./email-service');
-          await emailService.sendAccountActivation(
-            transfer.athlete_contact_email!.toLowerCase(),
-            `${appUrl}/activate/${raw}`,
-            appUrl
-          );
-        } catch (e) {
-          console.error('[TRANSFERS] activation email failed:', e);
-        }
+        const { emailService } = await import('./email-service');
+        activationEmailSent = await emailService.sendAccountActivation(
+          transfer.athlete_contact_email!.toLowerCase(),
+          `${appUrl}/activate/${raw}`,
+          appUrl
+        );
+      }
+      if (!activationEmailSent) {
+        // The new owner just had their password rotated and the link never
+        // arrived — leave a bell notification pointing at the recovery path
+        // (their bell survives; /forgot-password on the new email works).
+        const { notifyUser } = await import('./guardian-notify');
+        await notifyUser(admin, transfer.profile_id, {
+          type: 'transfer_update',
+          title: 'Your account is ready — we could not email your activation link',
+          message: 'Use "Forgot password" with your new email address to sign in.',
+          actionUrl: null,
+        });
       }
       await journal('rotate_credentials');
     }

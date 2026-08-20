@@ -562,7 +562,9 @@ export default function CreatePostModal({
       closeAndReset();
     } catch (e) {
       console.error('Failed to create post:', e);
-      showError('Failed to create post', 'Please try again');
+      // Surface the server's reason — "Parental consent must be approved…"
+      // as a bare "Please try again" was an unfixable dead end for guardians.
+      showError('Failed to create post', e instanceof Error && e.message !== 'Failed to create post' ? e.message : 'Please try again');
     } finally {
       setIsSubmitting(false);
     }

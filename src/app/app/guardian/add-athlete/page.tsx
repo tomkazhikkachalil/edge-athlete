@@ -215,6 +215,24 @@ export default function AddAthletePage() {
                   )}
                 </button>
               </form>
+              {/* Never trap a parent here (097 funnel): the console works
+                  with zero athletes and offers Add athlete again. */}
+              <button
+                type="button"
+                onClick={async () => {
+                  try {
+                    await fetch('/api/profile', {
+                      method: 'PUT',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({ profileData: { onboarded_at: new Date().toISOString() } }),
+                    });
+                  } catch { /* non-fatal */ }
+                  router.push('/app/guardian');
+                }}
+                className="w-full text-center text-sm text-tertiary hover:text-primary mt-4 min-h-[44px]"
+              >
+                Skip for now — go to your console
+              </button>
             </>
           )}
         </div>
