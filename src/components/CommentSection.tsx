@@ -49,7 +49,7 @@ export default function CommentSection({
   isOpen,
   onCommentCountChange
 }: CommentSectionProps) {
-  const { user } = useAuth();
+  const { user, activeProfile, managedProfiles } = useAuth();
   const [comments, setComments] = useState<Comment[]>([]);
   const [commentsCount, setCommentsCount] = useState(initialCommentsCount);
   const [newComment, setNewComment] = useState('');
@@ -265,6 +265,8 @@ export default function CommentSection({
           postId,
           content: text.trim() || null,
           gif_url: gifUrl || null,
+          // Guardian "Posting as" — same contract as the post composer.
+          ...(activeProfile ? { targetProfileId: activeProfile.id } : {}),
         })
       });
 
@@ -305,6 +307,8 @@ export default function CommentSection({
           content: text.trim() || null,
           gif_url: replyGifUrl || null,
           parentCommentId,
+          // Guardian "Posting as" — same contract as the post composer.
+          ...(activeProfile ? { targetProfileId: activeProfile.id } : {}),
         })
       });
 
@@ -507,8 +511,10 @@ export default function CommentSection({
                     <i className="fas fa-thumbtack" />
                   </button>
                 )}
-                {/* Delete button (own comments only) */}
-                {user?.id === comment.profile_id && (
+                {/* Delete button — own comments, plus a guardian moderating
+                    their managed athlete's (incl. ones written acting-as). */}
+                {(user?.id === comment.profile_id ||
+                  managedProfiles.some(mp => mp.id === comment.profile_id)) && (
                   <button
                     onClick={() => handleDeleteComment(comment.id)}
                     className="text-xs text-red-600 dark:text-red-400 hover:text-red-700 min-w-[44px] min-h-[44px] -m-3 inline-flex items-center justify-center"
@@ -542,6 +548,17 @@ export default function CommentSection({
           {/* Action bar */}
           <div className="mt-1 px-3 flex items-center gap-3 text-xs text-muted">
             <span>{formatTimeAgo(comment.created_at)}</span>
+
+            {/* Attribution (093): a guardian wrote this on the athlete's
+                behalf — say so, quietly. */}
+            {comment.created_by && comment.created_by.id !== comment.profile_id && (
+              <span className="inline-flex items-center gap-1 min-w-0">
+                <i className="fas fa-user-shield" aria-hidden="true"></i>
+                <span className="truncate">
+                  via {formatDisplayName(comment.created_by.first_name, null, comment.created_by.last_name, comment.created_by.full_name)}
+                </span>
+              </span>
+            )}
 
             {/* Like button */}
             {user && (

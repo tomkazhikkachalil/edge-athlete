@@ -3,6 +3,7 @@ import { getSupabaseAdmin, getServerClient, getServerAuth } from '@/lib/auth-ser
 import { extractHandles } from '@/lib/mentions';
 import { notifyCommentMentions } from '@/lib/mentions/notify';
 import { canViewProfile } from '@/lib/privacy';
+import { FEATURE_FLAGS } from '@/lib/features';
 
 // GET - Fetch comments for a post
 export async function GET(request: NextRequest) {
@@ -32,7 +33,7 @@ export async function GET(request: NextRequest) {
       .from('post_comments')
       .select(`
         *,
-        profile:profiles(
+        profile:profile_id(
           id,
           first_name,
           middle_name,
@@ -41,6 +42,12 @@ export async function GET(request: NextRequest) {
           username,
           handle,
           avatar_url
+        ),
+        created_by:created_by_user_id(
+          id,
+          first_name,
+          last_name,
+          full_name
         ),
         comment_likes(profile_id)
       `)
@@ -129,6 +136,36 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Comment author: the session user, or — guardian-profiles — a managed
+    // athlete via targetProfileId (the posts route's pattern, verbatim
+    // semantics: guardian row re-checked server-side, approved consent
+    // required, attribution recorded in created_by_user_id).
+    let authorId = profile.id;
+    const targetProfileId =
+      typeof body.targetProfileId === 'string' ? body.targetProfileId : null;
+    if (targetProfileId && targetProfileId !== user.id) {
+      if (!FEATURE_FLAGS.FEATURE_GUARDIAN_PROFILES) {
+        return NextResponse.json({ error: 'Not available' }, { status: 404 });
+      }
+      const { getProfileRole } = await import('@/lib/auth-server');
+      const role = await getProfileRole(user.id, targetProfileId);
+      if (role !== 'guardian') {
+        return NextResponse.json(
+          { error: 'You do not have permission to comment as this profile' },
+          { status: 403 }
+        );
+      }
+      const { getConsentState } = await import('@/lib/consent');
+      const consent = await getConsentState(getSupabaseAdmin(), targetProfileId);
+      if (consent !== 'approved') {
+        return NextResponse.json(
+          { error: 'Parental consent must be approved before anything can be posted to this profile.' },
+          { status: 403 }
+        );
+      }
+      authorId = targetProfileId;
+    }
+
     // A reply's parent must belong to the SAME post (a crafted request could
     // otherwise thread a reply under a comment on a different post)
     if (parentCommentId) {
@@ -157,7 +194,10 @@ export async function POST(request: NextRequest) {
           .from('profiles')
           .select('id, handle, visibility')
           .in('handle', handles)
-          .neq('id', profile.id);
+          // The AUTHOR is the mentioner — acting-as makes that the athlete,
+          // so the taggable set is the athlete's follow graph (the comment
+          // is theirs).
+          .neq('id', authorId);
         if (profs && profs.length > 0) {
           const privateIds = profs.filter(p => p.visibility !== 'public').map(p => p.id);
           let followed = new Set<string>();
@@ -165,7 +205,7 @@ export async function POST(request: NextRequest) {
             const { data: fRows } = await admin
               .from('follows')
               .select('following_id')
-              .eq('follower_id', profile.id)
+              .eq('follower_id', authorId)
               .eq('status', 'accepted')
               .in('following_id', privateIds);
             followed = new Set((fRows ?? []).map(r => r.following_id));
@@ -177,20 +217,25 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Create comment
-    const { data: comment, error: commentError } = await supabase
-      .from('post_comments')
-      .insert({
-        post_id: postId,
-        profile_id: profile.id,
-        content: trimmedContent,
-        gif_url: gif_url || null,
-        parent_comment_id: parentCommentId || null,
-        mentions: mentionProfiles.map(m => m.id)
-      })
-      .select(`
+    // Create comment. The acting-as branch writes via ADMIN: post_comments'
+    // INSERT policy is auth.uid() = profile_id and the table isn't in 052's
+    // guardian-write list — the branch is already fully authorized in app
+    // code above (house rule). Normal comments keep the RLS client as
+    // defense-in-depth.
+    const insertData = {
+      post_id: postId,
+      profile_id: authorId,
+      content: trimmedContent,
+      gif_url: gif_url || null,
+      parent_comment_id: parentCommentId || null,
+      mentions: mentionProfiles.map(m => m.id),
+      // Attribution (093): the human author when a guardian comments on
+      // behalf. NULL for normal self-comments.
+      ...(authorId !== user.id ? { created_by_user_id: user.id } : {}),
+    };
+    const COMMENT_RETURN = `
         *,
-        profile:profiles(
+        profile:profile_id(
           id,
           first_name,
           middle_name,
@@ -199,9 +244,37 @@ export async function POST(request: NextRequest) {
           username,
           handle,
           avatar_url
+        ),
+        created_by:created_by_user_id(
+          id,
+          first_name,
+          last_name,
+          full_name
         )
-      `)
+      `;
+    const writer = authorId !== user.id ? admin : supabase;
+    let { data: comment, error: commentError } = await writer
+      .from('post_comments')
+      .insert(insertData)
+      .select(COMMENT_RETURN)
       .single();
+
+    // Migration-lag guard (093 pattern from posts/090): retry without the
+    // attribution column if it hasn't been applied yet.
+    if (
+      commentError &&
+      insertData.created_by_user_id !== undefined &&
+      (commentError.code === '42703' || commentError.code === 'PGRST204') &&
+      (commentError.message || '').includes('created_by_user_id')
+    ) {
+      console.warn('[COMMENTS] created_by_user_id missing (migration 093 not applied) — retrying without it');
+      delete (insertData as Record<string, unknown>).created_by_user_id;
+      ({ data: comment, error: commentError } = await writer
+        .from('post_comments')
+        .insert(insertData)
+        .select(COMMENT_RETURN)
+        .single());
+    }
 
     if (commentError) {
       console.error('Error creating comment:', commentError);
@@ -238,7 +311,10 @@ export async function POST(request: NextRequest) {
         await notifyCommentMentions(admin, {
           postId,
           commentId: comment.id,
-          authorId: profile.id,
+          // The AUTHOR (the athlete on the acting-as branch) — attribution
+          // lives in created_by_user_id + the byline, not notification
+          // actors (Round-2 scope decision, same as posts).
+          authorId,
           mentionedIds: visible,
           content: trimmedContent,
         });
@@ -280,19 +356,36 @@ export async function DELETE(request: NextRequest) {
       );
     }
 
-    // Get the post_id before deleting so we can update the cached count
+    // Get the post_id + author before deleting so we can update the cached
+    // count and decide the guardian path.
     const { data: commentData } = await supabase
       .from('post_comments')
-      .select('post_id')
+      .select('post_id, profile_id')
       .eq('id', commentId)
       .single();
 
     const postId = commentData?.post_id;
 
+    // Guardian-profiles: a guardian may delete their managed athlete's
+    // comments (write_content/approve_content in the matrix — including
+    // ones they just wrote acting-as). RLS is auth.uid() = profile_id, so
+    // this path goes through the admin client AFTER the role check.
+    let deleter = supabase;
+    if (
+      FEATURE_FLAGS.FEATURE_GUARDIAN_PROFILES &&
+      commentData &&
+      commentData.profile_id !== user.id
+    ) {
+      const { getProfileRole } = await import('@/lib/auth-server');
+      const role = await getProfileRole(user.id, commentData.profile_id);
+      if (role === 'guardian') deleter = getSupabaseAdmin();
+      // Non-guardians fall through to the RLS delete, which no-ops → 404.
+    }
+
     // Delete comment (RLS will ensure user can only delete their own).
     // count:'exact' so a no-op (not yours / already gone) returns 404
     // instead of a false success.
-    const { error: deleteError, count: deletedCount } = await supabase
+    const { error: deleteError, count: deletedCount } = await deleter
       .from('post_comments')
       .delete({ count: 'exact' })
       .eq('id', commentId);

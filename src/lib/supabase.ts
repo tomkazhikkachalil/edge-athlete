@@ -183,6 +183,14 @@ export interface Comment {
   /** Profile ids @mentioned in content, resolved server-side (migration 073). */
   mentions?: string[];
   profile?: Profile;
+  /** Attribution (093): the human author when a guardian commented on
+   *  behalf of this profile. Null/absent for self-authored comments. */
+  created_by?: {
+    id: string;
+    first_name: string | null;
+    last_name: string | null;
+    full_name: string | null;
+  } | null;
   comment_likes?: { profile_id: string }[];
 }
 
