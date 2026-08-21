@@ -42,6 +42,29 @@ interface PendingInvite {
   expires_at: string;
 }
 
+interface FanProfile {
+  id: string;
+  first_name: string | null;
+  middle_name: string | null;
+  last_name: string | null;
+  full_name: string | null;
+  avatar_url: string | null;
+  handle: string | null;
+}
+
+interface FollowRequestRow {
+  id: string;
+  message: string | null;
+  created_at: string;
+  follower: FanProfile;
+}
+
+interface FollowerRow {
+  id: string;
+  created_at: string;
+  follower: FanProfile;
+}
+
 // ── Per-athlete management ────────────────────────────────────────────────────
 // One athlete's custody view: identity, live safety controls (the PATCH this
 // page drives is the only way a guardian changes these after creation), and
@@ -146,6 +169,28 @@ export default function GuardianAthletePage() {
   const [removeTarget, setRemoveTarget] = useState<GuardianRow | null>(null);
   const [removing, setRemoving] = useState(false);
 
+  // Fans section (Round G): pending requests + accepted fans, guardian-side.
+  const [followRequests, setFollowRequests] = useState<FollowRequestRow[]>([]);
+  const [fans, setFans] = useState<FollowerRow[]>([]);
+  const [followBusy, setFollowBusy] = useState<string | null>(null);
+  const [removeFanTarget, setRemoveFanTarget] = useState<FollowerRow | null>(null);
+  const [removingFan, setRemovingFan] = useState(false);
+
+  const refetchFans = useCallback(async () => {
+    try {
+      const [reqRes, fanRes] = await Promise.all([
+        fetch(`/api/followers?type=requests&profileId=${profileId}`),
+        fetch(`/api/followers?type=followers&profileId=${profileId}`),
+      ]);
+      const reqData = await reqRes.json().catch(() => ({}));
+      const fanData = await fanRes.json().catch(() => ({}));
+      if (reqRes.ok) setFollowRequests(reqData.requests ?? []);
+      if (fanRes.ok) setFans(fanData.followers ?? []);
+    } catch {
+      // informational section — never break the page
+    }
+  }, [profileId]);
+
   const refetchGuardians = useCallback(async () => {
     try {
       const res = await fetch(`/api/guardian/athletes/${profileId}/guardians`);
@@ -206,6 +251,60 @@ export default function GuardianAthletePage() {
       cancelled = true;
     };
   }, [user, profileId]);
+
+  useEffect(() => {
+    if (!user || !profileId) return;
+    // Async hop (house pattern) — keeps set-state-in-effect honest about no
+    // synchronous setState on the effect path.
+    (async () => {
+      await refetchFans();
+    })();
+  }, [user, profileId, refetchFans]);
+
+  const decideFollowRequest = async (row: FollowRequestRow, action: 'accept' | 'reject') => {
+    if (followBusy) return;
+    setFollowBusy(row.id);
+    try {
+      const res = await fetch('/api/followers', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action, followId: row.id, profileId }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || 'Could not update the request');
+      showSuccess(action === 'accept' ? 'Request approved' : 'Request declined');
+      refetchFans();
+    } catch (err) {
+      showError('Something went wrong', err instanceof Error ? err.message : 'Please try again');
+    } finally {
+      setFollowBusy(null);
+    }
+  };
+
+  const removeFan = async () => {
+    if (!removeFanTarget || removingFan) return;
+    setRemovingFan(true);
+    try {
+      const res = await fetch('/api/follow', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'remove_fan',
+          fanId: removeFanTarget.follower.id,
+          targetProfileId: profileId,
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || 'Could not remove this fan');
+      showSuccess('Fan removed');
+      setRemoveFanTarget(null);
+      refetchFans();
+    } catch (err) {
+      showError('Something went wrong', err instanceof Error ? err.message : 'Please try again');
+    } finally {
+      setRemovingFan(false);
+    }
+  };
 
   const submitInvite = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -539,6 +638,123 @@ export default function GuardianAthletePage() {
                   </div>
                 </section>
 
+                {/* Fans (Round G): either the athlete or a guardian decides */}
+                <section className="bg-surface border border-border rounded-lg p-5 mb-4">
+                  <h2 className="text-base font-bold text-primary mb-1">Fans</h2>
+                  <p className="text-xs text-tertiary mb-4">
+                    Who follows {athlete.first_name || 'this athlete'}. You and they can both
+                    approve requests; only you can remove a fan.
+                  </p>
+
+                  {followRequests.length > 0 && (
+                    <>
+                      <h3 className="text-sm font-semibold text-secondary mb-2">
+                        Waiting for approval
+                      </h3>
+                      <ul className="space-y-2 mb-5">
+                        {followRequests.map(row => {
+                          const name = formatDisplayName(
+                            row.follower.first_name, row.follower.middle_name,
+                            row.follower.last_name, row.follower.full_name
+                          );
+                          return (
+                            <li key={row.id} className="flex items-center gap-3 border border-border rounded-lg p-3">
+                              <div className="relative w-9 h-9 rounded-full overflow-hidden bg-violet-100 dark:bg-violet-950/60 flex items-center justify-center shrink-0">
+                                {row.follower.avatar_url ? (
+                                  <Image
+                                    src={row.follower.avatar_url}
+                                    alt=""
+                                    fill
+                                    sizes="36px"
+                                    className="object-cover"
+                                    unoptimized={!isOptimizableImageSrc(row.follower.avatar_url)}
+                                  />
+                                ) : (
+                                  <span className="text-xs font-semibold text-brand-fg-strong">{getInitials(name)}</span>
+                                )}
+                              </div>
+                              <div className="flex-grow min-w-0">
+                                <p className="text-sm font-medium text-primary truncate">{name}</p>
+                                {row.follower.handle && (
+                                  <p className="text-xs text-muted truncate">@{row.follower.handle}</p>
+                                )}
+                                {row.message && (
+                                  <p className="text-xs text-tertiary truncate">“{row.message}”</p>
+                                )}
+                              </div>
+                              <div className="flex items-center gap-2 shrink-0">
+                                <button
+                                  type="button"
+                                  disabled={followBusy === row.id}
+                                  onClick={() => decideFollowRequest(row, 'accept')}
+                                  className="px-3 py-2 min-h-[44px] inline-flex items-center bg-brand hover:bg-brand-hover text-white rounded-lg text-sm font-semibold transition-colors disabled:opacity-50"
+                                >
+                                  Approve
+                                </button>
+                                <button
+                                  type="button"
+                                  disabled={followBusy === row.id}
+                                  onClick={() => decideFollowRequest(row, 'reject')}
+                                  className="px-3 py-2 min-h-[44px] inline-flex items-center border border-border-strong rounded-lg text-sm font-semibold text-secondary hover:bg-surface-muted transition-colors disabled:opacity-50"
+                                >
+                                  Decline
+                                </button>
+                              </div>
+                            </li>
+                          );
+                        })}
+                      </ul>
+                    </>
+                  )}
+
+                  <h3 className="text-sm font-semibold text-secondary mb-2">
+                    Current fans{fans.length > 0 ? ` (${fans.length})` : ''}
+                  </h3>
+                  {fans.length === 0 ? (
+                    <p className="text-sm text-muted">No fans yet.</p>
+                  ) : (
+                    <ul className="space-y-2">
+                      {fans.map(row => {
+                        const name = formatDisplayName(
+                          row.follower.first_name, row.follower.middle_name,
+                          row.follower.last_name, row.follower.full_name
+                        );
+                        return (
+                          <li key={row.id} className="flex items-center gap-3 border border-border rounded-lg p-3">
+                            <div className="relative w-9 h-9 rounded-full overflow-hidden bg-violet-100 dark:bg-violet-950/60 flex items-center justify-center shrink-0">
+                              {row.follower.avatar_url ? (
+                                <Image
+                                  src={row.follower.avatar_url}
+                                  alt=""
+                                  fill
+                                  sizes="36px"
+                                  className="object-cover"
+                                  unoptimized={!isOptimizableImageSrc(row.follower.avatar_url)}
+                                />
+                              ) : (
+                                <span className="text-xs font-semibold text-brand-fg-strong">{getInitials(name)}</span>
+                              )}
+                            </div>
+                            <div className="flex-grow min-w-0">
+                              <p className="text-sm font-medium text-primary truncate">{name}</p>
+                              {row.follower.handle && (
+                                <p className="text-xs text-muted truncate">@{row.follower.handle}</p>
+                              )}
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => setRemoveFanTarget(row)}
+                              className="px-3 py-2 min-h-[44px] inline-flex items-center border border-border-strong rounded-lg text-sm font-semibold text-secondary hover:bg-surface-muted transition-colors shrink-0"
+                            >
+                              Remove
+                            </button>
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  )}
+                </section>
+
                 {/* Consent */}
                 <section className="bg-surface border border-border rounded-lg p-5 mb-4 flex items-center justify-between gap-3 flex-wrap">
                   <div>
@@ -776,6 +992,15 @@ export default function GuardianAthletePage() {
         confirmText={removing ? 'Removing…' : 'Remove'}
         onConfirm={confirmRemove}
         onCancel={() => setRemoveTarget(null)}
+      />
+
+      <ConfirmModal
+        isOpen={!!removeFanTarget}
+        title="Remove this fan?"
+        message={`${removeFanTarget ? formatDisplayName(removeFanTarget.follower.first_name, removeFanTarget.follower.middle_name, removeFanTarget.follower.last_name, removeFanTarget.follower.full_name) : ''} will no longer follow ${athlete?.first_name || 'this athlete'}. They can send a new request in the future.`}
+        confirmText={removingFan ? 'Removing…' : 'Remove'}
+        onConfirm={removeFan}
+        onCancel={() => setRemoveFanTarget(null)}
       />
     </div>
   );

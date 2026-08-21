@@ -22,6 +22,8 @@ describe('buildAthleteSummaries', () => {
         consentState: 'none',
         hasLogin: false,
         pendingPostCount: 0,
+        pendingCommentCount: 0,
+        pendingFollowRequestCount: 0,
         activeTransfer: null,
       },
     });
@@ -78,6 +80,30 @@ describe('buildAthleteSummaries', () => {
     );
     expect(s[A].activeTransfer).toEqual({ state: 'dual_confirm' });
     expect(s[B].activeTransfer).toBeNull();
+  });
+
+  it('pending comments count per athlete; unknown profiles ignored (Round G)', () => {
+    const s = buildAthleteSummaries(
+      [A], [], [], [], [],
+      [{ profile_id: A }, { profile_id: A }, { profile_id: B }],
+      []
+    );
+    expect(s[A].pendingCommentCount).toBe(2);
+  });
+
+  it('pending fan requests count per athlete, keyed on following_id (Round G)', () => {
+    const s = buildAthleteSummaries(
+      [A, B], [], [], [], [], [],
+      [{ following_id: A }, { following_id: B }, { following_id: B }, { following_id: 'stranger' }]
+    );
+    expect(s[A].pendingFollowRequestCount).toBe(1);
+    expect(s[B].pendingFollowRequestCount).toBe(2);
+  });
+
+  it('the two new arrays default to empty — old five-arg call sites stay valid', () => {
+    const s = buildAthleteSummaries([A], [], [], [], []);
+    expect(s[A].pendingCommentCount).toBe(0);
+    expect(s[A].pendingFollowRequestCount).toBe(0);
   });
 });
 

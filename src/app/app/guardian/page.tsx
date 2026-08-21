@@ -42,6 +42,8 @@ interface ConsoleAthlete {
   consentState: ConsentState;
   hasLogin: boolean;
   pendingPostCount: number;
+  pendingCommentCount: number;
+  pendingFollowRequestCount: number;
   activeTransfer: { state: string } | null;
 }
 
@@ -62,16 +64,30 @@ interface AttentionItem {
 
 function buildAttentionItems(athletes: ConsoleAthlete[]): AttentionItem[] {
   const items: AttentionItem[] = [];
-  const totalPending = athletes.reduce((n, a) => n + a.pendingPostCount, 0);
-  if (totalPending > 0) {
+  const totalPosts = athletes.reduce((n, a) => n + a.pendingPostCount, 0);
+  const totalComments = athletes.reduce((n, a) => n + (a.pendingCommentCount ?? 0), 0);
+  if (totalPosts > 0 || totalComments > 0) {
+    // One review line for both content queues — the approvals page shows them
+    // together (comments were invisible here until Round G).
+    const parts: string[] = [];
+    if (totalPosts > 0) parts.push(`${totalPosts} post${totalPosts === 1 ? '' : 's'}`);
+    if (totalComments > 0) parts.push(`${totalComments} comment${totalComments === 1 ? '' : 's'}`);
     items.push({
       key: 'pending',
-      label: `${totalPending} post${totalPending === 1 ? '' : 's'} waiting for your review`,
+      label: `${parts.join(' and ')} waiting for your review`,
       href: '/app/guardian/approvals',
     });
   }
   for (const a of athletes) {
     const name = formatDisplayName(a.first_name, null, a.last_name, a.display_name);
+    if ((a.pendingFollowRequestCount ?? 0) > 0) {
+      const n = a.pendingFollowRequestCount;
+      items.push({
+        key: `follows-${a.id}`,
+        label: `${n} fan request${n === 1 ? '' : 's'} waiting for ${name}`,
+        href: `/app/guardian/athlete/${a.id}`,
+      });
+    }
     if (a.activeTransfer && TRANSFER_NEEDS_GUARDIAN.has(a.activeTransfer.state)) {
       items.push({
         key: `transfer-${a.id}`,
@@ -263,13 +279,13 @@ export default function FamilyConsolePage() {
                         </p>
                         {a.handle && <p className="text-xs text-muted truncate">@{a.handle}</p>}
                       </div>
-                      {a.pendingPostCount > 0 && (
+                      {a.pendingPostCount + (a.pendingCommentCount ?? 0) > 0 && (
                         <Link
                           href="/app/guardian/approvals"
                           className="shrink-0 min-w-[24px] h-6 px-2 inline-flex items-center justify-center rounded-full bg-red-600 text-white text-xs font-bold"
-                          aria-label={`${a.pendingPostCount} posts pending review`}
+                          aria-label={`${a.pendingPostCount + (a.pendingCommentCount ?? 0)} items pending review`}
                         >
-                          {a.pendingPostCount}
+                          {a.pendingPostCount + (a.pendingCommentCount ?? 0)}
                         </Link>
                       )}
                     </div>

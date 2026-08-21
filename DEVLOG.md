@@ -1,5 +1,49 @@
 # Development Log
 
+## August 21, 2026 — Guardian Round G: follow oversight ("either can approve")
+
+The sharpest gap from the audit: the whole point of a guardian-set private
+profile is that someone vets who gets in — and the person vetting was the
+child, alone. Round G puts guardians in the loop without taking the child
+out of it, per Tom's "either can approve" decision.
+
+**Migration 098 — ORDER-STRICT, run before merge.** Full-list re-ADD of
+`notifications_type_check` (the 028/053/059/089/095 house pattern) adding
+ALL SIX gap-closure-arc types at once (`follow_request_guardian`,
+`follow_update`, `tag_alert`, `profile_change`, `calendar_alert`,
+`safety_alert`) so Rounds H–J stay migration-free. The
+`GuardianNotificationType` union widens per round as senders land.
+
+- **Either can approve** — `POST /api/followers` accept/reject takes an
+  optional `profileId`; the guardian path gates on
+  `requireProfileRole(…, 'manage_privacy')` and every query re-anchors to
+  the RESOLVED profile. The child's own flow is untouched. `GET ?type=
+  requests` likewise admits guardians (was a hard self-403).
+- **Cross-notify the party who didn't act** — child accepts → guardians get
+  `follow_update`; guardian accepts → the child does. The requester's own
+  "accepted" bell already comes from the 003 DB trigger (verified before
+  adding — no duplicates; the trigger set notifies child + requester only).
+- **New request bells the guardians** — a pending follow at a supervised
+  profile fires `follow_request_guardian` (app-side, best-effort) linking to
+  the console athlete page.
+- **Remove any fan** — `remove_fan` takes `targetProfileId` under the same
+  gate; the console's new Fans card lists requests (Approve/Decline) and
+  current fans (Remove w/ ConfirmModal).
+- **Rollup honesty** — `buildAthleteSummaries` gains `pendingCommentCount`
+  (held comments were invisible in "Needs you" while the approvals page
+  showed them) and `pendingFollowRequestCount`; the hub's review line now
+  reads "2 posts and 1 comment waiting", roster badges total both queues,
+  and per-athlete "N fan requests waiting" rows link to the Fans card.
+- The followers route's outer catches now return thrown `Response`s (the
+  swallowed-401→500 trap from api/CLAUDE.md — it had no `requireProfileRole`
+  call sites before, so the bug was latent).
+
+`manage_privacy` (not `manage_settings`) gates follower management on
+purpose: who may follow the athlete IS privacy posture; `manage_settings`
+gets its first call site in Round H's profile-edit path.
+
+Tests 1408 (rollup counts + defaults). Verify green.
+
 ## August 21, 2026 — Guardian Round F: safety clamps (gap-closure arc opens)
 
 A two-explorer audit of "can a parent fully manage the child's account?"

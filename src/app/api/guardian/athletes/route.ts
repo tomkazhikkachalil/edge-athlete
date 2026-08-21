@@ -43,13 +43,13 @@ export async function GET(request: NextRequest) {
     const athletes = (data ?? []).map(r => r.profiles as unknown as { id: string });
     const ids = athletes.map(a => a.id);
 
-    // Console rollup: four batched IN-queries — constant query count however
+    // Console rollup: six batched IN-queries — constant query count however
     // many athletes a guardian manages (the transfers page used to fan out
     // one /api/transfers call per athlete instead).
     if (ids.length === 0) {
       return NextResponse.json({ athletes: [] });
     }
-    const [consentQ, supervisedQ, pendingQ, transferQ] = await Promise.all([
+    const [consentQ, supervisedQ, pendingQ, transferQ, pendingCommentQ, followReqQ] = await Promise.all([
       admin
         .from('consent_records')
         .select('profile_id, action')
@@ -70,13 +70,25 @@ export async function GET(request: NextRequest) {
         .select('profile_id, state')
         .in('profile_id', ids)
         .in('state', [...ACTIVE_TRANSFER_STATES]),
+      admin
+        .from('post_comments')
+        .select('profile_id')
+        .in('profile_id', ids)
+        .eq('status', 'pending_approval'),
+      admin
+        .from('follows')
+        .select('following_id')
+        .in('following_id', ids)
+        .eq('status', 'pending'),
     ]);
     const summaries = buildAthleteSummaries(
       ids,
       consentQ.data ?? [],
       supervisedQ.data ?? [],
       pendingQ.data ?? [],
-      transferQ.data ?? []
+      transferQ.data ?? [],
+      pendingCommentQ.data ?? [],
+      followReqQ.data ?? []
     );
     return NextResponse.json({
       athletes: athletes.map(a => ({ ...a, ...summaries[a.id] })),

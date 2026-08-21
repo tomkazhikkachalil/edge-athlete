@@ -11,6 +11,11 @@ export interface AthleteSummary {
   /** A supervised SELF-row exists → the guardian has issued a login. */
   hasLogin: boolean;
   pendingPostCount: number;
+  /** Held comments awaiting review (Round G — they were invisible to the
+   *  console rollup while the approvals page showed them). */
+  pendingCommentCount: number;
+  /** Pending fan requests at the athlete's (private) profile. */
+  pendingFollowRequestCount: number;
   activeTransfer: { state: TransferState } | null;
 }
 
@@ -34,7 +39,9 @@ export function buildAthleteSummaries(
   consentRows: Array<{ profile_id: string; action: string }>,
   supervisedRows: Array<{ user_id: string; profile_id: string }>,
   pendingRows: Array<{ profile_id: string }>,
-  transferRows: Array<{ profile_id: string; state: string }>
+  transferRows: Array<{ profile_id: string; state: string }>,
+  pendingCommentRows: Array<{ profile_id: string }> = [],
+  followRequestRows: Array<{ following_id: string }> = []
 ): Record<string, AthleteSummary> {
   const summaries: Record<string, AthleteSummary> = {};
   for (const id of athleteIds) {
@@ -42,6 +49,8 @@ export function buildAthleteSummaries(
       consentState: 'none',
       hasLogin: false,
       pendingPostCount: 0,
+      pendingCommentCount: 0,
+      pendingFollowRequestCount: 0,
       activeTransfer: null,
     };
   }
@@ -69,6 +78,14 @@ export function buildAthleteSummaries(
     if (summaries[row.profile_id]) {
       summaries[row.profile_id].activeTransfer = { state: row.state as TransferState };
     }
+  }
+
+  for (const row of pendingCommentRows) {
+    if (summaries[row.profile_id]) summaries[row.profile_id].pendingCommentCount += 1;
+  }
+
+  for (const row of followRequestRows) {
+    if (summaries[row.following_id]) summaries[row.following_id].pendingFollowRequestCount += 1;
   }
 
   return summaries;
