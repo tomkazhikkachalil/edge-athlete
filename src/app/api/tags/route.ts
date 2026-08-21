@@ -98,6 +98,30 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Round H: tagging a SUPERVISED athlete bells their guardians (the
+    // Round F gate means only someone who can view the child gets here, but
+    // the family still wants to know). Actor excluded — a guardian tagging
+    // their own child bells co-guardians only. Best-effort.
+    if (taggedIds.length > 0) {
+      const { data: taggedProfiles } = await supabase
+        .from('profiles')
+        .select('id, supervision_state, first_name')
+        .in('id', taggedIds)
+        .eq('supervision_state', 'supervised');
+      if (taggedProfiles && taggedProfiles.length > 0) {
+        const { notifyGuardians } = await import('@/lib/guardian-notify');
+        for (const child of taggedProfiles) {
+          await notifyGuardians(supabase, child.id, {
+            type: 'tag_alert',
+            title: `${child.first_name || 'Your athlete'} was tagged in a post`,
+            actionUrl: `/feed?post=${postId}`,
+            actorId: user.id,
+            metadata: { post_id: postId },
+          }, user.id);
+        }
+      }
+    }
+
     return NextResponse.json({
       success: true,
       tags: createdTags
@@ -325,16 +349,24 @@ export async function DELETE(request: NextRequest) {
       return NextResponse.json({ error: 'Tag not found' }, { status: 404 });
     }
 
-    // Only the creator or the tagged person can remove the tag
+    // The creator, the tagged person — or the tagged person's GUARDIAN
+    // (Round H, visibility + veto) — can remove the tag.
+    let isGuardianOfTagged = false;
     if (tag.created_by_profile_id !== user.id && tag.tagged_profile_id !== user.id) {
-      return NextResponse.json(
-        { error: 'You can only remove tags you created or tags of yourself' },
-        { status: 403 }
-      );
+      const { getProfileRole } = await import('@/lib/auth-server');
+      const role = await getProfileRole(user.id, tag.tagged_profile_id);
+      if (role !== 'guardian') {
+        return NextResponse.json(
+          { error: 'You can only remove tags you created or tags of yourself' },
+          { status: 403 }
+        );
+      }
+      isGuardianOfTagged = true;
     }
 
-    // If tagged person is removing, update status instead of deleting
-    if (tag.tagged_profile_id === user.id && tag.created_by_profile_id !== user.id) {
+    // If the tagged person (or their guardian) is removing, update status
+    // instead of deleting — the marker keeps resync from re-adding it.
+    if (isGuardianOfTagged || (tag.tagged_profile_id === user.id && tag.created_by_profile_id !== user.id)) {
       const { error: updateError } = await supabase
         .from('post_tags')
         .update({ status: 'removed' })

@@ -1,7 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase';
-import { requireAuth } from '@/lib/auth-server';
+import { requireAuth, requireProfileRole } from '@/lib/auth-server';
 import { canViewProfile } from '@/lib/privacy';
+import {
+  IDENTITY_FIELDS,
+  diffIdentityFields,
+  describeIdentityFields,
+} from '@/lib/profile-identity';
+import { notifyGuardians } from '@/lib/guardian-notify';
 
 // Fields stripped for any viewer who is NOT the profile owner: contact
 // details plus PII the UI never shows to other users (signup birthday,
@@ -127,11 +133,24 @@ export async function PUT(request: NextRequest) {
     }
 
     const { profileData } = body;
-    const userId = user.id;
 
     // Reject spoofed userId (legacy clients send it; it must match the session)
     if (body.userId && body.userId !== user.id) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
+
+    // Round H ("both edit, guardian notified"): a guardian may edit their
+    // managed athlete's profile by passing targetProfileId — the role
+    // matrix's first manage_settings call site. Everyone else writes to
+    // their own profile only.
+    let userId = user.id;
+    if (
+      typeof body.targetProfileId === 'string' &&
+      body.targetProfileId &&
+      body.targetProfileId !== user.id
+    ) {
+      await requireProfileRole(request, body.targetProfileId, 'manage_settings');
+      userId = body.targetProfileId;
     }
 
     // Never mass-assign identity/system fields
@@ -161,6 +180,21 @@ export async function PUT(request: NextRequest) {
       cleanedProfileData.dob = null;
     }
 
+    // ONE pre-update read: the supervised/dob_locked gate facts plus the
+    // identity fields (Round H needs the old values to diff for the
+    // guardian "profile changed" bell).
+    let oldRow: Record<string, unknown> | null = null;
+    if (supabaseAdmin) {
+      // Dynamic select string defeats supabase-js's template-literal query
+      // parser — the row shape is asserted instead.
+      const { data: fetched } = await supabaseAdmin
+        .from('profiles')
+        .select(`dob_locked, supervision_state, ${IDENTITY_FIELDS.join(', ')}`)
+        .eq('id', userId)
+        .maybeSingle();
+      oldRow = (fetched ?? null) as Record<string, unknown> | null;
+    }
+
     // Guardian-locked fields are never self-service on supervised profiles.
     // Safety posture (visibility, messaging, comment moderation) belongs to
     // the guardian console — a PIN-logged child flipping themselves public
@@ -168,28 +202,20 @@ export async function PUT(request: NextRequest) {
     // additionally locks via dob_locked (an exit from supervision otherwise).
     // Strip, don't 403: profile PUTs are batched edits (the shipped DOB
     // precedent), and the Settings UI renders these read-only for supervised
-    // users — the strip is defense against crafted requests.
+    // users — the strip is defense against crafted requests. It applies to
+    // GUARDIANS too: acting-as edits identity, never safety posture (that
+    // stays on PATCH /api/guardian/athletes with its audit trail).
     // user_type is locked too: a supervised child flipping to 'fan' would
     // exit every supervised-athlete code path while keeping the custody rows.
     const SUPERVISED_LOCKED_FIELDS = [
       'visibility', 'messaging_permission', 'comment_moderation', 'dob', 'birthday',
       'user_type',
     ] as const;
-    const touchesGated = SUPERVISED_LOCKED_FIELDS.some(
-      (f) => cleanedProfileData[f] !== undefined
-    );
-    if (supabaseAdmin && touchesGated) {
-      const { data: gate } = await supabaseAdmin
-        .from('profiles')
-        .select('dob_locked, supervision_state')
-        .eq('id', userId)
-        .maybeSingle();
-      if (gate?.supervision_state === 'supervised') {
-        for (const f of SUPERVISED_LOCKED_FIELDS) delete cleanedProfileData[f];
-      } else if (gate?.dob_locked) {
-        delete cleanedProfileData.dob;
-        delete cleanedProfileData.birthday;
-      }
+    if (oldRow?.supervision_state === 'supervised') {
+      for (const f of SUPERVISED_LOCKED_FIELDS) delete cleanedProfileData[f];
+    } else if (oldRow?.dob_locked) {
+      delete cleanedProfileData.dob;
+      delete cleanedProfileData.birthday;
     }
     
     // Convert empty strings to null for numeric fields and log weight values
@@ -259,6 +285,26 @@ export async function PUT(request: NextRequest) {
         error: `Database error: ${error.message || 'Failed to update profile'}`,
         details: error
       }, { status: 500 });
+    }
+
+    // Round H: identity edits on a supervised profile bell the guardians —
+    // the changed-field list rides the metadata (NOT safety_settings_audit;
+    // 095's field CHECK admits only the three safety fields). One code path:
+    // the actor is excluded, so a child's self-edit reaches all guardians and
+    // a guardian's acting-as edit reaches co-guardians only. Best-effort.
+    if (oldRow?.supervision_state === 'supervised') {
+      const changedFields = diffIdentityFields(oldRow, cleanedProfileData);
+      if (changedFields.length > 0) {
+        const childName = (data?.first_name as string) || 'Your athlete';
+        await notifyGuardians(supabaseAdmin, userId, {
+          type: 'profile_change',
+          title: `${childName}'s profile details changed`,
+          message: `Updated: ${describeIdentityFields(changedFields)}.`,
+          actionUrl: `/athlete/${userId}`,
+          actorId: user.id,
+          metadata: { fields: changedFields },
+        }, user.id);
+      }
     }
 
     const response = {

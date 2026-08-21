@@ -1,5 +1,53 @@
 # Development Log
 
+## August 21, 2026 — Guardian Round H: identity & tags ("both edit, guardian notified")
+
+No migration — the notification types landed in 098. Tom's decision for
+profile identity: the child keeps editing, guardians gain a full edit path,
+and identity changes bell the family.
+
+- **Guardian profile editing** — `PUT /api/profile` and `POST
+  /api/handles/update` accept `targetProfileId` via `requireProfileRole(…,
+  'manage_settings')` (the matrix action's FIRST call sites). The console
+  athlete page gains "Edit profile": it fetches the child's profile and
+  mounts the ONE standard `EditProfileTabs` modal in a new acting-as mode —
+  sport tabs, the sports picker, and the visibility toggle hidden there
+  (sport-settings writes are session-anchored and would hit the guardian's
+  own row; safety posture stays on the console Safety card). The visibility
+  toggle also hides for supervised SELF-edits now — it was silently
+  server-stripped, a dishonest control.
+- **`profile_change` bells** — one pre-update SELECT fetches the gate facts
+  plus the identity fields; `diffIdentityFields` (new pure
+  `src/lib/profile-identity.ts`, node-tested) names what changed and
+  `notifyGuardians` carries it in metadata (NOT `safety_settings_audit` —
+  095's field CHECK admits only the three safety fields; widening it is a
+  migration for another day). Actor excluded, so a child's edit reaches all
+  guardians and a guardian's edit reaches co-guardians only. Handle renames
+  ride the same type; the Round F PII guard re-anchors to the TARGET so it
+  binds guardians too.
+- **Tags: see it, undo it, hear about it** — `DELETE /api/tags?tagId=` gains
+  a guardian branch (same `status='removed'` marker + `posts.tags` strip as
+  the tagged person); tagging a supervised athlete fires `tag_alert`; the
+  console athlete page gains a Tags card (tagger, date, view post, remove).
+  `GET ?profileId=` needed no change — `canViewProfile` already admits
+  guardians via profile_access.
+- **`safety_alert` for equipment photos** — the one image path that skips
+  the approval queue now bells guardians on supervised upload
+  (notification-only, visibility + veto).
+- **Acting-as honesty** — while "posting as" a child, PostCard's like/save
+  and FollowButton disable with "Switch back to your own account to do
+  this" instead of silently acting as the guardian (the Round C
+  first-person scope fence, now visible).
+- **UI bugfix** — `EditProfileTabs` threw `err.error` on handle failures,
+  but the route's 400s carry `{success, message}`: a child hitting the PII
+  guard saw a generic "Failed to update handle". Now reads
+  `err.message || err.error`.
+
+Trap for the file: a dynamic `${…}` select string defeats supabase-js's
+template-literal query parser — assert the row shape at the call site.
+
+Tests 1418/110 files (profile-identity diff + describe). Verify green.
+
 ## August 21, 2026 — Guardian Round G: follow oversight ("either can approve")
 
 The sharpest gap from the audit: the whole point of a guardian-set private
