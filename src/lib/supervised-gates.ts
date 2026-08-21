@@ -42,3 +42,22 @@ export function outboundAllowed(
       return false;
   }
 }
+
+/**
+ * May this inviter put a calendar event in front of a supervised athlete?
+ * Real-world times and places are at least as sensitive as DMs, so the
+ * child's messaging_permission is the family's one "who may reach my child"
+ * dial and event invites honor it too. The child's own guardians always
+ * pass — they manage the account.
+ * `inviterFollowsChild` = inviter is an accepted fan of the child;
+ * `childFollowsInviter` = the child follows the inviter.
+ */
+export function canInviteSupervised(
+  permission: MessagingPermission,
+  inviterIsGuardian: boolean,
+  inviterFollowsChild: boolean,
+  childFollowsInviter: boolean
+): boolean {
+  if (inviterIsGuardian) return true;
+  return outboundAllowed(permission, childFollowsInviter, inviterFollowsChild);
+}

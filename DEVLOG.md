@@ -1,5 +1,50 @@
 # Development Log
 
+## August 21, 2026 — Guardian Round F: safety clamps (gap-closure arc opens)
+
+A two-explorer audit of "can a parent fully manage the child's account?"
+found the workflow spine complete but several child-account surfaces with
+zero guardian visibility or control. Tom picked the arc's product posture:
+**visibility + veto, not lockdown** — no DM transcript access ever, joint
+follow approval, both-edit-with-notification for profiles. Full round map
+(F–J) in the plan; F is the pure-API round that closes every hole where a
+stranger or the child could silently defeat an existing guardian control.
+No migration, deploy-order free.
+
+- **Handle renames respect the PII guard** — `handles/update` now runs
+  `validateSupervisedHandle` for supervised profiles; a child could
+  previously rename themselves to exactly the full-name/birth-year handle
+  the console refused at creation.
+- **Email digest is guardian-locked** — `notifications/preferences` strips
+  `email_enabled` for supervised (strip-don't-403, the profile-PUT
+  precedent) and returns `lockedFields` so Settings renders the toggle as
+  "Managed by your guardian". The child digest reroutes to guardians and is
+  their only ambient window; the child could switch it off.
+- **Avatar route adopts `resolveActingProfile`** — its hand-rolled copy of
+  the gate skipped the consent check. Consequence: the console's "Add a
+  photo" now requires approved consent like every other acting-as write.
+- **Child ICS feeds are dead** — a supervised child can no longer mint the
+  unauthenticated calendar-feed capability URL (403 on mint), and the serve
+  side 404s supervised profiles, killing any already-minted link with zero
+  migration. A guardian-minted replacement lands in Round I.
+- **Event invites honor the family messaging tier** — new
+  `checkSupervisedInviteGate` (`src/lib/calendar/supervised-invites.ts`,
+  pure decision in `canInviteSupervised`, node-tested) gates both the
+  create and add-guests paths: a stranger can't put a real-world time and
+  place in front of a supervised child unless they'd pass the child's
+  `messaging_permission`; the child's own guardians always pass; supervised
+  creators can't add raw-email guests. Guest validation previously checked
+  only that profiles *exist*.
+- **Tagging requires visibility** — `POST /api/tags` now requires
+  `canViewProfile` for every tagged profile; anyone could previously tag a
+  private minor (or any private profile) sight unseen. Golf round resync
+  tags participants server-side and is unaffected.
+- **`user_type` joins `SUPERVISED_LOCKED_FIELDS`** — a supervised child
+  could self-convert to `fan` via profile PUT, exiting every
+  supervised-athlete code path while keeping the custody rows.
+
+Tests 1405 (canInviteSupervised decision table). Verify green.
+
 ## August 20, 2026 — Maintenance sweep: guardian arc closed out
 
 Full gate re-run on main after the #188 + #189 merges — green across the

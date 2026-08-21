@@ -24,6 +24,31 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Supervised minors: the same PII guard that vets the handle at creation
+    // applies to renames — without this, a child could rename themselves to
+    // exactly the full-name/birth-year handle the console refused.
+    const { data: renamer } = await supabaseAdmin
+      .from('profiles')
+      .select('supervision_state, first_name, last_name, dob')
+      .eq('id', user.id)
+      .maybeSingle();
+    if (renamer?.supervision_state === 'supervised') {
+      const { validateSupervisedHandle } = await import('@/lib/supervised-credentials');
+      const dobYear = renamer.dob ? new Date(renamer.dob).getFullYear() : null;
+      const guard = validateSupervisedHandle(
+        handle,
+        renamer.first_name || '',
+        renamer.last_name || '',
+        Number.isFinite(dobYear) ? dobYear : null
+      );
+      if (!guard.ok) {
+        return NextResponse.json(
+          { success: false, message: guard.reason },
+          { status: 400 }
+        );
+      }
+    }
+
     // Call the database function to update handle
     const { data, error } = await supabaseAdmin
       .rpc('update_user_handle', {

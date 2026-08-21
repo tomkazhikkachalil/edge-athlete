@@ -28,25 +28,19 @@ export async function POST(request: NextRequest) {
 
     // Acting-as (Round C): a guardian may set their managed athlete's
     // avatar (children created via the console have none, and can't take
-    // their own). Server-authoritative: the guardian row is re-checked;
-    // everyone else writes to their own profile only.
-    let userId = user.id;
+    // their own). Round F: the hand-rolled gate here skipped the consent
+    // check the other acting-as writes enforce — now the one shared gate.
     const targetProfileId = formData.get('targetProfileId');
-    if (typeof targetProfileId === 'string' && targetProfileId && targetProfileId !== user.id) {
-      const { FEATURE_FLAGS } = await import('@/lib/features');
-      if (!FEATURE_FLAGS.FEATURE_GUARDIAN_PROFILES) {
-        return NextResponse.json({ error: 'Not available' }, { status: 404 });
-      }
-      const { getProfileRole } = await import('@/lib/auth-server');
-      const role = await getProfileRole(user.id, targetProfileId);
-      if (role !== 'guardian') {
-        return NextResponse.json(
-          { error: 'You do not have permission to change this profile' },
-          { status: 403 }
-        );
-      }
-      userId = targetProfileId;
+    const { resolveActingProfile } = await import('@/lib/guardian-gate');
+    const gate = await resolveActingProfile(
+      user.id,
+      typeof targetProfileId === 'string' ? targetProfileId : null,
+      'You do not have permission to change this profile'
+    );
+    if (!gate.ok) {
+      return NextResponse.json({ error: gate.error }, { status: gate.status });
     }
+    const userId = gate.actorId;
 
     if (!file) {
       console.error('Avatar API: No file provided');

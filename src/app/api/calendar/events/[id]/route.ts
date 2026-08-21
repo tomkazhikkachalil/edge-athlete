@@ -12,6 +12,7 @@ import {
 } from '@/lib/calendar/notifications';
 import { formatEventWhen } from '@/lib/calendar/format-server';
 import { loadEventForViewer } from '@/lib/calendar/detail-server';
+import { checkSupervisedInviteGate } from '@/lib/calendar/supervised-invites';
 import { buildRoutineSnapshot, resolveEventRoutine } from '@/lib/calendar/event-routine';
 import type { ServerRoutineRow } from '@/lib/workouts/routines';
 
@@ -257,6 +258,12 @@ export async function PATCH(
       if ((found ?? []).length !== addProfileIds.length) {
         return NextResponse.json({ error: 'One of the invited guests no longer exists.' }, { status: 400 });
       }
+    }
+
+    // Supervised gate: same rule as event creation (see supervised-invites).
+    const inviteGate = await checkSupervisedInviteGate(admin, user.id, addProfileIds, addEmails.length);
+    if (!inviteGate.ok) {
+      return NextResponse.json({ error: inviteGate.error }, { status: 403 });
     }
     if (guests.length - removedRows.length - 1 + addProfileIds.length + addEmails.length > MAX_GUESTS) {
       return NextResponse.json({ error: `Events can have at most ${MAX_GUESTS} guests.` }, { status: 400 });

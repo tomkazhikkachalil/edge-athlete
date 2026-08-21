@@ -19,6 +19,7 @@ export default function CalendarSyncModal({
 }) {
   const { showSuccess, showError } = useToast();
   const [exists, setExists] = useState(false);
+  const [supervised, setSupervised] = useState(false);
   const [loading, setLoading] = useState(true);
   const [creating, setCreating] = useState(false);
   const [url, setUrl] = useState<string | null>(null);
@@ -41,7 +42,10 @@ export default function CalendarSyncModal({
       try {
         const res = await fetch('/api/calendar/feed-token');
         const data = await res.json().catch(() => ({}));
-        if (res.ok) setExists(!!data.exists);
+        if (res.ok) {
+          setExists(!!data.exists);
+          setSupervised(!!data.supervised);
+        }
       } catch {
         // status is a nicety; the create button still works
       } finally {
@@ -103,6 +107,18 @@ export default function CalendarSyncModal({
             <div className="flex justify-center py-4">
               <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-brand"></div>
             </div>
+          ) : supervised ? (
+            // Sync links are an unauthenticated window onto a schedule —
+            // not available on supervised accounts.
+            <div className="rounded-lg border-2 border-border bg-surface-sunken p-4">
+              <p className="text-sm text-tertiary">
+                Calendar sync links aren&apos;t available on a supervised account.
+              </p>
+              <p className="mt-2 flex items-center gap-2 text-sm text-muted">
+                <i className="fas fa-user-shield" aria-hidden="true"></i>
+                <span>Managed by your guardian</span>
+              </p>
+            </div>
           ) : url ? (
             <div className="space-y-3">
               <div className="bg-brand-soft border border-violet-200 dark:border-violet-800 rounded-lg p-3">
@@ -144,6 +160,7 @@ export default function CalendarSyncModal({
             </p>
           )}
 
+          {!supervised && (
           <div className="border-t border-border-subtle pt-4 text-xs text-muted space-y-2">
             <p className="font-semibold text-secondary">How to subscribe</p>
             <p>
@@ -159,6 +176,7 @@ export default function CalendarSyncModal({
               new events can take a few hours to appear there.
             </p>
           </div>
+          )}
         </div>
       </div>
 
