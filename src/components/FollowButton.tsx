@@ -22,8 +22,11 @@ export default function FollowButton({
   showCount = false,
   className = ''
 }: FollowButtonProps) {
-  const { user } = useAuth();
+  const { user, activeProfile } = useAuth();
   const currentUserId = propCurrentUserId || user?.id;
+  // Round H acting-as honesty: follows stay FIRST-PERSON (Round C scope
+  // fence) — disabled with a tooltip while "posting as" a managed athlete.
+  const actingAs = !!activeProfile;
 
   const [isFollowing, setIsFollowing] = useState(false);
   const [followStatus, setFollowStatus] = useState<string | null>(null);
@@ -224,7 +227,8 @@ export default function FollowButton({
       <div className="flex items-center gap-2">
         <button
           onClick={handleFollowClick}
-          disabled={loading}
+          disabled={loading || actingAs}
+          title={actingAs ? 'Switch back to your own account to do this' : undefined}
           className={`
             font-medium rounded-full transition-colors disabled:opacity-50 disabled:cursor-not-allowed
             ${followStatus === 'pending'

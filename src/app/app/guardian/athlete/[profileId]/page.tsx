@@ -4,6 +4,8 @@ import { useCallback, useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import Image from 'next/image';
+import dynamic from 'next/dynamic';
+import type { Profile } from '@/lib/supabase';
 import { isOptimizableImageSrc } from '@/lib/media/image-src';
 import { useAuth } from '@/lib/auth';
 import { useToast } from '@/components/Toast';
@@ -26,6 +28,8 @@ import {
   type CommentModeration,
 } from '@/lib/profile-privacy';
 import type { ConsentState } from '@/lib/consent';
+
+const EditProfileTabs = dynamic(() => import('@/components/EditProfileTabs'), { ssr: false });
 
 interface GuardianRow {
   user_id: string;
@@ -63,6 +67,13 @@ interface FollowerRow {
   id: string;
   created_at: string;
   follower: FanProfile;
+}
+
+interface TagRow {
+  id: string;
+  post_id: string;
+  created_at: string;
+  created_by: FanProfile | null;
 }
 
 // ── Per-athlete management ────────────────────────────────────────────────────
@@ -176,6 +187,36 @@ export default function GuardianAthletePage() {
   const [removeFanTarget, setRemoveFanTarget] = useState<FollowerRow | null>(null);
   const [removingFan, setRemovingFan] = useState(false);
 
+  // Edit profile (Round H): the standard editor modal in acting-as mode.
+  const [editOpen, setEditOpen] = useState(false);
+  const [editLoading, setEditLoading] = useState(false);
+  const [childProfile, setChildProfile] = useState<Profile | null>(null);
+
+  const refreshChildProfile = useCallback(async () => {
+    try {
+      const res = await fetch(`/api/profile?id=${profileId}`);
+      const data = await res.json().catch(() => ({}));
+      if (res.ok && data.profile) setChildProfile(data.profile as Profile);
+    } catch {
+      // modal keeps its current seed — next open refetches
+    }
+  }, [profileId]);
+
+  // Tags (Round H): what the child is tagged in, with guardian remove.
+  const [tags, setTags] = useState<TagRow[]>([]);
+  const [removeTagTarget, setRemoveTagTarget] = useState<TagRow | null>(null);
+  const [removingTag, setRemovingTag] = useState(false);
+
+  const refetchTags = useCallback(async () => {
+    try {
+      const res = await fetch(`/api/tags?profileId=${profileId}`);
+      const data = await res.json().catch(() => ({}));
+      if (res.ok) setTags(data.tags ?? []);
+    } catch {
+      // informational section — never break the page
+    }
+  }, [profileId]);
+
   const refetchFans = useCallback(async () => {
     try {
       const [reqRes, fanRes] = await Promise.all([
@@ -257,9 +298,42 @@ export default function GuardianAthletePage() {
     // Async hop (house pattern) — keeps set-state-in-effect honest about no
     // synchronous setState on the effect path.
     (async () => {
-      await refetchFans();
+      await Promise.all([refetchFans(), refetchTags()]);
     })();
-  }, [user, profileId, refetchFans]);
+  }, [user, profileId, refetchFans, refetchTags]);
+
+  const openEditProfile = async () => {
+    if (editLoading) return;
+    setEditLoading(true);
+    try {
+      const res = await fetch(`/api/profile?id=${profileId}`);
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !data.profile) throw new Error(data.error || 'Could not load the profile');
+      setChildProfile(data.profile as Profile);
+      setEditOpen(true);
+    } catch (err) {
+      showError('Something went wrong', err instanceof Error ? err.message : 'Please try again');
+    } finally {
+      setEditLoading(false);
+    }
+  };
+
+  const removeTag = async () => {
+    if (!removeTagTarget || removingTag) return;
+    setRemovingTag(true);
+    try {
+      const res = await fetch(`/api/tags?tagId=${removeTagTarget.id}`, { method: 'DELETE' });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || 'Could not remove this tag');
+      showSuccess('Tag removed');
+      setRemoveTagTarget(null);
+      refetchTags();
+    } catch (err) {
+      showError('Something went wrong', err instanceof Error ? err.message : 'Please try again');
+    } finally {
+      setRemovingTag(false);
+    }
+  };
 
   const decideFollowRequest = async (row: FollowRequestRow, action: 'accept' | 'reject') => {
     if (followBusy) return;
@@ -567,21 +641,32 @@ export default function GuardianAthletePage() {
                 {/* Acting-as parity (Round C): children created here have no
                     photo and can't take their own — the guardian sets it. */}
                 {!transferred && (
-                  <label className={`inline-flex items-center gap-1.5 mt-1 text-xs font-semibold cursor-pointer min-h-[32px] ${avatarBusy ? 'text-muted' : 'text-brand-fg-strong hover:text-violet-800 dark:hover:text-violet-300'}`}>
-                    <i className={`fas ${avatarBusy ? 'fa-spinner fa-spin' : 'fa-camera'} text-[11px]`} aria-hidden="true"></i>
-                    {athlete.avatar_url ? 'Change photo' : 'Add a photo'}
-                    <input
-                      type="file"
-                      accept="image/jpeg,image/png,image/webp,image/gif"
-                      className="sr-only"
-                      disabled={avatarBusy}
-                      onChange={e => {
-                        const f = e.target.files?.[0];
-                        if (f) uploadAthleteAvatar(f);
-                        e.target.value = '';
-                      }}
-                    />
-                  </label>
+                  <div className="flex flex-wrap items-center gap-x-4">
+                    <label className={`inline-flex items-center gap-1.5 mt-1 text-xs font-semibold cursor-pointer min-h-[32px] ${avatarBusy ? 'text-muted' : 'text-brand-fg-strong hover:text-violet-800 dark:hover:text-violet-300'}`}>
+                      <i className={`fas ${avatarBusy ? 'fa-spinner fa-spin' : 'fa-camera'} text-[11px]`} aria-hidden="true"></i>
+                      {athlete.avatar_url ? 'Change photo' : 'Add a photo'}
+                      <input
+                        type="file"
+                        accept="image/jpeg,image/png,image/webp,image/gif"
+                        className="sr-only"
+                        disabled={avatarBusy}
+                        onChange={e => {
+                          const f = e.target.files?.[0];
+                          if (f) uploadAthleteAvatar(f);
+                          e.target.value = '';
+                        }}
+                      />
+                    </label>
+                    <button
+                      type="button"
+                      onClick={openEditProfile}
+                      disabled={editLoading}
+                      className={`inline-flex items-center gap-1.5 mt-1 text-xs font-semibold min-h-[32px] ${editLoading ? 'text-muted' : 'text-brand-fg-strong hover:text-violet-800 dark:hover:text-violet-300'}`}
+                    >
+                      <i className={`fas ${editLoading ? 'fa-spinner fa-spin' : 'fa-pen'} text-[11px]`} aria-hidden="true"></i>
+                      Edit profile
+                    </button>
+                  </div>
                 )}
               </div>
             </div>
@@ -744,6 +829,55 @@ export default function GuardianAthletePage() {
                             <button
                               type="button"
                               onClick={() => setRemoveFanTarget(row)}
+                              className="px-3 py-2 min-h-[44px] inline-flex items-center border border-border-strong rounded-lg text-sm font-semibold text-secondary hover:bg-surface-muted transition-colors shrink-0"
+                            >
+                              Remove
+                            </button>
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  )}
+                </section>
+
+                {/* Tags (Round H): visibility + veto — see what the child is
+                    tagged in, remove any of it. */}
+                <section className="bg-surface border border-border rounded-lg p-5 mb-4">
+                  <h2 className="text-base font-bold text-primary mb-1">Tags</h2>
+                  <p className="text-xs text-tertiary mb-4">
+                    Posts {athlete.first_name || 'this athlete'} is tagged in. You&apos;re
+                    notified when someone new tags them.
+                  </p>
+                  {tags.length === 0 ? (
+                    <p className="text-sm text-muted">No active tags.</p>
+                  ) : (
+                    <ul className="space-y-2">
+                      {tags.map(tag => {
+                        const tagger = tag.created_by
+                          ? formatDisplayName(
+                              tag.created_by.first_name, tag.created_by.middle_name,
+                              tag.created_by.last_name, tag.created_by.full_name
+                            )
+                          : 'Someone';
+                        return (
+                          <li key={tag.id} className="flex items-center gap-3 border border-border rounded-lg p-3">
+                            <div className="flex-grow min-w-0">
+                              <p className="text-sm font-medium text-primary truncate">
+                                Tagged by {tagger}
+                              </p>
+                              <p className="text-xs text-muted">
+                                {new Date(tag.created_at).toLocaleDateString()}
+                              </p>
+                            </div>
+                            <Link
+                              href={`/feed?post=${tag.post_id}`}
+                              className="px-3 py-2 min-h-[44px] inline-flex items-center border border-border-strong rounded-lg text-sm font-semibold text-secondary hover:bg-surface-muted transition-colors shrink-0"
+                            >
+                              View post
+                            </Link>
+                            <button
+                              type="button"
+                              onClick={() => setRemoveTagTarget(tag)}
                               className="px-3 py-2 min-h-[44px] inline-flex items-center border border-border-strong rounded-lg text-sm font-semibold text-secondary hover:bg-surface-muted transition-colors shrink-0"
                             >
                               Remove
@@ -992,6 +1126,26 @@ export default function GuardianAthletePage() {
         confirmText={removing ? 'Removing…' : 'Remove'}
         onConfirm={confirmRemove}
         onCancel={() => setRemoveTarget(null)}
+      />
+
+      <EditProfileTabs
+        isOpen={editOpen}
+        onClose={() => setEditOpen(false)}
+        profile={childProfile}
+        targetProfileId={profileId}
+        onSave={() => {
+          setRetryKey(k => k + 1);
+          void refreshChildProfile();
+        }}
+      />
+
+      <ConfirmModal
+        isOpen={!!removeTagTarget}
+        title="Remove this tag?"
+        message={`${athlete?.first_name || 'Your athlete'} will no longer appear tagged in this post.`}
+        confirmText={removingTag ? 'Removing…' : 'Remove'}
+        onConfirm={removeTag}
+        onCancel={() => setRemoveTagTarget(null)}
       />
 
       <ConfirmModal

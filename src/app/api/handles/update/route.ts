@@ -24,21 +24,37 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Round H: a guardian may rename their managed athlete via
+    // targetProfileId (manage_settings). Everyone else renames themselves.
+    let profileId = user.id;
+    if (
+      typeof body.targetProfileId === 'string' &&
+      body.targetProfileId &&
+      body.targetProfileId !== user.id
+    ) {
+      const { requireProfileRole } = await import('@/lib/auth-server');
+      await requireProfileRole(request, body.targetProfileId, 'manage_settings');
+      profileId = body.targetProfileId;
+    }
+
     // Supervised minors: the same PII guard that vets the handle at creation
     // applies to renames — without this, a child could rename themselves to
-    // exactly the full-name/birth-year handle the console refused.
-    const { data: renamer } = await supabaseAdmin
+    // exactly the full-name/birth-year handle the console refused. Anchored
+    // to the TARGET profile, so it binds guardians too (consistency with
+    // creation).
+    const { data: target } = await supabaseAdmin
       .from('profiles')
       .select('supervision_state, first_name, last_name, dob')
-      .eq('id', user.id)
+      .eq('id', profileId)
       .maybeSingle();
-    if (renamer?.supervision_state === 'supervised') {
+    const targetSupervised = target?.supervision_state === 'supervised';
+    if (targetSupervised) {
       const { validateSupervisedHandle } = await import('@/lib/supervised-credentials');
-      const dobYear = renamer.dob ? new Date(renamer.dob).getFullYear() : null;
+      const dobYear = target?.dob ? new Date(target.dob).getFullYear() : null;
       const guard = validateSupervisedHandle(
         handle,
-        renamer.first_name || '',
-        renamer.last_name || '',
+        target?.first_name || '',
+        target?.last_name || '',
         Number.isFinite(dobYear) ? dobYear : null
       );
       if (!guard.ok) {
@@ -52,7 +68,7 @@ export async function POST(request: NextRequest) {
     // Call the database function to update handle
     const { data, error } = await supabaseAdmin
       .rpc('update_user_handle', {
-        p_profile_id: user.id,
+        p_profile_id: profileId,
         p_new_handle: handle
       });
 
@@ -87,12 +103,28 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Round H: a supervised athlete's handle is identity — bell the
+    // guardians (actor excluded, so a guardian's own rename reaches only
+    // co-guardians). Best-effort.
+    if (targetSupervised) {
+      const { notifyGuardians } = await import('@/lib/guardian-notify');
+      await notifyGuardians(supabaseAdmin, profileId, {
+        type: 'profile_change',
+        title: `${target?.first_name || 'Your athlete'}'s username changed`,
+        message: `New username: @${result.new_handle}`,
+        actionUrl: `/athlete/${profileId}`,
+        actorId: user.id,
+        metadata: { fields: ['handle'] },
+      }, user.id);
+    }
+
     return NextResponse.json({
       success: true,
       message: result.message,
       handle: result.new_handle
     });
   } catch (error) {
+    if (error instanceof Response) return error;
     console.error('Error in POST /api/handles/update:', error);
     return NextResponse.json(
       { error: 'Internal server error' },

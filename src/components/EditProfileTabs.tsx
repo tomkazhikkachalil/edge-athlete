@@ -34,6 +34,11 @@ interface EditProfileTabsProps {
   onClose: () => void;
   profile: Profile | null;
   onSave: () => void;
+  /** Round H acting-as: a guardian editing their managed athlete. When set,
+   *  every save (profile PUT, handle, avatar) targets this profile, and the
+   *  sport tabs + sports picker + visibility toggle are hidden — sports are
+   *  session-anchored surfaces and safety posture belongs to the console. */
+  targetProfileId?: string;
 }
 
 /**
@@ -97,10 +102,17 @@ export default function EditProfileTabs({
   isOpen,
   onClose,
   profile,
-  onSave
+  onSave,
+  targetProfileId
 }: EditProfileTabsProps) {
   const { user } = useAuth();
   const { showSuccess, showError, showInfo } = useToast();
+  const actingAs = !!targetProfileId;
+  // The visibility toggle is honest only for unsupervised self-edits: the
+  // server strips it for supervised profiles (child AND guardian — safety
+  // posture lives on the guardian console's Safety card).
+  const hideVisibility = actingAs || profile?.supervision_state === 'supervised';
+  const visibleTabs = actingAs ? TABS.filter(t => !isSportTab(t.id)) : TABS;
   const [activeTab, setActiveTab] = useState<TabId>('basic');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -353,19 +365,26 @@ export default function EditProfileTabs({
               const handleRes = await fetch('/api/handles/update', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ handle: newHandle }),
+                body: JSON.stringify({
+                  handle: newHandle,
+                  ...(targetProfileId ? { targetProfileId } : {}),
+                }),
               });
               if (!handleRes.ok) {
                 const err = await handleRes.json();
-                throw new Error(err.error || 'Failed to update handle');
+                // 400s from this route carry {success, message} (e.g. the
+                // supervised PII guard) — err.error alone lost that copy.
+                throw new Error(err.message || err.error || 'Failed to update handle');
               }
             }
           }
 
           // Sport selection: primary → profiles.sport (display name; '' clears);
           // added sports get an empty sport_settings row, removed sports lose
-          // theirs. Diffed against the loaded baseline.
-          {
+          // theirs. Diffed against the loaded baseline. SKIPPED in acting-as
+          // mode: /api/sport-settings is session-anchored and would silently
+          // write the GUARDIAN's own sports (the picker is hidden there too).
+          if (!actingAs) {
             const added = selectedSports.filter(k => !initialSports.includes(k));
             const removed = initialSports.filter(k => !selectedSports.includes(k));
             await Promise.all([
@@ -393,8 +412,10 @@ export default function EditProfileTabs({
             last_name: basicForm.last_name.trim(),
             full_name: basicForm.full_name.trim() || undefined, // fallback display name (not editable)
             bio: basicForm.bio.trim(),
-            visibility: basicForm.visibility,
-            sport: selectedSports[0] ? getSportDefinition(selectedSports[0]).display_name : '',
+            ...(hideVisibility ? {} : { visibility: basicForm.visibility }),
+            ...(actingAs
+              ? {}
+              : { sport: selectedSports[0] ? getSportDefinition(selectedSports[0]).display_name : '' }),
           };
           hasChanges = true;
           break;
@@ -510,7 +531,8 @@ export default function EditProfileTabs({
           },
           body: JSON.stringify({
             profileData: updateData,
-            userId: user.id
+            userId: user.id,
+            ...(targetProfileId ? { targetProfileId } : {}),
           }),
         });
 
@@ -557,6 +579,7 @@ export default function EditProfileTabs({
 
     const formData = new FormData();
     formData.append('avatar', file);
+    if (targetProfileId) formData.append('targetProfileId', targetProfileId);
 
     const response = await fetch('/api/upload/avatar', {
       method: 'POST',
@@ -717,7 +740,10 @@ export default function EditProfileTabs({
         </p>
       </div>
 
-      {/* Privacy Toggle */}
+      {/* Privacy Toggle — hidden for supervised profiles (child and
+          acting-as guardian alike): the server strips visibility there and
+          the guardian console's Safety card is the honest control. */}
+      {!hideVisibility && (
       <div className="pt-4 border-t border-border">
         <label className="flex items-center justify-between p-4 border-2 border-border rounded-lg cursor-pointer hover:bg-surface-muted transition-colors">
           <div className="flex-1">
@@ -784,8 +810,11 @@ export default function EditProfileTabs({
           You can change this setting anytime
         </p>
       </div>
+      )}
 
-      {/* Sports — primary drives profile/feed/composer defaults */}
+      {/* Sports — primary drives profile/feed/composer defaults. Hidden in
+          acting-as mode (sport-settings writes are session-anchored). */}
+      {!actingAs && (
       <div>
         <label className="block text-sm font-medium text-secondary mb-2">
           Your sports
@@ -795,6 +824,7 @@ export default function EditProfileTabs({
           Removing a sport clears its settings.
         </p>
       </div>
+      )}
     </div>
   );
 
@@ -1072,7 +1102,9 @@ export default function EditProfileTabs({
           <div className="shrink-0 bg-surface-raised px-4 pt-5 pb-4 sm:px-6 sm:pt-6">
             <div className="flex items-center justify-between mb-4">
               <h2 id="edit-profile-title" className="text-lg font-medium text-primary">
-                Edit Profile
+                {actingAs
+                  ? `Edit ${profile?.first_name || 'athlete'}'s Profile`
+                  : 'Edit Profile'}
               </h2>
               {/* No focus:ring override — the global :focus-visible ring owns
                   focus styling. */}
@@ -1093,7 +1125,7 @@ export default function EditProfileTabs({
               <div className="absolute left-0 top-0 bottom-0 w-8 bg-gradient-to-r from-surface-raised to-transparent z-10 pointer-events-none md:hidden" />
               <div className="absolute right-0 top-0 bottom-0 w-8 bg-gradient-to-l from-surface-raised to-transparent z-10 pointer-events-none md:hidden" />
               <nav className="-mb-px flex gap-x-5 overflow-x-auto scrollbar-hide" aria-label="Profile sections">
-                {TABS.map((tab) => (
+                {visibleTabs.map((tab) => (
                   <button
                     key={tab.id}
                     onClick={() => tab.enabled && setActiveTab(tab.id)}
@@ -1123,6 +1155,12 @@ export default function EditProfileTabs({
               max-h-96 box, which pushed the footer below the fold on short
               phones; now the bounded panel keeps Save/Cancel always visible. */}
           <div className="flex-1 min-h-0 overflow-y-auto bg-surface-muted px-4 py-6 sm:px-6">
+            {!actingAs && profile?.supervision_state === 'supervised' && (
+              <div className="mb-4 flex items-start gap-2 rounded-lg border border-violet-200 dark:border-violet-800 bg-brand-soft p-3 text-xs text-violet-900 dark:text-violet-200">
+                <i className="fas fa-user-shield mt-0.5" aria-hidden="true"></i>
+                <span>Your guardian is notified when you change your profile details.</span>
+              </div>
+            )}
             {renderTabContent()}
           </div>
 

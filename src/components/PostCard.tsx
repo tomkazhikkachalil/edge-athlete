@@ -23,6 +23,7 @@ import { isActiveParticipant, isRoundLive } from '@/lib/golf/round-status';
 import { countPartnersWithScores } from '@/lib/golf/round-delete';
 import { COPY } from '@/lib/copy';
 import { formatDisplayName, getInitials } from '@/lib/formatters';
+import { useAuth } from '@/lib/auth';
 import WorkoutPostCard from './workouts/WorkoutPostCard';
 import { getHandle } from '@/lib/profile-display';
 import type { CompleteGolfScorecard } from '@/types/group-posts';
@@ -135,6 +136,11 @@ function PostCard({
   onReposted,
 }: PostCardProps) {
   const router = useRouter();
+  // Round H acting-as honesty: likes/saves stay FIRST-PERSON on purpose
+  // (Round C scope fence) — while a guardian is "posting as" a child these
+  // controls are disabled instead of silently acting as the guardian.
+  const { activeProfile } = useAuth();
+  const actingAs = !!activeProfile;
   const [currentMediaIndex, setCurrentMediaIndex] = useState(0);
   const [isLiked, setIsLiked] = useState(
     post.likes?.some(like => like.profile_id === currentUserId) || false
@@ -275,6 +281,7 @@ function PostCard({
   const sportColor = chipKey ? getSportColor(chipKey) : '#6B7280';
 
   const handleLike = () => {
+    if (actingAs) return;
     if (onLike) {
       // Optimistic heart AND count — waiting on the server made the number
       // visibly pop a beat after the heart filled. Server response via props
@@ -305,7 +312,7 @@ function PostCard({
   };
 
   const handleSave = async () => {
-    if (!currentUserId) return;
+    if (!currentUserId || actingAs) return;
 
     // Optimistic update
     setIsSaved(!isSaved);
@@ -784,7 +791,9 @@ function PostCard({
           <div className="flex items-center gap-base">
             <button
               onClick={handleLike}
-              className={`flex items-center gap-2 text-base font-bold transition-colors min-h-[44px] ${
+              disabled={actingAs}
+              title={actingAs ? 'Switch back to your own account to do this' : undefined}
+              className={`flex items-center gap-2 text-base font-bold transition-colors min-h-[44px] disabled:opacity-50 disabled:cursor-not-allowed ${
                 isLiked ? 'text-red-600 dark:text-red-400' : 'text-primary hover:text-red-600'
               }`}
             >
@@ -825,10 +834,11 @@ function PostCard({
 
             <button
               onClick={handleSave}
-              className={`flex items-center justify-center text-base font-bold transition-colors ml-auto min-h-[44px] min-w-[44px] ${
+              disabled={actingAs}
+              className={`flex items-center justify-center text-base font-bold transition-colors ml-auto min-h-[44px] min-w-[44px] disabled:opacity-50 disabled:cursor-not-allowed ${
                 isSaved ? 'text-yellow-600 dark:text-yellow-400' : 'text-primary hover:text-yellow-600'
               }`}
-              title={isSaved ? 'Unsave post' : 'Save post'}
+              title={actingAs ? 'Switch back to your own account to do this' : isSaved ? 'Unsave post' : 'Save post'}
               aria-label={isSaved ? 'Unsave post' : 'Save post'}
             >
               <i className={`${isSaved ? 'fas' : 'far'} fa-bookmark text-lg`}></i>

@@ -28,7 +28,10 @@ export type GuardianNotificationType =
   // Gap-closure arc (constraint widened in 098; the union grows per round
   // as each type gains a sender — an allowed-but-unsent type is harmless).
   | 'follow_request_guardian'
-  | 'follow_update';
+  | 'follow_update'
+  | 'profile_change'
+  | 'tag_alert'
+  | 'safety_alert';
 
 export interface GuardianNotification {
   type: GuardianNotificationType;

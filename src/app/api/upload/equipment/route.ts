@@ -71,6 +71,26 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Failed to get image URL' }, { status: 500 });
     }
 
+    // Round H: equipment photos are the one image path that skips the
+    // approval queue (post media is held; these attach straight to gear on
+    // the public profile). Visibility + veto: a supervised upload bells the
+    // guardians, who can review the profile. Best-effort.
+    const { data: uploader } = await supabase
+      .from('profiles')
+      .select('supervision_state, first_name')
+      .eq('id', user.id)
+      .maybeSingle();
+    if (uploader?.supervision_state === 'supervised') {
+      const { notifyGuardians } = await import('@/lib/guardian-notify');
+      await notifyGuardians(supabase, user.id, {
+        type: 'safety_alert',
+        title: `${uploader.first_name || 'Your athlete'} uploaded an equipment photo`,
+        actionUrl: `/athlete/${user.id}`,
+        actorId: user.id,
+        metadata: { image_url: imageUrl },
+      }, user.id);
+    }
+
     return NextResponse.json({ success: true, image_url: imageUrl });
   } catch (error) {
     if (error instanceof Response) return error;
