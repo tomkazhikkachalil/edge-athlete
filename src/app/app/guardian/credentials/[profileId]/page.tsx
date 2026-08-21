@@ -29,11 +29,6 @@ export default function CredentialsPage() {
   // guard, a bogus/foreign profileId rendered the form with placeholder copy
   // and a delete confirm that could never match.
   const [rosterReady, setRosterReady] = useState(false);
-  // Danger zone (consent withdrawal = permanent deletion)
-  const [deleteOpen, setDeleteOpen] = useState(false);
-  const [deleteConfirm, setDeleteConfirm] = useState('');
-  const [deleteBusy, setDeleteBusy] = useState(false);
-  const [deleteError, setDeleteError] = useState('');
 
   useEffect(() => {
     if (!loading && initialAuthCheckComplete && !user) router.replace('/');
@@ -103,33 +98,6 @@ export default function CredentialsPage() {
       setError('Could not set the login. Please try again.');
     } finally {
       setSubmitting(false);
-    }
-  };
-
-  const expectedConfirm = (athlete?.handle || athlete?.first_name || '').toLowerCase();
-  const confirmMatches =
-    !!expectedConfirm &&
-    deleteConfirm.trim().toLowerCase().replace(/^@/, '') === expectedConfirm;
-
-  const handleDelete = async () => {
-    setDeleteError('');
-    setDeleteBusy(true);
-    try {
-      const res = await fetch(`/api/guardian/athletes/${profileId}`, {
-        method: 'DELETE',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ confirmHandle: deleteConfirm }),
-      });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) { setDeleteError(data.error || 'Could not delete the profile.'); return; }
-      // Navigate BEFORE the roster refresh: refreshing first re-renders this
-      // page with the athlete gone, flashing the not-found guard (Round D).
-      router.push('/athlete');
-      await refreshManagedProfiles();
-    } catch {
-      setDeleteError('Could not delete the profile. Please try again.');
-    } finally {
-      setDeleteBusy(false);
     }
   };
 
@@ -247,69 +215,19 @@ export default function CredentialsPage() {
           )}
         </div>
 
-        {/* Danger zone — consent withdrawal = permanent deletion */}
-        <div className="w-full max-w-lg bg-surface border border-red-200 dark:border-red-800 rounded-lg p-6">
-          <h3 className="text-sm font-bold text-red-700 dark:text-red-300 mb-1">Danger zone</h3>
-          {!deleteOpen ? (
-            <div className="flex items-center justify-between gap-4">
-              <p className="text-xs text-muted">
-                Withdrawing consent permanently deletes {athlete?.first_name ?? 'this athlete'}&apos;s
-                profile and everything on it.
-              </p>
-              <button
-                type="button"
-                onClick={() => { setDeleteOpen(true); setDeleteConfirm(''); setDeleteError(''); }}
-                className="shrink-0 border border-red-300 dark:border-red-700 text-red-600 dark:text-red-400 px-3 py-2 rounded-md text-xs font-medium hover:bg-red-50 dark:hover:bg-red-950/40 transition"
-              >
-                Delete profile
-              </button>
-            </div>
-          ) : (
-            <div>
-              <p className="text-sm text-secondary mb-2">
-                This permanently deletes {athlete?.first_name ?? 'this athlete'}&apos;s profile,
-                posts, media, and login. <span className="font-medium">It cannot be undone.</span>
-              </p>
-              <p className="text-xs text-muted mb-3">
-                Signed consent records are retained as required for compliance.
-              </p>
-              {deleteError && (
-                <div role="alert" className="bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-800 text-red-600 dark:text-red-400 px-4 py-3 rounded-md text-sm mb-3">
-                  {deleteError}
-                </div>
-              )}
-              <label htmlFor="delete-confirm" className="block text-sm font-medium text-secondary mb-1">
-                Type <span className="font-mono text-red-700 dark:text-red-300">{athlete?.handle ?? athlete?.first_name ?? ''}</span> to confirm
-              </label>
-              <input
-                type="text"
-                id="delete-confirm"
-                value={deleteConfirm}
-                onChange={e => setDeleteConfirm(e.target.value)}
-                autoComplete="off"
-                className="w-full px-4 py-3 text-sm text-primary border border-border-strong rounded-md focus:outline-none focus:ring-1 focus:ring-red-500 mb-3"
-              />
-              <div className="flex gap-3">
-                <button
-                  type="button"
-                  onClick={handleDelete}
-                  disabled={!confirmMatches || deleteBusy}
-                  className="bg-red-600 text-white px-4 py-2 rounded-md text-sm font-medium hover:bg-red-700 transition disabled:opacity-50"
-                >
-                  {deleteBusy ? <><i className="fas fa-spinner fa-spin mr-2"></i>Deleting...</> : 'Permanently delete'}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setDeleteOpen(false)}
-                  disabled={deleteBusy}
-                  className="border border-border-strong text-secondary px-4 py-2 rounded-md text-sm font-medium hover:bg-surface-muted transition disabled:opacity-50"
-                >
-                  Cancel
-                </button>
-              </div>
-            </div>
-          )}
-        </div>
+        {/* Round J: the danger zone lives on the athlete management page
+            (Round D moved it there) — this page kept a full second copy,
+            leaving two places to permanently delete a child. One door now. */}
+        <p className="text-xs text-muted">
+          Need to withdraw consent and delete this profile? That lives on{' '}
+          <Link
+            href={`/app/guardian/athlete/${profileId}`}
+            className="text-brand-fg hover:underline font-medium"
+          >
+            {athlete?.first_name ?? 'the athlete'}&apos;s management page
+          </Link>
+          .
+        </p>
       </div>
     </div>
   );

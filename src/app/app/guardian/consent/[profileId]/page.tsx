@@ -121,7 +121,7 @@ export default function ConsentPage() {
               <p className="text-sm text-tertiary max-w-md mx-auto mb-6">
                 {state === 'approved'
                   ? "You're all set — you can now choose what to share from their profile."
-                  : "We've received your signed form. We'll review it shortly — the profile stays private until then."}
+                  : "We've received your signed form. Review typically takes up to 2 days — the profile stays private until then, and you'll get a notification either way."}
               </p>
               {state === 'approved' && (
                 <button

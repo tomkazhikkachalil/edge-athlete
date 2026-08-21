@@ -109,8 +109,28 @@ export default function RegistrationSteps({ onBackToLogin }: { onBackToLogin: ()
         return;
       }
       // Hand the athlete's DOB (collected at step 2) to the post-login
-      // "Add your athlete" screen.
+      // "Add your athlete" screen. With auto sign-in below this is a
+      // same-session hand-off, so it actually survives now.
       try { window.sessionStorage.setItem('ea:athlete-dob', dob); } catch {}
+
+      // Round J: sign the parent straight in (email confirmations are OFF in
+      // this project, so the credentials work immediately) and land them on
+      // Add-your-athlete. Hard navigation, not router.push — the house rule
+      // after a session change (cookies must be re-read server-side). If the
+      // sign-in fails for any reason (e.g. confirmations get turned on
+      // later), fall back to the old "Sign in to continue" screen.
+      try {
+        const { supabase } = await import('@/lib/supabase');
+        const { error: signInError } = await supabase.auth.signInWithPassword({
+          email: form.email,
+          password: form.password,
+        });
+        if (!signInError) {
+          // eslint-disable-next-line @next/next/no-location-assign-relative-destination -- a session was just created; the auth provider must boot fresh (house pattern)
+          window.location.href = '/app/guardian/add-athlete';
+          return;
+        }
+      } catch { /* fall through to the manual sign-in screen */ }
       setStep('parent-done');
     } catch (err) {
       console.error('Parent registration error:', err);
@@ -270,6 +290,10 @@ export default function RegistrationSteps({ onBackToLogin }: { onBackToLogin: ()
               <p className="text-sm text-tertiary mb-4">
                 Quick and simple — just you for now. You&apos;ll add your athlete right after.
               </p>
+              {/* Round J: the parent branch gets OAuth too — the signupRole
+                  cookie tells complete-profile to create a PARENT profile
+                  (it used to hardcode athlete). */}
+              <OAuthButtons onError={setError} divider="below" signupRole="parent" />
               {errorBox}
               <form onSubmit={submitParentAccount} className="flex flex-col gap-4 max-w-md">
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">

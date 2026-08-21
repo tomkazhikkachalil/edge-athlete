@@ -1,5 +1,43 @@
 # Development Log
 
+## August 21, 2026 — Guardian Round J: parent ease-of-life (ARC COMPLETE)
+
+The gap-closure arc's final round — the parent's first hour, smoothed. No
+migration.
+
+- **Parents land signed-in** — the parent signup step signs the new account
+  in with the just-collected credentials and hard-navigates to
+  Add-your-athlete (verified live: email confirmations are OFF, so the
+  password works immediately; if that setting ever flips, the flow falls
+  back to the old "Sign in to continue" screen). Side effect: the athlete-
+  DOB sessionStorage hand-off is now same-session, so the prefill actually
+  survives — the "lost across devices" problem dissolves.
+- **Google/Apple works for parents** — the parent branch renders
+  `OAuthButtons`, which now writes a 10-minute `ea-signup-role` cookie
+  before the redirect (always written, last click wins — a stale parent
+  cookie can't flip an athlete signup). `/auth/complete-profile` reads it:
+  parents get a name-only form (no handle, no DOB) and the route creates a
+  PARENT profile via the same `actorRole: 'guardian'` contract as
+  /api/signup — it used to hardcode `user_type: 'athlete'`, silently
+  making every Google-signup parent an athlete.
+- **The console door never disappears** — AppHeader shows "Family console"
+  for `user_type='parent'` even with an empty roster ("Skip for now" on
+  add-athlete used to strand parents with no header path back).
+- **"Am I done yet?" is answered** — `buildSetupChecklist`
+  (guardian-rollup, node-tested) renders a Finish-setting-up card on the
+  athlete page (profile ✓ / consent state-aware / login), disappearing once
+  complete. Consent review time is STATIC copy ("typically up to 2 days" —
+  a wrong computed ETA is worse than a vague one); the consent page's
+  pending state says the same and promises a notification either way.
+- **One door to deletion** — the credentials page's full second danger zone
+  (typed-confirm delete and all) is gone; a one-line pointer to the athlete
+  management page (the canonical spot since Round D) remains.
+
+Tests 1435/111. Verify green. **The guardian gap-closure arc (F–J) is
+COMPLETE** — remaining guardian work is the unchanged design-first backlog
+(DM transcripts: never; org generalization; safety-policy object; DB
+last-guardian backstop; aggregated notifications) and Tom's ops items.
+
 ## August 21, 2026 — Probe finding: the golf_rounds mirror NEVER worked (migration 099)
 
 The golf-unification prod probe failed its mirror assertions — and the
