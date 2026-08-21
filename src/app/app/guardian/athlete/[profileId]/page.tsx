@@ -30,6 +30,7 @@ import {
 import type { ConsentState } from '@/lib/consent';
 
 const EditProfileTabs = dynamic(() => import('@/components/EditProfileTabs'), { ssr: false });
+const BlockedUsersList = dynamic(() => import('@/components/settings/BlockedUsersList'), { ssr: false });
 
 interface GuardianRow {
   user_id: string;
@@ -74,6 +75,17 @@ interface TagRow {
   post_id: string;
   created_at: string;
   created_by: FanProfile | null;
+}
+
+interface ChildEvent {
+  id: string;
+  title: string;
+  location: string | null;
+  starts_at: string;
+  ends_at: string;
+  all_day: boolean;
+  my_status?: string;
+  is_organizer?: boolean;
 }
 
 // ── Per-athlete management ────────────────────────────────────────────────────
@@ -217,6 +229,51 @@ export default function GuardianAthletePage() {
     }
   }, [profileId]);
 
+  // Calendar (Round I): read-only view of the child's next two weeks.
+  const [childEvents, setChildEvents] = useState<ChildEvent[]>([]);
+  const [decliningId, setDecliningId] = useState<string | null>(null);
+
+  const refetchCalendar = useCallback(async () => {
+    if (!FEATURE_FLAGS.FEATURE_CALENDAR) return;
+    try {
+      const from = new Date();
+      const to = new Date(Date.now() + 14 * 86_400_000);
+      const res = await fetch(
+        `/api/calendar/events?from=${from.toISOString()}&to=${to.toISOString()}&targetProfileId=${profileId}`
+      );
+      const data = await res.json().catch(() => ({}));
+      if (res.ok) {
+        // The overlay entries (completed activities) lack my_status — the
+        // schedule card shows real events only.
+        setChildEvents(
+          ((data.events ?? []) as ChildEvent[]).filter(ev => ev.my_status !== undefined)
+        );
+      }
+    } catch {
+      // informational section — never break the page
+    }
+  }, [profileId]);
+
+  const declineEvent = async (ev: ChildEvent) => {
+    if (decliningId) return;
+    setDecliningId(ev.id);
+    try {
+      const res = await fetch(`/api/calendar/events/${ev.id}/respond`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: 'declined', targetProfileId: profileId }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || 'Could not decline');
+      showSuccess('Declined', 'The organizer will see the change.');
+      refetchCalendar();
+    } catch (err) {
+      showError('Something went wrong', err instanceof Error ? err.message : 'Please try again');
+    } finally {
+      setDecliningId(null);
+    }
+  };
+
   const refetchFans = useCallback(async () => {
     try {
       const [reqRes, fanRes] = await Promise.all([
@@ -298,9 +355,9 @@ export default function GuardianAthletePage() {
     // Async hop (house pattern) — keeps set-state-in-effect honest about no
     // synchronous setState on the effect path.
     (async () => {
-      await Promise.all([refetchFans(), refetchTags()]);
+      await Promise.all([refetchFans(), refetchTags(), refetchCalendar()]);
     })();
-  }, [user, profileId, refetchFans, refetchTags]);
+  }, [user, profileId, refetchFans, refetchTags, refetchCalendar]);
 
   const openEditProfile = async () => {
     if (editLoading) return;
@@ -888,6 +945,71 @@ export default function GuardianAthletePage() {
                     </ul>
                   )}
                 </section>
+
+                {/* Blocked users (Round I): per-contact protection */}
+                <section className="bg-surface border border-border rounded-lg p-5 mb-4">
+                  <h2 className="text-base font-bold text-primary mb-1">Blocked users</h2>
+                  <p className="text-xs text-tertiary mb-4">
+                    People blocked here can&apos;t message {athlete.first_name || 'this athlete'};
+                    blocking also closes any conversation they had.
+                  </p>
+                  <BlockedUsersList
+                    profileId={athlete.id}
+                    canAdd
+                    subjectName={athlete.first_name || 'this athlete'}
+                  />
+                </section>
+
+                {/* Calendar (Round I): read-only schedule + decline */}
+                {FEATURE_FLAGS.FEATURE_CALENDAR && (
+                  <section className="bg-surface border border-border rounded-lg p-5 mb-4">
+                    <h2 className="text-base font-bold text-primary mb-1">Calendar</h2>
+                    <p className="text-xs text-tertiary mb-4">
+                      {athlete.first_name || 'This athlete'}&apos;s next two weeks. You&apos;re
+                      notified when someone invites them; you can decline for them. Your own
+                      calendar sync link includes their events too.
+                    </p>
+                    {childEvents.length === 0 ? (
+                      <p className="text-sm text-muted">Nothing scheduled in the next two weeks.</p>
+                    ) : (
+                      <ul className="space-y-2">
+                        {childEvents.map(ev => (
+                          <li key={ev.id} className="flex items-center gap-3 border border-border rounded-lg p-3">
+                            <div className="flex-grow min-w-0">
+                              <p className="text-sm font-medium text-primary truncate">{ev.title}</p>
+                              <p className="text-xs text-muted truncate">
+                                {new Date(ev.starts_at).toLocaleString(undefined, {
+                                  weekday: 'short', month: 'short', day: 'numeric',
+                                  ...(ev.all_day ? {} : { hour: 'numeric', minute: '2-digit' }),
+                                })}
+                                {ev.location ? ` · ${ev.location}` : ''}
+                                {ev.is_organizer
+                                  ? ' · organizer'
+                                  : ev.my_status === 'invited'
+                                  ? ' · invited'
+                                  : ev.my_status === 'accepted'
+                                  ? ' · going'
+                                  : ev.my_status === 'maybe'
+                                  ? ' · maybe'
+                                  : ''}
+                              </p>
+                            </div>
+                            {!ev.is_organizer && ev.my_status !== 'declined' && (
+                              <button
+                                type="button"
+                                disabled={decliningId === ev.id}
+                                onClick={() => declineEvent(ev)}
+                                className="px-3 py-2 min-h-[44px] inline-flex items-center border border-border-strong rounded-lg text-sm font-semibold text-secondary hover:bg-surface-muted transition-colors disabled:opacity-50 shrink-0"
+                              >
+                                {decliningId === ev.id ? 'Declining…' : 'Decline'}
+                              </button>
+                            )}
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </section>
+                )}
 
                 {/* Consent */}
                 <section className="bg-surface border border-border rounded-lg p-5 mb-4 flex items-center justify-between gap-3 flex-wrap">

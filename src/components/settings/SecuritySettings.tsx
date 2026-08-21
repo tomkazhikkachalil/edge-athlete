@@ -5,12 +5,16 @@ import { useAuth } from '@/lib/auth';
 import { useToast } from '@/components/Toast';
 import { supabase } from '@/lib/supabase';
 
-// Password change: verifies the CURRENT password first (signInWithPassword
-// re-auth — same pattern DeleteAccountModal uses), then updates. A hijacked
-// open session can't silently change the password without knowing it.
+// Password change: verifies the CURRENT password first, then updates via
+// POST /api/auth/change-password (Round I — server-side so the rotation
+// revokes other sessions and a supervised athlete's change bells their
+// guardians). A hijacked open session can't silently change the password
+// without knowing it. After success we re-sign-in with the NEW password:
+// the rotation killed every refresh token, including this session's.
 export default function SecuritySettings() {
-  const { user } = useAuth();
+  const { user, profile } = useAuth();
   const { showSuccess, showError } = useToast();
+  const supervised = profile?.supervision_state === 'supervised';
 
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
@@ -36,23 +40,29 @@ export default function SecuritySettings() {
 
     setSubmitting(true);
     try {
-      // Re-authenticate with the current password before allowing the change
-      const { error: reauthError } = await supabase.auth.signInWithPassword({
-        email: user.email,
-        password: currentPassword,
+      const res = await fetch('/api/auth/change-password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ currentPassword, newPassword }),
       });
-      if (reauthError) {
-        showError('Incorrect password', 'Your current password is not correct.');
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        showError('Update failed', data.error || 'Could not update your password.');
         return;
       }
 
-      const { error: updateError } = await supabase.auth.updateUser({ password: newPassword });
-      if (updateError) {
-        showError('Update failed', updateError.message || 'Could not update your password.');
+      // The rotation revoked every session, including this one — mint a
+      // fresh session with the new password so the user stays signed in.
+      const { error: signInError } = await supabase.auth.signInWithPassword({
+        email: user.email,
+        password: newPassword,
+      });
+      if (signInError) {
+        showError('Signed out', 'Your password changed — please log in again with the new one.');
         return;
       }
 
-      showSuccess('Password updated', 'Use your new password next time you log in.');
+      showSuccess('Password updated', 'Your other devices were signed out.');
       setCurrentPassword('');
       setNewPassword('');
       setConfirmPassword('');
@@ -74,6 +84,16 @@ export default function SecuritySettings() {
         Forgot your current password? Log out and use{' '}
         <span className="font-medium">Forgot password</span> on the login screen instead.
       </p>
+
+      {supervised && (
+        <div className="max-w-md mb-6 flex items-start gap-2 rounded-lg border border-violet-200 dark:border-violet-800 bg-brand-soft p-3 text-xs text-violet-900 dark:text-violet-200">
+          <i className="fas fa-user-shield mt-0.5" aria-hidden="true"></i>
+          <span>
+            Your guardian is notified when you change your password. If you sign
+            in with a PIN, ask your guardian to change it for you.
+          </span>
+        </div>
+      )}
 
       <form onSubmit={handleSubmit} className="max-w-md space-y-4">
         <div>

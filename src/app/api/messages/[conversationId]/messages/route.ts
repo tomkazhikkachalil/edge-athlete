@@ -26,27 +26,21 @@ export async function POST(
 
     // Supervised sender kill-switch: 'nobody' bites immediately, even on
     // existing conversations — it's the emergency lever a guardian pulls.
-    // (Graph-based tiers are enforced at conversation-create; re-checking
-    // the whole graph on every send is deliberately out of scope.)
+    const GUARDIAN_BLOCK_COPY = "Your guardian's messaging setting doesn't allow this conversation.";
     const { data: senderProfile } = await supabase
       .from('profiles')
       .select('supervision_state, messaging_permission')
       .eq('id', user.id)
       .maybeSingle();
-    if (
-      senderProfile?.supervision_state === 'supervised' &&
-      senderProfile?.messaging_permission === 'nobody'
-    ) {
-      return NextResponse.json(
-        { error: "Your guardian's messaging setting doesn't allow this conversation." },
-        { status: 403 }
-      );
+    const senderSupervised = senderProfile?.supervision_state === 'supervised';
+    if (senderSupervised && senderProfile?.messaging_permission === 'nobody') {
+      return NextResponse.json({ error: GUARDIAN_BLOCK_COPY }, { status: 403 });
     }
 
     // Guard: verify user is an active participant
     const { data: myParticipant } = await supabase
       .from('conversation_participants')
-      .select('id')
+      .select('id, conversation:conversations!inner (type)')
       .eq('conversation_id', conversationId)
       .eq('profile_id', user.id)
       .is('left_at', null)
@@ -54,6 +48,40 @@ export async function POST(
 
     if (!myParticipant) {
       return NextResponse.json({ error: 'Conversation not found' }, { status: 404 });
+    }
+
+    // Round I (was deferred backlog): a SUPERVISED sender's tier is re-checked
+    // on every DIRECT send, not just at conversation-create — a guardian
+    // tightening the dial mid-conversation takes effect on the next message.
+    // Blocks between the pair bite here too. Groups stay create-side-gated
+    // (their membership is fixed by people who passed the gate).
+    const conversationType = (myParticipant as unknown as { conversation: { type: string } }).conversation?.type;
+    if (senderSupervised && conversationType === 'direct') {
+      const { data: others } = await supabase
+        .from('conversation_participants')
+        .select('profile_id')
+        .eq('conversation_id', conversationId)
+        .neq('profile_id', user.id)
+        .is('left_at', null);
+      const otherId = others?.[0]?.profile_id;
+      if (otherId) {
+        const permission = (senderProfile?.messaging_permission || 'everyone') as
+          import('@/lib/supervised-gates').MessagingPermission;
+        const [{ data: iFollowRow }, { data: followsMeRow }, { data: blockRow }] = await Promise.all([
+          supabase.from('follows').select('id').eq('follower_id', user.id).eq('following_id', otherId).eq('status', 'accepted').maybeSingle(),
+          supabase.from('follows').select('id').eq('follower_id', otherId).eq('following_id', user.id).eq('status', 'accepted').maybeSingle(),
+          supabase.from('user_blocks').select('id')
+            .or(`and(blocker_id.eq.${user.id},blocked_id.eq.${otherId}),and(blocker_id.eq.${otherId},blocked_id.eq.${user.id})`)
+            .maybeSingle(),
+        ]);
+        if (blockRow) {
+          return NextResponse.json({ error: 'Cannot message this user' }, { status: 403 });
+        }
+        const { outboundAllowed } = await import('@/lib/supervised-gates');
+        if (!outboundAllowed(permission, !!iFollowRow, !!followsMeRow)) {
+          return NextResponse.json({ error: GUARDIAN_BLOCK_COPY }, { status: 403 });
+        }
+      }
     }
 
     // Validate type against the known enum (unknown types used to hit the DB

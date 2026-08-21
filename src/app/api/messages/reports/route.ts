@@ -108,6 +108,27 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Failed to file report' }, { status: 500 });
     }
 
+    // Round I: a supervised child filing a report is exactly the moment a
+    // guardian wants to know about. The bell carries the REASON only — never
+    // message content (the no-conversation-visibility line stays bright);
+    // admins triage the report itself. Best-effort.
+    const { data: reporter } = await supabase
+      .from('profiles')
+      .select('supervision_state, first_name')
+      .eq('id', user.id)
+      .maybeSingle();
+    if (reporter?.supervision_state === 'supervised') {
+      const { notifyGuardians } = await import('@/lib/guardian-notify');
+      await notifyGuardians(supabase, user.id, {
+        type: 'safety_alert',
+        title: `${reporter.first_name || 'Your athlete'} reported someone`,
+        message: `Reason: ${reason}. Our team will review it — you may also want to check in with them.`,
+        actionUrl: `/app/guardian/athlete/${user.id}`,
+        actorId: user.id,
+        metadata: { report_id: inserted.id, reason },
+      }, user.id);
+    }
+
     return NextResponse.json({ id: inserted.id });
   } catch (error) {
     if (error instanceof Response) return error;

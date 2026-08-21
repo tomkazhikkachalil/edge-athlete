@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { requireAuth, getSupabaseAdmin } from '@/lib/auth-server';
+import { requireAuth, getSupabaseAdmin, getProfileRole } from '@/lib/auth-server';
 import { FEATURE_FLAGS } from '@/lib/features';
 import { notifyEventResponse } from '@/lib/calendar/notifications';
 
@@ -32,11 +32,32 @@ export async function POST(
     const scope = body.scope === 'series' ? 'series' : 'this';
 
     const admin = getSupabaseAdmin();
+
+    // Round I: a guardian may respond on their managed athlete's behalf via
+    // targetProfileId — the console's "Decline" on a child's invite. The
+    // guest row stays the CHILD's (attribution doctrine: the child is the
+    // invitee; the organizer sees the child's response).
+    let respondAs = user.id;
+    if (
+      typeof body.targetProfileId === 'string' &&
+      body.targetProfileId &&
+      body.targetProfileId !== user.id
+    ) {
+      const role = await getProfileRole(user.id, body.targetProfileId);
+      if (role !== 'guardian') {
+        return NextResponse.json(
+          { error: 'You do not have permission to respond for this athlete' },
+          { status: 403 }
+        );
+      }
+      respondAs = body.targetProfileId;
+    }
+
     const { data: guest } = await admin
       .from('event_guests')
       .select('id, role, status, events:event_id (id, organizer_id, title, status, series_id)')
       .eq('event_id', id)
-      .eq('profile_id', user.id)
+      .eq('profile_id', respondAs)
       .maybeSingle();
     if (!guest) return NextResponse.json({ error: 'Event not found' }, { status: 404 });
     if (guest.role === 'organizer') {
@@ -66,7 +87,7 @@ export async function POST(
         .from('event_guests')
         .update({ status, responded_at: new Date().toISOString() })
         .in('event_id', occurrenceIds)
-        .eq('profile_id', user.id)
+        .eq('profile_id', respondAs)
         .neq('role', 'organizer')
         .select('id, status, responded_at, event_id');
       if (error || !rows?.length) {
@@ -98,7 +119,7 @@ export async function POST(
         seriesId: event.series_id ?? undefined,
       },
       event.organizer_id,
-      user.id,
+      respondAs,
       status as 'accepted' | 'declined' | 'maybe'
     );
 

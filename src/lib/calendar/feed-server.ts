@@ -41,11 +41,11 @@ interface FeedEventRow {
   cancelled_at: string | null;
 }
 
-export async function buildFeedIcs(
+async function fetchFeedRows(
   admin: Admin,
   profileId: string,
-  now: Date = new Date()
-): Promise<string> {
+  now: Date
+): Promise<FeedEventRow[]> {
   const windowStart = new Date(now.getTime() - PAST_WINDOW_MS).toISOString();
   const windowEnd = new Date(now.getTime() + FUTURE_WINDOW_MS).toISOString();
 
@@ -66,11 +66,54 @@ export async function buildFeedIcs(
       .gt('events.cancelled_at', new Date(now.getTime() - PAST_WINDOW_MS).toISOString()),
   ]);
 
-  const rows = [...(activeRows ?? []), ...(cancelledRows ?? [])]
-    .map(r => r.events as unknown as FeedEventRow)
-    .sort((a, b) => Date.parse(a.starts_at) - Date.parse(b.starts_at));
+  return [...(activeRows ?? []), ...(cancelledRows ?? [])].map(
+    r => r.events as unknown as FeedEventRow
+  );
+}
 
-  const vevents = rows.map(event =>
+export async function buildFeedIcs(
+  admin: Admin,
+  profileId: string,
+  now: Date = new Date()
+): Promise<string> {
+  // Round I: the feed owner's events, plus their managed SUPERVISED
+  // athletes' events prefixed with the child's name. This is how a parent
+  // gets the family schedule into their own calendar app — the child's own
+  // feed stays disabled (mint 403 + serve 404), so the parent-held
+  // capability URL is the only sync path a supervised schedule has.
+  const { data: managed } = await admin
+    .from('profile_access')
+    .select('profile_id, profiles!profile_access_profile_id_fkey(first_name, supervision_state)')
+    .eq('user_id', profileId)
+    .eq('role', 'guardian');
+  const children = (managed ?? [])
+    .map(r => ({
+      id: r.profile_id as string,
+      profile: r.profiles as unknown as { first_name: string | null; supervision_state: string | null },
+    }))
+    .filter(c => c.profile?.supervision_state === 'supervised');
+
+  const [ownRows, ...childRowSets] = await Promise.all([
+    fetchFeedRows(admin, profileId, now),
+    ...children.map(c => fetchFeedRows(admin, c.id, now)),
+  ]);
+
+  // Dedupe by event id — the guardian and a child can be guests of the SAME
+  // event, and calendar apps key on uid. Own rows win (no prefix).
+  const seen = new Set<string>();
+  const entries: Array<{ event: FeedEventRow; prefix: string }> = [
+    ...ownRows.map(event => ({ event, prefix: '' })),
+    ...childRowSets.flatMap((rows, i) =>
+      rows.map(event => ({
+        event,
+        prefix: `${children[i].profile?.first_name || 'Athlete'}: `,
+      }))
+    ),
+  ]
+    .filter(({ event }) => (seen.has(event.id) ? false : (seen.add(event.id), true)))
+    .sort((a, b) => Date.parse(a.event.starts_at) - Date.parse(b.event.starts_at));
+
+  const vevents = entries.map(({ event, prefix }) =>
     buildVEvent({
       uid: `${event.id}@edge-athlete`,
       dtstampMs: Date.parse(event.updated_at ?? event.starts_at),
@@ -78,7 +121,7 @@ export async function buildFeedIcs(
       endMs: Date.parse(event.ends_at),
       allDay: event.all_day,
       timezone: event.timezone,
-      title: event.title,
+      title: `${prefix}${event.title}`,
       description: event.description,
       location: event.location,
       cancelled: event.status === 'cancelled',
