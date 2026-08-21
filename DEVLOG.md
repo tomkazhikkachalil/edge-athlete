@@ -1,5 +1,39 @@
 # Development Log
 
+## August 21, 2026 — Maintenance sweep: gap-closure Rounds F–I green
+
+Full gate re-run on main after the #190–#193 merges — green across the
+board: typecheck clean, `eslint . --max-warnings 0` at zero, **1418 tests /
+110 files**, production build compiled (118 routes), `npm audit` 0
+vulnerabilities (prod and dev trees).
+
+Prod-probe results for the four rounds, each against the live deploy with
+disposable fixtures (created, asserted to exist, deleted with verification):
+
+- **Round F (#190) — 16/16.** Safety clamps: handle-rename PII guard,
+  guardian-locked digest, avatar consent gate, dead child ICS feeds,
+  tier-gated event invites, tag-by-visibility, `user_type` clamp.
+- **Round G (#191, migration 098) — 12/12.** "Either can approve" follow
+  oversight with cross-notification, remove-any-fan, and the rollup finally
+  counting held comments and pending fan requests.
+- **Round H (#192) — API 11/11 + browser 5/5.** Guardian profile editing
+  (first `manage_settings` call sites), `profile_change`/`tag_alert`/
+  `safety_alert` bells with actor exclusion, guardian tag removal, honest
+  acting-as (like/save/follow disabled with a tooltip).
+- **Round I (#193) — 18/18.** Block-for-child (plus the platform's first
+  block-list UI), report bells (reason only), send-time tier re-check
+  (mid-conversation dial flip verified), server-side password change with
+  full session revocation, guardian calendar read/decline, `calendar_alert`,
+  and the guardian ICS feed carrying name-prefixed child events.
+
+Remaining in the arc: **Round J only** (parent ease-of-life — auto sign-in
+after parent signup, OAuth parent branch, always-visible console link,
+setup checklist, danger-zone dedupe, DOB prefill). Migration-free.
+Unchanged deferred backlog: DM transcripts (never), org generalization,
+safety-policy object, DB last-guardian backstop, aggregated guardian
+notifications, `handle_new_user()` drop. Ops items still with Tom: GoDaddy
+DNS → Resend verification, device walkthrough, legal pass.
+
 ## August 21, 2026 — Guardian Round I: protection surfaces
 
 No migration. The round where a guardian can actively DEFEND the child, plus
