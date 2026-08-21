@@ -10,6 +10,7 @@ import SharedRoundQuickView from '@/components/golf/SharedRoundQuickView';
 import SharedRoundFullCard from '@/components/golf/SharedRoundFullCard';
 import { useSharedRound } from '@/hooks/useSharedRound';
 import { resolveRoundEntry } from '@/lib/golf/round-viewer';
+import { startingHoleNumber } from '@/lib/golf/holes';
 import { isActiveParticipant } from '@/lib/golf/round-status';
 import { formatDisplayName } from '@/lib/formatters';
 import type { CompleteGolfScorecard } from '@/types/group-posts';
@@ -161,7 +162,11 @@ export default function LiveRoundPage() {
         <div className="mb-4 bg-surface rounded-lg border border-border p-4 flex items-center justify-between gap-3">
           <div>
             <p className="font-bold text-primary">This round is final</p>
-            <p className="text-sm text-tertiary">Scoring is closed.</p>
+            <p className="text-sm text-tertiary">
+              {entry.participantId
+                ? 'View the scorecard — or open the full card to fix a score.'
+                : 'Scoring is closed.'}
+            </p>
           </div>
           <Link
             href={viewPostHref}
@@ -211,7 +216,15 @@ export default function LiveRoundPage() {
           scorecard={scorecard}
           currentUserId={user.id}
           onClose={() => setShowFullCard(false)}
-          onAddScores={entry.mode === 'score' ? openScorer : undefined}
+          // Score entry on a FINAL round matches the feed card's long-standing
+          // policy (canScore has no status gate): an active participant may
+          // still fix a score. The two surfaces used to disagree — the feed
+          // offered it, this page refused.
+          onAddScores={
+            entry.mode === 'score' || (entry.mode === 'final' && entry.participantId)
+              ? openScorer
+              : undefined
+          }
           // A media edit refetches in place. NOT onStatusChange, which on this
           // page navigates away to the finished post.
           onMediaChanged={refresh}
@@ -225,6 +238,10 @@ export default function LiveRoundPage() {
           groupPostId={scorecard.group_post.id}
           participantId={scoringParticipantId}
           holesPlayed={scorecard.golf_data.holes_played}
+          startingHoleNumber={startingHoleNumber(
+            scorecard.golf_data.hole_data ?? null,
+            scorecard.golf_data.holes_played
+          )}
           holeData={scorecard.golf_data.hole_data ?? null}
           courseName={scorecard.golf_data.course_name}
           uploaderId={user.id}

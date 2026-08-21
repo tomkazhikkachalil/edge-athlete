@@ -35,13 +35,43 @@ describe('resolveRoundEntry', () => {
     });
   });
 
-  it('is final once the round completes', () => {
+  it('is final once the round completes — active participant keeps a repair handle', () => {
     const out = resolveRoundEntry({
       scorecard: card({ group_post: { ...card().group_post, status: 'completed' } }),
       viewerId: ME,
       now: NOW,
     });
-    expect(out).toEqual({ mode: 'final', postId: 'post1' });
+    // Same policy the feed card has always had: canScore carries no status
+    // gate, so an active participant may still fix a score on a final round.
+    expect(out).toEqual({ mode: 'final', postId: 'post1', participantId: 'p-me', isCreator: true });
+  });
+
+  it('final round: spectators and declined participants get no repair handle', () => {
+    const completed = { ...card().group_post, status: 'completed' };
+    expect(
+      resolveRoundEntry({ scorecard: card({ group_post: completed }), viewerId: 'someone-else', now: NOW })
+    ).toEqual({ mode: 'final', postId: 'post1', participantId: null, isCreator: false });
+    expect(
+      resolveRoundEntry({
+        scorecard: card({
+          group_post: completed,
+          participants: [
+            { participant: { id: 'p-me', profile_id: ME, status: 'declined' }, scores: null },
+          ],
+        }),
+        viewerId: ME,
+        now: NOW,
+      })
+    ).toEqual({ mode: 'final', postId: 'post1', participantId: null, isCreator: true });
+  });
+
+  it('cancelled rounds have nothing to fix — no repair handle for anyone', () => {
+    const out = resolveRoundEntry({
+      scorecard: card({ group_post: { ...card().group_post, status: 'cancelled' } }),
+      viewerId: ME,
+      now: NOW,
+    });
+    expect(out).toEqual({ mode: 'final', postId: 'post1', participantId: null, isCreator: true });
   });
 
   it('defers to effectiveRoundStatus, so a round quiet past the auto-end window is final', () => {
