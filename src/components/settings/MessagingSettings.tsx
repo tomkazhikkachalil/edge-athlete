@@ -6,6 +6,7 @@ import { useToast } from '@/components/Toast';
 import type { MessagingPermission } from '@/types/messages';
 import GuardiansCard from './GuardiansCard';
 import SupervisedSettingCard from './SupervisedSettingCard';
+import BlockedUsersList from './BlockedUsersList';
 
 interface PermissionOption {
   value: MessagingPermission;
@@ -158,6 +159,16 @@ export default function MessagingSettings() {
             </p>
           </div>
         </div>
+      </div>
+
+      {/* Round I: the first place blocks are visible/reversible anywhere. */}
+      <div>
+        <h3 className="text-lg font-semibold text-primary mb-2">Blocked users</h3>
+        <p className="text-tertiary text-sm mb-4">
+          People you&apos;ve blocked can&apos;t message you. Blocking someone also closes
+          any conversation you had with them.
+        </p>
+        <BlockedUsersList />
       </div>
     </div>
   );

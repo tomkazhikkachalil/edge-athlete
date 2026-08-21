@@ -101,6 +101,8 @@ export default function CalendarSyncModal({
           <p className="text-sm text-tertiary">
             Subscribe once from Google or Outlook and your Edge Athlete events
             appear there automatically and stay updated. The link is read-only.
+            If you manage athletes, their events are included too, prefixed
+            with their name.
           </p>
 
           {loading ? (

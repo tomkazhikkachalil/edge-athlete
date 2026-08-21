@@ -1,5 +1,49 @@
 # Development Log
 
+## August 21, 2026 — Guardian Round I: protection surfaces
+
+No migration. The round where a guardian can actively DEFEND the child, plus
+the platform-wide block-list gap and two deferred backlog items.
+
+- **Blocking grows up** — `/api/messages/block` gains `GET` (the first block
+  LIST surface in the app; `DELETE` was dead code — no unblock affordance
+  existed anywhere) and all three methods take `targetProfileId` via
+  `requireProfileRole(…, 'manage_privacy')`: a guardian blocks/unblocks on
+  the child's behalf, DM-closing anchored to the child. New shared
+  `BlockedUsersList` renders in Settings → Messaging for everyone and as a
+  console athlete-page card with a search-and-block picker.
+- **Child reports bell the guardians** — a supervised reporter's
+  `message_reports` insert fires `safety_alert` with the REASON only, never
+  message content (the no-conversation-visibility line stays bright).
+- **Send-time tier re-check** (deferred backlog, folded in) — a supervised
+  sender's DIRECT sends re-check the full messaging tier + blocks on every
+  message, not just at conversation-create: a guardian tightening the dial
+  mid-conversation takes effect on the next send. Groups stay
+  create-side-gated on purpose.
+- **Password changes move server-side** — new `POST /api/auth/change-password`
+  (re-auth then `updateUserById`, which revokes every other session — the
+  honest "sign out everywhere"; no logout-by-user-id exists in auth-js
+  2.112). A supervised child's change bells guardians with a
+  reset-credentials link; `SecuritySettings` switches to the route and
+  re-signs-in with the new password (the rotation kills the current
+  session's refresh token too). Supervised copy explains PIN users
+  (mode is undetectable by design — the login route tries both derivations).
+- **Calendar visibility** — `GET /api/calendar/events` + `respond` take
+  `targetProfileId` (guardian role check, reads skip the consent gate — the
+  pending-posts precedent); the console gains a Calendar card (next two
+  weeks, decline-on-behalf; the child stays the responder identity). Event
+  invites reaching a supervised athlete fire `calendar_alert` (actor
+  excluded) from `notifyEventInvites`.
+- **The parent's sync link carries the family schedule** — `buildFeedIcs`
+  includes managed SUPERVISED athletes' events, titles prefixed with the
+  child's name, deduped by event id (guardian + child can share an event).
+  The child's own feed stays dead (Round F: mint 403, serve 404) — a
+  guardian-minted child token would need a minted-by column, i.e. a
+  migration; the parent-feed inclusion delivers the same value without one.
+
+Tests 1418 (no new pure logic — the gates compose existing tested helpers).
+Verify green, 118 routes.
+
 ## August 21, 2026 — Guardian Round H: identity & tags ("both edit, guardian notified")
 
 No migration — the notification types landed in 098. Tom's decision for

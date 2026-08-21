@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import * as Sentry from '@sentry/nextjs';
-import { requireAuth, getSupabaseAdmin } from '@/lib/auth-server';
+import { requireAuth, getSupabaseAdmin, getProfileRole } from '@/lib/auth-server';
 import { FEATURE_FLAGS } from '@/lib/features';
 import { validateEventInput, validateGuestInput } from '@/lib/calendar/events';
 import { validateRecurrenceInput, describeRecurrence } from '@/lib/calendar/recurrence';
@@ -43,12 +43,29 @@ export async function GET(request: NextRequest) {
     }
 
     const admin = getSupabaseAdmin();
+
+    // Round I: a guardian may READ a managed athlete's calendar via
+    // ?targetProfileId= — role check only, not the consent gate (reads
+    // follow the pending-posts precedent). Everyone else reads their own.
+    let readAs = user.id;
+    const targetProfileId = searchParams.get('targetProfileId');
+    if (targetProfileId && targetProfileId !== user.id) {
+      const role = await getProfileRole(user.id, targetProfileId);
+      if (role !== 'guardian') {
+        return NextResponse.json(
+          { error: 'You do not have permission to view this calendar' },
+          { status: 403 }
+        );
+      }
+      readAs = targetProfileId;
+    }
+
     // True interval overlap: starts before the range ends AND ends after
     // the range starts (catches multi-day events spanning the boundary).
     const { data, error } = await admin
       .from('event_guests')
       .select(`status, role, events!inner(${EVENT_FIELDS})`)
-      .eq('profile_id', user.id)
+      .eq('profile_id', readAs)
       .neq('status', 'declined')
       .eq('events.status', 'active')
       .lt('events.starts_at', new Date(toMs).toISOString())
@@ -69,7 +86,7 @@ export async function GET(request: NextRequest) {
     // calendar down with it.
     let overlay: Awaited<ReturnType<typeof fetchActivityOverlay>> = [];
     try {
-      overlay = await fetchActivityOverlay(admin, user.id, fromMs, toMs);
+      overlay = await fetchActivityOverlay(admin, readAs, fromMs, toMs);
     } catch (e) {
       console.error('[CALENDAR] activity overlay failed:', e);
     }

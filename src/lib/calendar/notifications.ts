@@ -64,6 +64,31 @@ export async function notifyEventInvites(
     }));
     const { error } = await ctx.supabase.from('notifications').insert(rows);
     if (error) console.error('[CALENDAR NOTIFY] invite fan-out failed:', error);
+
+    // Round I: an event invite reaching a SUPERVISED athlete also bells
+    // their guardians — real-world times and places are exactly what a
+    // parent wants to know about. The inviter already passed the family's
+    // messaging tier (checkSupervisedInviteGate); this is the awareness
+    // half. Actor excluded, so a guardian's own invite reaches only
+    // co-guardians. Best-effort.
+    const { data: supervisedInvitees } = await ctx.supabase
+      .from('profiles')
+      .select('id, first_name')
+      .in('id', recipients)
+      .eq('supervision_state', 'supervised');
+    if (supervisedInvitees && supervisedInvitees.length > 0) {
+      const { notifyGuardians } = await import('@/lib/guardian-notify');
+      for (const child of supervisedInvitees) {
+        await notifyGuardians(ctx.supabase, child.id, {
+          type: 'calendar_alert',
+          title: `${name} invited ${child.first_name || 'your athlete'} to an event`,
+          message: ctx.title,
+          actionUrl: `/app/guardian/athlete/${child.id}`,
+          actorId: organizerId,
+          metadata: { event_id: ctx.eventId, ...seriesMeta(ctx) },
+        }, organizerId);
+      }
+    }
   } catch (e) {
     console.error('[CALENDAR NOTIFY] invite fan-out failed:', e);
   }

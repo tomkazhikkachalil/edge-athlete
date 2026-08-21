@@ -31,7 +31,8 @@ export type GuardianNotificationType =
   | 'follow_update'
   | 'profile_change'
   | 'tag_alert'
-  | 'safety_alert';
+  | 'safety_alert'
+  | 'calendar_alert';
 
 export interface GuardianNotification {
   type: GuardianNotificationType;
