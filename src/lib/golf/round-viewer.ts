@@ -34,7 +34,11 @@ export interface ViewerScorecard {
 
 export type RoundEntry =
   | { mode: 'not-found' }
-  | { mode: 'final'; postId: string | null }
+  /** Finished round. `participantId` is set when the viewer is an ACTIVE
+   *  participant — they may still fix a score (the same policy the feed
+   *  card has always had: SharedRoundFullCard's canScore carries no status
+   *  gate). Spectators and declined viewers get null. */
+  | { mode: 'final'; postId: string | null; participantId: string | null; isCreator: boolean }
   | { mode: 'watch'; reason: 'spectator' | 'declined' | 'card-complete'; postId: string | null }
   | { mode: 'score'; participantId: string; isCreator: boolean; postId: string | null };
 
@@ -67,7 +71,21 @@ export function resolveRoundEntry({
   // effectiveRoundStatus, not status: a round nobody has scored in for 6h reads
   // as finished even though the row still says 'active'.
   const status = effectiveRoundStatus(scorecard.group_post, now);
-  if (status === 'completed' || status === 'cancelled') return { mode: 'final', postId };
+  if (status === 'completed' || status === 'cancelled') {
+    const mineFinal = viewerId
+      ? (scorecard.participants ?? []).find(p => p.participant.profile_id === viewerId)
+      : undefined;
+    const activeMine = mineFinal && isActiveParticipant(mineFinal.participant.status)
+      ? mineFinal.participant.id
+      : null;
+    // Cancelled rounds have nothing to fix — no score affordance.
+    return {
+      mode: 'final',
+      postId,
+      participantId: status === 'cancelled' ? null : activeMine,
+      isCreator,
+    };
+  }
 
   if (!viewerId) return { mode: 'watch', reason: 'spectator', postId };
 

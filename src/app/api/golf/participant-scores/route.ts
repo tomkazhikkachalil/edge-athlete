@@ -94,19 +94,44 @@ export async function POST(request: NextRequest) {
         continue; // Skip if no valid scores
       }
 
-      // Create golf_participant_scores record
-      const { data: participantScoreRecord, error: scoreError } = await supabase
+      // Reuse-or-create the golf_participant_scores record (the scorecards
+      // route's pattern). This batch used to blind-insert and silently
+      // `continue` on the 23505 — a RETRY after a partial failure dropped
+      // every already-saved participant without a trace.
+      let golfParticipantId: string | null = null;
+      const { data: existingRecord } = await supabase
         .from('golf_participant_scores')
-        .insert({
-          participant_id: participantRecordId,
-          entered_by: user.id,
-          scores_confirmed: false
-        })
         .select('id')
-        .single();
-
-      if (scoreError || !participantScoreRecord) {
-        continue; // Skip on error
+        .eq('participant_id', participantRecordId)
+        .maybeSingle();
+      if (existingRecord) {
+        golfParticipantId = existingRecord.id;
+      } else {
+        const { data: created, error: scoreError } = await supabase
+          .from('golf_participant_scores')
+          .insert({
+            participant_id: participantRecordId,
+            entered_by: user.id,
+            scores_confirmed: false
+          })
+          .select('id')
+          .single();
+        if (scoreError?.code === '23505') {
+          // Lost a creation race — the row exists now; use it.
+          const { data: raced } = await supabase
+            .from('golf_participant_scores')
+            .select('id')
+            .eq('participant_id', participantRecordId)
+            .maybeSingle();
+          golfParticipantId = raced?.id ?? null;
+        } else if (created) {
+          golfParticipantId = created.id;
+        }
+        if (!golfParticipantId) {
+          console.error('[PARTICIPANT SCORES] score record failed:', scoreError);
+          failures.push({ participant_id, error: scoreError?.message || 'Could not create score record' });
+          continue;
+        }
       }
 
       // Insert hole scores
@@ -123,7 +148,7 @@ export async function POST(request: NextRequest) {
         // NOTE: golf_hole_scores has no par/distance_yards columns (verified
         // against the live schema) — including them made every insert fail
         // with 42703 and silently discarded all creator-entered scores.
-        golf_participant_id: participantScoreRecord.id,
+        golf_participant_id: golfParticipantId,
         hole_number: hole.hole_number,
         strokes: hole.strokes,
         putts: hole.putts || null,
@@ -134,14 +159,16 @@ export async function POST(request: NextRequest) {
         penalties: sanitizePenalties(hole.penalties)
       }));
 
+      // UPSERT (was insert): a retry or a re-submit of the same scorecard
+      // updates in place instead of failing the UNIQUE and vanishing.
       const { error: holeScoresError } = await supabase
         .from('golf_hole_scores')
-        .insert(holeScoreRecords);
+        .upsert(holeScoreRecords, { onConflict: 'golf_participant_id,hole_number' });
 
       if (!holeScoresError) {
         results.push({
           participant_id,
-          score_record_id: participantScoreRecord.id,
+          score_record_id: golfParticipantId,
           holes_entered: holeScoreRecords.length
         });
       } else {

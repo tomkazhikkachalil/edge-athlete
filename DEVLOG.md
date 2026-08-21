@@ -1,5 +1,37 @@
 # Development Log
 
+## August 21, 2026 — Golf unification PR-1: rails (upsert, 9-hole plumbing, /live final parity)
+
+Tom's direction: **"One flow, two modes: live rounds stream, past rounds
+post."** The exploration found THREE flows (live; already-played shared on
+the same rails; already-played *individual* on a wholly separate
+golf_rounds machine where players can't be added at all). PR-1 fixes the
+rails so PR-2 can collapse the composer fork. No migration.
+
+- **Batch score save is idempotent** — `participant-scores` now
+  reuse-or-creates the `golf_participant_scores` row (with the scorecards
+  route's 23505 race handling) and UPSERTs `golf_hole_scores`. It used to
+  blind-insert and silently `continue`: a retry after a partial-failure
+  toast dropped every already-saved participant without a trace.
+- **/live agrees with the feed about final rounds** — `resolveRoundEntry`'s
+  `'final'` variant now carries `participantId`/`isCreator` (active
+  participants only; cancelled rounds get null), and the page passes
+  `onAddScores` for them. The feed card has ALWAYS allowed score repair on
+  completed rounds (`canScore` has no status gate); `/live` was the only
+  surface refusing. Banner copy now says so instead of "Scoring is closed."
+- **Back-9 rounds score correctly from viewers** — new pure
+  `startingHoleNumber(hole_data, holesPlayed)` (`src/lib/golf/holes.ts`):
+  back-9 is encoded purely by hole NUMBERING (10–18) in
+  `golf_scorecard_data.hole_data`; the two `ScoreEntryModal` mounts that
+  omitted the prop (/live page, PostCard) now derive it — hole 10 no longer
+  renders as "Hole 1". Grid/stepper/DB/status/mirror already handled 9
+  holes; only the viewers and (PR-2) the composer were stuck at 18.
+
+Feed golf rendering untouched (the freeze holds — only which callback a
+page passes changed). Tests 1426/111 (holes helper + final-variant
+round-viewer cases). PR-2 next: kill the Individual/Shared fork, hole-count
+control, one submit path.
+
 ## August 21, 2026 — Maintenance sweep: gap-closure Rounds F–I green
 
 Full gate re-run on main after the #190–#193 merges — green across the

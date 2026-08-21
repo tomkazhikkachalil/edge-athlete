@@ -20,6 +20,7 @@ import SharedRoundFullCard from './golf/SharedRoundFullCard';
 import ScoreEntryModal from './golf/ScoreEntryModal';
 import { getSportName, getSportIcon, getSportColor } from '@/lib/config/sports-config';
 import { isActiveParticipant, isRoundLive } from '@/lib/golf/round-status';
+import { startingHoleNumber } from '@/lib/golf/holes';
 import { countPartnersWithScores } from '@/lib/golf/round-delete';
 import { COPY } from '@/lib/copy';
 import { formatDisplayName, getInitials } from '@/lib/formatters';
@@ -914,6 +915,10 @@ function PostCard({
           groupPostId={groupScorecard.group_post.id}
           participantId={scoreEntryParticipantId}
           holesPlayed={groupScorecard.golf_data.holes_played}
+          startingHoleNumber={startingHoleNumber(
+            groupScorecard.golf_data.hole_data ?? null,
+            groupScorecard.golf_data.holes_played
+          )}
           holeData={groupScorecard.golf_data.hole_data ?? null}
           courseName={groupScorecard.golf_data.course_name}
           uploaderId={currentUserId}
