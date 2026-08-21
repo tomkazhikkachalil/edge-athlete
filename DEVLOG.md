@@ -1,5 +1,44 @@
 # Development Log
 
+## August 21, 2026 — Golf unification PR-2: one flow, two modes
+
+The composer half. **The Individual/Shared fork is gone**: every golf round
+rides the group-posts rails; "individual" is a round with zero invitees
+(the solo-live precedent, now universal). Timing is the only choice — live
+rounds stream, past rounds post. No migration.
+
+- **Deleted**: the Round Type toggle, `roundType` state (and its
+  useState-vs-default mismatch), `GolfScorecardForm.tsx` (868 lines, sole
+  consumer removed — its extracted libs stay, they have other consumers),
+  `golfRoundData`/`generateGolfCaption`, the individual `/api/posts` submit
+  leg, the preview's individual branch, and the already-played-only
+  "+ Add Myself" button (the creator row is always seeded; the server
+  always inserts the creator).
+- **Hole count on the unified form** — 18/9 toggle + Front/Back 9 (the one
+  functional reason 9-hole rounds needed the old individual path). Back-9
+  is encoded by hole NUMBERING (10–18) in `hole_data` — no schema change —
+  so the Back 9 choice gates on having par data (course pick or manual
+  entry). New pure `resizePlayerScores` rebuilds every player's row on a
+  range change, preserving overlapping holes (render-phase sync; the old
+  code hard-coded 18 and never resized).
+- **Rating/slope finally travel** — auto-filled from a DB course's selected
+  tee, manually enterable for custom courses; `shared-round-submit` sends
+  `course_rating`/`slope_rating` (the server always accepted them) and true
+  hole numbers for manual `hole_data`. Manual par/yardage lookups are
+  position-indexed against `startingHole` now.
+- **What "already played" keeps that live hides** (the genuine mode
+  difference, untouched): full composer chrome — caption, media, tags,
+  visibility — plus the one-pass score grid; live keeps Go Live → `/live`
+  → hole-by-hole. The stale weather/temp/wind "required" error copy is
+  fixed (course + date is the whole gate, both hint sites).
+- **Kept for legacy**: `post-write.ts` + the posts-route `golfData` branch
+  (dated legacy comment — stale clients mid-deploy; legacy `golf_rounds`
+  posts render untouched). e2e first spec rewritten to the unified flow.
+
+Feed golf rendering untouched. Tests 1430/111 (resizePlayerScores). PR-2 is
+stacked on PR-1 (#194) — merge #194 first, then retarget before any branch
+deletion (the raw-ref-delete trap).
+
 ## August 21, 2026 — Golf unification PR-1: rails (upsert, 9-hole plumbing, /live final parity)
 
 Tom's direction: **"One flow, two modes: live rounds stream, past rounds

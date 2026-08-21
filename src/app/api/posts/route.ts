@@ -258,6 +258,11 @@ export async function POST(request: NextRequest) {
     // Sport write dispatch — golf is the only deep-table sport today; its
     // round/holes creation lives in src/lib/golf/post-write.ts (moved intact,
     // migration-020/023 history documented there).
+    //
+    // LEGACY CREATE PATH (Aug 2026 flow unification): the composer no longer
+    // sends golfData — every new golf round rides POST /api/group-posts.
+    // This branch stays for stale clients mid-deploy and because legacy
+    // golf_rounds posts still render through it; do not extend it.
     if (postType === 'golf' && golfData) {
       const golfResult = await createGolfRoundEntities(supabase, userId, golfData);
       if (!golfResult.ok) {

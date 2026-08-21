@@ -1,16 +1,18 @@
-// ── Shared-round submission ───────────────────────────────────────────────────
-// The shared-round fork of CreatePostModal's handleSubmit, moved out wholesale
-// (sport-cleanup D-2). The request bodies sent here — /api/group-posts (atomic
-// round create), /api/golf/participant-scores (initial scores), and the
-// per-file /api/group-posts/[id]/media attach — must stay byte-identical to
-// what the composer sent before the extraction; do not rename keys.
+// ── Round submission ──────────────────────────────────────────────────────────
+// The golf fork of CreatePostModal's handleSubmit, moved out wholesale
+// (sport-cleanup D-2) and since the flow unification the ONLY golf submit
+// path (every round rides the group-posts rails; the individual
+// golf_rounds create path is retired). Existing keys stay byte-identical to
+// the pre-extraction bodies; the unification ADDED fields the server already
+// accepted (real holes_played, true hole numbers for back-9,
+// course_rating/slope_rating) — a deliberate widening, no server change.
 //
 // Throws on round-create failure (the caller's catch shows the generic
 // failure toast, exactly as before). Partial failures after the round exists
 // (scores, media) surface their own toasts here and do NOT throw — the round
 // is real and the user can repair it from the post.
 
-import type { GolfComposerValue } from '@/components/golf/GolfComposerSection';
+import { composerStartingHole, type GolfComposerValue } from '@/components/golf/GolfComposerSection';
 import type { CreatedRoundLike } from '@/lib/golf/round-route';
 
 export interface SharedRoundSubmitContext<M extends { type: 'image' | 'video' }> {
@@ -43,6 +45,7 @@ export async function submitSharedRound<M extends { type: 'image' | 'video' }>(
     playerScores,
   } = value;
   const { caption, visibility, mediaFiles, uploadMediaWithPoster, showSuccess, showError } = ctx;
+  const startHole = composerStartingHole(sharedRoundDetails);
 
   // Step 1: Create the round ATOMICALLY — group post, participants,
   // scorecard, and feed post in one server request. If any piece fails
@@ -74,11 +77,21 @@ export async function submitSharedRound<M extends { type: 'image' | 'video' }>(
             ? courseHoleData
             : manualParEntry.length > 0 || manualYardageEntry.length > 0
             ? Array.from({ length: sharedRoundDetails.holesPlayed }, (_, i) => ({
-                hole: i + 1,
+                // TRUE hole numbers — a back-9 round stores holes 10–18;
+                // that numbering IS how back-9 is encoded (no schema column).
+                hole: startHole + i,
                 par: manualParEntry[i] || 4,
                 yardage: manualYardageEntry[i] || undefined,
               }))
             : undefined,
+        // Handicap-differential inputs — the server has always accepted
+        // these; the composer just never sent them before unification.
+        course_rating: sharedRoundDetails.courseRating
+          ? parseFloat(sharedRoundDetails.courseRating) || undefined
+          : undefined,
+        slope_rating: sharedRoundDetails.slopeRating
+          ? parseInt(sharedRoundDetails.slopeRating) || undefined
+          : undefined,
         tee_color: sharedRoundDetails.teeColor || undefined,
         weather_conditions: sharedRoundDetails.weather || undefined,
         temperature: sharedRoundDetails.temperature ? parseInt(sharedRoundDetails.temperature) : undefined,
@@ -120,8 +133,10 @@ export async function submitSharedRound<M extends { type: 'image' | 'video' }>(
                 const holeInfo = courseHoleData.find(h => h.hole === hole.hole_number) ||
                   (manualParEntry.length > 0 || manualYardageEntry.length > 0
                     ? {
-                        par: manualParEntry[hole.hole_number - 1] || undefined,
-                        yardage: manualYardageEntry[hole.hole_number - 1] || undefined
+                        // Manual entries are POSITION-indexed; hole numbers
+                        // start at `startHole` (back-9 → 10).
+                        par: manualParEntry[hole.hole_number - startHole] || undefined,
+                        yardage: manualYardageEntry[hole.hole_number - startHole] || undefined
                       }
                     : {});
 
