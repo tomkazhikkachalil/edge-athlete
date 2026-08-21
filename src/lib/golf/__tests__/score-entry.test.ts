@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
   firstUnscoredHole,
   hasAnyEnteredScore,
+  resizePlayerScores,
   parseDraft,
   mergeDraftIntoHoles,
   DRAFT_TTL_MS,
@@ -184,5 +185,56 @@ describe('hasAnyEnteredScore', () => {
 
   it('ignores negative strokes', () => {
     expect(hasAnyEnteredScore([row(-1)])).toBe(false);
+  });
+});
+
+describe('resizePlayerScores', () => {
+  const player = (...holes: Array<{ hole_number: number; strokes?: number }>) => ({
+    participant_id: 'p1',
+    hole_scores: holes,
+  });
+
+  it('grows a 9-hole row to 18, preserving entered scores', () => {
+    const [out] = resizePlayerScores(
+      [player({ hole_number: 1, strokes: 4 }, { hole_number: 2 })],
+      18,
+      1
+    );
+    expect(out.hole_scores).toHaveLength(18);
+    expect(out.hole_scores[0]).toEqual({ hole_number: 1, strokes: 4 });
+    expect(out.hole_scores[17]).toEqual({ hole_number: 18 });
+  });
+
+  it('shrinks 18 → 9, dropping the back nine', () => {
+    const holes = Array.from({ length: 18 }, (_, i) => ({ hole_number: i + 1, strokes: 4 }));
+    const [out] = resizePlayerScores([player(...holes)], 9, 1);
+    expect(out.hole_scores).toHaveLength(9);
+    expect(out.hole_scores.map(h => h.hole_number)).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9]);
+  });
+
+  it('front → back 9 renumbers to 10–18; overlapping numbers survive, others reset', () => {
+    const [out] = resizePlayerScores(
+      [player({ hole_number: 1, strokes: 5 }, { hole_number: 10, strokes: 3 })],
+      9,
+      10
+    );
+    expect(out.hole_scores.map(h => h.hole_number)).toEqual([10, 11, 12, 13, 14, 15, 16, 17, 18]);
+    expect(out.hole_scores[0]).toEqual({ hole_number: 10, strokes: 3 });
+    expect(out.hole_scores[1]).toEqual({ hole_number: 11 });
+  });
+
+  it('resizes every player, not just the first', () => {
+    const out = resizePlayerScores(
+      [
+        { participant_id: 'a', hole_scores: [{ hole_number: 1, strokes: 4 }] },
+        { participant_id: 'b', hole_scores: [{ hole_number: 1 }] },
+      ],
+      9,
+      1
+    );
+    expect(out).toHaveLength(2);
+    expect(out[0].hole_scores).toHaveLength(9);
+    expect(out[1].hole_scores).toHaveLength(9);
+    expect(out[0].participant_id).toBe('a');
   });
 });

@@ -184,6 +184,29 @@ export function clearDraft(participantId: string): void {
   } catch { /* best-effort */ }
 }
 
+// ── Hole-range resizing (composer 9/18 + front/back control) ─────────────────
+
+/**
+ * Rebuild every player's hole_scores array for a new hole range, preserving
+ * any entries whose hole numbers overlap the new range. The composer's
+ * initializer only ever ADDS players and the change handler only maps over
+ * slots that already exist, so a hole-count or front↔back change must
+ * rebuild rows explicitly — this is that rebuild, pure and testable.
+ */
+export function resizePlayerScores<
+  H extends { hole_number: number },
+  P extends { hole_scores: H[] }
+>(players: P[], holesPlayed: number, startingHoleNumber: number): P[] {
+  return players.map(player => {
+    const byHole = new Map(player.hole_scores.map(h => [h.hole_number, h]));
+    const hole_scores = Array.from({ length: holesPlayed }, (_, i) => {
+      const hole_number = startingHoleNumber + i;
+      return byHole.get(hole_number) ?? ({ hole_number } as H);
+    });
+    return { ...player, hole_scores };
+  });
+}
+
 // ── "Has anything actually been entered?" ─────────────────────────────────────
 
 /**
