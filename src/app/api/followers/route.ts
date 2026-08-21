@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
-import { requireAuth } from '@/lib/auth-server';
+import { requireAuth, requireProfileRole, getSupabaseAdmin } from '@/lib/auth-server';
 import { canViewProfile } from '@/lib/privacy';
+import { notifyGuardians, notifyUser, profileFirstName } from '@/lib/guardian-notify';
 
 export async function GET(request: NextRequest) {
 
@@ -127,29 +128,21 @@ export async function GET(request: NextRequest) {
     }
 
     if (type === 'requests') {
-      // Get pending follow requests (only for own profile)
+      // Own requests, or a managed athlete's (Round G): the role matrix
+      // gates the non-self path — a guardian holds manage_privacy on their
+      // supervised athlete, everyone else 403s. The child's own view is
+      // untouched ("either can approve" keeps the child in control too).
       if (profileId !== user.id) {
-        return NextResponse.json({ error: 'Cannot view other users requests' }, { status: 403 });
+        await requireProfileRole(request, profileId, 'manage_privacy');
       }
 
-
-      // Use service role client to bypass RLS and read follow requests + profiles
-      const supabaseAdmin = createClient(
-        process.env.NEXT_PUBLIC_SUPABASE_URL!,
-        process.env.SUPABASE_SERVICE_ROLE_KEY!,
-        {
-          auth: {
-            autoRefreshToken: false,
-            persistSession: false
-          }
-        }
-      );
+      const supabaseAdmin = getSupabaseAdmin();
 
       // First get the follow requests
       const { data: followRequests, error: followError } = await supabaseAdmin
         .from('follows')
         .select('id, message, created_at, follower_id')
-        .eq('following_id', user.id)
+        .eq('following_id', profileId)
         .eq('status', 'pending')
         .order('created_at', { ascending: false });
 
@@ -200,6 +193,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: 'Invalid type parameter' }, { status: 400 });
 
   } catch (error) {
+    if (error instanceof Response) return error;
     console.error('[FOLLOWERS API] Catch error:', error);
     return NextResponse.json({
       error: error instanceof Error ? error.message : 'Failed to fetch followers',
@@ -226,23 +220,66 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const { action, followId } = body;
 
-    // Use admin client for database operations
-    const supabaseAdmin = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_ROLE_KEY!
-    );
+    // Round G ("either can approve"): a guardian may act on their managed
+    // athlete's requests by passing profileId. The role matrix gates it
+    // (owner passes for self, guardian for the child, everyone else 403s);
+    // every query below stays anchored to the RESOLVED profile so a caller
+    // can never act on a request that isn't theirs to decide.
+    let actingFor = user.id;
+    if (typeof body.profileId === 'string' && body.profileId && body.profileId !== user.id) {
+      await requireProfileRole(request, body.profileId, 'manage_privacy');
+      actingFor = body.profileId;
+    }
+
+    const supabaseAdmin = getSupabaseAdmin();
 
     if (action === 'accept') {
-      // Accept a follow request
-      const { error } = await supabaseAdmin
+      // Accept a follow request — return the row so the cross-notify below
+      // knows who the requester was.
+      const { data: acceptedRows, error } = await supabaseAdmin
         .from('follows')
         .update({ status: 'accepted' })
         .eq('id', followId)
-        .eq('following_id', user.id) // Ensure user owns this request
-        .eq('status', 'pending');
+        .eq('following_id', actingFor)
+        .eq('status', 'pending')
+        .select('follower_id');
 
       if (error) {
         return NextResponse.json({ error: error.message }, { status: 500 });
+      }
+
+      // Cross-notify the party who didn't act (the DB trigger already tells
+      // the REQUESTER their request was accepted). Best-effort.
+      const followerId = acceptedRows?.[0]?.follower_id;
+      if (followerId) {
+        const { data: target } = await supabaseAdmin
+          .from('profiles')
+          .select('supervision_state')
+          .eq('id', actingFor)
+          .maybeSingle();
+        if (target?.supervision_state === 'supervised') {
+          const [childName, followerName] = await Promise.all([
+            profileFirstName(supabaseAdmin, actingFor),
+            profileFirstName(supabaseAdmin, followerId),
+          ]);
+          if (actingFor === user.id) {
+            // The child accepted → tell the guardians.
+            await notifyGuardians(supabaseAdmin, actingFor, {
+              type: 'follow_update',
+              title: `${childName} accepted a fan request from ${followerName}`,
+              actionUrl: `/app/guardian/athlete/${actingFor}`,
+              actorId: followerId,
+            }, user.id);
+          } else {
+            // A guardian accepted → tell the child.
+            await notifyUser(supabaseAdmin, actingFor, {
+              type: 'follow_update',
+              title: `Your guardian approved ${followerName}'s fan request`,
+              actionUrl: `/app/followers`,
+              actorId: followerId,
+            });
+          }
+        }
       }
 
       return NextResponse.json({ success: true, message: 'Follow request accepted' });
@@ -256,7 +293,7 @@ export async function POST(request: NextRequest) {
         .from('follows')
         .delete()
         .eq('id', followId)
-        .eq('following_id', user.id) // Ensure user owns this request
+        .eq('following_id', actingFor)
         .eq('status', 'pending')
         .select(); // Return deleted rows for verification
 
@@ -282,6 +319,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Invalid action' }, { status: 400 });
 
   } catch (error) {
+    if (error instanceof Response) return error;
     console.error('Follow action error:', error);
     return NextResponse.json(
       { error: error instanceof Error ? error.message : 'Failed to process follow action' },

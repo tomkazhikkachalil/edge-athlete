@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getSupabaseAdmin, requireAuth } from '@/lib/auth-server';
+import { getSupabaseAdmin, requireAuth, requireProfileRole } from '@/lib/auth-server';
 import { enforceRateLimit } from '@/lib/rate-limit';
 
 export async function POST(request: NextRequest) {
@@ -15,18 +15,26 @@ export async function POST(request: NextRequest) {
     const { followingId, message, action, fanId } = body;
     const followerId = user.id;
 
-    // Remove one of YOUR OWN fans: the session user is the followed side,
-    // deleting someone else's follow of them. Session-anchored — a caller can
-    // only ever remove followers from their own list.
+    // Remove a fan. Default: the session user is the followed side, deleting
+    // someone else's follow of them. Round G: a guardian may pass
+    // targetProfileId to remove a follower from their MANAGED athlete's list
+    // — server-authoritative via the role matrix (owner passes too, so the
+    // self case is the same gate).
     if (action === 'remove_fan') {
       if (!fanId || typeof fanId !== 'string') {
         return NextResponse.json({ error: 'fanId is required' }, { status: 400 });
+      }
+      let removeFrom = user.id;
+      const targetProfileId = body.targetProfileId;
+      if (typeof targetProfileId === 'string' && targetProfileId && targetProfileId !== user.id) {
+        await requireProfileRole(request, targetProfileId, 'manage_privacy');
+        removeFrom = targetProfileId;
       }
       const { error: removeError } = await supabase
         .from('follows')
         .delete()
         .eq('follower_id', fanId)
-        .eq('following_id', user.id);
+        .eq('following_id', removeFrom);
 
       if (removeError) {
         console.error('[FOLLOW API] Remove fan error:', removeError);
@@ -82,7 +90,7 @@ export async function POST(request: NextRequest) {
       // and whether it's private
       const { data: targetProfile, error: profileError } = await supabase
         .from('profiles')
-        .select('visibility')
+        .select('visibility, supervision_state')
         .eq('id', followingId)
         .maybeSingle();
 
@@ -126,6 +134,24 @@ export async function POST(request: NextRequest) {
         // Still return success since the insert worked
       }
 
+      // Round G: a pending request at a SUPERVISED profile also bells the
+      // guardians ("either can approve"). The DB trigger already notifies
+      // the child; this is the guardian half. Best-effort, never fails the
+      // follow.
+      if (isPrivate && targetProfile.supervision_state === 'supervised') {
+        const { notifyGuardians, profileFirstName } = await import('@/lib/guardian-notify');
+        const [childName, followerName] = await Promise.all([
+          profileFirstName(supabase, followingId),
+          profileFirstName(supabase, followerId),
+        ]);
+        await notifyGuardians(supabase, followingId, {
+          type: 'follow_request_guardian',
+          title: `${followerName} wants to become ${childName}'s fan`,
+          message: 'You or your athlete can approve or decline this request.',
+          actionUrl: `/app/guardian/athlete/${followingId}`,
+          actorId: followerId,
+        });
+      }
 
       return NextResponse.json({
         action: 'followed',
