@@ -44,6 +44,27 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // You can only tag people whose profile you can actually see (Round F).
+    // Without this, anyone could tag a PRIVATE profile — including a
+    // supervised minor — into their post, sight unseen. canViewProfile
+    // already encodes owner/follower/guardian access, so tagging keeps
+    // working inside real relationships (golf rounds tag participants via
+    // their own server path, unaffected).
+    const taggedIds = [...new Set(
+      (tags as { taggedProfileId: string }[])
+        .map(t => t.taggedProfileId)
+        .filter(id => id && id !== user.id)
+    )];
+    const viewChecks = await Promise.all(
+      taggedIds.map(id => canViewProfile(id, user.id))
+    );
+    if (viewChecks.some(check => !check.canView)) {
+      return NextResponse.json(
+        { error: 'You can only tag people whose profile you can view' },
+        { status: 403 }
+      );
+    }
+
     // Prepare tag records
     const tagRecords = tags.map((tag: {
       taggedProfileId: string;

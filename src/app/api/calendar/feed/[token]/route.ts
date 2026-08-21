@@ -30,6 +30,18 @@ export async function GET(
       .maybeSingle();
     if (!row) return NextResponse.json({ error: 'Not found' }, { status: 404 });
 
+    // Supervised minors (Round F): serve-time check so links minted before
+    // the account became supervised — or before this gate existed — go dark
+    // too. The token stops resolving; calendar apps just see a dead feed.
+    const { data: owner } = await admin
+      .from('profiles')
+      .select('supervision_state')
+      .eq('id', row.profile_id)
+      .maybeSingle();
+    if (owner?.supervision_state === 'supervised') {
+      return NextResponse.json({ error: 'Not found' }, { status: 404 });
+    }
+
     const ics = await buildFeedIcs(admin, row.profile_id);
     return new NextResponse(ics, {
       status: 200,

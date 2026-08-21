@@ -42,10 +42,10 @@ export async function GET(request: NextRequest) {
         return NextResponse.json({ error: createError.message }, { status: 500 });
       }
 
-      return NextResponse.json({ preferences: newPreferences });
+      return NextResponse.json({ preferences: newPreferences, lockedFields: await lockedFieldsFor(user.id) });
     }
 
-    return NextResponse.json({ preferences });
+    return NextResponse.json({ preferences, lockedFields: await lockedFieldsFor(user.id) });
 
   } catch (error) {
     if (error instanceof Response) return error;
@@ -55,6 +55,20 @@ export async function GET(request: NextRequest) {
       { status: 500 }
     );
   }
+}
+
+// Supervised minors cannot switch off the email channel: their digest is
+// rerouted to their guardians (digest-server) and is the guardian's ambient
+// window into the account — a child toggle that silences it would defeat a
+// safety control. Strip, don't 403 (the profile-PUT precedent); the Settings
+// UI renders the toggle locked via `lockedFields`.
+async function lockedFieldsFor(userId: string): Promise<string[]> {
+  const { data } = await getSupabaseAdmin()
+    .from('profiles')
+    .select('supervision_state')
+    .eq('id', userId)
+    .maybeSingle();
+  return data?.supervision_state === 'supervised' ? ['email_enabled'] : [];
 }
 
 // Only the real boolean preference columns may be updated (each optional).
@@ -90,6 +104,22 @@ export async function PATCH(request: NextRequest) {
 
     if (Object.keys(updates).length === 0) {
       return NextResponse.json({ error: 'No valid preference fields provided' }, { status: 400 });
+    }
+
+    if (updates.email_enabled !== undefined) {
+      const locked = await lockedFieldsFor(user.id);
+      if (locked.includes('email_enabled')) {
+        delete updates.email_enabled;
+        if (Object.keys(updates).length === 0) {
+          // Nothing left to write — return the current row unchanged.
+          const { data: current } = await supabaseAdmin
+            .from('notification_preferences')
+            .select('*')
+            .eq('user_id', user.id)
+            .maybeSingle();
+          return NextResponse.json({ success: true, preferences: current, lockedFields: locked });
+        }
+      }
     }
 
     const { data: preferences, error } = await supabaseAdmin

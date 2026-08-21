@@ -169,8 +169,11 @@ export async function PUT(request: NextRequest) {
     // Strip, don't 403: profile PUTs are batched edits (the shipped DOB
     // precedent), and the Settings UI renders these read-only for supervised
     // users — the strip is defense against crafted requests.
+    // user_type is locked too: a supervised child flipping to 'fan' would
+    // exit every supervised-athlete code path while keeping the custody rows.
     const SUPERVISED_LOCKED_FIELDS = [
       'visibility', 'messaging_permission', 'comment_moderation', 'dob', 'birthday',
+      'user_type',
     ] as const;
     const touchesGated = SUPERVISED_LOCKED_FIELDS.some(
       (f) => cleanedProfileData[f] !== undefined

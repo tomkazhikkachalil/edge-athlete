@@ -76,6 +76,7 @@ function Toggle({ on, disabled, onChange, label }: { on: boolean; disabled: bool
 export default function NotificationSettings() {
   const { showError } = useToast();
   const [prefs, setPrefs] = useState<Preferences | null>(null);
+  const [lockedFields, setLockedFields] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   const [savingKey, setSavingKey] = useState<PrefKey | null>(null);
 
@@ -87,7 +88,10 @@ export default function NotificationSettings() {
         if (cancelled) return;
         if (response.ok) {
           const data = await response.json();
-          if (!cancelled) setPrefs(data.preferences);
+          if (!cancelled) {
+            setPrefs(data.preferences);
+            setLockedFields(Array.isArray(data.lockedFields) ? data.lockedFields : []);
+          }
         } else {
           showError('Error', 'Could not load notification preferences.');
         }
@@ -163,15 +167,25 @@ export default function NotificationSettings() {
             <div className="min-w-0">
               <p className="text-sm font-medium text-primary">Daily email digest</p>
               <p className="text-xs text-muted">
-                Once a day, get an email summary of your new notifications. Off by default.
+                {lockedFields.includes('email_enabled')
+                  ? 'Your guardian receives a daily summary of your activity.'
+                  : 'Once a day, get an email summary of your new notifications. Off by default.'}
               </p>
+              {lockedFields.includes('email_enabled') && (
+                <p className="mt-1.5 flex items-center gap-1.5 text-xs text-muted">
+                  <i className="fas fa-user-shield" aria-hidden="true"></i>
+                  <span>Managed by your guardian</span>
+                </p>
+              )}
             </div>
-            <Toggle
-              on={prefs.email_enabled}
-              disabled={savingKey === 'email_enabled'}
-              onChange={() => toggle('email_enabled')}
-              label="Daily email digest"
-            />
+            {!lockedFields.includes('email_enabled') && (
+              <Toggle
+                on={prefs.email_enabled}
+                disabled={savingKey === 'email_enabled'}
+                onChange={() => toggle('email_enabled')}
+                label="Daily email digest"
+              />
+            )}
           </div>
         </div>
       </div>

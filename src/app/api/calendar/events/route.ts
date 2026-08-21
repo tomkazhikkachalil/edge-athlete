@@ -9,6 +9,7 @@ import { notifyEventInvites } from '@/lib/calendar/notifications';
 import { formatEventWhen } from '@/lib/calendar/format-server';
 import { buildRoutineSnapshot, type RoutinePlan } from '@/lib/calendar/event-routine';
 import { fetchActivityOverlay } from '@/lib/calendar/activity-overlay';
+import { checkSupervisedInviteGate } from '@/lib/calendar/supervised-invites';
 import type { ServerRoutineRow } from '@/lib/workouts/routines';
 
 // ── /api/calendar/events ──────────────────────────────────────────────────────
@@ -110,6 +111,13 @@ export async function POST(request: NextRequest) {
       if (missing.length > 0) {
         return NextResponse.json({ error: 'One of the invited guests no longer exists.' }, { status: 400 });
       }
+    }
+
+    // Supervised gate: invitees behind a family messaging tier, and no
+    // raw-email guests from a supervised creator.
+    const inviteGate = await checkSupervisedInviteGate(admin, user.id, profileIds, emails.length);
+    if (!inviteGate.ok) {
+      return NextResponse.json({ error: inviteGate.error }, { status: 403 });
     }
 
     // Attached routine: must be the caller's, snapshotted at attach time (the
