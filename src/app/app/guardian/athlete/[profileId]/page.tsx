@@ -15,6 +15,7 @@ import { FEATURE_FLAGS } from '@/lib/features';
 import { formatDisplayName, getInitials, formatAge } from '@/lib/formatters';
 import { transferStateChip } from '@/lib/transfer-ui';
 import {
+  buildSetupChecklist,
   consentChip,
   loginChip,
   type Chip,
@@ -735,6 +736,47 @@ export default function GuardianAthletePage() {
               </div>
             ) : (
               <>
+                {/* Setup checklist (Round J): disappears once complete. */}
+                {(() => {
+                  const steps = buildSetupChecklist(athlete.consentState, athlete.hasLogin, athlete.id);
+                  if (!steps) return null;
+                  return (
+                    <section className="bg-brand-soft border border-violet-200 dark:border-violet-800 rounded-lg p-5 mb-4">
+                      <h2 className="text-base font-bold text-violet-900 dark:text-violet-200 mb-3">
+                        Finish setting up
+                      </h2>
+                      <ul className="space-y-2">
+                        {steps.map(step => (
+                          <li key={step.key} className="flex items-center gap-2.5 text-sm">
+                            <i
+                              className={`fas ${
+                                step.state === 'done'
+                                  ? 'fa-circle-check text-green-600 dark:text-green-400'
+                                  : step.state === 'waiting'
+                                  ? 'fa-clock text-amber-600 dark:text-amber-400'
+                                  : 'fa-circle text-violet-300 dark:text-violet-700'
+                              }`}
+                              aria-hidden="true"
+                            ></i>
+                            {step.href && step.state !== 'done' ? (
+                              <Link
+                                href={step.href}
+                                className="text-violet-900 dark:text-violet-200 font-medium hover:underline min-h-[32px] inline-flex items-center"
+                              >
+                                {step.label}
+                              </Link>
+                            ) : (
+                              <span className={step.state === 'done' ? 'text-tertiary' : 'text-violet-900 dark:text-violet-200'}>
+                                {step.label}
+                              </span>
+                            )}
+                          </li>
+                        ))}
+                      </ul>
+                    </section>
+                  );
+                })()}
+
                 {/* Safety */}
                 <section className="bg-surface border border-border rounded-lg p-5 mb-4">
                   <h2 className="text-base font-bold text-primary mb-1">Safety</h2>

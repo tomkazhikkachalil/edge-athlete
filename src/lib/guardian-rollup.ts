@@ -91,6 +91,65 @@ export function buildAthleteSummaries(
   return summaries;
 }
 
+// ── Setup checklist (Round J) ────────────────────────────────────────────────
+// The parent's "am I done yet?" answer while an athlete's setup is still in
+// flight — derived entirely from rollup data the console already holds.
+// Copy promise: consent review time is STATIC copy ("typically within 2
+// days"), not a computed ETA — there is no queue-position plumbing and a
+// wrong number is worse than a vague one.
+
+export interface SetupStep {
+  key: 'profile' | 'consent' | 'login';
+  label: string;
+  state: 'done' | 'action' | 'waiting';
+  /** Relative to the athlete page; null = nothing to click. */
+  href: string | null;
+}
+
+/** Null once setup is complete — the card should disappear, not celebrate. */
+export function buildSetupChecklist(
+  consentState: ConsentState,
+  hasLogin: boolean,
+  profileId: string
+): SetupStep[] | null {
+  if (consentState === 'approved' && hasLogin) return null;
+  const consent: SetupStep =
+    consentState === 'approved'
+      ? { key: 'consent', label: 'Parental consent approved', state: 'done', href: null }
+      : consentState === 'pending_review'
+      ? {
+          key: 'consent',
+          label: 'Consent in review — typically done within 2 days',
+          state: 'waiting',
+          href: `/app/guardian/consent/${profileId}`,
+        }
+      : consentState === 'rejected'
+      ? {
+          key: 'consent',
+          label: 'Consent was rejected — resubmit the form',
+          state: 'action',
+          href: `/app/guardian/consent/${profileId}`,
+        }
+      : {
+          key: 'consent',
+          label: 'Complete the consent form',
+          state: 'action',
+          href: `/app/guardian/consent/${profileId}`,
+        };
+  return [
+    { key: 'profile', label: 'Profile created', state: 'done', href: null },
+    consent,
+    hasLogin
+      ? { key: 'login', label: 'Login issued', state: 'done', href: null }
+      : {
+          key: 'login',
+          label: 'Issue their login',
+          state: 'action',
+          href: `/app/guardian/credentials/${profileId}`,
+        },
+  ];
+}
+
 export function consentChip(state: ConsentState): Chip {
   switch (state) {
     case 'approved': return { label: 'Consent approved', tone: 'violet' };

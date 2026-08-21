@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   buildAthleteSummaries,
+  buildSetupChecklist,
   consentChip,
   loginChip,
   messagingChip,
@@ -147,5 +148,40 @@ describe('messagingChip', () => {
     expect(messagingChip(null).tone).toBe('gray');
     expect(messagingChip(undefined).tone).toBe('gray');
     expect(messagingChip('garbage').tone).toBe('gray');
+  });
+});
+
+describe('buildSetupChecklist', () => {
+  it('null once setup is complete — the card disappears', () => {
+    expect(buildSetupChecklist('approved', true, A)).toBeNull();
+  });
+
+  it('fresh athlete: consent + login are actions, profile is done', () => {
+    const steps = buildSetupChecklist('none', false, A)!;
+    expect(steps.map(s => [s.key, s.state])).toEqual([
+      ['profile', 'done'],
+      ['consent', 'action'],
+      ['login', 'action'],
+    ]);
+    expect(steps[1].href).toBe(`/app/guardian/consent/${A}`);
+    expect(steps[2].href).toBe(`/app/guardian/credentials/${A}`);
+  });
+
+  it('pending review reads as waiting with the static SLA copy', () => {
+    const steps = buildSetupChecklist('pending_review', true, A)!;
+    const consent = steps.find(s => s.key === 'consent')!;
+    expect(consent.state).toBe('waiting');
+    expect(consent.label).toContain('typically');
+  });
+
+  it('rejected consent is an action again', () => {
+    const consent = buildSetupChecklist('rejected', true, A)!.find(s => s.key === 'consent')!;
+    expect(consent.state).toBe('action');
+  });
+
+  it('done steps carry no link', () => {
+    const steps = buildSetupChecklist('approved', false, A)!;
+    expect(steps.find(s => s.key === 'consent')!.href).toBeNull();
+    expect(steps.find(s => s.key === 'profile')!.href).toBeNull();
   });
 });

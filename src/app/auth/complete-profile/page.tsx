@@ -26,6 +26,18 @@ export default function CompleteProfilePage() {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
   const [emailCollision, setEmailCollision] = useState(false);
+  // Round J: which signup branch launched OAuth (OAuthButtons writes the
+  // short-lived cookie before the redirect). Parents get a parent profile —
+  // no handle, no DOB — instead of being silently minted as athletes.
+  const [signupRole] = useState<'parent' | 'athlete'>(() => {
+    try {
+      if (typeof document !== 'undefined' && document.cookie.includes('ea-signup-role=parent')) {
+        return 'parent';
+      }
+    } catch { /* cookie unreadable → athlete default */ }
+    return 'athlete';
+  });
+  const isParent = signupRole === 'parent';
   const errorRef = useRef<HTMLDivElement>(null);
 
   // Route guards: unauthenticated → login; already has a profile → onward.
@@ -85,12 +97,12 @@ export default function CompleteProfilePage() {
       setError('Please enter your first name.');
       return;
     }
-    if (!handle) {
+    if (!isParent && !handle) {
       setError('Please wait for your handle to be confirmed as available, or pick another handle.');
       return;
     }
 
-    if (FEATURE_FLAGS.FEATURE_GUARDIAN_PROFILES && !dob) {
+    if (!isParent && FEATURE_FLAGS.FEATURE_GUARDIAN_PROFILES && !dob) {
       setError('Please enter your date of birth.');
       return;
     }
@@ -103,9 +115,13 @@ export default function CompleteProfilePage() {
         body: JSON.stringify({
           first_name: firstName.trim(),
           last_name: lastName.trim(),
-          handle,
-          ...(FEATURE_FLAGS.FEATURE_GUARDIAN_PROFILES ? { dob } : {}),
-          ...(guardianEmail ? { guardianEmail: guardianEmail.trim() } : {}),
+          ...(isParent
+            ? { actorRole: 'guardian' }
+            : {
+                handle,
+                ...(FEATURE_FLAGS.FEATURE_GUARDIAN_PROFILES ? { dob } : {}),
+                ...(guardianEmail ? { guardianEmail: guardianEmail.trim() } : {}),
+              }),
         }),
       });
       const result = await response.json();
@@ -125,6 +141,13 @@ export default function CompleteProfilePage() {
       if (result.parked) {
         setParkedMessage(result.message || "We've emailed your parent or guardian a link to finish setting up your profile.");
         setSubmitting(false);
+        return;
+      }
+      if (isParent) {
+        // Hard navigation after the session's profile changed shape — the
+        // add-athlete screen must boot with the fresh parent profile.
+        // eslint-disable-next-line @next/next/no-location-assign-relative-destination -- profile was just created server-side; the auth provider must boot fresh (house pattern)
+        window.location.href = '/app/guardian/add-athlete';
         return;
       }
       await refreshProfile();
@@ -169,7 +192,9 @@ export default function CompleteProfilePage() {
             Complete your account
           </h2>
           <p className="text-sm text-tertiary mb-4">
-            You&apos;re almost in — confirm your name and pick a handle.
+            {isParent
+              ? "You're almost in — confirm your name and you'll add your athlete next."
+              : "You're almost in — confirm your name and pick a handle."}
           </p>
 
           {error && (
@@ -231,7 +256,7 @@ export default function CompleteProfilePage() {
               />
             </div>
 
-            {FEATURE_FLAGS.FEATURE_GUARDIAN_PROFILES && (
+            {FEATURE_FLAGS.FEATURE_GUARDIAN_PROFILES && !isParent && (
               <div>
                 <label htmlFor="cp-dob" className="block text-sm font-medium text-secondary mb-1">
                   Date of birth
@@ -268,12 +293,14 @@ export default function CompleteProfilePage() {
               </div>
             )}
 
-            <HandleSelector
-              firstName={firstName}
-              lastName={lastName}
-              onHandleSelected={setHandle}
-              required
-            />
+            {!isParent && (
+              <HandleSelector
+                firstName={firstName}
+                lastName={lastName}
+                onHandleSelected={setHandle}
+                required
+              />
+            )}
 
             {error && (
               <p className="text-sm text-red-600 dark:text-red-400 text-center" aria-hidden="true">

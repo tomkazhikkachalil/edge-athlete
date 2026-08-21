@@ -27,6 +27,14 @@ export async function POST(request: NextRequest) {
     const first_name = typeof body.first_name === 'string' ? body.first_name.trim() : '';
     const last_name = typeof body.last_name === 'string' ? body.last_name.trim() : '';
     const handle = typeof body.handle === 'string' ? body.handle.toLowerCase().trim() : '';
+    // Round J: same actorRole contract as /api/signup. A guardian OAuth
+    // first-timer gets a PARENT profile — no handle (parents have none), no
+    // DOB gate (there is no athlete DOB to check; their athlete is added
+    // next, where the minor machinery lives). This route used to hardcode
+    // user_type 'athlete', silently making every Google-signup parent an
+    // athlete.
+    const isGuardian =
+      FEATURE_FLAGS.FEATURE_GUARDIAN_PROFILES && body.actorRole === 'guardian';
 
     // display_name has a not-empty check constraint — require a first name.
     if (!first_name) {
@@ -39,7 +47,7 @@ export async function POST(request: NextRequest) {
     // created — park in pending_profiles (with auth_user_id, since the OAuth
     // identity already exists) and invite the guardian. The client signs the
     // user out after a parked response.
-    if (FEATURE_FLAGS.FEATURE_GUARDIAN_PROFILES) {
+    if (FEATURE_FLAGS.FEATURE_GUARDIAN_PROFILES && !isGuardian) {
       const dob = typeof body.dob === 'string' ? body.dob : '';
       if (!dob || !isValidDateString(dob) || !isNotFutureDate(dob)) {
         return NextResponse.json(
@@ -112,12 +120,14 @@ export async function POST(request: NextRequest) {
         });
       }
     }
-    const formatResult = validateHandleFormat(handle);
-    if (!formatResult.isValid) {
-      return NextResponse.json(
-        { error: formatResult.error || 'Invalid handle format.' },
-        { status: 400 }
-      );
+    if (!isGuardian) {
+      const formatResult = validateHandleFormat(handle);
+      if (!formatResult.isValid) {
+        return NextResponse.json(
+          { error: formatResult.error || 'Invalid handle format.' },
+          { status: 400 }
+        );
+      }
     }
 
     const admin = getSupabaseAdmin();
@@ -153,23 +163,25 @@ export async function POST(request: NextRequest) {
     }
 
     // Server-side availability check (the page's live check can race).
-    const { data: availabilityRows, error: availabilityError } = await admin.rpc(
-      'check_handle_availability',
-      { input_handle: handle, current_profile_id: user.id }
-    );
-    if (availabilityError) {
-      Sentry.captureException(availabilityError, { tags: { area: 'oauth-complete-profile' } });
-      return NextResponse.json(
-        { error: 'Could not verify handle availability. Please try again.' },
-        { status: 500 }
+    if (!isGuardian) {
+      const { data: availabilityRows, error: availabilityError } = await admin.rpc(
+        'check_handle_availability',
+        { input_handle: handle, current_profile_id: user.id }
       );
-    }
-    const availability = availabilityRows?.[0];
-    if (!availability?.available) {
-      return NextResponse.json(
-        { error: availability?.reason || 'This handle is not available.' },
-        { status: 409 }
-      );
+      if (availabilityError) {
+        Sentry.captureException(availabilityError, { tags: { area: 'oauth-complete-profile' } });
+        return NextResponse.json(
+          { error: 'Could not verify handle availability. Please try again.' },
+          { status: 500 }
+        );
+      }
+      const availability = availabilityRows?.[0];
+      if (!availability?.available) {
+        return NextResponse.json(
+          { error: availability?.reason || 'This handle is not available.' },
+          { status: 409 }
+        );
+      }
     }
 
     const fullName = [first_name, last_name].filter(Boolean).join(' ') || undefined;
@@ -179,10 +191,11 @@ export async function POST(request: NextRequest) {
       email: user.email ? user.email.toLowerCase() : null,
       first_name,
       last_name: last_name || null,
-      user_type: 'athlete',
+      // Parents: no handle (the /api/signup parent branch's exact shape).
+      user_type: isGuardian ? 'parent' : 'athlete',
       full_name: fullName || null,
-      handle,
-      display_name: fullName || handle || 'Athlete',
+      handle: isGuardian ? null : handle,
+      display_name: fullName || (isGuardian ? first_name : handle) || 'Athlete',
       avatar_url: deriveAvatarUrl(meta),
     });
 

@@ -501,8 +501,11 @@ export default function AppHeader({ onCreatePost, onEditProfile }: AppHeaderProp
                             </button>
                           ))}
                           {/* One door to the management surface — approvals
-                              and transfers live inside the console now. */}
-                          {managedProfiles.length > 0 && (
+                              and transfers live inside the console now.
+                              Round J: parents keep the door even with an
+                              empty roster (a "Skip for now" on add-athlete
+                              used to strand them with no way back). */}
+                          {(managedProfiles.length > 0 || profile?.user_type === 'parent') && (
                             <button
                               onClick={() => {
                                 router.push('/app/guardian');
@@ -739,8 +742,9 @@ export default function AppHeader({ onCreatePost, onEditProfile }: AppHeaderProp
                   </button>
                 ))}
                 {/* One door to the management surface — approvals and
-                    transfers live inside the console now. */}
-                {managedProfiles.length > 0 && (
+                    transfers live inside the console now. Round J: parents
+                    keep the door even with an empty roster. */}
+                {(managedProfiles.length > 0 || profile?.user_type === 'parent') && (
                   <button
                     onClick={() => {
                       router.push('/app/guardian');

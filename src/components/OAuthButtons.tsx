@@ -36,9 +36,14 @@ interface OAuthButtonsProps {
   onError: (msg: string) => void;
   /** 'above' when buttons follow a form (login); 'below' when they precede one (signup). */
   divider?: 'above' | 'below';
+  /** Round J: which signup branch launched OAuth. Rides a short-lived cookie
+   *  through the provider round-trip so /auth/complete-profile knows whether
+   *  to create a parent or an athlete profile (it used to hardcode athlete —
+   *  a parent using Google became an athlete with no way back). */
+  signupRole?: 'parent' | 'athlete';
 }
 
-export default function OAuthButtons({ onError, divider = 'above' }: OAuthButtonsProps) {
+export default function OAuthButtons({ onError, divider = 'above', signupRole = 'athlete' }: OAuthButtonsProps) {
   const [redirecting, setRedirecting] = useState<OAuthProvider | null>(null);
 
   // No providers configured → render nothing (no divider, no buttons).
@@ -46,6 +51,12 @@ export default function OAuthButtons({ onError, divider = 'above' }: OAuthButton
 
   const start = async (provider: OAuthProvider) => {
     setRedirecting(provider);
+    // Always written (last click wins) so a stale parent cookie from an
+    // abandoned attempt can't flip a later athlete signup. 10 minutes is
+    // plenty for the OAuth round-trip; SameSite=Lax survives the redirect.
+    try {
+      document.cookie = `ea-signup-role=${signupRole}; path=/; max-age=600; SameSite=Lax`;
+    } catch { /* cookie blocked → server defaults to athlete */ }
     const { error } = await signInWithProvider(provider);
     if (error) {
       onError(error.message || 'Could not start sign-in. Please try again.');
