@@ -2,34 +2,34 @@
 
 // ── Golf's slice of the post composer ─────────────────────────────────────────
 // Extracted wholesale from CreatePostModal (sport-cleanup D-2): every piece of
-// golf-only composer state (round timing, shared-round details, course search,
-// manual par/yardage, participants, score entry, the individual scorecard)
-// lives HERE, and the modal keeps exactly one sport slot (see
-// src/components/sport-composer-extras.ts). The section reports its full value
-// up via `onChange` on every internal change; CreatePostModal stores that
-// snapshot and reads it in submit, validation, the footer hint and the preview.
+// golf-only composer state (round timing, round details, course search,
+// manual par/yardage, participants, score entry) lives HERE, and the modal
+// keeps exactly one sport slot (see src/components/sport-composer-extras.ts).
+// The section reports its full value up via `onChange` on every internal
+// change; CreatePostModal stores that snapshot and reads it in submit,
+// validation, the footer hint and the preview.
+//
+// ONE FLOW, TWO MODES (golf unification): every golf round rides the
+// group-posts rails — "Playing now" goes live and scores hole by hole;
+// "Already played" takes the same form, one-pass score entry, and publishes
+// once, complete. The old Individual/Shared fork (a separate 868-line form
+// writing golf_rounds directly, on which players could not be added at all)
+// is gone; "individual" is simply a round with zero invitees.
 //
 // The section stays MOUNTED while the composer is open even when another sport
 // is selected (`active` false) — the old inline state outlived the postType
 // toggle, so switching golf → general → golf must keep the scorecard.
 
 import { useState, useCallback, useRef, useEffect } from 'react';
-import { useToast } from '@/components/Toast';
 import { useAuth } from '@/lib/auth';
-import { hasAnyEnteredScore } from '@/lib/golf/score-entry';
+import { hasAnyEnteredScore, resizePlayerScores } from '@/lib/golf/score-entry';
 import { useDebouncedCallback } from '@/hooks/useDebouncedCallback';
 import { usePopoverDismiss } from '@/hooks/usePopoverDismiss';
-import GolfScorecardForm from '@/components/golf/GolfScorecardForm';
 import TagPeopleModal from '@/components/TagPeopleModal';
 import MultiPlayerScorecardGrid, { type PlayerScoreData, type PlayerHoleScore } from '@/components/golf/MultiPlayerScorecardGrid';
-import type { HoleData, GolfCourse } from '@/types/golf';
+import type { GolfCourse } from '@/types/golf';
 import type { SportComposerExtraProps } from '@/components/sport-composer-extras';
 import { GOLF_INPUT, GOLF_INPUT_COMPACT, GOLF_SELECT, GOLF_LABEL, GOLF_SECTION_CARD } from '@/components/golf/golf-form-styles';
-
-export interface GolfRoundData {
-  courseName?: string;
-  holesData?: HoleData[];
-}
 
 /** Full shared-round form state. CreatePostModal's preview only reads the
  *  display fields, but gameFormat/alreadyPlayed drive submission and the
@@ -38,22 +38,33 @@ export interface GolfSharedRoundDetails {
   courseName: string;
   date: string;
   holesPlayed: number;
+  /** 9-hole rounds only: which nine. Back-9 is encoded purely by hole
+   *  NUMBERING (10–18) in the submitted hole_data — no schema column. */
+  startingHole: 'front' | 'back';
   roundTypeIndoorOutdoor: 'outdoor' | 'indoor';
   gameFormat: 'stroke' | 'stableford' | 'match';
   teeColor: string;
   weather: string;
   temperature: string;
   wind: string;
+  /** Course rating/slope for handicap differentials — auto-filled from a DB
+   *  course's selected tee, manually enterable for custom courses. Strings
+   *  because they are input values; submit parses. */
+  courseRating: string;
+  slopeRating: string;
   /** "Already played" rounds post as FINAL immediately (no LIVE badge, no
    *  resume banner) — for logging rounds after the fact */
   alreadyPlayed: boolean;
 }
 
+/** The first hole NUMBER of the round's card (back-9 → 10). */
+export function composerStartingHole(d: Pick<GolfSharedRoundDetails, 'holesPlayed' | 'startingHole'>): number {
+  return d.holesPlayed === 9 && d.startingHole === 'back' ? 10 : 1;
+}
+
 /** Everything CreatePostModal's submit paths, validation, footer hint and
  *  preview read — the section's one-way report up. */
 export interface GolfComposerValue {
-  golfRoundData: GolfRoundData | null;
-  roundType: 'individual' | 'shared';
   sharedRoundDetails: GolfSharedRoundDetails;
   sharedRoundParticipants: string[];
   sharedRoundParticipantsData: { id: string; name: string; avatar_url?: string }[];
@@ -71,22 +82,22 @@ export interface GolfComposerValue {
 }
 
 /** What the parent holds before the section's first report (and after reset).
- *  Mirrors the section's initial state as observed from outside — including
- *  the render-time pin of a live round to 'shared'. */
+ *  Mirrors the section's initial state as observed from outside. */
 export function defaultGolfComposerValue(): GolfComposerValue {
   return {
-    golfRoundData: null,
-    roundType: 'shared',
     sharedRoundDetails: {
       courseName: '',
       date: new Date().toISOString().split('T')[0],
       holesPlayed: 18,
+      startingHole: 'front',
       roundTypeIndoorOutdoor: 'outdoor',
       gameFormat: 'stroke',
       teeColor: '',
       weather: '',
       temperature: '',
       wind: '',
+      courseRating: '',
+      slopeRating: '',
       alreadyPlayed: false,
     },
     sharedRoundParticipants: [],
@@ -116,32 +127,29 @@ export default function GolfComposerSection({
   userId,
   active,
   onChange,
-  onCaptionGenerated,
 }: SportComposerExtraProps) {
-  const { showError } = useToast();
   // activeProfile first, so a guardian composing AS a managed athlete seeds
-  // that athlete's row rather than their own (GolfScorecardForm does the same).
+  // that athlete's row rather than their own.
   const { profile, activeProfile } = useAuth();
   const displayProfile = activeProfile ?? profile;
 
-  // Golf specific data
-  const [golfRoundData, setGolfRoundData] = useState<GolfRoundData | null>(null);
-
-  // Shared round specific data
-  const [roundType, setRoundType] = useState<'individual' | 'shared'>('individual');
+  // Round data
   const [sharedRoundParticipants, setSharedRoundParticipants] = useState<string[]>([]);
   const [sharedRoundParticipantsData, setSharedRoundParticipantsData] = useState<{id: string; name: string; avatar_url?: string}[]>([]);
   const [showParticipantModal, setShowParticipantModal] = useState(false);
-  const [sharedRoundDetails, setSharedRoundDetails] = useState({
+  const [sharedRoundDetails, setSharedRoundDetails] = useState<GolfSharedRoundDetails>({
     courseName: '',
     date: new Date().toISOString().split('T')[0], // Today's date
     holesPlayed: 18,
-    roundTypeIndoorOutdoor: 'outdoor' as 'outdoor' | 'indoor',
-    gameFormat: 'stroke' as 'stroke' | 'stableford' | 'match',
+    startingHole: 'front',
+    roundTypeIndoorOutdoor: 'outdoor',
+    gameFormat: 'stroke',
     teeColor: '',
     weather: '',
     temperature: '',
     wind: '',
+    courseRating: '',
+    slopeRating: '',
     // "Already played" rounds post as FINAL immediately (no LIVE badge, no
     // resume banner) — for logging rounds after the fact
     alreadyPlayed: false,
@@ -150,14 +158,8 @@ export default function GolfComposerSection({
   // explicit tap on the toggle wins and stops the auto-flip
   const roundTimingTouchedRef = useRef(false);
 
-  // "Playing now" is ONE flow (live round, friends optional) — it always
-  // runs on the shared-round rails, solo just means zero invitees.
-  // A constraint on the current state, not a side effect: apply it during
-  // render so an invalid roundType never reaches the UI for a frame.
-  // (`active` ⇔ the composer's postType is 'golf', as before extraction.)
-  if (active && !sharedRoundDetails.alreadyPlayed && roundType !== 'shared') {
-    setRoundType('shared');
-  }
+  /** First hole NUMBER on the card (back-9 → 10). */
+  const startingHoleNum = composerStartingHole(sharedRoundDetails);
 
   // Golf course search for shared rounds
   const [courseSearchOpen, setCourseSearchOpen] = useState(false);
@@ -237,12 +239,36 @@ export default function GolfComposerSection({
     return () => cancelAnimationFrame(id);
   }, [courseDropdownOpen, availableCourses.length]);
 
-  // Select a course from search results (for shared rounds)
+  /** Par/yardage rows for the CURRENT hole range from a DB course. */
+  const deriveCourseHoles = useCallback(
+    (course: GolfCourse, teeColor: string, holes: number, start: number) => {
+      const teeKey = (teeColor || 'white') as keyof typeof course.holes[0]['yardage'];
+      return course.holes
+        .filter(hole => hole.number >= start && hole.number < start + holes)
+        .map(hole => ({
+          hole: hole.number,
+          par: hole.par,
+          yardage: hole.yardage[teeKey] || hole.yardage.white || hole.yardage.blue || 400
+        }));
+    },
+    []
+  );
+
+  // Select a course from search results
   const selectCourse = useCallback((course: GolfCourse) => {
     setSelectedCourse(course);
+    const teeColor = sharedRoundDetails.teeColor;
     setSharedRoundDetails(prev => ({
       ...prev,
-      courseName: course.name
+      courseName: course.name,
+      // Rating/slope feed handicap differentials — carry the selected tee's
+      // values (fall back to white, the same default the yardage uses).
+      courseRating: String(
+        course.courseRating?.[teeColor || 'white'] ?? course.courseRating?.white ?? prev.courseRating ?? ''
+      ),
+      slopeRating: String(
+        course.slopeRating?.[teeColor || 'white'] ?? course.slopeRating?.white ?? prev.slopeRating ?? ''
+      ),
     }));
     setCourseSearchOpen(false);
     setCourseSearchQuery('');
@@ -251,24 +277,18 @@ export default function GolfComposerSection({
     cancelCourseSearch();
     setAvailableCourses([]);
 
-    // Auto-populate par and yardage from course data
-    const teeKey = (sharedRoundDetails.teeColor || 'white') as keyof typeof course.holes[0]['yardage'];
-    const holeData = course.holes
-      .filter(hole => hole.number <= sharedRoundDetails.holesPlayed)
-      .map(hole => ({
-        hole: hole.number,
-        par: hole.par,
-        yardage: hole.yardage[teeKey] || hole.yardage.white || hole.yardage.blue || 400
-      }));
-    setCourseHoleData(holeData);
+    // Auto-populate par and yardage from course data for the current range
+    setCourseHoleData(
+      deriveCourseHoles(course, teeColor, sharedRoundDetails.holesPlayed, composerStartingHole(sharedRoundDetails))
+    );
 
     // Clear manual entry since we have course data
     setManualParEntry([]);
     setManualYardageEntry([]);
-  }, [sharedRoundDetails.teeColor, sharedRoundDetails.holesPlayed, cancelCourseSearch]);
+  }, [sharedRoundDetails, cancelCourseSearch, deriveCourseHoles]);
 
   // Initialize player scores when participants are added
-  const initializePlayerScores = useCallback((participants: {id: string; name: string; avatar_url?: string}[], holes: number) => {
+  const initializePlayerScores = useCallback((participants: {id: string; name: string; avatar_url?: string}[], holes: number, start: number) => {
     setPlayerScores(prev => {
       // Get existing player IDs to avoid duplicates
       const existingIds = new Set(prev.map(p => p.participant_id));
@@ -284,7 +304,7 @@ export default function GolfComposerSection({
             avatar_url: participant.avatar_url
           },
           hole_scores: Array.from({ length: holes }, (_, i) => ({
-            hole_number: i + 1,
+            hole_number: start + i,
             strokes: undefined,
             putts: undefined,
             fairway_hit: undefined,
@@ -296,6 +316,22 @@ export default function GolfComposerSection({
       return [...prev, ...newPlayers];
     });
   }, []);
+
+  // Hole-range synchronisation (render-phase, the house idiom): a 9/18 or
+  // front↔back change rebuilds every row for the new range (preserving
+  // overlapping holes) and re-derives DB-course pars. initializePlayerScores
+  // only ever ADDS players and the change handler only maps existing slots,
+  // so without this a row built for 18 holes would keep 18 slots forever.
+  const [syncedRange, setSyncedRange] = useState({ holes: 18, start: 1 });
+  if (syncedRange.holes !== sharedRoundDetails.holesPlayed || syncedRange.start !== startingHoleNum) {
+    setSyncedRange({ holes: sharedRoundDetails.holesPlayed, start: startingHoleNum });
+    setPlayerScores(prev => resizePlayerScores(prev, sharedRoundDetails.holesPlayed, startingHoleNum));
+    if (selectedCourse) {
+      setCourseHoleData(
+        deriveCourseHoles(selectedCourse, sharedRoundDetails.teeColor, sharedRoundDetails.holesPlayed, startingHoleNum)
+      );
+    }
+  }
 
   // Handle score change for a specific player and hole
   const handlePlayerScoreChange = useCallback((playerId: string, holeNum: number, data: Partial<PlayerHoleScore>) => {
@@ -331,8 +367,8 @@ export default function GolfComposerSection({
   // array omits them (so `position` stays 0).
   //
   // Render-phase, not an effect: this is state SYNCHRONISATION (the same idiom
-  // as the roundType pin above), and the guard is self-clearing — once the row
-  // exists the condition is false.
+  // as the hole-range sync above), and the guard is self-clearing — once the
+  // row exists the condition is false.
   const creatorName = displayProfile
     ? (displayProfile.first_name && displayProfile.last_name
         ? `${displayProfile.first_name} ${displayProfile.last_name}`
@@ -341,24 +377,16 @@ export default function GolfComposerSection({
 
   if (
     active &&
-    roundType === 'shared' &&
     userId &&
     creatorName &&
     !playerScores.some(p => p.participant_id === userId)
   ) {
     initializePlayerScores(
       [{ id: userId, name: creatorName, avatar_url: displayProfile?.avatar_url ?? undefined }],
-      sharedRoundDetails.holesPlayed
+      sharedRoundDetails.holesPlayed,
+      startingHoleNum
     );
   }
-
-  // NB: sharedRoundDetails.holesPlayed is a constant 18 on the shared path —
-  // nothing in this component ever sets it (the 9/18 control belongs to the
-  // INDIVIDUAL form). So every row is built with 18 slots and none ever needs
-  // resizing. If a hole-count control is ever added here, note that
-  // initializePlayerScores does NOT resize existing rows and
-  // handlePlayerScoreChange only maps over slots that already exist, so rows
-  // would have to be extended when the count grows.
 
   // Handle shared round participant selection
   const handleParticipantSelection = (selectedIds: string[], selectedProfiles?: ProfileData[]) => {
@@ -392,7 +420,7 @@ export default function GolfComposerSection({
       // have rows, so re-selecting existing players is a no-op — and a later
       // holesPlayed change never resized existing rows under the effect
       // version either (it only ever added NEW players).
-      initializePlayerScores(profilesData, sharedRoundDetails.holesPlayed);
+      initializePlayerScores(profilesData, sharedRoundDetails.holesPlayed, startingHoleNum);
     }
   };
 
@@ -404,68 +432,21 @@ export default function GolfComposerSection({
     setPlayerScores(prev => prev.filter(p => p.participant_id !== profileId));
   };
 
-  // Generate golf caption from stats
-  const generateGolfCaption = () => {
-    if (!golfRoundData || !active) return '';
-
-    const { holesData, courseName } = golfRoundData;
-    const scoredHoles = holesData?.filter((h: HoleData) => h.score !== undefined) || [];
-
-    if (scoredHoles.length === 0) return '';
-
-    const totalScore = scoredHoles.reduce((sum: number, h: HoleData) => sum + (h.score || 0), 0);
-    const totalPar = scoredHoles.reduce((sum: number, h: HoleData) => sum + h.par, 0);
-    const differential = totalScore - totalPar;
-
-    let caption = `Shot ${totalScore}`;
-    if (differential === 0) caption += ' (Even)';
-    else if (differential > 0) caption += ` (+${differential})`;
-    else caption += ` (${differential})`;
-
-    if (courseName) caption += ` at ${courseName}`;
-
-    // Add some stats if available
-    const putts = scoredHoles.reduce((sum: number, h: HoleData) => sum + (h.putts || 0), 0);
-    if (putts > 0) caption += ` | ${putts} putts`;
-
-    const birdies = scoredHoles.filter((h: HoleData) => h.score === h.par - 1).length;
-    if (birdies > 0) caption += ` | ${birdies} ${birdies === 1 ? 'birdie' : 'birdies'}`;
-
-    return caption;
-  };
-
   // Report the full golf value up on every internal change. One-way flow:
   // the parent never pushes golf state back down, so this effect only
   // synchronizes React state OUT to the owner (via a prop callback — no
   // setState of this component's own happens here).
   useEffect(() => {
-    // Validation — moved verbatim from CreatePostModal's isValidForSubmission
-    // golf branch (Boolean() added: the individual-round expression used to
-    // return the courseName string, and the parent only ever truth-tests it).
-    const isValid =
-      roundType === 'individual'
-        ? // Individual rounds need scorecard data
-          Boolean(golfRoundData && golfRoundData.courseName && golfRoundData.holesData?.some((h: HoleData) => h.score !== undefined))
-        : // Shared rounds need at least course name, date, and at least one participant
-          // Weather fields are optional - can be added later or left blank
-          // Course + date only. Playing partners are NOT required: you are
-          // always on the scorecard yourself, so a solo round is a complete
-          // round whether it is live or already played. (This used to demand a
-          // participant for already-played rounds, which is why the old "+ Add
-          // Myself" button existed.)
-          Boolean(
-            sharedRoundDetails.courseName.trim().length > 0 &&
-            sharedRoundDetails.date
-          );
+    // Course + date only. Playing partners are NOT required: you are always
+    // on the scorecard yourself, so a solo round is a complete round whether
+    // it is live or already played. Weather is optional too.
+    const isValid = Boolean(
+      sharedRoundDetails.courseName.trim().length > 0 &&
+      sharedRoundDetails.date
+    );
 
     // Golf's share of the composer's unsaved-work check.
-    // NOT roundType: a live golf round pins it to 'shared' during render
-    // (solo is a shared round with zero invitees), so counting it here made
-    // the composer dirty the instant it opened and every close prompted to
-    // discard work the user had not started. The fields below are the real
-    // signal that something was entered.
     const isDirty =
-      golfRoundData !== null ||
       sharedRoundParticipants.length > 0 ||
       selectedCourse !== null ||
       sharedRoundDetails.courseName.trim() !== '' ||
@@ -473,13 +454,12 @@ export default function GolfComposerSection({
       manualYardageEntry.length > 0 ||
       // A seeded row is not work. Counting playerScores.length here would make
       // the composer dirty the instant golf is selected, so every close would
-      // prompt to discard work nobody started — the same bug the roundType note
-      // above records. Only an actual stroke counts.
+      // prompt to discard work nobody started (that exact bug shipped once via
+      // the old roundType field). Only an actual stroke counts.
       hasAnyEnteredScore(playerScores);
 
+    const start = composerStartingHole(sharedRoundDetails);
     onChange({
-      golfRoundData,
-      roundType,
       sharedRoundDetails,
       sharedRoundParticipants,
       sharedRoundParticipantsData,
@@ -489,14 +469,12 @@ export default function GolfComposerSection({
       manualYardageEntry,
       holeParSource: courseHoleData.length > 0
         ? courseHoleData
-        : manualParEntry.map((par, idx) => ({ hole: idx + 1, par })).filter(h => h.par > 0),
+        : manualParEntry.map((par, idx) => ({ hole: start + idx, par })).filter(h => h.par > 0),
       isValid,
       isDirty,
     });
   }, [
     onChange,
-    golfRoundData,
-    roundType,
     sharedRoundDetails,
     sharedRoundParticipants,
     sharedRoundParticipantsData,
@@ -554,65 +532,9 @@ export default function GolfComposerSection({
             </p>
           </div>
 
-          {/* Golf Round Type Selection (batch entry only — a live round is one
-              flow where friends are optional) */}
-          {sharedRoundDetails.alreadyPlayed && (
-            <div className="mb-6">
-              <label className={GOLF_LABEL}>Round Type</label>
-              {/* Stacks below sm — the icon + two-line copy had ~36px of text
-                  width in a 320px half-column */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
-                <button
-                  onClick={() => setRoundType('individual')}
-                  className={`p-4 border-2 rounded-lg text-left transition-all ${
-                    roundType === 'individual'
-                      ? 'border-green-500 bg-green-50 dark:bg-green-950/40'
-                      : 'border-border-strong hover:border-border-strong'
-                  }`}
-                >
-                  <div className="flex items-center gap-3">
-                    <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${
-                      roundType === 'individual' ? 'bg-green-100 dark:bg-green-950/60' : 'bg-surface-sunken'
-                    }`}>
-                      <i className={`fas fa-user text-lg ${
-                        roundType === 'individual' ? 'text-green-600 dark:text-green-400' : 'text-tertiary'
-                      }`}></i>
-                    </div>
-                    <div>
-                      <div className="font-semibold text-primary">Individual Round</div>
-                      <div className="text-sm text-tertiary">Track your own scorecard</div>
-                    </div>
-                  </div>
-                </button>
-
-                <button
-                  onClick={() => setRoundType('shared')}
-                  className={`p-4 border-2 rounded-lg text-left transition-all ${
-                    roundType === 'shared'
-                      ? 'border-green-500 bg-green-50 dark:bg-green-950/40'
-                      : 'border-border-strong hover:border-border-strong'
-                  }`}
-                >
-                  <div className="flex items-center gap-3">
-                    <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${
-                      roundType === 'shared' ? 'bg-green-100 dark:bg-green-950/60' : 'bg-surface-sunken'
-                    }`}>
-                      <i className={`fas fa-users text-lg ${
-                        roundType === 'shared' ? 'text-green-600 dark:text-green-400' : 'text-tertiary'
-                      }`}></i>
-                    </div>
-                    <div>
-                      <div className="font-semibold text-primary">Shared Round</div>
-                      <div className="text-sm text-tertiary">Play with friends</div>
-                    </div>
-                  </div>
-                </button>
-              </div>
-            </div>
-          )}
-
-          {/* Shared Round Details Form */}
-          {roundType === 'shared' && (
+          {/* Round Details Form — ONE flow: the old Individual/Shared fork is
+              gone; "individual" is simply a round with zero invitees. */}
+          {(
             <div className="mb-6 bg-green-50 dark:bg-green-950/40 border border-green-200 dark:border-green-800 rounded-lg p-4 sm:p-6">
               <div className="space-y-6">
                 {/* Course Details - White Box */}
@@ -753,6 +675,62 @@ export default function GolfComposerSection({
                   />
                 </div>
 
+                {/* Holes — the 9/18 control used to live only on the retired
+                    individual form, which was the one functional reason
+                    9-hole rounds needed it. Back-9 is encoded by hole
+                    NUMBERING (10–18) in hole_data, so it needs par data. */}
+                <div className="mb-4">
+                  <label className={GOLF_LABEL}>Holes</label>
+                  <div className="grid grid-cols-2 gap-3">
+                    {([18, 9] as const).map(count => (
+                      <button
+                        key={count}
+                        type="button"
+                        onClick={() => setSharedRoundDetails(prev => ({ ...prev, holesPlayed: count }))}
+                        className={`px-4 py-3 rounded-lg font-semibold transition-all ${
+                          sharedRoundDetails.holesPlayed === count
+                            ? 'bg-green-600 text-white'
+                            : 'bg-surface text-secondary border-2 border-border-strong hover:border-green-300 dark:hover:border-green-700'
+                        }`}
+                      >
+                        {count} holes
+                      </button>
+                    ))}
+                  </div>
+                  {sharedRoundDetails.holesPlayed === 9 && (
+                    <div className="mt-3 grid grid-cols-2 gap-3">
+                      <button
+                        type="button"
+                        onClick={() => setSharedRoundDetails(prev => ({ ...prev, startingHole: 'front' }))}
+                        className={`px-4 py-2 rounded-lg text-sm font-semibold transition-all ${
+                          sharedRoundDetails.startingHole === 'front'
+                            ? 'bg-green-600 text-white'
+                            : 'bg-surface text-secondary border-2 border-border-strong hover:border-green-300 dark:hover:border-green-700'
+                        }`}
+                      >
+                        Front 9 (1–9)
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setSharedRoundDetails(prev => ({ ...prev, startingHole: 'back' }))}
+                        disabled={!selectedCourse && manualParEntry.filter(Boolean).length === 0}
+                        title={
+                          !selectedCourse && manualParEntry.filter(Boolean).length === 0
+                            ? 'Pick a course from the search (or enter pars below) first — the back nine is identified by its hole numbers.'
+                            : undefined
+                        }
+                        className={`px-4 py-2 rounded-lg text-sm font-semibold transition-all disabled:opacity-50 disabled:cursor-not-allowed ${
+                          sharedRoundDetails.startingHole === 'back'
+                            ? 'bg-green-600 text-white'
+                            : 'bg-surface text-secondary border-2 border-border-strong hover:border-green-300 dark:hover:border-green-700'
+                        }`}
+                      >
+                        Back 9 (10–18)
+                      </button>
+                    </div>
+                  )}
+                </div>
+
                 {/* Indoor/Outdoor Selection */}
                 <div className="mb-4">
                   <label className={GOLF_LABEL}>
@@ -858,10 +836,41 @@ export default function GolfComposerSection({
                       <span className="text-xs text-tertiary">Optional - adds Par & Yardage to scorecard</span>
                     </div>
 
+                    {/* Optional course rating/slope for custom courses —
+                        feeds handicap differentials (DB courses auto-fill
+                        these from the selected tee). */}
+                    <div className="grid grid-cols-2 gap-3 mb-3">
+                      <div>
+                        <label className={GOLF_LABEL}>Course Rating</label>
+                        <input
+                          type="number"
+                          step="0.1"
+                          min="50"
+                          max="90"
+                          value={sharedRoundDetails.courseRating}
+                          onChange={(e) => setSharedRoundDetails(prev => ({ ...prev, courseRating: e.target.value }))}
+                          placeholder="e.g. 72.4"
+                          className={GOLF_INPUT_COMPACT}
+                        />
+                      </div>
+                      <div>
+                        <label className={GOLF_LABEL}>Slope Rating</label>
+                        <input
+                          type="number"
+                          min="55"
+                          max="155"
+                          value={sharedRoundDetails.slopeRating}
+                          onChange={(e) => setSharedRoundDetails(prev => ({ ...prev, slopeRating: e.target.value }))}
+                          placeholder="e.g. 128"
+                          className={GOLF_INPUT_COMPACT}
+                        />
+                      </div>
+                    </div>
+
                     <div className="max-h-64 overflow-y-auto overscroll-contain">
                       <div className="grid grid-cols-1 gap-3">
                         {Array.from({ length: sharedRoundDetails.holesPlayed }, (_, i) => {
-                          const holeNum = i + 1;
+                          const holeNum = startingHoleNum + i;
                           return (
                             <div key={holeNum} className="flex items-center gap-3 bg-surface p-3 rounded border border-border">
                               <span className="text-sm font-semibold text-secondary w-16">Hole {holeNum}</span>
@@ -992,69 +1001,13 @@ export default function GolfComposerSection({
                 <div>
                   <div className="flex items-center justify-between mb-3">
                     <label className="text-sm font-semibold text-primary">
-                      {sharedRoundDetails.alreadyPlayed
-                        ? `Participants * (${sharedRoundParticipants.length})`
-                        : `Playing with anyone? Optional (${sharedRoundParticipants.length})`}
+                      {`Playing with anyone? Optional (${sharedRoundParticipants.length})`}
                     </label>
                     <div className="flex items-center gap-2">
-                      {/* Only meaningful for an already-played round, where it
-                          adds you to the in-composer score grid. On a live
-                          round the server inserts the creator regardless, so
-                          the button did nothing except imply partners are
-                          expected. */}
-                      {sharedRoundDetails.alreadyPlayed && (
-                      <button
-                        onClick={async () => {
-                          // Check if user already added
-                          if (sharedRoundParticipants.includes(userId)) {
-                            return;
-                          }
-
-                          // Fetch current user's profile
-                          try {
-                            const response = await fetch(`/api/profile?id=${userId}`);
-                            if (response.ok) {
-                              const { profile } = await response.json();
-                              const userName = profile.first_name && profile.last_name
-                                ? `${profile.first_name} ${profile.last_name}`
-                                : profile.full_name || 'Me';
-
-                              // Add to participants — score rows are
-                              // initialized right here (handler-based; see
-                              // handleParticipantSelection's note)
-                              setSharedRoundParticipants(prev => [...prev, userId]);
-                              setSharedRoundParticipantsData(prev => [...prev, { id: userId, name: userName, avatar_url: profile.avatar_url }]);
-                              initializePlayerScores([{ id: userId, name: userName, avatar_url: profile.avatar_url }], sharedRoundDetails.holesPlayed);
-                            } else {
-                              const errorData = await response.json();
-                              console.error('Failed to add yourself to round:', errorData.error);
-                              showError('Failed to add yourself to the round. Please try again.');
-                            }
-                          } catch (error) {
-                            console.error('Error adding yourself to round:', error);
-                            showError('Failed to add yourself to the round. Please try again.');
-                          }
-                        }}
-                        disabled={sharedRoundParticipants.includes(userId)}
-                        className={`flex items-center gap-2 px-3 py-1.5 text-sm rounded-lg transition-colors font-semibold ${
-                          sharedRoundParticipants.includes(userId)
-                            ? 'bg-green-100 dark:bg-green-950/60 text-green-700 dark:text-green-300 cursor-not-allowed'
-                            : 'text-brand-fg-strong hover:text-violet-800 dark:hover:text-violet-200 hover:bg-violet-100 dark:hover:bg-violet-950/60'
-                        }`}
-                      >
-                        {sharedRoundParticipants.includes(userId) ? (
-                          <>
-                            <i className="fas fa-check"></i>
-                            You&apos;re included
-                          </>
-                        ) : (
-                          <>
-                            <i className="fas fa-user-plus"></i>
-                            + Add Myself
-                          </>
-                        )}
-                      </button>
-                      )}
+                      {/* The old "+ Add Myself" button (already-played only) is
+                          gone: the creator's row is always seeded and the
+                          server always inserts the creator — it only implied
+                          partners were required. */}
                       <button
                         onClick={() => setShowParticipantModal(true)}
                         className="flex items-center gap-2 px-3 py-1.5 text-sm text-green-700 dark:text-green-300 hover:text-green-800 dark:hover:text-green-200 hover:bg-green-100 dark:hover:bg-green-950/60 rounded-lg transition-colors font-semibold"
@@ -1107,67 +1060,48 @@ export default function GolfComposerSection({
             </div>
           )}
 
-          {/* Score Entry Section. Shown for EVERY shared round, including the
-              solo "Playing now" default — playerScores always carries the
-              creator's row, so gating on partners hid your own scorecard. */}
-          {roundType === 'shared' && (
-            <div className="mb-6">
-              <div className={GOLF_SECTION_CARD}>
-                <h3 className="text-lg font-semibold text-primary mb-4 flex items-center">
-                  <i className="fas fa-list-ol mr-2 text-green-600 dark:text-green-400"></i>
-                  Score Entry
-                </h3>
-                <p className="text-sm text-tertiary mb-4">
-                  Enter scores below or leave blank - participants can add them later
-                </p>
+          {/* Score Entry Section. Shown for EVERY round, including the solo
+              "Playing now" default — playerScores always carries the
+              creator's row, so gating on partners hid your own scorecard.
+              For "Already played" this IS the one-pass manual entry. */}
+          <div className="mb-6">
+            <div className={GOLF_SECTION_CARD}>
+              <h3 className="text-lg font-semibold text-primary mb-4 flex items-center">
+                <i className="fas fa-list-ol mr-2 text-green-600 dark:text-green-400"></i>
+                Score Entry
+              </h3>
+              <p className="text-sm text-tertiary mb-4">
+                {sharedRoundDetails.alreadyPlayed
+                  ? 'Enter the finished round below — the post publishes once, complete.'
+                  : 'Enter scores below or leave blank - participants can add them later'}
+              </p>
 
-                {/* Multi-player scorecard grid - always shown */}
-                <div>
-                  <MultiPlayerScorecardGrid
-                      players={playerScores}
-                      holes={sharedRoundDetails.holesPlayed}
-                      editable={true}
-                      showDetailedStats={false}
-                      onScoreChange={handlePlayerScoreChange}
-                      holeData={
-                        // Use course data if available, otherwise manual entry
-                        courseHoleData.length > 0
-                          ? courseHoleData
-                          : manualParEntry.length > 0 || manualYardageEntry.length > 0
-                          ? Array.from({ length: sharedRoundDetails.holesPlayed }, (_, i) => ({
-                              hole: i + 1,
-                              par: manualParEntry[i] || 4,
-                              yardage: manualYardageEntry[i] || undefined
-                            }))
-                          : undefined
-                      }
-                    />
-                </div>
+              {/* Multi-player scorecard grid - always shown */}
+              <div>
+                <MultiPlayerScorecardGrid
+                    players={playerScores}
+                    holes={sharedRoundDetails.holesPlayed}
+                    startingHoleNumber={startingHoleNum}
+                    courseName={sharedRoundDetails.courseName || undefined}
+                    editable={true}
+                    showDetailedStats={false}
+                    onScoreChange={handlePlayerScoreChange}
+                    holeData={
+                      // Use course data if available, otherwise manual entry
+                      courseHoleData.length > 0
+                        ? courseHoleData
+                        : manualParEntry.length > 0 || manualYardageEntry.length > 0
+                        ? Array.from({ length: sharedRoundDetails.holesPlayed }, (_, i) => ({
+                            hole: startingHoleNum + i,
+                            par: manualParEntry[i] || 4,
+                            yardage: manualYardageEntry[i] || undefined
+                          }))
+                        : undefined
+                    }
+                  />
               </div>
             </div>
-          )}
-
-          {/* Golf Scorecard (when individual round is selected) */}
-          {roundType === 'individual' && (
-            <div className="mb-6">
-              <div className="bg-green-50 dark:bg-green-950/40 rounded-lg border border-green-200 dark:border-green-800 p-4">
-                <GolfScorecardForm
-                  onDataChange={(data) => setGolfRoundData(data)}
-                />
-              </div>
-
-              {/* Generate Caption from Stats */}
-              {golfRoundData && (
-                <button
-                  onClick={() => onCaptionGenerated(generateGolfCaption())}
-                  className="mt-3 text-sm text-green-600 dark:text-green-400 hover:text-green-700 dark:hover:text-green-300 font-medium"
-                >
-                  <i className="fas fa-magic mr-1"></i>
-                  Generate caption from scorecard
-                </button>
-              )}
-            </div>
-          )}
+          </div>
         </>
       )}
 

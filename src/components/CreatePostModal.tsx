@@ -12,13 +12,12 @@ import TagPeopleModal from '@/components/TagPeopleModal';
 import SportSelector from '@/components/SportSelector';
 import { type PlayerScoreData } from '@/components/golf/MultiPlayerScorecardGrid';
 import SharedRoundQuickView from '@/components/golf/SharedRoundQuickView';
-import { defaultGolfComposerValue, type GolfComposerValue, type GolfRoundData } from '@/components/golf/GolfComposerSection';
+import { defaultGolfComposerValue, type GolfComposerValue } from '@/components/golf/GolfComposerSection';
 import { submitSharedRound } from '@/components/golf/shared-round-submit';
 import { SPORT_COMPOSER_EXTRAS, type SportComposerExtraProps } from '@/components/sport-composer-extras';
 import { getSportDefinition, type SportKey } from '@/lib/sports/SportRegistry';
 import StatLineForm, { emptyStatLine, statLineHasContent } from '@/components/StatLineForm';
 import { getStatSchema, type StatLineData } from '@/lib/sports/stat-schemas';
-import type { HoleData } from '@/types/golf';
 import type { CompleteGolfScorecard, ParticipantRole } from '@/types/group-posts';
 import { useBodyScrollLock } from '@/hooks/useBodyScrollLock';
 import { useDirtyClose } from '@/hooks/useDirtyClose';
@@ -55,8 +54,8 @@ interface MediaFile {
   posterBlob?: Blob;
 }
 
-// GolfRoundData moved to src/components/golf/GolfComposerSection.tsx with the
-// rest of the golf composer state (sport-cleanup D-2).
+// Golf composer state lives in src/components/golf/GolfComposerSection.tsx
+// (sport-cleanup D-2; one-flow unification retired the individual scorecard).
 
 // Nullable: these come straight from /api/search, which returns explicit
 // nulls for unset name fields.
@@ -95,11 +94,9 @@ interface PostPreviewProps {
   hashtags: string[];
   mediaFiles: MediaFile[];
   visibility: 'public' | 'private';
-  golfData: GolfRoundData | null;
   taggedPeople?: {id: string; name: string}[];
   holeParSource?: { hole: number; par: number }[] | null;
-  // Shared round data
-  roundType?: 'individual' | 'shared';
+  // Round data (one flow — every golf round previews as the shared scorecard)
   sharedRoundDetails?: SharedRoundDetails;
   sharedRoundParticipants?: {id: string; name: string; avatar_url?: string}[];
   playerScores?: PlayerScore[];
@@ -244,7 +241,7 @@ export default function CreatePostModal({
     taggedProfiles.length > 0 ||
     statLineData !== null ||
     // Golf's share (scorecard, course, participants, manual pars, scores) is
-    // computed in GolfComposerSection — see the roundType note there.
+    // computed in GolfComposerSection.
     golfValue.isDirty;
 
   const { requestClose, confirmOpen, confirmDiscard, cancelDiscard } = useDirtyClose(isDirty, closeAndReset);
@@ -442,19 +439,14 @@ export default function CreatePostModal({
   const handleSubmit = async () => {
     if (!isValidForSubmission()) {
       // Provide specific error message based on post type
-      if (postType === 'golf' && golfValue.roundType === 'shared') {
+      if (postType === 'golf') {
         const { sharedRoundDetails } = golfValue;
         const missing: string[] = [];
         if (!sharedRoundDetails.courseName.trim()) missing.push('course name');
         if (!sharedRoundDetails.date) missing.push('date');
-        // Playing partners are no longer required: the composer puts you on
-        // the scorecard yourself, so a solo shared round is complete.
-        if (sharedRoundDetails.roundTypeIndoorOutdoor === 'outdoor') {
-          if (!sharedRoundDetails.weather.trim()) missing.push('weather');
-          if (!sharedRoundDetails.temperature.trim()) missing.push('temperature');
-          if (!sharedRoundDetails.wind.trim()) missing.push('wind');
-        }
-        showError('Incomplete shared round', `Please provide: ${missing.join(', ')}`);
+        // Course + date only — weather/temperature/wind are OPTIONAL (this
+        // hint used to name them even though isValid never required them).
+        showError('Incomplete round', `Please provide: ${missing.join(', ')}`);
       } else {
         showError('Incomplete post', 'Please add content to your post');
       }
@@ -465,12 +457,13 @@ export default function CreatePostModal({
 
     try {
 
-      // Handle shared golf rounds differently
-      if (postType === 'golf' && golfValue.roundType === 'shared') {
+      // EVERY golf round rides the group-posts rails (flow unification —
+      // the individual golf_rounds create path is retired; "individual" is
+      // a round with zero invitees).
+      if (postType === 'golf') {
         // The whole fork — atomic round create, initial scores, media attach,
         // success toasts — lives in shared-round-submit.ts (sport-cleanup
-        // D-2); the request bodies it sends are unchanged. Throws on
-        // round-create failure, landing in the catch below as before.
+        // D-2). Throws on round-create failure, landing in the catch below.
         const groupPost = await submitSharedRound(golfValue, {
           caption,
           visibility,
@@ -524,7 +517,6 @@ export default function CreatePostModal({
           // server persists as post_media.thumbnail_url (posts/route.ts)
           thumbnailUrl: file.thumbnailUrl
         })),
-        golfData: postType === 'golf' ? golfValue.golfRoundData : undefined,
         stats_data:
           isStatLineSport && statLineData && statLineHasContent(statLineData)
             ? statLineData
@@ -1025,7 +1017,7 @@ export default function CreatePostModal({
             {!isValidForSubmission() && (
               <span className="text-red-600 dark:text-red-400">
                 <i className="fas fa-exclamation-circle mr-1"></i>
-                {postType === 'golf' && golfValue.roundType === 'shared'
+                {postType === 'golf'
                   ? (() => {
                       // Name the ACTUAL missing fields — a dead grey button
                       // with a stale generic hint reads as "broken"
@@ -1037,8 +1029,6 @@ export default function CreatePostModal({
                         ? `Missing: ${missing.join(', ')}`
                         : 'Please complete the round details';
                     })()
-                  : postType === 'golf'
-                  ? 'Please complete the scorecard'
                   : 'Add caption or media to post'
                 }
               </span>
@@ -1104,9 +1094,7 @@ export default function CreatePostModal({
           hashtags={hashtags}
           mediaFiles={mediaFiles}
           visibility={visibility}
-          golfData={golfValue.golfRoundData}
           taggedPeople={taggedProfilesData}
-          roundType={golfValue.roundType}
           sharedRoundDetails={golfValue.sharedRoundDetails}
           sharedRoundParticipants={golfValue.sharedRoundParticipantsData}
           playerScores={golfValue.playerScores}
@@ -1287,9 +1275,7 @@ function PostPreview({
   hashtags,
   mediaFiles,
   visibility,
-  golfData,
   taggedPeople = [],
-  roundType,
   sharedRoundDetails,
   sharedRoundParticipants = [],
   playerScores = [],
@@ -1382,55 +1368,35 @@ function PostPreview({
                 </div>
               )}
 
-              {/* Golf Scorecard Summary */}
-              {postType === 'golf' && (
+              {/* Golf Scorecard Summary — one flow: every round previews as
+                  the shared scorecard (the individual golfData branch retired
+                  with the flow unification). */}
+              {postType === 'golf' && sharedRoundDetails && (
                 <div className="mb-4 p-4 bg-green-50 dark:bg-green-950/40 rounded-lg border border-green-200 dark:border-green-800">
                   <div className="flex items-center gap-2 mb-2">
                     <i className="fas fa-golf-ball text-green-600 dark:text-green-400"></i>
                     <span className="font-semibold text-green-800 dark:text-green-200">
-                      {roundType === 'shared' ? 'Shared Golf Round' : 'Golf Round'}
+                      Golf Round
                     </span>
                   </div>
                   <div className="text-sm text-green-700 dark:text-green-300 space-y-1">
-                    {/* Individual Round */}
-                    {roundType === 'individual' && golfData && (
-                      <>
-                        {golfData.courseName && <div><strong>Course:</strong> {golfData.courseName}</div>}
-                        {golfData.holesData && (() => {
-                          const scored = golfData.holesData.filter((h: HoleData) => h.score !== undefined);
-                          if (scored.length === 0) return null;
-                          const total = scored.reduce((sum: number, h: HoleData) => sum + (h.score || 0), 0);
-                          const par = scored.reduce((sum: number, h: HoleData) => sum + h.par, 0);
-                          return (
-                            <>
-                              <div><strong>Score:</strong> {total} ({total - par >= 0 ? '+' : ''}{total - par})</div>
-                              <div><strong>Holes Played:</strong> {scored.length}</div>
-                            </>
-                          );
-                        })()}
-                      </>
-                    )}
-
-                    {/* Shared Round - Use SharedRoundQuickView Component */}
-                    {roundType === 'shared' && sharedRoundDetails && (
-                      <div className="relative">
-                        <SharedRoundQuickView
-                          scorecard={transformToScorecardPreview(
-                            sharedRoundDetails,
-                            sharedRoundParticipants,
-                            playerScores,
-                            userId,
-                            holeParSource
-                          )}
-                          onExpand={() => {
-                            // In preview mode, we can just show a message or do nothing
-                            // The full scorecard modal would require more state management
-                            // For now, the button will be visible but won't do anything special in preview
-                          }}
-                          currentUserId={userId}
-                        />
-                      </div>
-                    )}
+                    <div className="relative">
+                      <SharedRoundQuickView
+                        scorecard={transformToScorecardPreview(
+                          sharedRoundDetails,
+                          sharedRoundParticipants,
+                          playerScores,
+                          userId,
+                          holeParSource
+                        )}
+                        onExpand={() => {
+                          // In preview mode, we can just show a message or do nothing
+                          // The full scorecard modal would require more state management
+                          // For now, the button will be visible but won't do anything special in preview
+                        }}
+                        currentUserId={userId}
+                      />
+                    </div>
                   </div>
                 </div>
               )}
