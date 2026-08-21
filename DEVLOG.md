@@ -1,5 +1,27 @@
 # Development Log
 
+## August 21, 2026 — Probe finding: the golf_rounds mirror NEVER worked (migration 099)
+
+The golf-unification prod probe failed its mirror assertions — and the
+failure predates the unification entirely. **No completed group round has
+ever mirrored into `golf_rounds`**: every completed round back to Aug 1 has
+zero mirror rows, so shared/live rounds have been invisible to stats,
+trends and handicap the whole time, silently (the mirror is best-effort by
+design; its errors go to a server-side console nobody reads).
+
+Root cause: 039 created a PARTIAL unique index
+(`WHERE group_post_id IS NOT NULL`), and PostgREST's `on_conflict` cannot
+target a partial index — no way to express the predicate — so
+`mirrorCompletedRound`'s upsert has 42P10'd on every call since the day it
+shipped. Migration 099 replaces it with a FULL unique index (NULLs are
+distinct, so legacy solo rounds are untouched); the existing code starts
+working the moment it lands, deploy-order free. A service-role backfill
+script then re-mirrors the historical completed rounds.
+
+Lesson for the file: **a best-effort write path needs a probe that asserts
+the WRITE, not just the request status** — the 200s all looked fine for
+three weeks.
+
 ## August 21, 2026 — Golf unification PR-2: one flow, two modes
 
 The composer half. **The Individual/Shared fork is gone**: every golf round
