@@ -48,3 +48,8 @@ next-env.d.ts
 /playwright-report/
 /test-results/
 /e2e/.auth/
+
+# Local agent/session tooling
+/.agents/
+/.claude/
+skills-lock.json
