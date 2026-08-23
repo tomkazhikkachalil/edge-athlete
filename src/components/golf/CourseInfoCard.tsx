@@ -1,7 +1,8 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { GolfCourse } from '@/types/golf';
+import type { HoleLine } from '@/lib/golf/hole-geometry';
 import CourseMap from '@/components/golf/CourseMap';
 import CourseScorecardTable from '@/components/golf/CourseScorecardTable';
 import BrandLogo from '@/components/BrandLogo';
@@ -16,12 +17,14 @@ const UUID_SHAPE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12
  * description renders), architect · year · type, website, a "View on map"
  * link, and an embedded interactive map.
  *
- * The map is OpenStreetMap's embed frame — pan/zoom with a marker, ZERO new
- * dependencies (Tom approved an interactive map; Leaflet + per-hole GPS
- * overlays are the future round, once providers actually carry polygon
- * data — sampled fields are all null today). Lazy behind a toggle so the
- * composer never pays the iframe cost unasked. Renders nothing at all for
- * courses with no extra data (history rows, custom courses).
+ * The map is the shared Leaflet CourseMap, lazy behind a toggle so the
+ * composer never pays its cost unasked. When the course has cached OSM hole
+ * geometry it becomes a hole-by-hole PREVIEW: numbered tees, a ‹ Hole N ›
+ * stepper, tap-a-tee to focus — the same overlay the live round map draws,
+ * minus anything GPS (the rangefinder pill needs a live fix, which card
+ * surfaces never start). No geometry → exactly the old single-pin card;
+ * null is a designed state (unmapped or ambiguous courses). Renders nothing
+ * at all for courses with no extra data (history rows, custom courses).
  */
 interface CourseInfoCardProps {
   course: GolfCourse;
@@ -42,7 +45,30 @@ export default function CourseInfoCard({ course, defaultOpen = false, enableTrac
   const [showScorecard, setShowScorecard] = useState(false);
   const [fetchedCourse, setFetchedCourse] = useState<GolfCourse | null>(null);
   const [scorecardLoading, setScorecardLoading] = useState(false);
+  // Hole-by-hole preview: fetched once per card when the map is actually
+  // shown (the endpoint serves the 30-day cache; anonymous-safe, so Explore
+  // stays a guest surface). A ref guards the once-ness — a fetched-flag
+  // setState here would trip the set-state-in-effect lint, and rightly so.
+  const [holeLines, setHoleLines] = useState<HoleLine[] | null>(null);
+  const [focusHole, setFocusHole] = useState<number | null>(null);
+  const holesRequested = useRef(false);
   const hasCoords = typeof course.lat === 'number' && typeof course.lng === 'number';
+
+  const mapVisible = showMap && hasCoords && mapMode !== 'hidden';
+  useEffect(() => {
+    if (!mapVisible || holesRequested.current || !UUID_SHAPE.test(course.id)) return;
+    holesRequested.current = true;
+    fetch(`/api/golf/courses?id=${course.id}&holes=1`, { credentials: 'include' })
+      .then(r => (r.ok ? r.json() : null))
+      .then(body => {
+        const holes = (body?.geometry as { holes?: HoleLine[] } | null)?.holes;
+        if (Array.isArray(holes) && holes.length > 0) setHoleLines(holes);
+      })
+      .catch(() => {
+        // No geometry is a designed state — the pin-only card stands.
+      });
+  }, [mapVisible, course.id]);
+
   const logoDomain = websiteDomain(course.website);
   const logoAvailable = !!logoUrl(logoDomain ?? undefined, 40);
   const scorecardSource = course.holes.length > 0 ? course : fetchedCourse;
@@ -68,6 +94,19 @@ export default function CourseInfoCard({ course, defaultOpen = false, enableTrac
         .catch(() => setFetchedCourse(null))
         .finally(() => setScorecardLoading(false));
     }
+  };
+
+  // Steps walk the ARRAY (partially mapped courses have gaps in hole
+  // numbers); ‹ from the first hole returns to the course overview (null),
+  // › from the overview enters at the first mapped hole.
+  const stepPreview = (dir: 1 | -1) => {
+    if (!holeLines?.length) return;
+    setFocusHole(prev => {
+      const idx = prev == null ? -1 : holeLines.findIndex(h => h.hole === prev);
+      const nextIdx = idx < 0 && dir === 1 ? 0 : idx + dir;
+      if (nextIdx < 0) return null;
+      return holeLines[Math.min(nextIdx, holeLines.length - 1)].hole;
+    });
   };
 
   const mapsQuery = hasCoords
@@ -151,13 +190,43 @@ export default function CourseInfoCard({ course, defaultOpen = false, enableTrac
           )}
         </div>
       )}
-      {showMap && hasCoords && mapMode !== 'hidden' && (
+      {mapVisible && (
         <div className="mt-2">
+          {holeLines && holeLines.length > 0 && (
+            <div className="mb-2 flex items-center justify-between text-sm">
+              <button
+                type="button"
+                onClick={() => stepPreview(-1)}
+                disabled={focusHole == null}
+                aria-label="Previous hole"
+                className="ea-icon-btn text-brand-fg disabled:opacity-40"
+              >
+                <i className="fas fa-chevron-left" aria-hidden="true"></i>
+              </button>
+              <span className="font-medium text-primary">
+                {focusHole != null
+                  ? `Hole ${focusHole}`
+                  : `${holeLines.length} holes mapped — tap a tee or step through`}
+              </span>
+              <button
+                type="button"
+                onClick={() => stepPreview(1)}
+                disabled={focusHole === holeLines[holeLines.length - 1].hole}
+                aria-label="Next hole"
+                className="ea-icon-btn text-brand-fg disabled:opacity-40"
+              >
+                <i className="fas fa-chevron-right" aria-hidden="true"></i>
+              </button>
+            </div>
+          )}
           <CourseMap
             lat={course.lat!}
             lng={course.lng!}
             courseName={course.name}
             enableTracking={enableTracking}
+            holes={holeLines}
+            focusHole={focusHole}
+            onHoleTap={setFocusHole}
           />
         </div>
       )}

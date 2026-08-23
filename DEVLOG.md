@@ -75,6 +75,30 @@ Test count 1509 → 1520. Ops after deploy: clear `hole_geometry_at` where
 geometry is null (the 30-day no-coverage stamps block refetch) and re-run the
 scratchpad sweep.
 
+## August 23, 2026 — Hole-by-hole preview on every course map
+
+Tom, testing the maps arc: "I test Eagle Creek and the hole by hole preview
+works well… can every golf course have that function?" It could only exist
+on the live round page — every other CourseMap mount (CourseInfoCard →
+Explore, round detail, composer, calendar quick view) was a single pin,
+and nothing outside /live ever fetched `?holes=1`.
+
+CourseInfoCard now upgrades its map into the same hole-by-hole view when
+the course has cached geometry: one `?holes=1` fetch per card, fired only
+when the map is actually shown (ref-guarded once-ness — a fetched-flag
+setState in the effect would trip `set-state-in-effect`, correctly; state
+lands in async continuations). Numbered tees, tap-a-tee focus, and a
+‹ Hole N › stepper that walks the ARRAY (partially mapped courses have
+gaps in hole numbers) — ‹ from the first hole returns to the overview.
+No GPS anything: the rangefinder pill requires a live tracking fix, which
+card surfaces never start, so the frozen card-mode rule holds by
+construction. No geometry → exactly the old pin-only card. Endpoint is
+anonymous-safe, so Explore stays a genuine guest surface.
+
+The hooks lesson re-learned: the effect initially landed below the card's
+`if (!hasAnything) return null` early return — `rules-of-hooks` caught it
+in verify. DOM behavior browser-verified per house rule (no jsdom).
+
 ## August 23, 2026 — Distance to green: the rangefinder number
 
 The most-used number in on-course golf apps, and this week's work made it
