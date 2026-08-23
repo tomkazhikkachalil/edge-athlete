@@ -41,16 +41,6 @@ export const getCurrentSportAdapter = (sportKey: SportKey) => {
   return getSportAdapter(sportKey);
 };
 
-export const getHighlightsForProfile = async (sportKey: SportKey, profileId: string, season?: string) => {
-  const adapter = getSportAdapter(sportKey);
-  return adapter.getHighlights(profileId, season);
-};
-
-export const getActivityForProfile = async (sportKey: SportKey, profileId: string, limit?: number) => {
-  const adapter = getSportAdapter(sportKey);
-  return adapter.getRecentActivity(profileId, limit);
-};
-
 export const openSportEditor = async (sportKey: SportKey, entityId?: string) => {
   const adapter = getSportAdapter(sportKey);
   return adapter.openEditDialog(entityId);
