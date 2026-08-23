@@ -1,10 +1,27 @@
 import { describe, expect, it } from 'vitest';
-import { greenDistanceYards, parseHoleGeometry } from '../hole-geometry';
+import {
+  courseNameScore,
+  greenDistanceYards,
+  parseHoleGeometry,
+  scopeHoleGeometry,
+} from '../hole-geometry';
 import { haversineKm } from '../geocode';
 import rideauView from './fixtures/overpass-rideau-view.json';
+import marshes from './fixtures/overpass-marshes-combined.json';
+import royalOttawa from './fixtures/overpass-royal-ottawa-combined.json';
 
-// Fixture: a REAL Overpass `out geom` response for Rideau View GC (18
-// golf=hole ways, refs 1–18, pars, tee→green polylines). Captured Aug 2026.
+// Fixtures are REAL Overpass responses, captured Aug 2026:
+// - overpass-rideau-view: `out geom` holes-only response for Rideau View GC
+//   (18 golf=hole ways, refs 1–18, pars, tee→green polylines).
+// - overpass-marshes-combined: the combined holes+boundaries query around The
+//   Marshes (Ottawa) — 27 hole ways (the championship 18 + the 9-hole
+//   Marchwood academy course, refs 1–9 duplicated) plus TWO named boundaries:
+//   way "The Marchwood" and relation "The Marshes Golf Club" (2 outer ways).
+// - overpass-royal-ottawa-combined: combined query around Royal Ottawa
+//   (Gatineau) — 45 hole ways from THREE adjacent clubs, boundaries for
+//   Royal Ottawa (closed way), Club de Golf Champlain (way) and Club de Golf
+//   Chaudière (relation). Royal Ottawa's own boundary holds 27 holes
+//   (18 + West Nine, refs duplicated) — the designed stays-null case.
 
 describe('parseHoleGeometry', () => {
   it('parses a clean 18-hole course (real Rideau View response)', () => {
@@ -52,6 +69,78 @@ describe('parseHoleGeometry', () => {
     mixed.elements.push({ type: 'way', tags: { golf: 'green' }, geometry: [] });
     const g = parseHoleGeometry(mixed);
     expect(g!.holes).toHaveLength(18);
+  });
+});
+
+describe('courseNameScore', () => {
+  it('matches through Club↔Course wording and generic filler', () => {
+    expect(courseNameScore('Eagle Creek Golf Club', 'Eagle Creek Golf Course')).toBeGreaterThan(0);
+    expect(courseNameScore('The Marshes Golf Club', 'The Marshes Golf Club')).toBeGreaterThan(0);
+  });
+
+  it('does NOT match sibling or neighbor courses', () => {
+    expect(courseNameScore('The Marshes Golf Club', 'The Marchwood')).toBe(0);
+    expect(courseNameScore('Royal Ottawa Golf Club', 'Club de Golf Champlain')).toBe(0);
+  });
+
+  it('folds accents (Chaudière ↔ Chaudiere)', () => {
+    expect(courseNameScore('Club de Golf Chaudière', 'Chaudiere Golf Club')).toBeGreaterThan(0);
+  });
+
+  it('generic-only names can never match', () => {
+    expect(courseNameScore('The Golf Club', 'Golf Course')).toBe(0);
+  });
+});
+
+describe('scopeHoleGeometry', () => {
+  it('the plain parse rejects both combined fixtures (duplicate refs)', () => {
+    expect(parseHoleGeometry(marshes)).toBeNull();
+    expect(parseHoleGeometry(royalOttawa)).toBeNull();
+  });
+
+  it('recovers The Marshes 18 by its relation boundary, excluding the Marchwood nine', () => {
+    const g = scopeHoleGeometry(marshes, 'The Marshes Golf Club');
+    expect(g).not.toBeNull();
+    expect(g!.holes).toHaveLength(18);
+    expect(g!.holes.map(h => h.hole)).toEqual(Array.from({ length: 18 }, (_, i) => i + 1));
+  });
+
+  it('the same payload scoped to the Marchwood yields its own nine', () => {
+    const g = scopeHoleGeometry(marshes, 'The Marchwood');
+    expect(g).not.toBeNull();
+    expect(g!.holes).toHaveLength(9);
+  });
+
+  it('Royal Ottawa stays null — its own boundary holds 27 holes with duplicate refs', () => {
+    expect(scopeHoleGeometry(royalOttawa, 'Royal Ottawa Golf Club')).toBeNull();
+  });
+
+  it('scopes a neighbor club cleanly out of the same payload (closed-way boundary)', () => {
+    // Champlain is a full 18 whose refs collide with Royal Ottawa's in the
+    // shared radius; its own closed-way boundary separates them perfectly.
+    const g = scopeHoleGeometry(royalOttawa, 'Club de Golf Champlain');
+    expect(g).not.toBeNull();
+    expect(g!.holes).toHaveLength(18);
+    expect(g!.holes.map(h => h.hole)).toEqual(Array.from({ length: 18 }, (_, i) => i + 1));
+  });
+
+  it('gives up without a name match, on ties, and on junk', () => {
+    expect(scopeHoleGeometry(marshes, 'Pebble Beach Golf Links')).toBeNull();
+    expect(scopeHoleGeometry(marshes, '')).toBeNull();
+    expect(scopeHoleGeometry(null, 'The Marshes Golf Club')).toBeNull();
+    expect(scopeHoleGeometry({ elements: 'nope' }, 'The Marshes Golf Club')).toBeNull();
+    // Two boundaries tied on score → ambiguous → null.
+    const tied = JSON.parse(JSON.stringify(marshes)) as {
+      elements: { tags?: Record<string, string> }[];
+    };
+    for (const el of tied.elements) {
+      if (el.tags?.leisure === 'golf_course') el.tags.name = 'Marshes Duplicate';
+    }
+    expect(scopeHoleGeometry(tied, 'Marshes Duplicate Golf Club')).toBeNull();
+  });
+
+  it('holes-only payloads (no boundaries at all) scope to null', () => {
+    expect(scopeHoleGeometry(rideauView, 'Rideau View Golf Club')).toBeNull();
   });
 });
 
