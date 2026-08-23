@@ -210,9 +210,12 @@ export default function GolfComposerSection({
         setCatalogAttribution(data.attribution ?? null);
         setSearchFailed(false);
       } else {
-        // Rate-limit (429) or server trouble — say so instead of leaving a
-        // silently stale list (the old console.error looked like "broken").
-        console.error('Failed to search golf courses — status:', response.status);
+        // The inline "search unavailable" row is the user-facing signal; a
+        // 429 is EXPECTED throttling and doesn't belong in the console (the
+        // dev overlay paints console.error red). Real server trouble logs.
+        if (response.status !== 429) {
+          console.error('Failed to search golf courses — status:', response.status);
+        }
         setSearchFailed(true);
       }
     } catch (e) {
