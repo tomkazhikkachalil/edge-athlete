@@ -105,14 +105,27 @@ export async function GET(request: NextRequest) {
       console.error('Course history layer failed (non-fatal):', historyError);
     }
 
+    // Enrich history rows from the catalog row they shadow: history DEDUPES
+    // the catalog below, so without this a course you'd played rendered
+    // "0 holes" forever (the regression Tom hit). History keeps its OWN
+    // rating/slope (the round's truth); holes/par/location come from the
+    // catalog match.
+    const catalogByName = new Map(catalogCourses.map(c => [c.name.toLowerCase(), c]));
+    const enrichedHistory = historyCourses.map(h => {
+      const match = catalogByName.get(h.name.toLowerCase());
+      if (!match) return h;
+      return {
+        ...match,
+        id: h.id, // stays a history row (no course_id link implied)
+        courseRating: Object.keys(h.courseRating).length ? h.courseRating : match.courseRating,
+        slopeRating: Object.keys(h.slopeRating).length ? h.slopeRating : match.slopeRating,
+      };
+    });
+
     // Merge: history first, then catalog rows deduped against it by name.
-    // A history row shadowing a catalog course keeps its own rating/slope
-    // (the round's truth) but loses the catalog's holes — acceptable: the
-    // composer's standard-par fallback covers empty holes, and picking the
-    // catalog row directly (it ranks right below) gets the full card.
-    const historyNames = new Set(historyCourses.map(c => c.name.toLowerCase()));
+    const historyNames = new Set(enrichedHistory.map(c => c.name.toLowerCase()));
     const mergedCourses = [
-      ...historyCourses,
+      ...enrichedHistory,
       ...catalogCourses.filter(c => !historyNames.has(c.name.toLowerCase())),
     ].slice(0, limit);
 
