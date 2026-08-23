@@ -1,5 +1,54 @@
 # Development Log
 
+## August 23, 2026 — Minor-signup unblock (shareable invite link) + two nits
+
+With prod email dark (DNS → Resend unverified), a minor signing up was
+parked with NO way to reach their parent — the invite existed only inside
+an email that never sends, and the parked screen dead-ended at "contact
+support" (rescue = admin re-mint). **Tom's explicit decision (asked
+directly): ALWAYS show the invite link on the parked screen.** Rationale
+accepted with eyes open: the token is a bearer credential and a minor
+could self-claim with a second email — but the "I'm a parent" branch is
+already un-age-gated (that door exists regardless), and the hard gate is
+and remains manual consent review of an uploaded signed form
+(guardian-gate refuses every acting-as write until admin approval). This
+extends the recorded house rule ("the URL is the reliable channel" — admin
+re-mint, co-guardian invites) to the one surface that needed it most.
+
+- `/api/signup` + `/api/auth/complete-profile` guardian branches now
+  return `inviteUrl` alongside `parked` (raw token previously never left
+  the server except inside the email). Message copy leads with the link;
+  "contact support" dead-end removed.
+- Parked screens (RegistrationSteps 'parked' step + the OAuth
+  complete-profile twin) render the link via new `InviteLinkShare` — the
+  house select-all code block plus the app's FIRST copy-to-clipboard
+  button (clipboard failure degrades to the select-all block, silently:
+  it's a convenience, not a requirement). These screens are the minor's
+  ONLY reachable surface (no auth user exists; state lost on refresh) —
+  the hand-off happens there or never.
+- Hardening rider: `GET /api/invites/[token]` was unauthenticated AND
+  unlimited while naming the invited email + child's first name to any
+  bearer — new `invite-peek` rate limit (30/min/IP; the claim POST was
+  always limited).
+
+Two logged nits fixed in the same round:
+- **Signup handle-check race**: submitting during the availability check
+  (the 500ms debounce window INCLUDED) now parks the submit and
+  auto-continues when the check lands — event-driven single-flight
+  (HandleSelector gains `onCheckingChange`; the confirmed handle rides
+  into the auto-continued submit explicitly because form state is stale
+  in that tick). The stale "please wait" banner clears on the green
+  transition. No new effects.
+- **PostCard author row at 360**: the handle span's `flex-shrink-[2]`
+  truncated it to a bare "@" beside an owner's 148px button cluster.
+  Equal shrink + min-width floors, and the handle hides entirely below
+  400px — the floors alone would overflow a 320px card (56+8+48 > the
+  ~80px the owner cluster leaves), so the hide is load-bearing. #181's
+  fixes (p-4 header, no flex-wrap meta row, shrink-0 cluster) untouched.
+
+Observation, not fixed: nothing sweeps expired `pending_profiles` rows —
+they stay live and re-mintable past their nominal 30 days.
+
 ## August 22, 2026 — WHS-accuracy handicap upgrade + GHIN/GPA prep
 
 Tom asked about connecting to "the official PGA system". Correction encoded

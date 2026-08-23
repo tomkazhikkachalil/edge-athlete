@@ -126,23 +126,33 @@ export async function POST(request: NextRequest) {
         // deliver() returns an honest boolean (and Sentry-tags failures) —
         // parked either way; a failed send is rescued via the admin
         // parked-profiles re-mint (dashboard/guardians).
+        const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://edge-athlete.vercel.app';
+        const inviteUrl = invite ? `${appUrl}/invite/${invite.rawToken}` : null;
         let guardianEmailSent = false;
         if (invite && process.env.SMTP_USER && process.env.SMTP_PASS) {
-          const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://edge-athlete.vercel.app';
           guardianEmailSent = await emailService.sendGuardianInvite(
             guardianEmail,
             profileData?.first_name || '',
-            `${appUrl}/invite/${invite.rawToken}`,
+            inviteUrl as string,
             appUrl,
             guardianHasAccount
           );
         }
+        // The invite URL is ALWAYS returned for the parked screen to show —
+        // Tom's explicit call (Aug 2026): email is a convenience, the link is
+        // the reliable channel (the same rule the admin re-mint and
+        // co-guardian invites already follow). The token is bearer, but the
+        // hard gate stays consent review of the uploaded signed form — a
+        // link in the athlete's hands doesn't bypass it.
         return NextResponse.json({
           parked: true,
           guardianEmailSent,
+          inviteUrl,
           message: guardianEmailSent
-            ? "Almost there! We've emailed your parent or guardian a link to finish setting up your profile."
-            : "Almost there! We couldn't send the email to your parent or guardian just now — ask them to contact support, or try signing up again later.",
+            ? "Almost there! We've emailed your parent or guardian a link to finish setting up your profile — or share the link below with them directly."
+            : inviteUrl
+              ? 'Almost there! Share the link below with your parent or guardian to finish setting up your profile.'
+              : "Almost there! We couldn't set up the invite just now — please try signing up again later.",
         });
       }
     }

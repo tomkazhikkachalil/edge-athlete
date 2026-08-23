@@ -104,19 +104,25 @@ export async function POST(request: NextRequest) {
         });
         // deliver() returns an honest boolean; failed sends are rescued via
         // the admin parked-profiles re-mint (dashboard/guardians).
+        const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://edge-athlete.vercel.app';
+        const inviteUrl = invite ? `${appUrl}/invite/${invite.rawToken}` : null;
         let guardianEmailSent = false;
         if (invite && process.env.SMTP_USER && process.env.SMTP_PASS) {
-          const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://edge-athlete.vercel.app';
           guardianEmailSent = await emailService.sendGuardianInvite(
-            guardianEmail, first_name, `${appUrl}/invite/${invite.rawToken}`, appUrl, !!existingGuardian
+            guardianEmail, first_name, inviteUrl as string, appUrl, !!existingGuardian
           );
         }
+        // inviteUrl ALWAYS returned — the link is the reliable channel
+        // (owner decision; see /api/signup's guardian branch for rationale).
         return NextResponse.json({
           parked: true,
           guardianEmailSent,
+          inviteUrl,
           message: guardianEmailSent
-            ? "Almost there! We've emailed your parent or guardian a link to finish setting up your profile."
-            : "Almost there! We couldn't send the email to your parent or guardian just now — ask them to contact support, or try again later.",
+            ? "Almost there! We've emailed your parent or guardian a link to finish setting up your profile — or share the link below with them directly."
+            : inviteUrl
+              ? 'Almost there! Share the link below with your parent or guardian to finish setting up your profile.'
+              : "Almost there! We couldn't set up the invite just now — please try again later.",
         });
       }
     }

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '@/lib/auth-server';
 import { peekGuardianInvite } from '@/lib/guardian-invites';
+import { enforceRateLimit } from '@/lib/rate-limit';
 import { FEATURE_FLAGS } from '@/lib/features';
 
 // ── GET /api/invites/[token] ──────────────────────────────────────────────────
@@ -14,6 +15,12 @@ export async function GET(
   if (!FEATURE_FLAGS.FEATURE_GUARDIAN_PROFILES) {
     return NextResponse.json({ valid: false }, { status: 404 });
   }
+  // Unauthenticated by design (a parent opens this before having an
+  // account), and the valid response names the invited email + child's
+  // first name — so token guessing must be expensive. The claim POST was
+  // always limited; the peek wasn't.
+  const limited = await enforceRateLimit(request, 'invite-peek');
+  if (limited) return limited;
   const { token } = await params;
   if (!token || token.length < 20) {
     return NextResponse.json({ valid: false }, { status: 404 });

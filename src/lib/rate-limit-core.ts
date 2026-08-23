@@ -35,6 +35,9 @@ export const RATE_LIMITS = {
   // Course picker search — anonymous-reachable and it reads cross-user
   // course history; the golf_courses catalog makes it a scraping target.
   'course-search': { max: 30, windowSeconds: 60, keyBy: 'ip' },
+  // Guardian-invite peek — unauthenticated (parents open it accountless)
+  // and a valid hit names the invited email; keep token guessing costly.
+  'invite-peek': { max: 30, windowSeconds: 60, keyBy: 'ip' },
 
   // ── Authenticated (user-keyed): spam-shaped or expensive writes ─────────
   'account-delete': { max: 5, windowSeconds: 900, keyBy: 'user', message: ATTEMPTS_MESSAGE },
