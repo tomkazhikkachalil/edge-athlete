@@ -39,3 +39,26 @@ export function logoUrl(domain: string | undefined, size: number): string | null
   });
   return `https://img.logo.dev/${encodeURIComponent(domain)}?${params.toString()}`;
 }
+
+/**
+ * A website URL/string → the bare domain `logoUrl` wants, or null when
+ * nothing domain-shaped is in there. Handles missing schemes,
+ * protocol-relative `//host` inputs, `www.` prefixes, ports, and paths —
+ * golf-course `website` values are provider free text, so be forgiving on
+ * input and strict on output (must contain a dot, no spaces).
+ */
+export function websiteDomain(website: string | null | undefined): string | null {
+  const raw = website?.trim();
+  if (!raw) return null;
+  const withScheme = /^[a-z][a-z0-9+.-]*:\/\//i.test(raw)
+    ? raw
+    : raw.startsWith('//')
+      ? `https:${raw}`
+      : `https://${raw}`;
+  try {
+    const host = new URL(withScheme).hostname.replace(/^www\./i, '').toLowerCase();
+    return host.includes('.') && !host.includes(' ') ? host : null;
+  } catch {
+    return null;
+  }
+}

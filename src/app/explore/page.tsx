@@ -12,6 +12,7 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import AppHeader from '@/components/AppHeader';
+import ExploreCoursesSection from '@/components/golf/ExploreCoursesSection';
 import LazyImage from '@/components/LazyImage';
 import LiveNowStrip from '@/components/LiveNowStrip';
 import { formatDistanceToNow } from 'date-fns';
@@ -163,6 +164,11 @@ export default function ExplorePage() {
             {error}
           </div>
         )}
+
+        {/* Courses ride the golf chip — own loading state, deliberately
+            OUTSIDE the athletes/posts loading gate so course typing never
+            flashes the rest of the page. Guest-safe end to end. */}
+        {selectedSport === 'golf' && <ExploreCoursesSection />}
 
         {loading ? (
           <div className="flex items-center justify-center py-24">

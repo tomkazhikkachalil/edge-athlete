@@ -9,6 +9,9 @@ import { buildWorkoutStatsData, computeSummary } from '@/lib/workouts/summary';
 import { serverToEntries, type ServerWorkoutSession } from '@/lib/workouts/serialize';
 import WorkoutPostCard from '@/components/workouts/WorkoutPostCard';
 import GolfRoundCard from '@/components/golf/GolfRoundCard';
+import CourseInfoCard from '@/components/golf/CourseInfoCard';
+import { embeddedCourseToInfo } from '@/lib/golf/course-info';
+import type { EmbeddedCourseInfo } from '@/types/group-posts';
 import type { GolfRound } from '@/types/golf';
 
 // Preview for a completed activity that was NEVER shared to the feed, so no
@@ -24,7 +27,7 @@ type Body =
   | { status: 'loading' }
   | { status: 'unavailable' }
   | { status: 'workout'; statsData: Record<string, unknown> }
-  | { status: 'golf'; round: GolfRound };
+  | { status: 'golf'; round: GolfRound & { course_info?: EmbeddedCourseInfo | null } };
 
 export default function ActivityPreviewModal({
   activity,
@@ -80,7 +83,13 @@ export default function ActivityPreviewModal({
           if (!res.ok) throw new Error('unavailable');
           const data = await res.json();
           if (cancelled) return;
-          setBody({ status: 'golf', round: data.round as GolfRound });
+          // The rounds GET already embeds course_info:golf_courses — feed it
+          // through instead of discarding it (Tom's "course details in the
+          // calendar quick view").
+          setBody({
+            status: 'golf',
+            round: data.round as GolfRound & { course_info?: EmbeddedCourseInfo | null },
+          });
           return;
         }
         if (!cancelled) setBody({ status: 'unavailable' });
@@ -132,7 +141,17 @@ export default function ActivityPreviewModal({
             </p>
 
             {body.status === 'workout' && <WorkoutPostCard statsData={body.statsData} />}
-            {body.status === 'golf' && <GolfRoundCard round={body.round} />}
+            {body.status === 'golf' && (
+              <>
+                <GolfRoundCard round={body.round} />
+                {/* Course identity under the (frozen) round card: logo,
+                    description, official scorecard, map link. */}
+                {(() => {
+                  const info = embeddedCourseToInfo(body.round.course_info);
+                  return info ? <CourseInfoCard course={info} /> : null;
+                })()}
+              </>
+            )}
             {body.status === 'unavailable' && (
               <p className="text-sm text-muted">Details unavailable.</p>
             )}

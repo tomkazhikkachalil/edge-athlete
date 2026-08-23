@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { logoUrl, LOGO_DEV_ENABLED } from '@/lib/logo-dev';
+import { logoUrl, websiteDomain, LOGO_DEV_ENABLED } from '@/lib/logo-dev';
 
 // NEXT_PUBLIC_LOGO_DEV_TOKEN is inlined at build time and is unset under
 // vitest, so these run the disabled path — which is the one that must never
@@ -17,6 +17,25 @@ describe('logoUrl (no token configured)', () => {
 
   it('reports the feature as disabled', () => {
     expect(LOGO_DEV_ENABLED).toBe(false);
+  });
+});
+
+// Course `website` values are provider free text — forgiving in, strict out.
+describe('websiteDomain', () => {
+  it('extracts a bare domain from the shapes providers actually store', () => {
+    expect(websiteDomain('https://www.ottawahuntclub.org/')).toBe('ottawahuntclub.org');
+    expect(websiteDomain('http://rideauview.com/rates')).toBe('rideauview.com');
+    expect(websiteDomain('pebblebeach.com')).toBe('pebblebeach.com');
+    expect(websiteDomain('//www.example.golf')).toBe('example.golf');
+    expect(websiteDomain('WWW.Example.COM:8080/x?y=1')).toBe('example.com');
+  });
+
+  it('returns null for junk — never a broken img request', () => {
+    expect(websiteDomain(null)).toBeNull();
+    expect(websiteDomain('')).toBeNull();
+    expect(websiteDomain('   ')).toBeNull();
+    expect(websiteDomain('call the pro shop')).toBeNull();
+    expect(websiteDomain('localhost')).toBeNull();
   });
 });
 
