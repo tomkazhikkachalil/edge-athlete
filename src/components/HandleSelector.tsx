@@ -6,6 +6,10 @@ import { validateHandleFormat, checkHandleAvailability, generateHandleSuggestion
 interface HandleSelectorProps {
   initialHandle?: string;
   onHandleSelected: (handle: string) => void;
+  /** True from the first keystroke until the availability check settles —
+   *  the 500ms debounce window COUNTS as checking (a submit inside it must
+   *  wait, not error). Lets the parent single-flight its submit. */
+  onCheckingChange?: (checking: boolean) => void;
   firstName?: string;
   lastName?: string;
   required?: boolean;
@@ -14,6 +18,7 @@ interface HandleSelectorProps {
 export default function HandleSelector({
   initialHandle = '',
   onHandleSelected,
+  onCheckingChange,
   firstName,
   lastName,
   required = true
@@ -51,6 +56,7 @@ export default function HandleSelector({
   useEffect(() => {
     if (!handle) {
       onHandleSelected('');
+      onCheckingChange?.(false);
       return;
     }
 
@@ -63,6 +69,7 @@ export default function HandleSelector({
         setIsValid(false);
         setShowSuggestions(false);
         onHandleSelected('');
+        onCheckingChange?.(false);
         return;
       }
 
@@ -92,12 +99,13 @@ export default function HandleSelector({
         onHandleSelected('');
       } finally {
         setIsChecking(false);
+        onCheckingChange?.(false);
       }
     }, 500); // 500ms debounce
 
     return () => clearTimeout(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [handle]); // Intentionally excluding onHandleSelected to prevent constant re-checks when parent re-renders
+  }, [handle]); // Intentionally excluding onHandleSelected/onCheckingChange to prevent constant re-checks when parent re-renders
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     let value = e.target.value;
@@ -115,13 +123,17 @@ export default function HandleSelector({
 
     setHandle(value);
     // Invalidate the previously confirmed handle immediately — otherwise a
-    // submit inside the 500ms debounce window sends the stale one.
+    // submit inside the 500ms debounce window sends the stale one. The
+    // pending flag goes up HERE, not when the fetch starts: the debounce
+    // window is part of the race a submit must wait out.
     onHandleSelected('');
+    onCheckingChange?.(value.length > 0);
   };
 
   const handleSuggestionClick = (suggestion: string) => {
     setHandle(suggestion);
     setShowSuggestions(false);
+    onCheckingChange?.(true); // re-checks via the debounced effect
   };
 
   return (
