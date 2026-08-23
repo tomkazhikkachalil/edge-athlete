@@ -1,5 +1,42 @@
 # Development Log
 
+## August 23, 2026 — Boundary-scoped hole geometry: multi-course facilities
+
+Tom, after the catalog-wide geometry pre-fetch: "Why aren't all the Ottawa
+courses showing up? I see all courses on other apps." Live Overpass diagnosis
+of the no-coverage Ottawa rows found the holes ARE in OSM — the strict parser
+was rejecting whole sets because the 1500 m radius mixes neighboring courses'
+refs: The Marshes' 18 + its 9-hole Marchwood academy course; Royal Ottawa's
+radius sweeps in THREE adjacent Gatineau clubs (Champlain's clean 18 collides
+with Royal Ottawa's refs).
+
+OSM carries the disambiguator: named `leisure=golf_course` boundary polygons.
+The fetch now grabs boundaries alongside holes (one request, same mirrors/
+budget), and when the plain parse rejects, `scopeHoleGeometry` picks the ONE
+boundary whose name best matches the catalog course (informative-token
+overlap, accents folded, strict-max winner — ties give up) and re-parses only
+the holes whose midpoint falls inside it. Same strict rules after scoping, so
+"never partial-trust" holds: Ottawa Hunt (three nines, one boundary, refs
+1–9 twice) and Royal Ottawa (18 + West Nine inside its own boundary) still
+correctly null to course-level.
+
+Two design lessons, both probed live before coding:
+- **Point-containment picks the WRONG polygon.** The first design used
+  Overpass `is_in` — but The Marshes' geocoded point sits inside the sibling
+  Marchwood polygon, which would have served the academy nine under the
+  championship course's name. Match by NAME, never by which polygon contains
+  the course point.
+- **Relation boundaries need ring assembly.** The Marshes' 18-hole boundary
+  is a relation of two outer ways; `assembleRings` chains member ways
+  (unordered, arbitrary direction) into closed rings before ray-casting.
+  Unclosed boundaries are dropped — they can't answer point-in-polygon.
+
+Fixtures are real captured responses (Marshes: relation boundary + sibling;
+Royal Ottawa: three clubs, closed-way + relation boundaries, stays-null case).
+Test count 1509 → 1520. Ops after deploy: clear `hole_geometry_at` where
+geometry is null (the 30-day no-coverage stamps block refetch) and re-run the
+scratchpad sweep.
+
 ## August 23, 2026 — Distance to green: the rangefinder number
 
 The most-used number in on-course golf apps, and this week's work made it
