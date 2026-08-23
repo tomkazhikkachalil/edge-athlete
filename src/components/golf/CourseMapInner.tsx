@@ -20,6 +20,7 @@
 import { useEffect, useRef, useState } from 'react';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
+import type { HoleLine } from '@/lib/golf/hole-geometry';
 
 export interface CourseMapInnerProps {
   lat: number;
@@ -38,6 +39,12 @@ export interface CourseMapInnerProps {
   /** Parent-driven visibility for the invalidateSize dance. */
   visible?: boolean;
   defaultLayer?: 'osm' | 'satellite';
+  /** Per-hole OSM geometry: numbered labels at every tee. */
+  holes?: HoleLine[] | null;
+  /** Fit the view to this hole and draw its tee→green line. Focusing pauses
+   *  follow (same as a drag) — Re-center returns to the player. */
+  focusHole?: number | null;
+  onHoleTap?: (hole: number) => void;
 }
 
 const OSM = {
@@ -77,6 +84,9 @@ export default function CourseMapInner({
   overlayControls = false,
   visible = true,
   defaultLayer = 'osm',
+  holes = null,
+  focusHole = null,
+  onHoleTap,
 }: CourseMapInnerProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<L.Map | null>(null);
@@ -122,6 +132,75 @@ export default function CourseMapInner({
     tileRef.current?.remove();
     tileRef.current = L.tileLayer(t.url, { maxZoom: t.maxZoom, attribution: t.attribution }).addTo(map);
   }, [layer]);
+
+  // ── Per-hole geometry layers (OSM golf=hole ways) ─────────────────────────
+  const holeLabelsRef = useRef<L.LayerGroup | null>(null);
+  const focusLineRef = useRef<L.LayerGroup | null>(null);
+  const onHoleTapRef = useRef(onHoleTap);
+  useEffect(() => {
+    onHoleTapRef.current = onHoleTap;
+  }, [onHoleTap]);
+
+  // Numbered label at every tee — "the holes, correctly labeled".
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+    holeLabelsRef.current?.remove();
+    holeLabelsRef.current = null;
+    if (!holes?.length) return;
+    const group = L.layerGroup();
+    for (const h of holes) {
+      const icon = L.divIcon({
+        className: '',
+        html: `<div style="width:22px;height:22px;border-radius:50%;background:rgba(17,24,39,.82);color:#fff;font:700 11px/22px system-ui;text-align:center;border:1.5px solid rgba(255,255,255,.9);box-shadow:0 1px 3px rgba(0,0,0,.5)">${h.hole}</div>`,
+        iconSize: [22, 22],
+        iconAnchor: [11, 11],
+      });
+      const marker = L.marker(h.line[0], { icon, keyboard: false });
+      marker.on('click', () => onHoleTapRef.current?.(h.hole));
+      group.addLayer(marker);
+    }
+    group.addTo(map);
+    holeLabelsRef.current = group;
+    return () => {
+      holeLabelsRef.current?.remove();
+      holeLabelsRef.current = null;
+    };
+  }, [holes]);
+
+  // Focused hole: tee→green line + green dot, and the view fits the hole.
+  // This is the "bring me to hole N" behavior; it takes the map from
+  // follow-the-player (Re-center hands it back).
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+    focusLineRef.current?.remove();
+    focusLineRef.current = null;
+    const h = focusHole != null ? holes?.find(x => x.hole === focusHole) : null;
+    if (!h) return;
+    const group = L.layerGroup();
+    group.addLayer(L.polyline(h.line, { color: '#ffffff', weight: 6, opacity: 0.85 }));
+    group.addLayer(L.polyline(h.line, { color: '#7c3aed', weight: 3, opacity: 0.95 }));
+    group.addLayer(
+      L.circleMarker(h.line[h.line.length - 1], {
+        radius: 6,
+        color: '#ffffff',
+        weight: 2,
+        fillColor: '#16a34a',
+        fillOpacity: 1,
+      })
+    );
+    group.addTo(map);
+    focusLineRef.current = group;
+    // Ref-only: the Re-center button's visibility derives from focusActive
+    // in render (setState here trips react-hooks/set-state-in-effect).
+    followRef.current = false;
+    map.fitBounds(L.latLngBounds(h.line), { padding: [60, 60], maxZoom: 18 });
+    return () => {
+      focusLineRef.current?.remove();
+      focusLineRef.current = null;
+    };
+  }, [focusHole, holes]);
 
   // Blank-tiles guard: a map shown from a hidden tab must re-measure.
   useEffect(() => {
@@ -200,6 +279,12 @@ export default function CourseMapInner({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [enableTracking, autoTrack]);
 
+  // A focused hole suspends follow (the effect writes followRef); the button
+  // is DERIVED from the prop so it stays available for the whole hole view —
+  // Re-center pans to the player and resumes follow while the hole stays
+  // drawn (on-course, the player is standing on that hole anyway).
+  const focusActive = focusHole != null && !!holes?.some(h => h.hole === focusHole);
+
   const recenter = () => {
     followRef.current = true;
     setFollowPaused(false);
@@ -243,7 +328,7 @@ export default function CourseMapInner({
           <div className="absolute right-3 top-3 z-[500] flex flex-col items-end gap-2">
             {layerButton}
             {trackButton}
-            {followPaused && tracking && (
+            {(followPaused || focusActive) && tracking && (
               <button
                 type="button"
                 onClick={recenter}

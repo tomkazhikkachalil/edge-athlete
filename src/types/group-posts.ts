@@ -144,6 +144,9 @@ export type GolfGameFormat = 'stroke' | 'stableford' | 'match';
 /** Catalog course row embedded via golf_scorecard_data.course_id (mig 100/101
  *  columns) — feeds the course info card + map on round surfaces. */
 export interface EmbeddedCourseInfo {
+  /** Catalog UUID — lets round surfaces lazy-fetch what the embed doesn't
+   *  carry (hole geometry, full hole_data) via /api/golf/courses?id=. */
+  id: string;
   name: string;
   city: string | null;
   region: string | null;

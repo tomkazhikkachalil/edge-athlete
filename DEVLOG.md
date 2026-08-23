@@ -1,5 +1,38 @@
 # Development Log
 
+## August 23, 2026 — Hole-by-hole GPS: OSM golf geometry on the live map
+
+Tom: "it doesn't bring you to hole one, it just brings you to the general
+location — why do other golfing apps bring you hole by hole, have graphics
+of each hole?" Answer: they license mapped course data. Our free source is
+**OpenStreetMap's golf mapping**: `golf=hole` ways are tee→green polylines
+tagged with hole number and par. Probed live: Rideau View and Eagle Creek
+carry clean refs 1–18; Ottawa Hunt (27-hole club) has refs 1–9 twice with
+no relations to disambiguate, and Pebble Beach's area overlaps a neighbor.
+
+- `src/lib/golf/hole-geometry.ts` — Overpass fetch (mirror ladder; the
+  public servers 504 under load routinely — observed while building) +
+  strict parse: refs must be numeric and UNIQUE and ≥9 holes, else null.
+  **Never partial-trust ambiguous data** — a wrong hole overlay is worse
+  than none; ambiguous facilities keep course-level behavior. Node-tested
+  against a real captured Overpass response (fixture).
+- Cache: `golf_courses.hole_geometry(+_at)` (migration 102), 30 days per
+  ATTEMPT (a "no coverage" answer is an answer); transport failures are NOT
+  stamped so they retry on a later budgeted request. Budget key
+  `golf-provider:overpass` (200/day headroom), served via
+  `GET /api/golf/courses?id=X&holes=1`. Fetched lazily the first time the
+  Map view opens — never on keystrokes, never in the hydration path
+  (Overpass can take 25s).
+- Map: numbered tee labels for every hole ("the holes, correctly labeled"),
+  the focused hole drawn tee→green (white casing + brand line + green dot)
+  with `fitBounds` — "brings you to hole one". Focusing pauses
+  follow-the-player exactly like a drag; Re-center hands the map back.
+  The chip becomes a `‹ Hole N ›` stepper (tap a tee label to jump);
+  it defaults to the next unscored hole and snaps back to it when the
+  scorer closes. The floating button scores the VIEWED hole.
+- Embeds (`course:`/`course_info:golf_courses`) now carry the catalog `id` —
+  round surfaces can lazy-fetch what the embed doesn't hold.
+
 ## August 23, 2026 — Live map on phones: stacking, pinch break, wrong course coords
 
 Tom's first real-device pass found four things the emulated probes missed.

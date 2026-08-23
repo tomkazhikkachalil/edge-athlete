@@ -22,6 +22,9 @@ export default function CourseMap(props: {
   overlayControls?: boolean;
   visible?: boolean;
   defaultLayer?: 'osm' | 'satellite';
+  holes?: import('@/lib/golf/hole-geometry').HoleLine[] | null;
+  focusHole?: number | null;
+  onHoleTap?: (hole: number) => void;
 }) {
   return <CourseMapInner {...props} />;
 }

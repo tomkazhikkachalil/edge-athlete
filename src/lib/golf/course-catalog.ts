@@ -214,9 +214,13 @@ const DEFAULT_BUDGETS: Record<string, number> = {
   // TTL), so this is headroom, not a target. Policy compliance lives in
   // geocode.ts (UA, never per-keystroke).
   nominatim: 500,
+  // Overpass hole-geometry fetches — one per course per 30 days (cached in
+  // hole_geometry_at). Etiquette lives in hole-geometry.ts.
+  overpass: 200,
 };
 
-async function consumeProviderBudget(admin: SupabaseClient, source: string): Promise<boolean> {
+/** Exported for the hole-geometry cache (same budget machinery, its own key). */
+export async function consumeProviderBudget(admin: SupabaseClient, source: string): Promise<boolean> {
   try {
     const { data, error } = await admin
       .rpc('rate_limit_hit', {
