@@ -13,6 +13,9 @@ import { resolveRoundEntry } from '@/lib/golf/round-viewer';
 import { startingHoleNumber } from '@/lib/golf/holes';
 import { isActiveParticipant, effectiveRoundStatus } from '@/lib/golf/round-status';
 import CourseInfoCard from '@/components/golf/CourseInfoCard';
+import CourseMap from '@/components/golf/CourseMap';
+import { nextHoleForScores } from '@/lib/golf/score-entry';
+import { useVisualViewportHeight } from '@/hooks/useVisualViewportHeight';
 import { embeddedCourseToInfo } from '@/lib/golf/course-info';
 import { formatDisplayName } from '@/lib/formatters';
 import type { CompleteGolfScorecard } from '@/types/group-posts';
@@ -39,6 +42,11 @@ export default function LiveRoundPage() {
   const [notFound, setNotFound] = useState(false);
   const [showFullCard, setShowFullCard] = useState(false);
   const [scoringParticipantId, setScoringParticipantId] = useState<string | null>(null);
+  const [scoringHole, setScoringHole] = useState<number | null>(null);
+  // Full-view switcher (owner UX call): Scorecard and Map each own the panel.
+  const [tab, setTab] = useState<'score' | 'map'>('score');
+  // Publishes --vvh for the full-height shell (messages-page recipe).
+  useVisualViewportHeight();
   // Auto-open once. STATE, not a ref: it is read during render (below), and a
   // ref read during render is exactly what react-hooks/refs forbids. State is
   // the better fit anyway — it resets on unmount, so leaving the page and
@@ -83,8 +91,9 @@ export default function LiveRoundPage() {
   const entry = resolveRoundEntry({ scorecard, viewerId: user?.id });
 
   const openScorer = useCallback(
-    async (participantId: string) => {
+    async (participantId: string, hole?: number) => {
       await refresh();
+      setScoringHole(hole ?? null); // null = resume at first unscored
       setScoringParticipantId(participantId);
       setShowFullCard(false);
     },
@@ -158,8 +167,64 @@ export default function LiveRoundPage() {
   const isCreator = scorecard.group_post.creator_id === user.id;
   const viewPostHref = entry.postId ? `/feed?post=${entry.postId}` : '/feed';
 
-  return shell(
-    <>
+  const courseInfo = embeddedCourseToInfo(scorecard.golf_data.course);
+  const mapAvailable = !!courseInfo && typeof courseInfo.lat === 'number' && typeof courseInfo.lng === 'number';
+  // Not just isRoundLive: a fresh round is 'pending' until the first score
+  // lands — exactly when the player is on the tee.
+  const roundOpen = effectiveRoundStatus(scorecard.group_post) !== 'completed';
+  const holesPlayedN = scorecard.golf_data.holes_played;
+  const startHole = startingHoleNumber(scorecard.golf_data.hole_data ?? null, holesPlayedN);
+  const myParticipant = scorecard.participants.find(p => p.participant.profile_id === user.id);
+  // The chip, the floating button and the scorer's resume all share
+  // firstUnscoredHole — they can never disagree about "the current hole".
+  const nextHole = myParticipant
+    ? nextHoleForScores(
+        myParticipant.scores?.hole_scores ?? [],
+        holesPlayedN,
+        startHole,
+        scorecard.golf_data.hole_data ?? null
+      )
+    : null;
+
+  return (
+    <div className="flex flex-col bg-canvas" style={{ height: 'var(--vvh, 100dvh)' }}>
+      <AppHeader />
+      {/* Compact strip: back link + view switcher. The old page stacked the
+          map under the scoring card — cramped on a phone mid-round; each
+          view now gets the full panel. */}
+      <div className="w-full max-w-2xl mx-auto px-4 pt-3 pb-2 flex items-center justify-between gap-3">
+        <Link
+          href="/live"
+          className="inline-flex items-center gap-2 text-sm font-semibold text-brand-fg-strong hover:text-violet-800 dark:hover:text-violet-300 min-h-[44px]"
+        >
+          <i className="fas fa-chevron-left text-xs"></i>
+          Live Now
+        </Link>
+        {mapAvailable && (
+          <div role="tablist" aria-label="Round views" className="flex items-center gap-2">
+            {([['score', 'Scorecard'], ['map', 'Map']] as const).map(([id, label]) => (
+              <button
+                key={id}
+                type="button"
+                role="tab"
+                aria-selected={tab === id}
+                onClick={() => setTab(id)}
+                className={`shrink-0 min-h-[44px] px-4 py-2 rounded-full text-sm font-semibold border transition-colors ${
+                  tab === id
+                    ? 'bg-brand text-white border-brand'
+                    : 'bg-surface text-secondary border-border-strong hover:bg-surface-sunken'
+                }`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Scorecard view — kept mounted; scroll position survives tab flips. */}
+      <div className={tab === 'score' || !mapAvailable ? 'flex-1 min-h-0 overflow-y-auto' : 'hidden'}>
+        <div className="max-w-2xl mx-auto px-4 pb-6">
       {entry.mode === 'final' && (
         <div className="mb-4 bg-surface rounded-lg border border-border p-4 flex items-center justify-between gap-3">
           <div>
@@ -213,23 +278,57 @@ export default function LiveRoundPage() {
         </p>
       )}
 
-      {/* Course info + map. On a LIVE round the map offers device-geolocation
-          tracking — the position never leaves the phone (map marker only). */}
-      {(() => {
-        const info = embeddedCourseToInfo(scorecard.golf_data.course);
-        if (!info) return null;
-        return (
-          <div className="mt-4">
-            <CourseInfoCard
-              course={info}
-              defaultOpen
-              // Not just isRoundLive: a fresh round is 'pending' until the
-              // first score lands — exactly when the player is on the tee.
-              enableTracking={effectiveRoundStatus(scorecard.group_post) !== 'completed'}
-            />
-          </div>
-        );
-      })()}
+      {/* Course info stays on the Scorecard view, WITHOUT a map — the Map
+          tab owns maps here (stacking them was the cramped-UX complaint). */}
+      {courseInfo && (
+        <div className="mt-4">
+          <CourseInfoCard course={courseInfo} mapMode="hidden" />
+        </div>
+      )}
+        </div>
+      </div>
+
+      {/* Map view — full-bleed satellite with overlays. Kept mounted so the
+          tracking dot survives tab flips; `visible` re-measures Leaflet
+          (blank-tiles trap when a map is shown from a hidden panel). */}
+      {mapAvailable && courseInfo && (
+        <div className={tab === 'map' ? 'relative flex-1 min-h-0' : 'hidden'}>
+          <CourseMap
+            lat={courseInfo.lat!}
+            lng={courseInfo.lng!}
+            courseName={courseInfo.name}
+            fill
+            overlayControls
+            visible={tab === 'map'}
+            defaultLayer="satellite"
+            enableTracking={roundOpen}
+            autoTrack={roundOpen}
+          />
+          {/* Current-hole chip — no per-hole geometry exists yet, so hole
+              accuracy = follow-the-player + this chip synced with scoring. */}
+          {nextHole ? (
+            <div className="absolute left-14 top-3 z-[500] rounded-lg border border-border bg-surface/90 px-3 py-1.5 text-sm font-bold text-primary shadow-sm">
+              Hole {nextHole.hole}
+              {nextHole.par !== null && <span className="font-medium text-secondary"> · Par {nextHole.par}</span>}
+              {nextHole.yardage !== null && <span className="font-medium text-secondary"> · {nextHole.yardage} yds</span>}
+            </div>
+          ) : myParticipant ? (
+            <div className="absolute left-14 top-3 z-[500] rounded-lg border border-border bg-surface/90 px-3 py-1.5 text-sm font-semibold text-secondary shadow-sm">
+              Card complete
+            </div>
+          ) : null}
+          {nextHole && entry.mode === 'score' && (
+            <button
+              type="button"
+              onClick={() => openScorer(entry.participantId, nextHole.hole)}
+              className="absolute bottom-6 left-1/2 z-[500] -translate-x-1/2 inline-flex min-h-[48px] items-center gap-2 rounded-full bg-brand px-6 py-3 font-bold text-white shadow-lg hover:bg-brand-hover transition-colors"
+            >
+              <i className="fas fa-pen" aria-hidden="true"></i>
+              Score hole {nextHole.hole}
+            </button>
+          )}
+        </div>
+      )}
 
       {showFullCard && (
         <SharedRoundFullCard
@@ -254,9 +353,10 @@ export default function LiveRoundPage() {
 
       {scoringParticipantId && (
         <ScoreEntryModal
-          key={scoringParticipantId}
+          key={`${scoringParticipantId}:${scoringHole ?? 'resume'}`}
           groupPostId={scorecard.group_post.id}
           participantId={scoringParticipantId}
+          initialHole={scoringHole ?? undefined}
           holesPlayed={scorecard.golf_data.holes_played}
           startingHoleNumber={startingHoleNumber(
             scorecard.golf_data.hole_data ?? null,
@@ -326,6 +426,6 @@ export default function LiveRoundPage() {
           }}
         />
       )}
-    </>
+    </div>
   );
 }

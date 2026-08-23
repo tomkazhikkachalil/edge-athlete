@@ -1,5 +1,40 @@
 # Development Log
 
+## August 23, 2026 — Live portal redesign: full-view tabs, satellite GPS, hole-aware map
+
+Tom's UX call: the live page stacked the GPS map under the scoring card —
+cramped on a phone mid-round. The portal is now a full-height two-view
+app screen (the messages-page `--vvh` recipe): a compact strip (back link
++ Scorecard/Map pill switcher) over a `flex-1 min-h-0` panel.
+
+- **Scorecard view**: the existing content (QuickView, CTAs, course info
+  card now WITHOUT a map — stacking maps was the complaint) in its own
+  scroll pane.
+- **Map view**: full-bleed Leaflet with SATELLITE default (Esri World
+  Imagery public tiles + full attribution; the clean long-term path is
+  Esri's free-tier API key — Tom signup, later), in-map Satellite/Map
+  toggle, overlay controls, and:
+  - a **current-hole chip** ("Hole 7 · Par 4 · 380 yds") driven by new
+    pure `nextHoleForScores` (score-entry.ts, tested) — shares
+    `firstUnscoredHole` with the scorer's resume so chip, button and
+    modal can never disagree; gap-aware, back-9 numbering correct;
+  - a floating **"Score hole N"** button that opens the scorer AT that
+    hole (`ScoreEntryModal.initialHole` already existed; `openScorer`
+    gained a hole param + the modal key includes it);
+  - **follow mode**: tracking pans continuously to the player (hole
+    accuracy without per-hole geometry — none exists in any provider
+    yet; the player IS the hole). A manual drag pauses follow and a
+    Re-center control appears. Tracking auto-starts ONLY when
+    geolocation permission is already granted (never auto-prompts).
+- Both panels stay MOUNTED (hidden via class) so the tracking dot
+  survives tab flips; `CourseMap` gained `visible` → `invalidateSize()`
+  (Leaflet's blank-tiles trap when shown from a hidden panel), plus
+  `fill`/`overlayControls`/`defaultLayer`/`autoTrack`. Card usages
+  (composer, round detail, FullCard) are unchanged by defaults, and they
+  gain the Satellite toggle for free.
+- No coords → no Map tab (single-view page, as before minus the stack).
+  The scorer's first-paint auto-open behavior is unchanged.
+
 ## August 23, 2026 — Course-driven tees + sub-course name tidy
 
 The tee dropdown becomes the catalog's: a selected course lists its REAL
