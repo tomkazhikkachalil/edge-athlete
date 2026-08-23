@@ -20,7 +20,7 @@
 import { useEffect, useRef, useState } from 'react';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
-import type { HoleLine } from '@/lib/golf/hole-geometry';
+import { greenDistanceYards, type HoleLine } from '@/lib/golf/hole-geometry';
 
 export interface CourseMapInnerProps {
   lat: number;
@@ -98,6 +98,9 @@ export default function CourseMapInner({
   const lastFixRef = useRef<[number, number] | null>(null);
   const [tracking, setTracking] = useState(false);
   const [followPaused, setFollowPaused] = useState(false);
+  // Mirrors lastFixRef into render for the yardage pill (~1 update/s while
+  // tracking; nothing but the pill depends on it). On-device only.
+  const [playerFix, setPlayerFix] = useState<[number, number] | null>(null);
   const [layer, setLayer] = useState<'osm' | 'satellite'>(defaultLayer);
   const [geoError, setGeoError] = useState<string | null>(null);
 
@@ -218,6 +221,7 @@ export default function CourseMapInner({
     accuracyRef.current = null;
     followRef.current = true;
     setFollowPaused(false);
+    setPlayerFix(null);
     setTracking(false);
   };
 
@@ -236,6 +240,7 @@ export default function CourseMapInner({
         if (!map) return;
         const ll: [number, number] = [pos.coords.latitude, pos.coords.longitude];
         lastFixRef.current = ll;
+        setPlayerFix(ll);
         if (!playerMarkerRef.current) {
           playerMarkerRef.current = L.marker(ll, { icon: playerIcon() }).addTo(map);
           accuracyRef.current = L.circle(ll, {
@@ -253,12 +258,17 @@ export default function CourseMapInner({
         if (followRef.current) map.panTo(ll, { animate: true });
       },
       err => {
-        setGeoError(
-          err.code === err.PERMISSION_DENIED
-            ? 'Location permission was denied — enable it in your browser settings to track your position.'
-            : 'Could not get your location right now.'
-        );
-        stopTracking();
+        // Only a permission denial is fatal. TIMEOUT and POSITION_UNAVAILABLE
+        // are TRANSIENT — a golfer standing still for 15s trips the timeout
+        // (no new fix ≠ no permission), tree cover trips unavailable — and
+        // stopping the watch on those silently killed tracking mid-round
+        // (probe-caught). Keep watching; the next good fix just resumes.
+        if (err.code === err.PERMISSION_DENIED) {
+          setGeoError(
+            'Location permission was denied — enable it in your browser settings to track your position.'
+          );
+          stopTracking();
+        }
       },
       { enableHighAccuracy: true, maximumAge: 5000, timeout: 15000 }
     );
@@ -284,6 +294,11 @@ export default function CourseMapInner({
   // Re-center pans to the player and resumes follow while the hole stays
   // drawn (on-course, the player is standing on that hole anyway).
   const focusActive = focusHole != null && !!holes?.some(h => h.hole === focusHole);
+  // The rangefinder number: player's live fix → the focused hole's green
+  // (line end — "to green", never "to pin"). Null past 1500 yds so a
+  // couch-peek shows nothing. Computed on-device; the fix never uploads.
+  const focusedLine = focusHole != null ? holes?.find(h => h.hole === focusHole)?.line : undefined;
+  const distanceYds = playerFix && focusedLine ? greenDistanceYards(playerFix, focusedLine) : null;
 
   const recenter = () => {
     followRef.current = true;
@@ -337,6 +352,15 @@ export default function CourseMapInner({
                 <i className="fas fa-crosshairs" aria-hidden="true"></i>
                 Re-center
               </button>
+            )}
+            {tracking && distanceYds != null && (
+              <p
+                aria-live="polite"
+                className="inline-flex min-h-[40px] items-center gap-1.5 rounded-lg border border-border bg-surface/90 px-3 py-1.5 text-sm font-bold text-primary shadow-sm"
+              >
+                <i className="fas fa-flag text-green-600" aria-hidden="true"></i>
+                {distanceYds} yds to green
+              </p>
             )}
           </div>
           {geoError && (

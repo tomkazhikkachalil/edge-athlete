@@ -1,5 +1,23 @@
 # Development Log
 
+## August 23, 2026 — Distance to green: the rangefinder number
+
+The most-used number in on-course golf apps, and this week's work made it
+free: the OSM `golf=hole` way runs tee→green, so its LAST point is the
+green; the player's position comes from the tracking watch already running;
+`haversineKm` was already exported and tested. `greenDistanceYards` (pure,
+tested against the real Rideau View fixture incl. a from-the-tee ≈
+hole-length sanity check) feeds a pill in the live map's control column:
+"⛳ 187 yds to green", counting down with every GPS fix as the golfer
+walks, tracking the chip's focused hole.
+
+Honesty and guardrails: the OSM endpoint approximates the green's
+center/front — the label is "to green", never "to pin" (no pin data exists
+anywhere). A 1500-yd sanity cap nulls the pill for couch-peeks. Everything
+computes on-device — the position-never-leaves-the-phone invariant is
+untouched, and card-mode maps (composer, round detail) render no pill
+(overlayControls only).
+
 ## August 23, 2026 — Course identity: logos, the official scorecard, calendar, explore
 
 The second half of Tom's course round (the first half is hole-by-hole GPS):

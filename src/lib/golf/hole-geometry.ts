@@ -15,6 +15,7 @@
 // this) — hence the mirror ladder and the always-safe null.
 
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { haversineKm } from '@/lib/golf/geocode';
 
 export interface HoleLine {
   hole: number;
@@ -62,6 +63,25 @@ export function parseHoleGeometry(payload: unknown): HoleGeometry | null {
   if (holes.length < 9) return null;
   holes.sort((a, b) => a.hole - b.hole);
   return { holes, source: 'osm' };
+}
+
+/** Live yardage from the player's GPS fix to a hole's green — the OSM way
+ *  runs tee→green, so the LAST point is the green (its center/front,
+ *  approximately — this is "to green", never "to pin"; no pin data exists).
+ *  Null past `maxYds`: someone peeking at a round from their couch gets no
+ *  silly four-digit number. Pure, on-device — the fix never leaves the
+ *  phone. */
+export function greenDistanceYards(
+  fix: [number, number],
+  line: [number, number][],
+  maxYds = 1500
+): number | null {
+  if (line.length < 2) return null;
+  const green = line[line.length - 1];
+  const yds = Math.round(
+    haversineKm({ lat: fix[0], lng: fix[1] }, { lat: green[0], lng: green[1] }) * 1093.6133
+  );
+  return yds > maxYds ? null : yds;
 }
 
 const MIRRORS = [
