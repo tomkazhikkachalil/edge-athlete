@@ -13,8 +13,10 @@ for (const route of ['/explore', '/messages']) {
     // directly — no drawer needed.
     await page.getByRole('button', { name: 'Create new post' }).click();
 
-    await expect(page).toHaveURL(/\/feed\?create=1/);
-    // The composer modal is open (its header, not the inline feed bar).
+    // The feed consumes ?create=1 and strips it from the URL, so asserting
+    // the query races the cleanup — assert the OUTCOME: we're on /feed with
+    // the composer modal open (its heading, not the inline feed bar).
+    await expect(page).toHaveURL(/\/feed/, { timeout: 15_000 });
     await expect(page.getByRole('heading', { name: 'Create Post' })).toBeVisible({ timeout: 15_000 });
   });
 }
