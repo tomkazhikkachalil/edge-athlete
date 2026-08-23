@@ -201,7 +201,7 @@ describe('settingsToDisplayItems', () => {
     expect(settingsToDisplayItems(golf, legacy)).toEqual([]);
 
     const withReal = settingsToDisplayItems(golf, { ...legacy, handicap: 12.4 });
-    expect(withReal).toEqual([{ key: 'handicap', label: 'Official Handicap', value: '12.4' }]);
+    expect(withReal).toEqual([{ key: 'handicap', label: 'Official index (self-reported)', value: '12.4' }]);
   });
 
   it('resolves a select to its option label, not its raw value', () => {
@@ -249,7 +249,7 @@ describe('settingsToDisplayItems', () => {
   });
 
   it('uses displayLabel only where a schema declares one', () => {
-    expect(settingsToDisplayItems(golf, { handicap: 1 })[0].label).toBe('Official Handicap');
+    expect(settingsToDisplayItems(golf, { handicap: 1 })[0].label).toBe('Official index (self-reported)');
     expect(settingsToDisplayItems(golf, { home_course: 'X' })[0].label).toBe('Home Course');
   });
 

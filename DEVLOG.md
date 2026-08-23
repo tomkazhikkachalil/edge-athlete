@@ -1,5 +1,47 @@
 # Development Log
 
+## August 22, 2026 — WHS-accuracy handicap upgrade + GHIN/GPA prep
+
+Tom asked about connecting to "the official PGA system". Correction encoded
+everywhere: the authority is the World Handicap System (USGA/R&A; GHIN in
+the US, Golf Canada→GolfNet in Canada), and OFFICIAL integration is the
+USGA's GPA licensing program — a business application, prepped in
+`docs/GHIN_GPA_PREP.md` (checklist; the USGA overview 403s bots, so pinning
+current terms is a human browser step). Meanwhile the estimate now matches
+official math much more closely:
+
+- **Net double bogey (Rule 3.1b)** — new pure `lib/golf/adjusted-gross.ts`:
+  Course Handicap (6.1a), stroke allocation incl. plus-handicap giveback
+  from SI 18, subset re-ranking (a 9-hole card at an 18-hole course), and
+  `adjustedGross` with three regimes: no index → par+5 caps; known
+  allocation → exact NDB; known CH but unknown stroke indexes → a
+  DELIBERATE high degrade (par + 2 + ceil(CH/18)) so the estimate can only
+  err against the player, never flatter. Stroke indexes come from the
+  course catalog (`golf_courses.hole_data[].handicap` via
+  `golf_rounds.course_id`) — the first analytical payoff of migration 100.
+- **9-hole rounds join (Rule 5.1b, WHS 2024)** — `nineHoleDifferential`:
+  18-hole SD = 9-hole SD + (0.52 × HI + 1.2), unit-anchored to the
+  published USGA/MGA/Golf Canada worked example (HI 14.0, SD 7.2 → 15.7).
+  WHS itself refuses the conversion before an index exists, and so do we:
+  9-holers are skipped until the chronological series has produced one.
+  New plausibility guards: 9-hole gross ≥ 26, 9-hole rating window 25–45
+  (rejects the common 18-hole-rating-on-a-9-hole-round entry).
+- **`buildHandicapSeries`** (pure, tested) walks rounds chronologically —
+  each round's NDB cap uses the index AS OF that round, which is why this
+  is a read-time recompute and NOT a stored column (a stored adjusted
+  gross would be stale by design, and the mirror stays untouched). Rounds
+  without hole data use raw gross — proven byte-identical to the
+  pre-upgrade output by a series test. The trends route now fetches
+  golf_holes + catalog stroke indexes (two indexed selects over ≤60
+  rounds) and feeds the builder; response shape unchanged.
+- **Label hygiene** — the self-declared sport setting now displays as
+  "Official index (self-reported)" (was "Official Handicap", which implied
+  verification); trends copy updated to describe NDB + 9-hole conversion,
+  still explicitly "not an official index".
+- Guards kept verbatim: 18-hole gross ≥ 55, final differential ≥ −10
+  (now applied to the CONVERTED differential for 9-holers), slope 55–155 —
+  the documented mislabeled gross-52 prod round stays excluded (tested).
+
 ## August 22, 2026 — Global course catalog (migration 100)
 
 Course data goes global — the handicap capture shipped earlier today only

@@ -259,8 +259,10 @@ export default function GolfTrendsPage() {
             ) : summary?.handicapIndex === null ? (
               <div className="mb-4 bg-brand-soft border border-violet-200 dark:border-violet-800 rounded-lg p-4 text-sm text-violet-800 dark:text-violet-200">
                 <i className="fas fa-info-circle mr-2"></i>
-                Your estimated handicap appears after 3+ 18-hole rounds logged with a course
-                rating and slope (find them on the course&apos;s scorecard).
+                Your estimated handicap appears after 3+ rounds logged with a course
+                rating and slope (find them on the course&apos;s scorecard, or pick the
+                course from search — ratings fill in automatically). 18-hole rounds
+                count first; 9-hole rounds join once your estimate exists.
               </div>
             ) : null}
 
@@ -295,7 +297,7 @@ export default function GolfTrendsPage() {
 
             <p className="text-xs text-faint mt-4">
               9- and 18-hole rounds are compared by to-par and per-hole stats. Use the filters to
-              isolate one format. Rounds without putts/FIR/GIR data are omitted from those charts. The handicap is a WHS-style estimate from your 18-hole rounds with rating &amp; slope — not an official index.
+              isolate one format. Rounds without putts/FIR/GIR data are omitted from those charts. The handicap is a WHS-style estimate from your rated rounds: hole-by-hole scores are capped at net double bogey where course data allows, and 9-hole rounds convert via the WHS expected-score method once an estimate exists — not an official index.
             </p>
           </>
         )}
