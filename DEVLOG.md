@@ -1,5 +1,51 @@
 # Development Log
 
+## August 23, 2026 — Live map on phones: stacking, pinch break, wrong course coords
+
+Tom's first real-device pass found four things the emulated probes missed.
+Each one is a lesson:
+
+1. **"Score hole 1 does nothing" was a PAINT-ORDER bug.** Leaflet's panes
+   and controls carry z-index 400–1000, and nothing contained them — so on
+   the Map tab they painted OVER the z-50 scorer modal. The scorer opened;
+   nobody could see it. Fix: the map panel is now `isolate z-0`
+   (isolation:isolate makes it a stacking context, containing Leaflet's
+   z-values AND the chip/CTA at z-[500]; the panel as a whole sits under
+   every app overlay). Probe lesson re-learned the hard way: `isVisible()`
+   checks DOM, not paint — the portal probes now assert with
+   `document.elementFromPoint`, per the Tailwind-stacking-trap memory.
+2. **Pinch-zoom "broke the page"**: `useVisualViewportHeight` rewrote
+   `--vvh` (relaying the shell and the Leaflet container mid-gesture) and
+   its pan clamp fought the pinch-pan with `scrollTo(0,0)` — an iOS pinch
+   changes visualViewport height AND offset. Both handlers now no-op while
+   `visualViewport.scale > 1`; returning to scale 1 fires a resize that
+   re-syncs. (Also quietly fixes the messages page, same hook.) Page zoom
+   stays allowed (`maximumScale: 5` — accessibility); it's now safe instead
+   of forbidden.
+3. **Tab flips janked** because panels swapped via `display:none`. They're
+   now absolute-inset siblings; the inactive one is `invisible
+   pointer-events-none` — visibility keeps layout, so the map never loses
+   its size (no blank tiles, no relayout; flips are paint-only). The
+   `visible` → `invalidateSize` wiring stays as belt-and-braces.
+4. **"The GPS is a completely different location" — provider coords are
+   BAD.** 3 of the 4 courses Tom has played were 6–22 km off (Rideau View
+   16.6 km, Eagle Creek 22 km; the Ottawa Hunt row the course-link backfill
+   preferred was 6 km off while the "duplicate" it passed over was right).
+   OSM has actual golf_course features, so `src/lib/golf/geocode.ts` now
+   geocode-refines coords via Nominatim: query ladder (name+city, the
+   Club↔Course name swap — OSM says "Eagle Creek Golf **Course**" — then
+   bare name, capped at 3), accepts ONLY `type === 'golf_course'` results
+   (Pebble Beach's top hit is the restaurant node — correctly rejected),
+   and a bare-name match with stored coords must land within 50 km — the
+   repair dry-run caught "Cottonwood Country Club" (Glendive, MT) resolving
+   917 km away to Salt Lake City's same-name club. Replacement threshold
+   1.5 km. Wired into `hydrateCourse` behind the `nominatim` daily budget
+   (same `rate_limit_hit` pattern; fail-open keeps provider coords; never
+   per-keystroke — hydration only, once per 7 days per course), so bad rows
+   self-heal; a one-time script repaired the existing 68-row catalog.
+   Nominatim policy: descriptive UA, ≥1s spacing in the batch script; OSM
+   attribution already renders on every map.
+
 ## August 23, 2026 — Live map follow-up: course-link backfill + a map button in the scorer
 
 Tom, on his phone right after #208 shipped: "I don't see the option to

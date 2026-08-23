@@ -222,8 +222,13 @@ export default function LiveRoundPage() {
         )}
       </div>
 
-      {/* Scorecard view — kept mounted; scroll position survives tab flips. */}
-      <div className={tab === 'score' || !mapAvailable ? 'flex-1 min-h-0 overflow-y-auto' : 'hidden'}>
+      {/* Both views stay MOUNTED as absolute siblings; the inactive one is
+          `invisible` (visibility, not display) so it keeps its size — the
+          Leaflet container never collapses to 0 (no blank tiles, no relayout)
+          and tab flips are paint-only. */}
+      <div className="relative flex-1 min-h-0">
+      {/* Scorecard view — scroll position survives tab flips. */}
+      <div className={`absolute inset-0 overflow-y-auto ${tab === 'score' || !mapAvailable ? '' : 'invisible pointer-events-none'}`}>
         <div className="max-w-2xl mx-auto px-4 pb-6">
       {entry.mode === 'final' && (
         <div className="mb-4 bg-surface rounded-lg border border-border p-4 flex items-center justify-between gap-3">
@@ -288,11 +293,13 @@ export default function LiveRoundPage() {
         </div>
       </div>
 
-      {/* Map view — full-bleed satellite with overlays. Kept mounted so the
-          tracking dot survives tab flips; `visible` re-measures Leaflet
-          (blank-tiles trap when a map is shown from a hidden panel). */}
+      {/* Map view — full-bleed satellite with overlays. `isolate z-0` is
+          load-bearing: Leaflet's panes/controls run z-index 400–1000 and the
+          chip/CTA sit at z-[500]; without a stacking context here they paint
+          OVER the z-50 scorer modal (phone report: "Score hole 1 does
+          nothing" — it opened behind the map). Isolation contains them all. */}
       {mapAvailable && courseInfo && (
-        <div className={tab === 'map' ? 'relative flex-1 min-h-0' : 'hidden'}>
+        <div className={`absolute inset-0 isolate z-0 ${tab === 'map' ? '' : 'invisible pointer-events-none'}`}>
           <CourseMap
             lat={courseInfo.lat!}
             lng={courseInfo.lng!}
@@ -329,6 +336,7 @@ export default function LiveRoundPage() {
           )}
         </div>
       )}
+      </div>
 
       {showFullCard && (
         <SharedRoundFullCard

@@ -32,8 +32,19 @@ export function useVisualViewportHeight() {
     const vv = window.visualViewport;
     if (!vv) return;
     const root = document.documentElement;
-    const setHeight = () => root.style.setProperty('--vvh', `${Math.round(vv.height)}px`);
+    // Pinch-zoom guard: a page pinch changes visualViewport height AND
+    // offset mid-gesture. Rewriting --vvh then (relaying the shell — and any
+    // Leaflet map in it — mid-pinch) and clamping the pan (scrollTo(0,0)
+    // against the user's pinch-pan) is exactly the "zoom breaks the page"
+    // report. Skip both while zoomed; returning to scale 1 fires a resize
+    // that re-syncs. The keyboard case this hook exists for keeps scale at 1.
+    const pinchZoomed = () => (vv.scale ?? 1) > 1.001;
+    const setHeight = () => {
+      if (pinchZoomed()) return;
+      root.style.setProperty('--vvh', `${Math.round(vv.height)}px`);
+    };
     const clampPan = () => {
+      if (pinchZoomed()) return;
       if (window.scrollY > 0 || vv.offsetTop > 0) window.scrollTo(0, 0);
     };
     const onResize = () => {
