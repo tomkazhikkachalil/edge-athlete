@@ -9,8 +9,10 @@ import {
   hydrateCourse,
   globalSearch,
   providersConfigured,
+  consumeProviderBudget,
   OPENGOLF_ATTRIBUTION,
 } from '@/lib/golf/course-catalog';
+import { getCourseHoleGeometry } from '@/lib/golf/hole-geometry';
 
 // ── GET /api/golf/courses ────────────────────────────────────────────────────
 // The course picker's data source, over the golf_courses catalog (migration
@@ -37,6 +39,15 @@ export async function GET(request: NextRequest) {
 
     // ── Course by id — the hydration touchpoint ──────────────────────────
     if (courseId) {
+      // ?holes=1 — the per-hole OSM geometry cache (live map's hole-by-hole
+      // view). Served from golf_courses for 30 days per attempt; a null
+      // geometry is a real answer (no unambiguous OSM coverage).
+      if (searchParams.get('holes') === '1') {
+        const geometry = await getCourseHoleGeometry(admin, courseId, () =>
+          consumeProviderBudget(admin, 'overpass')
+        );
+        return NextResponse.json({ geometry });
+      }
       const row = await getCatalogRow(admin, courseId);
       if (!row) {
         return NextResponse.json({ error: 'Course not found' }, { status: 404 });
