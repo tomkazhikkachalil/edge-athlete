@@ -1,5 +1,34 @@
 # Development Log
 
+## August 23, 2026 — Course maps everywhere + live GPS position tracking
+
+Tom couldn't find the course info/map (it lived only inside the composer,
+often as a small links row). His calls: surface it on every relevant round
+surface, and add the GPS layer that's actually feasible today — live
+player-position tracking with the phone's own geolocation (per-hole course
+layouts remain future: provider polygon data is still empty).
+
+- **One map system**: new `CourseMap` (Leaflet + OSM raster tiles —
+  `leaflet` is a NEW DEPENDENCY, approved via the plan; ~42KB gz, loaded
+  only when a map renders via next/dynamic ssr:false; tile attribution is
+  a usage-policy duty). Replaces the composer's OSM iframe. Inline
+  divIcons (Leaflet's default marker images 404 under bundlers).
+- **Surfaces**: round detail page (course section under the header),
+  SharedRoundFullCard's Overview tab (so the feed's "View Full Scorecard"
+  shows it), and the live round page — all fed by PostgREST FK embeds
+  (`course:golf_courses(...)` inside GROUP_SCORECARD_SELECT;
+  `course_info:` alias on the rounds GET because `golf_rounds.course` is
+  already the NAME column — alias collision). Pure adapter
+  `embeddedCourseToInfo`; rounds without a catalog link (pre-#199, custom,
+  history) render nothing, GolfCourseAPI-sourced courses (no coordinates)
+  get info without the map pane.
+- **Live tracking**: on a LIVE round, the map offers "Track my position" —
+  `watchPosition` → player marker + accuracy circle, one auto-pan on
+  first fix, clearWatch on toggle-off/unmount (battery). **The position
+  never leaves the device** — map marker only, zero server writes, stated
+  in the UI copy (doubly important for supervised minors). Permission
+  denied → honest inline message.
+
 ## August 23, 2026 — Golf round 2: derive-don't-select + search regression + course info/maps
 
 Tom's first device pass on the catalog produced three reports; all fixed,

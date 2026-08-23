@@ -27,6 +27,10 @@ export async function GET(
         par, gross_score, total_putts, fir_percentage, gir_percentage,
         weather, temperature, wind, course_rating, slope_rating, notes,
         is_complete, created_at,
+        course_info:golf_courses (
+          name, city, region, lat, lng, description, description_attribution,
+          architect, year_built, course_type, website
+        ),
         golf_holes (
           hole_number, par, strokes, putts, fairway_hit,
           green_in_regulation, distance_yards, notes
@@ -234,6 +238,10 @@ export async function PATCH(
         par, gross_score, total_putts, fir_percentage, gir_percentage,
         weather, temperature, wind, course_rating, slope_rating, notes,
         is_complete, created_at,
+        course_info:golf_courses (
+          name, city, region, lat, lng, description, description_attribution,
+          architect, year_built, course_type, website
+        ),
         golf_holes (
           hole_number, par, strokes, putts, fairway_hit,
           green_in_regulation, distance_yards, notes

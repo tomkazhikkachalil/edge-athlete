@@ -29,7 +29,11 @@ export const GROUP_SCORECARD_SELECT = `
     tee_color,
     slope_rating,
     course_rating,
-    hole_data
+    hole_data,
+    course:golf_courses (
+      name, city, region, lat, lng, description, description_attribution,
+      architect, year_built, course_type, website
+    )
   ),
   round_media:group_post_media (
     id,

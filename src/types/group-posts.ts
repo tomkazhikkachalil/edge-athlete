@@ -141,11 +141,30 @@ export type RoundType = 'outdoor' | 'indoor';
 
 export type GolfGameFormat = 'stroke' | 'stableford' | 'match';
 
+/** Catalog course row embedded via golf_scorecard_data.course_id (mig 100/101
+ *  columns) — feeds the course info card + map on round surfaces. */
+export interface EmbeddedCourseInfo {
+  name: string;
+  city: string | null;
+  region: string | null;
+  lat: number | null;
+  lng: number | null;
+  description: string | null;
+  description_attribution: string | null;
+  architect: string | null;
+  year_built: number | null;
+  course_type: string | null;
+  website: string | null;
+}
+
 export interface GolfScorecardData {
   id: string;
   group_post_id: string;
   course_name: string;
   course_id: string | null;
+  /** Present when the round links to the catalog AND the fetch used
+   *  GROUP_SCORECARD_SELECT; absent on older payloads. */
+  course?: EmbeddedCourseInfo | null;
   round_type: RoundType;
   game_format?: GolfGameFormat; // absent on payloads predating migration 032
   holes_played: number; // 1-18
