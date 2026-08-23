@@ -1,5 +1,43 @@
 # Development Log
 
+## August 23, 2026 — OSM as a catalog source: every course selectable
+
+Tom: "there are only a few courses in Ottawa listed… why has every golf
+course not been added?" Diagnosis: the ONLY ingestion path was the composer's
+one-shot worldwide search — OpenGolfAPI is US-only, and GolfCourseAPI (the
+sole Canadian source, 45/day) is skipped whenever OpenGolf returns ≥3 US
+hits. Nothing searches by place. Meanwhile OSM carries 56 named courses
+within 40 km of Ottawa (the catalog had ~8) — and, until now, no code path
+could INSERT an OSM course; OSM only refined coords on existing rows.
+
+This round makes `'osm'` a first-class `external_source` (no migration for
+the column — it's unconstrained text; row ids are DB-generated):
+
+- `normalizeOsmElement` (pure): Overpass `out tags center` element → thin
+  row, external_id `way/123` / `relation/456`. Driving ranges filtered by
+  TAG first (`golf=driving_range`), then a deliberately narrow name regex —
+  a false positive here silently deletes a real course.
+- **Hydration for osm rows** skips the providers (their ids mean nothing)
+  AND skips forward-geocode refinement (the coords ARE OSM's); the one thing
+  it adds is a budgeted Nominatim **reverse** geocode to fill city/region/
+  country on rows missing them — search ranks on those fields, and
+  bulk-reverse-geocoding 40k rows would violate Nominatim policy, so fills
+  happen only for courses users actually touch (7-day hydrated_at gate).
+- **Cross-source dedupe** in `upsertThinRows`: skip an insert when an
+  existing row within ~2 km shares an informative name token
+  (`courseNameScore`, the boundary-scoping helper) — stops providers
+  duplicating imported OSM rows ("Eagle Creek Golf Club" vs "…Course") and
+  vice versa. First row wins, skips logged.
+- **Scale (migration 103)**: the worldwide import multiplies the table
+  ~500×. Trigram GINs on the raw name/club/city/region columns (BitmapOr
+  serves searchCatalog's 4-column OR; the lower() index from 100 can't serve
+  bare ILIKE), btree on lat for the dedupe box, hydrated_at index for the
+  new browse order — browse now surfaces touched courses first instead of
+  40k rows of alphabetical long tail.
+
+The import itself is ops (scratchpad harvest script, dry-run → apply),
+recorded here when run. Test count 1520 → 1527.
+
 ## August 23, 2026 — Boundary-scoped hole geometry: multi-course facilities
 
 Tom, after the catalog-wide geometry pre-fetch: "Why aren't all the Ottawa

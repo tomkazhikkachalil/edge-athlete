@@ -3,6 +3,7 @@ import {
   acceptGeocode,
   buildGeocodeQueries,
   haversineKm,
+  parseReverseGeocode,
   pickGolfCourseResult,
   shouldReplaceCoords,
 } from '../geocode';
@@ -87,5 +88,31 @@ describe('shouldReplaceCoords', () => {
     const d = haversineKm({ lat: 45.4215, lng: -75.6972 }, { lat: 44.2312, lng: -76.486 });
     expect(d).toBeGreaterThan(140);
     expect(d).toBeLessThan(165);
+  });
+});
+
+describe('parseReverseGeocode', () => {
+  it('pulls city/region/country from a Nominatim reverse response', () => {
+    expect(
+      parseReverseGeocode({
+        address: { city: 'Ottawa', state: 'Ontario', country_code: 'ca' },
+      })
+    ).toEqual({ city: 'Ottawa', region: 'Ontario', country: 'CA' });
+  });
+
+  it('falls through town/village/municipality for the city slot', () => {
+    expect(parseReverseGeocode({ address: { town: 'Manotick', state: 'Ontario' } })!.city).toBe('Manotick');
+    expect(parseReverseGeocode({ address: { village: 'Dunrobin' } })!.city).toBe('Dunrobin');
+    expect(parseReverseGeocode({ address: { municipality: 'Gatineau', province: 'Québec' } })).toEqual({
+      city: 'Gatineau',
+      region: 'Québec',
+      country: null,
+    });
+  });
+
+  it('nulls on junk and on an empty address', () => {
+    expect(parseReverseGeocode(null)).toBeNull();
+    expect(parseReverseGeocode({})).toBeNull();
+    expect(parseReverseGeocode({ address: {} })).toBeNull();
   });
 });

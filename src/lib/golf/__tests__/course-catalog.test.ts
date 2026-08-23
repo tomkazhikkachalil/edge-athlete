@@ -6,6 +6,7 @@ import {
   normalizeOpenGolfDetail,
   normalizeGcaSummary,
   normalizeGcaDetail,
+  normalizeOsmElement,
   rowToCourse,
   isThinRow,
   UUID_RE,
@@ -193,5 +194,84 @@ describe('rowToCourse / UUID_RE', () => {
     expect(UUID_RE.test(course.id)).toBe(true);
     expect(UUID_RE.test('history-pebble-beach')).toBe(false);
     expect(UUID_RE.test('95rgfm85')).toBe(false);
+  });
+});
+
+describe('normalizeOsmElement (Overpass out tags center shape)', () => {
+  const eagleCreek = {
+    type: 'way',
+    id: 12345678,
+    tags: {
+      leisure: 'golf_course',
+      name: 'Eagle Creek Golf Course',
+      'addr:city': 'Ottawa',
+      'addr:province': 'Ontario',
+      website: 'https://eaglecreekgolf.ca',
+      holes: '18',
+    },
+    center: { lat: 45.46393, lng: undefined, lon: -76.0423553 },
+  };
+
+  it('maps a named course way to a thin osm row', () => {
+    const row = normalizeOsmElement(eagleCreek);
+    expect(row).not.toBeNull();
+    expect(row!.external_source).toBe('osm');
+    expect(row!.external_id).toBe('way/12345678');
+    expect(row!.name).toBe('Eagle Creek Golf Course');
+    expect(row!.city).toBe('Ottawa');
+    expect(row!.region).toBe('Ontario');
+    expect(row!.holes_count).toBe(18);
+    expect(row!.lat).toBeCloseTo(45.46393);
+    expect(row!.lng).toBeCloseTo(-76.0423553);
+    expect(row!.website).toBe('https://eaglecreekgolf.ca');
+    expect(isThinRow(row!)).toBe(true);
+  });
+
+  it('relations get relation/-prefixed external ids', () => {
+    const row = normalizeOsmElement({
+      type: 'relation',
+      id: 11276774,
+      tags: { leisure: 'golf_course', name: 'The Marshes Golf Club' },
+      center: { lat: 45.35, lon: -75.9 },
+    });
+    expect(row!.external_id).toBe('relation/11276774');
+    expect(row!.city).toBeNull();
+  });
+
+  it('rejects nameless, coordless, and non-way/relation elements', () => {
+    expect(normalizeOsmElement({ type: 'way', id: 1, tags: {}, center: { lat: 1, lon: 1 } })).toBeNull();
+    expect(normalizeOsmElement({ type: 'way', id: 1, tags: { name: 'X GC' } })).toBeNull();
+    expect(
+      normalizeOsmElement({ type: 'node', id: 1, tags: { name: 'X GC' }, center: { lat: 1, lon: 1 } })
+    ).toBeNull();
+  });
+
+  it('filters driving ranges and mini-putt by tag and by name', () => {
+    expect(
+      normalizeOsmElement({
+        type: 'way',
+        id: 2,
+        tags: { name: 'Kevin Haime Golf Centre', golf: 'driving_range' },
+        center: { lat: 45.3, lon: -75.9 },
+      })
+    ).toBeNull();
+    for (const name of [
+      "Stan's Driving Range & Miniature Golf",
+      'White Sands Golf Course and Practice Center',
+      'Riverside Mini-Putt',
+    ]) {
+      expect(
+        normalizeOsmElement({ type: 'way', id: 3, tags: { name }, center: { lat: 45.3, lon: -75.9 } })
+      ).toBeNull();
+    }
+    // Real courses with superficially similar words survive.
+    expect(
+      normalizeOsmElement({
+        type: 'way',
+        id: 4,
+        tags: { name: 'Practice Green Golf Club' },
+        center: { lat: 45.3, lon: -75.9 },
+      })
+    ).not.toBeNull();
   });
 });

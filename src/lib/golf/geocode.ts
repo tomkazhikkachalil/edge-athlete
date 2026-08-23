@@ -117,7 +117,47 @@ export function acceptGeocode(
   return haversineKm({ lat: stored.lat, lng: stored.lng }, found) <= sanityKm;
 }
 
+export interface ReverseGeocodeFill {
+  city: string | null;
+  region: string | null;
+  country: string | null;
+}
+
+/** Pull city/region/country out of a Nominatim /reverse response. OSM-sourced
+ *  catalog rows carry coords but rarely an address — this fills the location
+ *  fields the course search ranks on. Exported pure for tests. */
+export function parseReverseGeocode(payload: unknown): ReverseGeocodeFill | null {
+  const address = (payload as { address?: Record<string, string> } | null)?.address;
+  if (!address || typeof address !== 'object') return null;
+  const city =
+    address.city ?? address.town ?? address.village ?? address.municipality ?? null;
+  const region = address.state ?? address.province ?? null;
+  const country = address.country_code ? address.country_code.toUpperCase() : null;
+  if (!city && !region && !country) return null;
+  return { city, region, country };
+}
+
 const NOMINATIM_UA = 'EdgeAthlete/1.0 (https://edge-athlete.vercel.app)';
+
+/** Reverse-geocode a course location to city/region/country. Same Nominatim
+ *  policy as forward geocoding: server-side, budgeted by the caller, never
+ *  per-keystroke — used only by the once-per-7-days hydration path for
+ *  OSM-sourced rows missing a city. Null on any trouble. */
+export async function reverseGeocodeCourse(lat: number, lng: number): Promise<ReverseGeocodeFill | null> {
+  try {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 5000);
+    const res = await fetch(
+      `https://nominatim.openstreetmap.org/reverse?format=jsonv2&zoom=14&lat=${lat}&lon=${lng}`,
+      { headers: { 'User-Agent': NOMINATIM_UA }, signal: controller.signal }
+    );
+    clearTimeout(timer);
+    if (!res.ok) return null;
+    return parseReverseGeocode(await res.json());
+  } catch {
+    return null;
+  }
+}
 
 /** Geocode a course to its OSM golf_course feature. Null on no confident
  *  match or any network trouble — callers keep whatever coords they have. */
