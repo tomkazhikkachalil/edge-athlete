@@ -82,7 +82,7 @@ export async function PATCH(
 
     const { data: round } = await supabase
       .from('golf_rounds')
-      .select('id, profile_id')
+      .select('id, profile_id, group_post_id')
       .eq('id', roundId)
       .maybeSingle();
 
@@ -94,12 +94,86 @@ export async function PATCH(
     }
 
     const body = await request.json();
+
+    // Optional course rating / slope backfill — the key that unlocks the
+    // computed handicap for rounds logged before the fields were visible.
+    // `undefined` = leave unchanged; null or a value = write it.
+    const hasRatingField = 'course_rating' in (body ?? {});
+    const hasSlopeField = 'slope_rating' in (body ?? {});
+    let courseRating: number | null = null;
+    let slopeRating: number | null = null;
+    if (hasRatingField && body.course_rating !== null) {
+      courseRating = Number(body.course_rating);
+      if (!Number.isFinite(courseRating) || courseRating < 50 || courseRating > 90) {
+        return NextResponse.json({ error: 'Invalid course_rating (50–90)' }, { status: 400 });
+      }
+    }
+    if (hasSlopeField && body.slope_rating !== null) {
+      slopeRating = Number(body.slope_rating);
+      if (!Number.isInteger(slopeRating) || slopeRating < 55 || slopeRating > 155) {
+        return NextResponse.json({ error: 'Invalid slope_rating (55–155)' }, { status: 400 });
+      }
+    }
+
     const holes = body?.holes;
     if (!Array.isArray(holes) || holes.length === 0) {
-      return NextResponse.json({ error: 'holes array is required' }, { status: 400 });
-    }
-    if (holes.length > 18) {
+      if (!hasRatingField && !hasSlopeField) {
+        return NextResponse.json({ error: 'holes array is required' }, { status: 400 });
+      }
+    } else if (holes.length > 18) {
       return NextResponse.json({ error: 'Too many holes' }, { status: 400 });
+    }
+
+    if (hasRatingField || hasSlopeField) {
+      const ratingPatch = {
+        ...(hasRatingField ? { course_rating: courseRating } : {}),
+        ...(hasSlopeField ? { slope_rating: slopeRating } : {}),
+      };
+      const { error: ratingError } = await supabase
+        .from('golf_rounds')
+        .update(ratingPatch)
+        .eq('id', roundId);
+      if (ratingError) {
+        console.error('PATCH /api/golf/rounds/[id] rating update error:', ratingError);
+        return NextResponse.json({ error: 'Failed to save course rating' }, { status: 500 });
+      }
+      // Mirror safety: mirrorCompletedRound re-runs on late score edits and
+      // upserts golf_rounds FROM golf_scorecard_data — a backfill written
+      // only to golf_rounds would be wiped by the next re-mirror. Group-rail
+      // rounds must carry the ratings on the scorecard row too. (Ownership is
+      // established above; scorecard_data is keyed by the group post.)
+      if (round.group_post_id) {
+        const { error: scError } = await supabase
+          .from('golf_scorecard_data')
+          .update(ratingPatch)
+          .eq('group_post_id', round.group_post_id);
+        if (scError) {
+          console.error('PATCH /api/golf/rounds/[id] scorecard rating update error:', scError);
+          return NextResponse.json({ error: 'Failed to save course rating' }, { status: 500 });
+        }
+      }
+    }
+
+    if (!Array.isArray(holes) || holes.length === 0) {
+      // Rating-only edit — return the fresh round without touching holes.
+      const { data: updated } = await supabase
+        .from('golf_rounds')
+        .select(`
+          id, profile_id, date, course, course_location, tee, holes, round_type,
+          par, gross_score, total_putts, fir_percentage, gir_percentage,
+          weather, temperature, wind, course_rating, slope_rating, notes,
+          is_complete, created_at,
+          golf_holes (
+            hole_number, par, strokes, putts, fairway_hit,
+            green_in_regulation, distance_yards, notes
+          )
+        `)
+        .eq('id', roundId)
+        .single();
+      updated?.golf_holes?.sort(
+        (a: { hole_number: number }, b: { hole_number: number }) => a.hole_number - b.hole_number
+      );
+      return NextResponse.json({ round: updated, statsRecalculated: false });
     }
 
     // Validate each hole payload strictly — this endpoint writes score data.
@@ -129,7 +203,9 @@ export async function PATCH(
         putts,
         ...(par !== null ? { par } : {}),
         fairway_hit: typeof h?.fairway_hit === 'boolean' ? h.fairway_hit : null,
-        green_in_regulation: typeof h?.green_in_regulation === 'boolean' ? h.green_in_regulation : false,
+        // null, not false — the column is nullable and null means "not
+        // tracked"; coercing to false turned every save into recorded misses.
+        green_in_regulation: typeof h?.green_in_regulation === 'boolean' ? h.green_in_regulation : null,
       });
     }
 
