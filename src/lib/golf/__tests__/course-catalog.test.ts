@@ -1,0 +1,189 @@
+import { describe, it, expect } from 'vitest';
+import {
+  rankCourseName,
+  courseDisplayName,
+  normalizeOpenGolfSummary,
+  normalizeOpenGolfDetail,
+  normalizeGcaSummary,
+  normalizeGcaDetail,
+  rowToCourse,
+  isThinRow,
+  UUID_RE,
+} from '../course-catalog';
+
+// Fixtures below are transcribed from LIVE provider responses (Aug 2026),
+// not from docs — the old provider scaffolding died of guessed shapes.
+
+describe('rankCourseName', () => {
+  it('ladders exact > prefix > word-boundary > substring > none', () => {
+    expect(rankCourseName('Pebble Beach Golf Links', 'pebble beach golf links')).toBe(0);
+    expect(rankCourseName('Pebble Beach Golf Links', 'pebble')).toBe(1);
+    expect(rankCourseName('Creekside At Pebble Creek', 'pebble')).toBe(2);
+    expect(rankCourseName('Kingpebble GC', 'pebble')).toBe(3);
+    expect(rankCourseName('Augusta National', 'pebble')).toBe(4);
+  });
+});
+
+describe('courseDisplayName', () => {
+  it('prefixes the club only when the course name does not carry it', () => {
+    expect(courseDisplayName('St Andrews', 'St Andrews')).toBe('St Andrews');
+    expect(courseDisplayName('Pinehurst Resort', 'No. 2')).toBe('Pinehurst Resort – No. 2');
+    expect(courseDisplayName(null, 'Old Course')).toBe('Old Course');
+    expect(courseDisplayName('  ', 'Old Course')).toBe('Old Course');
+  });
+});
+
+describe('normalizeOpenGolfSummary (live search shape)', () => {
+  it('maps identity and stays thin', () => {
+    const row = normalizeOpenGolfSummary({
+      id: '40977ee8-33ee-4195-b6a2-99a4ca83c2bc',
+      course_name: 'Pebble Beach Golf Links',
+      city: 'Pebble Beach',
+      state: 'CA',
+      country_iso: 'US',
+      lat: 36.5685,
+      lng: -121.949,
+      par: 72,
+      holes: 18,
+    });
+    expect(row.external_source).toBe('opengolfapi');
+    expect(row.name).toBe('Pebble Beach Golf Links');
+    expect(row.region).toBe('CA');
+    expect(row.total_par).toBe(72);
+    expect(isThinRow(row)).toBe(true); // search carries no ratings/holes
+  });
+});
+
+describe('normalizeOpenGolfDetail (live detail shape)', () => {
+  const detail = {
+    id: '40977ee8-33ee-4195-b6a2-99a4ca83c2bc',
+    course_name: 'Pebble Beach Golf Links',
+    club_name: 'Pebble Beach Golf Linkstm',
+    city: 'Pebble Beach',
+    state: 'CA',
+    par: 72,
+    holes: 18,
+    tees: [
+      { tee_name: 'Blue', tee_color: 'blue', gender: 'Male', course_rating: 74.9, slope: 144 },
+      { tee_name: 'Red', tee_color: 'red', gender: 'Female', course_rating: 72.1, slope: 130 },
+      // Female tee colliding with a male key gets the (f) suffix
+      { tee_name: 'Blue', tee_color: 'blue', gender: 'Female', course_rating: 76.0, slope: 139 },
+    ],
+    holes_data: [
+      { number: 1, par: 4, handicap_index: 6, yardages: { red: 310, blue: 378, white: 337 } as Record<string, number> },
+      { number: 2, par: 5, handicap_index: 10, yardages: { red: 420, blue: 502 } as Record<string, number> },
+    ],
+  };
+
+  it('keys ratings by tee color, male first, female collisions suffixed', () => {
+    const row = normalizeOpenGolfDetail(detail);
+    expect(row.course_rating).toEqual({ blue: 74.9, red: 72.1, 'blue (f)': 76.0 });
+    expect(row.slope_rating).toEqual({ blue: 144, red: 130, 'blue (f)': 139 });
+  });
+
+  it('keeps numbered holes with per-tee yardage records', () => {
+    const row = normalizeOpenGolfDetail(detail);
+    expect(row.hole_data).toHaveLength(2);
+    expect(row.hole_data?.[0]).toEqual({ number: 1, par: 4, yardage: { red: 310, blue: 378, white: 337 }, handicap: 6 });
+    expect(isThinRow(row)).toBe(false);
+  });
+
+  it('never fabricates holes', () => {
+    const row = normalizeOpenGolfDetail({ ...detail, holes_data: [] });
+    expect(row.hole_data).toBeNull();
+  });
+});
+
+describe('normalizeGcaSummary (live search shape)', () => {
+  it('maps identity, treats "Unknown" as null, stays thin', () => {
+    const row = normalizeGcaSummary({
+      id: '95rgfm85',
+      club_name: 'St Andrews',
+      course_name: 'St Andrews',
+      location: { state: 'Unknown', country: 'Unknown' },
+    });
+    expect(row.external_source).toBe('golfcourseapi');
+    expect(row.external_id).toBe('95rgfm85');
+    expect(row.name).toBe('St Andrews');
+    expect(row.region).toBeNull();
+    expect(row.country).toBeNull();
+    expect(isThinRow(row)).toBe(true);
+  });
+});
+
+describe('normalizeGcaDetail (live detail shape — nests under `course`)', () => {
+  const course = {
+    id: '95rgfm85',
+    club_name: 'St Andrews',
+    course_name: 'St Andrews',
+    location: { state: 'Unknown', country: 'Unknown' },
+    tees: {
+      male: [
+        {
+          tee_name: 'blue', course_rating: 69.1, slope_rating: 115,
+          number_of_holes: 18, par_total: 70,
+          holes: [
+            { par: 4, yardage: 355 }, { par: 4, yardage: 380 },
+          ],
+        },
+        {
+          tee_name: 'white', course_rating: 67.9, slope_rating: 111,
+          number_of_holes: 18, par_total: 70,
+          holes: [
+            { par: 4, yardage: 340 }, { par: 4, yardage: 362 },
+          ],
+        },
+      ],
+      female: [
+        {
+          tee_name: 'blue', course_rating: 71.2, slope_rating: 121,
+          number_of_holes: 18, par_total: 70,
+          // Different hole count → contributes NO per-hole yardage
+          holes: [{ par: 4, yardage: 300 }],
+        },
+      ],
+    },
+  };
+
+  it('numbers positional holes and assembles per-tee yardage from same-length boxes', () => {
+    const row = normalizeGcaDetail(course);
+    expect(row.hole_data).toHaveLength(2);
+    expect(row.hole_data?.[0]).toEqual({ number: 1, par: 4, yardage: { blue: 355, white: 340 }, handicap: 0 });
+    expect(row.hole_data?.[1].yardage).toEqual({ blue: 380, white: 362 });
+  });
+
+  it('folds ratings male-first with (f) suffix on collision', () => {
+    const row = normalizeGcaDetail(course);
+    expect(row.course_rating).toEqual({ blue: 69.1, white: 67.9, 'blue (f)': 71.2 });
+    expect(row.slope_rating).toEqual({ blue: 115, white: 111, 'blue (f)': 121 });
+    expect(row.total_par).toBe(70);
+  });
+});
+
+describe('rowToCourse / UUID_RE', () => {
+  it('produces the flat composer shape and validates catalog ids', () => {
+    const course = rowToCourse({
+      id: '9c504cde-d0c1-5c17-a568-063446830d98',
+      external_source: 'seed',
+      external_id: 'pebble-beach',
+      name: 'Pebble Beach Golf Links',
+      club_name: null,
+      city: 'Pebble Beach',
+      region: 'California',
+      country: 'USA',
+      total_par: 72,
+      holes_count: 18,
+      hole_data: [{ number: 1, par: 4, yardage: { white: 350 }, handicap: 11 }],
+      course_rating: { white: 71.4 },
+      slope_rating: { white: 133 },
+      lat: null,
+      lng: null,
+    });
+    expect(course.city).toBe('Pebble Beach');
+    expect(course.state).toBe('California');
+    expect(course.holes[0].yardage.white).toBe(350);
+    expect(UUID_RE.test(course.id)).toBe(true);
+    expect(UUID_RE.test('history-pebble-beach')).toBe(false);
+    expect(UUID_RE.test('95rgfm85')).toBe(false);
+  });
+});
