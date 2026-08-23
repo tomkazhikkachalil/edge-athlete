@@ -74,7 +74,18 @@ export interface GolfCourse {
   country?: string;
   holes: CourseHole[];
   totalPar: number;
+  /** Course length from the catalog (9 or 18) — sizes the composer grid. */
+  holesCount?: number;
   courseRating: Record<string, number>;
   slopeRating: Record<string, number>;
+  // Catalog details (migration 101) — optional; absent for history/custom.
+  lat?: number;
+  lng?: number;
   description?: string;
+  /** CC BY-SA attribution — MUST render wherever description does. */
+  descriptionAttribution?: string;
+  architect?: string;
+  yearBuilt?: number;
+  courseType?: string;
+  website?: string;
 }

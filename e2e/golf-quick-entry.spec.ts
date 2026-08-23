@@ -28,9 +28,10 @@ test('log an already-played round and see the scorecard post', async ({ page }) 
   await courseInput.fill(courseName);
 
   // Blur the course-suggestions dropdown shut by clicking the already-selected
-  // "18 holes" button — a state no-op (the change guard doesn't fire). Do NOT
-  // use Escape (closes the whole composer).
-  await page.getByRole('button', { name: '18 holes', exact: true }).click();
+  // "Outdoor" round-type button — a state no-op (the 9/18 holes selector this
+  // used to click was removed: hole count is now DERIVED from the scores
+  // entered). Do NOT use Escape (closes the whole composer).
+  await page.getByRole('button', { name: /outdoor/i }).click();
   await page.waitForTimeout(300);
 
   // Hole scores. Since the Aug 2026 scorecard convergence (#119-#121) a SOLO

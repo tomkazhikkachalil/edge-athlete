@@ -12,7 +12,8 @@
 // (scores, media) surface their own toasts here and do NOT throw — the round
 // is real and the user can repair it from the post.
 
-import { composerStartingHole, type GolfComposerValue } from '@/components/golf/GolfComposerSection';
+import type { GolfComposerValue } from '@/components/golf/GolfComposerSection';
+import { deriveRecordedRound } from '@/lib/golf/derive-round';
 import type { CreatedRoundLike } from '@/lib/golf/round-route';
 
 export interface SharedRoundSubmitContext<M extends { type: 'image' | 'video' }> {
@@ -45,7 +46,13 @@ export async function submitSharedRound<M extends { type: 'image' | 'video' }>(
     playerScores,
   } = value;
   const { caption, visibility, mediaFiles, uploadMediaWithPoster, showSuccess, showError } = ctx;
-  const startHole = composerStartingHole(sharedRoundDetails);
+  // The 9/18 selector is gone: what the round IS gets derived from the holes
+  // actually scored (front-9-only → 9; back-9-only → 9 numbered 10–18; else
+  // 18, partial when incomplete). Live rounds submit before scores exist and
+  // derive to the grid size. Guaranteed ∈ {9,18} — golf_rounds may still
+  // carry the 002 CHECK (holes IN (9,18)) in prod.
+  const derived = deriveRecordedRound(playerScores, sharedRoundDetails.holesPlayed);
+  const inRange = (hole: number) => hole >= derived.startHole && hole <= derived.endHole;
 
   // Step 1: Create the round ATOMICALLY — group post, participants,
   // scorecard, and feed post in one server request. If any piece fails
@@ -69,20 +76,23 @@ export async function submitSharedRound<M extends { type: 'image' | 'video' }>(
         course_name: sharedRoundDetails.courseName,
         round_type: sharedRoundDetails.roundTypeIndoorOutdoor,
         game_format: sharedRoundDetails.gameFormat,
-        holes_played: sharedRoundDetails.holesPlayed,
-        // Real per-hole pars (course search or manual entry) — powers
-        // honest to-par + the score-entry modal's par display
+        holes_played: derived.holesPlayed,
+        // Real per-hole pars (course search or manual entry), trimmed to the
+        // DERIVED range — a back-9 round stores holes 10–18; that numbering
+        // IS how back-9 is encoded (no schema column). The grid is always
+        // positions 1..18 (or 1..9), so manualParEntry index = hole − 1.
         hole_data:
           courseHoleData.length > 0
-            ? courseHoleData
+            ? courseHoleData.filter(h => inRange(h.hole))
             : manualParEntry.length > 0 || manualYardageEntry.length > 0
-            ? Array.from({ length: sharedRoundDetails.holesPlayed }, (_, i) => ({
-                // TRUE hole numbers — a back-9 round stores holes 10–18;
-                // that numbering IS how back-9 is encoded (no schema column).
-                hole: startHole + i,
-                par: manualParEntry[i] || 4,
-                yardage: manualYardageEntry[i] || undefined,
-              }))
+            ? Array.from({ length: derived.endHole - derived.startHole + 1 }, (_, i) => {
+                const hole = derived.startHole + i;
+                return {
+                  hole,
+                  par: manualParEntry[hole - 1] || 4,
+                  yardage: manualYardageEntry[hole - 1] || undefined,
+                };
+              })
             : undefined,
         // Catalog link — golf_courses.id when the pick came from the
         // catalog; the server null-guards non-UUIDs before insert.
@@ -136,10 +146,11 @@ export async function submitSharedRound<M extends { type: 'image' | 'video' }>(
                 const holeInfo = courseHoleData.find(h => h.hole === hole.hole_number) ||
                   (manualParEntry.length > 0 || manualYardageEntry.length > 0
                     ? {
-                        // Manual entries are POSITION-indexed; hole numbers
-                        // start at `startHole` (back-9 → 10).
-                        par: manualParEntry[hole.hole_number - startHole] || undefined,
-                        yardage: manualYardageEntry[hole.hole_number - startHole] || undefined
+                        // Grid positions ARE hole numbers now (1..18), so
+                        // manual entries key by hole − 1 — including on a
+                        // derived back-9 (its scores carry numbers 10–18).
+                        par: manualParEntry[hole.hole_number - 1] || undefined,
+                        yardage: manualYardageEntry[hole.hole_number - 1] || undefined
                       }
                     : {});
 

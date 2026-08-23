@@ -32,7 +32,6 @@
 
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { GolfCourse, CourseHole } from '@/types/golf';
-import { likePatternFor } from '@/lib/search/patterns';
 
 export const OPENGOLF_ATTRIBUTION =
   'Course data © OpenStreetMap contributors (ODbL) via OpenGolfAPI';
@@ -60,10 +59,18 @@ export interface CatalogRow {
   slope_rating: Record<string, number>;
   lat: number | null;
   lng: number | null;
+  description: string | null;
+  description_attribution: string | null;
+  architect: string | null;
+  year_built: number | null;
+  course_type: string | null;
+  website: string | null;
+  phone: string | null;
+  hydrated_at: string | null;
 }
 
 export const CATALOG_ROW_COLUMNS =
-  'id, external_source, external_id, name, club_name, city, region, country, total_par, holes_count, hole_data, course_rating, slope_rating, lat, lng';
+  'id, external_source, external_id, name, club_name, city, region, country, total_par, holes_count, hole_data, course_rating, slope_rating, lat, lng, description, description_attribution, architect, year_built, course_type, website, phone, hydrated_at';
 
 /** Row → the flat GolfCourse the composer consumes. */
 export function rowToCourse(row: CatalogRow): GolfCourse {
@@ -75,8 +82,17 @@ export function rowToCourse(row: CatalogRow): GolfCourse {
     country: row.country ?? undefined,
     holes: row.hole_data ?? [],
     totalPar: row.total_par ?? 72,
+    holesCount: row.holes_count ?? undefined,
     courseRating: row.course_rating ?? {},
     slopeRating: row.slope_rating ?? {},
+    lat: row.lat ?? undefined,
+    lng: row.lng ?? undefined,
+    description: row.description ?? undefined,
+    descriptionAttribution: row.description_attribution ?? undefined,
+    architect: row.architect ?? undefined,
+    yearBuilt: row.year_built ?? undefined,
+    courseType: row.course_type ?? undefined,
+    website: row.website ?? undefined,
   };
 }
 
@@ -103,6 +119,25 @@ export function rankCourseName(name: string, query: string): number {
   return 4;
 }
 
+/**
+ * Best rank across the searchable fields. The #199 rewrite matched name
+ * ONLY, which silently orphaned location queries — "ottawa" stopped finding
+ * Rideau View and Eagle Creek (Ottawa lives in their city, not their name).
+ * Location fields rank one step behind the same-strength name match so
+ * name hits stay on top.
+ */
+export function rankCourseFields(
+  row: Pick<CatalogRow, 'name' | 'club_name' | 'city' | 'region'>,
+  query: string
+): number {
+  const nameRank = rankCourseName(row.name, query);
+  const others = [row.club_name, row.city, row.region]
+    .filter((v): v is string => !!v)
+    .map(v => rankCourseName(v, query));
+  const otherRank = others.length ? Math.min(...others) + 1 : 5;
+  return Math.min(nameRank, otherRank);
+}
+
 /** "{club} – {course}" unless the course name already carries the club. */
 export function courseDisplayName(clubName: string | null | undefined, courseName: string): string {
   const club = (clubName ?? '').trim();
@@ -118,6 +153,20 @@ const nullIfUnknown = (v: string | null | undefined): string | null => {
 
 // ── Catalog reads ────────────────────────────────────────────────────────────
 
+/** Substring matching from 2 chars here (vs the app-wide 3): golf_courses is
+ *  a narrow table of dozens–thousands of rows, not golf_rounds — the "%a%
+ *  matches every round ever" rationale doesn't apply, and course names are
+ *  routinely found by 2-char starts ("st", "pe"). */
+const COURSE_WIDE_MATCH_MIN_CHARS = 2;
+
+function coursePattern(q: string): string {
+  // PostgREST .or() is comma/paren-delimited and escapeLikePattern doesn't
+  // cover those — strip them so a pasted "Club, The (North)" can't corrupt
+  // the filter. Also escape LIKE wildcards.
+  const safe = q.replace(/[,()]/g, ' ').replace(/[%_\\]/g, m => `\\${m}`).trim();
+  return q.length < COURSE_WIDE_MATCH_MIN_CHARS ? `${safe}%` : `%${safe}%`;
+}
+
 export async function searchCatalog(
   admin: SupabaseClient,
   query: string,
@@ -125,13 +174,20 @@ export async function searchCatalog(
 ): Promise<GolfCourse[]> {
   const q = query.trim();
   const builder = admin.from('golf_courses').select(CATALOG_ROW_COLUMNS);
+  // name+club+city+region, ordered: without .order() Postgres returns an
+  // ARBITRARY window that the rank ladder can only shuffle — with provider
+  // rows in the table, seeds could vanish from their own results.
+  const p = coursePattern(q);
   const { data, error } = q
-    ? await builder.ilike('name', likePatternFor(q)).limit(limit * 3)
+    ? await builder
+        .or(`name.ilike.${p},club_name.ilike.${p},city.ilike.${p},region.ilike.${p}`)
+        .order('name')
+        .limit(limit * 5)
     : await builder.order('name').limit(limit); // empty query = browse head
   if (error || !data) return [];
   const rows = data as unknown as CatalogRow[];
   return rows
-    .map(row => ({ row, rank: rankCourseName(row.name, q) }))
+    .map(row => ({ row, rank: rankCourseFields(row, q) }))
     .sort((a, b) => a.rank - b.rank || a.row.name.localeCompare(b.row.name))
     .slice(0, limit)
     .map(({ row }) => rowToCourse(row));
@@ -194,6 +250,13 @@ interface OpenGolfTee {
 
 interface OpenGolfDetail extends OpenGolfSummary {
   club_name?: string | null;
+  description?: string | null;
+  description_source?: { name?: string | null; license?: string | null; url?: string | null } | null;
+  architect?: string | null;
+  year_built?: number | null;
+  type?: string | null;
+  website?: string | null;
+  phone?: string | null;
   tees?: OpenGolfTee[] | null;
   holes_data?: Array<{
     number: number;
@@ -205,8 +268,20 @@ interface OpenGolfDetail extends OpenGolfSummary {
 
 type NewRow = Omit<CatalogRow, 'id'>;
 
+const NO_DETAILS = {
+  description: null,
+  description_attribution: null,
+  architect: null,
+  year_built: null,
+  course_type: null,
+  website: null,
+  phone: null,
+  hydrated_at: null,
+} as const;
+
 export function normalizeOpenGolfSummary(s: OpenGolfSummary): NewRow {
   return {
+    ...NO_DETAILS,
     external_source: 'opengolfapi',
     external_id: s.id,
     name: s.course_name,
@@ -257,7 +332,20 @@ export function normalizeOpenGolfDetail(d: OpenGolfDetail): NewRow {
     yardage: h.yardages ?? {},
     handicap: h.handicap_index ?? 0,
   }));
+  const wiki = d.description_source;
   return {
+    ...NO_DETAILS,
+    description: d.description ?? null,
+    // CC BY-SA (Wikipedia) — displaying this line wherever the description
+    // renders is a license requirement, not decoration.
+    description_attribution: d.description && wiki?.name
+      ? `Description: ${wiki.name}${wiki.license ? ` (${wiki.license})` : ''}`
+      : null,
+    architect: d.architect ?? null,
+    year_built: d.year_built ?? null,
+    course_type: d.type ?? null,
+    website: d.website ?? null,
+    phone: d.phone ?? null,
     external_source: 'opengolfapi',
     external_id: d.id,
     name: courseDisplayName(d.club_name, d.course_name),
@@ -300,6 +388,7 @@ interface GcaDetail extends GcaSummary {
 export function normalizeGcaSummary(s: GcaSummary): NewRow {
   const courseName = (s.course_name || s.club_name || '').trim();
   return {
+    ...NO_DETAILS,
     external_source: 'golfcourseapi',
     external_id: s.id,
     name: courseDisplayName(s.club_name, courseName),
@@ -445,7 +534,15 @@ export async function globalSearch(admin: SupabaseClient, query: string): Promis
  * course unchanged — selection must never error on provider weather.
  */
 export async function hydrateCourse(admin: SupabaseClient, row: CatalogRow): Promise<GolfCourse> {
-  if (!isThinRow(row) || row.external_source === 'seed') return rowToCourse(row);
+  if (row.external_source === 'seed') return rowToCourse(row);
+  // hydrated_at gates on ATTEMPTED, not on how much data came back: a course
+  // whose provider detail is genuinely empty used to look thin forever and
+  // re-fetched on every selection. One attempt per 7 days. (Also lets rows
+  // hydrated before the details columns existed pick them up once.)
+  const HYDRATE_TTL_MS = 7 * 24 * 60 * 60 * 1000;
+  if (row.hydrated_at && Date.now() - new Date(row.hydrated_at).getTime() < HYDRATE_TTL_MS) {
+    return rowToCourse(row);
+  }
 
   let normalized: NewRow | null = null;
   if (row.external_source === 'opengolfapi' && openGolfConfigured()) {
@@ -466,7 +563,12 @@ export async function hydrateCourse(admin: SupabaseClient, row: CatalogRow): Pro
     }
   }
 
-  if (!normalized) return rowToCourse(row);
+  if (!normalized) {
+    // Attempt happened (or budget/config refused it — cheap either way):
+    // stamp so the next selections don't hammer the provider.
+    await admin.from('golf_courses').update({ hydrated_at: new Date().toISOString() }).eq('id', row.id);
+    return rowToCourse(row);
+  }
 
   const { data: updated } = await admin
     .from('golf_courses')
@@ -483,6 +585,14 @@ export async function hydrateCourse(admin: SupabaseClient, row: CatalogRow): Pro
       slope_rating: normalized.slope_rating,
       lat: normalized.lat ?? row.lat,
       lng: normalized.lng ?? row.lng,
+      description: normalized.description,
+      description_attribution: normalized.description_attribution,
+      architect: normalized.architect,
+      year_built: normalized.year_built,
+      course_type: normalized.course_type,
+      website: normalized.website,
+      phone: normalized.phone,
+      hydrated_at: new Date().toISOString(),
     })
     .eq('id', row.id)
     .select(CATALOG_ROW_COLUMNS)

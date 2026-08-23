@@ -178,6 +178,14 @@ describe('rowToCourse / UUID_RE', () => {
       slope_rating: { white: 133 },
       lat: null,
       lng: null,
+      description: null,
+      description_attribution: null,
+      architect: null,
+      year_built: null,
+      course_type: null,
+      website: null,
+      phone: null,
+      hydrated_at: null,
     });
     expect(course.city).toBe('Pebble Beach');
     expect(course.state).toBe('California');

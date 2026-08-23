@@ -31,6 +31,7 @@ import MultiPlayerScorecardGrid, { type PlayerScoreData, type PlayerHoleScore } 
 import type { GolfCourse } from '@/types/golf';
 import type { SportComposerExtraProps } from '@/components/sport-composer-extras';
 import { GOLF_INPUT, GOLF_INPUT_COMPACT, GOLF_SELECT, GOLF_LABEL, GOLF_SECTION_CARD } from '@/components/golf/golf-form-styles';
+import CourseInfoCard from '@/components/golf/CourseInfoCard';
 
 /** Full shared-round form state. CreatePostModal's preview only reads the
  *  display fields, but gameFormat/alreadyPlayed drive submission and the
@@ -38,10 +39,14 @@ import { GOLF_INPUT, GOLF_INPUT_COMPACT, GOLF_SELECT, GOLF_LABEL, GOLF_SECTION_C
 export interface GolfSharedRoundDetails {
   courseName: string;
   date: string;
+  /** GRID size (18, or 9 when the selected catalog course is a 9-holer) —
+   *  NOT the user's choice anymore. What actually counts is DERIVED at
+   *  submit from the holes they scored (lib/golf/derive-round.ts): front-9
+   *  only → 9-hole round; back-9 only → 9-hole round numbered 10–18 (the
+   *  numbering contract is unchanged); anything else → 18, partial when
+   *  incomplete. The 9/18 + Front/Back selectors are gone (owner call:
+   *  "whatever they record is what gets counted"). */
   holesPlayed: number;
-  /** 9-hole rounds only: which nine. Back-9 is encoded purely by hole
-   *  NUMBERING (10–18) in the submitted hole_data — no schema column. */
-  startingHole: 'front' | 'back';
   roundTypeIndoorOutdoor: 'outdoor' | 'indoor';
   gameFormat: 'stroke' | 'stableford' | 'match';
   teeColor: string;
@@ -63,11 +68,6 @@ export interface GolfSharedRoundDetails {
 
 /** Catalog course ids are golf_courses UUIDs; history rows use `history-*`. */
 const UUID_SHAPE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-
-/** The first hole NUMBER of the round's card (back-9 → 10). */
-export function composerStartingHole(d: Pick<GolfSharedRoundDetails, 'holesPlayed' | 'startingHole'>): number {
-  return d.holesPlayed === 9 && d.startingHole === 'back' ? 10 : 1;
-}
 
 /** Everything CreatePostModal's submit paths, validation, footer hint and
  *  preview read — the section's one-way report up. */
@@ -98,7 +98,6 @@ export function defaultGolfComposerValue(): GolfComposerValue {
       // athlete composing after ~5pm Pacific / 8pm Eastern.
       date: localDayKey(new Date()),
       holesPlayed: 18,
-      startingHole: 'front',
       roundTypeIndoorOutdoor: 'outdoor',
       gameFormat: 'stroke',
       teeColor: '',
@@ -151,7 +150,6 @@ export default function GolfComposerSection({
     courseName: '',
     date: localDayKey(new Date()), // today, VIEWER-local (not UTC)
     holesPlayed: 18,
-    startingHole: 'front',
     roundTypeIndoorOutdoor: 'outdoor',
     gameFormat: 'stroke',
     teeColor: '',
@@ -169,8 +167,9 @@ export default function GolfComposerSection({
   // explicit tap on the toggle wins and stops the auto-flip
   const roundTimingTouchedRef = useRef(false);
 
-  /** First hole NUMBER on the card (back-9 → 10). */
-  const startingHoleNum = composerStartingHole(sharedRoundDetails);
+  // The grid always starts at hole 1 — back-9 is derived at submit from
+  // which holes were filled (the user scores on the Back Nine tab).
+  const startingHoleNum = 1;
 
   // Golf course search for shared rounds
   const [courseSearchOpen, setCourseSearchOpen] = useState(false);
@@ -194,13 +193,14 @@ export default function GolfComposerSection({
   // `global` rides only on the explicit "search worldwide" button — the
   // server hits external providers for that flag, never for typeahead.
   const [globalSearchAvailable, setGlobalSearchAvailable] = useState(false);
+  const [searchFailed, setSearchFailed] = useState(false);
   const [catalogAttribution, setCatalogAttribution] = useState<string | null>(null);
   const [globalSearchedFor, setGlobalSearchedFor] = useState<string | null>(null);
   const runCourseSearch = useCallback(async (signal: AbortSignal, query: string, global?: boolean) => {
     setSearchLoading(true);
     try {
       const response = await fetch(
-        `/api/golf/courses?q=${encodeURIComponent(query)}&limit=8${global ? '&global=1' : ''}`,
+        `/api/golf/courses?q=${encodeURIComponent(query)}&limit=20${global ? '&global=1' : ''}`,
         { signal }
       );
       if (response.ok) {
@@ -208,8 +208,12 @@ export default function GolfComposerSection({
         setAvailableCourses(data.courses || []);
         setGlobalSearchAvailable(!!data.globalAvailable);
         setCatalogAttribution(data.attribution ?? null);
+        setSearchFailed(false);
       } else {
+        // Rate-limit (429) or server trouble — say so instead of leaving a
+        // silently stale list (the old console.error looked like "broken").
         console.error('Failed to search golf courses — status:', response.status);
+        setSearchFailed(true);
       }
     } catch (e) {
       if (e instanceof DOMException && e.name === 'AbortError') return;
@@ -222,14 +226,16 @@ export default function GolfComposerSection({
 
   const [debouncedCourseSearch, cancelCourseSearch] = useDebouncedCallback(runCourseSearch);
 
-  const searchCourses = useCallback((query: string) => {
-    if (query.trim().length < 1) {
+  const searchCourses = useCallback((query: string, opts?: { browse?: boolean }) => {
+    if (query.trim().length < 1 && !opts?.browse) {
       // CANCEL, don't just return: an armed timer would still fire and refill
       // the list the user just cleared — and with it the dropdown.
       cancelCourseSearch();
       setAvailableCourses([]);
       return;
     }
+    // browse: an empty query lists the catalog head — "show me the courses"
+    // was impossible before you knew a name to type.
     debouncedCourseSearch(query.trim());
   }, [debouncedCourseSearch, cancelCourseSearch]);
 
@@ -245,7 +251,8 @@ export default function GolfComposerSection({
   const trimmedCourseQuery = courseSearchQuery.trim();
   const worldwideOffer =
     globalSearchAvailable && trimmedCourseQuery.length >= 3 && globalSearchedFor !== trimmedCourseQuery;
-  const courseDropdownOpen = courseSearchOpen && (availableCourses.length > 0 || worldwideOffer);
+  const courseDropdownOpen =
+    courseSearchOpen && (availableCourses.length > 0 || worldwideOffer || searchFailed);
   usePopoverDismiss(courseFieldRef, courseDropdownOpen, closeCourseSearch);
 
   // The dropdown is `absolute` inside the composer's `overflow-y-auto` body, so
@@ -292,6 +299,8 @@ export default function GolfComposerSection({
       // Catalog rows carry golf_courses.id (a UUID) → golf_scorecard_data.
       // History rows carry a synthetic `history-*` id → null.
       courseId: UUID_SHAPE.test(course.id) ? course.id : null,
+      // Grid size follows the course: a 9-hole course shows a 9-hole card.
+      holesPlayed: course.holesCount === 9 ? 9 : 18,
       // Rating/slope feed handicap differentials — carry the selected tee's
       // values, falling back to white, then to ANY tee the course has:
       // courses-you've-played suggestions carry ratings keyed by whichever
@@ -309,7 +318,7 @@ export default function GolfComposerSection({
 
     // Auto-populate par and yardage from course data for the current range
     setCourseHoleData(
-      deriveCourseHoles(course, teeColor, sharedRoundDetails.holesPlayed, composerStartingHole(sharedRoundDetails))
+      deriveCourseHoles(course, teeColor, course.holesCount === 9 ? 9 : 18, 1)
     );
 
     // Clear manual entry since we have course data
@@ -520,7 +529,7 @@ export default function GolfComposerSection({
       // the old roundType field). Only an actual stroke counts.
       hasAnyEnteredScore(playerScores);
 
-    const start = composerStartingHole(sharedRoundDetails);
+    const start = 1;
     onChange({
       sharedRoundDetails,
       sharedRoundParticipants,
@@ -629,14 +638,14 @@ export default function GolfComposerSection({
                         if (selectedCourse && e.target.value !== selectedCourse.name) {
                           setSelectedCourse(null);
                           selectedCourseIdRef.current = null;
-                          setSharedRoundDetails(prev => ({ ...prev, courseId: null }));
+                          setSharedRoundDetails(prev => ({ ...prev, courseId: null, holesPlayed: 18 }));
                         }
                       }}
                       onFocus={() => {
                         setCourseSearchOpen(true);
-                        if (courseSearchQuery.trim().length >= 1) {
-                          searchCourses(courseSearchQuery);
-                        }
+                        // Empty input browses the catalog head — the field
+                        // answers "what courses are there?" on first tap.
+                        searchCourses(courseSearchQuery, { browse: true });
                       }}
                       onKeyDown={(e) => {
                         // Escape closes the DROPDOWN first and stops there —
@@ -684,16 +693,28 @@ export default function GolfComposerSection({
                           className="w-full px-4 py-3 text-left hover:bg-green-50 dark:hover:bg-green-950/40 transition-colors border-b border-border-subtle last:border-b-0"
                         >
                           <div className="font-semibold text-primary">{course.name}</div>
-                          {course.city && course.state && (
+                          {(course.city || course.state) && (
                             <div className="text-sm text-tertiary">
-                              {course.city}, {course.state}
+                              {[course.city, course.state].filter(Boolean).join(', ')}
                             </div>
                           )}
+                          {/* Thin provider rows have no hole data until first
+                              selection — "0 holes" read as broken, so say
+                              what actually happens instead. */}
                           <div className="text-xs text-muted mt-1">
-                            Par {course.totalPar} • {course.holes.length} holes
+                            {course.holes.length > 0
+                              ? `Par ${course.totalPar} • ${course.holes.length} holes`
+                              : 'Details load when selected'}
                           </div>
                         </button>
                       ))}
+                      {searchFailed && (
+                        <div className="px-4 py-3 text-sm text-tertiary">
+                          Course search is unavailable right now — you can
+                          keep typing the course name and try again in a
+                          minute.
+                        </div>
+                      )}
                       {/* The ONLY trigger for external course providers —
                           worldwide search is explicit, never per keystroke
                           (free-tier budgets; see course-catalog.ts). */}
@@ -726,6 +747,7 @@ export default function GolfComposerSection({
                       {selectedCourse.city && selectedCourse.state && ` (${selectedCourse.city}, ${selectedCourse.state})`}
                     </div>
                   )}
+                  {selectedCourse && <CourseInfoCard course={selectedCourse} />}
 
                   {/* Help text for manual entry */}
                   {!selectedCourse && sharedRoundDetails.courseName && (
@@ -760,62 +782,6 @@ export default function GolfComposerSection({
                     }}
                     className={GOLF_INPUT}
                   />
-                </div>
-
-                {/* Holes — the 9/18 control used to live only on the retired
-                    individual form, which was the one functional reason
-                    9-hole rounds needed it. Back-9 is encoded by hole
-                    NUMBERING (10–18) in hole_data, so it needs par data. */}
-                <div className="mb-4">
-                  <label className={GOLF_LABEL}>Holes</label>
-                  <div className="grid grid-cols-2 gap-3">
-                    {([18, 9] as const).map(count => (
-                      <button
-                        key={count}
-                        type="button"
-                        onClick={() => setSharedRoundDetails(prev => ({ ...prev, holesPlayed: count }))}
-                        className={`px-4 py-3 rounded-lg font-semibold transition-all ${
-                          sharedRoundDetails.holesPlayed === count
-                            ? 'bg-green-600 text-white'
-                            : 'bg-surface text-secondary border-2 border-border-strong hover:border-green-300 dark:hover:border-green-700'
-                        }`}
-                      >
-                        {count} holes
-                      </button>
-                    ))}
-                  </div>
-                  {sharedRoundDetails.holesPlayed === 9 && (
-                    <div className="mt-3 grid grid-cols-2 gap-3">
-                      <button
-                        type="button"
-                        onClick={() => setSharedRoundDetails(prev => ({ ...prev, startingHole: 'front' }))}
-                        className={`px-4 py-2 rounded-lg text-sm font-semibold transition-all ${
-                          sharedRoundDetails.startingHole === 'front'
-                            ? 'bg-green-600 text-white'
-                            : 'bg-surface text-secondary border-2 border-border-strong hover:border-green-300 dark:hover:border-green-700'
-                        }`}
-                      >
-                        Front 9 (1–9)
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setSharedRoundDetails(prev => ({ ...prev, startingHole: 'back' }))}
-                        disabled={!selectedCourse && manualParEntry.filter(Boolean).length === 0}
-                        title={
-                          !selectedCourse && manualParEntry.filter(Boolean).length === 0
-                            ? 'Pick a course from the search (or enter pars below) first — the back nine is identified by its hole numbers.'
-                            : undefined
-                        }
-                        className={`px-4 py-2 rounded-lg text-sm font-semibold transition-all disabled:opacity-50 disabled:cursor-not-allowed ${
-                          sharedRoundDetails.startingHole === 'back'
-                            ? 'bg-green-600 text-white'
-                            : 'bg-surface text-secondary border-2 border-border-strong hover:border-green-300 dark:hover:border-green-700'
-                        }`}
-                      >
-                        Back 9 (10–18)
-                      </button>
-                    </div>
-                  )}
                 </div>
 
                 {/* Indoor/Outdoor Selection */}
