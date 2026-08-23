@@ -196,6 +196,24 @@ export default function RegistrationSteps({ onBackToLogin }: { onBackToLogin: ()
         setStep('parked');
         return;
       }
+      // Same Round-J treatment the parent branch gets: sign the athlete
+      // straight in (email confirmations are OFF, so the credentials work
+      // immediately) and land them in onboarding. Hard navigation, not
+      // router.push — the house rule after a session change. If the sign-in
+      // fails (e.g. confirmations get turned on later), fall back to the old
+      // "Please sign in" hand-off.
+      try {
+        const { supabase } = await import('@/lib/supabase');
+        const { error: signInError } = await supabase.auth.signInWithPassword({
+          email: form.email,
+          password: form.password,
+        });
+        if (!signInError) {
+          // eslint-disable-next-line @next/next/no-location-assign-relative-destination -- a session was just created; the auth provider must boot fresh (house pattern)
+          window.location.href = '/onboarding';
+          return;
+        }
+      } catch { /* fall through to the manual sign-in screen */ }
       setSuccess('Account created successfully! Please sign in to continue.');
       setTimeout(onBackToLogin, 2000);
     } catch (err) {
