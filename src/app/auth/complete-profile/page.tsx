@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth';
 import BrandBar from '@/components/BrandBar';
+import InviteLinkShare from '@/components/InviteLinkShare';
 import HandleSelector from '@/components/HandleSelector';
 import { deriveNamesFromMetadata } from '@/lib/oauth-profile';
 import { FEATURE_FLAGS } from '@/lib/features';
@@ -22,6 +23,7 @@ export default function CompleteProfilePage() {
   const [guardianEmail, setGuardianEmail] = useState('');
   const [needsGuardian, setNeedsGuardian] = useState(false);
   const [parkedMessage, setParkedMessage] = useState('');
+  const [parkedInviteUrl, setParkedInviteUrl] = useState<string | null>(null);
   const [prefilled, setPrefilled] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
@@ -140,6 +142,7 @@ export default function CompleteProfilePage() {
       }
       if (result.parked) {
         setParkedMessage(result.message || "We've emailed your parent or guardian a link to finish setting up your profile.");
+        setParkedInviteUrl(result.inviteUrl ?? null);
         setSubmitting(false);
         return;
       }
@@ -170,6 +173,17 @@ export default function CompleteProfilePage() {
               Check with your parent or guardian
             </h2>
             <p className="text-sm text-tertiary mb-6">{parkedMessage}</p>
+            {/* The link is the reliable channel (owner decision) — after
+                sign-out this athlete has no pending-state surface at all,
+                so the hand-off happens here or never. */}
+            {parkedInviteUrl && (
+              <div className="mb-6">
+                <InviteLinkShare
+                  url={parkedInviteUrl}
+                  hint="Text or show this link to your parent or guardian — it's valid for 7 days and works once."
+                />
+              </div>
+            )}
             <button
               type="button"
               onClick={() => signOut()}

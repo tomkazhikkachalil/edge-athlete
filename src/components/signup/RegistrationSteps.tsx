@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from 'react';
 import * as Sentry from '@sentry/nextjs';
 import HandleSelector from '@/components/HandleSelector';
 import OAuthButtons from '@/components/OAuthButtons';
+import InviteLinkShare from '@/components/InviteLinkShare';
 import { isValidDateString, isNotFutureDate } from '@/lib/date-validation';
 
 // Registration step machine (guardian-profiles feature).
@@ -34,18 +35,30 @@ const labelClass = 'block text-sm font-medium text-secondary mb-1';
 const primaryBtn =
   'w-full bg-brand text-white py-3 px-4 rounded-md hover:bg-brand-hover transition duration-300 flex items-center justify-center text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed';
 
+const HANDLE_CHECKING_MSG = 'Checking your handle — one moment…';
+const HANDLE_WAIT_MSG =
+  'Please wait for your handle to be confirmed as available, or pick another handle.';
+
 export default function RegistrationSteps({ onBackToLogin }: { onBackToLogin: () => void }) {
   const [step, setStep] = useState<Step>('role');
   const [role, setRole] = useState<Role>('athlete');
   const [dob, setDob] = useState('');
   const [guardianEmail, setGuardianEmail] = useState('');
   const [parkedMessage, setParkedMessage] = useState('');
+  const [parkedInviteUrl, setParkedInviteUrl] = useState<string | null>(null);
   const [form, setForm] = useState({
     firstName: '', lastName: '', nickname: '', email: '', phone: '',
     gender: '', location: '', postalCode: '', password: '', confirmPassword: '',
     handle: '',
   });
   const [error, setError] = useState('');
+  // Handle-check race machinery: a submit while the availability check is
+  // pending (the 500ms debounce window INCLUDED) waits and auto-continues
+  // when the check lands, instead of erroring at the user. Event-driven —
+  // no effects (set-state-in-effect is a lint error); the single-flight
+  // shape follows WorkoutEditorScreen's inFlight/pending refs.
+  const handleCheckingRef = useRef(false);
+  const pendingSubmitRef = useRef(false);
   const [success, setSuccess] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const errorRef = useRef<HTMLDivElement>(null);
@@ -141,14 +154,24 @@ export default function RegistrationSteps({ onBackToLogin }: { onBackToLogin: ()
     }
   };
 
-  const submitAccount = async (withGuardianEmail?: string) => {
+  const submitAccount = async (withGuardianEmail?: string, handleOverride?: string) => {
     setError('');
+    // handleOverride: the auto-continued submit fires from the same event
+    // that delivered the confirmed handle — form state hasn't re-rendered
+    // yet, so the fresh value rides in explicitly.
+    const confirmedHandle = handleOverride ?? form.handle;
     if (form.password !== form.confirmPassword) {
       setError('Passwords do not match');
       return;
     }
-    if (!form.handle) {
-      setError('Please wait for your handle to be confirmed as available, or pick another handle.');
+    if (!confirmedHandle) {
+      if (handleCheckingRef.current) {
+        // Wait for the in-flight check; onHandleSelected auto-continues.
+        pendingSubmitRef.current = true;
+        setError(HANDLE_CHECKING_MSG);
+        return;
+      }
+      setError(HANDLE_WAIT_MSG);
       return;
     }
     if (!form.email || !form.password || !form.firstName || !form.lastName) {
@@ -174,7 +197,7 @@ export default function RegistrationSteps({ onBackToLogin }: { onBackToLogin: ()
             location: form.location,
             postal_code: form.postalCode,
             user_type: 'athlete',
-            handle: form.handle,
+            handle: confirmedHandle,
           },
         }),
       });
@@ -193,6 +216,7 @@ export default function RegistrationSteps({ onBackToLogin }: { onBackToLogin: ()
       }
       if (result.parked) {
         setParkedMessage(result.message);
+        setParkedInviteUrl(result.inviteUrl ?? null);
         setStep('parked');
         return;
       }
@@ -400,7 +424,26 @@ export default function RegistrationSteps({ onBackToLogin }: { onBackToLogin: ()
                 <HandleSelector
                   firstName={form.firstName}
                   lastName={form.lastName}
-                  onHandleSelected={h => setForm(f => ({ ...f, handle: h }))}
+                  onCheckingChange={checking => { handleCheckingRef.current = checking; }}
+                  onHandleSelected={h => {
+                    setForm(f => ({ ...f, handle: h }));
+                    if (h) {
+                      // The green transition clears any stale wait banner and
+                      // completes a submit that was parked on the check.
+                      setError(prev =>
+                        prev === HANDLE_CHECKING_MSG || prev === HANDLE_WAIT_MSG ? '' : prev
+                      );
+                      if (pendingSubmitRef.current) {
+                        pendingSubmitRef.current = false;
+                        submitAccount(undefined, h);
+                      }
+                    } else if (pendingSubmitRef.current) {
+                      // Check settled taken/invalid — drop the parked submit;
+                      // the selector shows its own message.
+                      pendingSubmitRef.current = false;
+                      setError(prev => (prev === HANDLE_CHECKING_MSG ? '' : prev));
+                    }
+                  }}
                   required
                 />
                 <div>
@@ -526,6 +569,17 @@ export default function RegistrationSteps({ onBackToLogin }: { onBackToLogin: ()
               <p className="text-sm text-tertiary max-w-md mx-auto mb-6">
                 {parkedMessage || "We've emailed your parent or guardian a link to finish setting up your profile."}
               </p>
+              {/* The link is the reliable channel (owner decision) — this
+                  screen is the minor's ONLY reachable surface, lost on
+                  refresh, so the link must be handed over here or never. */}
+              {parkedInviteUrl && (
+                <div className="mb-6">
+                  <InviteLinkShare
+                    url={parkedInviteUrl}
+                    hint="Text or show this link to your parent or guardian — it's valid for 7 days and works once."
+                  />
+                </div>
+              )}
               <button type="button" onClick={onBackToLogin} className="text-sm text-brand-fg hover:underline">
                 Back to login
               </button>
