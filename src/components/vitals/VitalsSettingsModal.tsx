@@ -9,6 +9,7 @@ import { COPY } from '@/lib/copy';
 import { useToast } from '../Toast';
 import { formatHeight, validateHeight } from '@/lib/formatters';
 import type { WeightUnit } from '@/lib/body-measurement';
+import { localDayKey } from '@/lib/calendar/grid';
 
 /**
  * The Vitals tab's own quick settings — update height/weight without a trip
@@ -40,7 +41,7 @@ interface VitalsSettingsModalProps {
   onManageRoutines?: () => void;
 }
 
-const today = () => new Date().toISOString().split('T')[0];
+const today = () => localDayKey(new Date());
 
 export default function VitalsSettingsModal({
   currentVitals, onClose, onSaved, onManageRoutines,

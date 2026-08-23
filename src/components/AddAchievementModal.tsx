@@ -6,6 +6,7 @@ import { useBodyScrollLock } from '@/hooks/useBodyScrollLock';
 import { useToast } from './Toast';
 import { getAllSports, SPORT_NAMES } from '@/lib/config/sports-config';
 import type { Achievement } from '@/lib/achievements';
+import { localDayKey } from '@/lib/calendar/grid';
 
 interface AddAchievementModalProps {
   isOpen: boolean;
@@ -24,7 +25,7 @@ interface FormState {
   description: string;
 }
 
-const today = () => new Date().toISOString().split('T')[0];
+const today = () => localDayKey(new Date());
 
 const emptyForm = (): FormState => ({
   title: '',

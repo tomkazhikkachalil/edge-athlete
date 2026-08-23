@@ -10,6 +10,7 @@ import { validateFiles } from '@/lib/media/validation';
 import { uploadPostMedia } from '@/lib/media/upload';
 import type { EditedMedia, EditorConfig, MediaAsset } from '@/lib/media/types';
 import {
+import { localDayKey } from '@/lib/calendar/grid';
   VITAL_CATEGORIES,
   VITAL_METRICS_MAP,
   parseTimeToSeconds,
@@ -50,7 +51,7 @@ interface FormState {
 
 type SubmitMode = 'metric_only' | 'with_post';
 
-const today = () => new Date().toISOString().split('T')[0];
+const today = () => localDayKey(new Date());
 
 export default function AddVitalModal({ isOpen, onClose, onSaved }: AddVitalModalProps) {
   const [form, setForm] = useState<FormState>({

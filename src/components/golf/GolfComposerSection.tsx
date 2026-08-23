@@ -23,6 +23,7 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
 import { useAuth } from '@/lib/auth';
 import { hasAnyEnteredScore, resizePlayerScores } from '@/lib/golf/score-entry';
+import { localDayKey } from '@/lib/calendar/grid';
 import { useDebouncedCallback } from '@/hooks/useDebouncedCallback';
 import { usePopoverDismiss } from '@/hooks/usePopoverDismiss';
 import TagPeopleModal from '@/components/TagPeopleModal';
@@ -87,7 +88,9 @@ export function defaultGolfComposerValue(): GolfComposerValue {
   return {
     sharedRoundDetails: {
       courseName: '',
-      date: new Date().toISOString().split('T')[0],
+      // localDayKey, not toISOString: UTC's "today" is tomorrow for any US
+      // athlete composing after ~5pm Pacific / 8pm Eastern.
+      date: localDayKey(new Date()),
       holesPlayed: 18,
       startingHole: 'front',
       roundTypeIndoorOutdoor: 'outdoor',
@@ -139,7 +142,7 @@ export default function GolfComposerSection({
   const [showParticipantModal, setShowParticipantModal] = useState(false);
   const [sharedRoundDetails, setSharedRoundDetails] = useState<GolfSharedRoundDetails>({
     courseName: '',
-    date: new Date().toISOString().split('T')[0], // Today's date
+    date: localDayKey(new Date()), // today, VIEWER-local (not UTC)
     holesPlayed: 18,
     startingHole: 'front',
     roundTypeIndoorOutdoor: 'outdoor',
@@ -668,7 +671,7 @@ export default function GolfComposerSection({
                         // explicitly chose a timing
                         ...(roundTimingTouchedRef.current
                           ? {}
-                          : { alreadyPlayed: date < new Date().toISOString().split('T')[0] }),
+                          : { alreadyPlayed: date < localDayKey(new Date()) }),
                       }));
                     }}
                     className={GOLF_INPUT}

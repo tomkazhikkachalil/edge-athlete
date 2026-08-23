@@ -16,6 +16,7 @@ import { useBodyScrollLock } from '@/hooks/useBodyScrollLock';
 import { useDirtyClose } from '@/hooks/useDirtyClose';
 import ConfirmModal from './ConfirmModal';
 import { COPY } from '@/lib/copy';
+import { localDayKey } from '@/lib/calendar/grid';
 
 interface AddEquipmentModalProps {
   isOpen: boolean;
@@ -47,7 +48,7 @@ const SPORT_OPTIONS = getEquipmentSportOptions();
 const isKnownSport = (key: string | undefined): key is string =>
   !!key && SPORT_OPTIONS.some(o => o.value === key);
 
-const todayStr = () => new Date().toISOString().split('T')[0];
+const todayStr = () => localDayKey(new Date());
 
 /**
  * One snapshot drives the whole form: useState initializers, resetForm and

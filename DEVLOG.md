@@ -17,6 +17,15 @@ pass caught, all shipped in this round:
   `lib/formatters` (node-tested); `formatDate` and both round cards
   (QuickView/FullCard) now use it. The freeze on feed golf rendering is
   about presentation; a wrong date is a correctness bug on any surface.
+- **…and the composer had the write-side twin.** The round date defaulted
+  to `toISOString()`'s day — UTC's "today", which is TOMORROW for any US
+  athlete composing after ~5pm Pacific (caught live at 8:18pm EDT: the
+  date input read Aug 23). Now `localDayKey` (calendar/grid's TZ-safe
+  helper) in the golf composer's three sites, plus the same one-line fix in
+  the other entry forms carrying the identical default (vitals ×2,
+  equipment, achievements, stat-line, workout editor ×2). Validation
+  helpers that are deliberately UTC-lenient (date-validation's
+  tomorrow-UTC bound) untouched.
 - **Header "+" now composes everywhere.** On pages without their own
   composer mount (explore, live, messages, calendar, settings…) the
   fallback was `router.push('/athlete')` — it silently navigated instead of
