@@ -365,6 +365,7 @@ export default function LiveRoundPage() {
           holeData={scorecard.golf_data.hole_data ?? null}
           courseName={scorecard.golf_data.course_name}
           uploaderId={user.id}
+          onShowMap={mapAvailable ? () => setTab('map') : undefined}
           players={
             isCreator
               ? scorecard.participants

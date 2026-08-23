@@ -1,5 +1,37 @@
 # Development Log
 
+## August 23, 2026 — Live map follow-up: course-link backfill + a map button in the scorer
+
+Tom, on his phone right after #208 shipped: "I don't see the option to
+look at the GPS/map location when I start my round." The deploy was fine —
+two real gaps were hiding the feature:
+
+1. **His rounds predate the course catalog.** The live page gates the
+   entire Map tab on a linked course with coordinates
+   (`mapAvailable`), and `golf_scorecard_data.course_id` was NULL on 16
+   of 18 scorecards — everything created before the catalog shipped
+   (Aug 22), including his current live round. The catalog already held
+   every one of those courses with coords under exactly matching names,
+   so a one-time service-role backfill (scratchpad script, dry-run then
+   apply) links scorecards by exact case-insensitive name — preferring
+   `city IS NOT NULL`, then `hydrated_at`, then oldest, which
+   deterministically resolves a duplicate "Ottawa Hunt and Golf Club"
+   catalog row — then fills `course_id` on the mirrored `golf_rounds`
+   rows (join on `group_post_id`, NULLs only) for parity with what
+   `mirrorCompletedRound` would write today. Unmatched names stay NULL:
+   free-text courses are legal and get no map, by design. Forward path
+   needed no change — catalog picks and enriched history rows both carry
+   real catalog ids since #202/#204.
+2. **The auto-opened scorer covered the tabs.** `/live` deliberately
+   opens the scorer on first paint, and it's a `fixed inset-0 z-50`
+   overlay — so on round start the Map tab was invisible behind it.
+   `ScoreEntryModal` now takes `onShowMap?: () => void` and renders a
+   map button in the header beside the X (44px target). It uses the
+   same flush-the-current-hole path as the X (a failed save keeps the
+   scorer open rather than stranding it over the map), then closes and
+   lands on the Map tab. The live page passes it only when
+   `mapAvailable` — no dead button on free-text-course rounds.
+
 ## August 23, 2026 — Live portal redesign: full-view tabs, satellite GPS, hole-aware map
 
 Tom's UX call: the live page stacked the GPS map under the scoring card —

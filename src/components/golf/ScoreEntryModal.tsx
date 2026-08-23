@@ -102,6 +102,11 @@ interface ScoreEntryModalProps {
     penalties?: string[] | null;
   }) => Promise<void>;
   onClose: () => void;
+  /** Renders a map button in the header that closes the scorer (same
+   *  save-state path as the X) and hands off to the caller's map view. The
+   *  live portal's Map tab is otherwise invisible behind the auto-opened
+   *  scorer — this is its discoverability affordance mid-round. */
+  onShowMap?: () => void;
 }
 
 export default function ScoreEntryModal({
@@ -120,7 +125,8 @@ export default function ScoreEntryModal({
   focusSection,
   onSave,
   onSaveHole,
-  onClose
+  onClose,
+  onShowMap
 }: ScoreEntryModalProps) {
   const isLive = !!onSaveHole;
   // Mounted only while open — lock background scroll for the whole lifetime
@@ -633,13 +639,35 @@ export default function ScoreEntryModal({
                 </span>
               )}
             </div>
-            <button
-              onClick={isLive ? () => handleDone(false) : onClose}
-              className="text-white hover:text-white/80 text-xl font-bold min-w-[44px] min-h-[44px] -m-2 flex items-center justify-center"
-              aria-label="Close"
-            >
-              <i className="fas fa-times"></i>
-            </button>
+            <div className="flex items-center shrink-0">
+              {onShowMap && (
+                <button
+                  onClick={async () => {
+                    // Same save-state path as the X — a failed flush keeps
+                    // the scorer open instead of stranding it over the map.
+                    if (isLive) {
+                      setSaving(true);
+                      const ok = await persistHole(currentHole);
+                      setSaving(false);
+                      if (!ok) return;
+                    }
+                    onClose();
+                    onShowMap();
+                  }}
+                  className="text-white hover:text-white/80 text-lg min-w-[44px] min-h-[44px] -my-2 flex items-center justify-center"
+                  aria-label="Open course map"
+                >
+                  <i className="fas fa-map-location-dot"></i>
+                </button>
+              )}
+              <button
+                onClick={isLive ? () => handleDone(false) : onClose}
+                className="text-white hover:text-white/80 text-xl font-bold min-w-[44px] min-h-[44px] -my-2 -mr-2 flex items-center justify-center"
+                aria-label="Close"
+              >
+                <i className="fas fa-times"></i>
+              </button>
+            </div>
           </div>
           <div className="text-sm font-semibold flex items-center gap-2">
             <span>Hole {currentHole} of {holesPlayed}</span>
