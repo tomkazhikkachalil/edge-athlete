@@ -34,7 +34,10 @@ export const RATE_LIMITS = {
   'handle-check': { max: 30, windowSeconds: 60, keyBy: 'ip' },
   // Course picker search — anonymous-reachable and it reads cross-user
   // course history; the golf_courses catalog makes it a scraping target.
-  'course-search': { max: 30, windowSeconds: 60, keyBy: 'ip' },
+  // 120/min, not 30: a typing user fires one request per debounced
+  // keystroke plus browse-on-focus, and 30 was hit in normal composing
+  // (Tom, Aug 23). Still throttles enumeration to a crawl.
+  'course-search': { max: 120, windowSeconds: 60, keyBy: 'ip' },
   // Guardian-invite peek — unauthenticated (parents open it accountless)
   // and a valid hit names the invited email; keep token guessing costly.
   'invite-peek': { max: 30, windowSeconds: 60, keyBy: 'ip' },
