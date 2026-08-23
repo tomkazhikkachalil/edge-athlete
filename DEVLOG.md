@@ -1,5 +1,58 @@
 # Development Log
 
+## August 22, 2026 — Global course catalog (migration 100)
+
+Course data goes global — the handicap capture shipped earlier today only
+matters if courses carry ratings, and the static file had 7. Tom's call:
+"this is an international application, meant to be global."
+
+- **`golf_courses` table (migration 100)** replaces the 7-course static
+  file; those 7 are seeded verbatim with fixed UUIDs. jsonb rating/slope
+  keyed by tee NAME (provider tee names are free text — the fixed
+  black/blue/white/gold/red keying died with the file). 087-style search
+  index pair; public-SELECT RLS (reserved_handles pattern); FKs from
+  `golf_rounds.course_id` (new) and `golf_scorecard_data.course_id` (an
+  orphan since 004, finally constrained).
+- **Two providers, both pinned against LIVE responses** (the old
+  golf-course-service scaffolding — three enabled-flag providers with
+  guessed shapes and empty catches — is deleted, along with its
+  `generateDefaultHoles` fabricator): **OpenGolfAPI** (keyless, every US
+  course, tees carry rating/slope + numbered holes with per-tee yardages;
+  ODbL — attribution renders in the picker footer) and **GolfCourseAPI**
+  (worldwide, Bearer key, free tier 50 req/DAY; its detail nests under
+  `course` — the published spec says bare, which is why we pin live).
+- **Providers are never in the keystroke path.** Typeahead reads the
+  catalog + courses-you've-played only. External calls happen in exactly
+  two places: the explicit "Search all courses worldwide" dropdown row
+  (OpenGolfAPI first; GolfCourseAPI only under 3 hits — conserves its
+  budget for non-US queries) and hydration on first selection of a thin
+  row (one detail call, in-place UPDATE; thin upserts use
+  ignoreDuplicates so a later search can never clobber a hydrated row).
+  Budgets are `rate_limit_hit('golf-provider:*')` guarded, FAIL-CLOSED —
+  opposite polarity from enforceRateLimit, deliberately: local results
+  are free, provider budget isn't. 5s AbortSignal timeouts; the dropdown
+  never hangs.
+- **The route now emits the flat `types/golf.GolfCourse`** — the old one
+  emitted the static file's nested-location shape while the composer
+  consumed the flat one with no type-checking across fetch, so course
+  city/state had NEVER rendered in the picker. Fixed by construction. Also:
+  `course-search` rate limit (30/min/IP — the endpoint is anonymous and
+  reads cross-user history), `apiStatus` debug leak dropped, dead `?name=`
+  mode dropped.
+- **Rounds link to the catalog**: composer keeps `courseId` for
+  catalog picks (UUID-shaped only; hand-editing the name clears it) →
+  `golf_scorecard_data.course_id` (route null-guards non-UUIDs — the FK
+  would otherwise fail the ATOMIC round create on a `history-*` id) →
+  mirrored onto `golf_rounds.course_id`.
+- Normalizers are pure + node-tested against transcribed live fixtures
+  (tee-name collisions get " (f)", positional holes numbered, mixed
+  hole-count tee boxes excluded from per-hole yardage, "Unknown" → null).
+
+Ops: migration 100 needs the SQL editor (Tom); `GOLF_COURSE_API_KEY` is in
+.env.local and needs adding to Vercel (Sensitive). Follow-ups flagged, not
+built: course-driven tee options in the composer (still the fixed 5
+colors), history rows carrying course_id.
+
 ## August 22, 2026 — Launch-readiness round: handicap unlock + launch polish
 
 A launch-priorities audit found `ROADMAP_2026-07.md` badly stale — of its
