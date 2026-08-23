@@ -33,6 +33,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { GolfCourse, CourseHole } from '@/types/golf';
 import { tidyCourseName } from '@/lib/golf/tees';
+import { acceptGeocode, geocodeGolfCourse, shouldReplaceCoords } from '@/lib/golf/geocode';
 
 export const OPENGOLF_ATTRIBUTION =
   'Course data © OpenStreetMap contributors (ODbL) via OpenGolfAPI';
@@ -209,6 +210,10 @@ export async function getCatalogRow(admin: SupabaseClient, id: string): Promise<
 const DEFAULT_BUDGETS: Record<string, number> = {
   opengolfapi: 1000,
   golfcourseapi: Number(process.env.GOLF_PROVIDER_DAILY_BUDGET) || 45,
+  // Nominatim coord refinement — one call per course per hydration (7-day
+  // TTL), so this is headroom, not a target. Policy compliance lives in
+  // geocode.ts (UA, never per-keystroke).
+  nominatim: 500,
 };
 
 async function consumeProviderBudget(admin: SupabaseClient, source: string): Promise<boolean> {
@@ -564,12 +569,50 @@ export async function hydrateCourse(admin: SupabaseClient, row: CatalogRow): Pro
     }
   }
 
+  // Coord refinement runs on BOTH hydration outcomes: provider lat/lng is
+  // demonstrably unreliable (real-device report: 3 of 4 courses 8–22 km off),
+  // and OSM's golf_course features are the better source. Budgeted like the
+  // providers; a null result always keeps the coords we have.
+  const refineCoords = async (
+    name: string,
+    city: string | null,
+    region: string | null,
+    stored: { lat: number | null; lng: number | null }
+  ): Promise<{ lat: number; lng: number } | null> => {
+    if (!(await consumeProviderBudget(admin, 'nominatim'))) return null;
+    const found = await geocodeGolfCourse(name, city, region);
+    if (!found) return null;
+    const storedPoint = { lat: stored.lat ?? undefined, lng: stored.lng ?? undefined };
+    // acceptGeocode guards bare-name same-name-elsewhere matches; then only
+    // replace when the stored coords are actually wrong (>1.5 km).
+    if (!acceptGeocode(storedPoint, found)) return null;
+    return shouldReplaceCoords(storedPoint, found) ? { lat: found.lat, lng: found.lng } : null;
+  };
+
   if (!normalized) {
     // Attempt happened (or budget/config refused it — cheap either way):
     // stamp so the next selections don't hammer the provider.
-    await admin.from('golf_courses').update({ hydrated_at: new Date().toISOString() }).eq('id', row.id);
-    return rowToCourse(row);
+    const refined = await refineCoords(row.name, row.city, row.region, row);
+    await admin
+      .from('golf_courses')
+      .update({
+        hydrated_at: new Date().toISOString(),
+        ...(refined ? { lat: refined.lat, lng: refined.lng } : {}),
+      })
+      .eq('id', row.id);
+    return rowToCourse(refined ? { ...row, lat: refined.lat, lng: refined.lng } : row);
   }
+
+  const providerCoords = {
+    lat: normalized.lat ?? row.lat,
+    lng: normalized.lng ?? row.lng,
+  };
+  const refined = await refineCoords(
+    normalized.name,
+    normalized.city,
+    normalized.region,
+    providerCoords
+  );
 
   const { data: updated } = await admin
     .from('golf_courses')
@@ -584,8 +627,8 @@ export async function hydrateCourse(admin: SupabaseClient, row: CatalogRow): Pro
       hole_data: normalized.hole_data,
       course_rating: normalized.course_rating,
       slope_rating: normalized.slope_rating,
-      lat: normalized.lat ?? row.lat,
-      lng: normalized.lng ?? row.lng,
+      lat: refined?.lat ?? providerCoords.lat,
+      lng: refined?.lng ?? providerCoords.lng,
       description: normalized.description,
       description_attribution: normalized.description_attribution,
       architect: normalized.architect,
