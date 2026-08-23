@@ -6,6 +6,7 @@ import { useAuth } from '@/lib/auth';
 import AppHeader from '@/components/AppHeader';
 import ConfirmModal from '@/components/ConfirmModal';
 import { useToast } from '@/components/Toast';
+import { trackedStatLabel, holeCountLabel } from '@/lib/golf/round-display';
 
 interface GolfHole {
   hole_number: number;
@@ -13,7 +14,8 @@ interface GolfHole {
   strokes: number;
   putts: number | null;
   fairway_hit: boolean | null;
-  green_in_regulation: boolean;
+  /** Nullable in the schema; null = not tracked (the scorer never writes false). */
+  green_in_regulation: boolean | null;
   distance_yards: number | null;
   notes: string | null;
 }
@@ -49,7 +51,7 @@ interface EditableHole {
   strokes: string; // string in inputs; validated on save
   putts: string;
   fairway_hit: boolean | null;
-  green_in_regulation: boolean;
+  green_in_regulation: boolean | null;
 }
 
 export default function GolfRoundDetailPage() {
@@ -66,6 +68,10 @@ export default function GolfRoundDetailPage() {
   // Edit mode
   const [editing, setEditing] = useState(false);
   const [editHoles, setEditHoles] = useState<EditableHole[]>([]);
+  // Course rating/slope backfill — the key that unlocks the computed
+  // handicap for rounds logged before the composer surfaced these fields.
+  const [editRating, setEditRating] = useState('');
+  const [editSlope, setEditSlope] = useState('');
   const [saving, setSaving] = useState(false);
 
   // Delete
@@ -122,6 +128,8 @@ export default function GolfRoundDetailPage() {
         green_in_regulation: h.green_in_regulation,
       }))
     );
+    setEditRating(round.course_rating === null ? '' : String(round.course_rating));
+    setEditSlope(round.slope_rating === null ? '' : String(round.slope_rating));
     setEditing(true);
   };
 
@@ -155,12 +163,24 @@ export default function GolfRoundDetailPage() {
       });
     }
 
+    // Rating/slope: '' clears (null); values validated to the API's ranges.
+    const courseRating = editRating === '' ? null : Number(editRating);
+    if (courseRating !== null && (!Number.isFinite(courseRating) || courseRating < 50 || courseRating > 90)) {
+      showError('Invalid course rating', 'Course rating must be between 50 and 90.');
+      return;
+    }
+    const slopeRating = editSlope === '' ? null : Number(editSlope);
+    if (slopeRating !== null && (!Number.isInteger(slopeRating) || slopeRating < 55 || slopeRating > 155)) {
+      showError('Invalid slope rating', 'Slope rating must be a whole number between 55 and 155.');
+      return;
+    }
+
     setSaving(true);
     try {
       const response = await fetch(`/api/golf/rounds/${roundId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ holes: payload }),
+        body: JSON.stringify({ holes: payload, course_rating: courseRating, slope_rating: slopeRating }),
       });
       const data = await response.json();
       if (!response.ok) {
@@ -239,9 +259,11 @@ export default function GolfRoundDetailPage() {
   const grossScore = round.gross_score ?? holes.reduce((sum, h) => sum + (h.strokes || 0), 0);
   const parPlayed = holes.reduce((sum, h) => sum + (h.par || 0), 0) || round.par;
   const scoreToPar = grossScore - parPlayed;
+  // Tracked denominators: null stat values mean "not tracked", so an
+  // untracked round shows "—" instead of a devastating-looking 0/N.
   const fairwayEligible = holes.filter(h => (h.par ?? 4) > 3);
-  const fairwaysHit = fairwayEligible.filter(h => h.fairway_hit === true).length;
-  const girsHit = holes.filter(h => h.green_in_regulation).length;
+  const firLabel = trackedStatLabel(fairwayEligible.map(h => h.fairway_hit));
+  const girLabel = trackedStatLabel(holes.map(h => h.green_in_regulation));
   const totalPutts = round.total_putts ?? holes.reduce((sum, h) => sum + (h.putts || 0), 0);
   const conditions = [round.weather, round.temperature != null ? `${round.temperature}°` : null, round.wind]
     .filter(Boolean)
@@ -324,9 +346,52 @@ export default function GolfRoundDetailPage() {
               <div className="flex flex-wrap gap-2 mt-2 text-xs text-tertiary">
                 {round.tee && <span className="px-2 py-1 bg-surface-sunken rounded-full">{round.tee} tees</span>}
                 <span className="px-2 py-1 bg-surface-sunken rounded-full">{round.round_type === 'indoor' ? 'Indoor / Sim' : 'Outdoor'}</span>
-                <span className="px-2 py-1 bg-surface-sunken rounded-full">{holesPlayed} holes</span>
+                <span className="px-2 py-1 bg-surface-sunken rounded-full">{holeCountLabel(holesPlayed, round.holes)}</span>
                 {!round.is_complete && <span className="px-2 py-1 bg-yellow-100 dark:bg-yellow-950/60 text-yellow-700 dark:text-yellow-300 rounded-full">Partial round</span>}
+                {(round.course_rating !== null || round.slope_rating !== null) && (
+                  <span className="px-2 py-1 bg-surface-sunken rounded-full">
+                    Rating {round.course_rating ?? '—'} · Slope {round.slope_rating ?? '—'}
+                  </span>
+                )}
               </div>
+              {editing && (
+                <div className="mt-3 max-w-sm">
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label htmlFor="edit-course-rating" className="block text-xs font-medium text-secondary mb-1">Course rating</label>
+                      <input
+                        id="edit-course-rating"
+                        type="number"
+                        inputMode="decimal"
+                        step="0.1"
+                        min={50}
+                        max={90}
+                        value={editRating}
+                        onChange={e => setEditRating(e.target.value)}
+                        placeholder="e.g. 72.4"
+                        className="w-full min-h-[44px] px-2 py-1 border border-border-strong rounded-md text-sm"
+                      />
+                    </div>
+                    <div>
+                      <label htmlFor="edit-slope-rating" className="block text-xs font-medium text-secondary mb-1">Slope rating</label>
+                      <input
+                        id="edit-slope-rating"
+                        type="number"
+                        inputMode="numeric"
+                        min={55}
+                        max={155}
+                        value={editSlope}
+                        onChange={e => setEditSlope(e.target.value)}
+                        placeholder="e.g. 128"
+                        className="w-full min-h-[44px] px-2 py-1 border border-border-strong rounded-md text-sm"
+                      />
+                    </div>
+                  </div>
+                  <p className="mt-1 text-xs text-tertiary">
+                    18-hole rounds with both unlock your estimated handicap — they&apos;re on the course&apos;s scorecard.
+                  </p>
+                </div>
+              )}
             </div>
             <div className="text-left sm:text-right flex-shrink-0">
               <div className="text-4xl font-bold text-primary">{grossScore}</div>
@@ -342,13 +407,11 @@ export default function GolfRoundDetailPage() {
           {/* Stats */}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4 pt-4 border-t border-border">
             <div className="text-center">
-              <div className="text-lg font-semibold text-primary">
-                {fairwayEligible.length > 0 ? `${fairwaysHit}/${fairwayEligible.length}` : '—'}
-              </div>
+              <div className="text-lg font-semibold text-primary">{firLabel}</div>
               <div className="text-xs text-muted uppercase">Fairways</div>
             </div>
             <div className="text-center">
-              <div className="text-lg font-semibold text-primary">{girsHit}/{holesPlayed}</div>
+              <div className="text-lg font-semibold text-primary">{girLabel}</div>
               <div className="text-xs text-muted uppercase">GIR</div>
             </div>
             <div className="text-center">
@@ -434,13 +497,21 @@ export default function GolfRoundDetailPage() {
                             )}
                           </td>
                           <td className="px-2 py-1 text-center">
+                            {/* Same 3-state cycle as FIR: null = not tracked.
+                                A 2-state toggle forced null → false, turning
+                                "no data" into a recorded miss on every edit. */}
                             <button
                               type="button"
-                              onClick={() => updateEditHole(eh.hole_number, { green_in_regulation: !eh.green_in_regulation })}
+                              onClick={() => updateEditHole(eh.hole_number, {
+                                green_in_regulation: eh.green_in_regulation === true ? false : eh.green_in_regulation === false ? null : true,
+                              })}
                               className="min-w-[44px] min-h-[44px] rounded-md hover:bg-surface-sunken active:bg-surface-sunken"
+                              title="Cycle: hit → missed → n/a"
                               aria-label={`Hole ${eh.hole_number} green in regulation`}
                             >
-                              <i className={`fas ${eh.green_in_regulation ? 'fa-check text-green-600 dark:text-green-400' : 'fa-times text-red-600 dark:text-red-400'}`}></i>
+                              {eh.green_in_regulation === true && <i className="fas fa-check text-green-600 dark:text-green-400"></i>}
+                              {eh.green_in_regulation === false && <i className="fas fa-times text-red-600 dark:text-red-400"></i>}
+                              {eh.green_in_regulation === null && <span className="text-faint text-xs">n/a</span>}
                             </button>
                           </td>
                           <td className="px-2 py-1 text-center">
@@ -485,7 +556,11 @@ export default function GolfRoundDetailPage() {
                           )}
                         </td>
                         <td className="px-3 py-2 text-center">
-                          <i className={`fas ${h.green_in_regulation ? 'fa-check text-green-600 dark:text-green-400' : 'fa-times text-red-600 dark:text-red-400'}`}></i>
+                          {h.green_in_regulation === null ? (
+                            <span className="text-faint text-xs">n/a</span>
+                          ) : (
+                            <i className={`fas ${h.green_in_regulation ? 'fa-check text-green-600 dark:text-green-400' : 'fa-times text-red-600 dark:text-red-400'}`}></i>
+                          )}
                         </td>
                         <td className="px-3 py-2 text-sm text-primary text-center">{h.putts ?? '—'}</td>
                       </tr>

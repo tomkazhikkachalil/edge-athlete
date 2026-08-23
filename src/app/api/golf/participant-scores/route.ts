@@ -151,9 +151,12 @@ export async function POST(request: NextRequest) {
         golf_participant_id: golfParticipantId,
         hole_number: hole.hole_number,
         strokes: hole.strokes,
-        putts: hole.putts || null,
-        fairway_hit: hole.fairway_hit || null,
-        green_in_regulation: hole.green_in_regulation || null,
+        putts: hole.putts ?? null,
+        fairway_hit: hole.fairway_hit ?? null,
+        green_in_regulation: hole.green_in_regulation ?? null,
+        // ?? not ||: false is a TRACKED miss and 0 putts is a real value —
+        // || collapsed both into null ("untracked"), losing the distinction
+        // the round-detail stats now render.
         // LENIENT on this bulk path: unknown types are dropped, not fatal —
         // one bad entry must not discard a whole creator-entered scorecard.
         penalties: sanitizePenalties(hole.penalties)
