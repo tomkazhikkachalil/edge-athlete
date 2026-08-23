@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useRef, Suspense } from 'react';
 import dynamic from 'next/dynamic';
+import Link from 'next/link';
 import { useAuth } from '@/lib/auth';
 import { liveRoundPath } from '@/lib/golf/round-route';
 import { useRouter, useSearchParams } from 'next/navigation';
@@ -612,12 +613,16 @@ export default function FeedPage() {
                         </>
                       )}
                     </button>
-                    <button
-                      onClick={() => setIsCreatePostModalOpen(true)}
+                    {/* Was a second create button doing the exact same thing
+                        as the primary — now the follow half of the copy gets
+                        its CTA (suggestions live below the fold on mobile). */}
+                    <Link
+                      href="/explore"
                       className="w-full sm:w-auto bg-surface-sunken text-secondary px-6 py-3 rounded-lg hover:bg-gray-200 dark:hover:bg-stone-800 transition-colors font-medium"
                     >
-                      Create a post
-                    </button>
+                      <i className="fas fa-binoculars mr-2"></i>
+                      Find athletes
+                    </Link>
                   </div>
                 </div>
               ) : (

@@ -1,5 +1,53 @@
 # Development Log
 
+## August 22, 2026 — Launch-readiness round: handicap unlock + launch polish
+
+A launch-priorities audit found `ROADMAP_2026-07.md` badly stale — of its
+suspected gaps, password reset, OAuth code, the empty-feed experience,
+health/Sentry/CI/rate-limiting and the PWA baseline are all long since
+handled. What was actually pressing became this round:
+
+- **Handicap could never fire for real users** — the retention flagship
+  requires non-null course rating + slope (trends hard-filters), and while
+  the data path is intact end-to-end (composer → scorecard_data → mirror →
+  golf_rounds → trends, verified hop by hop), capture was broken three ways,
+  all fixed: (1) the inputs rendered only for unknown courses, buried in the
+  "Par & Yardage (Optional)" box — promoted into the main round card under
+  Tee Color with an "unlocks your estimated handicap" hint, visible for
+  every named course; (2) courses-you've-played suggestions carry ratings
+  keyed by the historical round's tee, and the white-only fallback filled
+  nothing for them — now falls back to any tee the course has; (3) no
+  backfill existed — round-detail edit now takes rating/slope, and the PATCH
+  writes them to `golf_scorecard_data` too when the round rides the group
+  rails, because **a golf_rounds-only backfill would be silently wiped by
+  the next re-mirror** (mirrorCompletedRound re-runs on late score edits).
+- **Untracked stats no longer read as disasters.** FIR/GIR columns are
+  nullable and the scorer only ever writes true/undefined, but the round
+  detail page rendered null GIR as a red ✗ and summed tiles over all holes —
+  an untracked round showed "0/9 FAIRWAYS, 0/9 GIR". New pure
+  `summarizeTrackedStat`/`trackedStatLabel` (lib/golf/round-display,
+  node-tested): tiles use tracked denominators, "—" when nothing tracked;
+  the GIR cell renders n/a like FIR; the GIR edit toggle is 3-state like
+  FIR's (the 2-state one forced null → false on every edit); the rounds
+  PATCH stops coercing missing GIR to false; participant-scores' `|| null`
+  became `?? null` (false is a tracked miss, 0 putts is a real value).
+  (This closes two items the polish sweep below had logged as backlog.)
+- **One hole-count vocabulary** — `holeCountLabel`: detail badge says
+  "9 of 18 holes" for a partial round; the list keeps configured + Partial.
+- **Feed empty state** — the second button was a duplicate of the first
+  (both opened the composer); it's now "Find athletes" → /explore, giving
+  the "following fills this feed" copy its CTA.
+- **Housekeeping** — .env.example gains the OAuth flags, feature flags and
+  the (deliberately disabled) golf-API groups, loses the dead
+  OPENAI_API_KEY; the stale "leave guardian unset until launch" comment in
+  features.ts corrected (launched Aug 19).
+- **docs/LAUNCH_RUNBOOK.md** — the four Tom-side ops gates as probed
+  checklists: GoDaddy zone → Resend verification (every app email 550s
+  today; blocks guardian invites + transfer codes), Supabase auth-email
+  SMTP/limits (a SEPARATE sender from app SMTP), Google OAuth enablement
+  (config-only; code shipped), device walkthrough. Roadmap-2026-07
+  explicitly demoted to historical.
+
 ## August 22, 2026 — Golf-loop polish sweep (QA pass + seven fixes)
 
 A hands-on QA drive of the whole core loop (signup → onboarding → solo

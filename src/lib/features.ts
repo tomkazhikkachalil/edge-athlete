@@ -16,10 +16,9 @@ export const FEATURE_FLAGS = {
   
   // Parent-managed athlete profiles (guardian/supervised/owner/viewer roles,
   // DOB-gated signup, transfer of control). Build-time env flag (same
-  // pattern as the OAuth provider flags): set
-  // NEXT_PUBLIC_FEATURE_GUARDIAN_PROFILES=1 locally to develop/test;
-  // leave unset in Vercel until launch. Migrations 048-051 must be run
-  // before this is ever enabled in an environment.
+  // pattern as the OAuth provider flags). LAUNCHED to prod Aug 19 2026 —
+  // the flag is SET in Vercel; keep it set. Migrations 048-051 must be run
+  // before this is ever enabled in a fresh environment.
   FEATURE_GUARDIAN_PROFILES: process.env.NEXT_PUBLIC_FEATURE_GUARDIAN_PROFILES === '1',
 
   // Personal calendar (events + invite loop). Build-time env flag: set

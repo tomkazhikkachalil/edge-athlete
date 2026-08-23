@@ -345,6 +345,8 @@ addition below as a promise to keep it true.
 - `database/MIGRATIONS.md` and `database/docs/` — migration ordering and the
   guardian reconciliation notes. SQL lives under `database/`, sorted into
   `migrations/`, `fixes/`, `features/`, `tests/` and `archive/`.
+- `docs/LAUNCH_RUNBOOK.md` — the pre-launch ops checklist (DNS/email, Supabase
+  auth email, OAuth enablement, device walkthrough). Console actions, not code.
 - `docs/` — roadmaps (`docs/ROADMAP_2026-07.md`, `docs/MULTI_SPORT_ROADMAP.md`), a
   security audit, and feature write-ups. **`docs/devlog/` is the OLD devlog** (entries
   001–010, superseded by `DEVLOG.md` at the repo root) — history, not current
