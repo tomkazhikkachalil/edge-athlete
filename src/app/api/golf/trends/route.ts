@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseAdmin, requireAuth } from '@/lib/auth-server';
 import { canViewProfile } from '@/lib/privacy';
-import { isHandicapEligible, scoreDifferential, handicapIndex } from '@/lib/golf/handicap';
+import { buildHandicapSeries, type EnrichedRound } from '@/lib/golf/handicap';
+import { rankStrokeIndexes } from '@/lib/golf/adjusted-gross';
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -96,13 +97,17 @@ export async function GET(request: NextRequest) {
     const firValues = series.map(p => p.fir_pct).filter((v): v is number => v !== null);
     const girValues = series.map(p => p.gir_pct).filter((v): v is number => v !== null);
 
-    // Handicap: WHS-style estimate from 18-hole rounds with rating+slope —
-    // independent of the page's holes/limit filters (its own light fetch).
+    // Handicap: WHS-style estimate — independent of the page's holes/limit
+    // filters (its own light fetch). 9-hole rounds now join via the WHS
+    // expected-score conversion, and hole-level scores enable the net-
+    // double-bogey adjusted gross; both live in buildHandicapSeries, which
+    // MUST be a chronological read-time recompute (each round's cap depends
+    // on the index as of that round — a stored value would be stale).
     const { data: hcRounds } = await supabase
       .from('golf_rounds')
-      .select('date, holes, gross_score, course_rating, slope_rating, created_at')
+      .select('id, date, holes, gross_score, course_rating, slope_rating, par, course_id, created_at')
       .eq('profile_id', profileId)
-      .eq('holes', 18)
+      .in('holes', [9, 18])
       .not('gross_score', 'is', null)
       .not('course_rating', 'is', null)
       .not('slope_rating', 'is', null)
@@ -110,19 +115,59 @@ export async function GET(request: NextRequest) {
       .order('created_at', { ascending: true })
       .limit(60);
 
-    const eligible = (hcRounds || []).filter(isHandicapEligible);
-    const diffs = eligible.map(r =>
-      scoreDifferential(r.gross_score as number, r.course_rating as number, r.slope_rating as number)
-    );
-    const currentHandicap = handicapIndex(diffs);
+    // Hole-level scores (for adjusted gross) + catalog stroke indexes (for
+    // exact net double bogey). Both optional per round; absence degrades to
+    // the pre-upgrade raw-gross behavior.
+    const roundIds = (hcRounds || []).map(r => r.id);
+    const { data: holeRows } = roundIds.length
+      ? await supabase
+          .from('golf_holes')
+          .select('round_id, hole_number, par, strokes')
+          .in('round_id', roundIds)
+          .order('hole_number', { ascending: true })
+      : { data: [] as never[] };
+    const holesByRound = new Map<string, Array<{ hole_number: number; par: number | null; strokes: number }>>();
+    for (const h of holeRows || []) {
+      const list = holesByRound.get(h.round_id) ?? [];
+      list.push(h);
+      holesByRound.set(h.round_id, list);
+    }
 
-    // Index-over-time: recompute after each eligible round (from the 3rd on)
-    const handicapSeries = eligible
-      .map((r, i) => {
-        const result = handicapIndex(diffs.slice(0, i + 1));
-        return result ? { date: r.date, index: result.index } : null;
-      })
-      .filter((p): p is { date: string; index: number } => p !== null);
+    const courseIds = [...new Set((hcRounds || []).map(r => r.course_id).filter((c): c is string => !!c))];
+    const { data: courseRows } = courseIds.length
+      ? await supabase.from('golf_courses').select('id, hole_data').in('id', courseIds)
+      : { data: [] as never[] };
+    const strokeIndexByCourse = new Map<string, Map<number, number>>();
+    for (const c of courseRows || []) {
+      const m = new Map<number, number>();
+      for (const h of (c.hole_data as Array<{ number: number; handicap?: number }> | null) ?? []) {
+        if (typeof h.handicap === 'number' && h.handicap > 0) m.set(h.number, h.handicap);
+      }
+      strokeIndexByCourse.set(c.id, m);
+    }
+
+    const enriched: EnrichedRound[] = (hcRounds || []).map(r => {
+      const holes = holesByRound.get(r.id);
+      // Every hole row needs a par to cap against; a round missing pars
+      // falls back to raw gross rather than a half-capped total.
+      const usable = holes && holes.length > 0 && holes.every(h => typeof h.par === 'number');
+      const si = r.course_id ? strokeIndexByCourse.get(r.course_id) : undefined;
+      return {
+        date: r.date,
+        holes: r.holes,
+        gross_score: r.gross_score,
+        course_rating: r.course_rating,
+        slope_rating: r.slope_rating,
+        par: r.par,
+        holeScores: usable ? holes!.map(h => ({ par: h.par as number, strokes: h.strokes })) : null,
+        allocations:
+          usable && si
+            ? rankStrokeIndexes(holes!.map(h => si.get(h.hole_number) ?? null))
+            : null,
+      };
+    });
+
+    const { series: handicapSeries, current: currentHandicap, diffs } = buildHandicapSeries(enriched);
 
     const summary = {
       rounds: series.length,
@@ -133,7 +178,7 @@ export async function GET(request: NextRequest) {
       avgFirPct: avg(firValues),
       avgGirPct: avg(girValues),
       handicapIndex: currentHandicap?.index ?? null,
-      handicapRounds: currentHandicap?.roundsCounted ?? eligible.length,
+      handicapRounds: currentHandicap?.roundsCounted ?? diffs.length,
     };
 
     return NextResponse.json({ series, summary, handicapSeries, isOwner: profileId === user.id });
