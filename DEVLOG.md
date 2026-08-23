@@ -1,5 +1,63 @@
 # Development Log
 
+## August 22, 2026 — Golf-loop polish sweep (QA pass + seven fixes)
+
+A hands-on QA drive of the whole core loop (signup → onboarding → solo
+"already played" round → live round with scoring/media → end → feed →
+rounds/detail/trends → public profile), headless system Chrome at 360/768/
+1280, disposable QA users against the real project. The loop WORKS end to
+end — scores save, media mirrors, the 099 rounds mirror verified again from
+the app path — and nothing overflowed horizontally at 360 anywhere. What the
+pass caught, all shipped in this round:
+
+- **Round cards showed yesterday's date.** `new Date('2026-08-22')` on the
+  date-only `group_posts.date` parses as UTC midnight, so every US timezone
+  rendered the previous day — while the calendar overlay, parsing the same
+  column part-wise, showed the right one. New `parseDateLocal` in
+  `lib/formatters` (node-tested); `formatDate` and both round cards
+  (QuickView/FullCard) now use it. The freeze on feed golf rendering is
+  about presentation; a wrong date is a correctness bug on any surface.
+- **Header "+" now composes everywhere.** On pages without their own
+  composer mount (explore, live, messages, calendar, settings…) the
+  fallback was `router.push('/athlete')` — it silently navigated instead of
+  composing (confirmed on six routes at two widths). It now hands off to
+  `/feed?create=1`, the same deep link the rounds page and onboarding CTA
+  already use. New `header-create.spec.ts` guards it from two such pages.
+- **Athletes get the Round-J treatment.** After athlete signup the user was
+  bounced to the login form to re-type credentials they'd entered seconds
+  earlier (parents got auto sign-in in Round J; athletes didn't). Same
+  pattern, same fallback if email confirmations ever get turned on; lands
+  on /onboarding.
+- **Signed-out pages no longer 401-poll.** `useLiveNow` (AppHeader mounts
+  it on every page, public ones included) and `LiveNowStrip` (mounted on
+  /explore, a genuine anonymous surface) polled the authenticated
+  /api/golf/live-now once a minute while signed out. Both now gate on user.
+- **Rounds/Trends have an entry point.** They were reachable only by direct
+  URL or the calendar overlay — the component carrying their nav links
+  (`MultiSportActivity`, 329 lines) was imported by nothing. New
+  `SportQuickLinks` renders the adapter's `getNavLinks()` as chips on the
+  own profile and as a card in the feed sidebar (both — Tom's call);
+  sport-agnostic, renders nothing for sports without dedicated pages.
+  `MultiSportActivity` is deleted along with the unconsumed
+  `getHighlightsForProfile`/`getActivityForProfile` wrappers; the adapter
+  interface keeps all its methods (`getNavLinks` regained a consumer).
+- **Composer preview dead buttons are gone.** `SharedRoundQuickView.
+  onExpand` is optional now; the preview's "View Full Scorecard"/"Manage"
+  buttons — wired to a documented no-op — don't render there. Feed and
+  /live pass real handlers, so their output is unchanged.
+- **Solo toast no longer promises to notify nobody** — the already-played
+  success toast adapts on participant count, same split the live branch had.
+
+Logged, not fixed (small backlog): signup's handle-check race leaves a
+stale "please wait" error after the check turns green (submit should await
+the in-flight check); PostCard's author row at 360 truncates the name hard
+and collapses the handle to a bare "@"; rounds list says "18 holes" where
+detail says "9 holes" for the same partial round; untracked FIR/GIR renders
+as 0/9 + per-hole ✗, which reads as all-misses. Probe-script lessons: the
+onboarding "stuck skip" was the harness racing the step-1 save re-render
+(app fine); scorer holes only save after the wheel is touched — Next alone
+deliberately skips.
+
 ## August 21, 2026 — Guardian Round J: parent ease-of-life (ARC COMPLETE)
 
 The gap-closure arc's final round — the parent's first hour, smoothed. No
