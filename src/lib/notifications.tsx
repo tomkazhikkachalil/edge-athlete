@@ -139,6 +139,10 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
         console.error('Failed to refresh notifications unread count — status:', response.status);
       }
     } catch (e) {
+      // Background poll: an abort or network blip (TypeError — offline,
+      // dev-server restart) is self-healing; only real failures stay loud.
+      if (e instanceof Error && e.name === 'AbortError') return;
+      if (e instanceof TypeError) return;
       console.error('Failed to refresh notifications unread count:', e);
     }
   }, [user]);
@@ -187,7 +191,10 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
       setNextCursor(data.next_cursor);
 
     } catch (e) {
-      console.error('Failed to fetch notifications:', e);
+      // Same background-refresh rule: quiet on abort/network blips.
+      if (!(e instanceof TypeError) && !(e instanceof Error && e.name === 'AbortError')) {
+        console.error('Failed to fetch notifications:', e);
+      }
     } finally {
       setLoading(false);
     }
