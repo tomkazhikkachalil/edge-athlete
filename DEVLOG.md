@@ -1,5 +1,41 @@
 # Development Log
 
+## August 23, 2026 — Course identity: logos, the official scorecard, calendar, explore
+
+The second half of Tom's course round (the first half is hole-by-hole GPS):
+
+- **Course logos** ride the existing logo.dev machinery: new `websiteDomain()`
+  in logo-dev.ts (course `website` values are provider free text — forgiving
+  in, strict out; tested) feeds `BrandLogo` (raw `<img>` by design — logo.dev
+  is not in remotePatterns, do NOT convert to next/image), with the
+  initial-letter tile as the supported no-logo state. `LogoDevAttribution`
+  renders wherever course logos do — same license duty as equipment.
+- **`CourseScorecardTable`** — the official tee sheet: holes across with
+  Out/In/Tot, Par + HCP rows, one yardage row per tee in `courseTeeOptions`
+  order (hardest first — the conventional tee-sheet order), rating/slope
+  after each tee label. `handicap === 0` means UNKNOWN (same `> 0` guard as
+  the trends route) and sparse yardage maps (GolfCourseAPI fills only tees
+  matching the reference tee's hole count) render "—", never 0. Wide table
+  scrolls inside its own `overflow-x-auto` (house rule).
+- **CourseInfoCard** grew the logo (top-left of the description block) and an
+  "Official scorecard" toggle. Data reality: full `hole_data` lives only in
+  the catalog — embeds hardcode `holes: []` — so the card lazy-fetches
+  `/api/golf/courses?id=` on first expand when the caller passed an embed
+  (the embeds carry the catalog id since the hole-by-hole PR).
+- **Calendar quick view**: `/api/golf/rounds/{id}` has embedded
+  `course_info:` since the maps round — `ActivityPreviewModal` was
+  discarding it. Now typed through and rendered as a CourseInfoCard beneath
+  the (frozen, untouched) `GolfRoundCard`.
+- **Explore**: selecting the golf chip reveals a "Golf Courses" section —
+  browse the catalog head, debounced search, tap a card to expand the info
+  card + scorecard in place. Guest-safe by construction (the courses API
+  needs no auth). Own loading state so typing never flashes the athletes
+  grid; 429 = quiet inline row; local catalog only — worldwide provider
+  search stays a composer-button behavior. Lint note: the section fetches
+  pure and applies state in async continuations (the explore page's own
+  inlined-IIFE shape) — `set-state-in-effect` correctly rejects the naive
+  call-a-setState-ing-function-from-an-effect version.
+
 ## August 23, 2026 — Hole-by-hole GPS: OSM golf geometry on the live map
 
 Tom: "it doesn't bring you to hole one, it just brings you to the general
