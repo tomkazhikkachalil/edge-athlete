@@ -8,7 +8,7 @@ import type { EmbeddedCourseInfo } from '@/types/group-posts';
 export function embeddedCourseToInfo(row: EmbeddedCourseInfo | null | undefined): GolfCourse | null {
   if (!row) return null;
   return {
-    id: 'embedded',
+    id: row.id,
     name: row.name,
     city: row.city ?? undefined,
     state: row.region ?? undefined,

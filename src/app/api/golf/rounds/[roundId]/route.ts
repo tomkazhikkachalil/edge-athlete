@@ -28,7 +28,7 @@ export async function GET(
         weather, temperature, wind, course_rating, slope_rating, notes,
         is_complete, created_at,
         course_info:golf_courses (
-          name, city, region, lat, lng, description, description_attribution,
+          id, name, city, region, lat, lng, description, description_attribution,
           architect, year_built, course_type, website
         ),
         golf_holes (
@@ -239,7 +239,7 @@ export async function PATCH(
         weather, temperature, wind, course_rating, slope_rating, notes,
         is_complete, created_at,
         course_info:golf_courses (
-          name, city, region, lat, lng, description, description_attribution,
+          id, name, city, region, lat, lng, description, description_attribution,
           architect, year_built, course_type, website
         ),
         golf_holes (

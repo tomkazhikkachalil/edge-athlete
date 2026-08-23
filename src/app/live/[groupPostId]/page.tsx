@@ -17,6 +17,7 @@ import CourseMap from '@/components/golf/CourseMap';
 import { nextHoleForScores } from '@/lib/golf/score-entry';
 import { useVisualViewportHeight } from '@/hooks/useVisualViewportHeight';
 import { embeddedCourseToInfo } from '@/lib/golf/course-info';
+import type { HoleGeometry } from '@/lib/golf/hole-geometry';
 import { formatDisplayName } from '@/lib/formatters';
 import type { CompleteGolfScorecard } from '@/types/group-posts';
 
@@ -45,6 +46,12 @@ export default function LiveRoundPage() {
   const [scoringHole, setScoringHole] = useState<number | null>(null);
   // Full-view switcher (owner UX call): Scorecard and Map each own the panel.
   const [tab, setTab] = useState<'score' | 'map'>('score');
+  // Per-hole OSM geometry (lazy: first Map open). undefined = not asked yet,
+  // null = asked, no unambiguous coverage (chip-only fallback).
+  const [holeGeo, setHoleGeo] = useState<HoleGeometry | null | undefined>(undefined);
+  // A hole the golfer stepped/tapped to on the map; null = follow the next
+  // unscored hole (and auto-advance as scores land).
+  const [viewedHole, setViewedHole] = useState<number | null>(null);
   // Publishes --vvh for the full-height shell (messages-page recipe).
   useVisualViewportHeight();
   // Auto-open once. STATE, not a ref: it is read during render (below), and a
@@ -99,6 +106,26 @@ export default function LiveRoundPage() {
     },
     [refresh]
   );
+
+  // Lazy per-hole geometry: fetched once, the first time the Map view opens.
+  // The 30-day cache lives server-side (migration 102); a null answer means
+  // OSM has no unambiguous holes here and the map keeps course-level behavior.
+  const embeddedCourseId = scorecard?.golf_data?.course?.id ?? null;
+  useEffect(() => {
+    if (tab !== 'map' || holeGeo !== undefined || !embeddedCourseId) return;
+    let cancelled = false;
+    fetch(`/api/golf/courses?id=${embeddedCourseId}&holes=1`, { credentials: 'include' })
+      .then(r => (r.ok ? r.json() : null))
+      .then(body => {
+        if (!cancelled) setHoleGeo((body?.geometry as HoleGeometry | null) ?? null);
+      })
+      .catch(() => {
+        if (!cancelled) setHoleGeo(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [tab, holeGeo, embeddedCourseId]);
 
   // Open the scorer once, during render rather than in an effect: the page has
   // just fetched, so there is nothing to refresh first, and an effect would
@@ -185,6 +212,32 @@ export default function LiveRoundPage() {
         scorecard.golf_data.hole_data ?? null
       )
     : null;
+
+  // The hole the Map view is ON: an explicit step/tap wins, else the next
+  // unscored hole; with geometry but a complete card, hole 1 (peeking a
+  // finished round is still useful). Without geometry this collapses to
+  // exactly the pre-geometry chip behavior.
+  const geoHoles = holeGeo?.holes ?? null;
+  const displayHole =
+    viewedHole ?? nextHole?.hole ?? (geoHoles && myParticipant ? geoHoles[0]?.hole ?? null : null);
+  const holeDataArr = scorecard.golf_data.hole_data ?? null;
+  const displayHoleDetail =
+    displayHole != null
+      ? {
+          par:
+            holeDataArr?.find(h => h.hole === displayHole)?.par ??
+            geoHoles?.find(h => h.hole === displayHole)?.par ??
+            null,
+          yardage: holeDataArr?.find(h => h.hole === displayHole)?.yardage ?? null,
+        }
+      : null;
+  const stepHole = (dir: 1 | -1) => {
+    if (!geoHoles?.length) return;
+    const current = displayHole ?? geoHoles[0].hole;
+    const idx = geoHoles.findIndex(h => h.hole === current);
+    const next = geoHoles[(Math.max(idx, 0) + dir + geoHoles.length) % geoHoles.length].hole;
+    setViewedHole(next);
+  };
 
   return (
     <div className="flex flex-col bg-canvas" style={{ height: 'var(--vvh, 100dvh)' }}>
@@ -310,10 +363,42 @@ export default function LiveRoundPage() {
             defaultLayer="satellite"
             enableTracking={roundOpen}
             autoTrack={roundOpen}
+            holes={geoHoles}
+            focusHole={tab === 'map' ? displayHole : null}
+            onHoleTap={h => setViewedHole(h)}
           />
-          {/* Current-hole chip — no per-hole geometry exists yet, so hole
-              accuracy = follow-the-player + this chip synced with scoring. */}
-          {nextHole ? (
+          {/* Current-hole chip. With OSM geometry it's a stepper — ‹ › walk
+              the course, tapping a tee label jumps, and the map fits each
+              hole. Without geometry it's the static chip synced to scoring. */}
+          {geoHoles && displayHole != null ? (
+            <div className="absolute left-14 top-3 z-[500] flex items-center rounded-lg border border-border bg-surface/90 shadow-sm">
+              <button
+                type="button"
+                aria-label="Previous hole"
+                onClick={() => stepHole(-1)}
+                className="min-h-[44px] min-w-[36px] flex items-center justify-center text-secondary ea-interactive rounded-l-lg"
+              >
+                <i className="fas fa-chevron-left text-xs" aria-hidden="true"></i>
+              </button>
+              <div className="px-1 text-sm font-bold text-primary whitespace-nowrap">
+                Hole {displayHole}
+                {displayHoleDetail?.par != null && (
+                  <span className="font-medium text-secondary"> · Par {displayHoleDetail.par}</span>
+                )}
+                {displayHoleDetail?.yardage != null && (
+                  <span className="font-medium text-secondary hidden sm:inline"> · {displayHoleDetail.yardage} yds</span>
+                )}
+              </div>
+              <button
+                type="button"
+                aria-label="Next hole"
+                onClick={() => stepHole(1)}
+                className="min-h-[44px] min-w-[36px] flex items-center justify-center text-secondary ea-interactive rounded-r-lg"
+              >
+                <i className="fas fa-chevron-right text-xs" aria-hidden="true"></i>
+              </button>
+            </div>
+          ) : nextHole ? (
             <div className="absolute left-14 top-3 z-[500] rounded-lg border border-border bg-surface/90 px-3 py-1.5 text-sm font-bold text-primary shadow-sm">
               Hole {nextHole.hole}
               {nextHole.par !== null && <span className="font-medium text-secondary"> · Par {nextHole.par}</span>}
@@ -324,14 +409,14 @@ export default function LiveRoundPage() {
               Card complete
             </div>
           ) : null}
-          {nextHole && entry.mode === 'score' && (
+          {displayHole != null && entry.mode === 'score' && (
             <button
               type="button"
-              onClick={() => openScorer(entry.participantId, nextHole.hole)}
+              onClick={() => openScorer(entry.participantId, displayHole)}
               className="absolute bottom-6 left-1/2 z-[500] -translate-x-1/2 inline-flex min-h-[48px] items-center gap-2 rounded-full bg-brand px-6 py-3 font-bold text-white shadow-lg hover:bg-brand-hover transition-colors"
             >
               <i className="fas fa-pen" aria-hidden="true"></i>
-              Score hole {nextHole.hole}
+              Score hole {displayHole}
             </button>
           )}
         </div>
@@ -431,6 +516,9 @@ export default function LiveRoundPage() {
           }}
           onClose={() => {
             setScoringParticipantId(null);
+            // Any explicit hole-peek is done once scoring closes — the map
+            // snaps back to following the (freshly advanced) next hole.
+            setViewedHole(null);
             void refresh();
           }}
         />
