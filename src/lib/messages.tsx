@@ -61,6 +61,11 @@ export function MessagesProvider({ children }: { children: ReactNode }) {
     } catch (e) {
       // Intentional abort (navigation, logout, unmount) is not a real failure.
       if (e instanceof Error && e.name === 'AbortError') return;
+      // Network-level failure (offline, dev-server restart, flaky radio)
+      // surfaces as a TypeError. This is a background poll: existing data
+      // stands and the next cycle retries — console.error here painted red
+      // dev-overlay errors for a self-healing blip.
+      if (e instanceof TypeError) return;
       console.error('Failed to refresh unread count:', e);
     }
   }, [user]);
@@ -79,6 +84,9 @@ export function MessagesProvider({ children }: { children: ReactNode }) {
     } catch (e) {
       // Intentional abort (navigation, logout, unmount) is not a real failure.
       if (e instanceof Error && e.name === 'AbortError') return;
+      // Same rule as refreshUnreadCount: a network blip on a background
+      // poll is not an error — data stands, the 30s cycle retries.
+      if (e instanceof TypeError) return;
       console.error('Failed to fetch conversations:', e);
     }
   }, [user]);
