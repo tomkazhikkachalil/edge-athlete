@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import type { GolfCourse } from '@/types/golf';
+import CourseMap from '@/components/golf/CourseMap';
 
 /**
  * About-this-course card under the composer's selected-course badge:
@@ -16,8 +17,16 @@ import type { GolfCourse } from '@/types/golf';
  * composer never pays the iframe cost unasked. Renders nothing at all for
  * courses with no extra data (history rows, custom courses).
  */
-export default function CourseInfoCard({ course }: { course: GolfCourse }) {
-  const [showMap, setShowMap] = useState(false);
+interface CourseInfoCardProps {
+  course: GolfCourse;
+  /** Round surfaces open the map immediately; the composer keeps the toggle. */
+  defaultOpen?: boolean;
+  /** Live round page only: the map offers device-geolocation tracking. */
+  enableTracking?: boolean;
+}
+
+export default function CourseInfoCard({ course, defaultOpen = false, enableTracking = false }: CourseInfoCardProps) {
+  const [showMap, setShowMap] = useState(defaultOpen);
   const hasCoords = typeof course.lat === 'number' && typeof course.lng === 'number';
   const metaBits = [
     course.architect && `Designed by ${course.architect}`,
@@ -33,12 +42,6 @@ export default function CourseInfoCard({ course }: { course: GolfCourse }) {
     : [course.name, course.city, course.state].filter(Boolean).join(', ');
   const mapsUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(mapsQuery)}`;
 
-  // A tight bbox around the pin (~1.4km across) keeps the embed zoomed to
-  // the course, not the continent.
-  const d = 0.007;
-  const embedUrl = hasCoords
-    ? `https://www.openstreetmap.org/export/embed.html?bbox=${course.lng! - d},${course.lat! - d},${course.lng! + d},${course.lat! + d}&layer=mapnik&marker=${course.lat},${course.lng}`
-    : null;
 
   return (
     <div className="mt-3 rounded-lg border border-border bg-surface-sunken p-3 text-left">
@@ -65,7 +68,7 @@ export default function CourseInfoCard({ course }: { course: GolfCourse }) {
           <i className="fas fa-map-marker-alt" aria-hidden="true"></i>
           View on map
         </a>
-        {embedUrl && (
+        {hasCoords && (
           <button
             type="button"
             onClick={() => setShowMap(v => !v)}
@@ -87,17 +90,14 @@ export default function CourseInfoCard({ course }: { course: GolfCourse }) {
           </a>
         )}
       </div>
-      {showMap && embedUrl && (
+      {showMap && hasCoords && (
         <div className="mt-2">
-          <iframe
-            src={embedUrl}
-            title={`Map of ${course.name}`}
-            className="h-64 w-full rounded-lg border border-border"
-            loading="lazy"
+          <CourseMap
+            lat={course.lat!}
+            lng={course.lng!}
+            courseName={course.name}
+            enableTracking={enableTracking}
           />
-          <p className="mt-1 text-[10px] text-faint">
-            Map © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer" className="underline">OpenStreetMap</a> contributors
-          </p>
         </div>
       )}
     </div>
