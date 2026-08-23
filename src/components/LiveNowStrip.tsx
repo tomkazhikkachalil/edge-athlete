@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { useAuth } from '@/lib/auth';
 import LazyImage from './LazyImage';
 import { formatDisplayName, getInitials } from '@/lib/formatters';
 import { liveRoundPath } from '@/lib/golf/round-route';
@@ -44,12 +45,16 @@ const REFRESH_MS = 60_000;
  */
 export default function LiveNowStrip({ variant = 'strip', showEmptyState = false, hideHeading = false }: LiveNowStripProps) {
   const router = useRouter();
+  const { user } = useAuth();
   const [rounds, setRounds] = useState<LiveRound[]>([]);
 
   // Inlined cancellable IIFE. The 60s poll calls the SAME effect-local
   // closure, so the cancelled flag also stops a late poll response landing
-  // after unmount.
+  // after unmount. Gated on user: /explore mounts this strip for signed-out
+  // guests, and the endpoint is authenticated — polling it anonymously is a
+  // guaranteed 401 every minute.
   useEffect(() => {
+    if (!user) return;
     let cancelled = false;
     const run = async () => {
       try {
@@ -65,7 +70,7 @@ export default function LiveNowStrip({ variant = 'strip', showEmptyState = false
       cancelled = true;
       clearInterval(interval);
     };
-  }, []);
+  }, [user]);
 
   if (rounds.length === 0) {
     if (!showEmptyState) return null;

@@ -12,6 +12,7 @@ import LazyImage from '@/components/LazyImage';
 import ProfileMediaTabs from '@/components/ProfileMediaTabs';
 import FeaturedPosts from '@/components/FeaturedPosts';
 import StatementsRail from '@/components/StatementsRail';
+import SportQuickLinks from '@/components/SportQuickLinks';
 import AvatarUploader from '@/components/AvatarUploader';
 import CoverPhotoUploader from '@/components/CoverPhotoUploader';
 import PostDetailModal from '@/components/PostDetailModal';
@@ -747,6 +748,15 @@ export default function AthleteProfilePage() {
                       </div>
                     )}
                   </div>
+
+                  {/* Quick links to the sport's dedicated pages (rounds,
+                      trends) — adapter-declared, renders nothing for sports
+                      without them. Own-profile only: these are YOUR stats. */}
+                  {profile?.sport && (
+                    <div className="mb-4">
+                      <SportQuickLinks sport={profile.sport} />
+                    </div>
+                  )}
 
                   {/* Biography - View only, edit in modal */}
                   <div className="text-primary leading-relaxed mb-4 block">

@@ -196,7 +196,13 @@ export async function submitSharedRound<M extends { type: 'image' | 'video' }>(
         : 'Round is LIVE! 🔴'
     );
   } else {
-    showSuccess('Round posted! Participants will be notified. 🎉');
+    // Same participant-aware split the live branch gets: a solo round has
+    // nobody to notify, so saying so reads like a bug.
+    showSuccess(
+      sharedRoundParticipants.length > 0
+        ? 'Round posted! Participants will be notified. 🎉'
+        : 'Round posted! 🎉'
+    );
   }
 
   return groupPostResult.group_post;

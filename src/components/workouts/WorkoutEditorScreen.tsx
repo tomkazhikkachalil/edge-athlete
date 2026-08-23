@@ -26,6 +26,7 @@ import {
 } from '@/lib/workouts/summary';
 import { detectPRs, type PRCandidate } from '@/lib/workouts/pr-detection';
 import { serverToEntries, type ServerWorkoutSession } from '@/lib/workouts/serialize';
+import { localDayKey } from '@/lib/calendar/grid';
 
 type Phase = 'editing' | 'summary' | 'share';
 
@@ -77,7 +78,7 @@ export default function WorkoutEditorScreen({ mode, session, currentUserId, init
   const [finishing, setFinishing] = useState(false);
 
   // Manual-mode fields
-  const [manualDate, setManualDate] = useState(() => new Date().toISOString().slice(0, 10));
+  const [manualDate, setManualDate] = useState(() => localDayKey(new Date()));
   const [manualDurationMin, setManualDurationMin] = useState<number | ''>('');
 
   // Post-finish state
@@ -643,7 +644,7 @@ export default function WorkoutEditorScreen({ mode, session, currentUserId, init
                 type="date"
                 value={manualDate}
                 onChange={e => setManualDate(e.target.value)}
-                max={new Date().toISOString().slice(0, 10)}
+                max={localDayKey(new Date())}
                 className="px-2 py-2 border border-border-strong rounded-lg text-sm bg-surface focus:outline-none focus:ring-2 focus:ring-violet-500"
                 aria-label="Workout date"
               />

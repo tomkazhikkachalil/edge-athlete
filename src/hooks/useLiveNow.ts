@@ -54,11 +54,18 @@ async function fetchLiveCount(): Promise<number> {
   return count;
 }
 
-/** Number of rounds currently live. 0 until the first answer arrives. */
-export function useLiveNow(): number {
+/**
+ * Number of rounds currently live. 0 until the first answer arrives.
+ *
+ * `enabled` gates the fetch on having a session: the endpoint is
+ * authenticated, so polling it signed-out (AppHeader renders on public
+ * pages) can only ever produce a 401 per minute of console noise.
+ */
+export function useLiveNow(enabled: boolean = true): number {
   const [count, setCount] = useState(cachedCount ?? 0);
 
   useEffect(() => {
+    if (!enabled) return;
     subscribers.add(setCount);
 
     // Reuse a recent answer rather than refetching on every navigation. No
@@ -73,7 +80,7 @@ export function useLiveNow(): number {
       subscribers.delete(setCount);
       clearInterval(interval);
     };
-  }, []);
+  }, [enabled]);
 
-  return count;
+  return enabled ? count : 0;
 }

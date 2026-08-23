@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { formatDisplayName, getInitials } from '@/lib/formatters';
+import { formatDisplayName, getInitials, parseDateLocal } from '@/lib/formatters';
 import { isRoundLive, isActiveParticipant, effectiveRoundStatus } from '@/lib/golf/round-status';
 import { asGameFormat, calcStablefordTotal, calcMatchStatus, GAME_FORMAT_LABELS } from '@/lib/golf/formats';
 import { useEndRound } from '@/hooks/useEndRound';
@@ -14,7 +14,9 @@ import type { CompleteGolfScorecard } from '@/types/group-posts';
 
 interface SharedRoundQuickViewProps {
   scorecard: CompleteGolfScorecard;
-  onExpand: () => void;
+  /** Opens the full scorecard. Omit it (composer preview) and the expand/
+   *  manage buttons don't render — a preview has nothing to expand into. */
+  onExpand?: () => void;
   currentUserId?: string;
   /** True when the last live refresh failed AND the round is still live —
    *  already gated by `useSharedRound`, so this surface just renders it. */
@@ -54,8 +56,11 @@ export default function SharedRoundQuickView({
     declined: participants.filter(p => p.participant.status === 'declined').length,
   };
 
-  // Format date
-  const formattedDate = new Date(group_post.date).toLocaleDateString('en-US', {
+  // Format date. parseDateLocal, not new Date(): group_posts.date is a
+  // date-only string, which new Date() reads as UTC midnight — the card
+  // showed yesterday's date in any US timezone while the calendar overlay
+  // (parsing the same column safely) showed the right day.
+  const formattedDate = parseDateLocal(group_post.date).toLocaleDateString('en-US', {
     month: 'short',
     day: 'numeric',
     year: 'numeric'
@@ -353,13 +358,15 @@ export default function SharedRoundQuickView({
           buttons (~300px intrinsic) — inside a 320px feed card they wrap to a
           second line instead of overflowing sideways. */}
       <div className="flex items-center justify-between gap-2 flex-wrap">
-        <button
-          onClick={onExpand}
-          className="flex-1 flex items-center justify-center gap-2 bg-brand hover:bg-brand-hover text-white font-bold py-2 px-4 rounded-lg transition-colors text-sm min-h-[44px]"
-        >
-          <i className="fas fa-table"></i>
-          View Full Scorecard
-        </button>
+        {onExpand && (
+          <button
+            onClick={onExpand}
+            className="flex-1 flex items-center justify-center gap-2 bg-brand hover:bg-brand-hover text-white font-bold py-2 px-4 rounded-lg transition-colors text-sm min-h-[44px]"
+          >
+            <i className="fas fa-table"></i>
+            View Full Scorecard
+          </button>
+        )}
 
         {/* End Round — visible right on the card so a creator never has to
             discover the modal to finish a partial round. Keyed on RAW status
@@ -377,7 +384,7 @@ export default function SharedRoundQuickView({
           </button>
         )}
 
-        {isOwner && (
+        {isOwner && onExpand && (
           <button
             onClick={onExpand}
             className="flex items-center justify-center gap-2 bg-brand hover:bg-brand-hover text-white font-bold py-2 px-4 rounded-lg transition-colors text-sm min-h-[44px]"

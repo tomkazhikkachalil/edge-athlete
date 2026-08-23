@@ -68,14 +68,25 @@ export const formatAge = (dob: string | null | undefined): string => {
   }
 };
 
+// A DATE-column value ("2026-08-22") fed to new Date() parses as UTC
+// midnight, so any US timezone renders the PREVIOUS day. Parse the parts
+// into a local date instead — same guard the calendar overlay uses for
+// group_posts.date (activity-overlay.ts).
+const DATE_ONLY_RE = /^(\d{4})-(\d{2})-(\d{2})$/;
+export const parseDateLocal = (dateString: string): Date => {
+  const m = DATE_ONLY_RE.exec(dateString);
+  if (m) return new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
+  return new Date(dateString);
+};
+
 // Date formatting: ISO -> human readable
 export const formatDate = (dateString: string | null | undefined): string => {
   if (!dateString) return "—";
-  
+
   try {
-    const date = new Date(dateString);
+    const date = parseDateLocal(dateString);
     if (isNaN(date.getTime())) return "—";
-    
+
     return date.toLocaleDateString('en-US', {
       year: 'numeric',
       month: 'short',

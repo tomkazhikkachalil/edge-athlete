@@ -8,6 +8,7 @@
 
 import { getStatSchema, type StatLineData } from '@/lib/sports/stat-schemas';
 import { getSportDefinition, type SportKey } from '@/lib/sports/SportRegistry';
+import { localDayKey } from '@/lib/calendar/grid';
 
 interface StatLineFormProps {
   sportKey: SportKey;
@@ -19,7 +20,7 @@ export function emptyStatLine(sportKey: SportKey): StatLineData {
   return {
     type: 'stat_line',
     sport_key: sportKey,
-    date: new Date().toISOString().slice(0, 10),
+    date: localDayKey(new Date()),
     stats: {},
   };
 }
