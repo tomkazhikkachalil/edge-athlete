@@ -265,12 +265,17 @@ export default function GolfComposerSection({
       ...prev,
       courseName: course.name,
       // Rating/slope feed handicap differentials — carry the selected tee's
-      // values (fall back to white, the same default the yardage uses).
+      // values, falling back to white, then to ANY tee the course has:
+      // courses-you've-played suggestions carry ratings keyed by whichever
+      // tee the historical round used (e.g. only `blue`), so the white-only
+      // fallback silently filled nothing for them.
       courseRating: String(
-        course.courseRating?.[teeColor || 'white'] ?? course.courseRating?.white ?? prev.courseRating ?? ''
+        course.courseRating?.[teeColor || 'white'] ?? course.courseRating?.white ??
+          Object.values(course.courseRating ?? {})[0] ?? prev.courseRating ?? ''
       ),
       slopeRating: String(
-        course.slopeRating?.[teeColor || 'white'] ?? course.slopeRating?.white ?? prev.slopeRating ?? ''
+        course.slopeRating?.[teeColor || 'white'] ?? course.slopeRating?.white ??
+          Object.values(course.slopeRating ?? {})[0] ?? prev.slopeRating ?? ''
       ),
     }));
     setCourseSearchOpen(false);
@@ -825,6 +830,47 @@ export default function GolfComposerSection({
                     </select>
                   </div>
                 )}
+
+                {/* Course rating & slope — the key that unlocks the computed
+                    handicap (trends hard-requires both, non-null, 18 holes).
+                    Promoted OUT of the buried "Par & Yardage (Optional)" box:
+                    DB/history courses auto-fill these on pick (visible and
+                    editable here), custom courses get typed in. Shown once a
+                    course is named; still optional — never a gauntlet. */}
+                {sharedRoundDetails.courseName && (
+                  <div className="mb-4">
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className={GOLF_LABEL}>Course Rating (optional)</label>
+                        <input
+                          type="number"
+                          step="0.1"
+                          min="50"
+                          max="90"
+                          value={sharedRoundDetails.courseRating}
+                          onChange={(e) => setSharedRoundDetails(prev => ({ ...prev, courseRating: e.target.value }))}
+                          placeholder="e.g. 72.4"
+                          className={GOLF_INPUT_COMPACT}
+                        />
+                      </div>
+                      <div>
+                        <label className={GOLF_LABEL}>Slope Rating (optional)</label>
+                        <input
+                          type="number"
+                          min="55"
+                          max="155"
+                          value={sharedRoundDetails.slopeRating}
+                          onChange={(e) => setSharedRoundDetails(prev => ({ ...prev, slopeRating: e.target.value }))}
+                          placeholder="e.g. 128"
+                          className={GOLF_INPUT_COMPACT}
+                        />
+                      </div>
+                    </div>
+                    <p className="mt-1.5 text-xs text-tertiary">
+                      18-hole rounds with a course rating and slope unlock your estimated handicap — both are on the course&apos;s scorecard.
+                    </p>
+                  </div>
+                )}
               </div>
 
               {/* Manual Par & Yardage Entry - White Box (when course not in database) */}
@@ -839,37 +885,9 @@ export default function GolfComposerSection({
                       <span className="text-xs text-tertiary">Optional - adds Par & Yardage to scorecard</span>
                     </div>
 
-                    {/* Optional course rating/slope for custom courses —
-                        feeds handicap differentials (DB courses auto-fill
-                        these from the selected tee). */}
-                    <div className="grid grid-cols-2 gap-3 mb-3">
-                      <div>
-                        <label className={GOLF_LABEL}>Course Rating</label>
-                        <input
-                          type="number"
-                          step="0.1"
-                          min="50"
-                          max="90"
-                          value={sharedRoundDetails.courseRating}
-                          onChange={(e) => setSharedRoundDetails(prev => ({ ...prev, courseRating: e.target.value }))}
-                          placeholder="e.g. 72.4"
-                          className={GOLF_INPUT_COMPACT}
-                        />
-                      </div>
-                      <div>
-                        <label className={GOLF_LABEL}>Slope Rating</label>
-                        <input
-                          type="number"
-                          min="55"
-                          max="155"
-                          value={sharedRoundDetails.slopeRating}
-                          onChange={(e) => setSharedRoundDetails(prev => ({ ...prev, slopeRating: e.target.value }))}
-                          placeholder="e.g. 128"
-                          className={GOLF_INPUT_COMPACT}
-                        />
-                      </div>
-                    </div>
-
+                    {/* Rating/slope inputs used to live here, invisible to
+                        anyone who picked a DB course — they moved up into the
+                        main round-details card next to Tee Color. */}
                     <div className="max-h-64 overflow-y-auto overscroll-contain">
                       <div className="grid grid-cols-1 gap-3">
                         {Array.from({ length: sharedRoundDetails.holesPlayed }, (_, i) => {
