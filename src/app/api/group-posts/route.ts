@@ -336,7 +336,17 @@ export async function POST(request: NextRequest) {
         .insert({
           group_post_id: groupPost.id,
           course_name: golf_data.course_name,
-          course_id: golf_data.course_id ?? null,
+          // Null-guard, don't trust: course_id gained an FK to golf_courses
+          // (migration 100), so a stray non-UUID (e.g. a `history-*` id)
+          // would fail the ATOMIC round create. A bad link is droppable; the
+          // round is not. (A well-formed UUID pointing at a deleted catalog
+          // row could still trip the FK, but catalog rows are never deleted
+          // in practice — accepted.)
+          course_id:
+            typeof golf_data.course_id === 'string' &&
+            /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(golf_data.course_id)
+              ? golf_data.course_id
+              : null,
           round_type: golf_data.round_type,
           hole_data: sanitizedHoleData && sanitizedHoleData.length > 0 ? sanitizedHoleData : null,
           ...(golf_data.game_format !== undefined ? { game_format: golf_data.game_format } : {}),
