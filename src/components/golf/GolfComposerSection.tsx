@@ -24,6 +24,7 @@ import { useState, useCallback, useRef, useEffect } from 'react';
 import { useAuth } from '@/lib/auth';
 import { hasAnyEnteredScore, resizePlayerScores } from '@/lib/golf/score-entry';
 import { localDayKey } from '@/lib/calendar/grid';
+import { courseTeeOptions, teeLabel, FALLBACK_TEES } from '@/lib/golf/tees';
 import { useDebouncedCallback } from '@/hooks/useDebouncedCallback';
 import { usePopoverDismiss } from '@/hooks/usePopoverDismiss';
 import TagPeopleModal from '@/components/TagPeopleModal';
@@ -641,7 +642,14 @@ export default function GolfComposerSection({
                         if (selectedCourse && e.target.value !== selectedCourse.name) {
                           setSelectedCourse(null);
                           selectedCourseIdRef.current = null;
-                          setSharedRoundDetails(prev => ({ ...prev, courseId: null, holesPlayed: 18 }));
+                          setSharedRoundDetails(prev => ({
+                            ...prev,
+                            courseId: null,
+                            holesPlayed: 18,
+                            // A course-specific tee name means nothing on a
+                            // hand-typed course — keep only classic colors.
+                            teeColor: (FALLBACK_TEES as readonly string[]).includes(prev.teeColor) ? prev.teeColor : '',
+                          }));
                         }
                       }}
                       onFocus={() => {
@@ -858,23 +866,51 @@ export default function GolfComposerSection({
                   )}
                 </div>
 
-                {/* Tee Color (optional, outdoor only) */}
+                {/* Tees (optional, outdoor only) — a catalog course lists
+                    its REAL tees (hardest first); picking one re-fills that
+                    tee's exact rating/slope and per-hole yardages. Custom
+                    and history courses keep the classic five colors. */}
                 {sharedRoundDetails.roundTypeIndoorOutdoor === 'outdoor' && (
                   <div className="mb-4">
                     <label className={GOLF_LABEL}>
-                      Tee Color (optional)
+                      {selectedCourse ? 'Tees (optional)' : 'Tee Color (optional)'}
                     </label>
                     <select
                       value={sharedRoundDetails.teeColor}
-                      onChange={(e) => setSharedRoundDetails(prev => ({ ...prev, teeColor: e.target.value }))}
+                      onChange={(e) => {
+                        const tee = e.target.value;
+                        const course = selectedCourse;
+                        setSharedRoundDetails(prev => ({
+                          ...prev,
+                          teeColor: tee,
+                          // Re-fill THIS tee's rating/slope (the flagged
+                          // follow-up from the catalog round — tee changes
+                          // used to leave the old tee's numbers standing).
+                          ...(course && tee
+                            ? {
+                                courseRating: String(
+                                  course.courseRating?.[tee] ??
+                                    Object.values(course.courseRating ?? {})[0] ?? prev.courseRating ?? ''
+                                ),
+                                slopeRating: String(
+                                  course.slopeRating?.[tee] ??
+                                    Object.values(course.slopeRating ?? {})[0] ?? prev.slopeRating ?? ''
+                                ),
+                              }
+                            : {}),
+                        }));
+                        if (course && tee) {
+                          setCourseHoleData(
+                            deriveCourseHoles(course, tee, course.holesCount === 9 ? 9 : 18, 1)
+                          );
+                        }
+                      }}
                       className={GOLF_SELECT}
                     >
-                      <option value="">Select tee color</option>
-                      <option value="black">Black</option>
-                      <option value="blue">Blue</option>
-                      <option value="white">White</option>
-                      <option value="red">Red</option>
-                      <option value="gold">Gold</option>
+                      <option value="">{selectedCourse ? 'Select tees' : 'Select tee color'}</option>
+                      {courseTeeOptions(selectedCourse).map(key => (
+                        <option key={key} value={key}>{teeLabel(key)}</option>
+                      ))}
                     </select>
                   </div>
                 )}

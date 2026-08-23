@@ -85,7 +85,10 @@ export async function GET(request: NextRequest) {
           if (!key || seen.has(key)) continue;
           seen.add(key);
           const [city = '', state = ''] = (r.course_location || '').split(',').map((x: string) => x.trim());
-          const tee = ['black', 'blue', 'white', 'gold', 'red'].includes(r.tee) ? r.tee : 'white';
+          // Free-text tees are legal now (catalog courses store real tee
+          // names like "championship") — the old five-color whitelist keyed
+          // such a round's rating under 'white', silently wrong.
+          const tee = (r.tee ?? '').trim().toLowerCase() || 'white';
           const course: GolfCourse = {
             id: `history-${key.replace(/[^a-z0-9]+/g, '-')}`,
             name: r.course.trim(),
