@@ -12,21 +12,32 @@ saved.
 ## 1. Email deliverability — BLOCKING (every app email 550s today)
 
 The app sends through Resend as an SMTP relay (`SMTP_*` vars in Vercel), but
-the sending domain has never verified because the **GoDaddy zone for
-`edgeathlete.ca` is unpublished** — so SPF/DKIM can't resolve and Resend
-rejects sends with 550. Context: DEVLOG entries around Aug 21 (guardian arc
-wrap-up). Broken until fixed: **guardian invites** (a minor signing up gets
-parked with no email to the parent), **transfer verification codes**, contact
-form, calendar invites, digest.
+the sending domain has never verified. Broken until fixed: **guardian
+invites** (a minor signing up gets parked with no email to the parent),
+**transfer verification codes**, contact form, calendar invites, digest.
 
-- [ ] GoDaddy → My Products → `edgeathlete.ca` → DNS: confirm the zone is
-      **published/active** (this has been the actual blocker — records can't
-      exist in an unpublished zone).
-- [ ] Resend dashboard → Domains → `edgeathlete.ca`: copy the SPF TXT record
-      and the DKIM CNAME records it lists.
-- [ ] GoDaddy DNS → add those records exactly as shown.
-- [ ] Resend → Domains: wait for status to flip to **Verified** (can take up
-      to an hour; DNS propagation).
+**State verified Aug 23 2026 (guided ops session):** the GoDaddy zone IS now
+published (`ns69/ns70.domaincontrol.com` answer; root records resolve) — the
+historical "unpublished zone" blocker is gone. What's missing is purely the
+four Resend records below (none resolve yet). Tom deferred adding them until
+go-live; this table is exactly what Resend listed for `edgeathlete.ca`
+(us-east-1), transcribed for GoDaddy's form — **GoDaddy appends
+`.edgeathlete.ca` to the Name field itself**, so enter ONLY the short names:
+
+| Type | Name        | Value | Notes |
+|------|-------------|-------|-------|
+| TXT  | `send`      | `v=spf1 include:amazonses.com ~all` | |
+| MX   | `send`      | `feedback-smtp.us-east-1.amazonses.com` | Priority 10 |
+| TXT  | `resend._domainkey` | the long `p=MIGf…` DKIM value from the Resend dashboard | ONE unbroken string |
+| TXT  | `_dmarc`    | `v=DMARC1; p=none;` | |
+
+Leave every EXISTING record alone — the root `v=spf1
+include:secureserver.net -all` TXT is the Microsoft 365 mail setup and Resend
+does not need it changed. TTL: GoDaddy's default (1 hour) is fine.
+
+- [ ] GoDaddy DNS → add the four records above.
+- [ ] Resend → Domains → `edgeathlete.ca` → **Verify** → status flips to
+      **Verified** (usually minutes, up to an hour).
 - [ ] **Probe:** submit the prod contact form (or trigger any guarded send)
       and confirm the email lands in a real inbox — check spam too.
 
@@ -47,26 +58,21 @@ emails per hour — fine for testing, not for 100 signups.
       browser and a new password works. Also probe the signup-confirmation
       resend button if confirmations are on.
 
-## 3. Google sign-in — code-complete, config-only
+## 3. Google sign-in — config VERIFIED wired; only the human round-trip left
 
-The buttons render on the login page and both signup branches the moment the
-flag is set; `/auth/callback` handles the PKCE exchange and the
-`ea-signup-role` cookie routes OAuth parents to a parent profile.
+**Probed Aug 23 2026 (headless, signed-out prod):** "Continue with Google"
+renders on the login page and clicking it lands on the real
+`accounts.google.com` sign-in — which proves the Supabase provider is
+enabled with valid credentials AND the redirect URI is accepted. Every
+console checkbox below is therefore already done:
 
-- [ ] Google Cloud Console → APIs & Services → Credentials → OAuth client:
-      - Authorized JavaScript origins: the prod domain.
-      - Authorized redirect URI: `https://<project-ref>.supabase.co/auth/v1/callback`.
-- [ ] Supabase → Authentication → Providers → Google: enable, paste client ID
-      + secret.
-- [ ] Supabase → Authentication → URL Configuration: prod domain in Site URL +
-      redirect allow-list (should already be there).
-- [ ] Vercel → Settings → Environment Variables → `NEXT_PUBLIC_OAUTH_GOOGLE=1`
-      (Production) → **redeploy** (the flag is inlined at build time — no
-      redeploy, no buttons).
-- [ ] **Probe:** signed-out prod → "Continue with Google" appears on login AND
-      on the athlete + parent signup branches → complete a Google signup with
-      a throwaway account → athlete path lands in complete-profile/onboarding;
-      parent path creates a PARENT profile (not an athlete).
+- [x] Google Cloud Console OAuth client (origins + redirect URI).
+- [x] Supabase → Authentication → Providers → Google enabled.
+- [x] `NEXT_PUBLIC_OAUTH_GOOGLE=1` in Vercel prod (buttons render).
+- [ ] **Probe (the one remaining step — needs a human):** complete a Google
+      signup with a throwaway account → athlete path lands in
+      complete-profile/onboarding; parent path creates a PARENT profile (not
+      an athlete). The `ea-signup-role` cookie does the routing.
 
 ## 4. Pre-launch device walkthrough
 
@@ -83,6 +89,17 @@ Flow list: `docs/qa-test-guide.md`, plus these launch-round additions:
 - [ ] A round with untracked fairways/greens shows "—", not 0/9 with ✗.
 - [ ] Guardian funnel end-to-end **after #1 is green** (the invite email is
       the step that's been dark).
+
+## 5. (Optional decision) Custom domain — currently NOT pointed at Vercel
+
+Found Aug 23: `edgeathlete.ca`'s root A records are GoDaddy forwarding IPs —
+the app lives only at `edge-athlete.vercel.app`. This is NOT a launch gate,
+but it is a decision: either consciously launch on the vercel.app URL, or
+point the domain at Vercel BEFORE launch (Vercel → Project → Domains → add
+`edgeathlete.ca` + `www`, set the records Vercel prescribes in GoDaddy, THEN
+extend Supabase URL Configuration + the Google OAuth client origins with the
+new domain). Half-doing this is the only dangerous option — OAuth redirects
+and auth emails break if the domain flips without the config following.
 
 ---
 
