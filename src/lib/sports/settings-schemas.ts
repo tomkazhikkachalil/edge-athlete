@@ -132,9 +132,10 @@ export const SPORT_SETTINGS_SCHEMAS: Partial<Record<SportKey, SportSettingsSchem
         label: 'Handicap Index',
         // The profile also shows a WHS-style estimate derived from logged
         // rounds (`/api/golf/trends`), labelled there as "Handicap est." and
-        // "not an official index". "Official" is the symmetric word, so the
-        // two numbers can never be read as the same measurement.
-        displayLabel: 'Official Handicap',
+        // "not an official index". "Official … (self-reported)" is the
+        // symmetric-and-honest phrasing: the two numbers can never be read
+        // as the same measurement, and we never imply we verified this one.
+        displayLabel: 'Official index (self-reported)',
         kind: 'number',
         placeholder: '12.4',
         step: 0.1,
