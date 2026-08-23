@@ -1389,11 +1389,6 @@ function PostPreview({
                           userId,
                           holeParSource
                         )}
-                        onExpand={() => {
-                          // In preview mode, we can just show a message or do nothing
-                          // The full scorecard modal would require more state management
-                          // For now, the button will be visible but won't do anything special in preview
-                        }}
                         currentUserId={userId}
                       />
                     </div>
