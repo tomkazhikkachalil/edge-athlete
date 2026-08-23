@@ -48,15 +48,21 @@ export interface GolfSharedRoundDetails {
   weather: string;
   temperature: string;
   wind: string;
-  /** Course rating/slope for handicap differentials — auto-filled from a DB
-   *  course's selected tee, manually enterable for custom courses. Strings
-   *  because they are input values; submit parses. */
+  /** Course rating/slope for handicap differentials — auto-filled from a
+   *  catalog course's selected tee, manually enterable for custom courses.
+   *  Strings because they are input values; submit parses. */
   courseRating: string;
   slopeRating: string;
+  /** golf_courses.id when the pick came from the catalog; null for custom
+   *  and courses-you've-played rows. Feeds golf_scorecard_data.course_id. */
+  courseId: string | null;
   /** "Already played" rounds post as FINAL immediately (no LIVE badge, no
    *  resume banner) — for logging rounds after the fact */
   alreadyPlayed: boolean;
 }
+
+/** Catalog course ids are golf_courses UUIDs; history rows use `history-*`. */
+const UUID_SHAPE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 /** The first hole NUMBER of the round's card (back-9 → 10). */
 export function composerStartingHole(d: Pick<GolfSharedRoundDetails, 'holesPlayed' | 'startingHole'>): number {
@@ -101,6 +107,7 @@ export function defaultGolfComposerValue(): GolfComposerValue {
       wind: '',
       courseRating: '',
       slopeRating: '',
+      courseId: null,
       alreadyPlayed: false,
     },
     sharedRoundParticipants: [],
@@ -153,6 +160,7 @@ export default function GolfComposerSection({
     wind: '',
     courseRating: '',
     slopeRating: '',
+    courseId: null,
     // "Already played" rounds post as FINAL immediately (no LIVE badge, no
     // resume banner) — for logging rounds after the fact
     alreadyPlayed: false,
@@ -182,16 +190,24 @@ export default function GolfComposerSection({
   // Search for golf courses (for shared rounds). Debounced + abortable: it is
   // called straight out of the input's onChange, so undebounced it fired one
   // request per keystroke. Suggestions start at 1 character.
-  const runCourseSearch = useCallback(async (signal: AbortSignal, query: string) => {
+  //
+  // `global` rides only on the explicit "search worldwide" button — the
+  // server hits external providers for that flag, never for typeahead.
+  const [globalSearchAvailable, setGlobalSearchAvailable] = useState(false);
+  const [catalogAttribution, setCatalogAttribution] = useState<string | null>(null);
+  const [globalSearchedFor, setGlobalSearchedFor] = useState<string | null>(null);
+  const runCourseSearch = useCallback(async (signal: AbortSignal, query: string, global?: boolean) => {
     setSearchLoading(true);
     try {
       const response = await fetch(
-        `/api/golf/courses?q=${encodeURIComponent(query)}&limit=8`,
+        `/api/golf/courses?q=${encodeURIComponent(query)}&limit=8${global ? '&global=1' : ''}`,
         { signal }
       );
       if (response.ok) {
         const data = await response.json();
         setAvailableCourses(data.courses || []);
+        setGlobalSearchAvailable(!!data.globalAvailable);
+        setCatalogAttribution(data.attribution ?? null);
       } else {
         console.error('Failed to search golf courses — status:', response.status);
       }
@@ -224,7 +240,12 @@ export default function GolfComposerSection({
     setCourseSearchOpen(false);
     setAvailableCourses([]);
   }, []);
-  const courseDropdownOpen = courseSearchOpen && availableCourses.length > 0;
+  // Also open with ZERO local hits when a worldwide search is possible —
+  // that empty-local case is exactly when the button matters.
+  const trimmedCourseQuery = courseSearchQuery.trim();
+  const worldwideOffer =
+    globalSearchAvailable && trimmedCourseQuery.length >= 3 && globalSearchedFor !== trimmedCourseQuery;
+  const courseDropdownOpen = courseSearchOpen && (availableCourses.length > 0 || worldwideOffer);
   usePopoverDismiss(courseFieldRef, courseDropdownOpen, closeCourseSearch);
 
   // The dropdown is `absolute` inside the composer's `overflow-y-auto` body, so
@@ -242,28 +263,35 @@ export default function GolfComposerSection({
     return () => cancelAnimationFrame(id);
   }, [courseDropdownOpen, availableCourses.length]);
 
-  /** Par/yardage rows for the CURRENT hole range from a DB course. */
+  /** Par/yardage rows for the CURRENT hole range from a catalog course.
+   *  Tee keys are free text now (provider tee names) — selected tee first,
+   *  then white/blue, then ANY tee the course has. */
   const deriveCourseHoles = useCallback(
     (course: GolfCourse, teeColor: string, holes: number, start: number) => {
-      const teeKey = (teeColor || 'white') as keyof typeof course.holes[0]['yardage'];
       return course.holes
         .filter(hole => hole.number >= start && hole.number < start + holes)
         .map(hole => ({
           hole: hole.number,
           par: hole.par,
-          yardage: hole.yardage[teeKey] || hole.yardage.white || hole.yardage.blue || 400
+          yardage: hole.yardage[teeColor || 'white'] ?? hole.yardage.white ?? hole.yardage.blue
+            ?? Object.values(hole.yardage)[0] ?? 400
         }));
     },
     []
   );
 
-  // Select a course from search results
-  const selectCourse = useCallback((course: GolfCourse) => {
-    setSelectedCourse(course);
+  // Select a course from search results.
+  const selectedCourseIdRef = useRef<string | null>(null);
+
+  /** Apply a course's data to the form (also re-run by hydration below). */
+  const applyCourseData = useCallback((course: GolfCourse) => {
     const teeColor = sharedRoundDetails.teeColor;
     setSharedRoundDetails(prev => ({
       ...prev,
       courseName: course.name,
+      // Catalog rows carry golf_courses.id (a UUID) → golf_scorecard_data.
+      // History rows carry a synthetic `history-*` id → null.
+      courseId: UUID_SHAPE.test(course.id) ? course.id : null,
       // Rating/slope feed handicap differentials — carry the selected tee's
       // values, falling back to white, then to ANY tee the course has:
       // courses-you've-played suggestions carry ratings keyed by whichever
@@ -278,12 +306,6 @@ export default function GolfComposerSection({
           Object.values(course.slopeRating ?? {})[0] ?? prev.slopeRating ?? ''
       ),
     }));
-    setCourseSearchOpen(false);
-    setCourseSearchQuery('');
-    // Cancel first: a response already in flight would otherwise land after
-    // this and refill the list, re-opening the dropdown over a chosen course.
-    cancelCourseSearch();
-    setAvailableCourses([]);
 
     // Auto-populate par and yardage from course data for the current range
     setCourseHoleData(
@@ -293,7 +315,39 @@ export default function GolfComposerSection({
     // Clear manual entry since we have course data
     setManualParEntry([]);
     setManualYardageEntry([]);
-  }, [sharedRoundDetails, cancelCourseSearch, deriveCourseHoles]);
+  }, [sharedRoundDetails, deriveCourseHoles]);
+
+  const selectCourse = useCallback((course: GolfCourse) => {
+    setSelectedCourse(course);
+    selectedCourseIdRef.current = course.id;
+    applyCourseData(course);
+    setCourseSearchOpen(false);
+    setCourseSearchQuery('');
+    // Cancel first: a response already in flight would otherwise land after
+    // this and refill the list, re-opening the dropdown over a chosen course.
+    cancelCourseSearch();
+    setAvailableCourses([]);
+
+    // Hydration: a provider row from a worldwide search is THIN (identity
+    // only) until its first selection — one detail fetch fills ratings and
+    // holes server-side and returns the full course. Plain callback, not an
+    // effect; guarded so a stale response can't clobber a newer selection.
+    const isThin =
+      course.holes.length === 0 &&
+      Object.keys(course.courseRating ?? {}).length === 0 &&
+      Object.keys(course.slopeRating ?? {}).length === 0;
+    if (isThin && UUID_SHAPE.test(course.id)) {
+      fetch(`/api/golf/courses?id=${encodeURIComponent(course.id)}`)
+        .then(res => (res.ok ? res.json() : null))
+        .then(data => {
+          const full: GolfCourse | undefined = data?.course;
+          if (!full || selectedCourseIdRef.current !== course.id) return;
+          setSelectedCourse(full);
+          applyCourseData(full);
+        })
+        .catch(() => { /* thin data stands; the course is still usable */ });
+    }
+  }, [applyCourseData, cancelCourseSearch]);
 
   // Initialize player scores when participants are added
   const initializePlayerScores = useCallback((participants: {id: string; name: string; avatar_url?: string}[], holes: number, start: number) => {
@@ -569,9 +623,13 @@ export default function GolfComposerSection({
                         setCourseSearchQuery(e.target.value);
                         searchCourses(e.target.value);
                         setCourseSearchOpen(true);
-                        // Clear selected course if user types manually
+                        // Clear selected course if user types manually —
+                        // including the catalog link: a hand-edited name is
+                        // no longer that course.
                         if (selectedCourse && e.target.value !== selectedCourse.name) {
                           setSelectedCourse(null);
+                          selectedCourseIdRef.current = null;
+                          setSharedRoundDetails(prev => ({ ...prev, courseId: null }));
                         }
                       }}
                       onFocus={() => {
@@ -636,6 +694,27 @@ export default function GolfComposerSection({
                           </div>
                         </button>
                       ))}
+                      {/* The ONLY trigger for external course providers —
+                          worldwide search is explicit, never per keystroke
+                          (free-tier budgets; see course-catalog.ts). */}
+                      {worldwideOffer && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setGlobalSearchedFor(trimmedCourseQuery);
+                            debouncedCourseSearch(trimmedCourseQuery, true);
+                          }}
+                          className="w-full px-4 py-3 text-left text-sm font-medium text-brand-fg hover:bg-brand-soft transition-colors border-t border-border-subtle"
+                        >
+                          <i className="fas fa-globe mr-2" aria-hidden="true"></i>
+                          Search all courses worldwide for &ldquo;{trimmedCourseQuery}&rdquo;
+                        </button>
+                      )}
+                      {catalogAttribution && (
+                        <div className="px-4 py-1.5 text-[10px] text-faint border-t border-border-subtle">
+                          {catalogAttribution}
+                        </div>
+                      )}
                     </div>
                   )}
 

@@ -32,6 +32,9 @@ export const RATE_LIMITS = {
   'username-login-ip': { max: 20, windowSeconds: 900, keyBy: 'ip', message: ATTEMPTS_MESSAGE },
   reauth: { max: 5, windowSeconds: 900, keyBy: 'ip', message: ATTEMPTS_MESSAGE },
   'handle-check': { max: 30, windowSeconds: 60, keyBy: 'ip' },
+  // Course picker search — anonymous-reachable and it reads cross-user
+  // course history; the golf_courses catalog makes it a scraping target.
+  'course-search': { max: 30, windowSeconds: 60, keyBy: 'ip' },
 
   // ── Authenticated (user-keyed): spam-shaped or expensive writes ─────────
   'account-delete': { max: 5, windowSeconds: 900, keyBy: 'user', message: ATTEMPTS_MESSAGE },

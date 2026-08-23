@@ -189,7 +189,7 @@ export async function mirrorCompletedRound(admin: Admin, groupPostId: string): P
         status,
         date,
         golf_data:golf_scorecard_data (
-          course_name, round_type, holes_played, tee_color,
+          course_name, course_id, round_type, holes_played, tee_color,
           slope_rating, course_rating, hole_data
         ),
         participants:group_post_participants (
@@ -235,6 +235,7 @@ export async function mirrorCompletedRound(admin: Admin, groupPostId: string): P
             group_post_id: round.id,
             date: round.date,
             course: golfData.course_name,
+            course_id: golfData.course_id ?? null,
             tee: golfData.tee_color ?? null,
             holes: holesPlayed,
             par: coursePar,

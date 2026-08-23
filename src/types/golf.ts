@@ -54,17 +54,14 @@ export interface GolfRound {
   golf_holes?: GolfHole[];
 }
 
-// Course hole template (from golf-courses-db.ts)
+// Course hole template (golf_courses.hole_data rows — the catalog).
+// Yardage is keyed by tee NAME, not a fixed color set: external providers
+// use free-text tee names ("Championship", "Tips"), so the old
+// black/blue/white/gold/red keying is only one possible vocabulary.
 export interface CourseHole {
   number: number;
   par: number;
-  yardage: {
-    black?: number;
-    blue?: number;
-    white?: number;
-    gold?: number;
-    red?: number;
-  };
+  yardage: Record<string, number>;
   handicap: number;
 }
 

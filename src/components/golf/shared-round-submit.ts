@@ -84,6 +84,9 @@ export async function submitSharedRound<M extends { type: 'image' | 'video' }>(
                 yardage: manualYardageEntry[i] || undefined,
               }))
             : undefined,
+        // Catalog link — golf_courses.id when the pick came from the
+        // catalog; the server null-guards non-UUIDs before insert.
+        course_id: sharedRoundDetails.courseId || undefined,
         // Handicap-differential inputs — the server has always accepted
         // these; the composer just never sent them before unification.
         course_rating: sharedRoundDetails.courseRating
