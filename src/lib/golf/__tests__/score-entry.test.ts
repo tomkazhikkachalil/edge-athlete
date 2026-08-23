@@ -238,3 +238,31 @@ describe('resizePlayerScores', () => {
     expect(out[0].participant_id).toBe('a');
   });
 });
+
+// ── nextHoleForScores (the Map tab's hole chip) ──────────────────────────────
+
+import { nextHoleForScores, cardComplete } from '../score-entry';
+
+describe('nextHoleForScores', () => {
+  const hd = (start: number, n: number) =>
+    Array.from({ length: n }, (_, i) => ({ hole: start + i, par: 4, yardage: 380 }));
+
+  it('resumes at the first GAP, not after the count', () => {
+    const scores = [{ hole_number: 1 }, { hole_number: 3 }];
+    expect(nextHoleForScores(scores, 18, 1, hd(1, 18))).toEqual({ hole: 2, par: 4, yardage: 380 });
+  });
+
+  it('back-9 rounds number from 10', () => {
+    expect(nextHoleForScores([{ hole_number: 10 }], 9, 10, hd(10, 9))).toEqual({ hole: 11, par: 4, yardage: 380 });
+  });
+
+  it('null once the card is complete', () => {
+    const all = Array.from({ length: 9 }, (_, i) => ({ hole_number: 10 + i }));
+    expect(nextHoleForScores(all, 9, 10, hd(10, 9))).toBeNull();
+    expect(cardComplete(all, 9, 10)).toBe(true);
+  });
+
+  it('par/yardage null when hole_data is absent', () => {
+    expect(nextHoleForScores([], 18, 1, null)).toEqual({ hole: 1, par: null, yardage: null });
+  });
+});
