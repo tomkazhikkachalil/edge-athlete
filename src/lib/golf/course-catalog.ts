@@ -19,6 +19,13 @@
  *                     REQUIRED wherever its rows render (OPENGOLF_ATTRIBUTION).
  *   'golfcourseapi' — global (~30k), needs GOLF_COURSE_API_KEY; free tier is
  *                     50 req/DAY, hence the tight default budget.
+ *   'osm'           — worldwide OpenStreetMap import (leisure=golf_course,
+ *                     bulk-harvested via Overpass; external_id "way/123" /
+ *                     "relation/456"). Identity-only rows: name + coords, no
+ *                     tees/ratings ever — no provider can hydrate them, so
+ *                     hydration only reverse-fills city/region/country. ODbL
+ *                     attribution: OPENGOLF_ATTRIBUTION's "© OpenStreetMap
+ *                     contributors" line covers these rows too.
  *
  * Both providers' search results are THIN (no ratings/holes) — full tee and
  * hole data arrives only from the per-course detail endpoint at hydration.
@@ -33,7 +40,8 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { GolfCourse, CourseHole } from '@/types/golf';
 import { tidyCourseName } from '@/lib/golf/tees';
-import { acceptGeocode, geocodeGolfCourse, shouldReplaceCoords } from '@/lib/golf/geocode';
+import { acceptGeocode, geocodeGolfCourse, reverseGeocodeCourse, shouldReplaceCoords } from '@/lib/golf/geocode';
+import { courseNameScore } from '@/lib/golf/hole-geometry';
 
 export const OPENGOLF_ATTRIBUTION =
   'Course data © OpenStreetMap contributors (ODbL) via OpenGolfAPI';
@@ -47,7 +55,7 @@ const PROVIDER_TIMEOUT_MS = 5000;
 
 export interface CatalogRow {
   id: string;
-  external_source: 'seed' | 'opengolfapi' | 'golfcourseapi';
+  external_source: 'seed' | 'opengolfapi' | 'golfcourseapi' | 'osm';
   external_id: string;
   name: string;
   club_name: string | null;
@@ -185,7 +193,13 @@ export async function searchCatalog(
         .or(`name.ilike.${p},club_name.ilike.${p},city.ilike.${p},region.ilike.${p}`)
         .order('name')
         .limit(limit * 5)
-    : await builder.order('name').limit(limit); // empty query = browse head
+    : // Empty query = browse head. Touched courses first: with the worldwide
+      // OSM import the alphabetical head is 40k rows of never-selected long
+      // tail — hydrated_at surfaces the courses people actually use.
+      await builder
+        .order('hydrated_at', { ascending: false, nullsFirst: false })
+        .order('name')
+        .limit(limit);
   if (error || !data) return [];
   const rows = data as unknown as CatalogRow[];
   return rows
@@ -464,6 +478,53 @@ export function normalizeGcaDetail(d: GcaDetail): NewRow {
   };
 }
 
+// ── Source: OpenStreetMap bulk import (Overpass `out tags center`) ───────────
+
+export interface OsmCourseElement {
+  type?: string; // 'way' | 'relation'
+  id?: number;
+  tags?: Record<string, string>;
+  center?: { lat?: number; lon?: number };
+}
+
+/** leisure=golf_course elements that are facilities, not playable courses.
+ *  Filtered by TAG first (golf=driving_range is authoritative), then by the
+ *  narrow name patterns below — kept conservative on purpose: a false
+ *  positive here silently deletes a real course from the catalog. */
+const OSM_NOISE_NAME = /\b(driving\s*range|practice\s*(range|center|centre)|miniature\s*golf|mini[- ]?putt)\b/i;
+
+/** Overpass element → thin catalog row, or null when it isn't a course we
+ *  want (no name, no center coords, driving range / mini-putt). Exported
+ *  pure for tests and for the import script's dry-run. */
+export function normalizeOsmElement(el: OsmCourseElement): NewRow | null {
+  const tags = el.tags ?? {};
+  const name = (tags.name ?? '').trim();
+  const lat = el.center?.lat;
+  const lng = el.center?.lon;
+  if (!name || !el.id || (el.type !== 'way' && el.type !== 'relation')) return null;
+  if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
+  if (tags.golf === 'driving_range' || OSM_NOISE_NAME.test(name)) return null;
+  return {
+    ...NO_DETAILS,
+    external_source: 'osm',
+    external_id: `${el.type}/${el.id}`,
+    name: tidyCourseName(name),
+    club_name: null,
+    city: nullIfUnknown(tags['addr:city']),
+    region: nullIfUnknown(tags['addr:province'] ?? tags['addr:state']),
+    country: nullIfUnknown(tags['addr:country']),
+    total_par: null,
+    holes_count: /^\d+$/.test(tags.holes ?? '') ? Number(tags.holes) : null,
+    hole_data: null,
+    course_rating: {},
+    slope_rating: {},
+    lat: lat!,
+    lng: lng!,
+    website: nullIfUnknown(tags.website ?? tags['contact:website']),
+    phone: nullIfUnknown(tags.phone ?? tags['contact:phone']),
+  };
+}
+
 // ── Provider fetches ─────────────────────────────────────────────────────────
 
 const openGolfConfigured = () => process.env.GOLF_OPENGOLFAPI_DISABLED !== '1';
@@ -488,13 +549,46 @@ const gcaHeaders = () => ({ Authorization: `Bearer ${process.env.GOLF_COURSE_API
 
 // ── Upserts ──────────────────────────────────────────────────────────────────
 
+/** ~2 km box in degrees for the cross-source dedupe query. Longitude widens
+ *  with latitude; 0.03° is ~2 km at 50°N and smaller nearer the equator —
+ *  close enough for "same facility". Exported for the import script. */
+export const DEDUPE_BOX = { lat: 0.02, lng: 0.03 };
+
+/** True when an existing row within ~2 km shares an informative name token —
+ *  the same facility under a different source ("Eagle Creek Golf Club" from
+ *  a provider vs OSM's "Eagle Creek Golf Course"). First row wins; without
+ *  coords there's nothing to compare, so no guard (today's behavior). */
+async function hasNearbyNameMatch(admin: SupabaseClient, row: NewRow): Promise<boolean> {
+  if (typeof row.lat !== 'number' || typeof row.lng !== 'number') return false;
+  const { data } = await admin
+    .from('golf_courses')
+    .select('name')
+    .gte('lat', row.lat - DEDUPE_BOX.lat)
+    .lte('lat', row.lat + DEDUPE_BOX.lat)
+    .gte('lng', row.lng - DEDUPE_BOX.lng)
+    .lte('lng', row.lng + DEDUPE_BOX.lng)
+    .limit(25);
+  return ((data as { name: string }[] | null) ?? []).some(
+    existing => courseNameScore(row.name, existing.name) > 0
+  );
+}
+
 /** Thin identity rows: insert-if-absent, NEVER overwrite (a hydrated row must
- *  not be clobbered back to thin by a later search). */
+ *  not be clobbered back to thin by a later search), and never a second row
+ *  for a facility another source already carries. */
 async function upsertThinRows(admin: SupabaseClient, rows: NewRow[]): Promise<void> {
-  if (!rows.length) return;
+  const kept: NewRow[] = [];
+  for (const row of rows) {
+    if (await hasNearbyNameMatch(admin, row)) {
+      console.warn(`[course-catalog] dedupe skip: ${row.external_source}:${row.external_id} "${row.name}"`);
+      continue;
+    }
+    kept.push(row);
+  }
+  if (!kept.length) return;
   await admin
     .from('golf_courses')
-    .upsert(rows, { onConflict: 'external_source,external_id', ignoreDuplicates: true });
+    .upsert(kept, { onConflict: 'external_source,external_id', ignoreDuplicates: true });
 }
 
 // ── The two provider touchpoints ─────────────────────────────────────────────
@@ -552,6 +646,45 @@ export async function hydrateCourse(admin: SupabaseClient, row: CatalogRow): Pro
   const HYDRATE_TTL_MS = 7 * 24 * 60 * 60 * 1000;
   if (row.hydrated_at && Date.now() - new Date(row.hydrated_at).getTime() < HYDRATE_TTL_MS) {
     return rowToCourse(row);
+  }
+
+  // OSM rows: no provider knows their external ids, and their coords ARE
+  // OSM's — forward-geocoding against OSM again is a wasted budget hit. The
+  // one thing hydration can add is the location fields (city/region/country)
+  // the search ranks on, via one budgeted Nominatim reverse call.
+  if (row.external_source === 'osm') {
+    let fill: Awaited<ReturnType<typeof reverseGeocodeCourse>> = null;
+    if (
+      !row.city &&
+      typeof row.lat === 'number' &&
+      typeof row.lng === 'number' &&
+      (await consumeProviderBudget(admin, 'nominatim'))
+    ) {
+      fill = await reverseGeocodeCourse(row.lat, row.lng);
+    }
+    await admin
+      .from('golf_courses')
+      .update({
+        hydrated_at: new Date().toISOString(),
+        ...(fill
+          ? {
+              city: row.city ?? fill.city,
+              region: row.region ?? fill.region,
+              country: row.country ?? fill.country,
+            }
+          : {}),
+      })
+      .eq('id', row.id);
+    return rowToCourse(
+      fill
+        ? {
+            ...row,
+            city: row.city ?? fill.city,
+            region: row.region ?? fill.region,
+            country: row.country ?? fill.country,
+          }
+        : row
+    );
   }
 
   let normalized: NewRow | null = null;
