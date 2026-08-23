@@ -7,6 +7,8 @@ import AppHeader from '@/components/AppHeader';
 import ConfirmModal from '@/components/ConfirmModal';
 import { useToast } from '@/components/Toast';
 import { trackedStatLabel, holeCountLabel } from '@/lib/golf/round-display';
+import { embeddedCourseToInfo } from '@/lib/golf/course-info';
+import CourseInfoCard from '@/components/golf/CourseInfoCard';
 
 interface GolfHole {
   hole_number: number;
@@ -41,6 +43,7 @@ interface GolfRound {
   slope_rating: number | null;
   notes: string | null;
   is_complete: boolean;
+  course_info: import('@/types/group-posts').EmbeddedCourseInfo | null;
   golf_holes: GolfHole[];
 }
 
@@ -433,6 +436,21 @@ export default function GolfRoundDetailPage() {
             </p>
           )}
         </div>
+
+        {/* Course info + map (catalog-linked rounds only) */}
+        {(() => {
+          const info = embeddedCourseToInfo(round.course_info);
+          if (!info) return null;
+          return (
+            <div className="bg-surface rounded-lg shadow-sm p-4 sm:p-6">
+              <h2 className="text-xl font-bold text-primary mb-2">
+                <i className="fas fa-map-location-dot mr-2"></i>
+                {info.name}
+              </h2>
+              <CourseInfoCard course={info} defaultOpen />
+            </div>
+          );
+        })()}
 
         {/* Scorecard */}
         <div className="bg-surface rounded-lg shadow-sm p-4 sm:p-6">

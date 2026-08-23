@@ -11,7 +11,9 @@ import SharedRoundFullCard from '@/components/golf/SharedRoundFullCard';
 import { useSharedRound } from '@/hooks/useSharedRound';
 import { resolveRoundEntry } from '@/lib/golf/round-viewer';
 import { startingHoleNumber } from '@/lib/golf/holes';
-import { isActiveParticipant } from '@/lib/golf/round-status';
+import { isActiveParticipant, effectiveRoundStatus } from '@/lib/golf/round-status';
+import CourseInfoCard from '@/components/golf/CourseInfoCard';
+import { embeddedCourseToInfo } from '@/lib/golf/course-info';
 import { formatDisplayName } from '@/lib/formatters';
 import type { CompleteGolfScorecard } from '@/types/group-posts';
 
@@ -210,6 +212,24 @@ export default function LiveRoundPage() {
           Your card is complete — waiting on the rest of the group.
         </p>
       )}
+
+      {/* Course info + map. On a LIVE round the map offers device-geolocation
+          tracking — the position never leaves the phone (map marker only). */}
+      {(() => {
+        const info = embeddedCourseToInfo(scorecard.golf_data.course);
+        if (!info) return null;
+        return (
+          <div className="mt-4">
+            <CourseInfoCard
+              course={info}
+              defaultOpen
+              // Not just isRoundLive: a fresh round is 'pending' until the
+              // first score lands — exactly when the player is on the tee.
+              enableTracking={effectiveRoundStatus(scorecard.group_post) !== 'completed'}
+            />
+          </div>
+        );
+      })()}
 
       {showFullCard && (
         <SharedRoundFullCard

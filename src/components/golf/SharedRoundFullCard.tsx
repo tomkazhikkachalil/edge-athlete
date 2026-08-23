@@ -20,6 +20,8 @@ import MediaLightbox from '../media/MediaLightbox';
 import { toCollageItems, groupMediaBySegment, type RoundCollageItem } from '@/lib/golf/round-media';
 import { segmentLabel } from '@/lib/sports/segment-schemas';
 import LazyImage from '../LazyImage';
+import CourseInfoCard from './CourseInfoCard';
+import { embeddedCourseToInfo } from '@/lib/golf/course-info';
 import type { CompleteGolfScorecard } from '@/types/group-posts';
 
 type RoundTabId = 'overview' | 'scorecard' | 'media';
@@ -661,6 +663,13 @@ export default function SharedRoundFullCard({
           {/* Overview Tab */}
           {activeTab === 'overview' && (
             <div className="space-y-4" id="round-panel-overview" role="tabpanel" aria-labelledby="round-tab-overview">
+              {/* Course info + map — catalog-linked rounds only (the embed
+                  rides GROUP_SCORECARD_SELECT; older/custom rounds have no
+                  course row and render nothing here). */}
+              {(() => {
+                const info = embeddedCourseToInfo(golf_data.course);
+                return info ? <CourseInfoCard course={info} defaultOpen /> : null;
+              })()}
               {/* A TEASER, not the gallery. The page used to get longer and
                   messier the more someone posted; the rest lives in Media. */}
               {roundMediaItems.length > 0 && (
