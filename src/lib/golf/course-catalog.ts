@@ -32,6 +32,7 @@
 
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { GolfCourse, CourseHole } from '@/types/golf';
+import { tidyCourseName } from '@/lib/golf/tees';
 
 export const OPENGOLF_ATTRIBUTION =
   'Course data © OpenStreetMap contributors (ODbL) via OpenGolfAPI';
@@ -284,7 +285,7 @@ export function normalizeOpenGolfSummary(s: OpenGolfSummary): NewRow {
     ...NO_DETAILS,
     external_source: 'opengolfapi',
     external_id: s.id,
-    name: s.course_name,
+    name: tidyCourseName(s.course_name),
     club_name: null,
     city: nullIfUnknown(s.city),
     region: nullIfUnknown(s.state),
@@ -348,7 +349,7 @@ export function normalizeOpenGolfDetail(d: OpenGolfDetail): NewRow {
     phone: d.phone ?? null,
     external_source: 'opengolfapi',
     external_id: d.id,
-    name: courseDisplayName(d.club_name, d.course_name),
+    name: courseDisplayName(d.club_name, tidyCourseName(d.course_name)),
     club_name: nullIfUnknown(d.club_name),
     city: nullIfUnknown(d.city),
     region: nullIfUnknown(d.state),

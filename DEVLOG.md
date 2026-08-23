@@ -1,5 +1,25 @@
 # Development Log
 
+## August 23, 2026 — Course-driven tees + sub-course name tidy
+
+The tee dropdown becomes the catalog's: a selected course lists its REAL
+tees (hardest first by rating — "Taupe, Black, Green, Gold, Silver…" for
+Torrey Pines' 8), and picking one re-fills that tee's exact rating, slope
+and per-hole yardages — the flagged follow-up from the catalog round
+(tee changes used to leave the previous tee's numbers standing). Custom
+and history courses keep the classic five colors (`courseTeeOptions`
+falls back; hand-editing the course name clears a course-specific tee).
+The courses-you've-played harvest stops whitelisting tees to five colors
+(a round saved with tee "championship" used to key its rating under
+'white', silently wrong). All tee logic is pure + node-tested
+(`lib/golf/tees.ts`).
+
+Rider: `tidyCourseName` reshapes OpenGolfAPI's numbered sub-courses —
+"1 At Ponkapoag Golf Club" → "Ponkapoag Golf Club (Course 1)",
+"10 19 At University Park…" → "…(Nines 10 & 19)" — which sorted as
+alphabetical noise at the top of browse results. Normalizer-side, so new
+rows are clean and existing rows self-heal on their next hydration.
+
 ## August 23, 2026 — Course maps everywhere + live GPS position tracking
 
 Tom couldn't find the course info/map (it lived only inside the composer,
