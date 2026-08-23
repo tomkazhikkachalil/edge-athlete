@@ -94,3 +94,95 @@ describe('formatHandicapIndex', () => {
     expect(formatHandicapIndex(-1.5)).toBe('+1.5'); // plus handicap
   });
 });
+
+// ── WHS-accuracy upgrade (9-hole conversion + series builder) ────────────────
+
+import {
+  nineHoleDifferential,
+  isNineHoleEligible,
+  buildHandicapSeries,
+  scoreDifferential as sd,
+  type EnrichedRound,
+} from '../handicap';
+
+const round18 = (gross: number, over: Partial<EnrichedRound> = {}): EnrichedRound => ({
+  date: '2026-08-01',
+  holes: 18,
+  gross_score: gross,
+  course_rating: 72.0,
+  slope_rating: 113,
+  par: 72,
+  holeScores: null,
+  allocations: null,
+  ...over,
+});
+
+describe('nineHoleDifferential (Rule 5.1b)', () => {
+  it('matches the published USGA/MGA/Golf Canada worked example', () => {
+    // HI 14.0, 9-hole SD 7.2 → 7.2 + (0.52 × 14.0 + 1.2) = 15.68 → 15.7
+    expect(nineHoleDifferential(7.2, 14.0)).toBe(15.7);
+  });
+});
+
+describe('isNineHoleEligible', () => {
+  it('accepts a plausible 9-hole round and rejects an 18-hole rating on it', () => {
+    const base = { holes: 9, gross_score: 41, slope_rating: 120 };
+    expect(isNineHoleEligible({ ...base, course_rating: 35.4 })).toBe(true);
+    // The common bad entry: an 18-hole rating on a 9-hole round
+    expect(isNineHoleEligible({ ...base, course_rating: 70.8 })).toBe(false);
+    expect(isNineHoleEligible({ ...base, gross_score: 20, course_rating: 35.4 })).toBe(false);
+  });
+});
+
+describe('buildHandicapSeries', () => {
+  it('gross-only rounds reproduce the pre-upgrade indexes exactly', () => {
+    // Old behavior: diffs from raw gross, index from the WHS table.
+    const rounds = [round18(80), round18(85), round18(78)];
+    const { diffs, current, series } = buildHandicapSeries(rounds);
+    expect(diffs).toEqual([sd(80, 72, 113), sd(85, 72, 113), sd(78, 72, 113)]);
+    // 3 diffs → lowest 1 − 2.0 = 6.0 − 2.0
+    expect(current!.index).toBe(4);
+    expect(series).toHaveLength(1);
+  });
+
+  it('skips 9-hole rounds until an index exists, then converts them', () => {
+    const nine: EnrichedRound = {
+      ...round18(41),
+      holes: 9,
+      gross_score: 41,
+      course_rating: 35.4,
+      slope_rating: 113,
+      par: 36,
+    };
+    // 9-hole first: no prior index → skipped entirely
+    const early = buildHandicapSeries([nine, round18(80), round18(85)]);
+    expect(early.diffs).toHaveLength(2);
+    expect(early.current).toBeNull(); // only 2 diffs
+
+    // After three 18-hole rounds the same 9-holer converts via Rule 5.1b
+    const later = buildHandicapSeries([round18(80), round18(85), round18(78), nine]);
+    expect(later.diffs).toHaveLength(4);
+    const priorIndex = 4; // from the first test
+    const expected = nineHoleDifferential(sd(41, 35.4, 113), priorIndex);
+    expect(later.diffs[3]).toBe(expected);
+  });
+
+  it('applies net double bogey when hole scores exist (blowup round tamed)', () => {
+    // Establish an index of 4.0 first, then a disaster round with hole data:
+    // every hole a 12 on par 4. Raw gross 216 → wild diff; NDB caps it.
+    const blowup = round18(216, {
+      holeScores: Array.from({ length: 18 }, () => ({ par: 4, strokes: 12 })),
+      allocations: Array.from({ length: 18 }, (_, i) => i + 1),
+    });
+    const { diffs } = buildHandicapSeries([round18(80), round18(85), round18(78), blowup]);
+    // priorIndex 4.0 → CH = round(4 × 113/113 + (72−72)) = 4 → four holes at
+    // par+3, fourteen at par+2 → adjusted gross = 4×7 + 14×6 = 112
+    expect(diffs[3]).toBe(sd(112, 72, 113));
+  });
+
+  it('keeps the mislabeled-round guards (gross 52 "18-hole" stays excluded)', () => {
+    const bad = round18(52); // below MIN_PLAUSIBLE_18_HOLE_GROSS
+    const { diffs } = buildHandicapSeries([round18(80), bad, round18(85)]);
+    expect(diffs).toHaveLength(2);
+  });
+});
