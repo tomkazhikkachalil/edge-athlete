@@ -1,53 +1,62 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { GolfCourseService } from '@/lib/golf-course-service';
 import { getSupabaseAdmin, requireAuth } from '@/lib/auth-server';
-import { getCourseByName as getStaticCourseByName, type GolfCourse } from '@/lib/golf-courses-db';
+import { enforceRateLimit } from '@/lib/rate-limit';
 import { likePatternFor } from '@/lib/search/patterns';
+import type { GolfCourse } from '@/types/golf';
+import {
+  searchCatalog,
+  getCatalogRow,
+  hydrateCourse,
+  globalSearch,
+  providersConfigured,
+  OPENGOLF_ATTRIBUTION,
+} from '@/lib/golf/course-catalog';
 
+// ── GET /api/golf/courses ────────────────────────────────────────────────────
+// The course picker's data source, over the golf_courses catalog (migration
+// 100) plus the "courses you've played" harvest. External providers are
+// touched only via ?global=1 (explicit worldwide search) and ?id= hydration —
+// never per keystroke; see src/lib/golf/course-catalog.ts.
+//
+// Emits the FLAT types/golf.GolfCourse shape the composer consumes. (The old
+// route emitted the static file's nested-location shape — city/state silently
+// never rendered in the picker.)
 export async function GET(request: NextRequest) {
   try {
+    // IP-keyed: this endpoint is reachable anonymously and reads cross-user
+    // course history — a catalog makes it a scraping target.
+    const limited = await enforceRateLimit(request, 'course-search');
+    if (limited) return limited;
+
     const { searchParams } = new URL(request.url);
     const query = searchParams.get('q') || '';
     const courseId = searchParams.get('id');
-    const courseName = searchParams.get('name');
     const limit = Math.min(Math.max(parseInt(searchParams.get('limit') || '10', 10) || 10, 1), 100);
-    const useLocalOnly = searchParams.get('localOnly') === 'true';
-    const country = searchParams.get('country') || undefined;
-    const state = searchParams.get('state') || undefined;
+    const wantGlobal = searchParams.get('global') === '1';
+    const admin = getSupabaseAdmin();
 
-    // Get specific course by ID (checks local first, then APIs if available)
+    // ── Course by id — the hydration touchpoint ──────────────────────────
     if (courseId) {
-      const course = await GolfCourseService.getCourseById(courseId);
-      if (!course) {
+      const row = await getCatalogRow(admin, courseId);
+      if (!row) {
         return NextResponse.json({ error: 'Course not found' }, { status: 404 });
       }
-      return NextResponse.json({ course, source: course.id.startsWith('api-') || course.id.startsWith('igolf-') || course.id.startsWith('zyla-') ? 'api' : 'local' });
+      const course = await hydrateCourse(admin, row);
+      return NextResponse.json({ course });
     }
 
-    // Get specific course by name (checks local first, then APIs if available)
-    if (courseName) {
-      const course = await GolfCourseService.getCourseByName(courseName);
-      if (!course) {
-        return NextResponse.json({ error: 'Course not found' }, { status: 404 });
-      }
-      return NextResponse.json({ course, source: course.id.startsWith('api-') || course.id.startsWith('igolf-') || course.id.startsWith('zyla-') ? 'api' : 'local' });
+    // ── Explicit worldwide search: fetch → upsert → fall through to the
+    //    normal catalog read, which now includes the new rows ──────────────
+    if (wantGlobal) {
+      await globalSearch(admin, query);
     }
 
-    // Hybrid search (local database + APIs when available)
-    const result = await GolfCourseService.searchCourses({
-      query,
-      limit,
-      useLocalOnly,
-      country,
-      state
-    });
+    const catalogCourses = await searchCatalog(admin, query, limit);
 
     // ── "Courses you've played" layer ────────────────────────────────────
-    // Real courses come from real rounds: merge distinct courses already
-    // logged on the platform (the requester's own first — repeat rounds at
-    // a home course are the common case). Par/rating/slope auto-fill from
-    // the most recent round there. No fake data; gets better as the
-    // platform grows.
+    // Real courses from real rounds — the viewer's own first (repeat rounds
+    // at a home course are the common case). Rating/slope auto-fill from the
+    // most recent round there. Non-fatal on any error.
     let historyCourses: GolfCourse[] = [];
     try {
       let viewerId: string | null = null;
@@ -59,7 +68,6 @@ export async function GET(request: NextRequest) {
       // 1 char, like every other search: golf_rounds.course gained prefix and
       // trigram indexes in migration 087.
       if (query.length >= 1) {
-        const admin = getSupabaseAdmin();
         const { data: roundCourses } = await admin
           .from('golf_rounds')
           .select('profile_id, course, course_location, par, holes, tee, course_rating, slope_rating, date')
@@ -81,13 +89,13 @@ export async function GET(request: NextRequest) {
           const course: GolfCourse = {
             id: `history-${key.replace(/[^a-z0-9]+/g, '-')}`,
             name: r.course.trim(),
-            location: { city, state, country: '' },
+            city,
+            state,
             courseRating: r.course_rating ? { [tee]: r.course_rating } : {},
             slopeRating: r.slope_rating ? { [tee]: r.slope_rating } : {},
             totalPar: r.holes === 9 && r.par ? r.par * 2 : (r.par || 72),
-            totalYardage: {},
             holes: [],
-          } as GolfCourse;
+          };
           if (viewerId && r.profile_id === viewerId) own.push(course);
           else platform.push(course);
         }
@@ -97,46 +105,30 @@ export async function GET(request: NextRequest) {
       console.error('Course history layer failed (non-fatal):', historyError);
     }
 
-    // Enrich history entries with real per-hole data from the static DB.
-    // History rows carry holes: [] — and because history DEDUPES the static
-    // results below, a course you'd played could never show its real pars
-    // again (every hole rendered as Par 4). Name-matched static data fills
-    // holes/par/yardage; history keeps its own rating/slope overrides.
-    const enrichedHistory = historyCourses.map(c => {
-      if (c.holes && c.holes.length > 0) return c;
-      const staticCourse = getStaticCourseByName(c.name);
-      if (!staticCourse || !staticCourse.holes?.length) return c;
-      return {
-        ...c,
-        holes: staticCourse.holes,
-        totalPar: staticCourse.totalPar,
-        totalYardage: staticCourse.totalYardage,
-        courseRating: { ...staticCourse.courseRating, ...c.courseRating },
-        slopeRating: { ...staticCourse.slopeRating, ...c.slopeRating },
-      };
-    });
-
-    // Merge: history first (dedupe static/API results against it by name)
-    const historyNames = new Set(enrichedHistory.map(c => c.name.toLowerCase()));
+    // Merge: history first, then catalog rows deduped against it by name.
+    // A history row shadowing a catalog course keeps its own rating/slope
+    // (the round's truth) but loses the catalog's holes — acceptable: the
+    // composer's standard-par fallback covers empty holes, and picking the
+    // catalog row directly (it ranks right below) gets the full card.
+    const historyNames = new Set(historyCourses.map(c => c.name.toLowerCase()));
     const mergedCourses = [
-      ...enrichedHistory,
-      ...result.courses.filter(c => !historyNames.has(c.name.toLowerCase())),
+      ...historyCourses,
+      ...catalogCourses.filter(c => !historyNames.has(c.name.toLowerCase())),
     ].slice(0, limit);
 
     return NextResponse.json({
       courses: mergedCourses,
       total: mergedCourses.length,
-      source: result.source,
-      query: result.query,
-      // Include API status for debugging
-      apiStatus: {
-        golfApiEnabled: process.env.GOLF_API_ENABLED === 'true' && !!process.env.GOLF_API_KEY,
-        iGolfEnabled: process.env.IGOLF_API_ENABLED === 'true' && !!process.env.IGOLF_API_KEY,
-        zylaGolfEnabled: process.env.ZYLA_GOLF_API_ENABLED === 'true' && !!process.env.ZYLA_GOLF_API_KEY
-      }
+      // The UI may offer "Search all courses worldwide" only when a provider
+      // is actually available server-side.
+      globalAvailable: providersConfigured(),
+      // ODbL compliance: OpenGolfAPI-sourced rows require attribution where
+      // they render. Sent whenever providers are on — the picker shows it in
+      // its footer rather than tracking per-row provenance client-side.
+      attribution: providersConfigured() ? OPENGOLF_ATTRIBUTION : null,
     });
-
   } catch (error) {
+    if (error instanceof Response) throw error;
     console.error('Golf courses API error:', error);
     return NextResponse.json({ error: 'Failed to search courses' }, { status: 500 });
   }
