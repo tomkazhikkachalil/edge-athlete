@@ -8,7 +8,7 @@ import dynamic from 'next/dynamic';
 const CourseMapInner = dynamic(() => import('./CourseMapInner'), {
   ssr: false,
   loading: () => (
-    <div className="h-64 w-full animate-pulse rounded-lg border border-border bg-surface-sunken" />
+    <div className="h-full min-h-64 w-full animate-pulse rounded-lg border border-border bg-surface-sunken" />
   ),
 });
 
@@ -17,6 +17,11 @@ export default function CourseMap(props: {
   lng: number;
   courseName: string;
   enableTracking?: boolean;
+  autoTrack?: boolean;
+  fill?: boolean;
+  overlayControls?: boolean;
+  visible?: boolean;
+  defaultLayer?: 'osm' | 'satellite';
 }) {
   return <CourseMapInner {...props} />;
 }
