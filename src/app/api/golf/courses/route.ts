@@ -114,9 +114,13 @@ export async function GET(request: NextRequest) {
     const enrichedHistory = historyCourses.map(h => {
       const match = catalogByName.get(h.name.toLowerCase());
       if (!match) return h;
+      // Keep the CATALOG id: the history row shadows the catalog row out of
+      // the list (dedupe below), so if this kept its synthetic history-* id,
+      // a repeat course could never link course_id again — no info card, no
+      // map, no catalog join on any round at a course you'd played before.
+      // History still wins on rating/slope (the round's truth).
       return {
         ...match,
-        id: h.id, // stays a history row (no course_id link implied)
         courseRating: Object.keys(h.courseRating).length ? h.courseRating : match.courseRating,
         slopeRating: Object.keys(h.slopeRating).length ? h.slopeRating : match.slopeRating,
       };
