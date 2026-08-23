@@ -16,6 +16,7 @@ import { resolveSportKey, isComposerSport } from '@/lib/sports/resolve-sport-key
 import { getSportDefinition, type SportKey } from '@/lib/sports/SportRegistry';
 import { getEmptyStateMessage, getActivityEncouragement, COPY } from '@/lib/copy';
 import LiveNowStrip from '@/components/LiveNowStrip';
+import SportQuickLinks from '@/components/SportQuickLinks';
 import FeedCalendarWidget from '@/components/calendar/FeedCalendarWidget';
 import { FEATURE_FLAGS } from '@/lib/features';
 
@@ -658,6 +659,12 @@ export default function FeedPage() {
 
           {/* Sidebar */}
           <div className="md:col-span-5 lg:col-span-4 space-y-6">
+            {/* Quick links to the athlete's sport pages (rounds, trends) —
+                adapter-declared; renders nothing for sports without them. */}
+            {profile?.sport && (
+              <SportQuickLinks sport={profile.sport} variant="card" />
+            )}
+
             {/* Connection Suggestions */}
             {user && (
               <ConnectionSuggestions profileId={user.id} limit={5} compact={true} />
