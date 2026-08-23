@@ -23,9 +23,12 @@ interface CourseInfoCardProps {
   defaultOpen?: boolean;
   /** Live round page only: the map offers device-geolocation tracking. */
   enableTracking?: boolean;
+  /** 'hidden': no map affordance at all — the live portal's Map tab owns
+   *  maps there; this card stays info-only. */
+  mapMode?: 'toggle' | 'hidden';
 }
 
-export default function CourseInfoCard({ course, defaultOpen = false, enableTracking = false }: CourseInfoCardProps) {
+export default function CourseInfoCard({ course, defaultOpen = false, enableTracking = false, mapMode = 'toggle' }: CourseInfoCardProps) {
   const [showMap, setShowMap] = useState(defaultOpen);
   const hasCoords = typeof course.lat === 'number' && typeof course.lng === 'number';
   const metaBits = [
@@ -68,7 +71,7 @@ export default function CourseInfoCard({ course, defaultOpen = false, enableTrac
           <i className="fas fa-map-marker-alt" aria-hidden="true"></i>
           View on map
         </a>
-        {hasCoords && (
+        {hasCoords && mapMode !== 'hidden' && (
           <button
             type="button"
             onClick={() => setShowMap(v => !v)}
@@ -90,7 +93,7 @@ export default function CourseInfoCard({ course, defaultOpen = false, enableTrac
           </a>
         )}
       </div>
-      {showMap && hasCoords && (
+      {showMap && hasCoords && mapMode !== 'hidden' && (
         <div className="mt-2">
           <CourseMap
             lat={course.lat!}

@@ -22,6 +22,42 @@ export function firstUnscoredHole(
   return holesPlayed;
 }
 
+/** True when every hole 1..holesPlayed (offset by start) has a score. */
+export function cardComplete(
+  existingScores: Array<{ hole_number: number }>,
+  holesPlayed: number,
+  startingHoleNumber = 1
+): boolean {
+  const scored = new Set(existingScores.map(s => s.hole_number));
+  for (let pos = 1; pos <= holesPlayed; pos++) {
+    if (!scored.has(startingHoleNumber + pos - 1)) return false;
+  }
+  return holesPlayed > 0;
+}
+
+// ── The Map tab's current-hole chip ──────────────────────────────────────────
+// Shares firstUnscoredHole with the scorer's resume logic so the chip, the
+// floating "Score hole N" button and the modal can never disagree. Gap-aware
+// (holes_completed is a count, not a pointer). Null once the card is full.
+export interface NextHoleInfo {
+  hole: number;
+  par: number | null;
+  yardage: number | null;
+}
+
+export function nextHoleForScores(
+  existingScores: Array<{ hole_number: number }>,
+  holesPlayed: number,
+  startingHoleNumber: number,
+  holeData: Array<{ hole: number; par: number; yardage?: number }> | null
+): NextHoleInfo | null {
+  if (cardComplete(existingScores, holesPlayed, startingHoleNumber)) return null;
+  const pos = firstUnscoredHole(existingScores, holesPlayed, startingHoleNumber);
+  const hole = startingHoleNumber + pos - 1;
+  const info = holeData?.find(h => h.hole === hole);
+  return { hole, par: info?.par ?? null, yardage: info?.yardage ?? null };
+}
+
 // ── Draft persistence ─────────────────────────────────────────────────────────
 // A typed-but-not-yet-saved hole lives only in React state; refresh/tab-kill
 // loses it. The draft mirrors dirty holes into localStorage so the modal can
