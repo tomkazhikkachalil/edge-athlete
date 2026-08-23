@@ -123,7 +123,11 @@ export default function AppHeader({ onCreatePost, onEditProfile }: AppHeaderProp
     if (onCreatePost) {
       onCreatePost();
     } else {
-      router.push('/athlete');
+      // Pages without their own composer mount (explore, live, messages,
+      // calendar, settings…) hand off to the feed's ?create=1 deep link —
+      // the same battle-tested path the rounds page and onboarding CTA use.
+      // The old /athlete fallback silently navigated instead of composing.
+      router.push('/feed?create=1');
     }
     setIsMobileMenuOpen(false);
   };
@@ -177,7 +181,9 @@ export default function AppHeader({ onCreatePost, onEditProfile }: AppHeaderProp
   // MEASURED box of the active item. No animation library: a CSS transition
   // does the sliding, which also means the global prefers-reduced-motion rule
   // neutralises it for free.
-  const liveCount = useLiveNow();
+  // Gated on user: the endpoint is authenticated, and this header also
+  // renders for signed-out visitors on public pages (/u, /explore).
+  const liveCount = useLiveNow(!!user);
   const navRef = useRef<HTMLElement | null>(null);
   const itemRefs = useRef<Array<HTMLAnchorElement | null>>([]);
   const [pill, setPill] = useState(lastPill ?? { x: 0, width: 0, visible: false });
