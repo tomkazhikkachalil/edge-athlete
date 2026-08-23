@@ -1,5 +1,60 @@
 # Development Log
 
+## August 23, 2026 — Golf round 2: derive-don't-select + search regression + course info/maps
+
+Tom's first device pass on the catalog produced three reports; all fixed,
+plus his requested course visuals (info card + map link + embedded map).
+
+- **The 9/18 holes selector is GONE** (owner call: "whatever they record is
+  what gets counted"). The grid always shows the full card (9 when the
+  catalog course is a 9-holer); at submit `deriveRecordedRound`
+  (lib/golf/derive-round.ts, node-tested) maps the FILLED holes onto the
+  existing taxonomy: front-9-only → 9-hole round; back-9-only → 9-hole
+  round numbered 10–18 (the numbering contract is untouched — the user
+  literally scored the Back Nine tab); anything else → 18, partial when
+  incomplete; nothing scored (live rounds) → grid size. Deliberately never
+  emits values outside {9,18}: handicap eligibility, stats/trends filters,
+  the mirror, and the possibly-still-live 002 CHECK all key on them (the
+  unnumbered add-flexible-golf-rounds.sql's prod state is unverified — we
+  don't need to find out). Manual pars now key by hole−1 (grid positions
+  ARE hole numbers). e2e's dropdown-dismiss no-op moved from the deleted
+  '18 holes' button to 'Outdoor'.
+- **Search regression** (the "doesn't show the full list" report): the #199
+  rewrite matched `name` ONLY — "ottawa" found 1 course instead of 3
+  (Rideau View/Eagle Creek carry Ottawa in city, not name). searchCatalog
+  now matches name+club+city+region (PostgREST `.or()` — pattern sanitized
+  for its comma/paren delimiters, which escapeLikePattern doesn't cover),
+  ranked best-of-fields with location one step behind name, `.order('name')`
+  on the fetch (unordered LIMIT returned an ARBITRARY window once provider
+  rows landed), wide-match from 2 chars for this table (documented
+  divergence from the app's 3), fetch limit*5, picker limit 8→20. Migration
+  101 adds the matching city/region trigram indexes. Also restored: the
+  history-row enrichment #199 dropped (played courses rendered "0 holes"
+  forever), browse-on-focus for an empty input (the catalog head is finally
+  reachable without knowing a name), and a visible "search unavailable" row
+  on 429/errors instead of a silently stale list.
+- **"Course data doesn't load"**: hydration itself was fine — the loudest
+  symptom was the dropdown printing "Par 72 • 0 holes" on every thin
+  provider row (now: location + "Details load when selected"). Plus
+  `hydrated_at` (101): hydration is attempted at most once per 7 days per
+  row — a course whose provider detail is genuinely empty used to re-fetch
+  on EVERY selection, and rows hydrated before the details columns existed
+  pick them up once.
+- **Course info card + maps** (CourseInfoCard, under the selected-course
+  badge): description with its Wikipedia CC BY-SA attribution (a license
+  DUTY wherever the description renders), architect · year · type, website,
+  "View on map" (Google Maps link from real coordinates), and an EMBEDDED
+  interactive map — OpenStreetMap's embed iframe: pan/zoom + marker, zero
+  new dependencies, lazy behind a Show-map toggle, OSM attribution below.
+  Leaflet + per-hole GPS overlays are the explicitly-future round: the
+  provider schema has polygon/tee-coordinate fields but they were null on
+  every sampled course. Catalog carries the new detail columns (101);
+  OpenGolfAPI supplies them, GCA has none.
+
+Preview note: the composer preview still shows the GRID hole count (its
+shadow copy predates derivation) — cosmetic, post-submit surfaces show the
+derived truth.
+
 ## August 23, 2026 — Minor-signup unblock (shareable invite link) + two nits
 
 With prod email dark (DNS → Resend unverified), a minor signing up was
