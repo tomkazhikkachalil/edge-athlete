@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { parseHoleGeometry } from '../hole-geometry';
+import { greenDistanceYards, parseHoleGeometry } from '../hole-geometry';
+import { haversineKm } from '../geocode';
 import rideauView from './fixtures/overpass-rideau-view.json';
 
 // Fixture: a REAL Overpass `out geom` response for Rideau View GC (18
@@ -51,5 +52,39 @@ describe('parseHoleGeometry', () => {
     mixed.elements.push({ type: 'way', tags: { golf: 'green' }, geometry: [] });
     const g = parseHoleGeometry(mixed);
     expect(g!.holes).toHaveLength(18);
+  });
+});
+
+describe('greenDistanceYards', () => {
+  const g = parseHoleGeometry(rideauView)!;
+  const hole1 = g.holes[0].line;
+  const green = hole1[hole1.length - 1];
+
+  it('matches an independent haversine computation from a nearby fix (±1 yd)', () => {
+    // A fix offset ~150 yds south of the green (0.00124° of latitude).
+    const fix: [number, number] = [green[0] - 0.00124, green[1]];
+    const expected = Math.round(
+      haversineKm({ lat: fix[0], lng: fix[1] }, { lat: green[0], lng: green[1] }) * 1093.6133
+    );
+    const got = greenDistanceYards(fix, hole1);
+    expect(got).not.toBeNull();
+    expect(Math.abs(got! - expected)).toBeLessThanOrEqual(1);
+    expect(got!).toBeGreaterThan(100);
+    expect(got!).toBeLessThan(200);
+  });
+
+  it('is measured to the LINE END (the green), not the tee', () => {
+    const tee = hole1[0];
+    // Standing ON the tee: distance ≈ the hole's playing length, not ~0.
+    const fromTee = greenDistanceYards(tee, hole1)!;
+    expect(fromTee).toBeGreaterThan(150);
+    // Standing on the green: ~0.
+    expect(greenDistanceYards(green, hole1)).toBe(0);
+  });
+
+  it('nulls past the sanity cap (couch-peek from downtown Ottawa) and on junk lines', () => {
+    expect(greenDistanceYards([45.4215, -75.6972], hole1)).toBeNull(); // ~25 km away
+    expect(greenDistanceYards(green, [green])).toBeNull(); // 1-point line
+    expect(greenDistanceYards(green, [])).toBeNull();
   });
 });
