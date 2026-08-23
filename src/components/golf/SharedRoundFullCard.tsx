@@ -1,7 +1,7 @@
 'use client';
 
 import { useMemo, useState } from 'react';
-import { formatDisplayName, getInitials } from '@/lib/formatters';
+import { formatDisplayName, getInitials, parseDateLocal } from '@/lib/formatters';
 import { totalPenalties, formatPenaltySummary } from '@/lib/golf/penalties';
 import { classifyScore, SCORE_CELL_RING, holePar, bestHoleFor, placements, ordinalLabel } from '@/lib/golf/scoring';
 import { pickOverviewMedia } from '@/lib/media/hero';
@@ -170,8 +170,10 @@ export default function SharedRoundFullCard({
     }
   };
 
-  // Format date
-  const formattedDate = new Date(group_post.date).toLocaleDateString('en-US', {
+  // Format date. parseDateLocal, not new Date(): group_posts.date is a
+  // date-only string, which new Date() reads as UTC midnight — that showed
+  // yesterday's date in any US timezone.
+  const formattedDate = parseDateLocal(group_post.date).toLocaleDateString('en-US', {
     month: 'long',
     day: 'numeric',
     year: 'numeric'
