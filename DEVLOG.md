@@ -57,7 +57,7 @@ Ops order: run 104 (additive — safe before the merge), seed `places`
 `near=45.42,-75.69` distance-sorted, facets CA → ON. Users and clubs
 follow in 106 (same columns, `search_people`/`search_clubs` on the same
 contract, profile location becomes a place picker); leagues get it on
-creation. Test count 1557 → 1565.
+creation. Test count 1557 → 1564.
 
 ## August 24, 2026 — The rangefinder's on-course GPS pass, emulated on prod
 
