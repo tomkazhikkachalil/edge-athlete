@@ -21,6 +21,7 @@
 
 import { getSupabaseAdmin } from '@/lib/auth-server';
 import { normalizeQuery, rankPeople, type PersonSuggestion } from './people';
+import { hasLocationFilter, rpcLocationArgs, type LocationParams } from '@/lib/geo/params';
 
 export interface SearchPeopleParams {
   /** Raw user input; normalised here, so callers need not pre-clean it. */
@@ -37,6 +38,10 @@ export interface SearchPeopleParams {
   requireHandle?: boolean;
   /** Usually the caller — you cannot tag or invite yourself. */
   excludeId?: string | null;
+  /** Location constraints (migration 108): country/region codes, a point +
+   *  radius for "near". With any of these set, an EMPTY query is a filtered
+   *  browse ("athletes in Ontario") rather than "no suggestions". */
+  location?: LocationParams;
 }
 
 /**
@@ -50,14 +55,18 @@ export async function searchPeople({
   limit = 20,
   requireHandle = false,
   excludeId = null,
+  location = {},
 }: SearchPeopleParams): Promise<PersonSuggestion[]> {
   const q = normalizeQuery(query);
-  if (!q) return [];
+  const filtered = hasLocationFilter(location);
+  if (!q && !filtered) return [];
 
   const admin = getSupabaseAdmin();
   // requireHandle/excludeId go to the RPC rather than being filtered off the
   // result: applied after the LIMIT they would quietly return fewer rows than
-  // the caller asked for.
+  // the caller asked for. Location args are OMITTED when unset
+  // (rpcLocationArgs) so a build deployed before 108 still matches the 087
+  // signature for every unfiltered search.
   const { data, error } = await admin.rpc('search_people', {
     search_term: q,
     visible_ids: [...visibleIds],
@@ -65,6 +74,7 @@ export async function searchPeople({
     max_results: limit,
     require_handle: requireHandle,
     exclude_id: excludeId,
+    ...rpcLocationArgs(location),
   });
 
   if (error) {
@@ -85,6 +95,8 @@ export async function searchPeople({
         '[search] search_people is missing — MIGRATION 087 HAS NOT BEEN RUN. ' +
         'Serving degraded, unranked results. Run database/migrations/087_search_core.sql.'
       );
+      // The fallback has no location model; a filter-only browse gets [].
+      if (!q) return [];
       return searchPeopleFallback(q, visibleIds, includePublic, limit, requireHandle, excludeId);
     }
     // Anything else is a real failure: surfaced, never swallowed.

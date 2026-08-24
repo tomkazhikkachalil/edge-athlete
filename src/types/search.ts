@@ -15,6 +15,14 @@ export interface SearchAthleteResult {
   school: string | null;
   visibility?: string | null;
   handle?: string | null;
+  // Structured location (migration 108) — render with formatPlace, falling
+  // back to the free-text `location`.
+  city?: string | null;
+  region?: string | null;
+  region_code?: string | null;
+  country?: string | null;
+  country_code?: string | null;
+  distance_km?: number | null;
 }
 
 export interface SearchPostMedia {
@@ -47,6 +55,10 @@ export interface SearchClubResult {
   name: string;
   description?: string | null;
   location?: string | null;
+  city?: string | null;
+  region?: string | null;
+  country?: string | null;
+  distance_km?: number | null;
 }
 
 export interface SearchResults {

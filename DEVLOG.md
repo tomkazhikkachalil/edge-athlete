@@ -1,5 +1,49 @@
 # Development Log
 
+## August 24, 2026 — Users and clubs by location (migration 108, the places model round 2)
+
+Tom's second half of the ask: location search "for the users too, same
+with clubs, same with leagues." Same model as the courses (docs/SEARCH.md):
+`profiles` and `clubs` gain `place_id` + the denormalized location columns;
+their search vectors are rebuilt on the shared contract (`search_normalize`
++ `simple`, names A / handle B / structured + free-text location C); and
+`search_people` and `search_clubs` take the standard location parameters
+(`p_country_code, p_region_code, p_near_lat/lng, p_radius_km`).
+
+- **`search_people` (087's ladder, kept)** gains a location tier BELOW every
+  name tier — a person named Ottawa still outranks people in Ottawa — and
+  an empty query is now allowed as a FILTERED browse ("athletes near
+  Ottawa"); unfiltered it still returns nothing. Its signature changed, so
+  108 DROPS the 087 one first (PostgREST can't resolve overloads —
+  PGRST203) and the app omits the location arguments whenever none is set
+  (`rpcLocationArgs`), so a build deployed before 108 still matches the
+  old signature for every ordinary search.
+- **`search_clubs`** had no definition in the numbered migrations (a legacy
+  websearch function lived only in prod); 108 drops every overload and
+  creates it on the contract. `/api/search` calls it by the new argument
+  names and keeps its ILIKE fallback.
+- **Backfill from free text** — `backfill_places_from_text(regclass)`:
+  "City, ST" / "City, Country" must match the place's region or country;
+  a bare "Springfield" is filled only when the name is unique among
+  places. Unmatched rows keep their text; nothing is guessed. Never
+  overwrites a user-picked place.
+- **`PlacePicker`** — the one location input: free text with GeoNames
+  suggestions from `/api/places` (`search_places`); picking a suggestion
+  yields the structured value (names, ISO codes, coordinates). Edit
+  Profile's location box is now a PlacePicker; the save writes the columns
+  (`placeToProfileFields`, '' to clear — the profile PUT's empty-string→
+  NULL convention, which the new columns joined). Typing over a picked
+  place clears the structured columns so search never keeps a stale city.
+- **Surfaces:** header ⌘K gets a Location filter (a picked place → within
+  50 km) and athlete/club rows finally DISPLAY location (the audit found it
+  fetched and dropped); Explore athletes get a name search box, a place
+  filter and **Near me** (one `getCurrentPosition`, no tracking); `/u/`
+  renders the structured place when present.
+- Leagues have no table yet; they ship with this model on creation
+  (docs/SEARCH.md checklist).
+
+Ops: run 108 (additive; the app tolerates both signatures) → merge → probes.
+
 ## August 24, 2026 — Geo foundation: one `places` model, location-aware course search
 
 Tom, after the Ottawa import: search "is only by name" — people search by

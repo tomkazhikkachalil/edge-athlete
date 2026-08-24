@@ -79,6 +79,16 @@ export interface Profile {
   gender?: 'male' | 'female' | 'custom';
   location?: string;
   postal_code?: string;
+  // Structured location (migration 108) — see docs/SEARCH.md.
+  place_id?: string | null;
+  city?: string | null;
+  region?: string | null;
+  region_code?: string | null;
+  country?: string | null;
+  country_code?: string | null;
+  lat?: number | null;
+  lng?: number | null;
+  location_source?: string | null;
   user_type: 'athlete' | 'club' | 'league' | 'fan' | 'parent';
   onboarded_at?: string | null; // null = first-run onboarding not yet completed
   created_at: string;

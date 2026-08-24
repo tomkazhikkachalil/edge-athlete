@@ -21,6 +21,8 @@ import SportMultiSelect from './SportMultiSelect';
 import { COPY, getComingSoonMessage } from '@/lib/copy';
 import ConfirmModal from './ConfirmModal';
 import { useDirtyClose } from '@/hooks/useDirtyClose';
+import PlacePicker, { type PlaceValue } from '@/components/PlacePicker';
+import { placeToProfileFields, profileToPlace } from '@/lib/geo/profile-place';
 import { useBodyScrollLock } from '@/hooks/useBodyScrollLock';
 import {
   formatHeight,
@@ -140,6 +142,9 @@ export default function EditProfileTabs({
     weight_unit: 'lbs' as 'lbs' | 'kg' | 'stone',
     dob: '',
     location: '',
+    // Structured place behind the location text (migration 108). Null =
+    // free text only; the picker fills it when a suggestion is chosen.
+    place: null as PlaceValue | null,
     class_year: '' as string | number,
   });
 
@@ -303,6 +308,7 @@ export default function EditProfileTabs({
       weight_unit: savedUnit,
       dob: (profile?.dob || '').toString(),
       location: (profile?.location || '').toString(),
+      place: profileToPlace(profile),
       class_year: profile?.class_year ? String(profile.class_year) : '',
     };
     setVitalsForm(loadedVitals);
@@ -448,6 +454,10 @@ export default function EditProfileTabs({
             weight_unit: vitalsForm.weight_unit || 'lbs',
             dob: vitalsForm.dob || '',
             location: vitalsForm.location.trim(),
+            // A picked place writes the structured columns (names + ISO
+            // codes + coords); free text clears them so search never keeps
+            // a stale city behind an edited string.
+            ...placeToProfileFields(vitalsForm.place),
             class_year: vitalsForm.class_year ? parseInt(String(vitalsForm.class_year)) : '',
           };
           // Update vitals in database
@@ -904,12 +914,11 @@ export default function EditProfileTabs({
         <label htmlFor="location" className="block text-sm font-medium text-secondary mb-1">
           Location
         </label>
-        <input
+        <PlacePicker
           id="location"
-          type="text"
-          value={vitalsForm.location || ''}
-          onChange={(e) => setVitalsForm(prev => ({ ...prev, location: e.target.value }))}
-          className="w-full px-3 py-2 border border-border-strong rounded-md focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent"
+          value={vitalsForm.place}
+          text={vitalsForm.location || ''}
+          onChange={(place, text) => setVitalsForm(prev => ({ ...prev, place, location: text }))}
           placeholder="City, State"
         />
       </div>

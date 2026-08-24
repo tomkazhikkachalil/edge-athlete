@@ -231,7 +231,12 @@ export async function PUT(request: NextRequest) {
     }
     
     // Convert empty strings to null for optional text fields (keeps them as empty strings if that's intended)
-    const optionalFields = ['username', 'bio', 'location', 'middle_name', 'social_twitter', 'social_instagram', 'social_facebook', 'social_tiktok'];
+    const optionalFields = [
+      'username', 'bio', 'location', 'middle_name', 'social_twitter', 'social_instagram', 'social_facebook', 'social_tiktok',
+      // Structured location (108): the picker sends '' to clear when the
+      // text no longer describes a picked place.
+      'place_id', 'city', 'region', 'region_code', 'country', 'country_code', 'lat', 'lng', 'location_source',
+    ];
     optionalFields.forEach(field => {
       if (cleanedProfileData[field] === '') {
         cleanedProfileData[field] = null;

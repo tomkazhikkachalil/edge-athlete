@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseAdmin, requireAuth } from '@/lib/auth-server';
 import { FEATURE_FLAGS } from '@/lib/features';
 import { searchPeople } from '@/lib/search/people-server';
+import { hasLocationFilter, readLocationParams, rpcLocationArgs } from '@/lib/geo/params';
 
 // Minimum query length, per kind of result.
 //
@@ -46,12 +47,16 @@ export async function GET(request: NextRequest) {
     // const league = searchParams.get('league')?.trim(); // Reserved for future implementation
     const dateFrom = searchParams.get('dateFrom')?.trim();
     const dateTo = searchParams.get('dateTo')?.trim();
-
+    // Location constraints (docs/SEARCH.md): country/region codes or a
+    // point + radius. With one set, an empty query is a filtered browse
+    // ("athletes near Ottawa") for the people and clubs types.
+    const location = readLocationParams(searchParams);
+    const locationBrowse = hasLocationFilter(location) && (type === 'athletes' || type === 'clubs');
 
     // An empty query is "nothing typed yet", not a client error. The old 400
     // under 2 characters made every typeahead in the app either wait for a
     // second keystroke or log a guaranteed failure on the first one.
-    if (!query || query.length < PEOPLE_MIN_CHARS) {
+    if ((!query || query.length < PEOPLE_MIN_CHARS) && !locationBrowse) {
       return NextResponse.json({
         query: query ?? '',
         results: { athletes: [], posts: [], clubs: [] },
@@ -89,10 +94,11 @@ export async function GET(request: NextRequest) {
       // window when one is active or the filter could empty a full page.
       const hasFacets = Boolean(sport || school);
       let athletes = await searchPeople({
-        query,
+        query: query ?? '',
         visibleIds: viewerId ? [viewerId] : [],
         includePublic: true,
         limit: hasFacets ? 100 : 20,
+        location,
       });
 
       if (sport) {
@@ -107,7 +113,7 @@ export async function GET(request: NextRequest) {
     }
 
     // Search Posts (by caption, hashtags, tags)
-    if ((type === 'all' || type === 'posts') && query.length >= CONTENT_MIN_CHARS) {
+    if ((type === 'all' || type === 'posts') && (query ?? '').length >= CONTENT_MIN_CHARS) {
       try {
         {
           const { data: postsBasic, error: postsError } = await supabase
@@ -183,7 +189,7 @@ export async function GET(request: NextRequest) {
         // errored OR returned nothing (see above).
         // sanitizeForFilter was missing here while every sibling path had it —
         // this one built its pattern from raw input.
-        const searchPattern = `%${sanitizeForFilter(query)}%`;
+        const searchPattern = `%${sanitizeForFilter(query ?? '')}%`;
 
         let postQuery = supabase
           .from('posts')
@@ -238,13 +244,17 @@ export async function GET(request: NextRequest) {
     }
 
     // Search Clubs
-    if ((type === 'all' || type === 'clubs') && query.length >= CONTENT_MIN_CHARS) {
+    if ((type === 'all' || type === 'clubs') && ((query ?? '').length >= CONTENT_MIN_CHARS || locationBrowse)) {
       try {
         {
+          // 108's search_clubs: the standard contract (q + location params).
+          // Location args are omitted when unset so a pre-108 database still
+          // resolves the call; a missing/old function falls to the ILIKE path.
           const { data: clubs, error: clubsError } = await supabase
             .rpc('search_clubs', {
-              search_query: query,
-              max_results: 10
+              q: query ?? '',
+              max_results: 10,
+              ...rpcLocationArgs(location),
             });
 
           // Same stop-word/partial-word trap as posts: empty falls through to
@@ -257,7 +267,7 @@ export async function GET(request: NextRequest) {
         }
       } catch {
         // Fallback to ILIKE search if full-text search fails
-        const safeClubQuery = sanitizeForFilter(query);
+        const safeClubQuery = sanitizeForFilter(query ?? '');
         const searchPattern = `%${safeClubQuery}%`;
 
         const { data: clubs, error: clubsError } = await supabase

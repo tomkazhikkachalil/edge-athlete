@@ -8,6 +8,8 @@ import { formatDisplayName, getInitials } from '@/lib/formatters';
 import { SPORT_REGISTRY } from '@/lib/sports/SportRegistry';
 import { SearchAthleteResult, SearchPostResult, SearchClubResult } from '@/types/search';
 import { useTypeahead } from '@/hooks/useTypeahead';
+import PlacePicker, { type PlaceValue } from '@/components/PlacePicker';
+import { formatPlace } from '@/lib/geo/regions';
 
 // ONE ordered result array for all three kinds. Clubs live in here even
 // though they are inert (the /club/[id] route does not exist, so their rows
@@ -32,8 +34,12 @@ interface SearchFilters {
   league?: string;
   dateFrom?: string;
   dateTo?: string;
+  /** Location: a picked place → athletes/clubs within 50 km of it (108). */
+  place?: PlaceValue;
   type: 'all' | 'athletes' | 'posts' | 'clubs';
 }
+
+const PLACE_RADIUS_KM = 50;
 
 export default function AdvancedSearchBar() {
   const router = useRouter();
@@ -59,6 +65,10 @@ export default function AdvancedSearchBar() {
     if (active.league) params.append('league', active.league);
     if (active.dateFrom) params.append('dateFrom', active.dateFrom);
     if (active.dateTo) params.append('dateTo', active.dateTo);
+    if (active.place) {
+      params.append('near', `${active.place.lat},${active.place.lng}`);
+      params.append('radius', String(PLACE_RADIUS_KM));
+    }
 
     const response = await fetch(`/api/search?${params}`, { signal });
     if (!response.ok) throw new Error(`Search failed: ${response.status}`);
@@ -146,11 +156,16 @@ export default function AdvancedSearchBar() {
   const optionId = (i: number) => `${listboxId}-option-${i}`;
 
 
+  // The picker's text is separate from the pick: typing without choosing a
+  // suggestion is not a filter.
+  const [placeText, setPlaceText] = useState('');
   const clearFilters = () => {
     setFilters({ type: 'all' });
+    setPlaceText('');
   };
 
-  const hasActiveFilters = filters.sport || filters.school || filters.league || filters.dateFrom || filters.dateTo || filters.type !== 'all';
+  const hasActiveFilters =
+    filters.sport || filters.school || filters.league || filters.dateFrom || filters.dateTo || filters.place || filters.type !== 'all';
 
   return (
     <div className="w-full">
@@ -191,7 +206,7 @@ export default function AdvancedSearchBar() {
           <span className="hidden sm:inline">Filters</span>
           {hasActiveFilters && (
             <span className="ml-0.5 bg-white text-violet-600 rounded-full w-5 h-5 inline-flex items-center justify-center text-xs font-semibold">
-              {[filters.sport, filters.school, filters.league, filters.dateFrom, filters.type !== 'all'].filter(Boolean).length}
+              {[filters.sport, filters.school, filters.league, filters.dateFrom, filters.place, filters.type !== 'all'].filter(Boolean).length}
             </span>
           )}
         </button>
@@ -265,6 +280,26 @@ export default function AdvancedSearchBar() {
                 value={filters.school || ''}
                 onChange={(e) => setFilters({ ...filters, school: e.target.value || undefined })}
                 placeholder="e.g., Stanford University"
+                className="w-full px-3 py-2 border border-border-strong rounded-md focus:ring-2 focus:ring-violet-500 focus:border-violet-500"
+              />
+            </div>
+
+            {/* Location filter (108): athletes and clubs within 50 km of a
+                picked place. Pick-only — typed text is not a filter. */}
+            <div>
+              <label htmlFor="search-filter-place" className="block text-sm font-medium text-secondary mb-1">
+                Location
+              </label>
+              <PlacePicker
+                id="search-filter-place"
+                value={filters.place ?? null}
+                text={placeText}
+                allowFreeText={false}
+                placeholder="City or town — within 50 km"
+                onChange={(place, text) => {
+                  setPlaceText(text);
+                  setFilters({ ...filters, place: place ?? undefined });
+                }}
                 className="w-full px-3 py-2 border border-border-strong rounded-md focus:ring-2 focus:ring-violet-500 focus:border-violet-500"
               />
             </div>
@@ -395,6 +430,19 @@ export default function AdvancedSearchBar() {
                               <span>{athlete.school}</span>
                             </>
                           )}
+                          {/* Location was fetched and never shown (audit,
+                              Aug 24). Structured place first, else the
+                              free text; distance when the search was "near". */}
+                          {(athlete.city || athlete.location) && (
+                            <>
+                              {(athlete.sport || athlete.school) && <span>•</span>}
+                              <span className="truncate">
+                                {formatPlace({ city: athlete.city, region: athlete.region, country: athlete.country }) ||
+                                  athlete.location}
+                                {typeof athlete.distance_km === 'number' && ` · ${Math.round(athlete.distance_km)} km`}
+                              </span>
+                            </>
+                          )}
                         </div>
                       </div>
                       {athlete.visibility === 'private' && (
@@ -466,7 +514,7 @@ export default function AdvancedSearchBar() {
                     >
                       <p className="font-medium text-primary">{club.name}</p>
                       <p className="text-sm text-muted line-clamp-1">
-                        {club.location}
+                        {formatPlace({ city: club.city, region: club.region, country: club.country }) || club.location}
                       </p>
                     </div>
                   ))}
