@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSportDefinition, type SportKey } from '@/lib/sports/SportRegistry';
+import { getProfileOrganizations } from '@/lib/affiliations/server';
 import { getSportSettingsDisplay } from '@/lib/sports/settings-schemas';
 import { resolveSportKey } from '@/lib/sports/resolve-sport-key';
 import { buildSportStatsCard } from '@/lib/sports/server';
@@ -225,6 +226,11 @@ export async function GET(request: NextRequest) {
       })
       .filter((entry): entry is NonNullable<typeof entry> => entry !== null);
 
+    // Org memberships (org connections round) — public data by the
+    // membership-is-public decision; rides the aggregate so /u/ stays
+    // anonymous-cheap (the strip gets initialData, no client fetch).
+    const organizations = await getProfileOrganizations(supabase, profile.id);
+
     return NextResponse.json({
       profile: {
         ...profile,
@@ -240,6 +246,7 @@ export async function GET(request: NextRequest) {
       badges: [],
       sportStats,
       sportSettings,
+      organizations,
       // Deprecated alias — kept one release so cached clients keep working
       golfStats: null
     });
