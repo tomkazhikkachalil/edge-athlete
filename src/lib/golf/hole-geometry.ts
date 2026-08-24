@@ -194,22 +194,70 @@ export function isOverpassPartial(payload: unknown): boolean {
   return typeof remark === 'string' && /runtime error|timed out|out of memory/i.test(remark);
 }
 
-/** Second chance for a payload the plain parse rejected: pick the ONE
- *  `leisure=golf_course` boundary whose name best matches the catalog course
- *  (strict-max score ≥ 1 — a tie or no match gives up), keep only hole ways
- *  whose midpoint lies inside it, and re-apply the same strict parse. Null
- *  stays the answer for genuinely ambiguous clubs whose own boundary holds
- *  duplicate refs. Exported pure for tests. */
-export function scopeHoleGeometry(payload: unknown, courseName: string): HoleGeometry | null {
-  const elements = (payload as { elements?: OverpassElement[] } | null)?.elements;
-  if (!Array.isArray(elements) || !courseName.trim()) return null;
+/** Strict name identity between a catalog course and an OSM boundary: every
+ *  informative token of the SHORTER name must appear in the other ("Kanata
+ *  Golf Club" ⊂ "Kanata Golf Club"; "The Marshes Golf Club" vs "The
+ *  Marchwood" = no). A single shared token ("Ottawa Hunt" vs "Ottawa Valley")
+ *  is not identity — the review's neighbour-boundary finding. */
+function boundaryNameMatches(courseName: string, boundaryName: string): boolean {
+  const a = nameTokens(courseName);
+  const b = nameTokens(boundaryName);
+  const shared = [...a].filter(t => b.has(t)).length;
+  if (shared === 0) return false;
+  const shorter = Math.min(a.size, b.size);
+  if (shared < shorter) return false;
+  // A ONE-token identity is only identity when that token LEADS the longer
+  // name: "Ottawa Golf Course" is not "Royal Ottawa Golf Club" (the first
+  // informative token is "royal"), but "Kanata Golf Club" is "Kanata".
+  // Neighbouring clubs are 300–500 m apart, so distance can't tell them
+  // apart — the name has to.
+  if (shorter === 1) {
+    const [first] = a.size >= b.size ? a : b;
+    const [only] = a.size >= b.size ? b : a;
+    return first === only;
+  }
+  return true;
+}
 
-  const boundaries: { rings: Ring[]; score: number }[] = [];
+/** Metres from a point to the nearest vertex of a ring (good enough at
+ *  course scale — rings are dense polygons, not two-point chords). */
+function metresToRing(pt: [number, number], ring: Ring): number {
+  let best = Infinity;
+  for (const v of ring) {
+    const km = haversineKm({ lat: pt[0], lng: pt[1] }, { lat: v[0], lng: v[1] });
+    if (km < best) best = km;
+  }
+  return best * 1000;
+}
+
+// Coarse sanity only: a ring that merely grazes the 1.5 km fetch radius is
+// not this club. It cannot separate ADJACENT clubs (their rings are 300–500 m
+// from a course point, measured on the Royal Ottawa/Champlain and Marshes/
+// Marchwood fixtures) — boundaryNameMatches does that.
+const BOUNDARY_PROXIMITY_M = 1000;
+
+interface Boundary {
+  rings: Ring[];
+  score: number;
+}
+
+/** The ONE boundary that is this course, or null (none / ambiguous). Rules:
+ *  strict name identity (boundaryNameMatches); when the course point is
+ *  known, the ring must contain it or pass within 1 km (a coarse guard —
+ *  see BOUNDARY_PROXIMITY_M); identical geometry
+ *  delivered twice (way + relation) collapses; two DIFFERENT polygons with
+ *  equal score are an ambiguity and give up. */
+function pickBoundary(
+  elements: OverpassElement[],
+  courseName: string,
+  point: [number, number] | null | undefined
+): Boundary | null {
+  const boundaries: Boundary[] = [];
   for (const el of elements) {
     const tags = el?.tags ?? {};
     if (tags.leisure !== 'golf_course' || !tags.name) continue;
+    if (!boundaryNameMatches(courseName, tags.name)) continue;
     const score = courseNameScore(courseName, tags.name);
-    if (score === 0) continue;
     let rings: Ring[] = [];
     if (el.type === 'way' && Array.isArray(el.geometry)) {
       rings = assembleRings([el.geometry.filter(validPt).map(g => [g.lat, g.lon] as [number, number])]);
@@ -220,15 +268,18 @@ export function scopeHoleGeometry(payload: unknown, courseName: string): HoleGeo
           .map(m => m.geometry!.filter(validPt).map(g => [g.lat, g.lon] as [number, number]))
       );
     }
-    if (rings.length) boundaries.push({ rings, score });
+    if (!rings.length) continue;
+    if (point) {
+      const near = rings.some(r => pointInRing(point, r) || metresToRing(point, r) <= BOUNDARY_PROXIMITY_M);
+      if (!near) continue;
+    }
+    boundaries.push({ rings, score });
   }
   if (!boundaries.length) return null;
   // OSM double-tagging: a closed way tagged leisure=golf_course that is ALSO
   // the outer member of a same-named multipolygon relation arrives as two
-  // candidates with equal score — the tie rule nulled the course for 30
-  // days although both describe the same ring. Collapse identical GEOMETRY
-  // before the tie test; two different polygons sharing a name remain a
-  // genuine ambiguity and still null.
+  // candidates with equal score — collapse identical GEOMETRY before the
+  // tie test; two different polygons sharing a name remain an ambiguity.
   const seen = new Set<string>();
   const distinct = boundaries.filter(b => {
     const sig = ringSignature(b.rings);
@@ -238,16 +289,56 @@ export function scopeHoleGeometry(payload: unknown, courseName: string): HoleGeo
   });
   distinct.sort((a, b) => b.score - a.score);
   if (distinct.length > 1 && distinct[0].score === distinct[1].score) return null;
-  const chosen = distinct[0];
+  return distinct[0];
+}
 
+/** Hole ways whose vertices lie MOSTLY inside the boundary (majority, not
+ *  the single midpoint vertex — on a 2-node way that was the green, and a
+ *  perimeter hole near a hand-drawn polygon vanished without a trace). */
+function scopeByBoundary(elements: OverpassElement[], boundary: Boundary): HoleGeometry | null {
   const scoped = elements.filter(el => {
     if (el?.tags?.golf !== 'hole') return false;
     const pts = (el.geometry ?? []).filter(validPt);
     if (!pts.length) return false;
-    const mid = pts[Math.floor(pts.length / 2)];
-    return chosen.rings.some(r => pointInRing([mid.lat, mid.lon], r));
+    const inside = pts.filter(g => boundary.rings.some(r => pointInRing([g.lat, g.lon], r))).length;
+    return inside * 2 >= pts.length;
   });
   return parseHoleGeometry({ elements: scoped });
+}
+
+/** Scope a payload to the boundary that IS this course (see pickBoundary)
+ *  and re-apply the strict parse. Null when no boundary matches, when two
+ *  tie, or when the scoped set is itself invalid (duplicate refs inside one
+ *  club, fewer than 9 holes). Exported pure for tests. */
+export function scopeHoleGeometry(
+  payload: unknown,
+  courseName: string,
+  point?: [number, number] | null
+): HoleGeometry | null {
+  const elements = (payload as { elements?: OverpassElement[] } | null)?.elements;
+  if (!Array.isArray(elements) || !courseName.trim()) return null;
+  const boundary = pickBoundary(elements, courseName, point);
+  return boundary ? scopeByBoundary(elements, boundary) : null;
+}
+
+/** The whole decision for one Overpass payload. A boundary that IS this
+ *  course is AUTHORITATIVE: the plain parse used to run first and, when it
+ *  accepted (unique refs, ≥ 9 holes), win outright — so a course with no
+ *  mapped holes inherited its neighbour's clean 18 (the review's Marchwood
+ *  finding). Now: matching boundary → scoped result, whatever the plain
+ *  parse thinks; no matching boundary → plain parse, as before. Exported
+ *  pure for tests. */
+export function resolveHoleGeometry(
+  payload: unknown,
+  courseName: string | null | undefined,
+  point?: [number, number] | null
+): HoleGeometry | null {
+  const elements = (payload as { elements?: OverpassElement[] } | null)?.elements;
+  if (!Array.isArray(elements)) return null;
+  const name = (courseName ?? '').trim();
+  const boundary = name ? pickBoundary(elements, name, point) : null;
+  if (boundary) return scopeByBoundary(elements, boundary);
+  return parseHoleGeometry(payload);
 }
 
 /** Live yardage from the player's GPS fix to a hole's green — the OSM way
@@ -387,8 +478,7 @@ export async function fetchHoleGeometry(
       // "no coverage" answer — next mirror; all partial → reached:false,
       // so nothing is stamped and a later request retries.
       if (isOverpassPartial(payload)) continue;
-      const geometry =
-        parseHoleGeometry(payload) ?? (courseName ? scopeHoleGeometry(payload, courseName) : null);
+      const geometry = resolveHoleGeometry(payload, courseName, [lat, lng]);
       return { reached: true, geometry };
     } catch {
       // Timeout/network — next mirror.

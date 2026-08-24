@@ -1,5 +1,32 @@
 # Development Log
 
+## August 24, 2026 — Hole-geometry scoping: the three parked rules, then the Ottawa re-sweep
+
+The last items from the #216–#218 review, parked until they could be
+validated by re-sweeping a region. Tom: do it. The rules, each pinned by a
+fixture test before touching prod:
+
+- **Identity, not overlap.** A boundary matched on ONE shared informative
+  token ("Ottawa Golf Course" vs "Royal Ottawa Golf Club"), so an adjacent
+  club's polygon — and its 18 holes — could be served under the wrong
+  course. Now every informative token of the shorter name must appear in
+  the other, and a one-token identity must be the longer name's LEADING
+  token ("Kanata" is Kanata Golf Club; "Ottawa" is not Royal Ottawa).
+- **A matching boundary is authoritative.** The plain parse used to run
+  first and win whenever it accepted, so a course whose own holes aren't
+  mapped inherited its neighbour's clean 18 (the Marchwood finding). Now:
+  matching boundary → scoped result, whatever the plain parse says; no
+  matching boundary → plain parse, as before.
+- **Containment by majority of vertices**, not the single midpoint (the
+  green, on a 2-node way) — a perimeter hole near a hand-drawn polygon no
+  longer vanishes silently.
+
+One rule from the review did NOT survive contact with data: a proximity
+guard. Measured on the fixtures, adjacent clubs sit 336–507 m from each
+other's centroids and a catalog point can be less precise than that, so
+no distance threshold separates neighbours — it stays as a coarse 1 km
+sanity check only; the NAME rule is the discriminator.
+
 ## August 24, 2026 — Drop the dead lower() indexes (migration 111)
 
 Housekeeping from the scale audit. Migration 100 indexed `lower(name)`
