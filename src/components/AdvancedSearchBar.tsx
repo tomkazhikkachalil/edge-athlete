@@ -7,6 +7,7 @@ import { useAuth } from '@/lib/auth';
 import { formatDisplayName, getInitials } from '@/lib/formatters';
 import { SPORT_REGISTRY } from '@/lib/sports/SportRegistry';
 import { SearchAthleteResult, SearchPostResult, SearchClubResult } from '@/types/search';
+import type { GolfCourse } from '@/types/golf';
 import { useTypeahead } from '@/hooks/useTypeahead';
 import PlacePicker, { type PlaceValue } from '@/components/PlacePicker';
 import { formatPlace } from '@/lib/geo/regions';
@@ -23,6 +24,7 @@ import { formatPlace } from '@/lib/geo/regions';
 // sequence-guard together, by construction.
 type ResultItem =
   | { kind: 'athlete'; id: string; athlete: SearchAthleteResult }
+  | { kind: 'course'; id: string; course: GolfCourse }
   | { kind: 'post'; id: string; post: SearchPostResult }
   | { kind: 'club'; id: string; club: SearchClubResult };
 
@@ -36,7 +38,7 @@ interface SearchFilters {
   dateTo?: string;
   /** Location: a picked place → athletes/clubs within 50 km of it (108). */
   place?: PlaceValue;
-  type: 'all' | 'athletes' | 'posts' | 'clubs';
+  type: 'all' | 'athletes' | 'courses' | 'posts' | 'clubs';
 }
 
 const PLACE_RADIUS_KM = 50;
@@ -75,11 +77,14 @@ export default function AdvancedSearchBar() {
     const data = await response.json();
 
     const athletes = (data.results?.athletes ?? []) as SearchAthleteResult[];
+    const courseRows = (data.results?.courses ?? []) as GolfCourse[];
     const posts = (data.results?.posts ?? []) as SearchPostResult[];
     const clubRows = (data.results?.clubs ?? []) as SearchClubResult[];
-    // Navigable kinds first so activeIndex maps to render order.
+    // Navigable kinds first so activeIndex maps to render order:
+    // athletes, courses, posts, then the inert clubs.
     return [
       ...athletes.map((a): ResultItem => ({ kind: 'athlete', id: a.id, athlete: a })),
+      ...courseRows.map((c): ResultItem => ({ kind: 'course', id: c.id, course: c })),
       ...posts.map((p): ResultItem => ({ kind: 'post', id: p.id, post: p })),
       ...clubRows.map((c): ResultItem => ({ kind: 'club', id: c.id, club: c })),
     ];
@@ -112,6 +117,10 @@ export default function AdvancedSearchBar() {
     () => items.flatMap(i => (i.kind === 'athlete' ? [i.athlete] : [])),
     [items]
   );
+  const courses = useMemo(
+    () => items.flatMap(i => (i.kind === 'course' ? [i.course] : [])),
+    [items]
+  );
   const posts = useMemo(
     () => items.flatMap(i => (i.kind === 'post' ? [i.post] : [])),
     [items]
@@ -134,6 +143,9 @@ export default function AdvancedSearchBar() {
   const activate = useCallback((item: ResultItem) => {
     if (item.kind === 'athlete') {
       router.push(user?.id === item.athlete.id ? '/athlete' : `/athlete/${item.athlete.id}`);
+    } else if (item.kind === 'course') {
+      // No course page yet: Explore opens the golf chip with this card expanded.
+      router.push(`/explore?course=${item.course.id}`);
     } else if (item.kind === 'post') {
       router.push(`/feed?post=${item.post.id}`);
     } else {
@@ -183,7 +195,7 @@ export default function AdvancedSearchBar() {
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           onKeyDown={handleKeyDown}
-          placeholder="Search athletes, posts, clubs..."
+          placeholder="Search athletes, courses, posts, clubs..."
           /* No focus:ring-* — focus styling is global in globals.css, and a
              local override here fought the app-wide :focus-visible ring. */
           className="w-full px-4 py-2.5 pl-10 pr-14 sm:pr-32 border border-border-strong rounded-lg outline-none transition-all"
@@ -246,6 +258,7 @@ export default function AdvancedSearchBar() {
               >
                 <option value="all">All Results</option>
                 <option value="athletes">Athletes Only</option>
+                <option value="courses">Golf Courses Only</option>
                 <option value="posts">Posts Only</option>
                 <option value="clubs">Clubs Only</option>
               </select>
@@ -454,14 +467,43 @@ export default function AdvancedSearchBar() {
               )}
 
               {/* Posts Section */}
+              {/* Courses (104): the catalog through the same box. */}
+              {courses.length > 0 && (
+                <div className="border-b border-border-subtle">
+                  <div className="px-4 py-2 bg-surface-muted border-b border-border-subtle">
+                    <h3 className="text-sm font-semibold text-secondary">Golf Courses</h3>
+                  </div>
+                  {courses.map((course: GolfCourse, i: number) => {
+                    const navIndex = athletes.length + i;
+                    return (
+                      <div
+                        key={course.id}
+                        id={optionId(navIndex)}
+                        role="option"
+                        aria-selected={activeIndex === navIndex}
+                        onMouseEnter={() => setActiveIndex(navIndex)}
+                        onClick={() => activate({ kind: 'course', id: course.id, course })}
+                        className={`px-4 py-3 cursor-pointer ${activeIndex === navIndex ? 'bg-brand/10' : 'hover:bg-surface-muted'}`}
+                      >
+                        <p className="font-medium text-primary">{course.name}</p>
+                        <p className="text-sm text-muted line-clamp-1">
+                          {formatPlace({ city: course.city, region: course.state, country: course.country })}
+                          {typeof course.distanceKm === 'number' && ` · ${Math.round(course.distanceKm)} km`}
+                        </p>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+
               {posts.length > 0 && (
                 <div className="border-b border-border-subtle">
                   <div className="px-4 py-2 bg-surface-muted border-b border-border-subtle">
                     <h3 className="text-sm font-semibold text-secondary">Posts</h3>
                   </div>
                   {posts.map((post: SearchPostResult, i: number) => {
-                    // Posts follow athletes in the flat nav list.
-                    const navIndex = athletes.length + i;
+                    // Posts follow athletes and courses in the flat nav list.
+                    const navIndex = athletes.length + courses.length + i;
                     return (
                     <div
                       key={post.id}

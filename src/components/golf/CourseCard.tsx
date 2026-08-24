@@ -8,6 +8,7 @@
 import type { GolfCourse } from '@/types/golf';
 import BrandLogo from '@/components/BrandLogo';
 import { websiteDomain } from '@/lib/logo-dev';
+import { formatPlace } from '@/lib/geo/regions';
 
 export default function CourseCard({
   course,
@@ -18,7 +19,9 @@ export default function CourseCard({
   onClick?: () => void;
   expanded?: boolean;
 }) {
-  const location = [course.city, course.state].filter(Boolean).join(', ');
+  // "Ottawa, Ontario · Canada" (104's location model); a distance chip only
+  // on a "near" search.
+  const location = formatPlace({ city: course.city, region: course.state, country: course.country });
   return (
     <button
       type="button"
@@ -32,7 +35,16 @@ export default function CourseCard({
         <BrandLogo domain={websiteDomain(course.website) ?? undefined} name={course.name} size={40} />
         <div className="min-w-0 flex-1">
           <div className="font-semibold text-primary truncate">{course.name}</div>
-          {location && <div className="text-sm text-tertiary truncate">{location}</div>}
+          {location && (
+            <div className="text-sm text-tertiary truncate">
+              {location}
+              {typeof course.distanceKm === 'number' && (
+                <span className="ml-2 inline-flex items-center rounded-full bg-surface-sunken px-2 py-0.5 text-xs font-medium text-secondary">
+                  {course.distanceKm < 10 ? course.distanceKm.toFixed(1) : Math.round(course.distanceKm)} km
+                </span>
+              )}
+            </div>
+          )}
           <div className="text-xs text-muted mt-1">
             {course.holes.length > 0
               ? `Par ${course.totalPar} • ${course.holes.length} holes`

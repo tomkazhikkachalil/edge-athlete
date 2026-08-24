@@ -82,10 +82,10 @@ match against `places` (108's `backfill_places_from_text` does this for
 
 | surface | today | with 104–106 |
 |---|---|---|
-| Composer course picker | name/club/city/region substring | tokens across all fields + country; rows show `City, Region · Country` |
-| Explore → Courses | text only | + Country → Region facets (`/api/golf/courses/facets`), Near me |
+| Composer course picker | name/club/city/region substring | tokens across all fields + country; rows show `City, Region · Country` ✅ |
+| Explore → Courses | text only | + Country → Region facets (`/api/golf/courses/facets`), Near me, `?course=<id>` deep link ✅ |
 | Explore → Athletes | sport chips only | name search + place filter + Near me (108) |
-| Header ⌘K | people (names), posts, clubs | Location filter (place → 50 km); people and clubs match and DISPLAY location (108); + courses (PR 3) |
+| Header ⌘K | people (names), posts, clubs | Location filter (place → 50 km); people and clubs match and DISPLAY location (108); + Golf Courses type ✅ |
 | Profile location | free text | place picker (`search_places`); free text kept as the display string |
 
 ## Toward `search_all` (the mini-Google endpoint)
