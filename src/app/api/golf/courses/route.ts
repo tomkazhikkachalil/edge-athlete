@@ -69,6 +69,7 @@ export async function GET(request: NextRequest) {
     // at a home course are the common case). Rating/slope auto-fill from the
     // most recent round there. Non-fatal on any error.
     let historyCourses: GolfCourse[] = [];
+    const historyCatalogIds = new Map<string, string>();
     try {
       let viewerId: string | null = null;
       try {
@@ -81,7 +82,7 @@ export async function GET(request: NextRequest) {
       if (query.length >= 1) {
         const { data: roundCourses } = await admin
           .from('golf_rounds')
-          .select('profile_id, course, course_location, par, holes, tee, course_rating, slope_rating, date')
+          .select('profile_id, course, course_id, course_location, par, holes, tee, course_rating, slope_rating, date')
           // Prefix-only under 3 chars: '%a%' matched nearly every round ever
           // logged, which is what made 1-character course search noise.
           .ilike('course', likePatternFor(query))
@@ -110,6 +111,10 @@ export async function GET(request: NextRequest) {
             totalPar: r.holes === 9 && r.par ? r.par * 2 : (r.par || 72),
             holes: [],
           };
+          // The round's catalog link, when it has one — the ONLY reliable
+          // way to find "the" catalog row now that names collide (four rows
+          // are named exactly "Eagle Creek Golf Club" since the OSM import).
+          if (r.course_id) historyCatalogIds.set(course.id, r.course_id as string);
           if (viewerId && r.profile_id === viewerId) own.push(course);
           else platform.push(course);
         }
@@ -124,9 +129,21 @@ export async function GET(request: NextRequest) {
     // "0 holes" forever (the regression Tom hit). History keeps its OWN
     // rating/slope (the round's truth); holes/par/location come from the
     // catalog match.
-    const catalogByName = new Map(catalogCourses.map(c => [c.name.toLowerCase(), c]));
+    // Name map keeps the FIRST row per name — catalogCourses is already
+    // best-ranked-first (richness breaks ties), and `new Map(entries)` kept
+    // the LAST, which handed Tom's seeded Ottawa row the identity of an OSM
+    // row in Indianapolis (prod probe, Aug 24). The round's own course_id
+    // wins outright when the page contains it.
+    const catalogByName = new Map<string, GolfCourse>();
+    for (const c of catalogCourses) {
+      const key = c.name.toLowerCase();
+      if (!catalogByName.has(key)) catalogByName.set(key, c);
+    }
+    const catalogById = new Map(catalogCourses.map(c => [c.id, c]));
     const enrichedHistory = historyCourses.map(h => {
-      const match = catalogByName.get(h.name.toLowerCase());
+      const linkedId = historyCatalogIds.get(h.id);
+      const match =
+        (linkedId ? catalogById.get(linkedId) : undefined) ?? catalogByName.get(h.name.toLowerCase());
       if (!match) return h;
       // Keep the CATALOG id: the history row shadows the catalog row out of
       // the list (dedupe below), so if this kept its synthetic history-* id,

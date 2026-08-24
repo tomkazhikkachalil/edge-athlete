@@ -64,6 +64,38 @@ on-course pass (the same one the to-green pill is waiting on).
   elbow you drag. Tapping the line itself places the elbow (Leaflet paths
   bubble clicks to the map's handler). The focus effect keeps only the
   green dot + fitBounds — a drag or a GPS tick must never re-fit the view.
+## August 24, 2026 — Post-merge prod probes: adoption proven, two same-name follow-ups
+
+#220 and #221 merged (git-native, the API-merge trap again) and probed on
+prod. **Adoption works live:** a worldwide search for "kahkwa" flipped the
+OSM-only Erie row to `opengolfapi` with its coordinates untouched, and the
+next `?id=` hydrated it with ten tee ratings and 18 holes — the thin-forever
+regression is gone. Browse order, the `ka` ranking, attribution, and the
+whole rangefinder probe (tee-in-play 300 yds out, single line, no console
+errors) passed on prod too.
+
+Two things the probes surfaced, both consequences of same-name rows being
+common now, fixed in this entry's PR:
+
+- **History layer matched by name, last-wins.** Tom's own Eagle Creek
+  rounds enter search via "courses you've played" and are matched back to
+  the catalog by NAME; `new Map(entries)` keeps the LAST of the four rows
+  named "Eagle Creek Golf Club", so the history row took the identity of an
+  OSM row in Indianapolis (and `eagle` ranked it first on prod while the
+  seeded Ottawa row won locally, where the probe bypassed the route). The
+  round's `course_id` now wins outright when the page contains it; the name
+  fallback keeps the FIRST (best-ranked) row.
+- **Coord-less provider rows bypassed the dedupe.** GolfCourseAPI summaries
+  carry no lat/lng, so "The Kahkwa Club" landed beside the just-adopted
+  "Kahkwa Club". Coord-less rows now dedupe by same city AND a STRICT name
+  rule — one name's informative tokens ⊆ the other's (`sameFacilityName`,
+  pure) — because a whole city can't afford the 2 km box's single-shared-
+  token test: "Ottawa Hunt" and "Ottawa Valley" share "ottawa".
+
+Noted, not changed: after adoption, provider hydration's geocode refinement
+moved Kahkwa's pin ~170 m from the OSM point. Within noise for a course pin;
+if it ever matters, skip refinement for rows that already have OSM coords.
+
 ## August 24, 2026 — Post-import catalog hardening: the 29k-row regressions
 
 Session-start review of the OSM import day. Prod was clean and deployed, the
