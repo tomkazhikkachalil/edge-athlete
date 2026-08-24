@@ -2,6 +2,9 @@ import { describe, expect, it } from 'vitest';
 import {
   courseNameScore,
   greenDistanceYards,
+  polylineYards,
+  targetDistances,
+  yardsBetween,
   parseHoleGeometry,
   scopeHoleGeometry,
 } from '../hole-geometry';
@@ -175,5 +178,60 @@ describe('greenDistanceYards', () => {
     expect(greenDistanceYards([45.4215, -75.6972], hole1)).toBeNull(); // ~25 km away
     expect(greenDistanceYards(green, [green])).toBeNull(); // 1-point line
     expect(greenDistanceYards(green, [])).toBeNull();
+  });
+});
+
+describe('polylineYards (hole length from the drawn way)', () => {
+  const g = parseHoleGeometry(rideauView)!;
+  const hole1 = g.holes[0].line;
+  const tee = hole1[0];
+  const green = hole1[hole1.length - 1];
+
+  it('equals the straight-line yards for a 2-point way and grows for a dogleg', () => {
+    const straight = polylineYards([tee, green])!;
+    expect(straight).toBe(yardsBetween(tee, green));
+    expect(straight).toBe(greenDistanceYards(tee, hole1));
+    const dogleg: [number, number] = [(tee[0] + green[0]) / 2 + 0.001, (tee[1] + green[1]) / 2];
+    expect(polylineYards([tee, dogleg, green])!).toBeGreaterThan(straight);
+  });
+
+  it('reads as a plausible hole length on the real Rideau View hole 1', () => {
+    const yds = polylineYards(hole1)!;
+    expect(yds).toBeGreaterThan(150);
+    expect(yds).toBeLessThan(700);
+    expect(yds).toBeGreaterThanOrEqual(greenDistanceYards(tee, hole1)!); // never shorter than the chord
+  });
+
+  it('nulls under two points', () => {
+    expect(polylineYards([tee])).toBeNull();
+    expect(polylineYards([])).toBeNull();
+  });
+});
+
+describe('targetDistances (player-placed target on the focused hole)', () => {
+  const g = parseHoleGeometry(rideauView)!;
+  const hole1 = g.holes[0].line;
+  const tee = hole1[0];
+  const green = hole1[hole1.length - 1];
+  const layup: [number, number] = [(tee[0] + green[0]) / 2, (tee[1] + green[1]) / 2];
+
+  it('splits origin→target and target→green; the two legs cover the chord', () => {
+    const d = targetDistances(tee, layup, hole1)!;
+    expect(d.toTarget).toBeGreaterThan(0);
+    expect(d.targetToGreen).toBeGreaterThan(0);
+    // Triangle inequality with rounding slack: a midpoint target's legs sum to the chord.
+    expect(Math.abs(d.toTarget + d.targetToGreen - greenDistanceYards(tee, hole1)!)).toBeLessThanOrEqual(2);
+  });
+
+  it('a target on the green leaves 0 to green; origin on the green is 0 to target', () => {
+    expect(targetDistances(tee, green, hole1)!.targetToGreen).toBe(0);
+    expect(targetDistances(green, green, hole1)!.toTarget).toBe(0);
+  });
+
+  it('never caps (a deliberate far target still reads) and nulls on junk lines', () => {
+    const far: [number, number] = [45.4215, -75.6972]; // downtown Ottawa, ~25 km
+    expect(targetDistances(tee, far, hole1)!.toTarget).toBeGreaterThan(1500);
+    expect(targetDistances(tee, layup, [tee])).toBeNull();
+    expect(targetDistances(tee, layup, [])).toBeNull();
   });
 });

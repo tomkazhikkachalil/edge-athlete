@@ -1,5 +1,49 @@
 # Development Log
 
+## August 24, 2026 — Live rangefinder: hole yards everywhere + a target you can drag
+
+Tom, after the maps arc: GPS mode "does an amazing job identifying the
+courses, selecting the right hole as you go" — but it doesn't say *hole 2,
+par 4, X yards*, and he wants to drop a point on the hole to see what a
+carry or layup would be ("hit over the water or hazard without going around
+it") — club decisions from the map, live on the course.
+
+**Hole info that actually resolves.** The live page's chip already rendered
+`Hole N · Par P · Y yds` — except yardage came only from the round's
+`hole_data.yardage` (catalog-hydrated or hand-typed, so absent for every
+OSM-sourced course) AND was `hidden sm:inline`. On the one device that
+matters, a phone on the tee at an Ottawa course, it never appeared. Now
+`polylineYards` (pure) sums the OSM way tee→green and the chip falls back to
+it, rendered `≈410 yds` because it's the drawn line (tee marker to green
+centre, follows doglegs), not the scorecard. Yards show at every width;
+below `sm` they wrap onto a second line so the chip's WIDTH doesn't grow into
+the control stack on the right at 320–375 px.
+
+**Target point.** While a hole is focused, tapping the map drops a draggable
+orange ring; dashed legs draw origin→target and target→green, and a pill
+reads `142 to target · 118 to green`. Origin is the live fix while tracking,
+else the tee — so a hole can be planned from the couch, labelled "from tee".
+No sanity cap on the target (the player placed it). Design points:
+
+- The click handler is registered ONCE at mount and reads the focused line
+  through a ref (mirrored in an effect, like `onHoleTapRef` — refs aren't
+  read during render). A pan never fires `click`; Leaflet markers default
+  `bubblingMouseEvents:false`, so tee-label taps keep their focus behaviour
+  and never drop a stray target.
+- The target is keyed by hole (`{ hole, ll }`) and the rendered one is
+  `target.hole === focusHole ? … : null` — stepping to the next hole drops it
+  by DERIVATION, no `setState` in an effect.
+- A marker drag doesn't fire the map's `dragstart`, so follow-pause logic is
+  untouched; `drag` + `dragend` both feed the same setter so the legs and
+  numbers move live.
+- `targetDistances` (pure, on-device) does the numbers; the fix never
+  leaves the phone, same as the to-green pill.
+
+Internal to `CourseMapInner` — no new props; wherever `holes` + `focusHole`
+are passed (today the live page; the card previews' stepper too, which is
+harmless and useful pre-round). Test count 1539 → 1546. Owed: Tom's
+on-course pass (the same one the to-green pill is waiting on).
+
 ## August 23, 2026 — OSM as a catalog source: every course selectable
 
 Tom: "there are only a few courses in Ottawa listed… why has every golf

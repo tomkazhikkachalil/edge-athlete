@@ -20,7 +20,7 @@
 import { useEffect, useRef, useState } from 'react';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
-import { greenDistanceYards, type HoleLine } from '@/lib/golf/hole-geometry';
+import { greenDistanceYards, targetDistances, type HoleLine } from '@/lib/golf/hole-geometry';
 
 export interface CourseMapInnerProps {
   lat: number;
@@ -74,6 +74,20 @@ const playerIcon = () =>
     iconAnchor: [7, 7],
   });
 
+// The player-placed target: an orange ring inside a 44px transparent hit
+// area (drag handle on a phone with a glove on). Distinct from every other
+// marker colour on the map (violet course pin, blue player, green flag).
+const targetIcon = () =>
+  L.divIcon({
+    className: '',
+    html: '<div style="width:44px;height:44px;display:flex;align-items:center;justify-content:center"><div style="width:22px;height:22px;border-radius:50%;border:3px solid #f97316;background:rgba(255,255,255,.35);box-shadow:0 0 0 2px rgba(255,255,255,.9),0 1px 4px rgba(0,0,0,.4)"></div></div>',
+    iconSize: [44, 44],
+    iconAnchor: [22, 22],
+  });
+
+const TARGET_LINE = { weight: 3, opacity: 0.95, dashArray: '2 8' } as const;
+const TARGET_LINE_HALO = { weight: 6, opacity: 0.8, dashArray: '2 8', color: '#ffffff' } as const;
+
 export default function CourseMapInner({
   lat,
   lng,
@@ -103,6 +117,15 @@ export default function CourseMapInner({
   const [playerFix, setPlayerFix] = useState<[number, number] | null>(null);
   const [layer, setLayer] = useState<'osm' | 'satellite'>(defaultLayer);
   const [geoError, setGeoError] = useState<string | null>(null);
+  // ── Rangefinder target ────────────────────────────────────────────────────
+  // A point the player drops on the focused hole ("can I carry that water?").
+  // Keyed by hole so stepping to another hole drops it BY DERIVATION — no
+  // setState in an effect. The map's click handler is registered once at
+  // mount and reads the focused line through a ref.
+  const [target, setTarget] = useState<{ hole: number; ll: [number, number] } | null>(null);
+  const focusedLineRef = useRef<{ hole: number; line: [number, number][] } | null>(null);
+  const targetMarkerRef = useRef<L.Marker | null>(null);
+  const targetLinesRef = useRef<L.LayerGroup | null>(null);
 
   useEffect(() => {
     if (!containerRef.current || mapRef.current) return;
@@ -116,6 +139,14 @@ export default function CourseMapInner({
         followRef.current = false;
         setFollowPaused(true);
       }
+    });
+    // Tap-to-target, only while a hole is focused. A pan never fires click;
+    // marker taps don't bubble here (Leaflet markers default
+    // bubblingMouseEvents:false), so tee labels keep their tap-to-focus.
+    map.on('click', e => {
+      const f = focusedLineRef.current;
+      if (!f) return;
+      setTarget({ hole: f.hole, ll: [e.latlng.lat, e.latlng.lng] });
     });
     mapRef.current = map;
     return () => {
@@ -300,6 +331,88 @@ export default function CourseMapInner({
   const focusedLine = focusHole != null ? holes?.find(h => h.hole === focusHole)?.line : undefined;
   const distanceYds = playerFix && focusedLine ? greenDistanceYards(playerFix, focusedLine) : null;
 
+  // The click handler above reads the focused line via this ref (mirrored
+  // in an effect, same as onHoleTapRef — refs aren't read during render).
+  useEffect(() => {
+    focusedLineRef.current = focusedLine && focusHole != null ? { hole: focusHole, line: focusedLine } : null;
+  }, [focusedLine, focusHole]);
+
+  const activeTarget = target && target.hole === focusHole && focusedLine ? target.ll : null;
+  // Origin = the live fix while tracking, else the tee: planning a hole
+  // from the couch (or before tracking starts) still gets real numbers.
+  const targetOrigin: [number, number] | null = focusedLine ? (playerFix ?? focusedLine[0]) : null;
+  const targetYds =
+    activeTarget && focusedLine && targetOrigin ? targetDistances(targetOrigin, activeTarget, focusedLine) : null;
+
+  // Draw the target: draggable marker + dashed origin→target and
+  // target→green legs. Redraws on every fix while tracking (cheap: three
+  // polylines). The marker persists across redraws; it's dropped when the
+  // target clears (hole change, ✕).
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+    targetLinesRef.current?.remove();
+    targetLinesRef.current = null;
+    if (!activeTarget || !focusedLine || !targetOrigin) {
+      targetMarkerRef.current?.remove();
+      targetMarkerRef.current = null;
+      return;
+    }
+    if (!targetMarkerRef.current) {
+      const marker = L.marker(activeTarget, {
+        icon: targetIcon(),
+        draggable: true,
+        keyboard: false,
+        zIndexOffset: 500,
+      });
+      const move = () => {
+        const f = focusedLineRef.current;
+        const ll = marker.getLatLng();
+        if (f) setTarget({ hole: f.hole, ll: [ll.lat, ll.lng] });
+      };
+      marker.on('drag', move);
+      marker.on('dragend', move);
+      marker.addTo(map);
+      targetMarkerRef.current = marker;
+    } else {
+      targetMarkerRef.current.setLatLng(activeTarget);
+    }
+    const green = focusedLine[focusedLine.length - 1];
+    const group = L.layerGroup();
+    group.addLayer(L.polyline([targetOrigin, activeTarget], TARGET_LINE_HALO));
+    group.addLayer(L.polyline([targetOrigin, activeTarget], { ...TARGET_LINE, color: '#f97316' }));
+    group.addLayer(L.polyline([activeTarget, green], TARGET_LINE_HALO));
+    group.addLayer(L.polyline([activeTarget, green], { ...TARGET_LINE, color: '#16a34a' }));
+    group.addTo(map);
+    targetLinesRef.current = group;
+    return () => {
+      targetLinesRef.current?.remove();
+      targetLinesRef.current = null;
+    };
+  }, [activeTarget, focusedLine, targetOrigin]);
+
+  const targetPill = targetYds && (
+    <div
+      aria-live="polite"
+      className="inline-flex min-h-[40px] items-center gap-1.5 rounded-lg border border-border bg-surface/90 py-1 pl-3 pr-1 text-sm font-bold text-primary shadow-sm"
+    >
+      <i className="fas fa-bullseye text-orange-500" aria-hidden="true"></i>
+      <span>
+        {!playerFix && <span className="font-medium text-secondary">from tee: </span>}
+        {targetYds.toTarget} to target · {targetYds.targetToGreen} to green
+      </span>
+      <button
+        type="button"
+        onClick={() => setTarget(null)}
+        aria-label="Clear target"
+        className="ea-icon-btn inline-flex items-center justify-center text-secondary"
+      >
+        <i className="fas fa-xmark text-xs" aria-hidden="true"></i>
+      </button>
+    </div>
+  );
+  const targetHint = focusedLine && !activeTarget;
+
   const recenter = () => {
     followRef.current = true;
     setFollowPaused(false);
@@ -362,16 +475,26 @@ export default function CourseMapInner({
                 {distanceYds} yds to green
               </p>
             )}
+            {targetPill}
           </div>
           {geoError && (
             <p className="absolute inset-x-3 top-3 z-[500] mr-40 rounded-lg bg-surface/90 px-3 py-2 text-xs text-tertiary shadow-sm">
               {geoError}
             </p>
           )}
-          {enableTracking && (
-            <p className="absolute bottom-6 left-3 z-[500] rounded bg-surface/80 px-2 py-1 text-[10px] text-faint">
-              Your position stays on your device — never uploaded.
-            </p>
+          {(enableTracking || targetHint) && (
+            <div className="absolute bottom-6 left-3 z-[500] flex flex-col items-start gap-1">
+              {targetHint && (
+                <p className="rounded bg-surface/80 px-2 py-1 text-[10px] text-faint">
+                  Tap the map to set a target
+                </p>
+              )}
+              {enableTracking && (
+                <p className="rounded bg-surface/80 px-2 py-1 text-[10px] text-faint">
+                  Your position stays on your device — never uploaded.
+                </p>
+              )}
+            </div>
           )}
         </>
       ) : (
@@ -381,6 +504,8 @@ export default function CourseMapInner({
               <p className="text-[10px] text-faint">
                 Your position stays on your device — it&apos;s never uploaded.
               </p>
+            ) : targetHint ? (
+              <p className="text-[10px] text-faint">Tap the map to set a target</p>
             ) : (
               <span />
             )}
@@ -389,6 +514,7 @@ export default function CourseMapInner({
               {trackButton}
             </div>
           </div>
+          {targetPill && <div className="mt-2">{targetPill}</div>}
           {geoError && <p className="mt-1 text-xs text-tertiary">{geoError}</p>}
         </>
       )}
