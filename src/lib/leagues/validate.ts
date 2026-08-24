@@ -77,6 +77,27 @@ export function placeToLeagueColumns(
   };
 }
 
+/** Self-service request (116): the requester is ALWAYS the session user.
+ *  zod's default strip behavior drops a client-sent ownerProfileId rather
+ *  than rejecting it — the field simply cannot arrive at the route. */
+export const LeagueRequestSchema = LeagueCreateSchema.omit({ ownerProfileId: true });
+export type LeagueRequestInput = z.infer<typeof LeagueRequestSchema>;
+
+/** Admin decision on a request. Decline REQUIRES a reason — enforced here
+ *  (pure, unit-testable) so the route carries no hand-rolled check. */
+export const LeagueRequestDecisionSchema = z
+  .object({
+    requestId: uuid,
+    decision: z.enum(['approve', 'decline']),
+    reason: optionalText(500),
+  })
+  .superRefine((val, ctx) => {
+    if (val.decision === 'decline' && !val.reason) {
+      ctx.addIssue({ code: 'custom', path: ['reason'], message: 'A reason is required to decline' });
+    }
+  });
+export type LeagueRequestDecisionInput = z.infer<typeof LeagueRequestDecisionSchema>;
+
 /** Owner-assignable roles. 'owner' is deliberately NOT assignable — there is
  *  exactly one owner, set at creation; ownership transfer is a future admin
  *  action, not a role PATCH. */

@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest';
 import {
   LeagueCreateSchema,
   LeagueMemberRoleSchema,
+  LeagueRequestSchema,
+  LeagueRequestDecisionSchema,
   LeagueUpdateSchema,
   placeToLeagueColumns,
   type LeaguePlace,
@@ -104,5 +106,45 @@ describe('LeagueMemberRoleSchema', () => {
     expect(LeagueMemberRoleSchema.safeParse({ role: 'owner' }).success).toBe(false);
     expect(LeagueMemberRoleSchema.safeParse({ role: 'admin' }).success).toBe(false);
     expect(LeagueMemberRoleSchema.safeParse({}).success).toBe(false);
+  });
+});
+
+describe('LeagueRequestSchema', () => {
+  it('accepts a request without an owner and STRIPS a client-sent one', () => {
+    const r = LeagueRequestSchema.safeParse({
+      name: 'Wannabe League',
+      sportKey: 'golf',
+      ownerProfileId: OWNER, // must be silently dropped, not honored
+    });
+    expect(r.success).toBe(true);
+    if (r.success) expect('ownerProfileId' in r.data).toBe(false);
+  });
+
+  it('keeps the create bounds (name required, description cap, place nullable)', () => {
+    expect(LeagueRequestSchema.safeParse({ sportKey: 'golf' }).success).toBe(false);
+    expect(
+      LeagueRequestSchema.safeParse({ name: 'X', sportKey: 'golf', description: 'a'.repeat(2001) }).success
+    ).toBe(false);
+    const r = LeagueRequestSchema.safeParse({ name: 'X', sportKey: 'golf', place: null });
+    expect(r.success).toBe(true);
+  });
+});
+
+describe('LeagueRequestDecisionSchema', () => {
+  const REQ = '2f1b46c8-2964-4139-9689-d1c3f736ed93';
+
+  it('approve needs no reason; decline REQUIRES one', () => {
+    expect(LeagueRequestDecisionSchema.safeParse({ requestId: REQ, decision: 'approve' }).success).toBe(true);
+    expect(LeagueRequestDecisionSchema.safeParse({ requestId: REQ, decision: 'decline' }).success).toBe(false);
+    expect(
+      LeagueRequestDecisionSchema.safeParse({ requestId: REQ, decision: 'decline', reason: 'Duplicate of an existing league' }).success
+    ).toBe(true);
+  });
+
+  it('caps the reason and rejects unknown decisions', () => {
+    expect(
+      LeagueRequestDecisionSchema.safeParse({ requestId: REQ, decision: 'decline', reason: 'a'.repeat(501) }).success
+    ).toBe(false);
+    expect(LeagueRequestDecisionSchema.safeParse({ requestId: REQ, decision: 'defer' }).success).toBe(false);
   });
 });

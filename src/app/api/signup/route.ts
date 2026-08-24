@@ -12,6 +12,7 @@ import {
 import { createGuardianInvite } from '@/lib/guardian-invites';
 import { emailService } from '@/lib/email-service';
 import { enforceRateLimit } from '@/lib/rate-limit';
+import { resolveSignupUserType } from '@/lib/signup-user-type';
 
 export async function POST(request: NextRequest) {
   try {
@@ -286,10 +287,12 @@ export async function POST(request: NextRequest) {
         gender: profileData.gender || null,
         location: profileData.location || null,
         postal_code: profileData.postal_code || null,
-        // Guardian-branch signups ARE parents (097): server-authoritative,
-        // never the client's value — routing sends 'parent' accounts to the
-        // family console instead of the athlete onboarding wizard.
-        user_type: actorRole === 'guardian' ? 'parent' : (profileData.user_type || 'athlete'),
+        // Server-authoritative, never the client's raw value: guardians are
+        // parents (097), and self-serve signups clamp to athlete/fan. The
+        // 097 CHECK also allows 'club'/'league'/'parent', which used to be
+        // client-assignable right here — closed in the org-signup round;
+        // org types come only from their own flows.
+        user_type: resolveSignupUserType(actorRole, profileData.user_type),
         full_name: fullName || null,
         handle: profileData.handle ? profileData.handle.toLowerCase().trim() : null,
         display_name: profileData.nickname || fullName || profileData.handle || 'Athlete',

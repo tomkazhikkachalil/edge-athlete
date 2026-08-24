@@ -65,6 +65,10 @@ export const RATE_LIMITS = {
   // League join/leave toggle — same shape as 'follow' but tighter: joining
   // is rarer than following and a join fan-outs a notification to the owner.
   'league-join': { max: 30, windowSeconds: 3600, keyBy: 'user' },
+  // "Start a league" submissions — rare by nature, each lands in the admin
+  // queue; 3/day per user keeps a griefing account from flooding it while
+  // never touching a genuine requester (one pending at a time anyway).
+  'league-request': { max: 3, windowSeconds: 86400, keyBy: 'user' },
 } as const satisfies Record<string, RateLimitRule>;
 
 export type RateLimitAction = keyof typeof RATE_LIMITS;

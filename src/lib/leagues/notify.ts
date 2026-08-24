@@ -75,3 +75,45 @@ export async function notifyLeagueRole(admin: Admin, n: LeagueRoleNotification):
     console.error('[LEAGUE NOTIFY] role notify failed:', e);
   }
 }
+
+export interface LeagueRequestResultNotification {
+  requesterProfileId: string;
+  requestId: string;
+  leagueName: string;
+  approved: boolean;
+  /** Set on approval — the notification links straight to the new league. */
+  leagueId: string | null;
+  /** Set on decline. */
+  reason: string | null;
+}
+
+/** Tell the requester their "Start a league" request was decided. actor_id
+ *  stays null — admin decisions aren't social actors (consent_result
+ *  precedent). A decline links back to /league/start (the re-request lives
+ *  there; dead-end notifications are against house rules). */
+export async function notifyLeagueRequestResult(
+  admin: Admin,
+  n: LeagueRequestResultNotification
+): Promise<void> {
+  try {
+    const { error } = await admin.from('notifications').insert({
+      user_id: n.requesterProfileId,
+      type: 'league_request_result',
+      actor_id: null,
+      title: n.approved
+        ? `Your league ${n.leagueName} was approved`
+        : `Your league request for ${n.leagueName} was declined`,
+      message: n.approved ? null : n.reason,
+      action_url: n.approved && n.leagueId ? `/league/${n.leagueId}` : '/league/start',
+      is_read: false,
+      metadata: {
+        request_id: n.requestId,
+        decision: n.approved ? 'approved' : 'declined',
+        ...(n.leagueId ? { league_id: n.leagueId } : {}),
+      },
+    });
+    if (error) console.error('[LEAGUE NOTIFY] request result notify failed:', error);
+  } catch (e) {
+    console.error('[LEAGUE NOTIFY] request result notify failed:', e);
+  }
+}

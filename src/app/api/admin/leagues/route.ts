@@ -2,14 +2,15 @@ import { NextRequest, NextResponse } from 'next/server';
 import { requireAdmin, getSupabaseAdmin } from '@/lib/auth-server';
 import { parseBody } from '@/lib/validation';
 import { LeagueCreateSchema, placeToLeagueColumns, isMissingTableError } from '@/lib/leagues/validate';
+import { createLeagueWithOwner } from '@/lib/leagues/create';
 import { isSportEnabled } from '@/lib/features';
 import type { SportKey } from '@/lib/sports/SportRegistry';
 
-// ── /api/admin/leagues — admin-provisioned league creation (Tom, Aug 24) ─────
-// Leagues are created HERE and only here in v1: the dashboard picks a name,
-// sport, place and an owner profile. Self-service org signup stays the
-// "separate flow" the profile route promises. The owner (and future
-// managers) edit through /api/leagues/[id].
+// ── /api/admin/leagues — direct admin league creation ───────────────────────
+// The dashboard picks a name, sport, place and an owner profile. Since 116
+// leagues are ALSO born from approved self-service requests
+// (/api/admin/league-requests) — both paths share createLeagueWithOwner,
+// the one place a league and its owner row are created.
 
 /** POST — create a league and its owner membership row. Admin-only. */
 export async function POST(request: NextRequest) {
@@ -35,36 +36,18 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Owner profile not found' }, { status: 404 });
     }
 
-    const { data: league, error: insertError } = await supabase
-      .from('leagues')
-      .insert({
-        name,
-        description: description ?? null,
-        sport_key: sportKey,
-        owner_profile_id: ownerProfileId,
-        ...placeToLeagueColumns(place),
-      })
-      .select()
-      .single();
-    if (insertError || !league) {
-      console.error('[ADMIN LEAGUES] insert error:', insertError);
+    const result = await createLeagueWithOwner(supabase, {
+      name,
+      description: description ?? null,
+      sportKey,
+      ownerProfileId,
+      placeColumns: placeToLeagueColumns(place),
+    });
+    if ('error' in result) {
       return NextResponse.json({ error: 'Failed to create league' }, { status: 500 });
     }
 
-    // The owner also gets a league_members row (role 'owner') so member
-    // counts and lists are uniform. Two inserts, no transaction over
-    // PostgREST — on failure roll the league back by hand so an owner-less
-    // league never exists.
-    const { error: memberError } = await supabase
-      .from('league_members')
-      .insert({ league_id: league.id, profile_id: ownerProfileId, role: 'owner' });
-    if (memberError) {
-      console.error('[ADMIN LEAGUES] owner member insert error:', memberError);
-      await supabase.from('leagues').delete().eq('id', league.id);
-      return NextResponse.json({ error: 'Failed to create league' }, { status: 500 });
-    }
-
-    return NextResponse.json({ league });
+    return NextResponse.json({ league: result.league });
   } catch (error) {
     if (error instanceof Response) return error;
     console.error('[ADMIN LEAGUES] POST error:', error);
