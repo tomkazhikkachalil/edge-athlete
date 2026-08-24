@@ -1,8 +1,8 @@
 # Search & location — the model every entity follows
 
-**Status:** foundation shipped Aug 24 2026 (migration 104/105, PR
-`feat/geo-foundation`); users and clubs follow (106); leagues, arenas,
-teams and events adopt it on creation. Read this before adding a search
+**Status:** foundation shipped Aug 24 2026 (migrations 104–107); users and
+clubs on the same model in 108; leagues, arenas, teams and events adopt it
+on creation. Read this before adding a search
 box, a location field, or a new locatable entity.
 
 ## Why
@@ -46,7 +46,8 @@ must not need a join. Names AND codes are stored so "Florida" and "FL",
 Backfilling an entity from coordinates is one SQL statement — nearest
 place within 40 km via a lat/lng box + `haversine_km` (see
 `105_backfill_course_places.sql`). Backfilling from free text is a name
-match against `places` (106 does this for `profiles.location`).
+match against `places` (108's `backfill_places_from_text` does this for
+`profiles.location` and `clubs.location`).
 
 ## The search contract (every search RPC)
 
@@ -60,6 +61,11 @@ match against `places` (106 does this for `profiles.location`).
   "the"). Weights: name **A**, secondary name (club) **B**, city **C**,
   region/codes/country **D**. Trigram substring on the raw columns is the
   fallback ("reek" → Eagle Creek).
+- Multi-term relevance: rank PER TOKEN (`search_token_hits` on the name
+  vector, `search_token_rank` = sum of single-token `ts_rank`). Plain
+  `ts_rank` and `ts_rank_cd` both score term PROXIMITY for AND queries, so
+  a city token beside a region token beats a name token whatever the
+  weights (107, probe-caught).
 - Ranking ladder, in order: exact name → name prefix → `ts_rank_cd` →
   richness (the entity's own "has real data" rule) → recency → distance →
   name. A "near me" browse (empty `q`) puts distance first.
@@ -78,8 +84,8 @@ match against `places` (106 does this for `profiles.location`).
 |---|---|---|
 | Composer course picker | name/club/city/region substring | tokens across all fields + country; rows show `City, Region · Country` |
 | Explore → Courses | text only | + Country → Region facets (`/api/golf/courses/facets`), Near me |
-| Explore → Athletes | sport chips only | text search + location filters + Near me (106) |
-| Header ⌘K | people (names), posts, clubs | + courses; people and clubs match and DISPLAY location (106) |
+| Explore → Athletes | sport chips only | name search + place filter + Near me (108) |
+| Header ⌘K | people (names), posts, clubs | Location filter (place → 50 km); people and clubs match and DISPLAY location (108); + courses (PR 3) |
 | Profile location | free text | place picker (`search_places`); free text kept as the display string |
 
 ## Toward `search_all` (the mini-Google endpoint)

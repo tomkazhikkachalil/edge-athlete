@@ -27,6 +27,13 @@ export interface PersonSuggestion {
   sport: string | null;
   school: string | null;
   visibility: string | null;
+  /** Structured location (migration 108); absent on the degraded fallback. */
+  city?: string | null;
+  region?: string | null;
+  region_code?: string | null;
+  country?: string | null;
+  country_code?: string | null;
+  distance_km?: number | null;
 }
 
 /**

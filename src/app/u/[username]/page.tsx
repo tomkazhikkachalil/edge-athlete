@@ -18,6 +18,7 @@ import {
   getInitials
 } from '@/lib/formatters';
 import { MapPin, School, Users, Calendar, Trophy, Lock } from 'lucide-react';
+import { formatPlace } from '@/lib/geo/regions';
 
 interface PublicProfile {
   id: string;
@@ -33,6 +34,9 @@ interface PublicProfile {
   school: string | null;
   team: string | null;
   location: string | null;
+  city?: string | null;
+  region?: string | null;
+  country?: string | null;
   height_cm: number | null;
   weight_kg: number | null;
   weight_unit: string | null;
@@ -308,10 +312,13 @@ export default function PublicProfilePage() {
                       {profile.school}
                     </span>
                   )}
-                  {profile.location && (
+                  {(profile.city || profile.location) && (
                     <span className="inline-flex items-center gap-1">
                       <MapPin className="w-4 h-4" />
-                      {profile.location}
+                      {/* Structured place (108) first — the same string the
+                          picker shows — else whatever the owner typed. */}
+                      {formatPlace({ city: profile.city, region: profile.region, country: profile.country }) ||
+                        profile.location}
                     </span>
                   )}
                   {profile.class_year && (

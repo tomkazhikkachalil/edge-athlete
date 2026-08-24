@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '@/lib/auth-server';
 import { getSportDefinition, SPORT_REGISTRY, type SportKey } from '@/lib/sports/SportRegistry';
 import { FEATURE_FLAGS } from '@/lib/features';
+import { searchPeople } from '@/lib/search/people-server';
+import { hasLocationFilter, readLocationParams } from '@/lib/geo/params';
 
 /**
  * GET /api/explore?sport=<sport_key>&limit=24
@@ -24,6 +26,13 @@ export async function GET(request: NextRequest) {
     }
 
     const supabase = getSupabaseAdmin();
+
+    // Athlete search (108): text and/or a location constraint route through
+    // search_people (public audience only — Explore is a guest surface);
+    // otherwise the newest public athletes, as before.
+    const q = searchParams.get('q')?.trim() ?? '';
+    const location = readLocationParams(searchParams);
+    const searching = Boolean(q) || hasLocationFilter(location);
 
     // ── Athletes (public only) ────────────────────────────────────────────
     let athleteQuery = supabase
@@ -63,7 +72,25 @@ export async function GET(request: NextRequest) {
       postQuery = postQuery.eq('status', 'published');
     }
 
-    const [athletesResult, postsResult] = await Promise.all([athleteQuery, postQuery]);
+    const athletesPromise = searching
+      ? searchPeople({ query: q, visibleIds: [], includePublic: true, limit, location }).then(people => {
+          // The sport chip stays a post-filter here, as in /api/search
+          // (profiles.sport is a display label).
+          const label = sportKey ? getSportDefinition(sportKey as SportKey).display_name.toLowerCase() : null;
+          return {
+            data: people
+              .filter(p => !label || (p.sport ?? '').toLowerCase() === label)
+              .map(p => ({
+                id: p.id, full_name: p.full_name, first_name: p.first_name, middle_name: p.middle_name,
+                last_name: p.last_name, avatar_url: p.avatar_url, handle: p.handle, sport: p.sport,
+                school: p.school, location: p.location, city: p.city ?? null, region: p.region ?? null,
+                country: p.country ?? null, distance_km: p.distance_km ?? null, created_at: null,
+              })),
+            error: null,
+          };
+        })
+      : athleteQuery;
+    const [athletesResult, postsResult] = await Promise.all([athletesPromise, postQuery]);
 
     if (athletesResult.error) {
       console.error('[explore] athletes query error:', athletesResult.error);
