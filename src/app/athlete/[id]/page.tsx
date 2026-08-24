@@ -16,6 +16,7 @@ import PostDetailModal from '@/components/PostDetailModal';
 import FollowersModal from '@/components/FollowersModal';
 import type { Profile } from '@/lib/supabase';
 import AchievementPills from '@/components/achievements/AchievementPills';
+import OrgMembershipsStrip from '@/components/affiliations/OrgMembershipsStrip';
 import { topPills } from '@/lib/achievements/display';
 import type { Achievement } from '@/lib/achievements';
 // Privacy checks moved to API route
@@ -362,6 +363,11 @@ export default function AthleteProfilePage() {
               )}
             </div>
             
+            {/* Clubs & Leagues memberships — same slot as the owner page. */}
+            <div className="mb-4">
+              <OrgMembershipsStrip profileId={profile.id} />
+            </div>
+
             {profile.bio && (
               <p className="text-black dark:text-primary font-semibold text-lg mb-6">
                 {profile.bio}

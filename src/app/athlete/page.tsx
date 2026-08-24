@@ -27,6 +27,7 @@ const PerformanceModal = dynamic(() => import('@/components/PerformanceModal'), 
 const FollowersModal = dynamic(() => import('@/components/FollowersModal'), { ssr: false });
 import type { SeasonHighlight, Performance, Profile } from '@/lib/supabase';
 import AchievementPills from '@/components/achievements/AchievementPills';
+import OrgMembershipsStrip from '@/components/affiliations/OrgMembershipsStrip';
 import { topPills } from '@/lib/achievements/display';
 import type { Achievement } from '@/lib/achievements';
 import {
@@ -748,6 +749,14 @@ export default function AthleteProfilePage() {
                       </div>
                     )}
                   </div>
+
+                  {/* Clubs & Leagues memberships (org connections round) —
+                      self-fetching, renders nothing when empty. */}
+                  {profile?.id && (
+                    <div className="mb-4">
+                      <OrgMembershipsStrip profileId={profile.id} />
+                    </div>
+                  )}
 
                   {/* Quick links to the sport's dedicated pages (rounds,
                       trends) — adapter-declared, renders nothing for sports
