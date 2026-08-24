@@ -1,5 +1,34 @@
 # Development Log
 
+## August 24, 2026 — Clubs become real (migration 117): the league treatment
+
+Clubs were four demo rows behind a wall of "later": no owner, no page, no
+join, ⌘K rows deliberately inert. 117 gives them everything leagues got —
+owner_profile_id (SET NULL, orphaned-league precedent; the demo rows stay
+ownerless and reassignable), club_members (the league_members shape),
+club_requests (the request+approve queue, one-pending partial unique index),
+/club/[id] and /club/start pages, /dashboard/clubs console, and role
+management. Deliberate divergence: **no sport_key** — clubs are multi-sport
+facilities, and forcing one sport would be a lie.
+
+The ⌘K inert-club special case is fully dismantled: isNavigableResult is
+deleted (useTypeahead's predicate is optional — navigable === items), club
+rows are role=option entries closing the five-section flat nav list, and a
+"Start a club →" door joins the league one. The long-dormant 'club_update'
+notification type gets its first sender (role changes) — front-loading
+paying off years later. PR2's affiliation types (affiliation_invite,
+affiliation_update) are front-loaded in 117's CHECK so migration 118 never
+touches it.
+
+Two deliberate demolitions, both verified safe before writing: the clubs
+SELECT grant from 001 is revoked (the only readers are the search route's
+admin-client selects; any future direct browser read of clubs will get zero
+rows — reads go through routes, like every org table since 113), and
+**athlete_clubs is DROPPED** (zero rows ever; its sole reference was
+account-deletion's UNCHECKED delete, so the ORDER-STRICT window where
+deployed code still deletes from a missing table degrades silently — do not
+"fix" the ordering).
+
 ## August 24, 2026 — Org signup: the request + approve flow (migration 116)
 
 The "separate flow" the profile route always promised for org provisioning.

@@ -209,6 +209,17 @@ export default function AdminDashboardPage() {
             </p>
             <p className="text-xs text-muted mt-1">Create leagues and assign their owners.</p>
           </button>
+          <button
+            type="button"
+            onClick={() => router.push('/dashboard/clubs')}
+            className="bg-surface rounded-lg shadow-sm border border-border p-4 text-left hover:border-violet-300 transition"
+          >
+            <p className="text-sm font-semibold text-primary">
+              <i className="fas fa-building text-brand-fg mr-2"></i>
+              Clubs
+            </p>
+            <p className="text-xs text-muted mt-1">Create clubs, assign owners, review requests.</p>
+          </button>
         </section>
 
         {/* Message reports queue */}

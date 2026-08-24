@@ -14,9 +14,8 @@ import type { GroupedFacets } from '@/lib/search/all';
 import PlacePicker, { type PlaceValue } from '@/components/PlacePicker';
 import { formatPlace } from '@/lib/geo/regions';
 
-// ONE ordered result array for all three kinds. Clubs live in here even
-// though they are inert (the /club/[id] route does not exist, so their rows
-// do nothing) — `isNavigable` keeps the arrow keys off them.
+// ONE ordered result array for all five kinds — every kind is navigable
+// as of /club/[id] (117), which retired the last inert special case.
 //
 // Clubs used to be separate component state written only inside `fetcher`.
 // That was a real bug: nothing ever cleared them, so a stale club row
@@ -31,7 +30,6 @@ type ResultItem =
   | { kind: 'league'; id: string; league: SearchLeagueResult }
   | { kind: 'club'; id: string; club: SearchClubResult };
 
-const isNavigableResult = (i: ResultItem) => i.kind !== 'club';
 
 interface SearchFilters {
   sport?: string;
@@ -89,8 +87,8 @@ export default function AdvancedSearchBar() {
     const posts = (data.results?.posts ?? []) as SearchPostResult[];
     const clubRows = (data.results?.clubs ?? []) as SearchClubResult[];
     const leagueRows = (data.results?.leagues ?? []) as SearchLeagueResult[];
-    // Navigable kinds first so activeIndex maps to render order:
-    // athletes, courses, posts, leagues, then the inert clubs.
+    // Render order = items order so activeIndex tracks:
+    // athletes, courses, posts, leagues, clubs — all five navigable.
     return [
       ...athletes.map((a): ResultItem => ({ kind: 'athlete', id: a.id, athlete: a })),
       ...courseRows.map((c): ResultItem => ({ kind: 'course', id: c.id, course: c })),
@@ -119,7 +117,6 @@ export default function AdvancedSearchBar() {
   } = useTypeahead<ResultItem>({
     scope: `search:all:${filterKey}`,
     fetcher,
-    isNavigable: isNavigableResult,
     limit: 45,
   });
 
@@ -165,7 +162,7 @@ export default function AdvancedSearchBar() {
     } else if (item.kind === 'league') {
       router.push(`/league/${item.league.id}`);
     } else {
-      return; // clubs are inert
+      router.push(`/club/${item.club.id}`);
     }
     resetSearch();
   }, [router, user?.id, resetSearch]);
@@ -476,7 +473,7 @@ export default function AdvancedSearchBar() {
               <i className="fas fa-triangle-exclamation text-2xl mb-2"></i>
               <p>Search is unavailable right now. Try again in a moment.</p>
             </div>
-          ) : items.length === 0 && clubs.length === 0 ? (
+          ) : items.length === 0 ? (
             loading ? (
               <div className="p-4 text-center text-muted">
                 <i className="fas fa-circle-notch fa-spin text-2xl mb-2"></i>
@@ -667,34 +664,40 @@ export default function AdvancedSearchBar() {
                 </div>
               )}
 
-              {/* Clubs Section */}
+              {/* Clubs (117): navigable at last — /club/[id] ships with this. */}
               {clubs.length > 0 && (
                 <div>
                   <div className="px-4 py-2 bg-surface-muted border-b border-border-subtle">
                     <h3 className="text-sm font-semibold text-secondary">Clubs</h3>
                   </div>
-                  {/* Club rows are NOT clickable: they used to push to
-                      /club/[id], a route that does not exist, so every club
-                      result was a 404 — a dead end, which this app's navigation
-                      rules forbid. Restore the handler when the route ships. */}
-                  {clubs.map((club: SearchClubResult) => (
-                    <div
-                      key={club.id}
-                      className="px-4 py-3"
-                    >
-                      <p className="font-medium text-primary">{club.name}</p>
-                      <p className="text-sm text-muted line-clamp-1">
-                        {formatPlace({ city: club.city, region: club.region, country: club.country }) || club.location}
-                      </p>
-                    </div>
-                  ))}
+                  {clubs.map((club: SearchClubResult, i: number) => {
+                    // Clubs close the flat nav list, after every other kind.
+                    const navIndex = athletes.length + courses.length + posts.length + leagues.length + i;
+                    return (
+                      <div
+                        key={club.id}
+                        id={optionId(navIndex)}
+                        role="option"
+                        aria-selected={activeIndex === navIndex}
+                        onMouseEnter={() => setActiveIndex(navIndex)}
+                        onClick={() => activate({ kind: 'club', id: club.id, club })}
+                        className={`px-4 py-3 cursor-pointer ${activeIndex === navIndex ? 'bg-brand/10' : 'hover:bg-surface-muted'}`}
+                      >
+                        <p className="font-medium text-primary">{club.name}</p>
+                        <p className="text-sm text-muted line-clamp-1">
+                          {formatPlace({ city: club.city, region: club.region, country: club.country }) || club.location}
+                        </p>
+                      </div>
+                    );
+                  })}
                 </div>
               )}
 
-              {/* Start-a-league door (116): pinned at the dropdown's bottom —
-                  also covers the zero-league-results case. Deliberately NOT a
-                  role="option" row: the flat navIndex arithmetic spans four
-                  sections, and a fifth participant churns every offset. */}
+              {/* Start-an-org doors (116/117): pinned at the dropdown's
+                  bottom — also cover the zero-results-for-that-kind case.
+                  Deliberately NOT role="option" rows: the flat navIndex
+                  arithmetic spans five sections, and more participants churn
+                  every offset for zero benefit. */}
               <div className="border-t border-border-subtle">
                 <button
                   type="button"
@@ -705,6 +708,16 @@ export default function AdvancedSearchBar() {
                   className="w-full px-4 py-3 text-left text-sm text-brand-fg hover:bg-surface-muted transition-colors"
                 >
                   Start a league →
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    router.push('/club/start');
+                    resetSearch();
+                  }}
+                  className="w-full px-4 py-3 text-left text-sm text-brand-fg hover:bg-surface-muted transition-colors border-t border-border-subtle"
+                >
+                  Start a club →
                 </button>
               </div>
             </>
