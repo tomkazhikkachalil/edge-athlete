@@ -24,7 +24,7 @@ import type { ServerRoutineRow } from '@/lib/workouts/routines';
 const MAX_RANGE_DAYS = 62;
 
 const EVENT_FIELDS =
-  'id, organizer_id, title, description, location, starts_at, ends_at, all_day, timezone, category, status, cancelled_at, series_id, series_override, routine_id, routine_snapshot';
+  'id, organizer_id, title, description, location, starts_at, ends_at, all_day, timezone, category, status, cancelled_at, series_id, series_override, routine_id, routine_snapshot, league_id, club_id';
 
 export async function GET(request: NextRequest) {
   if (!FEATURE_FLAGS.FEATURE_CALENDAR) {
@@ -108,6 +108,34 @@ export async function POST(request: NextRequest) {
     const body = await request.json().catch(() => ({}));
 
     const validated = validateEventInput(body);
+    if (validated.ok && (validated.event.league_id || validated.event.club_id)) {
+      // Org linkage (119): only the org's owner/manager may attach it.
+      const { getOrgRole, isOwnerOrManager } = await import('@/lib/affiliations/authz');
+      const admin0 = getSupabaseAdmin();
+      const side = validated.event.league_id ? 'league' : 'club';
+      const orgId = (validated.event.league_id ?? validated.event.club_id) as string;
+      const { data: org } = await admin0
+        .from(side === 'league' ? 'leagues' : 'clubs')
+        .select('id, owner_profile_id')
+        .eq('id', orgId)
+        .maybeSingle();
+      if (!org) {
+        return NextResponse.json({ error: 'Organization not found' }, { status: 404 });
+      }
+      const role = await getOrgRole(
+        admin0,
+        side === 'league' ? 'league_members' : 'club_members',
+        orgId,
+        user.id,
+        org.owner_profile_id
+      );
+      if (!isOwnerOrManager(role)) {
+        return NextResponse.json(
+          { error: 'Only the organization\'s owner or managers can schedule its events' },
+          { status: 403 }
+        );
+      }
+    }
     if (!validated.ok) {
       return NextResponse.json({ error: validated.error }, { status: 400 });
     }

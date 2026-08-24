@@ -31,6 +31,10 @@ export interface NormalizedEventInput {
   category: EventCategory;
   /** Attached workout routine (080). Ownership is checked in the route. */
   routine_id: string | null;
+  /** Org linkage (119): at most ONE of these, mirroring the DB CHECK.
+   *  Owner/manager role is verified in the route (getOrgRole). */
+  league_id: string | null;
+  club_id: string | null;
 }
 
 export interface NormalizedGuestInput {
@@ -131,6 +135,20 @@ export function validateEventInput(
     routine_id = body.routine_id;
   }
 
+  const orgId = (key: 'league_id' | 'club_id'): string | null | undefined => {
+    if (body[key] === undefined || body[key] === null) return null;
+    if (typeof body[key] !== 'string' || !UUID_RE.test(body[key] as string)) return undefined;
+    return body[key] as string;
+  };
+  const league_id = orgId('league_id');
+  const club_id = orgId('club_id');
+  if (league_id === undefined || club_id === undefined) {
+    return { ok: false, error: 'Invalid organization.' };
+  }
+  if (league_id && club_id) {
+    return { ok: false, error: 'An event can belong to one organization at most.' };
+  }
+
   return {
     ok: true,
     event: {
@@ -143,6 +161,8 @@ export function validateEventInput(
       timezone,
       category: category as EventCategory,
       routine_id,
+      league_id,
+      club_id,
     },
   };
 }

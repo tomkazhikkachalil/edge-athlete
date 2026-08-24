@@ -34,6 +34,8 @@ export interface EventListItem {
   series_override: boolean;
   /** Attached workout routine (080) — id only in list items. */
   routine_id?: string | null;
+  league_id?: string | null;
+  club_id?: string | null;
   my_status: MyStatus;
   is_organizer: boolean;
   /** Present on completed-activity overlay items; absent on real events.
