@@ -1,5 +1,23 @@
 # Development Log
 
+## August 24, 2026 — Drop the dead lower() indexes (migration 111)
+
+Housekeeping from the scale audit. Migration 100 indexed `lower(name)`
+(trigram + prefix) and 101 `lower(city)` / `lower(region)` for PostgREST
+queries that cannot emit `lower()` — never used by any query, and replaced
+outright by the 104 tsvector and 107's per-token ranking; each one still
+cost write amplification on every import row, backfill and hydration.
+
+Writing the drop surfaced a real trap: 103 created its raw-column trigram
+indexes with the SAME NAMES 101 had used for the lower() ones
+(`idx_golf_courses_city_trgm`, `_region_trgm`), with `IF NOT EXISTS` — so
+where 101 had run, 103's city/region indexes were silent no-ops and the
+live ones stayed the unusable lower() variants. 111 drops by DEFINITION
+(any `golf_courses` index whose indexdef contains `lower(`), then creates
+the raw-column city/region GINs under unambiguous `_raw_trgm` names, and
+its grid lists the surviving indexes. Lesson: never reuse an index name
+across migrations with `IF NOT EXISTS` — it hides a definition change.
+
 ## August 24, 2026 — Close-out: the search & location arc, end to end
 
 Maintenance pass at the end of the day: `npm run verify` green on `main`
