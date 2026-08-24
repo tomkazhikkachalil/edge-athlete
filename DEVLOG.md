@@ -54,6 +54,20 @@ the 200/day Overpass budget — the remaining ~26 self-heal lazily on first
 map open or on a re-run after the budget window resets. **Migration 103 was
 owed at import time** — until it runs, course search seq-scans 29k rows.
 
+**Closed out later that evening:** Tom ran migration 103 (prod search
+round-trips 0.4–0.7 s at 29k rows), and a second Ottawa sweep finished the
+region — +13 more courses incl. all three Rockland nines resolved
+INDIVIDUALLY by the boundary scoping. Final: **28/62 Ottawa-region courses
+have hole-by-hole geometry**, 34 genuine no-coverage (re-checked per course
+every 30 days), 0 unstamped. The second sweep required resetting the
+`golf-provider:overpass` rate_limits row (service-role DELETE): the
+self-imposed 200/day had been consumed by import-day ops, while Overpass's
+actual fair-use (~10k queries/day) left enormous headroom — the guard
+protects ORGANIC traffic and was back in force immediately after. One more
+ops footnote: a deploy-watch shell from earlier in the day spun for ~2.5 h
+because `vercel ls` prints its table to STDERR — a `2>/dev/null` on that
+CLI silences the very output you're grepping.
+
 ## August 23, 2026 — Boundary-scoped hole geometry: multi-course facilities
 
 Tom, after the catalog-wide geometry pre-fetch: "Why aren't all the Ottawa
