@@ -73,6 +73,13 @@ ottawa" → Ottawa's Eagle Creek; "montréal" = "montreal"; near Ottawa sorted
   bare OSM rows with Eagle in name AND city above the seeded Ottawa course.
   Now: a tier for "every token matches the name", plain `ts_rank`, richness
   before score.
+  106's grid then showed `kanata_name_first = false`: plain `ts_rank` ALSO
+  scores proximity for multi-term AND queries (tsrank.c `calc_rank_and`
+  weights term pairs by positional distance), so the city-beside-region
+  match still won. 107 ranks per TOKEN: `search_token_hits` on the name
+  vector as a sort key, and `search_token_rank` = the sum of single-token
+  ranks (weights only). Lesson for every future search RPC in this repo:
+  never trust a multi-term ts_rank to reflect field weights.
 - **History layer.** "Courses you've played" ignored the location filters
   (Rideau View surfaced under country=CA&region=ON with no location) and
   only enriched from the page. Filtered/near searches skip history; missing
