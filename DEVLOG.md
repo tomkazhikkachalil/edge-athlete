@@ -1,5 +1,64 @@
 # Development Log
 
+## August 24, 2026 — Geo foundation: one `places` model, location-aware course search
+
+Tom, after the Ottawa import: search "is only by name" — people search by
+country, province/state, city, region; they may not know the exact name;
+and it must hold for users, clubs and leagues too, toward a "mini Google"
+over every entity in every sport. Before writing a line, two audits:
+
+- **Surfaces (inventory):** course search matched name/club/city/region
+  but NOT country, as one substring ("eagle creek ottawa" → nothing), with
+  ranking in JS over a DB window. People search matched names/handles
+  only — `profiles.location` was fetched, typed, and never matched or
+  displayed. Explore had no athlete text search; ⌘K had no courses. No
+  `unaccent` anywhere ("Montréal" ≠ "Montreal"), no distance ranking, four
+  hand-written rank ladders.
+- **Data (prod):** of 28,968 catalog rows, 36% had a city, 18% a region,
+  **5% a country** — 15 of the 62 Ottawa-area courses knew their city, 6
+  their country — in mixed formats ('US'/'USA', 'CA'/'Canada', 'FL'). A
+  search function can't match data a row doesn't have. Every row has
+  coordinates, though.
+
+So the model came first (docs/SEARCH.md): a **`places`** table seeded from
+GeoNames `cities5000` (~69k rows, CC BY 4.0 — Tom approved; attribution
+now sits next to the OSM line) that every locatable entity points at via
+`place_id` plus DENORMALIZED `city/region/region_code/country/
+country_code/lat/lng/location_source`, so each entity's own search vector
+and filters need no join; and one **search contract** every RPC follows —
+the same location parameters (`p_country_code, p_region_code, p_near_lat/
+lng, p_radius_km`), tokens AND'd with prefix matching over an unaccented
+`simple`-config tsvector (the 087 stop-word lesson), trigram substring as
+the fallback, one ranking ladder (exact → prefix → ts_rank → richness →
+recency → distance → name).
+
+Shipped in this round (migration 104 + 105, `src/lib/geo/`):
+- `regions.ts` (pure): ISO codes ↔ names from GeoNames-generated tables
+  (`iso-data.ts`, 252 countries, US states, Canadian provinces) plus the
+  aliases people actually type ("USA", "UK", "Scotland", "Türkiye");
+  `normalizeCountry`/`normalizeRegion` never guess. Every provider
+  normalizer and the reverse-geocode fill now write names AND codes.
+- 104: `places` + `search_places` (autocomplete), `golf_courses` location
+  columns + trigger-maintained `search_vector`, `search_golf_courses`
+  (filters, near-me sort, `distance_km`), `golf_course_location_facets`.
+  All RPCs service-role only. 105: the course backfill is ONE SQL
+  statement — nearest place within 40 km via a lat/lng box + `haversine_km`
+  in a LATERAL — filling city (only where OSM/provider gave none), region,
+  country and codes for every row; a report SELECT counts the orphans.
+- `searchCatalog` calls the RPC and degrades to the pre-104 two-pass when
+  it is missing (the `people-server.ts` pattern); `/api/golf/courses` takes
+  `country`, `region`, `near=lat,lng`, `radius`; new
+  `/api/golf/courses/facets`. `GolfCourse` gains `countryCode`,
+  `regionCode`, `distanceKm`.
+
+Ops order: run 104 (additive — safe before the merge), seed `places`
+(scratchpad script, dry-run first), run 105, then the prod probes:
+"ottawa" ≥ 50 courses, "kanata ontario", "canada", "montréal" = "montreal",
+`near=45.42,-75.69` distance-sorted, facets CA → ON. Users and clubs
+follow in 106 (same columns, `search_people`/`search_clubs` on the same
+contract, profile location becomes a place picker); leagues get it on
+creation. Test count 1557 → 1565.
+
 ## August 24, 2026 — The rangefinder's on-course GPS pass, emulated on prod
 
 Tom: "Why can't we do the on-course GPS?" We could — it had been filed as

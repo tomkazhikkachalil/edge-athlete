@@ -44,6 +44,10 @@ function row(overrides: Partial<CatalogRow> & Pick<CatalogRow, 'id' | 'name'>): 
     website: null,
     phone: null,
     hydrated_at: null,
+    place_id: null,
+    country_code: null,
+    region_code: null,
+    location_source: null,
     ...overrides,
   };
 }
@@ -242,7 +246,11 @@ describe('normalizeOpenGolfSummary (live search shape)', () => {
     });
     expect(row.external_source).toBe('opengolfapi');
     expect(row.name).toBe('Pebble Beach Golf Links');
-    expect(row.region).toBe('CA');
+    expect(row.region).toBe('California');
+    expect(row.region_code).toBe('CA');
+    expect(row.country).toBe('United States');
+    expect(row.country_code).toBe('US');
+    expect(row.location_source).toBe('provider');
     expect(row.total_par).toBe(72);
     expect(isThinRow(row)).toBe(true); // search carries no ratings/holes
   });
@@ -380,7 +388,13 @@ describe('rowToCourse / UUID_RE', () => {
       website: null,
       phone: null,
       hydrated_at: null,
+      place_id: null,
+      country_code: 'US',
+      region_code: 'CA',
+      location_source: 'provider',
     });
+    expect(course.countryCode).toBe('US');
+    expect(course.regionCode).toBe('CA');
     expect(course.city).toBe('Pebble Beach');
     expect(course.state).toBe('California');
     expect(course.holes[0].yardage.white).toBe(350);
