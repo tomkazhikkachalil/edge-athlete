@@ -1,5 +1,22 @@
 # Development Log
 
+## August 24, 2026 — Org connections PR C: org events (migration 119)
+
+Calendar events become attachable to a league or club — the schedule that
+makes a league real. events.league_id/club_id (SET NULL — an org's deletion
+degrades its events to plain events; num_nonnulls <= 1, the 057 precedent).
+The attach is gated app-layer: only the org's owner/manager passes
+getOrgRole at create AND update (re-verified whenever the value is
+present). The org pages grow an "Upcoming events" section fed by public
+guest-data-free routes over a shared org-events core.
+
+STATED SCOPE: no fan-out to member calendars in v1 — the guest-row-driven
+calendar list query is untouched; the org page IS the schedule, and members
+are invited as guests normally. The field-list fan-out was the hazard the
+plan called: EVENT_FIELDS x4, FEED_EVENT_FIELDS, and BOTH series template
+selects + the occurrence template object — miss one and series occurrences
+silently drop their org linkage.
+
 ## August 24, 2026 — Org connections PR B: Explore org discovery
 
 ExploreOrgsSection joins the Explore page, mirroring ExploreCoursesSection

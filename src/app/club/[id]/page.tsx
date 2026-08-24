@@ -9,6 +9,7 @@ import LazyImage from '@/components/LazyImage';
 import ConfirmModal from '@/components/ConfirmModal';
 import ClubEditModal from '@/components/clubs/ClubEditModal';
 import AffiliationSection from '@/components/affiliations/AffiliationSection';
+import OrgUpcomingEvents from '@/components/affiliations/OrgUpcomingEvents';
 import { useToast } from '@/components/Toast';
 import { formatDisplayName, getInitials } from '@/lib/formatters';
 import { formatPlace, GEO_ATTRIBUTION } from '@/lib/geo/regions';
@@ -353,6 +354,8 @@ export default function ClubPage() {
             <p className="mt-3 text-xs text-muted">Showing {members.length} of {memberCount} members.</p>
           )}
         </div>
+
+        <OrgUpcomingEvents side="club" orgId={club.id} />
 
         <AffiliationSection side="club" orgId={club.id} />
 

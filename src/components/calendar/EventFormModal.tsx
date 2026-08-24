@@ -14,6 +14,7 @@ import { useDirtyClose } from '@/hooks/useDirtyClose';
 import { COPY } from '@/lib/copy';
 import { formatDisplayName } from '@/lib/formatters';
 import type { WorkoutRoutine } from '@/lib/workouts/routines';
+import { useAuth } from '@/lib/auth';
 import type { EditScope, EventDetail } from './types';
 
 // Quick-create by default (title + when), everything else behind
@@ -32,6 +33,9 @@ interface FormState {
   // Inside FormState (not separate state) so the dirty-close snapshot
   // covers it automatically.
   routineId: string | null;
+  /** Org linkage (119): at most one of these. */
+  leagueId: string | null;
+  clubId: string | null;
 }
 
 type RepeatFreq = 'none' | 'daily' | 'weekly' | 'monthly' | 'yearly';
@@ -88,6 +92,8 @@ function emptyForm(defaultDay?: Date, defaultRange?: { start: Date; end: Date })
     location: '',
     category: 'general',
     routineId: null,
+    leagueId: null,
+    clubId: null,
   };
 }
 
@@ -104,6 +110,8 @@ function formFromEvent(event: EventDetail): FormState {
     location: event.location ?? '',
     category: event.category,
     routineId: event.routine_id ?? null,
+    leagueId: event.league_id ?? null,
+    clubId: event.club_id ?? null,
   };
 }
 
@@ -156,6 +164,11 @@ export default function EventFormModal({
   // call) so it stays out of the set-state-in-effect warning list. null =
   // not yet loaded; [] = loaded, none (picker hides itself).
   const [routines, setRoutines] = useState<WorkoutRoutine[] | null>(null);
+  // Orgs the user can schedule for (owner/manager only) — same lazy pattern
+  // as routines; the picker hides itself entirely when there are none.
+  interface ManagedOrg { kind: 'league' | 'club'; id: string; name: string; role: string }
+  const { user: authUser } = useAuth();
+  const [managedOrgs, setManagedOrgs] = useState<ManagedOrg[] | null>(null);
   useEffect(() => {
     if (!isOpen || !moreOpen || routines !== null) return;
     let cancelled = false;
@@ -173,6 +186,25 @@ export default function EventFormModal({
       cancelled = true;
     };
   }, [isOpen, moreOpen, routines]);
+
+  useEffect(() => {
+    if (!isOpen || !moreOpen || managedOrgs !== null || !authUser?.id) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch(`/api/profile/${authUser.id}/organizations`);
+        if (!res.ok) throw new Error(String(res.status));
+        const data = await res.json();
+        if (!cancelled) {
+          const all = (data.organizations ?? []) as ManagedOrg[];
+          setManagedOrgs(all.filter(o => o.role === 'owner' || o.role === 'manager'));
+        }
+      } catch {
+        if (!cancelled) setManagedOrgs([]);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [isOpen, moreOpen, managedOrgs, authUser?.id]);
 
   // Seeding the form is state synchronisation — done during render so the
   // previous values never paint for a frame.
@@ -280,6 +312,8 @@ export default function EventFormModal({
       timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
       category: form.category,
       routine_id: form.routineId,
+      league_id: form.leagueId,
+      club_id: form.clubId,
     };
 
     setSaving(true);
@@ -658,6 +692,42 @@ export default function EventFormModal({
                   ))}
                 </div>
               </div>
+
+              {/* Organization (119) — attach this event to a league/club the
+                  user manages. Hidden entirely when they manage none. */}
+              {managedOrgs !== null && managedOrgs.length > 0 && (
+                <div>
+                  <label htmlFor="ev-org" className="block text-sm font-semibold text-primary mb-1">
+                    Organization
+                  </label>
+                  <p className="text-xs text-muted mb-2">
+                    Shows the event on the league or club page&apos;s schedule.
+                  </p>
+                  <select
+                    id="ev-org"
+                    value={form.leagueId ? `league:${form.leagueId}` : form.clubId ? `club:${form.clubId}` : ''}
+                    onChange={e => {
+                      const v = e.target.value;
+                      if (!v) {
+                        set('leagueId', null);
+                        set('clubId', null);
+                      } else {
+                        const [kind, id] = v.split(':');
+                        set('leagueId', kind === 'league' ? id : null);
+                        set('clubId', kind === 'club' ? id : null);
+                      }
+                    }}
+                    className="w-full px-3 py-2 border border-border-strong rounded-lg text-base focus:ring-2 focus:ring-violet-500 focus:outline-none"
+                  >
+                    <option value="">None</option>
+                    {managedOrgs.map(o => (
+                      <option key={`${o.kind}:${o.id}`} value={`${o.kind}:${o.id}`}>
+                        {o.name} ({o.kind})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
 
               {/* Workout routine — schedule a session for this event. Hidden
                   entirely for users with no saved routines. */}

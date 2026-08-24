@@ -31,7 +31,7 @@ import type { ServerRoutineRow } from '@/lib/workouts/routines';
 //         bulk-cancel and stop generation (series ends flips to 'until').
 
 const EVENT_FIELDS =
-  'id, organizer_id, title, description, location, starts_at, ends_at, all_day, timezone, category, status, cancelled_at, series_id, series_override, routine_id, routine_snapshot';
+  'id, organizer_id, title, description, location, starts_at, ends_at, all_day, timezone, category, status, cancelled_at, series_id, series_override, routine_id, routine_snapshot, league_id, club_id';
 const GUEST_FIELDS =
   'id, profile_id, invited_email, role, status, responded_at, reminder_minutes, profiles:profile_id (id, first_name, middle_name, last_name, full_name, avatar_url, handle)';
 const SERIES_FIELDS = 'id, freq, interval_n, byweekday, ends, until_at, count_n';
@@ -157,10 +157,43 @@ export async function PATCH(
       timezone: body.timezone ?? event.timezone,
       category: body.category ?? event.category,
       routine_id: body.routine_id !== undefined ? body.routine_id : event.routine_id,
+      // Org linkage (119): omission keeps the existing value; explicit null
+      // detaches.
+      league_id: body.league_id !== undefined ? body.league_id : event.league_id,
+      club_id: body.club_id !== undefined ? body.club_id : event.club_id,
     };
     const validated = validateEventInput(merged);
     if (!validated.ok) {
       return NextResponse.json({ error: validated.error }, { status: 400 });
+    }
+
+    // Org linkage (119): whenever the FINAL value carries an org, the editor
+    // must be that org's owner/manager — covers attach, keep, and re-home.
+    if (validated.event.league_id || validated.event.club_id) {
+      const { getOrgRole, isOwnerOrManager } = await import('@/lib/affiliations/authz');
+      const side = validated.event.league_id ? 'league' : 'club';
+      const orgId = (validated.event.league_id ?? validated.event.club_id) as string;
+      const { data: org } = await admin
+        .from(side === 'league' ? 'leagues' : 'clubs')
+        .select('id, owner_profile_id')
+        .eq('id', orgId)
+        .maybeSingle();
+      if (!org) {
+        return NextResponse.json({ error: 'Organization not found' }, { status: 404 });
+      }
+      const role = await getOrgRole(
+        admin,
+        side === 'league' ? 'league_members' : 'club_members',
+        orgId,
+        user.id,
+        org.owner_profile_id
+      );
+      if (!isOwnerOrManager(role)) {
+        return NextResponse.json(
+          { error: "Only the organization's owner or managers can schedule its events" },
+          { status: 403 }
+        );
+      }
     }
 
     // Re-snapshot ONLY when the attachment itself changes (explicit null
@@ -284,6 +317,10 @@ export async function PATCH(
       all_day: validated.event.all_day,
       routine_id: validated.event.routine_id,
       routine_snapshot: routineSnapshot,
+      // Org linkage (119) — hand-built list, so these must be explicit or
+      // org edits silently drop on update.
+      league_id: validated.event.league_id,
+      club_id: validated.event.club_id,
     };
     if (timeChanged && scope !== 'this') {
       // Per-occurrence: keep its date, apply the new local time + duration.
