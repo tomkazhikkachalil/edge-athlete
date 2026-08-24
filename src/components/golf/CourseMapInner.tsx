@@ -45,6 +45,10 @@ export interface CourseMapInnerProps {
    *  follow (same as a drag) — Re-center returns to the player. */
   focusHole?: number | null;
   onHoleTap?: (hole: number) => void;
+  /** Extra px above the default bottom-6 for the overlay captions — the
+   *  parent knows what it floats over the map's bottom edge (the live
+   *  page's centered "Score hole N" CTA), this component doesn't. */
+  captionInset?: number;
 }
 
 const OSM = {
@@ -98,6 +102,7 @@ export default function CourseMapInner({
   holes = null,
   focusHole = null,
   onHoleTap,
+  captionInset = 0,
 }: CourseMapInnerProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<L.Map | null>(null);
@@ -508,7 +513,10 @@ export default function CourseMapInner({
             </p>
           )}
           {(enableTracking || targetHint) && (
-            <div className="absolute bottom-6 left-3 z-[500] flex flex-col items-start gap-1">
+            <div
+              className="absolute left-3 z-[500] flex flex-col items-start gap-1"
+              style={{ bottom: 24 + captionInset }}
+            >
               {targetHint && (
                 <p className="rounded bg-surface/80 px-2 py-1 text-[10px] text-faint">
                   Tap the map to set a target

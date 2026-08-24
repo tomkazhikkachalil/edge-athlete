@@ -73,6 +73,15 @@ controls are now icon-only below `sm` (40 px column → ≥ 43 px clear at
 every phone width), with `aria-label` on every button and `aria-pressed` +
 a brand fill while tracking so the state survives losing its label. Labels
 return at `sm+`; card mode (controls below the map) is untouched.
+
+And the bottom row: the centered "Score hole N" CTA is absolutely
+positioned at `left-1/2`, so it shrink-wrapped to the space between the
+viewport's midpoint and the right edge (160 px at 320) and wrapped to
+"Score hole / 1" — `whitespace-nowrap` is load-bearing there. It also sat
+over the map's bottom-left captions; the map now takes a `captionInset`
+(px) from the parent, which knows what it floats over the map's bottom
+edge, and the live page passes 56 (48 px CTA + 8 px gap) whenever the CTA
+can render. Measured 320–1024: single-line CTA, captions end 8 px above it.
 ## August 24, 2026 — Post-merge prod probes: adoption proven, two same-name follow-ups
 
 #220 and #221 merged (git-native, the API-merge trap again) and probed on
