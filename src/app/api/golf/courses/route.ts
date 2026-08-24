@@ -62,7 +62,21 @@ export async function GET(request: NextRequest) {
       await globalSearch(admin, query);
     }
 
-    const catalogCourses = await searchCatalog(admin, query, limit);
+    // Location parameters (migration 104): ISO codes for the filters, a
+    // "lat,lng" for near-me sorting. Malformed values are ignored, not 400s —
+    // the picker must keep working whatever a stale client sends.
+    const nearRaw = (searchParams.get('near') || '').split(',').map(Number);
+    const near =
+      nearRaw.length === 2 && nearRaw.every(Number.isFinite)
+        ? { lat: nearRaw[0], lng: nearRaw[1] }
+        : undefined;
+    const radiusRaw = Number(searchParams.get('radius'));
+    const catalogCourses = await searchCatalog(admin, query, limit, {
+      countryCode: searchParams.get('country') || undefined,
+      regionCode: searchParams.get('region') || undefined,
+      near,
+      radiusKm: Number.isFinite(radiusRaw) && radiusRaw > 0 ? Math.min(radiusRaw, 500) : undefined,
+    });
 
     // ── "Courses you've played" layer ────────────────────────────────────
     // Real courses from real rounds — the viewer's own first (repeat rounds

@@ -45,13 +45,18 @@ import type { GolfCourse, CourseHole } from '@/types/golf';
 import { tidyCourseName } from '@/lib/golf/tees';
 import { acceptGeocode, geocodeGolfCourse, reverseGeocodeCourse, shouldReplaceCoords } from '@/lib/golf/geocode';
 import { courseNameScore } from '@/lib/golf/hole-geometry';
+import { normalizeCountry, normalizeRegion } from '@/lib/geo/regions';
 
 /** ODbL attribution for the catalog. The OSM line is owed UNCONDITIONALLY —
  *  28.9k rows are OpenStreetMap-sourced directly and render whether or not
  *  any provider is configured; "via OpenGolfAPI" is appended only while that
  *  provider is on (its rows are OSM-derived too). Gating the whole line on
  *  providersConfigured() was a licence gap the moment OSM became a source. */
-export const OSM_ATTRIBUTION = 'Course data © OpenStreetMap contributors (ODbL)';
+// GeoNames (CC BY 4.0) supplies city/region/country for the catalog via the
+// `places` table (migration 104/105) — attribution is owed wherever those
+// fields render, which is every course row.
+export const OSM_ATTRIBUTION =
+  'Course data © OpenStreetMap contributors (ODbL) · Location data © GeoNames (CC BY 4.0)';
 export const OPENGOLF_ATTRIBUTION = `${OSM_ATTRIBUTION}, some via OpenGolfAPI`;
 export function catalogAttribution(providersOn: boolean): string {
   return providersOn ? OPENGOLF_ATTRIBUTION : OSM_ATTRIBUTION;
@@ -88,10 +93,28 @@ export interface CatalogRow {
   website: string | null;
   phone: string | null;
   hydrated_at: string | null;
+  // Location model (migration 104): the shared `places` FK plus ISO codes
+  // next to the names, and which writer filled them ('osm' | 'provider' |
+  // 'nominatim' | 'gazetteer'). Writers never downgrade a better source.
+  place_id: string | null;
+  country_code: string | null;
+  region_code: string | null;
+  location_source: string | null;
+  /** Only on search_golf_courses results with a `near` point. */
+  distance_km?: number | null;
+  match_rank?: number;
 }
 
 export const CATALOG_ROW_COLUMNS =
-  'id, external_source, external_id, name, club_name, city, region, country, total_par, holes_count, hole_data, course_rating, slope_rating, lat, lng, description, description_attribution, architect, year_built, course_type, website, phone, hydrated_at';
+  'id, external_source, external_id, name, club_name, city, region, country, total_par, holes_count, hole_data, course_rating, slope_rating, lat, lng, description, description_attribution, architect, year_built, course_type, website, phone, hydrated_at, place_id, country_code, region_code, location_source';
+
+/** Ranked, location-aware search options (migration 104's RPC). */
+export interface CatalogSearchOptions {
+  countryCode?: string;
+  regionCode?: string;
+  near?: { lat: number; lng: number };
+  radiusKm?: number;
+}
 
 /** Row → the flat GolfCourse the composer consumes. */
 export function rowToCourse(row: CatalogRow): GolfCourse {
@@ -105,6 +128,9 @@ export function rowToCourse(row: CatalogRow): GolfCourse {
     city: row.city ?? undefined,
     state: row.region ?? undefined,
     country: row.country ?? undefined,
+    countryCode: row.country_code ?? undefined,
+    regionCode: row.region_code ?? undefined,
+    distanceKm: typeof row.distance_km === 'number' ? Math.round(row.distance_km * 10) / 10 : undefined,
     holes: row.hole_data ?? [],
     totalPar: row.total_par ?? 72,
     holesCount: row.holes_count ?? undefined,
@@ -250,9 +276,59 @@ export function mergeSearchRows(rows: CatalogRow[], query: string, limit: number
 export async function searchCatalog(
   admin: SupabaseClient,
   query: string,
-  limit: number
+  limit: number,
+  opts: CatalogSearchOptions = {}
 ): Promise<GolfCourse[]> {
   const q = query.trim();
+  // Migration 104's RPC: every token must match somewhere (name, club,
+  // city, region, country — accent-folded, prefix on each token), the whole
+  // match set ranked in SQL, location filters and near-me sorting built in.
+  const { data, error } = await admin.rpc('search_golf_courses', {
+    q,
+    max_results: limit,
+    p_country_code: opts.countryCode ?? null,
+    p_region_code: opts.regionCode ?? null,
+    p_near_lat: opts.near?.lat ?? null,
+    p_near_lng: opts.near?.lng ?? null,
+    p_radius_km: opts.radiusKm ?? null,
+  });
+  if (!error) return ((data ?? []) as CatalogRow[]).map(rowToCourse);
+  const code = (error as { code?: string }).code;
+  if (code === '42883' || code === 'PGRST202') {
+    // The people-server.ts pattern: code deployed before the migration ran
+    // degrades to the pre-104 search and shouts, rather than taking the
+    // picker down. Location filters are ignored on this path.
+    console.error(
+      '[course-catalog] search_golf_courses is missing — MIGRATION 104 HAS NOT BEEN RUN. ' +
+        'Serving the pre-104 two-pass search. Run database/migrations/104_places_and_course_search.sql.'
+    );
+    return searchCatalogFallback(admin, q, limit);
+  }
+  console.error('[course-catalog] search_golf_courses failed:', error.message);
+  return [];
+}
+
+/** Country → region facet counts for the Explore filters (104 RPC). Empty
+ *  until the migration runs — a missing RPC is a designed empty state. */
+export async function courseLocationFacets(
+  admin: SupabaseClient,
+  countryCode: string | null
+): Promise<{ country: string | null; countryCode: string; region: string | null; regionCode: string | null; count: number }[]> {
+  const { data, error } = await admin.rpc('golf_course_location_facets', {
+    p_country_code: countryCode,
+  });
+  if (error) {
+    const code = (error as { code?: string }).code;
+    if (code !== '42883' && code !== 'PGRST202') console.error('[course-catalog] facets failed:', error.message);
+    return [];
+  }
+  return ((data ?? []) as { country: string | null; country_code: string; region: string | null; region_code: string | null; n: number }[]).map(
+    f => ({ country: f.country, countryCode: f.country_code, region: f.region, regionCode: f.region_code, count: Number(f.n) })
+  );
+}
+
+/** The pre-104 search, kept verbatim as the degraded path. */
+async function searchCatalogFallback(admin: SupabaseClient, q: string, limit: number): Promise<GolfCourse[]> {
   const ordered = () =>
     admin
       .from('golf_courses')
@@ -372,7 +448,27 @@ const NO_DETAILS = {
   website: null,
   phone: null,
   hydrated_at: null,
+  place_id: null,
 } as const;
+
+/** Every writer's location fields, normalized once: names AND ISO codes so
+ *  search matches what people type ("Florida", "Canada", "FL", "CA").
+ *  `source` is recorded only when something was actually known. */
+function locationFields(
+  countryRaw: string | null | undefined,
+  regionRaw: string | null | undefined,
+  source: 'provider' | 'osm'
+): Pick<NewRow, 'country' | 'country_code' | 'region' | 'region_code' | 'location_source'> {
+  const country = normalizeCountry(countryRaw);
+  const region = normalizeRegion(regionRaw, country?.code);
+  return {
+    country: country?.name ?? nullIfUnknown(countryRaw),
+    country_code: country?.code ?? null,
+    region: region?.name ?? null,
+    region_code: region?.code ?? null,
+    location_source: country || region ? source : null,
+  };
+}
 
 export function normalizeOpenGolfSummary(s: OpenGolfSummary): NewRow {
   return {
@@ -382,8 +478,7 @@ export function normalizeOpenGolfSummary(s: OpenGolfSummary): NewRow {
     name: tidyCourseName(s.course_name),
     club_name: null,
     city: nullIfUnknown(s.city),
-    region: nullIfUnknown(s.state),
-    country: nullIfUnknown(s.country_iso),
+    ...locationFields(s.country_iso, s.state, 'provider'),
     total_par: s.par ?? null,
     holes_count: s.holes ?? null,
     hole_data: null,
@@ -446,8 +541,7 @@ export function normalizeOpenGolfDetail(d: OpenGolfDetail): NewRow {
     name: courseDisplayName(d.club_name, tidyCourseName(d.course_name)),
     club_name: nullIfUnknown(d.club_name),
     city: nullIfUnknown(d.city),
-    region: nullIfUnknown(d.state),
-    country: nullIfUnknown(d.country_iso) ?? 'US',
+    ...locationFields(nullIfUnknown(d.country_iso) ?? 'US', d.state, 'provider'),
     total_par: d.par ?? null,
     holes_count: d.holes ?? (holes.length || null),
     hole_data: holes.length ? holes : null,
@@ -489,8 +583,7 @@ export function normalizeGcaSummary(s: GcaSummary): NewRow {
     name: courseDisplayName(s.club_name, courseName),
     club_name: nullIfUnknown(s.club_name),
     city: nullIfUnknown(s.location?.city),
-    region: nullIfUnknown(s.location?.state),
-    country: nullIfUnknown(s.location?.country),
+    ...locationFields(s.location?.country, s.location?.state, 'provider'),
     total_par: null,
     holes_count: null,
     hole_data: null,
@@ -582,8 +675,7 @@ export function normalizeOsmElement(el: OsmCourseElement): NewRow | null {
     name: tidyCourseName(name),
     club_name: null,
     city: nullIfUnknown(tags['addr:city']),
-    region: nullIfUnknown(tags['addr:province'] ?? tags['addr:state']),
-    country: nullIfUnknown(tags['addr:country']),
+    ...locationFields(tags['addr:country'], tags['addr:province'] ?? tags['addr:state'], 'osm'),
     total_par: null,
     holes_count: /^\d+$/.test(tags.holes ?? '') ? Number(tags.holes) : null,
     hole_data: null,
@@ -744,6 +836,9 @@ async function adoptOsmRow(admin: SupabaseClient, target: NearbyRow, incoming: N
       city: target.city ?? incoming.city,
       region: target.region ?? incoming.region,
       country: target.country ?? incoming.country,
+      // Codes travel with the names they came from.
+      ...(target.region ? {} : { region_code: incoming.region_code }),
+      ...(target.country ? {} : { country_code: incoming.country_code }),
       hydrated_at: null,
     })
     .eq('id', target.id);
@@ -818,6 +913,23 @@ export async function globalSearch(admin: SupabaseClient, query: string): Promis
   return fetched;
 }
 
+/** Nominatim reverse result → the location columns a row is still missing. */
+function reverseFill(
+  row: CatalogRow,
+  fill: { city: string | null; region: string | null; country: string | null }
+): Pick<CatalogRow, 'city' | 'region' | 'region_code' | 'country' | 'country_code' | 'location_source'> {
+  const country = normalizeCountry(fill.country);
+  const region = normalizeRegion(fill.region, country?.code ?? row.country_code);
+  return {
+    city: row.city ?? fill.city,
+    region: row.region ?? region?.name ?? null,
+    region_code: row.region_code ?? region?.code ?? null,
+    country: row.country ?? country?.name ?? null,
+    country_code: row.country_code ?? country?.code ?? null,
+    location_source: row.location_source ?? 'nominatim',
+  };
+}
+
 /**
  * Hydration on selection: a thin provider row gets one detail call and an
  * in-place UPDATE. Any failure (budget, timeout, bad shape) returns the thin
@@ -848,29 +960,14 @@ export async function hydrateCourse(admin: SupabaseClient, row: CatalogRow): Pro
     ) {
       fill = await reverseGeocodeCourse(row.lat, row.lng);
     }
+    // Fill only what's missing (a gazetteer/OSM value already there is at
+    // least as good), and carry the ISO codes alongside the names.
+    const filled = fill ? reverseFill(row, fill) : null;
     await admin
       .from('golf_courses')
-      .update({
-        hydrated_at: new Date().toISOString(),
-        ...(fill
-          ? {
-              city: row.city ?? fill.city,
-              region: row.region ?? fill.region,
-              country: row.country ?? fill.country,
-            }
-          : {}),
-      })
+      .update({ hydrated_at: new Date().toISOString(), ...(filled ?? {}) })
       .eq('id', row.id);
-    return rowToCourse(
-      fill
-        ? {
-            ...row,
-            city: row.city ?? fill.city,
-            region: row.region ?? fill.region,
-            country: row.country ?? fill.country,
-          }
-        : row
-    );
+    return rowToCourse(filled ? { ...row, ...filled } : row);
   }
 
   let normalized: NewRow | null = null;
@@ -942,9 +1039,19 @@ export async function hydrateCourse(admin: SupabaseClient, row: CatalogRow): Pro
     .update({
       name: normalized.name,
       club_name: normalized.club_name,
-      city: normalized.city,
-      region: normalized.region,
-      country: normalized.country,
+      // Provider location overwrites everything except an OSM addr:* value
+      // (a mapper's tag beats a provider's summary), and only when the
+      // provider actually knows it.
+      ...(row.location_source === 'osm'
+        ? {}
+        : {
+            city: normalized.city ?? row.city,
+            region: normalized.region ?? row.region,
+            region_code: normalized.region_code ?? row.region_code,
+            country: normalized.country ?? row.country,
+            country_code: normalized.country_code ?? row.country_code,
+            location_source: normalized.country_code || normalized.region ? 'provider' : row.location_source,
+          }),
       total_par: normalized.total_par,
       holes_count: normalized.holes_count,
       hole_data: normalized.hole_data,

@@ -76,6 +76,11 @@ export interface GolfCourse {
   city?: string;
   state?: string;
   country?: string;
+  /** ISO codes alongside the names (migration 104): 'CA' / 'ON'. */
+  countryCode?: string;
+  regionCode?: string;
+  /** Present only on results of a "near" search — km from the given point. */
+  distanceKm?: number;
   holes: CourseHole[];
   totalPar: number;
   /** Course length from the catalog (9 or 18) — sizes the composer grid. */
