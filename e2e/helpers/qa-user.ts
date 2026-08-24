@@ -278,6 +278,13 @@ export async function deleteQaUser(userId: string): Promise<void> {
   await admin.from('athlete_vitals').delete().eq('profile_id', userId);
   await admin.from('athlete_achievements').delete().eq('profile_id', userId);
 
+  // Delete the profiles row FIRST (the account-deletion flow's order): the
+  // auth-side cascade fires the search-document delete trigger as
+  // supabase_auth_admin, which 112 shipped without privileges for (fixed in
+  // 114 via SECURITY DEFINER) — profile-first keeps teardown independent of
+  // that, exactly like hardDeleteAccount.
+  await admin.from('profiles').delete().eq('id', userId);
+
   const { error } = await admin.auth.admin.deleteUser(userId);
   if (error) throw new Error(`deleteUser(${userId}) failed: ${error.message}`);
 }
