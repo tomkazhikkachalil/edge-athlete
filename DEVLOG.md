@@ -1,5 +1,33 @@
 # Development Log
 
+## August 24, 2026 — Close-out II: orgs and connections, end to end
+
+Second maintenance pass of the day (the first closed the search & location
+arc at #233). Everything since, in order, all merged and prod-probed:
+
+| PR | What | Migrations |
+|---|---|---|
+| #235–#236 | Dead lower() indexes dropped; hole-geometry scoping + Ottawa re-sweep (Glen Mar 9→null was the fix proving itself) | 111 |
+| #238 | search_all unification — posts on the simple-config contract at last | 112 |
+| #239, #243 | Leagues: entity, page, join loop, manager appointment | 113 |
+| #240 | SECURITY DEFINER on search triggers (auth-cascade deletes unbroken) | 114 |
+| #241–#242 | Facet UI + the 1000-row truncation fix | 115 |
+| #244 | Org signup: request + approve (+ the signup user_type clamp — a client could self-assign 'league'/'club'/'parent') | 116 |
+| #245–#246 | Clubs get the league treatment; club↔league affiliation handshake (the stacked-merge-order lesson) | 117, 118 |
+| #247–#250 | The connections round: profiles↔orgs, Explore discovery, org events, org activity | 119 |
+
+State at close: `npm run verify` green on `main` (typecheck, lint at zero,
+1617 tests, production build), tree clean, `main` = GitHub = Vercel
+production, migrations 104–119 all applied and grid-verified, zero leftover
+probe rows or QA users in prod, stale local branches pruned. Cross-round
+smoke 4/4: join → profile strip + feed card → Explore discovery → org-page
+schedule → member activity.
+
+Open by explicit decision, not by omission: calendar fan-out to org
+members; org-peer feed access (followers-visible posts by co-membership —
+a real access grant); org event → member notifications (`team_update`
+sits allowed and unsent, per the front-loading rule).
+
 ## August 24, 2026 — Org connections PR D: org activity (round closed)
 
 The last connection. Org pages grow a "Recent activity" section — light
