@@ -8,6 +8,7 @@
 import { createHash, randomBytes } from 'crypto';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { buildVEvent, buildCalendar } from './ics';
+import { fetchOrgEventsForViewer } from './org-merge-server';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Admin = SupabaseClient<any, 'public', any>;
@@ -66,9 +67,32 @@ async function fetchFeedRows(
       .gt('events.cancelled_at', new Date(now.getTime() - PAST_WINDOW_MS).toISOString()),
   ]);
 
-  return [...(activeRows ?? []), ...(cancelledRows ?? [])].map(
+  const guestEvents = [...(activeRows ?? []), ...(cancelledRows ?? [])].map(
     r => r.events as unknown as FeedEventRow
   );
+
+  // Read-time org merge: a member's subscribed calendar shows the same
+  // schedule as the in-app one. Guest rows stay authoritative (the merge
+  // drops events the member holds a row on — a declined org event stays
+  // out of the feed); recently-cancelled org events emit STATUS:CANCELLED
+  // like everything else. Best-effort: a failure never breaks the feed.
+  try {
+    const orgEvents = await fetchOrgEventsForViewer(
+      admin,
+      profileId,
+      now.getTime() - PAST_WINDOW_MS,
+      now.getTime() + FUTURE_WINDOW_MS,
+      {
+        fields: FEED_EVENT_FIELDS,
+        includeCancelledAfter: new Date(now.getTime() - PAST_WINDOW_MS).toISOString(),
+      }
+    );
+    guestEvents.push(...(orgEvents as unknown as FeedEventRow[]));
+  } catch (e) {
+    console.error('[CALENDAR FEED] org merge failed:', e);
+  }
+
+  return guestEvents;
 }
 
 export async function buildFeedIcs(

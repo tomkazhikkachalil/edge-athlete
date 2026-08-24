@@ -23,8 +23,9 @@ export async function GET(
     const user = await requireAuth(request);
     const { id } = await params;
     const admin = getSupabaseAdmin();
-    const event = await loadEventForViewer(admin, id, user.id);
-    if (!event) return NextResponse.json({ error: 'Event not found' }, { status: 404 });
+    const loaded = await loadEventForViewer(admin, id, user.id);
+    if (!loaded) return NextResponse.json({ error: 'Event not found' }, { status: 404 });
+    const event = loaded.event;
 
     let description = event.description ?? '';
     // Scheduled workout: name the routine in the exported description

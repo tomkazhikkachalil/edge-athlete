@@ -17,7 +17,7 @@ import { categoryColor, CATEGORY_LABELS } from '@/lib/calendar/categories';
 import { allDayDayLabels } from '@/lib/calendar/grid';
 import { describeRecurrence } from '@/lib/calendar/recurrence';
 import { REMINDER_OPTIONS, REMINDER_LABELS } from '@/lib/calendar/reminders';
-import type { EventDetail, EventGuest, MyStatus } from './types';
+import type { EventDetail, EventGuest, MyStatus, ViewerAccess } from './types';
 
 // The event's home: full details, live guest list with per-person status,
 // the organizer's running tally, and the viewer's respond buttons. The
@@ -84,6 +84,7 @@ export default function EventDetailModal({
   const router = useRouter();
   const { showError, showSuccess } = useToast();
   const [event, setEvent] = useState<EventDetail | null>(null);
+  const [viewerAccess, setViewerAccess] = useState<ViewerAccess | null>(null);
   const [loading, setLoading] = useState(false);
   const [responding, setResponding] = useState(false);
   const [confirmingCancel, setConfirmingCancel] = useState(false);
@@ -123,6 +124,7 @@ export default function EventDetailModal({
             return;
           }
           setEvent(data.event);
+          setViewerAccess(data.viewer_access ?? null);
           setLoadedAt(Date.now());
         } catch {
           showError('Event unavailable', 'This event could not be loaded.');
@@ -330,6 +332,18 @@ export default function EventDetailModal({
                   {describeRecurrence(event.series, event.timezone)}
                 </p>
               )}
+              {(event.league_id || event.club_id) && event.org_name && (
+                <p className="text-muted text-xs">
+                  <i className="fas fa-people-group text-faint mr-1"></i>
+                  {event.league_id ? 'League event' : 'Club event'} ·{' '}
+                  <a
+                    href={event.league_id ? `/league/${event.league_id}` : `/club/${event.club_id}`}
+                    className="text-brand-fg hover:underline font-medium"
+                  >
+                    {event.org_name}
+                  </a>
+                </p>
+              )}
               {!cancelled && (
                 <p className="text-xs pt-0.5">
                   <a
@@ -424,8 +438,12 @@ export default function EventDetailModal({
               );
             })()}
 
-            {/* Respond (guests only, not on cancelled events) */}
-            {myGuestRow && myGuestRow.role !== 'organizer' && !cancelled && (
+            {/* Respond (guests, plus org members with no guest row yet —
+                their first response creates one; no selected state until
+                a row exists). Never on cancelled events. */}
+            {((myGuestRow && myGuestRow.role !== 'organizer') ||
+              (!myGuestRow && viewerAccess === 'org_member')) &&
+              !cancelled && (
               <div className="border-t border-border-subtle pt-3">
                 <p className="text-sm font-semibold text-primary mb-2">Are you going?</p>
                 <div className="flex gap-2">
@@ -440,7 +458,7 @@ export default function EventDetailModal({
                       disabled={responding}
                       onClick={() => handleRespondTap(opt.value)}
                       className={`flex-1 py-2 rounded-lg text-sm font-medium border transition min-h-[44px] disabled:opacity-50 ${
-                        myGuestRow.status === opt.value
+                        myGuestRow?.status === opt.value
                           ? 'bg-brand text-white border-brand'
                           : 'bg-surface text-secondary border-border-strong hover:border-violet-400'
                       }`}
