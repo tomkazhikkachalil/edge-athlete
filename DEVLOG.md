@@ -1,5 +1,23 @@
 # Development Log
 
+## August 24, 2026 — 115: facet rows ranked and capped (the 1000-row truncation)
+
+First prod probe of the facet UI found the panel showing countries but no
+type counts for broad queries. The RPC was right; the transport wasn't:
+"golf" matches ~17k documents, GROUPING SETS emit thousands of facet rows
+ordered `facet, n DESC` — and alphabetically 'country' < 'region' < 'sport'
+< 'type', so PostgREST's 1000-row cap filled with country/region rows and
+truncated the five type rows off the far end. Small queries fit and looked
+fine — a truncation bug that only shows at scale, the 029-import lesson in
+miniature: probe broad, not just pretty.
+
+Migration 115 fixes it inside the function so no client can get it wrong:
+facet kinds now order by usefulness-per-row (type ≤5 rows → sport ≤11 →
+country ≤~200 → region), and every group is capped at 100 via ROW_NUMBER —
+no dropdown wants more, and the whole response is ≤ ~400 rows regardless of
+any transport cap. The grid reproduces the failure as its probe: the FIRST
+row for `search_all_facets('golf', NULL)` must be a 'type' row.
+
 ## August 24, 2026 — Facet UI: search_all_facets reaches the ⌘K panel
 
 The deferred half of 112. The Advanced Filters panel now shows the matched
