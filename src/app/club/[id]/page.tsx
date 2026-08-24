@@ -10,6 +10,7 @@ import ConfirmModal from '@/components/ConfirmModal';
 import ClubEditModal from '@/components/clubs/ClubEditModal';
 import AffiliationSection from '@/components/affiliations/AffiliationSection';
 import OrgUpcomingEvents from '@/components/affiliations/OrgUpcomingEvents';
+import OrgRecentActivity from '@/components/affiliations/OrgRecentActivity';
 import { useToast } from '@/components/Toast';
 import { formatDisplayName, getInitials } from '@/lib/formatters';
 import { formatPlace, GEO_ATTRIBUTION } from '@/lib/geo/regions';
@@ -356,6 +357,8 @@ export default function ClubPage() {
         </div>
 
         <OrgUpcomingEvents side="club" orgId={club.id} />
+
+        <OrgRecentActivity side="club" orgId={club.id} />
 
         <AffiliationSection side="club" orgId={club.id} />
 

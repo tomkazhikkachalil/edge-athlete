@@ -10,6 +10,7 @@ import ConfirmModal from '@/components/ConfirmModal';
 import LeagueEditModal from '@/components/leagues/LeagueEditModal';
 import AffiliationSection from '@/components/affiliations/AffiliationSection';
 import OrgUpcomingEvents from '@/components/affiliations/OrgUpcomingEvents';
+import OrgRecentActivity from '@/components/affiliations/OrgRecentActivity';
 import { useToast } from '@/components/Toast';
 import { formatDisplayName, getInitials } from '@/lib/formatters';
 import { SPORT_REGISTRY } from '@/lib/sports/SportRegistry';
@@ -362,6 +363,8 @@ export default function LeaguePage() {
         </div>
 
         <OrgUpcomingEvents side="league" orgId={league.id} />
+
+        <OrgRecentActivity side="league" orgId={league.id} />
 
         <AffiliationSection side="league" orgId={league.id} />
 
