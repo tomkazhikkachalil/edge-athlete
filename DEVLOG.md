@@ -1,5 +1,27 @@
 # Development Log
 
+## August 24, 2026 — Org connections PR D: org activity (round closed)
+
+The last connection. Org pages grow a "Recent activity" section — light
+excerpt rows of members' posts over new public /api/leagues|clubs/[id]/
+activity routes (shared core). PRIVACY RULE, stated: only posts already
+anonymous-visible (post public AND author profile public — the /u/ rule);
+membership is public, so this surfaces nothing a visitor couldn't reach.
+Excerpt rows on purpose: no PostCard/feed hydration machinery on org
+pages; each row links /feed?post=.
+
+THE MAIN-FEED CHANGE WAS DELIBERATELY SKIPPED: the conservative version
+(org peers' public+public posts) is a no-op — those posts already pass the
+feed's filter — and the only meaningful version grants strangers access to
+followers-visible posts by co-membership. That is a real access decision
+recorded for Tom, not something to slip into a connections PR.
+
+With A (profiles↔orgs), B (Explore discovery), C (org events, 119) and D,
+the island is wired in: join → strip + sidebar card → find on Explore →
+schedule on the org page → see member activity. Explicit follow-ups
+parked: calendar fan-out to members, org-peer feed access, org event →
+member notifications.
+
 ## August 24, 2026 — Org connections PR C: org events (migration 119)
 
 Calendar events become attachable to a league or club — the schedule that
