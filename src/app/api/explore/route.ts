@@ -4,6 +4,7 @@ import { getSportDefinition, SPORT_REGISTRY, type SportKey } from '@/lib/sports/
 import { FEATURE_FLAGS } from '@/lib/features';
 import { searchPeople } from '@/lib/search/people-server';
 import { hasLocationFilter, readLocationParams } from '@/lib/geo/params';
+import { enforceRateLimit } from '@/lib/rate-limit';
 
 /**
  * GET /api/explore?sport=<sport_key>&limit=24
@@ -17,6 +18,9 @@ import { hasLocationFilter, readLocationParams } from '@/lib/geo/params';
  */
 export async function GET(request: NextRequest) {
   try {
+    const limited = await enforceRateLimit(request, 'search');
+    if (limited) return limited;
+
     const { searchParams } = new URL(request.url);
     const sportKey = searchParams.get('sport')?.trim() || null;
     const limit = Math.min(parseInt(searchParams.get('limit') || '24', 10) || 24, 48);

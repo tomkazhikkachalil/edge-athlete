@@ -38,6 +38,11 @@ export const RATE_LIMITS = {
   // keystroke plus browse-on-focus, and 30 was hit in normal composing
   // (Tom, Aug 23). Still throttles enumeration to a crawl.
   'course-search': { max: 120, windowSeconds: 60, keyBy: 'ip' },
+  // ⌘K + Explore search — anonymous-reachable fan-out over profiles, posts,
+  // clubs and courses (search_all, migration 112). Same budget and rationale
+  // as course-search: a typing user fires one debounced request per
+  // keystroke, so 30/min breaks normal use; 120 still crawls enumeration.
+  search: { max: 120, windowSeconds: 60, keyBy: 'ip' },
   // Guardian-invite peek — unauthenticated (parents open it accountless)
   // and a valid hit names the invited email; keep token guessing costly.
   'invite-peek': { max: 30, windowSeconds: 60, keyBy: 'ip' },
