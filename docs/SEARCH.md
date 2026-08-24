@@ -1,9 +1,10 @@
 # Search & location — the model every entity follows
 
 **Status:** foundation shipped Aug 24 2026 (migrations 104–107); users and
-clubs on the same model in 108; leagues, arenas, teams and events adopt it
-on creation. Read this before adding a search
-box, a location field, or a new locatable entity.
+clubs on the same model in 108; `search_documents` + `search_all` unified the
+searchable entities in 112; leagues, arenas, teams and events adopt it on
+creation. Read this before adding a search box, a location field, or a new
+locatable entity.
 
 ## Why
 
@@ -75,9 +76,11 @@ match against `places` (108's `backfill_places_from_text` does this for
   `ts_rank` and `ts_rank_cd` both score term PROXIMITY for AND queries, so
   a city token beside a region token beats a name token whatever the
   weights (107, probe-caught).
-- Ranking ladder, in order: exact name → name prefix → `ts_rank_cd` →
-  richness (the entity's own "has real data" rule) → recency → distance →
-  name. A "near me" browse (empty `q`) puts distance first.
+- Ranking ladder, in order: exact name → name prefix → per-token rank
+  (`search_token_hits` on the name vector, then `search_token_rank` — 107;
+  never plain `ts_rank`/`ts_rank_cd`, which score term PROXIMITY for AND
+  queries) → richness (the entity's own "has real data" rule) → recency →
+  distance → name. A "near me" browse (empty `q`) puts distance first.
 - Security: `SECURITY INVOKER`, `REVOKE EXECUTE … FROM PUBLIC, anon,
   authenticated`, `GRANT … TO service_role`; routes call through the admin
   client and apply privacy themselves (087's rule). Migrations end with a
@@ -97,16 +100,33 @@ match against `places` (108's `backfill_places_from_text` does this for
 | Header ⌘K | people (names), posts, clubs | Location filter (place → 50 km); people and clubs match and DISPLAY location (108); + Golf Courses type ✅ |
 | Profile location | free text | place picker (`search_places`); free text kept as the display string |
 
-## Toward `search_all` (the mini-Google endpoint)
+## `search_all` (the mini-Google endpoint) — shipped in 112
 
-When more than two or three entity types are searchable, unify: a
-`search_documents` table (`entity_type, entity_id, sport_key, title,
-subtitle, the location columns, search_vector`) maintained by per-entity
-triggers, one `search_all(q, p_types, location params)` RPC using the same
-tokenizer and ladder, facets by type/sport/country/region. Golf courses are
-document type #1; nothing in this design changes for them. Until then,
-each entity's RPC is the contract above — which is exactly what makes the
-unification mechanical later.
+`search_documents`: one row per searchable entity (`entity_type` in
+athlete/club/course/post — a NAMED check constraint, so a new type is one
+constraint swap), with `title` (the ranking name), `subtitle`, `sport_key`,
+`owner_id`, `visibility`, the location columns, `rich`, `recency` and a
+`search_vector`. Maintained by AFTER triggers on each source table (upsert +
+delete pairs); course/athlete/club documents REUSE the entity's own contract
+vector, post documents get a fresh `simple`-config one (caption A, hashtags
+B, sport_key C — `posts.tags` holds tagged-profile UUIDs and is excluded).
+`search_all(q, p_types, max_per_type, visible_ids, include_public, location
+params)` runs the ladder above with a per-type ROW_NUMBER quota;
+`search_all_facets` returns type/sport/country/region counts (UI wiring
+pending). `/api/search` hydrates display rows from the ranked ids and keeps
+the entire pre-112 per-entity path as its degrade fallback.
+
+Privacy split, deliberate: athlete documents carry `visibility`/`owner_id`
+and are filtered in-query (search_people semantics — LIMIT after privacy);
+post documents EXIST only while the post is public and published, and
+author-level privacy (a private athlete's accepted followers still see
+their posts) stays in the route. Known gap: athlete docs have `sport_key`
+NULL — `profiles.sport` stores a display label, so the sport chip remains a
+route post-filter.
+
+Adding a league (or any new entity) to the unified index: extend the named
+check constraint, add one trigger pair + a backfill per the checklist below.
+Nothing else changes — `search_all` picks the new type up via `p_types`.
 
 ## Adding a new locatable entity (checklist)
 

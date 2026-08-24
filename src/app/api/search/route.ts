@@ -3,7 +3,10 @@ import { getSupabaseAdmin, requireAuth } from '@/lib/auth-server';
 import { FEATURE_FLAGS } from '@/lib/features';
 import { searchPeople } from '@/lib/search/people-server';
 import { hasLocationFilter, readLocationParams, rpcLocationArgs } from '@/lib/geo/params';
-import { searchCatalog } from '@/lib/golf/course-catalog';
+import { CATALOG_ROW_COLUMNS, rowToCourse, searchCatalog, type CatalogRow } from '@/lib/golf/course-catalog';
+import { searchAll } from '@/lib/search/all-server';
+import { ALL_QUOTAS, FACET_WIDEN_LIMIT, TYPED_QUOTAS, groupByType, orderByIds, typesForRequest } from '@/lib/search/all';
+import { enforceRateLimit } from '@/lib/rate-limit';
 
 // Minimum query length, per kind of result.
 //
@@ -22,6 +25,9 @@ function sanitizeForFilter(input: string): string {
 
 export async function GET(request: NextRequest) {
   try {
+    const limited = await enforceRateLimit(request, 'search');
+    if (limited) return limited;
+
     const supabase = getSupabaseAdmin();
 
     // Optional auth — search is public, but private profiles must not appear
@@ -77,10 +83,142 @@ export async function GET(request: NextRequest) {
       courses: [],
     };
 
+    // ── Unified path (search_all, migration 112) ─────────────────────────
+    // One RPC ranks every requested entity type over search_documents; the
+    // route hydrates display rows per type and keeps its post-filters. On a
+    // pre-112 database searchAll returns null (and shouts in the logs), and
+    // the per-entity legacy blocks below serve the request instead.
+    const facetsActive = Boolean(sport || school);
+    const docTypes = typesForRequest(type, (query ?? '').length, locationBrowse);
+    const quotas = type === 'all' ? ALL_QUOTAS : TYPED_QUOTAS;
+    const docRows = docTypes.length > 0
+      ? await searchAll({
+          query: query ?? '',
+          types: docTypes,
+          maxPerType: facetsActive && docTypes.includes('athlete')
+            ? FACET_WIDEN_LIMIT
+            : Math.max(...docTypes.map(t => quotas[t])),
+          visibleIds: viewerId ? [viewerId] : [],
+          includePublic: true,
+          location,
+        })
+      : null;
+
+    if (docRows !== null) {
+      const grouped = groupByType(docRows);
+      const athleteDocs = grouped.athlete ?? [];
+      const courseDocs = grouped.course ?? [];
+      const postDocs = grouped.post ?? [];
+      const clubDocs = grouped.club ?? [];
+
+      await Promise.all([
+        (async () => {
+          if (athleteDocs.length === 0) return;
+          const ids = athleteDocs.map(d => d.entity_id);
+          const { data } = await supabase
+            .from('profiles')
+            .select('id, handle, first_name, middle_name, last_name, full_name, avatar_url, location, sport, school, visibility, city, region, region_code, country, country_code')
+            .in('id', ids);
+          const byDoc = new Map(athleteDocs.map(d => [d.entity_id, d]));
+          let athletes = orderByIds(ids, (data ?? []) as Array<{ id: string; sport?: string | null; school?: string | null }>)
+            .map(p => ({
+              ...p,
+              distance_km: byDoc.get(p.id)?.distance_km ?? null,
+              match_rank: byDoc.get(p.id)?.match_rank,
+            }));
+          if (sport) {
+            athletes = athletes.filter(a => a.sport === sport);
+          }
+          if (school) {
+            const needle = school.toLowerCase();
+            athletes = athletes.filter(a => a.school?.toLowerCase().includes(needle));
+          }
+          results.athletes = athletes.slice(0, quotas.athlete);
+        })(),
+        (async () => {
+          if (courseDocs.length === 0) return;
+          const ids = courseDocs.map(d => d.entity_id);
+          const { data } = await supabase
+            .from('golf_courses')
+            .select(CATALOG_ROW_COLUMNS)
+            .in('id', ids);
+          const byDoc = new Map(courseDocs.map(d => [d.entity_id, d]));
+          results.courses = orderByIds(ids, (data ?? []) as unknown as CatalogRow[])
+            .slice(0, quotas.course)
+            .map(row => rowToCourse({
+              ...row,
+              distance_km: byDoc.get(row.id)?.distance_km ?? null,
+              match_rank: byDoc.get(row.id)?.match_rank,
+            }));
+        })(),
+        (async () => {
+          if (postDocs.length === 0) return;
+          const ids = postDocs.map(d => d.entity_id);
+          let postQuery = supabase
+            .from('posts')
+            .select(`
+              id,
+              caption,
+              sport_key,
+              hashtags,
+              tags,
+              created_at,
+              profile:profile_id (
+                id,
+                full_name,
+                first_name,
+                middle_name,
+                last_name,
+                avatar_url
+              ),
+              post_media (
+                media_url,
+                media_type
+              )
+            `)
+            .in('id', ids);
+          // Flag-gated: posts.status doesn't exist until migration 051.
+          if (FEATURE_FLAGS.FEATURE_GUARDIAN_PROFILES) {
+            postQuery = postQuery.eq('status', 'published');
+          }
+          if (sport) {
+            postQuery = postQuery.eq('sport_key', sport);
+          }
+          if (dateFrom) {
+            postQuery = postQuery.gte('created_at', dateFrom);
+          }
+          if (dateTo) {
+            postQuery = postQuery.lte('created_at', `${dateTo}T23:59:59.999Z`);
+          }
+          // Matches the legacy path: hydrated posts render newest-first.
+          const { data: posts } = await postQuery
+            .order('created_at', { ascending: false })
+            .limit(quotas.post);
+          results.posts = posts || [];
+        })(),
+        (async () => {
+          if (clubDocs.length === 0) return;
+          const ids = clubDocs.map(d => d.entity_id);
+          const { data } = await supabase
+            .from('clubs')
+            .select('id, name, description, location, city, region, region_code, country, country_code, lat, lng')
+            .in('id', ids);
+          const byDoc = new Map(clubDocs.map(d => [d.entity_id, d]));
+          results.clubs = orderByIds(ids, (data ?? []) as Array<{ id: string }>)
+            .slice(0, quotas.club)
+            .map(c => ({
+              ...c,
+              distance_km: byDoc.get(c.id)?.distance_km ?? null,
+              match_rank: byDoc.get(c.id)?.match_rank,
+            }));
+        })(),
+      ]);
+    }
+
     // ── Courses (catalog, migration 104) ─────────────────────────────────
     // The header search is the app's one "search everything" box; courses
     // ride the same RPC the picker uses, with the location filter applied.
-    if ((type === 'all' || type === 'courses') && ((query ?? '').length >= CONTENT_MIN_CHARS || (locationBrowse && type === 'courses'))) {
+    if (docRows === null && (type === 'all' || type === 'courses') && ((query ?? '').length >= CONTENT_MIN_CHARS || (locationBrowse && type === 'courses'))) {
       try {
         results.courses = await searchCatalog(supabase, query ?? '', type === 'courses' ? 15 : 5, location);
       } catch (courseError) {
@@ -103,7 +241,7 @@ export async function GET(request: NextRequest) {
     // over the results afterwards, so the LIMIT lands after privacy instead
     // of before it — private profiles no longer consume result slots and push
     // public matches off the end.
-    if (type === 'all' || type === 'athletes') {
+    if (docRows === null && (type === 'all' || type === 'athletes')) {
       // sport/school are post-filters over the ranked set, so widen the
       // window when one is active or the filter could empty a full page.
       const hasFacets = Boolean(sport || school);
@@ -127,7 +265,7 @@ export async function GET(request: NextRequest) {
     }
 
     // Search Posts (by caption, hashtags, tags)
-    if ((type === 'all' || type === 'posts') && (query ?? '').length >= CONTENT_MIN_CHARS) {
+    if (docRows === null && (type === 'all' || type === 'posts') && (query ?? '').length >= CONTENT_MIN_CHARS) {
       try {
         {
           const { data: postsBasic, error: postsError } = await supabase
@@ -258,7 +396,7 @@ export async function GET(request: NextRequest) {
     }
 
     // Search Clubs
-    if ((type === 'all' || type === 'clubs') && ((query ?? '').length >= CONTENT_MIN_CHARS || locationBrowse)) {
+    if (docRows === null && (type === 'all' || type === 'clubs') && ((query ?? '').length >= CONTENT_MIN_CHARS || locationBrowse)) {
       try {
         {
           // 108's search_clubs: the standard contract (q + location params).

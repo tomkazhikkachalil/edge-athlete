@@ -1,5 +1,50 @@
 # Development Log
 
+## August 24, 2026 — search_all: one document table over every searchable entity (migration 112)
+
+docs/SEARCH.md's "Toward search_all" threshold was met — four entity types
+searchable (athletes, clubs, courses, posts), each through its own RPC and
+three different route-side fallbacks — so the unification shipped:
+`search_documents` (one row per entity: title/subtitle/sport_key/owner_id/
+visibility, the location columns, rich/recency, search_vector) maintained by
+AFTER upsert+delete trigger pairs on each source table, `search_all(q,
+p_types, max_per_type, visible_ids, include_public, location params)` running
+107's per-token ladder with a per-type ROW_NUMBER quota, and
+`search_all_facets` (GROUPING SETS; UI wiring deferred). `/api/search` now
+makes ONE ranked RPC call and hydrates display rows per type; the entire
+pre-112 per-entity path is preserved verbatim as the degrade fallback, keyed
+on 42883/PGRST202 exactly like people-server (`src/lib/search/all-server.ts`
+returns null → legacy blocks run). Response shape unchanged —
+AdvancedSearchBar needed zero edits.
+
+The headline win is POSTS, the one off-contract entity: their only vector was
+english-config from an unnumbered feature script — stemmed, stop-worded,
+whole-word (087's exact trap), with `posts.tags` indexed at weight B even
+though that column holds tagged-profile UUIDs, not text. Post documents get a
+fresh `simple` vector (caption A, hashtags B, sport_key C, tags excluded), so
+caption prefixes and stop-word captions finally match without the ILIKE
+fallback. A post document EXISTS only while the post is public AND published
+(the trigger deletes otherwise) — that's the privacy design: post-level
+privacy by existence, author-level privacy (accepted followers of a private
+athlete) stays in the route, preserving today's behavior exactly. Athlete
+documents instead carry visibility/owner_id and are filtered in-query
+(search_people semantics — the LIMIT lands after privacy).
+
+Two subtleties worth recording. (1) `UPDATE OF` fires on columns named in the
+SET clause, not on value changes — so the course/athlete/club doc-sync
+triggers list their source columns PLUS `search_vector`, which makes a future
+110-style bulk vector recompute propagate to documents for free; posts
+deliberately exclude `search_vector` (the english one isn't ours). (2) The
+`entity_type` CHECK is a NAMED constraint so adding 'league' later is one
+constraint swap + one trigger pair + a backfill — the plan for the next arc.
+
+Also in this PR: `/api/search` and `/api/explore` finally get rate limiting
+(new ip-keyed `search` key, 120/min — closing the known "search GETs are
+unlimited" gap), and SEARCH.md's stale `ts_rank_cd` ladder line now describes
+107's per-token ranking. Ops: Tom runs 112 in the SQL editor (re-runnable;
+booleans in the check grid must read true), merge order free — a pre-112
+deploy shouts `MIGRATION 112 HAS NOT BEEN RUN` and serves the legacy path.
+
 ## August 24, 2026 — Hole-geometry scoping: the three parked rules, then the Ottawa re-sweep
 
 The last items from the #216–#218 review, parked until they could be
