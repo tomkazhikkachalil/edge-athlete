@@ -389,6 +389,10 @@ export default function LiveRoundPage() {
             holes={geoHoles}
             focusHole={tab === 'map' ? displayHole : null}
             onHoleTap={h => setViewedHole(h)}
+            // The "Score hole N" CTA below sits at bottom-6, centered; on a
+            // phone it spans the map's bottom-left captions. Lift them above
+            // it (48 px CTA + 8 px gap) whenever the CTA can render.
+            captionInset={displayHole != null && entry.mode === 'score' ? 56 : 0}
           />
           {/* Current-hole chip. With OSM geometry it's a stepper — ‹ › walk
               the course, tapping a tee label jumps, and the map fits each
@@ -446,7 +450,11 @@ export default function LiveRoundPage() {
             <button
               type="button"
               onClick={() => openScorer(entry.participantId, displayHole)}
-              className="absolute bottom-6 left-1/2 z-[500] -translate-x-1/2 inline-flex min-h-[48px] items-center gap-2 rounded-full bg-brand px-6 py-3 font-bold text-white shadow-lg hover:bg-brand-hover transition-colors"
+              // whitespace-nowrap is load-bearing: an absolutely positioned box
+              // at left-1/2 shrink-wraps to the space between the viewport's
+              // midpoint and its right edge (160 px at 320), so without it the
+              // label wrapped to "Score hole / 1" on phones.
+              className="absolute bottom-6 left-1/2 z-[500] -translate-x-1/2 inline-flex min-h-[48px] items-center gap-2 whitespace-nowrap rounded-full bg-brand px-6 py-3 font-bold text-white shadow-lg hover:bg-brand-hover transition-colors"
             >
               <i className="fas fa-pen" aria-hidden="true"></i>
               Score hole {displayHole}
