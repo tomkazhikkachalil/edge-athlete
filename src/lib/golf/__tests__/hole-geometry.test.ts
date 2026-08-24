@@ -8,6 +8,7 @@ import {
   trimLineToYards,
   yardsBetween,
   parseHoleGeometry,
+  resolveHoleGeometry,
   scopeHoleGeometry,
 } from '../hole-geometry';
 import { haversineKm } from '../geocode';
@@ -201,6 +202,80 @@ describe('scopeHoleGeometry', () => {
     const shifted = champlain.geometry!.map(g => ({ lat: g.lat + 0.01, lon: g.lon }));
     clashed.elements.push({ type: 'way', tags: { leisure: 'golf_course', name: 'Club de Golf Champlain' }, geometry: shifted });
     expect(scopeHoleGeometry(clashed, 'Club de Golf Champlain')).toBeNull();
+  });
+});
+
+describe('scoping rules (review follow-ups, Aug 24)', () => {
+  type El = { type: string; id?: number; tags?: Record<string, string>; geometry?: { lat: number; lon: number }[]; members?: unknown[] };
+  const clone = (x: unknown): unknown => JSON.parse(JSON.stringify(x));
+  const ringCentroid = (el: El): [number, number] => {
+    const g = el.geometry!;
+    return [g.reduce((a, p) => a + p.lat, 0) / g.length, g.reduce((a, p) => a + p.lon, 0) / g.length];
+  };
+
+  it('a neighbour sharing one name token is NOT this course (identity leads with the first token)', () => {
+    // Champlain's boundary renamed "Ottawa Golf Course": a single shared token
+    // ("ottawa") that is NOT Royal Ottawa's leading token ("royal"). The old
+    // score-≥-1 rule served Champlain's 18 under Royal Ottawa. Distance can't
+    // help — the clubs are adjacent (477 m centroid-to-ring, measured).
+    const payload = clone(royalOttawa) as { elements: El[] };
+    for (const el of payload.elements) {
+      if (el.tags?.name === 'Club de Golf Champlain') el.tags.name = 'Ottawa Golf Course';
+      if (el.tags?.name === 'Royal Ottawa Golf Club') el.tags.name = 'Club X';
+    }
+    expect(scopeHoleGeometry(payload, 'Royal Ottawa Golf Club')).toBeNull();
+    expect(scopeHoleGeometry(royalOttawa, 'Ottawa Valley Golf Club')).toBeNull();
+    // A one-token identity that DOES lead still works: "Champlain" is the club.
+    expect(scopeHoleGeometry(royalOttawa, 'Champlain')!.holes).toHaveLength(18);
+  });
+
+  it('proximity is a coarse guard: a same-name ring a few km away is ignored, not tied', () => {
+    const payload = clone(marshes) as { elements: El[] };
+    const real = payload.elements.find(e => e.tags?.name === 'The Marshes Golf Club')!;
+    const point: [number, number] = ringCentroid(
+      payload.elements.find(e => e.type === 'way' && e.tags?.name === 'The Marchwood')!
+    );
+    // A second "The Marshes Golf Club" polygon 5 km north (different ring).
+    const far = clone(real) as El;
+    far.type = 'way';
+    far.id = 999;
+    delete far.members;
+    far.geometry = Array.from({ length: 5 }, (_, i) => ({ lat: point[0] + 0.045 + (i % 2) * 0.002, lon: point[1] + (i > 1 ? 0.002 : 0) }));
+    far.geometry.push(far.geometry[0]);
+    payload.elements.push(far);
+    expect(scopeHoleGeometry(payload, 'The Marshes Golf Club')).toBeNull(); // no point: two rings, one name → ambiguous
+    expect(scopeHoleGeometry(payload, 'The Marshes Golf Club', point)!.holes).toHaveLength(18); // with the point: far ring dropped
+  });
+
+  it('a matching boundary is authoritative: unmapped holes do not inherit the neighbour’s 18', () => {
+    // Remove the Marchwood nine. The plain parse of what remains is the
+    // Marshes' clean 18 — which the old order returned for "The Marchwood".
+    const marchwood = scopeHoleGeometry(marshes, 'The Marchwood')!;
+    const starts = new Set(marchwood.holes.map(h => `${h.line[0][0]},${h.line[0][1]}`));
+    const trimmed = clone(marshes) as { elements: El[] };
+    trimmed.elements = trimmed.elements.filter(el => {
+      if (el.tags?.golf !== 'hole' || !el.geometry?.length) return true;
+      const g = el.geometry[0];
+      return !starts.has(`${Number(g.lat.toFixed(6))},${Number(g.lon.toFixed(6))}`);
+    });
+    expect(parseHoleGeometry(trimmed)!.holes).toHaveLength(18); // plain parse WOULD accept
+    expect(resolveHoleGeometry(trimmed, 'The Marchwood')).toBeNull(); // its own boundary holds nothing
+    expect(resolveHoleGeometry(trimmed, 'The Marshes Golf Club')!.holes).toHaveLength(18);
+    // No boundary at all (Rideau View's holes-only payload) → the plain parse, as before.
+    expect(resolveHoleGeometry(rideauView, 'Rideau View Golf Club')!.holes).toHaveLength(18);
+  });
+
+  it('containment is by majority of vertices, not the single midpoint', () => {
+    // Push one Marshes hole's middle vertex a degree away: the midpoint rule
+    // dropped that hole silently (17 served as valid); majority keeps it.
+    const payload = clone(marshes) as { elements: El[] };
+    const marshesHoles = scopeHoleGeometry(marshes, 'The Marshes Golf Club')!;
+    const target = marshesHoles.holes[4];
+    const el = payload.elements.find(e => e.tags?.golf === 'hole' && e.geometry &&
+      Number(e.geometry[0].lat.toFixed(6)) === target.line[0][0] && Number(e.geometry[0].lon.toFixed(6)) === target.line[0][1])!;
+    const mid = Math.floor(el.geometry!.length / 2);
+    el.geometry![mid] = { lat: el.geometry![mid].lat + 1, lon: el.geometry![mid].lon };
+    expect(scopeHoleGeometry(payload, 'The Marshes Golf Club')!.holes).toHaveLength(18);
   });
 });
 
