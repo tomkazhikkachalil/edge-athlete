@@ -26,7 +26,10 @@ the latter; `iso-data.ts` maps them), otherwise GeoNames' admin1 code.
 Seeded by an ops script (DEVLOG, Aug 24); refreshed the same way.
 
 `search_places(q, max_results, p_country_code)` powers every location
-autocomplete (profile location, filters, event locations).
+autocomplete (profile location, filters, event locations). `place_aliases`
+(109, from GeoNames `alternatenames`, rule in `src/lib/geo/aliases.ts`)
+lets "NYC" / "New York" reach New York City in both the picker and the
+free-text backfill.
 
 ## The location columns (every locatable entity)
 

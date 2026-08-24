@@ -1,5 +1,27 @@
 # Development Log
 
+## August 24, 2026 — Place aliases: "New York, NY" finds New York City
+
+The one thing the 108 probes couldn't match: a seeded club at "New York,
+NY" stayed free text because GeoNames calls the place "New York City".
+Tom: fix it in the backfill. The fix is data, not a special case —
+GeoNames' own `alternatenames` column (~247k Latin-script names across
+the 69k places: "New York", "NYC", "Big Apple", "Nueva York", "Monreal",
+"Mont-real") becomes a `place_aliases` table (migration 109) that both the
+free-text backfill and the place picker consult ("nyc" now suggests New
+York City as a third tier after exact and prefix name matches).
+
+The selection rule lives in `src/lib/geo/aliases.ts` (pure, tested):
+Latin script only (a Cyrillic alias can never match a normalized query),
+the place's own name dropped, and — the part the first dry run got wrong —
+aliases that share a token with the place's own name come FIRST, then the
+rest shortest-first; with 63 aliases for New York City and a cap of 40 (now 60),
+"shortest first" alone filled the slots with transliterations and left
+"New York" out. Also two expression indexes on `search_normalize(name)` /
+`(ascii_name)` so the exact-name join stops being a sequential scan per
+row. Ops: run 109 → seed the aliases (scratchpad script, dry-run first) →
+run 109 again (re-runnable; the final SELECT re-runs the backfills).
+
 ## August 24, 2026 — Search surfaces: facets, Near me, courses in ⌘K, and the specs
 
 The last third of the search ask (docs/SEARCH.md): the UI that makes the
