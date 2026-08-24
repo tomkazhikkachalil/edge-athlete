@@ -1,5 +1,28 @@
 # Development Log
 
+## August 24, 2026 — Facet UI: search_all_facets reaches the ⌘K panel
+
+The deferred half of 112. The Advanced Filters panel now shows the matched
+set's own shape: the Search Type options carry live per-type counts
+("Athletes Only (12)"), and a Country → Region select pair is populated from
+`search_all_facets` — pick Canada and the region list is Canada's, with
+counts. The codes feed the `country`/`region` query params that
+`readLocationParams` already parses and `search_all` already filters on, so
+the SEARCH route needed zero changes; the whole server side is one new
+`/api/search/facets` route (rate-limited on the shared `search` bucket,
+optional-auth so private athletes never count for strangers) over a
+`searchAllFacets` wrapper with the standard 42883/PGRST202 degrade.
+
+Design rules that shaped it: facets are DECORATION by contract — every
+failure path (missing RPC, fetch error, empty type set) yields empty groups
+and the panel renders plain selects, never an error state. Counts describe
+exactly what the search would return: the route reuses `typesForRequest` and
+the same privacy params as /api/search. Fetches happen only while the panel
+is open, debounced on the search cadence, with all setState inside the
+timer (the set-state-in-effect ERROR from the leagues round, pre-avoided).
+Region stays disabled until a country is picked — the RPC's region rows are
+(country, region) pairs and region codes collide across countries.
+
 ## August 24, 2026 — 114: the auth-cascade trigger-privilege trap
 
 The first e2e teardown after 112/113 failed: `auth.admin.deleteUser` returned

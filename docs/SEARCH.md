@@ -100,6 +100,7 @@ match against `places` (108's `backfill_places_from_text` does this for
 | Explore → Athletes | sport chips only | name search + place filter + Near me (108) |
 | Header ⌘K | people (names), posts, clubs | Location filter (place → 50 km); people and clubs match and DISPLAY location (108); + Golf Courses type ✅ |
 | ⌘K → Leagues | — | league rows (113), navigable to `/league/[id]`, place + sport subtitle ✅ |
+| ⌘K filter panel | type/sport/school/place | + live facet counts: per-type totals, Country → Region selects (`search_all_facets`) ✅ |
 | Profile location | free text | place picker (`search_places`); free text kept as the display string |
 
 ## `search_all` (the mini-Google endpoint) — shipped in 112
@@ -114,8 +115,10 @@ vector, post documents get a fresh `simple`-config one (caption A, hashtags
 B, sport_key C — `posts.tags` holds tagged-profile UUIDs and is excluded).
 `search_all(q, p_types, max_per_type, visible_ids, include_public, location
 params)` runs the ladder above with a per-type ROW_NUMBER quota;
-`search_all_facets` returns type/sport/country/region counts (UI wiring
-pending). `/api/search` hydrates display rows from the ranked ids and keeps
+`search_all_facets` returns type/sport/country/region counts, surfaced in
+the ⌘K filter panel (live type counts + Country → Region selects via
+`/api/search/facets`; the codes feed the country/region params `search_all`
+already filters on). `/api/search` hydrates display rows from the ranked ids and keeps
 the entire pre-112 per-entity path as its degrade fallback.
 
 Privacy split, deliberate: athlete documents carry `visibility`/`owner_id`
