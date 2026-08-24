@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   ALL_QUOTAS,
+  groupFacetRows,
   FACET_WIDEN_LIMIT,
   TYPED_QUOTAS,
   groupByType,
@@ -99,5 +100,30 @@ describe('quotas', () => {
     expect(ALL_QUOTAS).toEqual({ athlete: 20, course: 5, post: 15, club: 10, league: 5 });
     expect(TYPED_QUOTAS).toEqual({ athlete: 20, course: 15, post: 15, club: 10, league: 15 });
     expect(FACET_WIDEN_LIMIT).toBe(100);
+  });
+});
+
+describe('groupFacetRows', () => {
+  it('groups rows by facet kind, preserving order', () => {
+    const grouped = groupFacetRows([
+      { facet: 'type', code: 'course', label: 'course', n: 90 },
+      { facet: 'type', code: 'post', label: 'post', n: 7 },
+      { facet: 'country', code: 'CA', label: 'Canada', n: 80 },
+      { facet: 'region', code: 'ON', label: 'Ontario', n: 71 },
+      { facet: 'sport', code: 'golf', label: 'golf', n: 97 },
+    ]);
+    expect(grouped.types.map(t => t.code)).toEqual(['course', 'post']);
+    expect(grouped.countries).toEqual([{ code: 'CA', label: 'Canada', n: 80 }]);
+    expect(grouped.regions[0].label).toBe('Ontario');
+    expect(grouped.sports[0].n).toBe(97);
+  });
+
+  it('falls back to the code when the label is null and drops unknown facets', () => {
+    const grouped = groupFacetRows([
+      { facet: 'country', code: 'US', label: null, n: 3 },
+      { facet: 'someday', code: 'x', label: 'x', n: 1 },
+    ]);
+    expect(grouped.countries).toEqual([{ code: 'US', label: 'US', n: 3 }]);
+    expect(grouped.types).toEqual([]);
   });
 });

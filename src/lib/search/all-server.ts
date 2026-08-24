@@ -17,7 +17,7 @@
 import { getSupabaseAdmin } from '@/lib/auth-server';
 import { normalizeQuery } from './people';
 import { rpcLocationArgs, type LocationParams } from '@/lib/geo/params';
-import type { SearchAllRow, SearchEntityType } from './all';
+import type { FacetRow, SearchAllRow, SearchEntityType } from './all';
 
 export interface SearchAllParams {
   /** Raw user input; normalised here, so callers need not pre-clean it. */
@@ -71,4 +71,54 @@ export async function searchAll({
   }
 
   return (data ?? []) as SearchAllRow[];
+}
+
+export interface SearchAllFacetsParams {
+  query: string;
+  /** Entity types to count; null = every type. */
+  types?: readonly SearchEntityType[] | null;
+  visibleIds?: readonly string[];
+  includePublic?: boolean;
+  countryCode?: string;
+  regionCode?: string;
+}
+
+/**
+ * Facet counts for the matched set (search_all_facets, 112). Same degrade
+ * contract as searchAll: `null` ONLY when the RPC does not exist yet; any
+ * other error throws. Callers treat null as "no facets" — facets are
+ * decoration, the panel renders plain controls without them.
+ */
+export async function searchAllFacets({
+  query,
+  types = null,
+  visibleIds = [],
+  includePublic = true,
+  countryCode,
+  regionCode,
+}: SearchAllFacetsParams): Promise<FacetRow[] | null> {
+  const q = normalizeQuery(query);
+  const admin = getSupabaseAdmin();
+  const args: Record<string, unknown> = {
+    q,
+    p_types: types ? [...types] : null,
+    visible_ids: [...visibleIds],
+    include_public: includePublic,
+  };
+  if (countryCode) args.p_country_code = countryCode;
+  if (regionCode) args.p_region_code = regionCode;
+
+  const { data, error } = await admin.rpc('search_all_facets', args);
+  if (error) {
+    const code = (error as { code?: string }).code;
+    if (code === '42883' || code === 'PGRST202') {
+      console.error(
+        '[search] search_all_facets is missing — MIGRATION 112 HAS NOT BEEN RUN. ' +
+        'Serving no facets. Run database/migrations/112_search_all.sql.'
+      );
+      return null;
+    }
+    throw error;
+  }
+  return (data ?? []) as FacetRow[];
 }

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback, useMemo } from 'react';
+import { useState, useCallback, useEffect, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import Image from 'next/image';
 import { useAuth } from '@/lib/auth';
@@ -9,6 +9,8 @@ import { SPORT_REGISTRY } from '@/lib/sports/SportRegistry';
 import { SearchAthleteResult, SearchPostResult, SearchClubResult, SearchLeagueResult } from '@/types/search';
 import type { GolfCourse } from '@/types/golf';
 import { useTypeahead } from '@/hooks/useTypeahead';
+import { SUGGEST_DEBOUNCE_MS } from '@/lib/search/typeahead';
+import type { GroupedFacets } from '@/lib/search/all';
 import PlacePicker, { type PlaceValue } from '@/components/PlacePicker';
 import { formatPlace } from '@/lib/geo/regions';
 
@@ -39,6 +41,9 @@ interface SearchFilters {
   dateTo?: string;
   /** Location: a picked place → athletes/clubs within 50 km of it (108). */
   place?: PlaceValue;
+  /** Facet codes (search_all_facets, 112): ISO country / region. */
+  country?: string;
+  region?: string;
   type: 'all' | 'athletes' | 'courses' | 'posts' | 'clubs' | 'leagues';
 }
 
@@ -72,6 +77,8 @@ export default function AdvancedSearchBar() {
       params.append('near', `${active.place.lat},${active.place.lng}`);
       params.append('radius', String(PLACE_RADIUS_KM));
     }
+    if (active.country) params.append('country', active.country);
+    if (active.region) params.append('region', active.region);
 
     const response = await fetch(`/api/search?${params}`, { signal });
     if (!response.ok) throw new Error(`Search failed: ${response.status}`);
@@ -180,13 +187,46 @@ export default function AdvancedSearchBar() {
   // The picker's text is separate from the pick: typing without choosing a
   // suggestion is not a filter.
   const [placeText, setPlaceText] = useState('');
+
+  // Facet counts (search_all_facets via /api/search/facets) — fetched only
+  // while the panel is open, debounced on the same cadence as the search.
+  // Decoration by contract: a missing RPC or failed fetch just leaves the
+  // selects plain. All setState happens inside the debounce timer (async),
+  // never synchronously in the effect body.
+  const [facets, setFacets] = useState<GroupedFacets | null>(null);
+  useEffect(() => {
+    if (!showFilters) return;
+    let cancelled = false;
+    const timer = setTimeout(async () => {
+      try {
+        const params = new URLSearchParams({ q: query });
+        if (filters.type !== 'all') params.append('type', filters.type);
+        if (filters.country) params.append('country', filters.country);
+        const response = await fetch(`/api/search/facets?${params}`);
+        if (!response.ok || cancelled) return;
+        const data = await response.json();
+        if (!cancelled) setFacets(data.facets ?? null);
+      } catch {
+        /* facets are decoration */
+      }
+    }, SUGGEST_DEBOUNCE_MS);
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [showFilters, query, filters.type, filters.country]);
+
+  const typeCount = (code: string): string => {
+    const n = facets?.types.find(t => t.code === code)?.n;
+    return n !== undefined ? ` (${n})` : '';
+  };
   const clearFilters = () => {
     setFilters({ type: 'all' });
     setPlaceText('');
   };
 
   const hasActiveFilters =
-    filters.sport || filters.school || filters.league || filters.dateFrom || filters.dateTo || filters.place || filters.type !== 'all';
+    filters.sport || filters.school || filters.league || filters.dateFrom || filters.dateTo || filters.place || filters.country || filters.type !== 'all';
 
   return (
     <div className="w-full">
@@ -227,7 +267,7 @@ export default function AdvancedSearchBar() {
           <span className="hidden sm:inline">Filters</span>
           {hasActiveFilters && (
             <span className="ml-0.5 bg-white text-violet-600 rounded-full w-5 h-5 inline-flex items-center justify-center text-xs font-semibold">
-              {[filters.sport, filters.school, filters.league, filters.dateFrom, filters.place, filters.type !== 'all'].filter(Boolean).length}
+              {[filters.sport, filters.school, filters.league, filters.dateFrom, filters.place, filters.country, filters.type !== 'all'].filter(Boolean).length}
             </span>
           )}
         </button>
@@ -266,11 +306,11 @@ export default function AdvancedSearchBar() {
                 className="w-full px-3 py-2 border border-border-strong rounded-md focus:ring-2 focus:ring-violet-500 focus:border-violet-500"
               >
                 <option value="all">All Results</option>
-                <option value="athletes">Athletes Only</option>
-                <option value="courses">Golf Courses Only</option>
-                <option value="posts">Posts Only</option>
-                <option value="clubs">Clubs Only</option>
-                <option value="leagues">Leagues Only</option>
+                <option value="athletes">{`Athletes Only${typeCount('athlete')}`}</option>
+                <option value="courses">{`Golf Courses Only${typeCount('course')}`}</option>
+                <option value="posts">{`Posts Only${typeCount('post')}`}</option>
+                <option value="clubs">{`Clubs Only${typeCount('club')}`}</option>
+                <option value="leagues">{`Leagues Only${typeCount('league')}`}</option>
               </select>
             </div>
 
@@ -325,6 +365,50 @@ export default function AdvancedSearchBar() {
                 }}
                 className="w-full px-3 py-2 border border-border-strong rounded-md focus:ring-2 focus:ring-violet-500 focus:border-violet-500"
               />
+            </div>
+
+            {/* Country / Region facets (search_all_facets, 112): options are
+                the matched set's own counts; the codes feed the same
+                country/region params search_all already filters on. */}
+            <div>
+              <label htmlFor="search-filter-country" className="block text-sm font-medium text-secondary mb-1">
+                Country
+              </label>
+              <select
+                id="search-filter-country"
+                value={filters.country || ''}
+                onChange={(e) => setFilters({ ...filters, country: e.target.value || undefined, region: undefined })}
+                className="w-full px-3 py-2 border border-border-strong rounded-md focus:ring-2 focus:ring-violet-500 focus:border-violet-500"
+              >
+                <option value="">All countries</option>
+                {(facets?.countries ?? []).map((c) => (
+                  <option key={c.code} value={c.code}>{`${c.label} (${c.n})`}</option>
+                ))}
+                {filters.country && !facets?.countries.some((c) => c.code === filters.country) && (
+                  <option value={filters.country}>{filters.country}</option>
+                )}
+              </select>
+            </div>
+
+            <div>
+              <label htmlFor="search-filter-region" className="block text-sm font-medium text-secondary mb-1">
+                Region
+              </label>
+              <select
+                id="search-filter-region"
+                value={filters.region || ''}
+                disabled={!filters.country}
+                onChange={(e) => setFilters({ ...filters, region: e.target.value || undefined })}
+                className="w-full px-3 py-2 border border-border-strong rounded-md focus:ring-2 focus:ring-violet-500 focus:border-violet-500 disabled:opacity-60"
+              >
+                <option value="">{filters.country ? 'All regions' : 'Pick a country first'}</option>
+                {(facets?.regions ?? []).map((r) => (
+                  <option key={r.code} value={r.code}>{`${r.label} (${r.n})`}</option>
+                ))}
+                {filters.region && !facets?.regions.some((r) => r.code === filters.region) && (
+                  <option value={filters.region}>{filters.region}</option>
+                )}
+              </select>
             </div>
 
             {/* League Filter */}

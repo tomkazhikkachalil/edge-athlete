@@ -113,3 +113,38 @@ export function orderByIds<T extends { id: string }>(
   }
   return ordered;
 }
+
+/** One row from the search_all_facets RPC (facet ∈ type/sport/country/region). */
+export interface FacetRow {
+  facet: string;
+  code: string;
+  label: string | null;
+  n: number;
+}
+
+export interface FacetOption {
+  code: string;
+  label: string;
+  n: number;
+}
+
+export interface GroupedFacets {
+  types: FacetOption[];
+  sports: FacetOption[];
+  countries: FacetOption[];
+  regions: FacetOption[];
+}
+
+/** Group RPC facet rows for the panel, preserving the RPC's n-desc order.
+ *  Unknown facet kinds are dropped; a missing label falls back to the code. */
+export function groupFacetRows(rows: readonly FacetRow[]): GroupedFacets {
+  const grouped: GroupedFacets = { types: [], sports: [], countries: [], regions: [] };
+  for (const row of rows) {
+    const option: FacetOption = { code: row.code, label: row.label ?? row.code, n: row.n };
+    if (row.facet === 'type') grouped.types.push(option);
+    else if (row.facet === 'sport') grouped.sports.push(option);
+    else if (row.facet === 'country') grouped.countries.push(option);
+    else if (row.facet === 'region') grouped.regions.push(option);
+  }
+  return grouped;
+}
