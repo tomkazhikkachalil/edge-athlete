@@ -1,5 +1,24 @@
 # Development Log
 
+## August 24, 2026 — League manager appointment (no migration)
+
+The last front-loaded piece of 113 gets its UI. `league_members.role` always
+allowed 'manager' and managers already held their powers (league PATCH,
+member removal) — what was missing was solely the appointment. Now: a PATCH
+on `/api/leagues/[id]/members?profileId=` with `{ role: 'manager' | 'member' }`,
+**owner-only** on purpose (managers must not mint or remove peers — the
+org-managed model), owner row untouchable ('owner' isn't even in the zod
+enum: ownership transfer is a future admin action, not a role PATCH). The
+league page's member rows grow Make manager / Remove manager buttons for the
+owner — one-click and reversible, so no confirm modal (that stays on the
+destructive remove). The front-loaded `league_update` notification type
+gains its first sender (promote AND demote, best-effort), exactly the
+follow-up 113's constraint note promised would be migration-free.
+
+Zero migrations, zero search changes. e2e: `league-managers.spec.ts` — the
+two-user template; A (member) sees no controls, B (owner) promotes A, badge
++ notification asserted, demote reverses it.
+
 ## August 24, 2026 — 115: facet rows ranked and capped (the 1000-row truncation)
 
 First prod probe of the facet UI found the panel showing countries but no

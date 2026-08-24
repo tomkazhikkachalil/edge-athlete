@@ -77,6 +77,14 @@ export function placeToLeagueColumns(
   };
 }
 
+/** Owner-assignable roles. 'owner' is deliberately NOT assignable — there is
+ *  exactly one owner, set at creation; ownership transfer is a future admin
+ *  action, not a role PATCH. */
+export const LeagueMemberRoleSchema = z.object({
+  role: z.enum(['manager', 'member']),
+});
+export type LeagueMemberRoleInput = z.infer<typeof LeagueMemberRoleSchema>;
+
 /** Postgres 42P01 / PostgREST PGRST205 — the leagues tables don't exist yet
  *  (migration 113 not run). Routes degrade to 404/empty rather than 500. */
 export function isMissingTableError(code: string | undefined | null): boolean {

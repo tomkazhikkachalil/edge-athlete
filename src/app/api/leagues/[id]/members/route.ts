@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAuth, getSupabaseAdmin } from '@/lib/auth-server';
 import { enforceRateLimit } from '@/lib/rate-limit';
-import { isMissingTableError } from '@/lib/leagues/validate';
+import { LeagueMemberRoleSchema, isMissingTableError } from '@/lib/leagues/validate';
+import { parseBody } from '@/lib/validation';
 import { UUID_RE } from '@/lib/golf/course-catalog';
 
 // ── /api/leagues/[id]/members — open join/leave + manager removal ────────────
@@ -91,6 +92,101 @@ export async function POST(
     if (error instanceof Response) return error;
     console.error('[LEAGUE MEMBERS] POST error:', error);
     return NextResponse.json({ error: 'Failed to process membership' }, { status: 500 });
+  }
+}
+
+/** PATCH ?profileId= {role} — the OWNER promotes a member to manager or
+ *  demotes a manager back. Owner-only on purpose: managers must not mint or
+ *  remove peers (the org-managed model). The owner row itself is untouchable
+ *  — ownership transfer is a future admin action, not a role PATCH. */
+export async function PATCH(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    const user = await requireAuth(request);
+    const { id } = await params;
+    if (!UUID_RE.test(id)) {
+      return NextResponse.json({ error: 'League not found' }, { status: 404 });
+    }
+    const { searchParams } = new URL(request.url);
+    const profileId = searchParams.get('profileId');
+    if (!profileId || !UUID_RE.test(profileId)) {
+      return NextResponse.json({ error: 'profileId is required' }, { status: 400 });
+    }
+
+    const supabase = getSupabaseAdmin();
+    const { data: league, error: leagueError } = await supabase
+      .from('leagues')
+      .select('id, name, owner_profile_id')
+      .eq('id', id)
+      .maybeSingle();
+    if (leagueError) {
+      if (isMissingTableError(leagueError.code)) {
+        return NextResponse.json({ error: 'League not found' }, { status: 404 });
+      }
+      console.error('[LEAGUE MEMBERS] league fetch error:', leagueError);
+      return NextResponse.json({ error: 'Failed to load league' }, { status: 500 });
+    }
+    if (!league) {
+      return NextResponse.json({ error: 'League not found' }, { status: 404 });
+    }
+
+    const { data: callerRow } = await supabase
+      .from('league_members')
+      .select('role')
+      .eq('league_id', id)
+      .eq('profile_id', user.id)
+      .maybeSingle();
+    const isOwner = user.id === league.owner_profile_id || callerRow?.role === 'owner';
+    if (!isOwner) {
+      return NextResponse.json({ error: 'Only the owner can change roles' }, { status: 403 });
+    }
+
+    const parsed = await parseBody(request, LeagueMemberRoleSchema);
+    if (!parsed.success) return parsed.response;
+    const { role } = parsed.data;
+
+    const { data: target } = await supabase
+      .from('league_members')
+      .select('role')
+      .eq('league_id', id)
+      .eq('profile_id', profileId)
+      .maybeSingle();
+    if (!target) {
+      return NextResponse.json({ error: 'Not a member' }, { status: 404 });
+    }
+    if (target.role === 'owner') {
+      return NextResponse.json({ error: "The owner's role can't be changed" }, { status: 400 });
+    }
+    if (target.role === role) {
+      return NextResponse.json({ action: 'unchanged', role });
+    }
+
+    const { error: updateError } = await supabase
+      .from('league_members')
+      .update({ role })
+      .eq('league_id', id)
+      .eq('profile_id', profileId);
+    if (updateError) {
+      console.error('[LEAGUE MEMBERS] role update error:', updateError);
+      return NextResponse.json({ error: 'Failed to change role' }, { status: 500 });
+    }
+
+    // Best-effort — never fails the role change.
+    const { notifyLeagueRole } = await import('@/lib/leagues/notify');
+    await notifyLeagueRole(supabase, {
+      profileId,
+      leagueId: league.id,
+      leagueName: league.name,
+      role,
+    });
+
+    return NextResponse.json({ action: 'role_changed', role });
+  } catch (error) {
+    if (error instanceof Response) return error;
+    console.error('[LEAGUE MEMBERS] PATCH error:', error);
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
 

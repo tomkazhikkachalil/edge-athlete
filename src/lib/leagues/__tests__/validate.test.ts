@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   LeagueCreateSchema,
+  LeagueMemberRoleSchema,
   LeagueUpdateSchema,
   placeToLeagueColumns,
   type LeaguePlace,
@@ -90,5 +91,18 @@ describe('placeToLeagueColumns', () => {
     const cols = placeToLeagueColumns(null);
     expect(Object.values(cols).every(v => v === null)).toBe(true);
     expect(Object.keys(cols)).toContain('location_source');
+  });
+});
+
+describe('LeagueMemberRoleSchema', () => {
+  it('accepts manager and member', () => {
+    expect(LeagueMemberRoleSchema.safeParse({ role: 'manager' }).success).toBe(true);
+    expect(LeagueMemberRoleSchema.safeParse({ role: 'member' }).success).toBe(true);
+  });
+
+  it("rejects 'owner' and junk — ownership is not a role PATCH", () => {
+    expect(LeagueMemberRoleSchema.safeParse({ role: 'owner' }).success).toBe(false);
+    expect(LeagueMemberRoleSchema.safeParse({ role: 'admin' }).success).toBe(false);
+    expect(LeagueMemberRoleSchema.safeParse({}).success).toBe(false);
   });
 });
