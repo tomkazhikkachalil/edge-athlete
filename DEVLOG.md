@@ -1,5 +1,44 @@
 # Development Log
 
+## August 24, 2026 — Close-out III: the fan-out round, end to end
+
+Third close-out of the day. The three follow-ups that close-out II parked
+"by explicit decision, not by omission" are now all decided, shipped, and
+verified — the org island is fully wired into the product's daily surfaces
+(calendar, feed, bell):
+
+| PR | What | Decision |
+|---|---|---|
+| #252 | Calendar fan-out — READ-TIME merge of org events onto member calendars; member RSVP creates the guest row; ICS feed parity; series-create org-linkage bugfix | Derive, don't write: no guest-row fan-out |
+| #253 | Feed "My orgs" lens — All/My-orgs pills over org peers' already-public posts | A scope, NOT an access grant (declined while join is open) |
+| #254 | team_update sender — members belled on org-event schedule + cancel; 'event-create' rate bucket | Create + cancel only; edits stay quiet |
+
+Verification discipline held: every PR ran the full gate (typecheck, lint
+at zero, node-only vitest, build) before commit, and each one's e2e spec
+was ALSO run against the live Vercel deployment post-merge with disposable
+QA users (org-calendar: merge → detail → RSVP → decline-hides;
+org-feed-lens: public shows / flips-private disappears / anon empty;
+org-notify: member belled with exact titles and links, organizer never).
+DB probes: zero series in the bugfix window (no backfill), zero leftover
+QA rows after all runs.
+
+State at close: `npm run verify` green on `main` (1635 tests), tree clean,
+`main` = GitHub = Vercel production, no migrations this round (057/117/119
+had front-loaded everything), merged branches pruned. Two DEVLOG
+both-prepend conflicts resolved en route (#253's and #254's) — keep all
+entries newest-first, nothing else.
+
+Incidental finding worth recording: NEXT_PUBLIC_FEATURE_CALENDAR **is set
+in prod** (unauth /api/calendar/events → 401, not the flag-off 404); the
+features.ts comment still says "leave unset in Vercel until launch" and is
+stale.
+
+Open, deliberately: notifications for a PATCH that attaches an org to an
+existing event (scope decision was create+cancel); org-peer access grant
+revisit if/when org joins become approval-gated; ORG_PEER_CAP (2000)
+keyset pagination if it ever bites. Tom's pass: UI feel of the feed pills,
+event-modal org line, and chip people-marker.
+
 ## August 24, 2026 — Fan-out round PR 3: team_update gets its sender
 
 `team_update` sat in notifications_type_check since 117, allowed and
