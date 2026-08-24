@@ -24,8 +24,11 @@
  *                     "relation/456"). Identity-only rows: name + coords, no
  *                     tees/ratings ever — no provider can hydrate them, so
  *                     hydration only reverse-fills city/region/country. ODbL
- *                     attribution: OPENGOLF_ATTRIBUTION's "© OpenStreetMap
- *                     contributors" line covers these rows too.
+ *                     attribution: OSM_ATTRIBUTION is sent on EVERY search
+ *                     response (catalogAttribution), providers on or off.
+ *                     A provider hit that lands on an OSM-only neighbour
+ *                     ADOPTS that row rather than being skipped — see
+ *                     adoptionDecision.
  *
  * Both providers' search results are THIN (no ratings/holes) — full tee and
  * hole data arrives only from the per-course detail endpoint at hydration.
@@ -43,8 +46,16 @@ import { tidyCourseName } from '@/lib/golf/tees';
 import { acceptGeocode, geocodeGolfCourse, reverseGeocodeCourse, shouldReplaceCoords } from '@/lib/golf/geocode';
 import { courseNameScore } from '@/lib/golf/hole-geometry';
 
-export const OPENGOLF_ATTRIBUTION =
-  'Course data © OpenStreetMap contributors (ODbL) via OpenGolfAPI';
+/** ODbL attribution for the catalog. The OSM line is owed UNCONDITIONALLY —
+ *  28.9k rows are OpenStreetMap-sourced directly and render whether or not
+ *  any provider is configured; "via OpenGolfAPI" is appended only while that
+ *  provider is on (its rows are OSM-derived too). Gating the whole line on
+ *  providersConfigured() was a licence gap the moment OSM became a source. */
+export const OSM_ATTRIBUTION = 'Course data © OpenStreetMap contributors (ODbL)';
+export const OPENGOLF_ATTRIBUTION = `${OSM_ATTRIBUTION}, some via OpenGolfAPI`;
+export function catalogAttribution(providersOn: boolean): string {
+  return providersOn ? OPENGOLF_ATTRIBUTION : OSM_ATTRIBUTION;
+}
 
 export const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -87,6 +98,10 @@ export function rowToCourse(row: CatalogRow): GolfCourse {
   return {
     id: row.id,
     name: row.name,
+    // Lets the picker say the truth per row: an 'osm' row is identity-only
+    // FOREVER (no provider knows its id), so "details load when selected"
+    // would be a lie for the majority of the catalog.
+    source: row.external_source,
     city: row.city ?? undefined,
     state: row.region ?? undefined,
     country: row.country ?? undefined,
@@ -163,50 +178,106 @@ const nullIfUnknown = (v: string | null | undefined): string | null => {
 
 // ── Catalog reads ────────────────────────────────────────────────────────────
 
-/** Substring matching from 2 chars here (vs the app-wide 3): golf_courses is
- *  a narrow table of dozens–thousands of rows, not golf_rounds — the "%a%
- *  matches every round ever" rationale doesn't apply, and course names are
- *  routinely found by 2-char starts ("st", "pe"). */
+/** Substring matching from 2 chars here (vs the app-wide 3). At ~29k rows
+ *  (worldwide OSM import, Aug 2026) a 2-char substring over four columns is
+ *  a seq scan — pg_trgm needs 3 chars — but it measures ~10–30 ms in
+ *  Postgres, and course names are routinely found by 2-char starts ("st",
+ *  "pe"). Relevance, not speed, is the scale problem; see searchCatalog. */
 const COURSE_WIDE_MATCH_MIN_CHARS = 2;
 
+/** LIKE-safe query text. PostgREST .or() is comma/paren-delimited and
+ *  escapeLikePattern doesn't cover those — strip them so a pasted
+ *  "Club, The (North)" can't corrupt the filter. Also escape LIKE wildcards. */
+function likeSafe(q: string): string {
+  return q.replace(/[,()]/g, ' ').replace(/[%_\\]/g, m => `\\${m}`).trim();
+}
+
 function coursePattern(q: string): string {
-  // PostgREST .or() is comma/paren-delimited and escapeLikePattern doesn't
-  // cover those — strip them so a pasted "Club, The (North)" can't corrupt
-  // the filter. Also escape LIKE wildcards.
-  const safe = q.replace(/[,()]/g, ' ').replace(/[%_\\]/g, m => `\\${m}`).trim();
+  const safe = likeSafe(q);
   return q.length < COURSE_WIDE_MATCH_MIN_CHARS ? `${safe}%` : `%${safe}%`;
 }
 
+/**
+ * Merge the search passes into the final page — exported pure for tests.
+ *
+ * `rows` arrive in DB order: the name-PREFIX pass first, then the wide
+ * name/club/city/region pass, each ordered `hydrated_at DESC NULLS LAST,
+ * name` (touched courses float). Dedupe by id keeping the FIRST occurrence,
+ * then a STABLE sort by (rank ladder, richness) so DB order survives inside
+ * a tier.
+ *
+ * Richness breaks ties between same-rank rows: a row with real tees/holes
+ * (a seed, or a hydrated provider row) beats one that only knows its city,
+ * which beats a bare identity row. Three OSM rows are named exactly "Eagle
+ * Creek Golf Club"; without this the seeded Ottawa one — the row with the
+ * scorecard — sat 6th behind them on arbitrary tie order (probe, Aug 24).
+ *
+ * An empty query is a browse: no ladder at all. Every row ties on rank
+ * there, and the old `name.localeCompare` tiebreak re-alphabetised the page
+ * — which threw the hydrated_at order away and put `'t Kruisselt` and
+ * `"Ground Golf"` at the head of prod's browse (probe-caught, Aug 24).
+ */
+export function mergeSearchRows(rows: CatalogRow[], query: string, limit: number): CatalogRow[] {
+  const q = query.trim();
+  const seen = new Set<string>();
+  const unique: CatalogRow[] = [];
+  for (const row of rows) {
+    if (seen.has(row.id)) continue;
+    seen.add(row.id);
+    unique.push(row);
+  }
+  if (!q) return unique.slice(0, limit);
+  const richness = (row: CatalogRow) => (!isThinRow(row) ? 0 : row.city ? 1 : 2);
+  return unique
+    .map((row, index) => ({ row, index, rank: rankCourseFields(row, q), rich: richness(row) }))
+    .sort((a, b) => a.rank - b.rank || a.rich - b.rich || a.index - b.index)
+    .slice(0, limit)
+    .map(({ row }) => row);
+}
+
+/**
+ * Two passes, both DB-ordered, merged by mergeSearchRows.
+ *
+ * Why two: at 68 rows one `ORDER BY name LIMIT limit*5` window covered the
+ * whole match set and the JS ladder could always promote exact/prefix hits.
+ * At 29k rows `q='ka'` (`%ka%`, ~465 matches) returned the alphabetically
+ * first 50 — Karachi and Katrine CITY matches — and never showed "Kanata
+ * Golf Club", a NAME prefix that sorts later (probe-caught, Aug 24). The
+ * prefix pass guarantees name-prefix hits are in the window; ordering every
+ * pass by hydrated_at first means the courses people actually use lead it.
+ * Both run concurrently — no added latency, trivial extra load.
+ */
 export async function searchCatalog(
   admin: SupabaseClient,
   query: string,
   limit: number
 ): Promise<GolfCourse[]> {
   const q = query.trim();
-  const builder = admin.from('golf_courses').select(CATALOG_ROW_COLUMNS);
-  // name+club+city+region, ordered: without .order() Postgres returns an
-  // ARBITRARY window that the rank ladder can only shuffle — with provider
-  // rows in the table, seeds could vanish from their own results.
+  const ordered = () =>
+    admin
+      .from('golf_courses')
+      .select(CATALOG_ROW_COLUMNS)
+      .order('hydrated_at', { ascending: false, nullsFirst: false })
+      .order('name');
+  if (!q) {
+    // Browse head: with the worldwide import the alphabetical head is 29k
+    // rows of never-selected long tail — hydrated_at surfaces touched courses.
+    const { data, error } = await ordered().limit(limit);
+    if (error || !data) return [];
+    return mergeSearchRows(data as unknown as CatalogRow[], '', limit).map(rowToCourse);
+  }
   const p = coursePattern(q);
-  const { data, error } = q
-    ? await builder
-        .or(`name.ilike.${p},club_name.ilike.${p},city.ilike.${p},region.ilike.${p}`)
-        .order('name')
-        .limit(limit * 5)
-    : // Empty query = browse head. Touched courses first: with the worldwide
-      // OSM import the alphabetical head is 40k rows of never-selected long
-      // tail — hydrated_at surfaces the courses people actually use.
-      await builder
-        .order('hydrated_at', { ascending: false, nullsFirst: false })
-        .order('name')
-        .limit(limit);
-  if (error || !data) return [];
-  const rows = data as unknown as CatalogRow[];
-  return rows
-    .map(row => ({ row, rank: rankCourseFields(row, q) }))
-    .sort((a, b) => a.rank - b.rank || a.row.name.localeCompare(b.row.name))
-    .slice(0, limit)
-    .map(({ row }) => rowToCourse(row));
+  // Prefix window is 3× the page: at 29k rows "ka%" alone matches ~100 names,
+  // and the richness tiebreak can only promote rows it was handed.
+  const [prefix, wide] = await Promise.all([
+    ordered().ilike('name', `${likeSafe(q)}%`).limit(limit * 3),
+    ordered()
+      .or(`name.ilike.${p},club_name.ilike.${p},city.ilike.${p},region.ilike.${p}`)
+      .limit(limit * 5),
+  ]);
+  if (prefix.error && wide.error) return [];
+  const rows = [...(prefix.data ?? []), ...(wide.data ?? [])] as unknown as CatalogRow[];
+  return mergeSearchRows(rows, q, limit).map(rowToCourse);
 }
 
 export async function getCatalogRow(admin: SupabaseClient, id: string): Promise<CatalogRow | null> {
@@ -554,36 +625,125 @@ const gcaHeaders = () => ({ Authorization: `Bearer ${process.env.GOLF_COURSE_API
  *  close enough for "same facility". Exported for the import script. */
 export const DEDUPE_BOX = { lat: 0.02, lng: 0.03 };
 
-/** True when an existing row within ~2 km shares an informative name token —
- *  the same facility under a different source ("Eagle Creek Golf Club" from
- *  a provider vs OSM's "Eagle Creek Golf Course"). First row wins; without
- *  coords there's nothing to compare, so no guard (today's behavior). */
-async function hasNearbyNameMatch(admin: SupabaseClient, row: NewRow): Promise<boolean> {
-  if (typeof row.lat !== 'number' || typeof row.lng !== 'number') return false;
+/** The columns the cross-source dedupe needs from an existing neighbour. */
+export interface NearbyRow {
+  id: string;
+  external_source: CatalogRow['external_source'];
+  external_id: string;
+  name: string;
+  club_name: string | null;
+  city: string | null;
+  region: string | null;
+  country: string | null;
+}
+
+/** Existing rows within ~2 km that share an informative name token — the
+ *  same facility under a different source ("Eagle Creek Golf Club" from a
+ *  provider vs OSM's "Eagle Creek Golf Course"). Without coords there's
+ *  nothing to compare, so no guard (today's behavior). */
+async function findNearbyNameMatches(admin: SupabaseClient, row: NewRow): Promise<NearbyRow[]> {
+  if (typeof row.lat !== 'number' || typeof row.lng !== 'number') return [];
   const { data } = await admin
     .from('golf_courses')
-    .select('name')
+    .select('id, external_source, external_id, name, club_name, city, region, country')
     .gte('lat', row.lat - DEDUPE_BOX.lat)
     .lte('lat', row.lat + DEDUPE_BOX.lat)
     .gte('lng', row.lng - DEDUPE_BOX.lng)
     .lte('lng', row.lng + DEDUPE_BOX.lng)
     .limit(25);
-  return ((data as { name: string }[] | null) ?? []).some(
+  return ((data as NearbyRow[] | null) ?? []).filter(
     existing => courseNameScore(row.name, existing.name) > 0
+  );
+}
+
+export type AdoptionDecision =
+  | { action: 'insert' }
+  | { action: 'skip' }
+  | { action: 'adopt'; target: NearbyRow };
+
+/**
+ * What upsertThinRows does with an incoming thin row, given its same-name
+ * neighbours. Exported pure for tests.
+ *
+ * "First row wins" was written for a 68-row catalog. After the worldwide
+ * OSM import (28.9k rows WITH coords) it silently shadowed every provider
+ * hit: an OSM row can never gain tees/ratings/hole pars (no provider knows
+ * its id — see hydrateCourse), so the user picked the OSM row, "details
+ * load when selected" loaded nothing, and stroke indexes were unreachable
+ * for that course forever. Prod showed 0 provider rows added after the
+ * import. Now a provider row meeting an OSM-only neighbour ADOPTS it: the
+ * OSM row takes the provider identity (keeping OSM's name, coords and hole
+ * geometry — provider coords were 6–22 km off for 3 of 4 probed courses)
+ * and hydrates via the provider on next selection.
+ *
+ * Any non-OSM neighbour means a provider already carries the facility →
+ * skip, exactly as before. OSM incoming rows never adopt (import path).
+ */
+export function adoptionDecision(
+  incoming: Pick<NewRow, 'external_source'>,
+  matches: NearbyRow[]
+): AdoptionDecision {
+  if (!matches.length) return { action: 'insert' };
+  if (incoming.external_source === 'osm') return { action: 'skip' };
+  if (matches.some(m => m.external_source !== 'osm')) return { action: 'skip' };
+  return { action: 'adopt', target: matches.find(m => m.external_source === 'osm')! };
+}
+
+/** Give an OSM-only row the provider's identity so hydration can fill it.
+ *  hydrated_at is cleared so the next selection runs the provider branch
+ *  rather than sitting out the 7-day gate. Best-effort: a failure leaves the
+ *  OSM row as it was, which is today's behaviour, not a regression. */
+async function adoptOsmRow(admin: SupabaseClient, target: NearbyRow, incoming: NewRow): Promise<void> {
+  // UNIQUE (external_source, external_id): a provider row inserted BEFORE
+  // the import (bad provider coords put it outside the box then, and
+  // geocode refinement moved it since) is a genuine duplicate — leave both.
+  const { data: existing } = await admin
+    .from('golf_courses')
+    .select('id')
+    .eq('external_source', incoming.external_source)
+    .eq('external_id', incoming.external_id)
+    .maybeSingle();
+  if (existing) {
+    console.warn(
+      `[course-catalog] dedupe skip (provider row exists): ${incoming.external_source}:${incoming.external_id} "${incoming.name}"`
+    );
+    return;
+  }
+  const { error } = await admin
+    .from('golf_courses')
+    .update({
+      external_source: incoming.external_source,
+      external_id: incoming.external_id,
+      club_name: target.club_name ?? incoming.club_name,
+      city: target.city ?? incoming.city,
+      region: target.region ?? incoming.region,
+      country: target.country ?? incoming.country,
+      hydrated_at: null,
+    })
+    .eq('id', target.id);
+  if (error) {
+    console.error(`[course-catalog] adopt failed for ${target.id}:`, error.message);
+    return;
+  }
+  console.warn(
+    `[course-catalog] adopted osm row ${target.id} "${target.name}" as ${incoming.external_source}:${incoming.external_id}`
   );
 }
 
 /** Thin identity rows: insert-if-absent, NEVER overwrite (a hydrated row must
  *  not be clobbered back to thin by a later search), and never a second row
- *  for a facility another source already carries. */
+ *  for a facility another source already carries — see adoptionDecision. */
 async function upsertThinRows(admin: SupabaseClient, rows: NewRow[]): Promise<void> {
   const kept: NewRow[] = [];
   for (const row of rows) {
-    if (await hasNearbyNameMatch(admin, row)) {
+    const decision = adoptionDecision(row, await findNearbyNameMatches(admin, row));
+    if (decision.action === 'insert') {
+      kept.push(row);
+    } else if (decision.action === 'adopt') {
+      await adoptOsmRow(admin, decision.target, row);
+    } else {
       console.warn(`[course-catalog] dedupe skip: ${row.external_source}:${row.external_id} "${row.name}"`);
-      continue;
     }
-    kept.push(row);
   }
   if (!kept.length) return;
   await admin
