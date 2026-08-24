@@ -27,6 +27,22 @@ other's centroids and a catalog point can be less precise than that, so
 no distance threshold separates neighbours — it stays as a coarse 1 km
 sanity check only; the NAME rule is the discriminator.
 
+The re-sweep itself, post-merge, against prod: all 62 Ottawa-box courses
+had `hole_geometry_at` cleared (old geometry kept as the transport-failure
+fallback), then re-resolved through `/api/golf/courses?id=&holes=1`,
+sequentially and paced; a retry loop re-drove the transport failures until
+nothing was left unstamped (4 rounds, RETRY_EXIT=0). Result: **62/62
+stamped, 27 with geometry, and exactly ONE behavioral change** — Glen Mar
+(Stittsville) went 9 holes → null. That is the rules working, not a loss:
+Overpass shows its 9 hole ways (refs 4–12) with every vertex inside
+Canadian Golf & Country Club's boundary and zero inside Glen Mar's own
+(which does contain the catalog point) — the old plain-parse-first code
+had been serving the neighbour's holes under Glen Mar's name. The
+authoritative-boundary + majority-containment rules rejected them, and a
+stamped null is the honest "no GPS coverage for this course". Everything
+else in the box — The Marshes, Ottawa Hunt, Royal Ottawa, Eagle Creek —
+resolved identically to before.
+
 ## August 24, 2026 — Drop the dead lower() indexes (migration 111)
 
 Housekeeping from the scale audit. Migration 100 indexed `lower(name)`
