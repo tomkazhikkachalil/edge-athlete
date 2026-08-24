@@ -59,6 +59,36 @@ follow in 106 (same columns, `search_people`/`search_clubs` on the same
 contract, profile location becomes a place picker); leagues get it on
 creation. Test count 1557 → 1564.
 
+**Run + probed the same evening.** 104 green, `places` seeded (69,641 rows,
+0 failed — 105 had been run once BEFORE the seed finished and reported
+28,967 orphans; idempotent, re-run: **27,539 of 28,968 courses placed**,
+1,428 genuinely remote, **571 Ontario courses**). Prod: "eagle creek
+ottawa" → Ottawa's Eagle Creek; "montréal" = "montreal"; near Ottawa sorted
+4.7 → 6.7 km; facets US 11,799 · GB 2,862 · JP 1,921 · CA 1,496, CA → ON
+571. Two things the probes taught, fixed in 106 + a route PR:
+- **Ranking.** `ts_rank_cd` rewards ADJACENT matches, and the vector is
+  name → club → city → region, so "kanata ontario" put Thunderbird Sports
+  Centre (city Kanata next to region Ontario) above Kanata Golf Club
+  (Kanata in the NAME); and score ran before richness, so "eagle" put three
+  bare OSM rows with Eagle in name AND city above the seeded Ottawa course.
+  Now: a tier for "every token matches the name", plain `ts_rank`, richness
+  before score.
+  106's grid then showed `kanata_name_first = false`: plain `ts_rank` ALSO
+  scores proximity for multi-term AND queries (tsrank.c `calc_rank_and`
+  weights term pairs by positional distance), so the city-beside-region
+  match still won. 107 ranks per TOKEN: `search_token_hits` on the name
+  vector as a sort key, and `search_token_rank` = the sum of single-token
+  ranks (weights only). Lesson for every future search RPC in this repo:
+  never trust a multi-term ts_rank to reflect field weights.
+- **History layer.** "Courses you've played" ignored the location filters
+  (Rideau View surfaced under country=CA&region=ON with no location) and
+  only enriched from the page. Filtered/near searches skip history; missing
+  linked rows are fetched by id.
+- Noted, not changed: "ottawa" alone finds the 20 courses whose city IS
+  Ottawa — suburbs are their own GeoNames places (Kanata, Nepean, Orléans).
+  Near-me and the Ontario filter are the metro answer today; an admin2/
+  metro field is the follow-up if users expect the city to mean the region.
+
 ## August 24, 2026 — The rangefinder's on-course GPS pass, emulated on prod
 
 Tom: "Why can't we do the on-course GPS?" We could — it had been filed as
