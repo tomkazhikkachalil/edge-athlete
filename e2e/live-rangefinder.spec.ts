@@ -195,6 +195,22 @@ test('rangefinder: a phone walks hole 1 tee → green with a live fix', async ({
     await recenter.click();
     await expect(track).toHaveAttribute('aria-pressed', 'true');
 
+    // Stepping to another hole CLEARS the target for good (no per-hole
+    // memory — Tom's call): gone on hole 2, still gone back on hole 1.
+    await page.getByRole('button', { name: 'Next hole' }).click();
+    await expect(targetPill).toHaveCount(0, { timeout: 3_000 });
+    await page.getByRole('button', { name: 'Previous hole' }).click();
+    await expect(page.getByText(/^Hole 1/)).toBeVisible();
+    await expect(targetPill).toHaveCount(0);
+    // …and a fresh target can be placed on the hole again.
+    const gb2 = await settledBox(greenDot);
+    await page.mouse.click(gb2.x + gb2.width / 2, gb2.y + gb2.height / 2);
+    await expect(targetPill).toBeVisible({ timeout: 5_000 });
+    // A Scorecard↔Map tab flip is NOT a hole step: the target survives it.
+    await page.getByRole('tab', { name: 'Scorecard' }).click();
+    await page.getByRole('tab', { name: 'Map' }).click();
+    await expect(targetPill).toBeVisible({ timeout: 3_000 });
+
     // Couch peek from downtown Ottawa: the to-green pill hides (1500-yd
     // cap); the deliberately placed target keeps counting.
     await ctx.setGeolocation({ latitude: 45.4215, longitude: -75.6972, accuracy: 20 });

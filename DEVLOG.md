@@ -28,6 +28,15 @@ if the geometry isn't cached. What only a real phone can still add: GPS
 jitter under tree cover, iOS Safari's sleep/background behaviour, and
 dragging the target elbow with a gloved thumb — polish, not a gate.
 
+**Product call, same day:** targets were remembered per hole (step away and
+back and it returned). Tom: clear it when stepping to another hole. A
+render-time reset in `CourseMapInner` forgets the target whenever a
+DIFFERENT hole is focused — the stepper, a tee-label tap, or the
+auto-advance when a score lands — while a Scorecard↔Map tab flip (where
+`focusHole` is null) leaves it alone, because a tab flip is not a hole
+step. The spec now asserts all three: gone on hole 2, still gone back on
+hole 1, survives a tab flip.
+
 ## August 24, 2026 — Hole-geometry robustness: the parked #216–#218 review findings
 
 The correctness review of the boundary-scoping and card-preview commits

@@ -121,10 +121,15 @@ export default function CourseMapInner({
   const [geoError, setGeoError] = useState<string | null>(null);
   // ── Rangefinder target ────────────────────────────────────────────────────
   // A point the player drops on the focused hole ("can I carry that water?").
-  // Keyed by hole so stepping to another hole drops it BY DERIVATION — no
-  // setState in an effect. The map's click handler is registered once at
-  // mount and reads the focused line through a ref.
+  // Keyed by hole so it only ever renders on the hole it was placed on, and
+  // a DIFFERENT hole clears it for good (Tom's call — no per-hole memory).
+  // The map's click handler is registered once at mount and reads the
+  // focused line through a ref.
   const [target, setTarget] = useState<{ hole: number; ll: [number, number] } | null>(null);
+  // Render-time reset, the sanctioned "adjust state when a prop changes"
+  // shape (not an effect). Only a different HOLE clears it: focusHole is
+  // null while the Scorecard tab shows, and a tab flip is not a hole step.
+  if (target && focusHole != null && target.hole !== focusHole) setTarget(null);
   const focusedLineRef = useRef<{ hole: number; line: [number, number][] } | null>(null);
   const targetMarkerRef = useRef<L.Marker | null>(null);
   const targetLinesRef = useRef<L.LayerGroup | null>(null);
