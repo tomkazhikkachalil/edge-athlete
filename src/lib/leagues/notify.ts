@@ -45,3 +45,33 @@ export async function notifyLeagueJoin(admin: Admin, n: LeagueJoinNotification):
     console.error('[LEAGUE NOTIFY] join notify failed:', e);
   }
 }
+
+export interface LeagueRoleNotification {
+  /** The member whose role changed. */
+  profileId: string;
+  leagueId: string;
+  leagueName: string;
+  role: 'manager' | 'member';
+}
+
+/** Tell a member their role changed — the front-loaded 'league_update' type's
+ *  first sender. Same never-throws contract as notifyLeagueJoin. */
+export async function notifyLeagueRole(admin: Admin, n: LeagueRoleNotification): Promise<void> {
+  try {
+    const { error } = await admin.from('notifications').insert({
+      user_id: n.profileId,
+      type: 'league_update',
+      actor_id: null,
+      title: n.role === 'manager'
+        ? `You're now a manager of ${n.leagueName}`
+        : `Your manager role in ${n.leagueName} was removed`,
+      message: null,
+      action_url: `/league/${n.leagueId}`,
+      is_read: false,
+      metadata: { league_id: n.leagueId, role: n.role },
+    });
+    if (error) console.error('[LEAGUE NOTIFY] role notify failed:', error);
+  } catch (e) {
+    console.error('[LEAGUE NOTIFY] role notify failed:', e);
+  }
+}

@@ -123,6 +123,29 @@ export default function LeaguePage() {
     }
   };
 
+  const changeRole = async (target: MemberRow, role: 'manager' | 'member') => {
+    try {
+      const response = await fetch(
+        `/api/leagues/${encodeURIComponent(leagueId)}/members?profileId=${encodeURIComponent(target.profile_id)}`,
+        {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ role }),
+        }
+      );
+      const body = await response.json();
+      if (!response.ok) {
+        showError('League', body.error || 'Failed to change role');
+        return;
+      }
+      showSuccess('League', role === 'manager' ? 'Manager added' : 'Manager removed');
+      refresh();
+    } catch (e) {
+      console.error('Role change failed:', e);
+      showError('League', 'Failed to change role');
+    }
+  };
+
   const removeMember = async (target: MemberRow) => {
     try {
       const response = await fetch(
@@ -187,6 +210,7 @@ export default function LeaguePage() {
   const placeLine = formatPlace({ city: league.city, region: league.region, country: league.country });
   const canManage =
     viewerRole === 'owner' || viewerRole === 'manager' || (!!user && user.id === league.owner_profile_id);
+  const isOwner = viewerRole === 'owner' || (!!user && user.id === league.owner_profile_id);
 
   return (
     <div className="min-h-screen bg-canvas">
@@ -295,6 +319,27 @@ export default function LeaguePage() {
                         )}
                       </div>
                     </Link>
+                    {/* Role controls are OWNER-only (managers hold powers,
+                        they don't mint peers). One-click and reversible, so
+                        no confirm — that stays on the destructive remove. */}
+                    {isOwner && member.role === 'member' && member.profile_id !== user?.id && (
+                      <button
+                        type="button"
+                        onClick={() => changeRole(member, 'manager')}
+                        className="px-2 py-1 text-xs rounded-md border border-border-strong text-secondary hover:bg-surface-sunken transition-colors shrink-0"
+                      >
+                        Make manager
+                      </button>
+                    )}
+                    {isOwner && member.role === 'manager' && (
+                      <button
+                        type="button"
+                        onClick={() => changeRole(member, 'member')}
+                        className="px-2 py-1 text-xs rounded-md border border-border-strong text-secondary hover:bg-surface-sunken transition-colors shrink-0"
+                      >
+                        Remove manager
+                      </button>
+                    )}
                     {canManage && member.role === 'member' && member.profile_id !== user?.id && (
                       <button
                         type="button"
