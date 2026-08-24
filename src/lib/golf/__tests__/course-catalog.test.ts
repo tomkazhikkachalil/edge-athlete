@@ -10,7 +10,181 @@ import {
   rowToCourse,
   isThinRow,
   UUID_RE,
+  mergeSearchRows,
+  adoptionDecision,
+  catalogAttribution,
+  OSM_ATTRIBUTION,
+  OPENGOLF_ATTRIBUTION,
+  type CatalogRow,
+  type NearbyRow,
 } from '../course-catalog';
+
+/** Minimal catalog row; tests override what they care about. */
+function row(overrides: Partial<CatalogRow> & Pick<CatalogRow, 'id' | 'name'>): CatalogRow {
+  return {
+    external_source: 'osm',
+    external_id: `way/${overrides.id}`,
+    club_name: null,
+    city: null,
+    region: null,
+    country: null,
+    total_par: null,
+    holes_count: null,
+    hole_data: null,
+    course_rating: {},
+    slope_rating: {},
+    lat: null,
+    lng: null,
+    description: null,
+    description_attribution: null,
+    architect: null,
+    year_built: null,
+    course_type: null,
+    website: null,
+    phone: null,
+    hydrated_at: null,
+    ...overrides,
+  };
+}
+
+const nearby = (overrides: Partial<NearbyRow> & Pick<NearbyRow, 'id'>): NearbyRow => ({
+  external_source: 'osm',
+  external_id: `way/${overrides.id}`,
+  name: 'Eagle Creek Golf Course',
+  club_name: null,
+  city: null,
+  region: null,
+  country: null,
+  ...overrides,
+});
+
+describe('mergeSearchRows (post-import relevance + browse order)', () => {
+  it('keeps DB order for an empty query — no ladder, no name sort', () => {
+    // hydrated_at DESC NULLS LAST, name: the touched course leads even though
+    // "'t Kruisselt" sorts first alphabetically (prod browse-head bug).
+    const rows = [
+      row({ id: 'a', name: 'Royal Ottawa Golf Club', hydrated_at: '2026-08-23T16:39:21Z' }),
+      row({ id: 'b', name: "'t Kruisselt" }),
+      row({ id: 'c', name: '"Ground Golf"' }),
+    ];
+    expect(mergeSearchRows(rows, '', 10).map(r => r.id)).toEqual(['a', 'b', 'c']);
+    expect(mergeSearchRows(rows, '   ', 2).map(r => r.id)).toEqual(['a', 'b']);
+  });
+
+  it('dedupes by id keeping the first (prefix-pass) occurrence', () => {
+    const rows = [
+      row({ id: 'k', name: 'Kanata Golf Club' }),
+      row({ id: 'k', name: 'Kanata Golf Club' }),
+      row({ id: 'x', name: 'Acacia Golf Course', city: 'Karachi' }),
+    ];
+    expect(mergeSearchRows(rows, 'ka', 10).map(r => r.id)).toEqual(['k', 'x']);
+  });
+
+  it('ladders exact > prefix > word-boundary > substring and keeps DB order inside a rank', () => {
+    // The 'ka' regression: city prefix hits sorted ahead of the NAME prefix
+    // hit in the alphabetical window. With the ladder the name prefix wins,
+    // and two rank-1 rows keep their DB (hydrated-first) order — never a
+    // localeCompare re-sort.
+    const rows = [
+      row({ id: 'city1', name: 'Acacia Golf Course', city: 'Karachi' }),
+      row({ id: 'city2', name: 'Almaguin Highlands', city: 'Katrine' }),
+      row({ id: 'p2', name: 'Kanata Golf Club', hydrated_at: '2026-08-23T00:00:00Z' }),
+      row({ id: 'p1', name: 'Kananaskis Country Golf Course' }),
+      row({ id: 'sub', name: 'Mikanata Links' }),
+      row({ id: 'word', name: 'Club Kanata' }),
+      row({ id: 'exact', name: 'Ka' }),
+    ];
+    expect(mergeSearchRows(rows, 'ka', 10).map(r => r.id)).toEqual([
+      'exact',
+      'p2',
+      'p1',
+      'city1',
+      'city2',
+      'word',
+      'sub',
+    ]);
+  });
+
+  it('breaks same-rank ties by richness: real data > city known > bare identity', () => {
+    // Three rows named exactly "Eagle Creek Golf Club" — the seeded Ottawa
+    // one carries the scorecard and must not lose to bare OSM rows that
+    // happen to sort earlier.
+    const rows = [
+      row({ id: 'bare1', name: 'Eagle Creek Golf Club' }),
+      row({ id: 'bare2', name: 'Eagle Creek Golf Club' }),
+      row({ id: 'city', name: 'Eagle Creek Golf Club', city: 'Indianapolis' }),
+      row({
+        id: 'seed',
+        name: 'Eagle Creek Golf Club',
+        external_source: 'seed',
+        city: 'Ottawa',
+        hole_data: [{ number: 1, par: 4, yardage: { white: 380 }, handicap: 5 }],
+        course_rating: { white: 71.8 },
+        slope_rating: { white: 131 },
+      }),
+    ];
+    expect(mergeSearchRows(rows, 'eagle creek', 10).map(r => r.id)).toEqual(['seed', 'city', 'bare1', 'bare2']);
+    // Richness never overrides rank: a bare exact match still beats a rich prefix match.
+    const exactBare = row({ id: 'exact', name: 'Eagle Creek' });
+    expect(mergeSearchRows([rows[3], exactBare], 'eagle creek', 10).map(r => r.id)).toEqual(['exact', 'seed']);
+  });
+
+  it('respects the limit after ranking', () => {
+    const rows = [row({ id: 'z', name: 'Zed Kanata' }), row({ id: 'k', name: 'Kanata Golf Club' })];
+    expect(mergeSearchRows(rows, 'kanata', 1).map(r => r.id)).toEqual(['k']);
+  });
+});
+
+describe('adoptionDecision (provider hit meets the OSM catalog)', () => {
+  it('inserts when nothing nearby shares a name', () => {
+    expect(adoptionDecision({ external_source: 'opengolfapi' }, [])).toEqual({ action: 'insert' });
+    expect(adoptionDecision({ external_source: 'osm' }, [])).toEqual({ action: 'insert' });
+  });
+
+  it('adopts an OSM-only neighbour so the row can hydrate via the provider', () => {
+    const target = nearby({ id: 'osm-1' });
+    expect(adoptionDecision({ external_source: 'opengolfapi' }, [target])).toEqual({
+      action: 'adopt',
+      target,
+    });
+    expect(adoptionDecision({ external_source: 'golfcourseapi' }, [target]).action).toBe('adopt');
+  });
+
+  it('skips when any neighbour is already provider-carried (pre-import behaviour)', () => {
+    const provider = nearby({ id: 'p', external_source: 'opengolfapi', external_id: '123' });
+    expect(adoptionDecision({ external_source: 'golfcourseapi' }, [provider])).toEqual({ action: 'skip' });
+    expect(
+      adoptionDecision({ external_source: 'golfcourseapi' }, [nearby({ id: 'osm-1' }), provider])
+    ).toEqual({ action: 'skip' });
+  });
+
+  it('never lets an OSM row adopt anything (import path stays insert-or-skip)', () => {
+    expect(adoptionDecision({ external_source: 'osm' }, [nearby({ id: 'osm-1' })])).toEqual({ action: 'skip' });
+  });
+
+  it('picks the OSM neighbour as the target when several match', () => {
+    const first = nearby({ id: 'osm-1' });
+    const second = nearby({ id: 'osm-2' });
+    const d = adoptionDecision({ external_source: 'opengolfapi' }, [first, second]);
+    expect(d.action === 'adopt' && d.target.id).toBe('osm-1');
+  });
+});
+
+describe('catalogAttribution (ODbL, always on)', () => {
+  it('sends the OSM line with providers off and the provider suffix with them on', () => {
+    expect(catalogAttribution(false)).toBe(OSM_ATTRIBUTION);
+    expect(catalogAttribution(true)).toBe(OPENGOLF_ATTRIBUTION);
+    expect(OSM_ATTRIBUTION).toMatch(/OpenStreetMap contributors/);
+    expect(OPENGOLF_ATTRIBUTION.startsWith(OSM_ATTRIBUTION)).toBe(true);
+  });
+});
+
+describe('rowToCourse carries provenance', () => {
+  it('exposes external_source as source so the picker can be honest per row', () => {
+    expect(rowToCourse(row({ id: 'o', name: 'Kanata Golf Club' })).source).toBe('osm');
+    expect(rowToCourse(row({ id: 'p', name: 'X', external_source: 'opengolfapi' })).source).toBe('opengolfapi');
+  });
+});
 
 // Fixtures below are transcribed from LIVE provider responses (Aug 2026),
 // not from docs — the old provider scaffolding died of guessed shapes.

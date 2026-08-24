@@ -1,5 +1,67 @@
 # Development Log
 
+## August 24, 2026 — Post-import catalog hardening: the 29k-row regressions
+
+Session-start review of the OSM import day. Prod was clean and deployed, the
+gate green — so the review went after the one thing that changed *shape*: a
+catalog 500× larger. Live probes against prod search plus a code audit of
+every `golf_courses` path found four regressions, one serious, all verified
+on prod data before a line was changed:
+
+- **Cross-source dedupe shadowed every provider hit (serious).** The
+  "first row wins" guard in `upsertThinRows` was written for 68 rows. With
+  28.9k OSM rows carrying coordinates, a worldwide-search provider hit near a
+  same-named OSM row was skipped — and an OSM row can never gain tees/
+  ratings/hole pars (no provider knows its id), so the course stayed thin
+  forever and stroke indexes were unreachable for it. Prod confirmed it: 0
+  provider rows added since the import. Now `adoptionDecision` (pure): a
+  provider row meeting an OSM-only neighbour ADOPTS it — the OSM row takes
+  the provider identity (keeping OSM's name, coords and hole geometry;
+  provider coords were 6–22 km off for 3 of 4 probed courses), `hydrated_at`
+  is cleared, and the next selection hydrates via the provider. Any non-OSM
+  neighbour still means skip; the UNIQUE (source,id) is checked first so a
+  pre-import provider duplicate is left alone.
+- **Short queries returned an alphabetical window, not the best matches.**
+  One `ORDER BY name LIMIT 50` over four ILIKE arms covered the whole match
+  set at 68 rows; at 29k, `ka` returned Karachi/Katrine CITY matches and
+  never the name-prefix `Kanata Golf Club`. Search is now two concurrent
+  passes (name-prefix, then the wide 4-arm OR), each ordered `hydrated_at
+  DESC NULLS LAST, name`, merged by `mergeSearchRows` (pure): dedupe, then a
+  STABLE sort by (rank ladder, richness) — real tees/holes > city known >
+  bare identity. The richness tier exists because three OSM rows are named
+  exactly "Eagle Creek Golf Club" and the seeded Ottawa one, the row with
+  the scorecard, sat 6th behind them on arbitrary tie order.
+- **Browse order was thrown away in JS.** The empty-query path DID order by
+  `hydrated_at` in SQL (PostgREST returned the 8 touched rows first), but the
+  JS re-sort's `localeCompare` tiebreak re-alphabetised the page — prod's
+  browse head was `'t Kruisselt`, `"Ground Golf"`, `1 10 At University
+  Park…`, the exact long tail yesterday's entry claims was fixed. An empty
+  query now skips the ladder entirely and keeps DB order.
+- **Thin-forever rows are the majority now.** 18,566 of 28,967 rows have no
+  city; every OSM row has no par or holes. The composer wiped manual pars on
+  every `applyCourseData` — including the hydration echo for an OSM row that
+  comes back still thin a second or two later (a Nominatim reverse geocode)
+  — so pars typed in that window vanished; it now clears manual entry only
+  when the course actually brought hole data. `GolfCourse.source` lets the
+  picker say "Map location only — enter pars manually" for OSM rows instead
+  of promising details that never load. And the ODbL attribution was gated
+  on `providersConfigured()` while OSM rows rendered regardless — it is now
+  sent on every response, with "via OpenGolfAPI" appended only while that
+  provider is on.
+
+Measured, for the record: prod search round-trip 0.40–0.56 s, of which the
+DB is ~50–200 ms (a bare `?id=<unknown>` 404 on the same route costs 0.31 s);
+2-char substring patterns (`%st%` = 3,382 matches) return in ~0.16 s. Speed
+was never the scale problem — relevance was. Test count 1527 → 1539.
+
+Parked (see the plan file for detail): a correctness review of #216–#218
+found five cheap geometry/card fixes (Overpass in-band `remark` timeouts
+cached as no-coverage, ASCII-only name tokenizer, way+relation self-tie,
+card once-guard not resetting on course swap/failure) and three scoping
+changes that need an Ottawa re-sweep to validate. Also: four dead `lower()`
+indexes from migrations 100/101 (PostgREST never emits `lower()`) — a drop
+migration when convenient.
+
 ## August 23, 2026 — OSM as a catalog source: every course selectable
 
 Tom: "there are only a few courses in Ottawa listed… why has every golf

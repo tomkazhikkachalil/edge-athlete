@@ -10,7 +10,7 @@ import {
   globalSearch,
   providersConfigured,
   consumeProviderBudget,
-  OPENGOLF_ATTRIBUTION,
+  catalogAttribution,
 } from '@/lib/golf/course-catalog';
 import { getCourseHoleGeometry } from '@/lib/golf/hole-geometry';
 
@@ -153,10 +153,12 @@ export async function GET(request: NextRequest) {
       // The UI may offer "Search all courses worldwide" only when a provider
       // is actually available server-side.
       globalAvailable: providersConfigured(),
-      // ODbL compliance: OpenGolfAPI-sourced rows require attribution where
-      // they render. Sent whenever providers are on — the picker shows it in
-      // its footer rather than tracking per-row provenance client-side.
-      attribution: providersConfigured() ? OPENGOLF_ATTRIBUTION : null,
+      // ODbL compliance: the catalog is OpenStreetMap-sourced (directly, and
+      // via OpenGolfAPI), so attribution is owed on EVERY response — the
+      // picker shows it in its footer rather than tracking per-row
+      // provenance client-side. Gating it on providers was a licence gap
+      // once OSM rows became the bulk of the table.
+      attribution: catalogAttribution(providersConfigured()),
     });
   } catch (error) {
     if (error instanceof Response) throw error;

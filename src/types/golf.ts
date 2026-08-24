@@ -69,6 +69,10 @@ export interface CourseHole {
 export interface GolfCourse {
   id: string;
   name: string;
+  /** Catalog provenance ('seed' | 'opengolfapi' | 'golfcourseapi' | 'osm');
+   *  absent for history/custom courses. 'osm' rows are identity-only and
+   *  never gain tees/holes — the picker says so instead of promising them. */
+  source?: string;
   city?: string;
   state?: string;
   country?: string;

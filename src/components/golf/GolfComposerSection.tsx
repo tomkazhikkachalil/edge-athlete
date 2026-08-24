@@ -325,9 +325,15 @@ export default function GolfComposerSection({
       deriveCourseHoles(course, teeColor, course.holesCount === 9 ? 9 : 18, 1)
     );
 
-    // Clear manual entry since we have course data
-    setManualParEntry([]);
-    setManualYardageEntry([]);
+    // Clear manual entry ONLY when the course actually brought hole data.
+    // Most of the catalog is OSM identity rows (no pars, ever): selecting
+    // one ran this twice — on pick and again when the hydration echo came
+    // back still thin, a second or two later — and wiped pars typed in that
+    // window.
+    if (course.holes.length > 0) {
+      setManualParEntry([]);
+      setManualYardageEntry([]);
+    }
   }, [sharedRoundDetails, deriveCourseHoles]);
 
   const selectCourse = useCallback((course: GolfCourse) => {
@@ -711,11 +717,15 @@ export default function GolfComposerSection({
                           )}
                           {/* Thin provider rows have no hole data until first
                               selection — "0 holes" read as broken, so say
-                              what actually happens instead. */}
+                              what actually happens instead. OSM rows never
+                              get details (no provider knows them), so they
+                              say THAT rather than promise a load. */}
                           <div className="text-xs text-muted mt-1">
                             {course.holes.length > 0
                               ? `Par ${course.totalPar} • ${course.holes.length} holes`
-                              : 'Details load when selected'}
+                              : course.source === 'osm'
+                                ? 'Map location only — enter pars manually'
+                                : 'Details load when selected'}
                           </div>
                         </button>
                       ))}
