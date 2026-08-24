@@ -64,6 +64,15 @@ on-course pass (the same one the to-green pill is waiting on).
   elbow you drag. Tapping the line itself places the elbow (Leaflet paths
   bubble clicks to the map's handler). The focus effect keeps only the
   green dot + fitBounds — a drag or a GPS tick must never re-fit the view.
+
+**Phone follow-up (same day):** the hole chip (anchored `left-14`, right
+edge ≈225 px) shared its row with the right-aligned map controls — "Track
+my position" is ~170 px wide, the layer button ~100 px — so at 320 px they
+collided (pre-existing; the rangefinder didn't widen the chip). Overlay
+controls are now icon-only below `sm` (40 px column → ≥ 43 px clear at
+every phone width), with `aria-label` on every button and `aria-pressed` +
+a brand fill while tracking so the state survives losing its label. Labels
+return at `sm+`; card mode (controls below the map) is untouched.
 ## August 24, 2026 — Post-merge prod probes: adoption proven, two same-name follow-ups
 
 #220 and #221 merged (git-native, the API-merge trap again) and probed on

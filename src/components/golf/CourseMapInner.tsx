@@ -427,14 +427,30 @@ export default function CourseMapInner({
     if (lastFixRef.current) mapRef.current?.panTo(lastFixRef.current, { animate: true });
   };
 
+  // Overlay controls go ICON-ONLY below sm. The hole chip is anchored at
+  // left-14 and ends ≈225 px in; "Track my position" is ~170 px wide and the
+  // layer button ~100 px, right-aligned — at 320 px they share the chip's
+  // row and collide (Tom's phone report; measured in the #221 probe). A
+  // 40 px icon column keeps ≥ 43 px clear at every phone width. Labels
+  // return at sm+, and every button carries an aria-label so the icon-only
+  // form stays accessible. Card mode (controls BELOW the map) keeps labels.
+  const compact = overlayControls;
+  const labelClass = compact ? 'hidden sm:inline' : '';
+  const controlPad = compact ? 'min-w-[40px] px-2 sm:px-3' : 'px-3';
+
   const trackButton = enableTracking && (
     <button
       type="button"
       onClick={() => (tracking ? stopTracking() : startTracking())}
-      className="inline-flex min-h-[40px] shrink-0 items-center gap-1.5 rounded-lg border border-border bg-surface/90 px-3 py-1.5 text-sm font-medium text-brand-fg shadow-sm ea-interactive"
+      aria-label={tracking ? 'Stop tracking' : 'Track my position'}
+      aria-pressed={tracking}
+      className={`inline-flex min-h-[40px] shrink-0 items-center justify-center gap-1.5 rounded-lg border border-border bg-surface/90 ${controlPad} py-1.5 text-sm font-medium text-brand-fg shadow-sm ea-interactive ${
+        // Without its label the tracking state needs a visible cue.
+        compact && tracking ? 'max-sm:bg-brand max-sm:text-white' : ''
+      }`}
     >
       <i className="fas fa-location-crosshairs" aria-hidden="true"></i>
-      {tracking ? 'Stop tracking' : 'Track my position'}
+      <span className={labelClass}>{tracking ? 'Stop tracking' : 'Track my position'}</span>
     </button>
   );
 
@@ -442,11 +458,11 @@ export default function CourseMapInner({
     <button
       type="button"
       onClick={() => setLayer(l => (l === 'satellite' ? 'osm' : 'satellite'))}
-      className="inline-flex min-h-[40px] shrink-0 items-center gap-1.5 rounded-lg border border-border bg-surface/90 px-3 py-1.5 text-sm font-medium text-secondary shadow-sm ea-interactive"
+      className={`inline-flex min-h-[40px] shrink-0 items-center justify-center gap-1.5 rounded-lg border border-border bg-surface/90 ${controlPad} py-1.5 text-sm font-medium text-secondary shadow-sm ea-interactive`}
       aria-label={layer === 'satellite' ? 'Switch to map view' : 'Switch to satellite view'}
     >
       <i className={`fas ${layer === 'satellite' ? 'fa-map' : 'fa-satellite'}`} aria-hidden="true"></i>
-      {layer === 'satellite' ? 'Map' : 'Satellite'}
+      <span className={labelClass}>{layer === 'satellite' ? 'Map' : 'Satellite'}</span>
     </button>
   );
 
@@ -468,10 +484,11 @@ export default function CourseMapInner({
               <button
                 type="button"
                 onClick={recenter}
-                className="inline-flex min-h-[40px] items-center gap-1.5 rounded-lg border border-border bg-surface/90 px-3 py-1.5 text-sm font-medium text-brand-fg shadow-sm ea-interactive"
+                aria-label="Re-center on my position"
+                className={`inline-flex min-h-[40px] items-center justify-center gap-1.5 rounded-lg border border-border bg-surface/90 ${controlPad} py-1.5 text-sm font-medium text-brand-fg shadow-sm ea-interactive`}
               >
                 <i className="fas fa-crosshairs" aria-hidden="true"></i>
-                Re-center
+                <span className={labelClass}>Re-center</span>
               </button>
             )}
             {tracking && distanceYds != null && (
