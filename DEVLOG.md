@@ -44,7 +44,7 @@ containment) still need an Ottawa re-sweep to validate and stay parked.
   the guard remembers which id it covers and clears on failure, a cancelled
   flag drops late responses, and the composer keys the card by course id.
 
-Test count 1551 → 1560.
+Test count 1551 → 1557.
 
 ## August 24, 2026 — Live rangefinder: hole yards everywhere + a target you can drag
 
