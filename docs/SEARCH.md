@@ -25,6 +25,12 @@ where people type them (US states, Canadian provinces — GeoNames numbers
 the latter; `iso-data.ts` maps them), otherwise GeoNames' admin1 code.
 Seeded by an ops script (DEVLOG, Aug 24); refreshed the same way.
 
+`admin2` (county / census division, from GeoNames) and `metro` (computed:
+the largest place within 40 km at least twice the place's size — 110) live
+on `places` only; every entity's search vector pulls them through
+`place_id` at weight D, so "ottawa" reaches Kanata, Nepean and Gatineau
+without any entity gaining a column.
+
 `search_places(q, max_results, p_country_code)` powers every location
 autocomplete (profile location, filters, event locations). `place_aliases`
 (109, from GeoNames `alternatenames`, rule in `src/lib/geo/aliases.ts`)
