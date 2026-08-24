@@ -49,24 +49,43 @@ export default function CourseInfoCard({ course, defaultOpen = false, enableTrac
   // shown (the endpoint serves the 30-day cache; anonymous-safe, so Explore
   // stays a guest surface). A ref guards the once-ness — a fetched-flag
   // setState here would trip the set-state-in-effect lint, and rightly so.
-  const [holeLines, setHoleLines] = useState<HoleLine[] | null>(null);
-  const [focusHole, setFocusHole] = useState<number | null>(null);
-  const holesRequested = useRef(false);
+  // Both are KEYED BY COURSE and derived below: the composer swaps
+  // `course` in place (unkeyed mount), and a per-instance flag + unkeyed
+  // state drew course A's tees on course B's map and never fetched B.
+  // Deriving by id drops them on a swap with no setState in an effect.
+  const [holeLinesState, setHoleLinesState] = useState<{ id: string; holes: HoleLine[] } | null>(null);
+  const [focusState, setFocusState] = useState<{ id: string; hole: number } | null>(null);
+  const holeLines = holeLinesState?.id === course.id ? holeLinesState.holes : null;
+  const focusHole = focusState?.id === course.id ? focusState.hole : null;
+  const setFocusHole = (hole: number | null) =>
+    setFocusState(hole == null ? null : { id: course.id, hole });
+  // Which course id the once-guard covers. Cleared on a failed response so
+  // Hide/Show map retries — a single 429 from the shared course-search
+  // limiter used to disable the preview for the life of the card.
+  const holesRequestedFor = useRef<string | null>(null);
   const hasCoords = typeof course.lat === 'number' && typeof course.lng === 'number';
 
   const mapVisible = showMap && hasCoords && mapMode !== 'hidden';
   useEffect(() => {
-    if (!mapVisible || holesRequested.current || !UUID_SHAPE.test(course.id)) return;
-    holesRequested.current = true;
-    fetch(`/api/golf/courses?id=${course.id}&holes=1`, { credentials: 'include' })
-      .then(r => (r.ok ? r.json() : null))
+    if (!mapVisible || holesRequestedFor.current === course.id || !UUID_SHAPE.test(course.id)) return;
+    const id = course.id;
+    holesRequestedFor.current = id;
+    let cancelled = false;
+    fetch(`/api/golf/courses?id=${id}&holes=1`, { credentials: 'include' })
+      .then(r => (r.ok ? r.json() : Promise.reject(new Error(`holes ${r.status}`))))
       .then(body => {
+        if (cancelled) return;
         const holes = (body?.geometry as { holes?: HoleLine[] } | null)?.holes;
-        if (Array.isArray(holes) && holes.length > 0) setHoleLines(holes);
+        if (Array.isArray(holes) && holes.length > 0) setHoleLinesState({ id, holes });
       })
       .catch(() => {
-        // No geometry is a designed state — the pin-only card stands.
+        // Transport/limiter failure — allow a retry on the next map open.
+        // (A null geometry is a designed state and lands in `.then`.)
+        if (!cancelled && holesRequestedFor.current === id) holesRequestedFor.current = null;
       });
+    return () => {
+      cancelled = true;
+    };
   }, [mapVisible, course.id]);
 
   const logoDomain = websiteDomain(course.website);
@@ -101,12 +120,9 @@ export default function CourseInfoCard({ course, defaultOpen = false, enableTrac
   // › from the overview enters at the first mapped hole.
   const stepPreview = (dir: 1 | -1) => {
     if (!holeLines?.length) return;
-    setFocusHole(prev => {
-      const idx = prev == null ? -1 : holeLines.findIndex(h => h.hole === prev);
-      const nextIdx = idx < 0 && dir === 1 ? 0 : idx + dir;
-      if (nextIdx < 0) return null;
-      return holeLines[Math.min(nextIdx, holeLines.length - 1)].hole;
-    });
+    const idx = focusHole == null ? -1 : holeLines.findIndex(h => h.hole === focusHole);
+    const nextIdx = idx < 0 && dir === 1 ? 0 : idx + dir;
+    setFocusHole(nextIdx < 0 ? null : holeLines[Math.min(nextIdx, holeLines.length - 1)].hole);
   };
 
   const mapsQuery = hasCoords

@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   courseNameScore,
   greenDistanceYards,
+  isOverpassPartial,
   polylineYards,
   targetDistances,
   trimLineToYards,
@@ -94,6 +95,36 @@ describe('courseNameScore', () => {
   it('generic-only names can never match', () => {
     expect(courseNameScore('The Golf Club', 'Golf Course')).toBe(0);
   });
+
+  it('tokenizes non-Latin and non-decomposing Latin names (worldwide catalog)', () => {
+    expect(courseNameScore('小金井カントリー倶楽部', '小金井カントリー倶楽部')).toBeGreaterThan(0);
+    expect(courseNameScore('Гольф-клуб Москва', 'Гольф-клуб Москва')).toBeGreaterThan(0);
+    // "гольф"/"клуб" aren't in the (English) generic list, so they count — 2 shared, "москва" not among them.
+    expect(courseNameScore('Гольф-клуб Москва', 'Гольф-клуб Сколково')).toBe(2);
+    expect(courseNameScore('Гольф-клуб Москва', 'Гольф-клуб Москва')).toBe(3);
+    expect(courseNameScore('Søllerød Golf Klub', 'Søllerød Golf Club')).toBeGreaterThan(0);
+    expect(courseNameScore('Søllerød Golf Klub', 'Rungsted Golf Klub')).toBe(1); // "klub" only — no shredded "s"/"d"
+  });
+
+  it("drops single letters (possessive 's) but keeps single digits", () => {
+    expect(courseNameScore("King's Golf Club", "Queen's Golf Course")).toBe(0);
+    expect(courseNameScore('Pinehurst No. 2', 'Pinehurst No. 8')).toBe(2); // pinehurst + no — the digit still separates them
+    expect(courseNameScore('Pinehurst No. 2', 'Pinehurst No. 2')).toBe(3);
+  });
+});
+
+describe('isOverpassPartial (HTTP 200 with an in-band runtime error)', () => {
+  it('flags timeout and memory remarks', () => {
+    expect(isOverpassPartial({ elements: [], remark: 'runtime error: Query timed out in "query" at line 1 after 26 seconds.' })).toBe(true);
+    expect(isOverpassPartial({ remark: 'runtime error: Query ran out of memory in "recurse" at line 2.' })).toBe(true);
+  });
+
+  it('ignores informational remarks and payloads without one', () => {
+    expect(isOverpassPartial({ elements: [], remark: 'Some informational note' })).toBe(false);
+    expect(isOverpassPartial(rideauView)).toBe(false);
+    expect(isOverpassPartial(null)).toBe(false);
+    expect(isOverpassPartial({})).toBe(false);
+  });
 });
 
 describe('scopeHoleGeometry', () => {
@@ -145,6 +176,31 @@ describe('scopeHoleGeometry', () => {
 
   it('holes-only payloads (no boundaries at all) scope to null', () => {
     expect(scopeHoleGeometry(rideauView, 'Rideau View Golf Club')).toBeNull();
+  });
+
+  it('collapses OSM double-tagging (way + same-named relation, same ring) instead of tying to null', () => {
+    type El = { type: string; id?: number; tags?: Record<string, string>; geometry?: unknown[]; members?: unknown[] };
+    const doubled = JSON.parse(JSON.stringify(royalOttawa)) as { elements: El[] };
+    const champlain = doubled.elements.find(el => el.tags?.name === 'Club de Golf Champlain' && el.type === 'way')!;
+    doubled.elements.push({
+      type: 'relation',
+      id: 999999,
+      tags: { type: 'multipolygon', leisure: 'golf_course', name: 'Club de Golf Champlain' },
+      members: [{ type: 'way', ref: champlain.id, role: 'outer', geometry: champlain.geometry }],
+    });
+    const g = scopeHoleGeometry(doubled, 'Club de Golf Champlain');
+    expect(g).not.toBeNull();
+    expect(g!.holes).toHaveLength(18);
+  });
+
+  it('a same-named boundary with DIFFERENT geometry is still an ambiguity (null)', () => {
+    type El = { type: string; tags?: Record<string, string>; geometry?: { lat: number; lon: number }[]; members?: unknown[] };
+    const clashed = JSON.parse(JSON.stringify(royalOttawa)) as { elements: El[] };
+    const champlain = clashed.elements.find(el => el.tags?.name === 'Club de Golf Champlain' && el.type === 'way')!;
+    // Shift the copy ~1 km north: same name, different ring.
+    const shifted = champlain.geometry!.map(g => ({ lat: g.lat + 0.01, lon: g.lon }));
+    clashed.elements.push({ type: 'way', tags: { leisure: 'golf_course', name: 'Club de Golf Champlain' }, geometry: shifted });
+    expect(scopeHoleGeometry(clashed, 'Club de Golf Champlain')).toBeNull();
   });
 });
 

@@ -95,14 +95,21 @@ const GENERIC_NAME_TOKENS = new Set([
   'de', 'du', 'des', 'le', 'la', 'les',
 ]);
 
+/** Informative tokens of a course name. Unicode-aware: the split was
+ *  `[^a-z0-9]`, which turned every CJK/Cyrillic/Thai name into \u2205 (never
+ *  scopable \u2014 the catalog is worldwide now) and shredded non-decomposing
+ *  Latin letters ("S\u00f8ller\u00f8d" \u2192 s, ller, d). Same splitter as
+ *  src/lib/search/people.ts. Single LETTERS are dropped \u2014 the possessive
+ *  in "King's" scored a match against "Queen's" \u2014 but single digits stay:
+ *  "Pinehurst No. 2" and "No. 8" are different courses. */
 function nameTokens(name: string): Set<string> {
   return new Set(
     name
       .normalize('NFD')
       .replace(/[\u0300-\u036f]/g, '')
       .toLowerCase()
-      .split(/[^a-z0-9]+/)
-      .filter(t => t && !GENERIC_NAME_TOKENS.has(t))
+      .split(/[^\p{L}\p{N}]+/u)
+      .filter(t => t && !GENERIC_NAME_TOKENS.has(t) && !/^\p{L}$/u.test(t))
   );
 }
 
@@ -166,6 +173,27 @@ function pointInRing(pt: [number, number], ring: Ring): boolean {
 const validPt = (g: { lat: number; lon: number } | undefined) =>
   Number.isFinite(g?.lat) && Number.isFinite(g?.lon);
 
+/** Order-independent identity of a boundary's rings: vertex count plus the
+ *  first and middle vertices of each ring. Enough to recognise the same
+ *  polygon delivered twice (way + relation); not a geometric equality. */
+function ringSignature(rings: Ring[]): string {
+  return rings
+    .map(r => `${r.length}:${r[0]?.join(',')}:${r[Math.floor(r.length / 2)]?.join(',')}`)
+    .sort()
+    .join('|');
+}
+
+/** Overpass reports query timeouts and memory aborts IN-BAND once output has
+ *  begun: HTTP 200, well-formed JSON, truncated `elements`, plus a `remark`.
+ *  With two `out geom;` statements the hole ways have often already flushed
+ *  when the heavier boundary statement dies — a 200 that parses as "holes
+ *  but no boundaries", which the cache then stamped as 30 days of no
+ *  coverage. Treat it as a transport failure. Exported pure for tests. */
+export function isOverpassPartial(payload: unknown): boolean {
+  const remark = (payload as { remark?: unknown } | null)?.remark;
+  return typeof remark === 'string' && /runtime error|timed out|out of memory/i.test(remark);
+}
+
 /** Second chance for a payload the plain parse rejected: pick the ONE
  *  `leisure=golf_course` boundary whose name best matches the catalog course
  *  (strict-max score ≥ 1 — a tie or no match gives up), keep only hole ways
@@ -195,9 +223,22 @@ export function scopeHoleGeometry(payload: unknown, courseName: string): HoleGeo
     if (rings.length) boundaries.push({ rings, score });
   }
   if (!boundaries.length) return null;
-  boundaries.sort((a, b) => b.score - a.score);
-  if (boundaries.length > 1 && boundaries[0].score === boundaries[1].score) return null;
-  const chosen = boundaries[0];
+  // OSM double-tagging: a closed way tagged leisure=golf_course that is ALSO
+  // the outer member of a same-named multipolygon relation arrives as two
+  // candidates with equal score — the tie rule nulled the course for 30
+  // days although both describe the same ring. Collapse identical GEOMETRY
+  // before the tie test; two different polygons sharing a name remain a
+  // genuine ambiguity and still null.
+  const seen = new Set<string>();
+  const distinct = boundaries.filter(b => {
+    const sig = ringSignature(b.rings);
+    if (seen.has(sig)) return false;
+    seen.add(sig);
+    return true;
+  });
+  distinct.sort((a, b) => b.score - a.score);
+  if (distinct.length > 1 && distinct[0].score === distinct[1].score) return null;
+  const chosen = distinct[0];
 
   const scoped = elements.filter(el => {
     if (el?.tags?.golf !== 'hole') return false;
@@ -324,7 +365,9 @@ export async function fetchHoleGeometry(
   const around = `(around:1500,${lat},${lng})`;
   const query =
     `[out:json][timeout:25];way["golf"="hole"]${around};out geom;` +
-    `(way["leisure"="golf_course"]${around};relation["leisure"="golf_course"]${around};);out geom;`;
+    // Named boundaries only — unnamed polygons are dropped by the scoper
+    // anyway, and a smaller second statement is less likely to time out.
+    `(way["leisure"="golf_course"]["name"]${around};relation["leisure"="golf_course"]["name"]${around};);out geom;`;
   for (const endpoint of MIRRORS) {
     try {
       const controller = new AbortController();
@@ -340,6 +383,10 @@ export async function fetchHoleGeometry(
       // A clean-but-invalid response (ambiguous refs, no coverage) is a real
       // answer, not a transport failure.
       const payload = await res.json();
+      // A 200 with a runtime-error remark is a TRUNCATED answer, not a
+      // "no coverage" answer — next mirror; all partial → reached:false,
+      // so nothing is stamped and a later request retries.
+      if (isOverpassPartial(payload)) continue;
       const geometry =
         parseHoleGeometry(payload) ?? (courseName ? scopeHoleGeometry(payload, courseName) : null);
       return { reached: true, geometry };

@@ -1,5 +1,51 @@
 # Development Log
 
+## August 24, 2026 — Hole-geometry robustness: the parked #216–#218 review findings
+
+The correctness review of the boundary-scoping and card-preview commits
+found five cheap, pure bugs that don't change anything already cached.
+Shipped together; the review's scoping-rule changes (single-token boundary
+wins, accepted sets never re-checked against a matching boundary, midpoint
+containment) still need an Ottawa re-sweep to validate and stay parked.
+
+- **Overpass reports timeouts in-band.** Once output has begun, a
+  `[timeout:25]` expiry or memory abort is an HTTP 200 with well-formed
+  JSON, truncated `elements` and a `remark: "runtime error: …"`. With two
+  `out geom;` statements the hole ways have usually flushed when the
+  heavier boundary statement dies, so the response parsed as "holes but no
+  boundaries" → null with `reached:true` → a 30-day no-coverage stamp and a
+  spent budget unit, on exactly the multi-course facilities scoping exists
+  for. `remark` was never read anywhere. `isOverpassPartial` (pure) now
+  turns it into a transport failure: next mirror, and no stamp if every
+  mirror is partial. Boundary selectors gained `["name"]` — the scoper
+  drops unnamed polygons anyway, and a smaller second statement times out
+  less.
+- **ASCII-only tokenizer.** `nameTokens` split on `[^a-z0-9]`, so every
+  CJK/Cyrillic/Thai course name tokenized to nothing (never scopable — the
+  catalog is worldwide now) and non-decomposing Latin letters shredded
+  names ("Søllerød" → s, ller, d). Same `\p{L}\p{N}` splitter as people
+  search. Single LETTERS are dropped — the possessive in "King's" scored a
+  match against "Queen's" — but single digits stay: "Pinehurst No. 2" and
+  "No. 8" are different courses (`sameFacilityName` depends on it).
+  `courseNameScore` is shared with the catalog dedupe, so both tightened.
+- **Way + relation self-tie.** OSM double-tagging (a closed way tagged
+  `leisure=golf_course` that is also the outer of a same-named multipolygon)
+  arrived as two equal-score candidates; the tie rule nulled the course.
+  Candidates now collapse on identical ring geometry before the tie test —
+  two DIFFERENT polygons sharing a name are still an ambiguity and still
+  null, by design.
+- **Card once-guard.** `CourseInfoCard`'s hole-preview flag was per
+  instance and never reset: the composer swaps `course` in place, so course
+  A's tees stayed drawn on course B's map and B was never fetched; and the
+  flag was set before the fetch resolved and never cleared on failure, so a
+  single 429 from the shared course-search limiter disabled the preview for
+  the life of the card. Hole lines and the focused hole are now keyed by
+  course id and DERIVED (a swap drops them with no setState in an effect),
+  the guard remembers which id it covers and clears on failure, a cancelled
+  flag drops late responses, and the composer keys the card by course id.
+
+Test count 1551 → 1557.
+
 ## August 24, 2026 — Live rangefinder: hole yards everywhere + a target you can drag
 
 Tom, after the maps arc: GPS mode "does an amazing job identifying the
