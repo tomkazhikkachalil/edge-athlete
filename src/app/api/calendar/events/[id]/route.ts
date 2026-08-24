@@ -76,9 +76,23 @@ async function fullDetail(
     routine_id: event.routine_id ?? null,
     routine_snapshot: event.routine_snapshot ?? null,
   });
+  // Org badge for the modal ("League event · Spring League").
+  const { league_id: leagueId, club_id: clubId } = event as {
+    league_id?: string | null;
+    club_id?: string | null;
+  };
+  let orgName: string | null = null;
+  if (leagueId || clubId) {
+    const { data: org } = await admin
+      .from(leagueId ? 'leagues' : 'clubs')
+      .select('name')
+      .eq('id', (leagueId ?? clubId) as string)
+      .maybeSingle();
+    orgName = (org?.name as string | undefined) ?? null;
+  }
   const { routine_snapshot: _snapshot, ...rest } = event as Record<string, unknown>;
   void _snapshot;
-  return { ...rest, guests: guests ?? [], series, routine };
+  return { ...rest, org_name: orgName, guests: guests ?? [], series, routine };
 }
 
 /** Occurrence rows of a series at/after an anchor (or all of them). */
@@ -107,9 +121,14 @@ export async function GET(
     const user = await requireAuth(request);
     const { id } = await params;
     const admin = getSupabaseAdmin();
-    const event = await loadEventForViewer(admin, id, user.id);
-    if (!event) return NextResponse.json({ error: 'Event not found' }, { status: 404 });
-    return NextResponse.json({ event: await fullDetail(admin, event) });
+    const loaded = await loadEventForViewer(admin, id, user.id);
+    if (!loaded) return NextResponse.json({ error: 'Event not found' }, { status: 404 });
+    // viewer_access lets the modal offer RSVP to an org member who has no
+    // guest row yet (their first response creates one — respond route).
+    return NextResponse.json({
+      event: await fullDetail(admin, loaded.event),
+      viewer_access: loaded.access,
+    });
   } catch (error) {
     if (error instanceof Response) return error;
     console.error('[CALENDAR] detail error:', error);
@@ -129,8 +148,9 @@ export async function PATCH(
     const { id } = await params;
     const admin = getSupabaseAdmin();
 
-    const event = await loadEventForViewer(admin, id, user.id);
-    if (!event) return NextResponse.json({ error: 'Event not found' }, { status: 404 });
+    const loaded = await loadEventForViewer(admin, id, user.id);
+    if (!loaded) return NextResponse.json({ error: 'Event not found' }, { status: 404 });
+    const event = loaded.event;
     if (event.organizer_id !== user.id) {
       return NextResponse.json({ error: 'Only the organizer can edit this event' }, { status: 403 });
     }
@@ -467,8 +487,9 @@ export async function DELETE(
     const scope = parseScope(new URL(request.url).searchParams.get('scope'));
     if (!scope) return NextResponse.json({ error: 'Invalid scope' }, { status: 400 });
 
-    const event = await loadEventForViewer(admin, id, user.id);
-    if (!event) return NextResponse.json({ error: 'Event not found' }, { status: 404 });
+    const loaded = await loadEventForViewer(admin, id, user.id);
+    if (!loaded) return NextResponse.json({ error: 'Event not found' }, { status: 404 });
+    const event = loaded.event;
     if (event.organizer_id !== user.id) {
       return NextResponse.json({ error: 'Only the organizer can cancel this event' }, { status: 403 });
     }

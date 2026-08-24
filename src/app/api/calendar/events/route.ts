@@ -9,6 +9,7 @@ import { notifyEventInvites } from '@/lib/calendar/notifications';
 import { formatEventWhen } from '@/lib/calendar/format-server';
 import { buildRoutineSnapshot, type RoutinePlan } from '@/lib/calendar/event-routine';
 import { fetchActivityOverlay } from '@/lib/calendar/activity-overlay';
+import { fetchOrgEventsForViewer } from '@/lib/calendar/org-merge-server';
 import { checkSupervisedInviteGate } from '@/lib/calendar/supervised-invites';
 import type { ServerRoutineRow } from '@/lib/workouts/routines';
 
@@ -81,6 +82,19 @@ export async function GET(request: NextRequest) {
       };
     });
 
+    // Read-time org merge: the reader's leagues'/clubs' events, minus any
+    // they hold a guest row on. Best-effort like the overlay below — a
+    // failure must not take the calendar down. Guardian reads (readAs)
+    // naturally merge the CHILD's orgs.
+    let orgEvents: Awaited<ReturnType<typeof fetchOrgEventsForViewer>> = [];
+    try {
+      orgEvents = await fetchOrgEventsForViewer(admin, readAs, fromMs, toMs, {
+        fields: EVENT_FIELDS,
+      });
+    } catch (e) {
+      console.error('[CALENDAR] org merge failed:', e);
+    }
+
     // Completed-activity overlay (read-time, self-scoped, in-app only —
     // never in the ICS feed). A source-table failure must not take the
     // calendar down with it.
@@ -91,7 +105,7 @@ export async function GET(request: NextRequest) {
       console.error('[CALENDAR] activity overlay failed:', e);
     }
 
-    return NextResponse.json({ events: [...events, ...overlay] });
+    return NextResponse.json({ events: [...events, ...orgEvents, ...overlay] });
   } catch (error) {
     if (error instanceof Response) return error;
     console.error('[CALENDAR] list error:', error);
@@ -231,6 +245,11 @@ export async function POST(request: NextRequest) {
             category: validated.event.category,
             routine_id: validated.event.routine_id,
             routine_snapshot: routineSnapshot,
+            // Org linkage (119) — this template is hand-built, so without
+            // these a recurring org event's occurrences silently lose their
+            // org link (the single-event path spreads validated.event).
+            league_id: validated.event.league_id ?? null,
+            club_id: validated.event.club_id ?? null,
           },
           [
             { profile_id: user.id, role: 'organizer', status: 'accepted', responded_at: now },

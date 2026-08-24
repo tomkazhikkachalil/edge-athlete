@@ -36,8 +36,13 @@ export interface EventListItem {
   routine_id?: string | null;
   league_id?: string | null;
   club_id?: string | null;
-  my_status: MyStatus;
+  /** null on read-time org-merged events — the viewer has no guest row
+   *  (yet); their first RSVP creates one. */
+  my_status: MyStatus | null;
   is_organizer: boolean;
+  /** Present on org-merged list items (fan-out round). */
+  is_org_event?: boolean;
+  org_name?: string | null;
   /** Present on completed-activity overlay items; absent on real events.
    *  Activity items must never open EventDetailModal (guaranteed 404) —
    *  they deep-link to their home surface instead. */
@@ -70,3 +75,7 @@ export interface EventDetail extends Omit<EventListItem, 'my_status' | 'is_organ
   /** Resolved routine view (live version, snapshot fallback) — never the raw snapshot. */
   routine: EventRoutine | null;
 }
+
+/** How the detail route admitted the viewer — org_member means "no guest
+ *  row yet; offer RSVP" (their first response creates one). */
+export type ViewerAccess = 'organizer' | 'guest' | 'org_member';

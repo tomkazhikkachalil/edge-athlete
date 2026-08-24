@@ -9,6 +9,8 @@ import type { EventListItem } from './types';
 //   accepted/owner  → solid category fill
 //   maybe           → solid with a leading "?" marker
 // Declined events never reach the client (server-filtered).
+// Org-merged events (my_status null) render solid — they're the org's
+// schedule, not a pending invite — with a small people marker.
 
 export function eventTimeLabel(event: EventListItem): string {
   if (event.all_day) return 'All day';
@@ -45,6 +47,7 @@ export function EventChip({
       )}
       <span className="font-medium">{event.title}</span>
       {event.series_id && <i className="fas fa-arrows-rotate ml-1 text-[9px] opacity-70"></i>}
+      {event.is_org_event && <i className="fas fa-people-group ml-1 text-[9px] opacity-70" title={event.org_name ?? undefined}></i>}
     </button>
   );
 }
@@ -89,6 +92,7 @@ export function EventBlock({
         {maybe && <span className="font-bold mr-0.5">?</span>}
         {event.title}
         {event.series_id && <i className="fas fa-arrows-rotate ml-1 text-[9px] opacity-70"></i>}
+        {event.is_org_event && <i className="fas fa-people-group ml-1 text-[9px] opacity-70"></i>}
       </span>
       {!event.all_day && (
         <span className={`block truncate ${pending ? '' : 'text-white/80'}`}>
