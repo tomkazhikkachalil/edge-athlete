@@ -12,6 +12,7 @@ import {
   UUID_RE,
   mergeSearchRows,
   adoptionDecision,
+  sameFacilityName,
   catalogAttribution,
   OSM_ATTRIBUTION,
   OPENGOLF_ATTRIBUTION,
@@ -167,6 +168,24 @@ describe('adoptionDecision (provider hit meets the OSM catalog)', () => {
     const second = nearby({ id: 'osm-2' });
     const d = adoptionDecision({ external_source: 'opengolfapi' }, [first, second]);
     expect(d.action === 'adopt' && d.target.id).toBe('osm-1');
+  });
+});
+
+describe('sameFacilityName (coord-less dedupe rule)', () => {
+  it('accepts a strict token subset in either direction', () => {
+    expect(sameFacilityName('Kahkwa Club', 'The Kahkwa Club')).toBe(true);
+    expect(sameFacilityName('The Kahkwa Club', 'Kahkwa Club')).toBe(true);
+    expect(sameFacilityName('Eagle Creek Golf Club', 'Eagle Creek Golf Course')).toBe(true);
+  });
+
+  it('rejects same-city clubs that merely share a token', () => {
+    expect(sameFacilityName('Ottawa Hunt and Golf Club', 'Ottawa Valley Golf Club')).toBe(false);
+    expect(sameFacilityName('Pinehurst No. 2', 'Pinehurst No. 8')).toBe(false);
+    expect(sameFacilityName('The Marshes Golf Club', 'The Marchwood')).toBe(false);
+  });
+
+  it('never matches generic-only names', () => {
+    expect(sameFacilityName('Golf Club', 'The Golf Course')).toBe(false);
   });
 });
 

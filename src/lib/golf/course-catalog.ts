@@ -637,23 +637,49 @@ export interface NearbyRow {
   country: string | null;
 }
 
-/** Existing rows within ~2 km that share an informative name token — the
- *  same facility under a different source ("Eagle Creek Golf Club" from a
- *  provider vs OSM's "Eagle Creek Golf Course"). Without coords there's
- *  nothing to compare, so no guard (today's behavior). */
+/** Strict name identity for the COORD-LESS dedupe: one name's informative
+ *  tokens must all appear in the other's ("Kahkwa Club" ⊂ "The Kahkwa
+ *  Club"). A 2 km box can afford a single shared token; a whole city
+ *  cannot — "Ottawa Hunt" and "Ottawa Valley" share "ottawa" and are
+ *  different clubs. courseNameScore(a, a) is a's informative token count,
+ *  so subset ⇔ score(a,b) equals the smaller self-score. Exported pure. */
+export function sameFacilityName(a: string, b: string): boolean {
+  const shared = courseNameScore(a, b);
+  if (shared === 0) return false;
+  return shared === Math.min(courseNameScore(a, a), courseNameScore(b, b));
+}
+
+const NEARBY_COLUMNS = 'id, external_source, external_id, name, club_name, city, region, country';
+
+/** Existing rows that are the same facility under a different source
+ *  ("Eagle Creek Golf Club" from a provider vs OSM's "Eagle Creek Golf
+ *  Course"). With coords: within ~2 km sharing an informative name token.
+ *  Without coords (GolfCourseAPI summaries carry none — the asymmetry that
+ *  let "The Kahkwa Club" land beside the just-adopted "Kahkwa Club", prod
+ *  Aug 24): same city AND a strict subset name match. No coords and no
+ *  city: nothing to compare, no guard. */
 async function findNearbyNameMatches(admin: SupabaseClient, row: NewRow): Promise<NearbyRow[]> {
-  if (typeof row.lat !== 'number' || typeof row.lng !== 'number') return [];
+  if (typeof row.lat === 'number' && typeof row.lng === 'number') {
+    const { data } = await admin
+      .from('golf_courses')
+      .select(NEARBY_COLUMNS)
+      .gte('lat', row.lat - DEDUPE_BOX.lat)
+      .lte('lat', row.lat + DEDUPE_BOX.lat)
+      .gte('lng', row.lng - DEDUPE_BOX.lng)
+      .lte('lng', row.lng + DEDUPE_BOX.lng)
+      .limit(25);
+    return ((data as NearbyRow[] | null) ?? []).filter(
+      existing => courseNameScore(row.name, existing.name) > 0
+    );
+  }
+  const city = (row.city ?? '').trim();
+  if (!city) return [];
   const { data } = await admin
     .from('golf_courses')
-    .select('id, external_source, external_id, name, club_name, city, region, country')
-    .gte('lat', row.lat - DEDUPE_BOX.lat)
-    .lte('lat', row.lat + DEDUPE_BOX.lat)
-    .gte('lng', row.lng - DEDUPE_BOX.lng)
-    .lte('lng', row.lng + DEDUPE_BOX.lng)
-    .limit(25);
-  return ((data as NearbyRow[] | null) ?? []).filter(
-    existing => courseNameScore(row.name, existing.name) > 0
-  );
+    .select(NEARBY_COLUMNS)
+    .ilike('city', city.replace(/[%_\\]/g, m => `\\${m}`))
+    .limit(50);
+  return ((data as NearbyRow[] | null) ?? []).filter(existing => sameFacilityName(row.name, existing.name));
 }
 
 export type AdoptionDecision =
