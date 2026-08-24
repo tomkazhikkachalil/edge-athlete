@@ -4,6 +4,7 @@
 // every occurrence and guest row, so there is never partial state.
 
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { chunk } from '@/lib/chunk';
 import {
   generateOccurrences,
   wallClockInZone,
@@ -40,12 +41,6 @@ export interface GuestIdentity {
   role: string;
   status: string;
   responded_at?: string | null;
-}
-
-function chunk<T>(items: T[], size: number): T[][] {
-  const out: T[][] = [];
-  for (let i = 0; i < items.length; i += size) out.push(items.slice(i, i + size));
-  return out;
 }
 
 /**

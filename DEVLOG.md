@@ -1,5 +1,36 @@
 # Development Log
 
+## August 24, 2026 — Fan-out round PR 3: team_update gets its sender
+
+`team_update` sat in notifications_type_check since 117, allowed and
+unsent (the front-loading rule). Now it sends: scheduling an org event
+bells every member of the league/club; cancelling bells the members who
+never held a guest row. Direct admin inserts (create_notification's
+preference gate would silently drop the type), best-effort, lazy-imported
+after the write — the calendar/notifications contract. Zero client work
+was needed: the type already had icons and System-tab membership, and
+rendering falls back to the frozen title — which is also what the digest
+emails verbatim, so titles are self-contained ("Spring League scheduled:
+Round 3").
+
+The rules, stated: ONE notification per member per event — per SERIES for
+recurring (metadata-marker dedup, the golf group-notifications precedent,
+so a retried create can't double-bell). Scheduled excludes the organizer
+and the invited guests (they just got event_invite); cancelled excludes
+everyone with a guest row on an affected occurrence (they got
+event_cancelled — or declined their way out). action_url is
+/calendar?event= — PR 1's member detail gate is what makes that landing
+work, which is why this PR stacks on it. Membership is uncapped, so
+inserts chunk at 500 (`chunk<T>` extracted from series-server to
+src/lib/chunk.ts, now unit-tested).
+
+Guardrail alongside: event creation gets a rate-limit bucket
+('event-create', post-create parity) — an org event create is now a
+per-member notification amplifier, and calendar had no bucket at all.
+
+Deliberately silent: PATCH attaching an org to an existing event (the
+decision covered create + cancel). Flagged for later if it feels wrong.
+
 ## August 24, 2026 — Fan-out round PR 2: the feed's "My orgs" lens
 
 The second parked follow-up, decided the way close-out II framed it: the

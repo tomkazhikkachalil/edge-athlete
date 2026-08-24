@@ -76,6 +76,9 @@ export const RATE_LIMITS = {
   // touches a real manager and, with delete-on-decline, is the backstop
   // against re-invite spam.
   affiliation: { max: 20, windowSeconds: 3600, keyBy: 'user' },
+  // Calendar event creation — org events fan a team_update out to every
+  // member (uncapped membership), so creation gets post-create parity.
+  'event-create': { max: 30, windowSeconds: 3600, keyBy: 'user' },
 } as const satisfies Record<string, RateLimitRule>;
 
 export type RateLimitAction = keyof typeof RATE_LIMITS;

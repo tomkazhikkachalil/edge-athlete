@@ -564,6 +564,33 @@ export async function DELETE(
       seriesId: (event.series_id as string | null) ?? undefined,
     };
     await notifyEventCancelled(ctx, user.id, notify);
+    if (event.league_id || event.club_id) {
+      // Member broadcast (team_update): everyone holding a guest row on an
+      // affected occurrence is excluded — they got event_cancelled above,
+      // or declined their way out of this event's story.
+      const side = event.league_id ? 'league' : 'club';
+      const orgId = (event.league_id ?? event.club_id) as string;
+      const { data: org } = await admin
+        .from(side === 'league' ? 'leagues' : 'clubs')
+        .select('name')
+        .eq('id', orgId)
+        .maybeSingle();
+      const { notifyOrgEventCancelled } = await import('@/lib/calendar/org-event-notifications');
+      await notifyOrgEventCancelled({
+        supabase: admin,
+        side,
+        orgId,
+        orgName: (org?.name as string | null) ?? 'Your organization',
+        eventId: event.id,
+        seriesId: scope !== 'this' ? (event.series_id as string | null) : null,
+        eventTitle: event.title,
+        whenText: formatEventWhen(event.starts_at, event.ends_at, event.all_day, event.timezone),
+        organizerId: user.id,
+        excludeProfileIds: (guests ?? [])
+          .map(g => g.profile_id)
+          .filter(Boolean) as string[],
+      });
+    }
     if (emailGuests.length > 0 && process.env.SMTP_USER && process.env.SMTP_PASS) {
       const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://edge-athlete.vercel.app';
       const { emailService } = await import('@/lib/email-service');
