@@ -6,7 +6,7 @@ import Image from 'next/image';
 import { useAuth } from '@/lib/auth';
 import { formatDisplayName, getInitials } from '@/lib/formatters';
 import { SPORT_REGISTRY } from '@/lib/sports/SportRegistry';
-import { SearchAthleteResult, SearchPostResult, SearchClubResult } from '@/types/search';
+import { SearchAthleteResult, SearchPostResult, SearchClubResult, SearchLeagueResult } from '@/types/search';
 import type { GolfCourse } from '@/types/golf';
 import { useTypeahead } from '@/hooks/useTypeahead';
 import PlacePicker, { type PlaceValue } from '@/components/PlacePicker';
@@ -26,6 +26,7 @@ type ResultItem =
   | { kind: 'athlete'; id: string; athlete: SearchAthleteResult }
   | { kind: 'course'; id: string; course: GolfCourse }
   | { kind: 'post'; id: string; post: SearchPostResult }
+  | { kind: 'league'; id: string; league: SearchLeagueResult }
   | { kind: 'club'; id: string; club: SearchClubResult };
 
 const isNavigableResult = (i: ResultItem) => i.kind !== 'club';
@@ -38,7 +39,7 @@ interface SearchFilters {
   dateTo?: string;
   /** Location: a picked place → athletes/clubs within 50 km of it (108). */
   place?: PlaceValue;
-  type: 'all' | 'athletes' | 'courses' | 'posts' | 'clubs';
+  type: 'all' | 'athletes' | 'courses' | 'posts' | 'clubs' | 'leagues';
 }
 
 const PLACE_RADIUS_KM = 50;
@@ -80,12 +81,14 @@ export default function AdvancedSearchBar() {
     const courseRows = (data.results?.courses ?? []) as GolfCourse[];
     const posts = (data.results?.posts ?? []) as SearchPostResult[];
     const clubRows = (data.results?.clubs ?? []) as SearchClubResult[];
+    const leagueRows = (data.results?.leagues ?? []) as SearchLeagueResult[];
     // Navigable kinds first so activeIndex maps to render order:
-    // athletes, courses, posts, then the inert clubs.
+    // athletes, courses, posts, leagues, then the inert clubs.
     return [
       ...athletes.map((a): ResultItem => ({ kind: 'athlete', id: a.id, athlete: a })),
       ...courseRows.map((c): ResultItem => ({ kind: 'course', id: c.id, course: c })),
       ...posts.map((p): ResultItem => ({ kind: 'post', id: p.id, post: p })),
+      ...leagueRows.map((l): ResultItem => ({ kind: 'league', id: l.id, league: l })),
       ...clubRows.map((c): ResultItem => ({ kind: 'club', id: c.id, club: c })),
     ];
   }, [filterKey]);
@@ -125,6 +128,10 @@ export default function AdvancedSearchBar() {
     () => items.flatMap(i => (i.kind === 'post' ? [i.post] : [])),
     [items]
   );
+  const leagues = useMemo(
+    () => items.flatMap(i => (i.kind === 'league' ? [i.league] : [])),
+    [items]
+  );
   const clubs = useMemo(
     () => items.flatMap(i => (i.kind === 'club' ? [i.club] : [])),
     [items]
@@ -148,6 +155,8 @@ export default function AdvancedSearchBar() {
       router.push(`/explore?course=${item.course.id}`);
     } else if (item.kind === 'post') {
       router.push(`/feed?post=${item.post.id}`);
+    } else if (item.kind === 'league') {
+      router.push(`/league/${item.league.id}`);
     } else {
       return; // clubs are inert
     }
@@ -261,6 +270,7 @@ export default function AdvancedSearchBar() {
                 <option value="courses">Golf Courses Only</option>
                 <option value="posts">Posts Only</option>
                 <option value="clubs">Clubs Only</option>
+                <option value="leagues">Leagues Only</option>
               </select>
             </div>
 
@@ -534,6 +544,40 @@ export default function AdvancedSearchBar() {
                         </p>
                       </div>
                     </div>
+                    );
+                  })}
+                </div>
+              )}
+
+              {/* Leagues (113): navigable — /league/[id] ships with them. */}
+              {leagues.length > 0 && (
+                <div className="border-b border-border-subtle">
+                  <div className="px-4 py-2 bg-surface-muted border-b border-border-subtle">
+                    <h3 className="text-sm font-semibold text-secondary">Leagues</h3>
+                  </div>
+                  {leagues.map((league: SearchLeagueResult, i: number) => {
+                    // Leagues follow athletes, courses and posts in the flat nav list.
+                    const navIndex = athletes.length + courses.length + posts.length + i;
+                    return (
+                      <div
+                        key={league.id}
+                        id={optionId(navIndex)}
+                        role="option"
+                        aria-selected={activeIndex === navIndex}
+                        onMouseEnter={() => setActiveIndex(navIndex)}
+                        onClick={() => activate({ kind: 'league', id: league.id, league })}
+                        className={`px-4 py-3 cursor-pointer ${activeIndex === navIndex ? 'bg-brand/10' : 'hover:bg-surface-muted'}`}
+                      >
+                        <p className="font-medium text-primary">{league.name}</p>
+                        <p className="text-sm text-muted line-clamp-1">
+                          {league.sport_key
+                            ? (SPORT_REGISTRY[league.sport_key as keyof typeof SPORT_REGISTRY]?.display_name ?? league.sport_key)
+                            : null}
+                          {league.sport_key && (league.city || league.country) ? ' · ' : ''}
+                          {formatPlace({ city: league.city, region: league.region, country: league.country })}
+                          {typeof league.distance_km === 'number' && ` · ${Math.round(league.distance_km)} km`}
+                        </p>
+                      </div>
                     );
                   })}
                 </div>

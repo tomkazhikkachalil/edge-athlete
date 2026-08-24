@@ -172,3 +172,11 @@ export function formatPlace(parts: {
   const local = [parts.city, parts.region].filter(Boolean).join(', ');
   return [local, parts.country].filter(Boolean).join(' · ');
 }
+
+/**
+ * The GeoNames attribution line (CC BY 4.0) — SEARCH.md's rule: rendered
+ * wherever place-derived fields appear on their own. Course surfaces bundle
+ * it into OSM_ATTRIBUTION (course-catalog.ts); this is the standalone half
+ * for non-course entities (league pages, and any future locatable entity).
+ */
+export const GEO_ATTRIBUTION = 'Location data \u00a9 GeoNames (CC BY 4.0)';

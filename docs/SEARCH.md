@@ -2,9 +2,10 @@
 
 **Status:** foundation shipped Aug 24 2026 (migrations 104–107); users and
 clubs on the same model in 108; `search_documents` + `search_all` unified the
-searchable entities in 112; leagues, arenas, teams and events adopt it on
-creation. Read this before adding a search box, a location field, or a new
-locatable entity.
+searchable entities in 112; **leagues adopted it on creation in 113** (the
+first entity born inside the unified index); arenas, teams and events do the
+same when they arrive. Read this before adding a search box, a location
+field, or a new locatable entity.
 
 ## Why
 
@@ -98,13 +99,14 @@ match against `places` (108's `backfill_places_from_text` does this for
 | Explore → Courses | text only | + Country → Region facets (`/api/golf/courses/facets`), Near me, `?course=<id>` deep link ✅ |
 | Explore → Athletes | sport chips only | name search + place filter + Near me (108) |
 | Header ⌘K | people (names), posts, clubs | Location filter (place → 50 km); people and clubs match and DISPLAY location (108); + Golf Courses type ✅ |
+| ⌘K → Leagues | — | league rows (113), navigable to `/league/[id]`, place + sport subtitle ✅ |
 | Profile location | free text | place picker (`search_places`); free text kept as the display string |
 
 ## `search_all` (the mini-Google endpoint) — shipped in 112
 
 `search_documents`: one row per searchable entity (`entity_type` in
-athlete/club/course/post — a NAMED check constraint, so a new type is one
-constraint swap), with `title` (the ranking name), `subtitle`, `sport_key`,
+athlete/club/course/post/league — a NAMED check constraint, so a new type is
+one constraint swap, exactly how 113 added leagues), with `title` (the ranking name), `subtitle`, `sport_key`,
 `owner_id`, `visibility`, the location columns, `rich`, `recency` and a
 `search_vector`. Maintained by AFTER triggers on each source table (upsert +
 delete pairs); course/athlete/club documents REUSE the entity's own contract
@@ -124,9 +126,13 @@ their posts) stays in the route. Known gap: athlete docs have `sport_key`
 NULL — `profiles.sport` stores a display label, so the sport chip remains a
 route post-filter.
 
-Adding a league (or any new entity) to the unified index: extend the named
-check constraint, add one trigger pair + a backfill per the checklist below.
-Nothing else changes — `search_all` picks the new type up via `p_types`.
+Leagues (113) are the worked example: the named-CHECK swap, one trigger
+pair, a backfill — and deliberately NO bespoke `search_leagues` RPC. The
+per-entity RPCs exist because those entities predate `search_all`; an entity
+born inside the unified index needs only its doc-sync triggers (checklist
+item 3 is satisfied by `search_all` itself). League doc rows carry
+`owner_id` NULL on purpose — the `owner_id = ANY(visible_ids)` privacy
+pass-through must never apply to an always-public type.
 
 ## Adding a new locatable entity (checklist)
 

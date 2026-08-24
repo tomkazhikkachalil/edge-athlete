@@ -72,6 +72,8 @@ export function getNotificationText(notification: Notification): string {
       return `${actorName} mentioned you`;
     case 'system':
       return notification.message || 'System notification';
+    case 'league_join':
+      return `${actorName} joined your league`;
     default:
       return notification.title;
   }
