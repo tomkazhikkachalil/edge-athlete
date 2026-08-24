@@ -9,8 +9,9 @@
  * strong sports/social network leads with.
  */
 
-import { useEffect, useState } from 'react';
+import { Suspense, useEffect, useState } from 'react';
 import Link from 'next/link';
+import { useRouter, useSearchParams } from 'next/navigation';
 import AppHeader from '@/components/AppHeader';
 import ExploreCoursesSection from '@/components/golf/ExploreCoursesSection';
 import LazyImage from '@/components/LazyImage';
@@ -66,8 +67,33 @@ interface ExplorePost {
 const postProfile = (p: ExplorePost): ExplorePostProfile | null =>
   Array.isArray(p.profile) ? (p.profile[0] ?? null) : p.profile;
 
+// useSearchParams needs a Suspense boundary on a statically prerendered
+// page (Next 16); the page body lives in ExploreInner for that reason only.
 export default function ExplorePage() {
-  const [selectedSport, setSelectedSport] = useState<SportKey | null>(null);
+  return (
+    <Suspense fallback={null}>
+      <ExploreInner />
+    </Suspense>
+  );
+}
+
+function ExploreInner() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  // Deep link from the header search's course results (there is no course
+  // page): /explore?course=<id> shows the golf chip with that card open.
+  // DERIVED from the URL, not copied into state: a router.push from the
+  // header while already on /explore only changes the query, and a
+  // mount-time read would miss it (spec-caught).
+  const courseParam = searchParams.get('course');
+  const deepLinkCourse = courseParam && /^[0-9a-f-]{36}$/i.test(courseParam) ? courseParam : null;
+  const [chosenSport, setChosenSport] = useState<SportKey | null>(null);
+  const selectedSport: SportKey | null = deepLinkCourse ? 'golf' : chosenSport;
+  const setSelectedSport = (key: SportKey | null) => {
+    setChosenSport(key);
+    // A chip tap ends the deep link (otherwise "All" would stick on golf).
+    if (deepLinkCourse) router.replace('/explore');
+  };
   // Athlete search (108): free text, a picked place (50 km), or the
   // device's position. `q` is the debounced value the fetch keys on.
   const [qInput, setQInput] = useState('');
@@ -257,7 +283,7 @@ export default function ExplorePage() {
         {/* Courses ride the golf chip — own loading state, deliberately
             OUTSIDE the athletes/posts loading gate so course typing never
             flashes the rest of the page. Guest-safe end to end. */}
-        {selectedSport === 'golf' && <ExploreCoursesSection />}
+        {selectedSport === 'golf' && <ExploreCoursesSection key={deepLinkCourse ?? 'browse'} initialCourseId={deepLinkCourse} />}
 
         {loading ? (
           <div className="flex items-center justify-center py-24">

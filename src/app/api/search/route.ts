@@ -3,6 +3,7 @@ import { getSupabaseAdmin, requireAuth } from '@/lib/auth-server';
 import { FEATURE_FLAGS } from '@/lib/features';
 import { searchPeople } from '@/lib/search/people-server';
 import { hasLocationFilter, readLocationParams, rpcLocationArgs } from '@/lib/geo/params';
+import { searchCatalog } from '@/lib/golf/course-catalog';
 
 // Minimum query length, per kind of result.
 //
@@ -51,7 +52,7 @@ export async function GET(request: NextRequest) {
     // point + radius. With one set, an empty query is a filtered browse
     // ("athletes near Ottawa") for the people and clubs types.
     const location = readLocationParams(searchParams);
-    const locationBrowse = hasLocationFilter(location) && (type === 'athletes' || type === 'clubs');
+    const locationBrowse = hasLocationFilter(location) && (type === 'athletes' || type === 'clubs' || type === 'courses');
 
     // An empty query is "nothing typed yet", not a client error. The old 400
     // under 2 characters made every typeahead in the app either wait for a
@@ -68,11 +69,24 @@ export async function GET(request: NextRequest) {
       athletes: unknown[];
       posts: unknown[];
       clubs: unknown[];
+      courses: unknown[];
     } = {
       athletes: [],
       posts: [],
-      clubs: []
+      clubs: [],
+      courses: [],
     };
+
+    // ── Courses (catalog, migration 104) ─────────────────────────────────
+    // The header search is the app's one "search everything" box; courses
+    // ride the same RPC the picker uses, with the location filter applied.
+    if ((type === 'all' || type === 'courses') && ((query ?? '').length >= CONTENT_MIN_CHARS || (locationBrowse && type === 'courses'))) {
+      try {
+        results.courses = await searchCatalog(supabase, query ?? '', type === 'courses' ? 15 : 5, location);
+      } catch (courseError) {
+        console.error('[SEARCH] Courses error:', courseError);
+      }
+    }
 
     // ── Athletes ────────────────────────────────────────────────────────────
     // Ranked, indexed and prefix-first via search_people (migration 087).
@@ -328,7 +342,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({
       query,
       results,
-      total: results.athletes.length + results.posts.length + results.clubs.length
+      total: results.athletes.length + results.posts.length + results.clubs.length + results.courses.length,
     });
 
   } catch (error) {

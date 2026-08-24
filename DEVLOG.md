@@ -1,5 +1,29 @@
 # Development Log
 
+## August 24, 2026 — Search surfaces: facets, Near me, courses in ⌘K, and the specs
+
+The last third of the search ask (docs/SEARCH.md): the UI that makes the
+location model usable, and the specs that keep it that way.
+
+- **Explore → Golf Courses:** Country → Region selects with counts (the
+  facets RPC from 104), **Near me** (one `getCurrentPosition`, no tracking;
+  100 km radius; a km chip on every card, nearest first), the placeholder
+  says what the box takes ("Course, club, city, region or country"), and
+  the empty state suggests a city, province or country. `?course=<id>`
+  opens one card expanded — the header search's course results land here
+  because there is no course page.
+- **Header ⌘K:** `courses` join athletes/posts/clubs (the same catalog RPC
+  the picker uses, with the Location filter applied); a Golf Courses type;
+  keyboard navigation offsets account for the new section.
+- **Composer picker + CourseCard:** rows read `City, Region · Country`.
+- **Specs:** `explore-course-search.spec.ts` (kanata ontario → Kanata Golf
+  Club; montreal ⇄ Montréal; CA → ON facets show only Ontario cards; Near
+  me at downtown Ottawa sorts by distance; ⌘K course → Explore deep link)
+  and `people-location-search.spec.ts` (a QA profile placed in Ottawa is
+  found by "ottawa"/"ontario"/"canada", a name still beats a place, the
+  location-only filtered browse is distance-sorted, Explore Near me shows
+  the athlete with a 0 km chip). Both anonymous-safe where the surface is.
+
 ## August 24, 2026 — Users and clubs by location (migration 108, the places model round 2)
 
 Tom's second half of the ask: location search "for the users too, same

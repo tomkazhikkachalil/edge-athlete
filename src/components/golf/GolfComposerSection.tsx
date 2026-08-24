@@ -33,6 +33,7 @@ import type { GolfCourse } from '@/types/golf';
 import type { SportComposerExtraProps } from '@/components/sport-composer-extras';
 import { GOLF_INPUT, GOLF_INPUT_COMPACT, GOLF_SELECT, GOLF_LABEL, GOLF_SECTION_CARD } from '@/components/golf/golf-form-styles';
 import CourseInfoCard from '@/components/golf/CourseInfoCard';
+import { formatPlace } from '@/lib/geo/regions';
 
 /** Full shared-round form state. CreatePostModal's preview only reads the
  *  display fields, but gameFormat/alreadyPlayed drive submission and the
@@ -710,9 +711,9 @@ export default function GolfComposerSection({
                           className="w-full px-4 py-3 text-left hover:bg-green-50 dark:hover:bg-green-950/40 transition-colors border-b border-border-subtle last:border-b-0"
                         >
                           <div className="font-semibold text-primary">{course.name}</div>
-                          {(course.city || course.state) && (
+                          {(course.city || course.state || course.country) && (
                             <div className="text-sm text-tertiary">
-                              {[course.city, course.state].filter(Boolean).join(', ')}
+                              {formatPlace({ city: course.city, region: course.state, country: course.country })}
                             </div>
                           )}
                           {/* Thin provider rows have no hole data until first
