@@ -12,6 +12,24 @@ which search_all has served since 112: ranked, location-aware, zero new
 SQL. Footer doors to both /start pages, so discovery and creation live in
 the same card. No migration.
 
+## August 24, 2026 — Org connections PR A: profiles ↔ orgs
+
+The org layer shipped today as an island; this PR starts the connections.
+New profile-first read the org tables never had: GET
+/api/profile/[profileId]/organizations (public — org member lists were
+already public on the org pages, so membership-is-public was decided the
+moment joining shipped; this exposes no new information class), built on a
+getProfileOrganizations helper in affiliations/server.ts that walks the
+SIDES config — one code path, two org kinds, as always.
+
+Surfaces: an OrgMembershipsStrip (self-fetching, renders nothing when
+empty, role badges) mounts in the identical "affiliation zone" slot on the
+own and visitor athlete pages; /u/ feeds it initialData from a new
+`organizations` key on its aggregate (anonymous-cheap, no client fetch);
+and the feed sidebar's long-lived "Your Club — coming soon" placeholder is
+finally replaced by YourOrgsCard (real memberships; the empty state doors
+to /league/start and /club/start instead of apologizing).
+
 ## August 24, 2026 — Club↔league affiliation (migration 118): the handshake
 
 The last deferred item of the search-and-orgs program. Tom's shape: a

@@ -7,6 +7,7 @@ import { useAuth } from '@/lib/auth';
 import { liveRoundPath } from '@/lib/golf/round-route';
 import { useRouter, useSearchParams } from 'next/navigation';
 import PostCard from '@/components/PostCard';
+import YourOrgsCard from '@/components/affiliations/YourOrgsCard';
 import AppHeader from '@/components/AppHeader';
 import ConnectionSuggestions from '@/components/ConnectionSuggestions';
 import { useToast } from '@/components/Toast';
@@ -694,19 +695,9 @@ export default function FeedPage() {
               </div>
             )}
 
-            {/* Your Club */}
-            <div className="bg-surface rounded-lg shadow-sm border border-border p-4">
-              <div className="flex items-center justify-between mb-3">
-                <h3 className="font-bold text-primary">Your Club</h3>
-              </div>
-              <div className="flex flex-col items-center justify-center py-6 text-center">
-                <div className="w-10 h-10 bg-green-50 dark:bg-green-950/40 rounded-full flex items-center justify-center mb-3">
-                  <i className="fas fa-flag text-green-400 text-lg"></i>
-                </div>
-                <p className="text-sm font-medium text-secondary mb-1">No club linked</p>
-                <p className="text-xs text-faint">Club and team management is coming soon.</p>
-              </div>
-            </div>
+            {/* Your clubs & leagues (org connections round) — the long-lived
+                "coming soon" placeholder finally replaced with real data. */}
+            <YourOrgsCard />
           </div>
         </div>
       </div>

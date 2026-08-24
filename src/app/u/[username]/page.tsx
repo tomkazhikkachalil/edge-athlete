@@ -8,6 +8,7 @@ import AppHeader from '@/components/AppHeader';
 import LazyImage from '@/components/LazyImage';
 import SportSettingsRow from '@/components/SportSettingsRow';
 import AchievementPills from '@/components/achievements/AchievementPills';
+import OrgMembershipsStrip, { type OrgMembership } from '@/components/affiliations/OrgMembershipsStrip';
 import { topPills } from '@/lib/achievements/display';
 import type { SettingsDisplayItem } from '@/lib/sports/settings-schemas';
 import {
@@ -103,6 +104,9 @@ interface ProfileData {
     achieved_on: string;
   }>;
   sportStats: SportStats | null;
+  /** Org memberships (org connections round). Optional so cached responses
+   *  from before this field existed still parse. */
+  organizations?: OrgMembership[];
   /** Declared per-sport details. Already filtered server-side, so a sport
    *  with nothing to show is simply absent. Optional so a cached client
    *  response from before this field existed still parses. */
@@ -328,6 +332,13 @@ export default function PublicProfilePage() {
                     </span>
                   )}
                 </div>
+
+                {/* Clubs & Leagues — payload-fed (keeps /u/ anonymous-cheap);
+                    an empty initialData renders nothing, no fetch. */}
+                <OrgMembershipsStrip
+                  profileId={profile.id}
+                  initialData={profileData.organizations ?? []}
+                />
 
                 {/* Physical stats */}
                 {(profile.height_cm || profile.weight_kg) && (

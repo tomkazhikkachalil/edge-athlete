@@ -372,3 +372,71 @@ export async function affiliationDELETE(
   }
   return NextResponse.json({ action: 'dissolved' });
 }
+
+export interface ProfileOrganization {
+  kind: AffSide;
+  id: string;
+  name: string;
+  role: string;
+  city: string | null;
+  region: string | null;
+  country: string | null;
+  sport_key?: string | null;
+}
+
+/**
+ * Every org a profile belongs to, with their role — the profile-first read
+ * the org tables never had (they were only ever read org-first). Public
+ * data by the existing membership-is-public decision: org pages already
+ * list member names/avatars. Used by /api/profile/[id]/organizations and
+ * the /u/ public-profile aggregate.
+ */
+export async function getProfileOrganizations(
+  admin: Admin,
+  profileId: string
+): Promise<ProfileOrganization[]> {
+  const out: ProfileOrganization[] = [];
+  for (const side of ['league', 'club'] as const) {
+    const cfg = SIDES[side];
+    const { data: memberRows, error } = await admin
+      .from(cfg.memberTable)
+      .select(`${cfg.rowKey}, role`)
+      .eq('profile_id', profileId);
+    if (error) {
+      // Pre-113/117 database: an empty strip, never an error.
+      if (isMissingTableError(error.code)) continue;
+      console.error(`[AFFILIATIONS] ${cfg.memberTable} fetch error:`, error);
+      continue;
+    }
+    const rows = (memberRows ?? []) as unknown as Array<Record<string, string>>;
+    if (rows.length === 0) continue;
+    const orgIds = rows.map(r => r[cfg.rowKey]);
+    const selectCols = side === 'league'
+      ? 'id, name, sport_key, city, region, country'
+      : 'id, name, city, region, country';
+    const { data: orgs } = await admin.from(cfg.orgTable).select(selectCols).in('id', orgIds);
+    const orgRows = (orgs ?? []) as unknown as Array<{
+      id: string; name: string; sport_key?: string | null;
+      city: string | null; region: string | null; country: string | null;
+    }>;
+    const byId = new Map(orgRows.map(o => [o.id, o]));
+    for (const row of rows) {
+      const org = byId.get(row[cfg.rowKey]);
+      if (!org) continue;
+      out.push({
+        kind: side,
+        id: org.id,
+        name: org.name,
+        role: row.role,
+        city: org.city,
+        region: org.region,
+        country: org.country,
+        ...(side === 'league' ? { sport_key: org.sport_key ?? null } : {}),
+      });
+    }
+  }
+  // Owned/managed first, then alphabetical — the strip's display order.
+  const rank: Record<string, number> = { owner: 0, manager: 1, member: 2 };
+  out.sort((a, b) => (rank[a.role] ?? 9) - (rank[b.role] ?? 9) || a.name.localeCompare(b.name));
+  return out;
+}
