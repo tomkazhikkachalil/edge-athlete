@@ -1,5 +1,30 @@
 # Development Log
 
+## August 24, 2026 — admin2 + metro: "ottawa" includes the suburbs, everywhere
+
+After 104–109 "ottawa" found the 20 courses whose city IS Ottawa —
+Kanata, Nepean, Orléans and Gatineau are their own GeoNames places. Tom:
+"add the metro field, but I don't want it to be just for Ottawa — I want
+everything to be resolved." Two data-driven facts do it globally
+(migration 110, nothing hand-listed):
+
+- **admin2** — GeoNames' county / census division / district, seeded from
+  `admin2Codes.txt` (54k of 66k places have one). Kanata, Nepean and
+  Orléans all carry "Ottawa"; Mississauga "Peel"; Oakland "Alameda County".
+- **metro** — computed in SQL: the LARGEST place within 40 km whose
+  population is at least max(100k, 2× the place's own). Gatineau (300k,
+  admin2 "Outaouais", across a provincial border) → Ottawa; Mississauga →
+  Toronto; Kanata → Ottawa. A 100k+ city with nothing twice its size
+  nearby anchors its own metro, which is what keeps Oakland out of San
+  Francisco and Fort Worth out of Dallas — the 2× rule, not a list.
+
+Entities gained no columns: every search vector (courses, profiles,
+clubs) pulls admin2 + metro through `place_id` at weight D, so a
+city-proper match (weight C) still outscores a suburb, and the same rule
+applies to whatever entity comes next. Ops: run 110 (metro computes from
+the seeded coordinates), re-seed places with admin2, run 110 again (the
+vector recompute at the end picks admin2 up).
+
 ## August 24, 2026 — Place aliases: "New York, NY" finds New York City
 
 The one thing the 108 probes couldn't match: a seeded club at "New York,
