@@ -8,7 +8,7 @@
  * rules) and re-assemble hydrated rows in document-rank order.
  */
 
-export type SearchEntityType = 'athlete' | 'club' | 'course' | 'post';
+export type SearchEntityType = 'athlete' | 'club' | 'course' | 'league' | 'post';
 
 /** One row from the search_all RPC. */
 export interface SearchAllRow {
@@ -39,12 +39,14 @@ export const ALL_QUOTAS: Record<SearchEntityType, number> = {
   course: 5,
   post: 15,
   club: 10,
+  league: 5,
 };
 export const TYPED_QUOTAS: Record<SearchEntityType, number> = {
   athlete: 20,
   course: 15,
   post: 15,
   club: 10,
+  league: 15,
 };
 /** Window widening when a sport/school post-filter could empty a page. */
 export const FACET_WIDEN_LIMIT = 100;
@@ -54,6 +56,7 @@ const TYPE_PARAM_MAP: Record<string, SearchEntityType> = {
   courses: 'course',
   posts: 'post',
   clubs: 'club',
+  leagues: 'league',
 };
 
 /**
@@ -61,7 +64,8 @@ const TYPE_PARAM_MAP: Record<string, SearchEntityType> = {
  * people suggest from the FIRST keystroke (087 makes a 1-char prefix an index
  * range scan); posts/clubs/courses need 2+ characters (free-form prose, one
  * letter matches near-arbitrarily); a location filter with an empty query is
- * a browse for the athlete/club/course tabs only (posts have no location).
+ * a browse for the athlete/club/course/league tabs only (posts have no
+ * location).
  */
 export function typesForRequest(
   type: string,
@@ -77,7 +81,7 @@ export function typesForRequest(
   }
   const out: SearchEntityType[] = [];
   if (queryLength >= 1) out.push('athlete');
-  if (queryLength >= 2) out.push('course', 'post', 'club');
+  if (queryLength >= 2) out.push('course', 'post', 'club', 'league');
   return out;
 }
 

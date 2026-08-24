@@ -58,7 +58,7 @@ export async function GET(request: NextRequest) {
     // point + radius. With one set, an empty query is a filtered browse
     // ("athletes near Ottawa") for the people and clubs types.
     const location = readLocationParams(searchParams);
-    const locationBrowse = hasLocationFilter(location) && (type === 'athletes' || type === 'clubs' || type === 'courses');
+    const locationBrowse = hasLocationFilter(location) && (type === 'athletes' || type === 'clubs' || type === 'courses' || type === 'leagues');
 
     // An empty query is "nothing typed yet", not a client error. The old 400
     // under 2 characters made every typeahead in the app either wait for a
@@ -76,11 +76,13 @@ export async function GET(request: NextRequest) {
       posts: unknown[];
       clubs: unknown[];
       courses: unknown[];
+      leagues: unknown[];
     } = {
       athletes: [],
       posts: [],
       clubs: [],
       courses: [],
+      leagues: [],
     };
 
     // ── Unified path (search_all, migration 112) ─────────────────────────
@@ -110,6 +112,7 @@ export async function GET(request: NextRequest) {
       const courseDocs = grouped.course ?? [];
       const postDocs = grouped.post ?? [];
       const clubDocs = grouped.club ?? [];
+      const leagueDocs = grouped.league ?? [];
 
       await Promise.all([
         (async () => {
@@ -212,9 +215,27 @@ export async function GET(request: NextRequest) {
               match_rank: byDoc.get(c.id)?.match_rank,
             }));
         })(),
+        (async () => {
+          if (leagueDocs.length === 0) return;
+          const ids = leagueDocs.map(d => d.entity_id);
+          const { data } = await supabase
+            .from('leagues')
+            .select('id, name, description, sport_key, city, region, region_code, country, country_code, lat, lng')
+            .in('id', ids);
+          const byDoc = new Map(leagueDocs.map(d => [d.entity_id, d]));
+          results.leagues = orderByIds(ids, (data ?? []) as Array<{ id: string }>)
+            .slice(0, quotas.league)
+            .map(l => ({
+              ...l,
+              distance_km: byDoc.get(l.id)?.distance_km ?? null,
+              match_rank: byDoc.get(l.id)?.match_rank,
+            }));
+        })(),
       ]);
     }
 
+    // Leagues deliberately have NO legacy branch below: the entity type
+    // postdates 112, so a pre-113 database correctly returns none for them.
     // ── Courses (catalog, migration 104) ─────────────────────────────────
     // The header search is the app's one "search everything" box; courses
     // ride the same RPC the picker uses, with the location filter applied.
@@ -480,7 +501,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({
       query,
       results,
-      total: results.athletes.length + results.posts.length + results.clubs.length + results.courses.length,
+      total: results.athletes.length + results.posts.length + results.clubs.length + results.courses.length + results.leagues.length,
     });
 
   } catch (error) {

@@ -50,6 +50,17 @@ export interface SearchPostResult {
   post_media?: SearchPostMedia[];
 }
 
+export interface SearchLeagueResult {
+  id: string;
+  name: string;
+  description?: string | null;
+  sport_key?: string | null;
+  city?: string | null;
+  region?: string | null;
+  country?: string | null;
+  distance_km?: number | null;
+}
+
 export interface SearchClubResult {
   id: string;
   name: string;

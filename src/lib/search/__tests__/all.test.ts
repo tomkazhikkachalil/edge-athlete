@@ -35,7 +35,7 @@ describe('typesForRequest', () => {
   });
 
   it('adds content types at two characters on the all tab', () => {
-    expect(typesForRequest('all', 2, false)).toEqual(['athlete', 'course', 'post', 'club']);
+    expect(typesForRequest('all', 2, false)).toEqual(['athlete', 'course', 'post', 'club', 'league']);
   });
 
   it('returns nothing for an empty un-filtered query', () => {
@@ -48,24 +48,27 @@ describe('typesForRequest', () => {
     expect(typesForRequest('courses', 2, false)).toEqual(['course']);
     expect(typesForRequest('posts', 2, false)).toEqual(['post']);
     expect(typesForRequest('clubs', 2, false)).toEqual(['club']);
+    expect(typesForRequest('leagues', 2, false)).toEqual(['league']);
   });
 
   it('holds content tabs to the two-character floor', () => {
     expect(typesForRequest('courses', 1, false)).toEqual([]);
     expect(typesForRequest('posts', 1, false)).toEqual([]);
     expect(typesForRequest('clubs', 1, false)).toEqual([]);
+    expect(typesForRequest('leagues', 1, false)).toEqual([]);
   });
 
   it('allows an empty-query location browse for locatable tabs only', () => {
     expect(typesForRequest('athletes', 0, true)).toEqual(['athlete']);
     expect(typesForRequest('clubs', 0, true)).toEqual(['club']);
     expect(typesForRequest('courses', 0, true)).toEqual(['course']);
+    expect(typesForRequest('leagues', 0, true)).toEqual(['league']);
     // Posts have no location columns; a location browse cannot reach them.
     expect(typesForRequest('posts', 0, true)).toEqual([]);
   });
 
   it('rejects unknown type params', () => {
-    expect(typesForRequest('leagues', 5, false)).toEqual([]);
+    expect(typesForRequest('teams', 5, false)).toEqual([]);
   });
 });
 
@@ -93,8 +96,8 @@ describe('orderByIds', () => {
 
 describe('quotas', () => {
   it('keeps the pre-unification per-section numbers', () => {
-    expect(ALL_QUOTAS).toEqual({ athlete: 20, course: 5, post: 15, club: 10 });
-    expect(TYPED_QUOTAS).toEqual({ athlete: 20, course: 15, post: 15, club: 10 });
+    expect(ALL_QUOTAS).toEqual({ athlete: 20, course: 5, post: 15, club: 10, league: 5 });
+    expect(TYPED_QUOTAS).toEqual({ athlete: 20, course: 15, post: 15, club: 10, league: 15 });
     expect(FACET_WIDEN_LIMIT).toBe(100);
   });
 });

@@ -62,6 +62,9 @@ export const RATE_LIMITS = {
   'credentials-set': { max: 10, windowSeconds: 3600, keyBy: 'user' },
   'invite-claim': { max: 10, windowSeconds: 3600, keyBy: 'user' },
   'gif-search': { max: 60, windowSeconds: 600, keyBy: 'user' },
+  // League join/leave toggle — same shape as 'follow' but tighter: joining
+  // is rarer than following and a join fan-outs a notification to the owner.
+  'league-join': { max: 30, windowSeconds: 3600, keyBy: 'user' },
 } as const satisfies Record<string, RateLimitRule>;
 
 export type RateLimitAction = keyof typeof RATE_LIMITS;

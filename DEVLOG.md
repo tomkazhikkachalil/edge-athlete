@@ -1,5 +1,41 @@
 # Development Log
 
+## August 24, 2026 — Leagues: the first org-managed entity (migration 113)
+
+"League" had been vocabulary without a referent — an allowed-but-never-set
+user_type, a config file with zero consumers, a ⌘K filter the server ignores.
+Tom's decisions made it real: a `leagues` table (admin-provisioned creation
+from a new /dashboard/leagues console; self-service org signup stays the
+"separate flow" the profile route promises), open join/leave for athletes
+(`league_members`, existence = active, no status column; the owner holds a
+role='owner' row written by the create route), and `sport_key` required —
+one SportRegistry sport per league.
+
+Search integration is 112's design paying off: migration 113 swaps the NAMED
+`search_documents_entity_type_check` to admit 'league', adds one doc-sync
+trigger pair + backfill, and that is the whole search surface — deliberately
+NO bespoke `search_leagues` RPC (the per-entity RPCs exist because those
+entities predate search_all; leagues are born inside it). League doc rows
+carry owner_id NULL on purpose: the `owner_id = ANY(visible_ids)` privacy
+pass-through must never apply to an always-public type. ⌘K league rows are
+NAVIGABLE — unlike clubs — because `/league/[id]` ships in the same PR (the
+club-row precedent: no page, no link).
+
+The page follows the /u/[username] client pattern (in-page not-found, no
+notFound()), joins/leaves with the FollowButton contract (act, then re-fetch
+server truth — never optimistic), renders the new standalone GEO_ATTRIBUTION
+line when place fields show (SEARCH.md's duty; OSM_ATTRIBUTION stays the
+bundled course version), and gives owner/managers an edit modal
+(useDirtyClose + ConfirmModal) plus member removal. Join fan-outs a
+best-effort `league_join` notification to the owner (`league_update` is
+front-loaded in the CHECK, unsent — 098's rationale). New user-keyed
+`league-join` rate bucket (30/h). Routes catch 42P01/PGRST205 → 404 so a
+pre-113 deploy degrades to not-found rather than 500.
+
+Ops: ORDER-STRICT like 098 — run 113 before merging (the create/join routes
+insert into the new tables). e2e: `league-join.spec.ts` seeds via the
+service role (creation is dashboard-only) and self-skips until 113 exists.
+
 ## August 24, 2026 — search_all: one document table over every searchable entity (migration 112)
 
 docs/SEARCH.md's "Toward search_all" threshold was met — four entity types
