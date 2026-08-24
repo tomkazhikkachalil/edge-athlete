@@ -11,6 +11,9 @@ import {
   providersConfigured,
   consumeProviderBudget,
   catalogAttribution,
+  rowToCourse,
+  CATALOG_ROW_COLUMNS,
+  type CatalogRow,
 } from '@/lib/golf/course-catalog';
 import { getCourseHoleGeometry } from '@/lib/golf/hole-geometry';
 
@@ -93,7 +96,12 @@ export async function GET(request: NextRequest) {
 
       // 1 char, like every other search: golf_rounds.course gained prefix and
       // trigram indexes in migration 087.
-      if (query.length >= 1) {
+      // A filtered or near-me search is an Explore-style query; history rows
+      // carry no codes or coordinates, so they can't honour the filter and
+      // must sit this one out (probe: Rideau View surfaced under
+      // country=CA&region=ON with no location at all).
+      const locationFiltered = Boolean(near || searchParams.get('country') || searchParams.get('region'));
+      if (query.length >= 1 && !locationFiltered) {
         const { data: roundCourses } = await admin
           .from('golf_rounds')
           .select('profile_id, course, course_id, course_location, par, holes, tee, course_rating, slope_rating, date')
@@ -154,6 +162,18 @@ export async function GET(request: NextRequest) {
       if (!catalogByName.has(key)) catalogByName.set(key, c);
     }
     const catalogById = new Map(catalogCourses.map(c => [c.id, c]));
+    // A history row's linked catalog row is often NOT in the page (a short
+    // page, or the round's course ranked lower than same-named rows) — then
+    // it rendered with no location and no holes. Fetch the few missing ones
+    // by id; one small query, only when history exists.
+    const missingIds = [...new Set(historyCatalogIds.values())].filter(id => !catalogById.has(id));
+    if (missingIds.length) {
+      const { data: linked } = await admin
+        .from('golf_courses')
+        .select(CATALOG_ROW_COLUMNS)
+        .in('id', missingIds);
+      for (const row of (linked ?? []) as unknown as CatalogRow[]) catalogById.set(row.id, rowToCourse(row));
+    }
     const enrichedHistory = historyCourses.map(h => {
       const linkedId = historyCatalogIds.get(h.id);
       const match =
