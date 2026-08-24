@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useAuth } from '@/lib/auth';
@@ -17,7 +17,7 @@ import CourseMap from '@/components/golf/CourseMap';
 import { nextHoleForScores } from '@/lib/golf/score-entry';
 import { useVisualViewportHeight } from '@/hooks/useVisualViewportHeight';
 import { embeddedCourseToInfo } from '@/lib/golf/course-info';
-import type { HoleGeometry } from '@/lib/golf/hole-geometry';
+import { polylineYards, trimLineToYards, type HoleGeometry } from '@/lib/golf/hole-geometry';
 import { formatDisplayName } from '@/lib/formatters';
 import type { CompleteGolfScorecard } from '@/types/group-posts';
 
@@ -127,6 +127,22 @@ export default function LiveRoundPage() {
     };
   }, [tab, holeGeo, embeddedCourseId]);
 
+  // The holes the map draws, started at the TEE-IN-PLAY: the OSM way begins
+  // at the back tee, so each line is walked back from the green by the
+  // round's per-hole yardage (the selected tee's scorecard number). No
+  // yardage (OSM-only course, manual round without yards) = the full line.
+  // Memoised: CourseMapInner keys its label/line effects on this array.
+  // Above the early returns — it's a hook.
+  const roundHoleData = scorecard?.golf_data?.hole_data ?? null;
+  const playedHoles = useMemo(() => {
+    const holes = holeGeo?.holes;
+    if (!holes) return null;
+    return holes.map(h => ({
+      ...h,
+      line: trimLineToYards(h.line, roundHoleData?.find(x => x.hole === h.hole)?.yardage),
+    }));
+  }, [holeGeo, roundHoleData]);
+
   // Open the scorer once, during render rather than in an effect: the page has
   // just fetched, so there is nothing to refresh first, and an effect would
   // paint the leaderboard for a frame before the scorer covered it. The ref
@@ -217,19 +233,26 @@ export default function LiveRoundPage() {
   // unscored hole; with geometry but a complete card, hole 1 (peeking a
   // finished round is still useful). Without geometry this collapses to
   // exactly the pre-geometry chip behavior.
-  const geoHoles = holeGeo?.holes ?? null;
+  const geoHoles = playedHoles;
   const displayHole =
     viewedHole ?? nextHole?.hole ?? (geoHoles && myParticipant ? geoHoles[0]?.hole ?? null : null);
   const holeDataArr = scorecard.golf_data.hole_data ?? null;
+  const displayGeoHole = displayHole != null ? geoHoles?.find(h => h.hole === displayHole) : undefined;
+  // Yardage ladder: the round's own hole_data (catalog-hydrated or typed)
+  // first; else the OSM way's drawn length, flagged approximate. Every
+  // OSM-sourced course has no hole_data yardage — before this fallback the
+  // chip read "Hole 2 · Par 4" and nothing else on-course.
   const displayHoleDetail =
     displayHole != null
-      ? {
-          par:
-            holeDataArr?.find(h => h.hole === displayHole)?.par ??
-            geoHoles?.find(h => h.hole === displayHole)?.par ??
-            null,
-          yardage: holeDataArr?.find(h => h.hole === displayHole)?.yardage ?? null,
-        }
+      ? (() => {
+          const catalogYards = holeDataArr?.find(h => h.hole === displayHole)?.yardage ?? null;
+          const approxYards = displayGeoHole ? polylineYards(displayGeoHole.line) : null;
+          return {
+            par: holeDataArr?.find(h => h.hole === displayHole)?.par ?? displayGeoHole?.par ?? null,
+            yardage: catalogYards ?? approxYards,
+            approx: catalogYards == null && approxYards != null,
+          };
+        })()
       : null;
   const stepHole = (dir: 1 | -1) => {
     if (!geoHoles?.length) return;
@@ -380,13 +403,23 @@ export default function LiveRoundPage() {
               >
                 <i className="fas fa-chevron-left text-xs" aria-hidden="true"></i>
               </button>
-              <div className="px-1 text-sm font-bold text-primary whitespace-nowrap">
-                Hole {displayHole}
-                {displayHoleDetail?.par != null && (
-                  <span className="font-medium text-secondary"> · Par {displayHoleDetail.par}</span>
-                )}
+              {/* Yards were `hidden sm:inline` — invisible on the one device
+                  that matters, the phone on the tee. Below sm they wrap onto
+                  a second line so the chip's WIDTH doesn't grow into the
+                  control stack on the right at 320–375 px. */}
+              <div className="px-1 text-sm font-bold text-primary">
+                <span className="whitespace-nowrap">
+                  Hole {displayHole}
+                  {displayHoleDetail?.par != null && (
+                    <span className="font-medium text-secondary"> · Par {displayHoleDetail.par}</span>
+                  )}
+                </span>
                 {displayHoleDetail?.yardage != null && (
-                  <span className="font-medium text-secondary hidden sm:inline"> · {displayHoleDetail.yardage} yds</span>
+                  <span className="block whitespace-nowrap text-xs font-medium text-secondary sm:inline sm:text-sm">
+                    <span className="hidden sm:inline"> · </span>
+                    {displayHoleDetail.approx ? '≈' : ''}
+                    {displayHoleDetail.yardage} yds
+                  </span>
                 )}
               </div>
               <button

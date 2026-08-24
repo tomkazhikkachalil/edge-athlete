@@ -221,11 +221,80 @@ export function greenDistanceYards(
   maxYds = 1500
 ): number | null {
   if (line.length < 2) return null;
-  const green = line[line.length - 1];
-  const yds = Math.round(
-    haversineKm({ lat: fix[0], lng: fix[1] }, { lat: green[0], lng: green[1] }) * 1093.6133
-  );
+  const yds = yardsBetween(fix, line[line.length - 1]);
   return yds > maxYds ? null : yds;
+}
+
+const YDS_PER_KM = 1093.6133;
+
+/** Great-circle yards between two [lat,lng] points, rounded. */
+export function yardsBetween(a: [number, number], b: [number, number]): number {
+  return Math.round(haversineKm({ lat: a[0], lng: a[1] }, { lat: b[0], lng: b[1] }) * YDS_PER_KM);
+}
+
+/** The drawn length of a tee→green way in yards — the hole's playing length
+ *  as OSM mapped it (follows doglegs, tee marker to green centre). It is an
+ *  approximation of the scorecard yardage, so callers label it "≈". Null
+ *  under 2 points. Pure; used where the round carries no catalog yardage
+ *  (every OSM-sourced course). */
+export function polylineYards(line: [number, number][]): number | null {
+  if (line.length < 2) return null;
+  let km = 0;
+  for (let i = 1; i < line.length; i++) {
+    km += haversineKm(
+      { lat: line[i - 1][0], lng: line[i - 1][1] },
+      { lat: line[i][0], lng: line[i][1] }
+    );
+  }
+  return Math.round(km * YDS_PER_KM);
+}
+
+/** Start the hole at the tee-in-play. The OSM way runs from its first node —
+ *  in practice the BACK tee — so the line, the tee label and every "from
+ *  tee" number started from the tips whatever tee the round was played
+ *  from (Tom's on-course report). The cached geometry carries no golf=tee
+ *  features, but the round carries the selected tee's scorecard yardage per
+ *  hole: walk BACK from the green along the drawn line by that yardage and
+ *  start there (interpolated on the segment it lands in). Unchanged when
+ *  the yardage is missing/invalid or ≥ the drawn length. Pure. */
+export function trimLineToYards(
+  line: [number, number][],
+  yards: number | null | undefined
+): [number, number][] {
+  if (line.length < 2 || typeof yards !== 'number' || !Number.isFinite(yards) || yards <= 0) return line;
+  const km = yards / YDS_PER_KM;
+  let acc = 0;
+  for (let i = line.length - 1; i > 0; i--) {
+    const a = line[i]; // nearer the green
+    const b = line[i - 1]; // nearer the tee
+    const seg = haversineKm({ lat: a[0], lng: a[1] }, { lat: b[0], lng: b[1] });
+    if (acc + seg >= km) {
+      const t = seg > 0 ? (km - acc) / seg : 0;
+      const start: [number, number] = [
+        Number((a[0] + (b[0] - a[0]) * t).toFixed(6)),
+        Number((a[1] + (b[1] - a[1]) * t).toFixed(6)),
+      ];
+      return [start, ...line.slice(i)];
+    }
+    acc += seg;
+  }
+  return line; // yardage ≥ drawn length: the back tee IS the tee-in-play
+}
+
+/** The rangefinder's two numbers for a player-placed target on the focused
+ *  hole: origin→target (the shot) and target→green (what's left). Origin is
+ *  the live fix when tracking, else the tee — planning works from the couch.
+ *  No sanity cap: the target was placed deliberately. Pure, on-device. */
+export function targetDistances(
+  origin: [number, number],
+  target: [number, number],
+  line: [number, number][]
+): { toTarget: number; targetToGreen: number } | null {
+  if (line.length < 2) return null;
+  return {
+    toTarget: yardsBetween(origin, target),
+    targetToGreen: yardsBetween(target, line[line.length - 1]),
+  };
 }
 
 const MIRRORS = [

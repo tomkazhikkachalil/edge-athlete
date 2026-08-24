@@ -1,5 +1,69 @@
 # Development Log
 
+## August 24, 2026 — Live rangefinder: hole yards everywhere + a target you can drag
+
+Tom, after the maps arc: GPS mode "does an amazing job identifying the
+courses, selecting the right hole as you go" — but it doesn't say *hole 2,
+par 4, X yards*, and he wants to drop a point on the hole to see what a
+carry or layup would be ("hit over the water or hazard without going around
+it") — club decisions from the map, live on the course.
+
+**Hole info that actually resolves.** The live page's chip already rendered
+`Hole N · Par P · Y yds` — except yardage came only from the round's
+`hole_data.yardage` (catalog-hydrated or hand-typed, so absent for every
+OSM-sourced course) AND was `hidden sm:inline`. On the one device that
+matters, a phone on the tee at an Ottawa course, it never appeared. Now
+`polylineYards` (pure) sums the OSM way tee→green and the chip falls back to
+it, rendered `≈410 yds` because it's the drawn line (tee marker to green
+centre, follows doglegs), not the scorecard. Yards show at every width;
+below `sm` they wrap onto a second line so the chip's WIDTH doesn't grow into
+the control stack on the right at 320–375 px.
+
+**Target point.** While a hole is focused, tapping the map drops a draggable
+orange ring; dashed legs draw origin→target and target→green, and a pill
+reads `142 to target · 118 to green`. Origin is the live fix while tracking,
+else the tee — so a hole can be planned from the couch, labelled "from tee".
+No sanity cap on the target (the player placed it). Design points:
+
+- The click handler is registered ONCE at mount and reads the focused line
+  through a ref (mirrored in an effect, like `onHoleTapRef` — refs aren't
+  read during render). A pan never fires `click`; Leaflet markers default
+  `bubblingMouseEvents:false`, so tee-label taps keep their focus behaviour
+  and never drop a stray target.
+- The target is keyed by hole (`{ hole, ll }`) and the rendered one is
+  `target.hole === focusHole ? … : null` — stepping to the next hole drops it
+  by DERIVATION, no `setState` in an effect.
+- A marker drag doesn't fire the map's `dragstart`, so follow-pause logic is
+  untouched; `drag` + `dragend` both feed the same setter so the legs and
+  numbers move live.
+- `targetDistances` (pure, on-device) does the numbers; the fix never
+  leaves the phone, same as the to-green pill.
+
+Internal to `CourseMapInner` — no new props; wherever `holes` + `focusHole`
+are passed (today the live page; the card previews' stepper too, which is
+harmless and useful pre-round). Test count 1527 → 1536 (with the refinements below). Owed: Tom's
+on-course pass (the same one the to-green pill is waiting on).
+
+**Same day, after Tom's first look ("looking amazing", two asks):**
+
+- *"It auto-selects the furthest-away tee box."* The OSM way starts at its
+  first node — the back tee — so the line, the tee label and every "from
+  tee" number started from the tips. The cached geometry has no `golf=tee`
+  features to match against, but the round already carries the selected
+  tee's scorecard yardage per hole, so `trimLineToYards` (pure) walks back
+  from the green along the drawn line by exactly that yardage and starts
+  the hole there. Exact w.r.t. the scorecard, no OSM tee data, no re-sweep;
+  memoised on the live page so the map's effects don't churn. Rounds with
+  no per-hole yardage (OSM-only courses, manual rounds without yards) keep
+  the full line — the honest fallback; `golf=tee` + `colour` matching is a
+  follow-up only if that proves insufficient on real courses.
+- *"An additional line is created — just have the single line and interact
+  with that."* The dashed origin→target and target→green legs are gone.
+  The hole line is now the one line: straight tee-in-play→green until a
+  target exists, then origin→target→green with the orange ring as the
+  elbow you drag. Tapping the line itself places the elbow (Leaflet paths
+  bubble clicks to the map's handler). The focus effect keeps only the
+  green dot + fitBounds — a drag or a GPS tick must never re-fit the view.
 ## August 24, 2026 — Post-import catalog hardening: the 29k-row regressions
 
 Session-start review of the OSM import day. Prod was clean and deployed, the
