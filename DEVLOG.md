@@ -1,5 +1,17 @@
 # Development Log
 
+## August 24, 2026 — Org connections PR B: Explore org discovery
+
+ExploreOrgsSection joins the Explore page, mirroring ExploreCoursesSection
+exactly: fully self-contained (own search box, own Near-me, own fetches),
+mounted outside the page's loading gate, and never chip-gated — orgs are
+cross-sport, so the section always shows; an active sport chip filters the
+LEAGUES list inside it (clubs have no sport, by 117's design). It consumes
+/api/search?type=leagues|clubs — two typed calls so the quotas stay clean —
+which search_all has served since 112: ranked, location-aware, zero new
+SQL. Footer doors to both /start pages, so discovery and creation live in
+the same card. No migration.
+
 ## August 24, 2026 — Org connections PR A: profiles ↔ orgs
 
 The org layer shipped today as an island; this PR starts the connections.

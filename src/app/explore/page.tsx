@@ -14,6 +14,7 @@ import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import AppHeader from '@/components/AppHeader';
 import ExploreCoursesSection from '@/components/golf/ExploreCoursesSection';
+import ExploreOrgsSection from '@/components/affiliations/ExploreOrgsSection';
 import LazyImage from '@/components/LazyImage';
 import LiveNowStrip from '@/components/LiveNowStrip';
 import { formatDistanceToNow } from 'date-fns';
@@ -284,6 +285,11 @@ function ExploreInner() {
             OUTSIDE the athletes/posts loading gate so course typing never
             flashes the rest of the page. Guest-safe end to end. */}
         {selectedSport === 'golf' && <ExploreCoursesSection key={deepLinkCourse ?? 'browse'} initialCourseId={deepLinkCourse} />}
+
+        {/* Org discovery (connections PR B) — self-contained like the
+            courses section, never chip-gated (orgs are cross-sport; the
+            active chip filters the leagues list inside the section). */}
+        <ExploreOrgsSection sportKey={selectedSport} />
 
         {loading ? (
           <div className="flex items-center justify-center py-24">
