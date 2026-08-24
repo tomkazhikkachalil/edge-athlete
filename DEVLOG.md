@@ -1,5 +1,34 @@
 # Development Log
 
+## August 24, 2026 — Org signup: the request + approve flow (migration 116)
+
+The "separate flow" the profile route always promised for org provisioning.
+Tom's shape: any signed-in user submits "Start a league" (/league/start —
+name, sport, place, description); it lands in a Pending-requests queue on
+/dashboard/leagues; approval creates the league with the requester as OWNER
+through the same createLeagueWithOwner path the admin console now shares;
+decline requires a reason the requester sees. Decisions notify in-app only
+(league_request_result — front-loaded AND sent in one PR, legal because 116
+is ORDER-STRICT before the merge). No new account type: a league is owned
+by a normal profile, and /league/[id] already is the org surface.
+
+Design points worth keeping: the one-pending-per-user rule is a PARTIAL
+UNIQUE INDEX (23505 → friendly 409 — the index is the authority, no racy
+pre-check); approval creates the league FIRST and then CLAIMS the request
+row with optimistic concurrency (.eq('status','pending') — zero rows
+updated means another admin decided mid-flight, and the fresh league is
+rolled back); decline's required reason lives in the zod schema
+(superRefine), not a hand-rolled route check. The ⌘K dropdown grows a
+"Start a league →" door pinned at its bottom — deliberately not a
+role="option" row, since the flat navIndex arithmetic spans four sections.
+
+Also in this PR, a SECURITY FIX the exploration surfaced: /api/signup
+trusted client-supplied profileData.user_type, and the 097 CHECK allows
+'club'/'league'/'parent' — anyone could self-assign an org type at signup.
+resolveSignupUserType (pure, tested) clamps self-serve signups to
+athlete/fan; guardians stay 'parent'; org types come only from their own
+flows.
+
 ## August 24, 2026 — League manager appointment (no migration)
 
 The last front-loaded piece of 113 gets its UI. `league_members.role` always

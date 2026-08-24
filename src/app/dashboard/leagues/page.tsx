@@ -30,6 +30,25 @@ interface AdminLeagueRow {
   owner: { id: string; first_name: string | null; last_name: string | null; full_name: string | null } | null;
 }
 
+interface AdminRequestRow {
+  id: string;
+  name: string;
+  description: string | null;
+  sport_key: string;
+  city: string | null;
+  region: string | null;
+  country: string | null;
+  created_at: string;
+  requester: {
+    id: string;
+    first_name: string | null;
+    last_name: string | null;
+    full_name: string | null;
+    handle: string | null;
+    email: string | null;
+  } | null;
+}
+
 interface OwnerCandidate {
   id: string;
   email: string | null;
@@ -46,6 +65,10 @@ export default function AdminLeaguesPage() {
 
   const [authorized, setAuthorized] = useState<boolean | null>(null);
   const [leagues, setLeagues] = useState<AdminLeagueRow[]>([]);
+  const [pendingRequests, setPendingRequests] = useState<AdminRequestRow[]>([]);
+  const [actingId, setActingId] = useState<string | null>(null);
+  const [declineOpenId, setDeclineOpenId] = useState<string | null>(null);
+  const [declineReason, setDeclineReason] = useState('');
   const [reloadKey, setReloadKey] = useState(0);
 
   // Create form
@@ -68,16 +91,24 @@ export default function AdminLeaguesPage() {
     let cancelled = false;
     (async () => {
       try {
-        const response = await fetch('/api/admin/leagues');
+        const [leaguesRes, requestsRes] = await Promise.all([
+          fetch('/api/admin/leagues'),
+          fetch('/api/admin/league-requests'),
+        ]);
         if (cancelled) return;
-        if (response.status === 403) {
+        if (leaguesRes.status === 403) {
           setAuthorized(false);
           return;
         }
-        const data = await response.json();
+        const data = await leaguesRes.json();
         if (cancelled) return;
         setAuthorized(true);
         setLeagues(data.leagues ?? []);
+        // A failed requests fetch degrades to an empty queue, never a broken page.
+        if (requestsRes.ok) {
+          const rq = await requestsRes.json();
+          if (!cancelled) setPendingRequests(rq.requests ?? []);
+        }
       } catch {
         if (!cancelled) setAuthorized(false);
       }
@@ -108,6 +139,31 @@ export default function AdminLeaguesPage() {
       clearTimeout(timer);
     };
   }, [ownerQuery]);
+
+  const decide = async (requestId: string, decision: 'approve' | 'decline', reason?: string) => {
+    setActingId(requestId);
+    try {
+      const response = await fetch('/api/admin/league-requests', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ requestId, decision, ...(reason ? { reason } : {}) }),
+      });
+      const data = await response.json();
+      if (!response.ok) {
+        showError('Leagues', data.error || 'Decision failed');
+        return;
+      }
+      showSuccess('Leagues', decision === 'approve' ? 'League approved and created' : 'Request declined');
+      setDeclineOpenId(null);
+      setDeclineReason('');
+      setReloadKey(k => k + 1);
+    } catch (e) {
+      console.error('League request decision failed:', e);
+      showError('Leagues', 'Decision failed');
+    } finally {
+      setActingId(null);
+    }
+  };
 
   const create = async () => {
     if (creating) return;
@@ -191,6 +247,79 @@ export default function AdminLeaguesPage() {
             Leagues
           </h1>
         </div>
+
+        {/* Pending self-service requests (116) */}
+        {pendingRequests.length > 0 && (
+          <section className="bg-surface rounded-lg shadow-sm border border-border p-4 sm:p-6">
+            <h2 className="text-lg font-semibold text-primary mb-4">Pending requests</h2>
+            <ul className="space-y-3">
+              {pendingRequests.map(req => (
+                <li key={req.id} className="border border-border rounded-lg p-3">
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="font-medium text-primary">{req.name}</p>
+                      <p className="text-sm text-muted">
+                        {SPORT_REGISTRY[req.sport_key as keyof typeof SPORT_REGISTRY]?.display_name ?? req.sport_key}
+                        {(req.city || req.country) ? ` · ${[req.city, req.country].filter(Boolean).join(', ')}` : ''}
+                      </p>
+                      <p className="text-xs text-muted mt-1">
+                        By {req.requester
+                          ? formatDisplayName(req.requester.first_name, null, req.requester.last_name, req.requester.full_name)
+                          : 'Unknown'}
+                        {req.requester?.handle ? ` · @${req.requester.handle}` : ''}
+                        {` · ${new Date(req.created_at).toLocaleDateString()}`}
+                      </p>
+                      {req.description && (
+                        <p className="text-sm text-secondary mt-2 line-clamp-3">{req.description}</p>
+                      )}
+                    </div>
+                    <div className="flex flex-col items-end gap-2 shrink-0">
+                      <button
+                        type="button"
+                        disabled={actingId === req.id}
+                        onClick={() => decide(req.id, 'approve')}
+                        className="px-3 py-1.5 min-h-[36px] rounded-md text-xs font-medium bg-brand text-white hover:bg-brand-hover disabled:opacity-60"
+                      >
+                        Approve
+                      </button>
+                      <button
+                        type="button"
+                        disabled={actingId === req.id}
+                        onClick={() => {
+                          setDeclineOpenId(declineOpenId === req.id ? null : req.id);
+                          setDeclineReason('');
+                        }}
+                        className="px-3 py-1.5 min-h-[36px] rounded-md text-xs font-medium border border-border-strong text-secondary hover:bg-surface-sunken disabled:opacity-60"
+                      >
+                        Decline
+                      </button>
+                    </div>
+                  </div>
+                  {declineOpenId === req.id && (
+                    <div className="mt-3 flex flex-col sm:flex-row gap-2">
+                      <input
+                        type="text"
+                        value={declineReason}
+                        maxLength={500}
+                        onChange={e => setDeclineReason(e.target.value)}
+                        placeholder="Reason (required — shown to the requester)"
+                        className="flex-1 px-3 py-2 border border-border-strong rounded-md outline-none text-sm"
+                      />
+                      <button
+                        type="button"
+                        disabled={!declineReason.trim() || actingId === req.id}
+                        onClick={() => decide(req.id, 'decline', declineReason.trim())}
+                        className="px-3 py-2 min-h-[36px] rounded-md text-xs font-medium bg-red-600 text-white hover:bg-red-700 disabled:opacity-60"
+                      >
+                        Confirm decline
+                      </button>
+                    </div>
+                  )}
+                </li>
+              ))}
+            </ul>
+          </section>
+        )}
 
         {/* Create */}
         <section className="bg-surface rounded-lg shadow-sm border border-border p-4 sm:p-6">

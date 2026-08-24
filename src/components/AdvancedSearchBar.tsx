@@ -690,6 +690,23 @@ export default function AdvancedSearchBar() {
                   ))}
                 </div>
               )}
+
+              {/* Start-a-league door (116): pinned at the dropdown's bottom —
+                  also covers the zero-league-results case. Deliberately NOT a
+                  role="option" row: the flat navIndex arithmetic spans four
+                  sections, and a fifth participant churns every offset. */}
+              <div className="border-t border-border-subtle">
+                <button
+                  type="button"
+                  onClick={() => {
+                    router.push('/league/start');
+                    resetSearch();
+                  }}
+                  className="w-full px-4 py-3 text-left text-sm text-brand-fg hover:bg-surface-muted transition-colors"
+                >
+                  Start a league →
+                </button>
+              </div>
             </>
           )}
         </div>
