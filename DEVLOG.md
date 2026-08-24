@@ -1,5 +1,43 @@
 # Development Log
 
+## August 24, 2026 — Close-out: the search & location arc, end to end
+
+Maintenance pass at the end of the day: `npm run verify` green on `main`
+(typecheck, lint at zero warnings, 1574 tests, production build), tree
+clean, `main` = GitHub = Vercel production. What shipped today, in order,
+all merged and prod-probed:
+
+| PR | What | Migrations |
+|---|---|---|
+| #220 | Post-import catalog hardening: provider ADOPTION of OSM rows, DB-ordered two-pass search, browse order, honest thin rows | — |
+| #221 | Live rangefinder: hole yards on every width, draggable target, tee-in-play start, one interactive line | — |
+| #222–#224 | Same-name follow-ups; phone layout (icon-only map controls, single-line CTA) | — |
+| #225 | Hole-geometry robustness (Overpass in-band timeouts, Unicode tokenizer, self-ties, card once-guard) | — |
+| #226–#227 | The on-course GPS pass as an e2e spec; target clears on hole change | — |
+| #228–#229 | **Geo foundation**: `places` (GeoNames), course search engine (tokens AND'd, unaccent, filters, near-me, facets), SQL backfill; per-token ranking | 104–107 |
+| #230–#231 | **Users + clubs by location**; `PlacePicker`; ⌘K Location filter + courses type; Explore facets, Near me, deep link; specs | 108 |
+| #232 | Place aliases — "New York, NY" resolves | 109 |
+| #233 | admin2 + metro — "ottawa" 20 → 90 courses, globally by rule | 110 |
+
+Data state on prod: 28,968 courses (27,539 placed), 69,641 places with
+admin2 (57,410) and metro (44,155), 247,077 aliases. Spec suites added:
+`live-rangefinder`, `explore-course-search`, `people-location-search`.
+
+Still open by design, recorded in docs/SEARCH.md and memory: leagues
+(no table yet — they ship with the location model on creation), the
+`search_documents` / `search_all` unification once a third or fourth
+entity type is searchable, the four dead `lower()` indexes from
+migrations 100/101 (a drop migration when convenient), and the scoping-
+rule changes for hole geometry that need an Ottawa re-sweep to validate.
+
+Operational lessons that cost time today and are now in memory: a
+sourced `.env.local` leaks the logo token into vitest (run the gate in a
+fresh shell); gate every push on an explicit exit code, not on `&&`
+short-circuiting; a `cd` into the scratchpad persists for the rest of a
+command; Postgres `ts_rank` scores term proximity for AND queries; and the
+SQL editor runs a migration as one transaction, so re-runnable files with
+a SELECT check grid beat RAISE-on-failure every time.
+
 ## August 24, 2026 — admin2 + metro: "ottawa" includes the suburbs, everywhere
 
 After 104–109 "ottawa" found the 20 courses whose city IS Ottawa —
