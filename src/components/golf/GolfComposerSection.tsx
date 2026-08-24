@@ -768,7 +768,9 @@ export default function GolfComposerSection({
                       {selectedCourse.city && selectedCourse.state && ` (${selectedCourse.city}, ${selectedCourse.state})`}
                     </div>
                   )}
-                  {selectedCourse && <CourseInfoCard course={selectedCourse} />}
+                  {/* Keyed: a course swap remounts the card (and its Leaflet
+                      map) cleanly instead of re-using one instance's state. */}
+                  {selectedCourse && <CourseInfoCard key={selectedCourse.id} course={selectedCourse} />}
 
                   {/* Help text for manual entry */}
                   {!selectedCourse && sharedRoundDetails.courseName && (
