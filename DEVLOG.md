@@ -1,5 +1,36 @@
 # Development Log
 
+## August 24, 2026 — 114: the auth-cascade trigger-privilege trap
+
+The first e2e teardown after 112/113 failed: `auth.admin.deleteUser` returned
+"Database error deleting user" for any user whose profiles row still existed.
+Cause: deleting an auth user cascades auth.users → profiles, and that DELETE
+fires `profiles_search_doc_delete` AS **supabase_auth_admin** — a role with
+no privileges on `search_documents` (112 revoked ALL from PUBLIC/anon/
+authenticated and left RLS on with zero policies). The trigger errored and
+the whole deletion rolled back. The trap generalizes: **a trigger on a table
+that other roles' statements can touch must not depend on the INVOKER's
+privileges** — auth-side cascades run as supabase_auth_admin, not
+service_role.
+
+Blast radius, measured before fixing: the app's account deletion was never
+broken — `hardDeleteAccount` deletes the profiles row through the service
+role BEFORE `deleteUser`, so the cascade never fires the trigger as
+auth_admin. Signup is safe too (`handle_new_user` is SECURITY DEFINER, so
+the nested vector/doc triggers run as its owner). What broke was every
+auth-FIRST deletion: the e2e teardown and deleting a user from the Supabase
+dashboard.
+
+Fix: migration 114 makes all eleven search maintenance functions (6 doc
+sync/delete + 5 vector updates) **SECURITY DEFINER** — succeeding no matter
+which role's statement fires them is exactly what definer semantics are for,
+and every one already pins `SET search_path` (the definer-hygiene
+requirement). EXECUTE stays revoked from anon/authenticated. The e2e
+teardown also goes profile-first (hardDeleteAccount's order) as belt and
+braces. Diagnosis was cheap because the failure was reproducible from a
+script: service-role profile delete succeeded where the auth cascade failed
+— the role, not the SQL, was the variable.
+
 ## August 24, 2026 — Leagues: the first org-managed entity (migration 113)
 
 "League" had been vocabulary without a referent — an allowed-but-never-set
