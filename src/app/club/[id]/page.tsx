@@ -7,21 +7,20 @@ import { useAuth } from '@/lib/auth';
 import AppHeader from '@/components/AppHeader';
 import LazyImage from '@/components/LazyImage';
 import ConfirmModal from '@/components/ConfirmModal';
-import LeagueEditModal from '@/components/leagues/LeagueEditModal';
+import ClubEditModal from '@/components/clubs/ClubEditModal';
 import { useToast } from '@/components/Toast';
 import { formatDisplayName, getInitials } from '@/lib/formatters';
-import { SPORT_REGISTRY } from '@/lib/sports/SportRegistry';
 import { formatPlace, GEO_ATTRIBUTION } from '@/lib/geo/regions';
-import { MapPin, Trophy, Users } from 'lucide-react';
+import { MapPin, Building2, Users } from 'lucide-react';
 
-// The first non-profile entity with a public page (clubs followed in 117).
-// Search rows (⌘K) link here — no page, no link is the rule.
+// The club page (117) — mirror of /league/[id], minus sport: clubs are
+// multi-sport facilities by decision. Shipping this page is what makes the
+// ⌘K club rows navigable (no page, no link).
 
-export interface LeagueInfo {
+export interface ClubInfo {
   id: string;
   name: string;
   description: string | null;
-  sport_key: string;
   owner_profile_id: string | null;
   place_id: string | null;
   city: string | null;
@@ -31,6 +30,8 @@ export interface LeagueInfo {
   country_code: string | null;
   lat: number | null;
   lng: number | null;
+  /** Legacy free-text location (001) — the display fallback. */
+  location: string | null;
   created_at: string;
 }
 
@@ -50,35 +51,34 @@ interface MemberRow {
   profile: MemberProfile | null;
 }
 
-interface LeagueResponse {
-  league: LeagueInfo;
+interface ClubResponse {
+  club: ClubInfo;
   memberCount: number;
   members: MemberRow[];
   viewerRole: string | null;
 }
 
-export default function LeaguePage() {
+export default function ClubPage() {
   const params = useParams();
-  const leagueId = params.id as string;
+  const clubId = params.id as string;
   const { user } = useAuth();
   const { showError, showSuccess } = useToast();
 
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
-  const [data, setData] = useState<LeagueResponse | null>(null);
+  const [data, setData] = useState<ClubResponse | null>(null);
   const [busy, setBusy] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
   const [removeTarget, setRemoveTarget] = useState<MemberRow | null>(null);
   const [reloadKey, setReloadKey] = useState(0);
 
   useEffect(() => {
-    // cancelled guard: navigating /league/a → /league/b keeps this mounted.
     let cancelled = false;
     (async () => {
-      if (!leagueId) return;
+      if (!clubId) return;
       try {
         setLoading(true);
-        const response = await fetch(`/api/leagues/${encodeURIComponent(leagueId)}`);
+        const response = await fetch(`/api/clubs/${encodeURIComponent(clubId)}`);
         const body = await response.json();
         if (cancelled) return;
         if (!response.ok) {
@@ -86,17 +86,17 @@ export default function LeaguePage() {
           return;
         }
         setNotFound(false);
-        setData(body as LeagueResponse);
+        setData(body as ClubResponse);
       } catch (e) {
         if (cancelled) return;
-        console.error('Failed to load league:', e);
+        console.error('Failed to load club:', e);
         setNotFound(true);
       } finally {
         if (!cancelled) setLoading(false);
       }
     })();
     return () => { cancelled = true; };
-  }, [leagueId, reloadKey]);
+  }, [clubId, reloadKey]);
 
   const refresh = useCallback(() => setReloadKey(k => k + 1), []);
 
@@ -104,19 +104,19 @@ export default function LeaguePage() {
     if (busy) return;
     setBusy(true);
     try {
-      const response = await fetch(`/api/leagues/${encodeURIComponent(leagueId)}/members`, {
+      const response = await fetch(`/api/clubs/${encodeURIComponent(clubId)}/members`, {
         method: 'POST',
       });
       const body = await response.json();
       if (!response.ok) {
-        showError('League', body.error || 'Something went wrong');
+        showError('Club', body.error || 'Something went wrong');
         return;
       }
-      showSuccess('League', body.action === 'joined' ? 'You joined the league' : 'You left the league');
+      showSuccess('Club', body.action === 'joined' ? 'You joined the club' : 'You left the club');
       refresh();
     } catch (e) {
       console.error('Membership toggle failed:', e);
-      showError('League', 'Something went wrong');
+      showError('Club', 'Something went wrong');
     } finally {
       setBusy(false);
     }
@@ -125,7 +125,7 @@ export default function LeaguePage() {
   const changeRole = async (target: MemberRow, role: 'manager' | 'member') => {
     try {
       const response = await fetch(
-        `/api/leagues/${encodeURIComponent(leagueId)}/members?profileId=${encodeURIComponent(target.profile_id)}`,
+        `/api/clubs/${encodeURIComponent(clubId)}/members?profileId=${encodeURIComponent(target.profile_id)}`,
         {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
@@ -134,33 +134,33 @@ export default function LeaguePage() {
       );
       const body = await response.json();
       if (!response.ok) {
-        showError('League', body.error || 'Failed to change role');
+        showError('Club', body.error || 'Failed to change role');
         return;
       }
-      showSuccess('League', role === 'manager' ? 'Manager added' : 'Manager removed');
+      showSuccess('Club', role === 'manager' ? 'Manager added' : 'Manager removed');
       refresh();
     } catch (e) {
       console.error('Role change failed:', e);
-      showError('League', 'Failed to change role');
+      showError('Club', 'Failed to change role');
     }
   };
 
   const removeMember = async (target: MemberRow) => {
     try {
       const response = await fetch(
-        `/api/leagues/${encodeURIComponent(leagueId)}/members?profileId=${encodeURIComponent(target.profile_id)}`,
+        `/api/clubs/${encodeURIComponent(clubId)}/members?profileId=${encodeURIComponent(target.profile_id)}`,
         { method: 'DELETE' }
       );
       const body = await response.json();
       if (!response.ok) {
-        showError('League', body.error || 'Failed to remove member');
+        showError('Club', body.error || 'Failed to remove member');
         return;
       }
-      showSuccess('League', 'Member removed');
+      showSuccess('Club', 'Member removed');
       refresh();
     } catch (e) {
       console.error('Remove member failed:', e);
-      showError('League', 'Failed to remove member');
+      showError('Club', 'Failed to remove member');
     } finally {
       setRemoveTarget(null);
     }
@@ -173,7 +173,7 @@ export default function LeaguePage() {
         <div className="flex items-center justify-center py-20">
           <div className="text-center">
             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-brand mx-auto"></div>
-            <p className="mt-3 text-tertiary">Loading league...</p>
+            <p className="mt-3 text-tertiary">Loading club...</p>
           </div>
         </div>
       </div>
@@ -187,10 +187,10 @@ export default function LeaguePage() {
         <div className="flex items-center justify-center py-20">
           <div className="text-center max-w-md mx-auto px-4">
             <div className="w-16 h-16 bg-surface-sunken rounded-full flex items-center justify-center mx-auto mb-4">
-              <Trophy className="w-8 h-8 text-faint" />
+              <Building2 className="w-8 h-8 text-faint" />
             </div>
-            <h1 className="text-2xl font-bold text-primary mb-2">League Not Found</h1>
-            <p className="text-tertiary mb-6">This league does not exist or is no longer available.</p>
+            <h1 className="text-2xl font-bold text-primary mb-2">Club Not Found</h1>
+            <p className="text-tertiary mb-6">This club does not exist or is no longer available.</p>
             <Link
               href="/feed"
               className="inline-flex items-center px-4 py-2 bg-brand text-white rounded-lg hover:bg-brand-hover transition-colors"
@@ -203,13 +203,12 @@ export default function LeaguePage() {
     );
   }
 
-  const { league, memberCount, members, viewerRole } = data;
-  const sportLabel =
-    SPORT_REGISTRY[league.sport_key as keyof typeof SPORT_REGISTRY]?.display_name ?? league.sport_key;
-  const placeLine = formatPlace({ city: league.city, region: league.region, country: league.country });
+  const { club, memberCount, members, viewerRole } = data;
+  const placeLine =
+    formatPlace({ city: club.city, region: club.region, country: club.country }) || club.location;
   const canManage =
-    viewerRole === 'owner' || viewerRole === 'manager' || (!!user && user.id === league.owner_profile_id);
-  const isOwner = viewerRole === 'owner' || (!!user && user.id === league.owner_profile_id);
+    viewerRole === 'owner' || viewerRole === 'manager' || (!!user && user.id === club.owner_profile_id);
+  const isOwner = viewerRole === 'owner' || (!!user && user.id === club.owner_profile_id);
 
   return (
     <div className="min-h-screen bg-canvas">
@@ -221,12 +220,8 @@ export default function LeaguePage() {
           <div className="px-4 sm:px-6 py-5">
             <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
               <div className="min-w-0">
-                <h1 className="text-2xl font-bold text-primary break-words">{league.name}</h1>
+                <h1 className="text-2xl font-bold text-primary break-words">{club.name}</h1>
                 <div className="mt-2 flex flex-wrap gap-x-4 gap-y-2 text-sm text-tertiary">
-                  <span className="inline-flex items-center gap-1">
-                    <Trophy className="w-4 h-4" />
-                    {sportLabel}
-                  </span>
                   {placeLine && (
                     <span className="inline-flex items-center gap-1">
                       <MapPin className="w-4 h-4" />
@@ -238,8 +233,8 @@ export default function LeaguePage() {
                     {memberCount} {memberCount === 1 ? 'member' : 'members'}
                   </span>
                 </div>
-                {league.description && (
-                  <p className="mt-3 text-secondary max-w-xl whitespace-pre-wrap">{league.description}</p>
+                {club.description && (
+                  <p className="mt-3 text-secondary max-w-xl whitespace-pre-wrap">{club.description}</p>
                 )}
               </div>
 
@@ -264,7 +259,7 @@ export default function LeaguePage() {
                           : 'bg-brand text-white hover:bg-brand-hover'
                       }`}
                     >
-                      {viewerRole ? 'Leave league' : 'Join league'}
+                      {viewerRole ? 'Leave club' : 'Join club'}
                     </button>
                   )
                 )}
@@ -274,7 +269,7 @@ export default function LeaguePage() {
                     onClick={() => setEditOpen(true)}
                     className="px-4 py-2 text-sm min-h-[40px] rounded-lg border border-border-strong text-secondary hover:bg-surface-sunken transition-colors"
                   >
-                    Edit league
+                    Edit club
                   </button>
                 )}
               </div>
@@ -318,8 +313,7 @@ export default function LeaguePage() {
                         )}
                       </div>
                     </Link>
-                    {/* Role controls are OWNER-only (managers hold powers,
-                        they don't mint peers). One-click and reversible, so
+                    {/* Role controls are OWNER-only; reversible one-click, so
                         no confirm — that stays on the destructive remove. */}
                     {isOwner && member.role === 'member' && member.profile_id !== user?.id && (
                       <button
@@ -359,16 +353,14 @@ export default function LeaguePage() {
           )}
         </div>
 
-        {/* GeoNames attribution — rendered only when place-derived fields do
-            (docs/SEARCH.md). */}
-        {placeLine && (
+        {formatPlace({ city: club.city, region: club.region, country: club.country }) && (
           <div className="mt-4 px-1 text-[10px] text-faint">{GEO_ATTRIBUTION}</div>
         )}
       </div>
 
       {editOpen && (
-        <LeagueEditModal
-          league={league}
+        <ClubEditModal
+          club={club}
           onClose={() => setEditOpen(false)}
           onSaved={() => {
             setEditOpen(false);
@@ -382,8 +374,8 @@ export default function LeaguePage() {
         title="Remove member"
         message={
           removeTarget?.profile
-            ? `Remove ${formatDisplayName(removeTarget.profile.first_name, null, removeTarget.profile.last_name, removeTarget.profile.full_name)} from ${league.name}?`
-            : `Remove this member from ${league.name}?`
+            ? `Remove ${formatDisplayName(removeTarget.profile.first_name, null, removeTarget.profile.last_name, removeTarget.profile.full_name)} from ${club.name}?`
+            : `Remove this member from ${club.name}?`
         }
         confirmText="Remove"
         confirmButtonClass="bg-red-600 hover:bg-red-700 text-white"

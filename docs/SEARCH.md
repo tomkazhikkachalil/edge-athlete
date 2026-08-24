@@ -101,6 +101,7 @@ match against `places` (108's `backfill_places_from_text` does this for
 | Header ⌘K | people (names), posts, clubs | Location filter (place → 50 km); people and clubs match and DISPLAY location (108); + Golf Courses type ✅ |
 | ⌘K → Leagues | — | league rows (113), navigable to `/league/[id]`, place + sport subtitle ✅ |
 | ⌘K filter panel | type/sport/school/place | + live facet counts: per-type totals, Country → Region selects (`search_all_facets`) ✅ |
+| ⌘K → Clubs | inert rows (no page) | navigable to `/club/[id]` (117) ✅ |
 | Profile location | free text | place picker (`search_places`); free text kept as the display string |
 
 ## `search_all` (the mini-Google endpoint) — shipped in 112

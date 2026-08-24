@@ -69,6 +69,9 @@ export const RATE_LIMITS = {
   // queue; 3/day per user keeps a griefing account from flooding it while
   // never touching a genuine requester (one pending at a time anyway).
   'league-request': { max: 3, windowSeconds: 86400, keyBy: 'user' },
+  // Clubs mirror the league buckets (117): same shapes, same rationale.
+  'club-join': { max: 30, windowSeconds: 3600, keyBy: 'user' },
+  'club-request': { max: 3, windowSeconds: 86400, keyBy: 'user' },
 } as const satisfies Record<string, RateLimitRule>;
 
 export type RateLimitAction = keyof typeof RATE_LIMITS;

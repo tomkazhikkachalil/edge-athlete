@@ -134,7 +134,9 @@ export async function hardDeleteAccount(
   await admin.from('performances').delete().eq('profile_id', userId);
   await admin.from('athlete_badges').delete().eq('profile_id', userId);
   await admin.from('sport_settings').delete().eq('profile_id', userId);
-  await admin.from('athlete_clubs').delete().eq('athlete_id', userId);
+  // Club membership needs no explicit step since 117: club_members and
+  // club_requests CASCADE from profiles, and an owned club goes ownerless
+  // via owner_profile_id's SET NULL (athlete_clubs itself was dropped).
   // Group rounds: participant rows key on profile_id; created rounds'
   // participants/scorecards cascade.
   await admin.from('group_post_participants').delete().eq('profile_id', userId);
