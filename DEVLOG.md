@@ -1,5 +1,32 @@
 # Development Log
 
+## August 24, 2026 — Club↔league affiliation (migration 118): the handshake
+
+The last deferred item of the search-and-orgs program. Tom's shape: a
+SYMMETRIC handshake — a league owner/manager invites a club, or a club
+owner/manager requests a league, and the OPPOSITE side's owner/manager
+accepts. league_clubs: PK (league_id, club_id) both CASCADE, status
+pending/active, initiated_by league/club, requester/decider SET NULL (the
+affiliation is an org-to-org fact that outlives the clicker).
+
+The design's spine, worth keeping: **accept-side authorization derives from
+row.initiated_by, never from which route was called** — both routes can
+accept, both refuse self-acceptance, and the whole authorization matrix
+lives ONCE in src/lib/affiliations/server.ts with the two routes as thin
+wrappers. Decline, withdraw and dissolve all DELETE the row (a kept
+'declined' state would permanently block re-inviting via the PK; the audit
+trail is the notifications; the 'affiliation' rate bucket backstops
+re-invite spam). The PK doubles as the duplicate authority (23505 → 409).
+Accept uses the 116 optimistic-concurrency claim. The AffiliationSection
+component is shared by both org pages (side prop) — the one genuinely
+symmetric piece of UI in the org suite, unlike the org pages themselves
+which stay parallel on purpose.
+
+117's front-loaded notification types paid off immediately: 118 touches no
+CHECK, and its grid just verifies the front-load reached the database. The
+e2e spec needs NO admin — both sides are QA-user-ownable, so the whole
+handshake drives through the real UI.
+
 ## August 24, 2026 — Clubs become real (migration 117): the league treatment
 
 Clubs were four demo rows behind a wall of "later": no owner, no page, no

@@ -8,6 +8,7 @@ import AppHeader from '@/components/AppHeader';
 import LazyImage from '@/components/LazyImage';
 import ConfirmModal from '@/components/ConfirmModal';
 import LeagueEditModal from '@/components/leagues/LeagueEditModal';
+import AffiliationSection from '@/components/affiliations/AffiliationSection';
 import { useToast } from '@/components/Toast';
 import { formatDisplayName, getInitials } from '@/lib/formatters';
 import { SPORT_REGISTRY } from '@/lib/sports/SportRegistry';
@@ -358,6 +359,8 @@ export default function LeaguePage() {
             <p className="mt-3 text-xs text-muted">Showing {members.length} of {memberCount} members.</p>
           )}
         </div>
+
+        <AffiliationSection side="league" orgId={league.id} />
 
         {/* GeoNames attribution — rendered only when place-derived fields do
             (docs/SEARCH.md). */}

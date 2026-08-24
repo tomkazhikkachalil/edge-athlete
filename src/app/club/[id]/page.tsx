@@ -8,6 +8,7 @@ import AppHeader from '@/components/AppHeader';
 import LazyImage from '@/components/LazyImage';
 import ConfirmModal from '@/components/ConfirmModal';
 import ClubEditModal from '@/components/clubs/ClubEditModal';
+import AffiliationSection from '@/components/affiliations/AffiliationSection';
 import { useToast } from '@/components/Toast';
 import { formatDisplayName, getInitials } from '@/lib/formatters';
 import { formatPlace, GEO_ATTRIBUTION } from '@/lib/geo/regions';
@@ -352,6 +353,8 @@ export default function ClubPage() {
             <p className="mt-3 text-xs text-muted">Showing {members.length} of {memberCount} members.</p>
           )}
         </div>
+
+        <AffiliationSection side="club" orgId={club.id} />
 
         {formatPlace({ city: club.city, region: club.region, country: club.country }) && (
           <div className="mt-4 px-1 text-[10px] text-faint">{GEO_ATTRIBUTION}</div>
