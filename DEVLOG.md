@@ -31,6 +31,32 @@ per-member notification amplifier, and calendar had no bucket at all.
 Deliberately silent: PATCH attaching an org to an existing event (the
 decision covered create + cancel). Flagged for later if it feels wrong.
 
+## August 24, 2026 — Fan-out round PR 2: the feed's "My orgs" lens
+
+The second parked follow-up, decided the way close-out II framed it: the
+lens is a SCOPE, not an access grant. `GET /api/posts?scope=orgs` shows
+posts authored by the viewer's org peers, restricted to content that is
+ALREADY anonymous-visible (post public AND author profile public — the
+activity-server / /u/ rule; enforced by the shared `isOrgLensVisible`).
+The meaningful grant — co-membership unlocking followers-visible posts —
+stays declined while org join is open: anyone could join an org to read a
+private member's posts. Tom confirmed both halves 2026-08-24.
+
+Mechanics: peer set = union of members across the viewer's leagues+clubs
+(`src/lib/affiliations/org-peers.ts`, capped at 2000 for the `.in()`),
+resolved up front so anonymous viewers and org-less viewers get their
+empty envelope (`noOrgs` drives the join-orgs empty state) without
+touching posts. The scope is applied IN SQL (`.in(profile_id).eq(
+visibility, public)` + the strict published-only arm even for the author)
+so offset pagination stays coherent; the main feed's three-rule filter and
+its org placeholder comment are untouched. Feed page grows All / My orgs
+pills; the realtime prepend (follow-scoped — wrong population) is skipped
+in org scope.
+
+New: org-peers module + unit tests, `e2e/org-feed-lens.spec.ts` (peer's
+public post shows; the same post disappears when the author flips private;
+anonymous scope=orgs is an empty envelope).
+
 ## August 24, 2026 — Fan-out round PR 1: calendar read-time org merge
 
 The first parked follow-up lands, the way the 119 header promised it would

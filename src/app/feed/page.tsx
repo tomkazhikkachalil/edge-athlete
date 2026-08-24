@@ -142,6 +142,25 @@ export default function FeedPage() {
   const [page, setPage] = useState(0);
   const { showError, showSuccess } = useToast();
 
+  // "All" vs "My orgs" lens. The lens is a SCOPE over already-public posts
+  // (server-enforced) — switching it swaps the whole list. Ref mirror for
+  // the realtime closure, kept in sync in the click handler.
+  const [feedScope, setFeedScope] = useState<'all' | 'orgs'>('all');
+  const feedScopeRef = useRef<'all' | 'orgs'>('all');
+  // noOrgs distinguishes "you belong to nothing yet" from "your orgs are quiet".
+  const [noOrgs, setNoOrgs] = useState(false);
+
+  const switchScope = (scope: 'all' | 'orgs') => {
+    if (scope === feedScope) return;
+    feedScopeRef.current = scope;
+    setFeedScope(scope);
+    setPosts([]);
+    setPage(0);
+    setHasMore(true);
+    setNoOrgs(false);
+    // The [user, feedScope] effect below refetches with the new scope.
+  };
+
   // Redirect to login if not authenticated
   useEffect(() => {
     if (!loading && !user) {
@@ -149,13 +168,13 @@ export default function FeedPage() {
     }
   }, [user, loading, router]);
 
-  // Load feed on mount
+  // Load feed on mount and on scope switch
   useEffect(() => {
     if (user) {
       loadFeed();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user]);
+  }, [user, feedScope]);
 
   // The athlete's own sport drives composer defaults + empty-state copy
   const profileSportKey = resolveSportKey(profile?.sport);
@@ -233,6 +252,9 @@ export default function FeedPage() {
           filter: `visibility=eq.public`
         },
         async (payload: RealtimePostPayload) => {
+          // Org lens: no live prepends — the follow-scoped stream is the
+          // wrong population, and the next load has anything new.
+          if (feedScopeRef.current === 'orgs') return;
           // Own posts are handled by handlePostCreated (with full data);
           // skip here to avoid a duplicate. Others: only followed authors.
           const authorId = payload.new.profile_id;
@@ -286,15 +308,17 @@ export default function FeedPage() {
 
       const currentPage = loadMore ? page + 1 : 0;
       const offset = currentPage * 20;
-      
-      const response = await fetch(`/api/posts?limit=20&offset=${offset}`);
-      
+
+      const scopeParam = feedScope === 'orgs' ? '&scope=orgs' : '';
+      const response = await fetch(`/api/posts?limit=20&offset=${offset}${scopeParam}`);
+
       if (!response.ok) {
         throw new Error('Failed to load feed');
       }
-      
+
       const data = await response.json();
       const newPosts = data.posts || [];
+      if (!loadMore) setNoOrgs(Boolean(data.noOrgs));
       
       if (loadMore) {
         // Dedupe on append as a second line of defense
@@ -555,6 +579,26 @@ export default function FeedPage() {
                 ticker; opens the round via the existing deep-link modal) */}
             <LiveNowStrip />
 
+            {/* Feed scope: All vs My orgs (a lens over already-public posts) */}
+            <div className="flex gap-2" role="tablist" aria-label="Feed scope">
+              {([['all', 'All'], ['orgs', 'My orgs']] as const).map(([value, label]) => (
+                <button
+                  key={value}
+                  type="button"
+                  role="tab"
+                  aria-selected={feedScope === value}
+                  onClick={() => switchScope(value)}
+                  className={`px-4 py-2 min-h-[44px] rounded-full text-sm font-medium transition-colors ${
+                    feedScope === value
+                      ? 'bg-brand text-white'
+                      : 'bg-surface text-tertiary border border-border-strong hover:bg-surface-sunken'
+                  }`}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+
             {/* Posts Feed */}
             {/* No background or border of its own: each PostCard already draws
                     border-2 border-border-strong, and wrapping them in a box with
@@ -578,6 +622,29 @@ export default function FeedPage() {
                       <div className="h-4 bg-gray-200 dark:bg-stone-800 rounded w-3/4"></div>
                     </div>
                   ))}
+                </div>
+              ) : posts.length === 0 && feedScope === 'orgs' ? (
+                <div className="bg-surface rounded-lg shadow-md border-2 border-border-strong p-8 text-center">
+                  <div className="mb-4 text-violet-500">
+                    <i className="fas fa-people-group text-4xl"></i>
+                  </div>
+                  <h3 className="text-lg font-medium text-primary mb-2">
+                    {noOrgs ? 'Join a league or club' : 'Your orgs are quiet'}
+                  </h3>
+                  <p className="text-tertiary mb-6">
+                    {noOrgs
+                      ? 'Posts from your leagues and clubs show up here once you join one.'
+                      : 'No public posts from your leagues and clubs yet.'}
+                  </p>
+                  {noOrgs && (
+                    <Link
+                      href="/explore"
+                      className="inline-block bg-surface-sunken text-secondary px-6 py-3 rounded-lg hover:bg-gray-200 dark:hover:bg-stone-800 transition-colors font-medium"
+                    >
+                      <i className="fas fa-binoculars mr-2"></i>
+                      Find leagues &amp; clubs
+                    </Link>
+                  )}
                 </div>
               ) : posts.length === 0 ? (
                 <div className="bg-surface rounded-lg shadow-md border-2 border-border-strong p-8 text-center">

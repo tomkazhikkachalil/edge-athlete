@@ -12,6 +12,7 @@ import { normalizePostIdentity } from '@/lib/posts/post-category';
 import { createGolfRoundEntities } from '@/lib/golf/post-write';
 import { fetchGolfRoundById, fetchGolfRoundsByIds } from '@/lib/golf/post-read';
 import { enforceRateLimit } from '@/lib/rate-limit';
+import { isOrgLensVisible } from '@/lib/affiliations/org-peers';
 
 // Interface for tagged profiles
 interface TaggedProfile {
@@ -553,6 +554,10 @@ export async function GET(request: NextRequest) {
     // pinned=true → only the profile's Featured (pinned) posts, newest pin
     // first. Same privacy filters as the normal list apply below.
     const pinnedOnly = searchParams.get('pinned') === 'true';
+    // scope=orgs → the feed's "My orgs" lens: posts by the viewer's org
+    // peers, restricted to ALREADY anonymous-visible content. A scope, not
+    // an access grant — main-feed only (ignored on profile/pinned modes).
+    const orgScope = searchParams.get('scope') === 'orgs' && !userId && !pinnedOnly;
     // Guard against NaN (e.g. ?limit=abc) which would produce an invalid
     // .range() and 500. Clamp to sane bounds.
     const limit = Math.min(Math.max(parseInt(searchParams.get('limit') || '20', 10) || 20, 1), 100);
@@ -819,6 +824,20 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ post: transformedPost });
     }
 
+    // Org lens: resolve the peer set up front — anonymous viewers and
+    // viewers with no orgs get their empty envelope without touching posts.
+    let orgPeerIds: string[] = [];
+    if (orgScope) {
+      if (!currentUserId) {
+        return NextResponse.json({ posts: [], hasMore: false });
+      }
+      const { getOrgPeerIds } = await import('@/lib/affiliations/org-peers');
+      orgPeerIds = await getOrgPeerIds(supabase, currentUserId);
+      if (orgPeerIds.length === 0) {
+        return NextResponse.json({ posts: [], hasMore: false, noOrgs: true });
+      }
+    }
+
     // Fetch posts with profile and follow relationship info
     let query = supabase
       .from('posts')
@@ -860,13 +879,22 @@ export async function GET(request: NextRequest) {
       query = query.eq('profile_id', userId);
     }
 
+    // Org lens: SQL-level scope (keeps offset pagination coherent) — peers
+    // only, public posts only; the author-visibility half of the rule is
+    // applied in the filter below.
+    if (orgScope) {
+      query = query.in('profile_id', orgPeerIds).eq('visibility', 'public');
+    }
+
     // Approval queue: unpublished posts never reach list surfaces — EXCEPT
     // for their own author (Round D, mirroring the comments viewer clause):
     // a supervised child must see their pending/rejected posts on their own
     // surfaces instead of watching them silently vanish.
     // Flag-gated — posts.status doesn't exist until migration 051 runs.
+    // The org lens takes the strict published-only arm even for the author —
+    // pending posts have no place in an org schedule of public content.
     if (FEATURE_FLAGS.FEATURE_GUARDIAN_PROFILES) {
-      query = currentUserId
+      query = currentUserId && !orgScope
         ? query.or(`status.eq.published,profile_id.eq.${currentUserId}`)
         : query.eq('status', 'published');
     }
@@ -907,6 +935,12 @@ export async function GET(request: NextRequest) {
 
       const postOwner = post.profiles;
       const isOwnPost = currentUserId === post.profile_id;
+
+      // Org lens: strictly anonymous-visible content (the activity-server
+      // rule) — no own-post or follow exceptions widen it.
+      if (orgScope) {
+        return isOrgLensVisible(post.visibility, postOwner.visibility);
+      }
 
       // Rule 1: User can always see their own posts
       if (isOwnPost) {
