@@ -1,5 +1,33 @@
 # Development Log
 
+## August 24, 2026 — The rangefinder's on-course GPS pass, emulated on prod
+
+Tom: "Why can't we do the on-course GPS?" We could — it had been filed as
+device-only by reflex. Playwright grants the geolocation permission and feeds
+coordinates, and a stubbed `navigator.geolocation.watchPosition` reaches the
+error branches a real course rarely does. Run against PRODUCTION with a
+disposable QA user and a private round at the seeded Ottawa Eagle Creek:
+
+| step | result |
+|---|---|
+| open the map, permission already granted | tracking auto-starts silently; one player marker |
+| standing on the tee | **388 yds to green** — matches the geometry exactly |
+| target dropped on the green | `388 to target · 0 to green`, no "from tee" — measured from the live fix |
+| walk to mid-hole | to-green **194**, target leg 194, still one marker |
+| on the green | **0 yds to green** |
+| Re-center | offered while focused + tracking; click keeps tracking |
+| "couch peek" from downtown Ottawa | to-green pill hides (1500-yd cap); the target pill keeps counting |
+| `TIMEOUT` from the GPS (stubbed) | tracking survives and the next fix is drawn — the transient rule |
+| `PERMISSION_DENIED` (stubbed) | tracking stops with the permission message |
+| console | clean |
+
+15/15. It now lives in the suite as `e2e/live-rangefinder.spec.ts` (runs
+under `npm run test:e2e`, `test:e2e:prod`, and CI's smoke job), discovering
+the course by search rather than a hardcoded id and skipping with a reason
+if the geometry isn't cached. What only a real phone can still add: GPS
+jitter under tree cover, iOS Safari's sleep/background behaviour, and
+dragging the target elbow with a gloved thumb — polish, not a gate.
+
 ## August 24, 2026 — Hole-geometry robustness: the parked #216–#218 review findings
 
 The correctness review of the boundary-scoping and card-preview commits
