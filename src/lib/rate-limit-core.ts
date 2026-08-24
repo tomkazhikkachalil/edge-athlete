@@ -72,6 +72,10 @@ export const RATE_LIMITS = {
   // Clubs mirror the league buckets (117): same shapes, same rationale.
   'club-join': { max: 30, windowSeconds: 3600, keyBy: 'user' },
   'club-request': { max: 3, windowSeconds: 86400, keyBy: 'user' },
+  // Affiliation invites/requests (118) — org-manager actions; 20/h never
+  // touches a real manager and, with delete-on-decline, is the backstop
+  // against re-invite spam.
+  affiliation: { max: 20, windowSeconds: 3600, keyBy: 'user' },
 } as const satisfies Record<string, RateLimitRule>;
 
 export type RateLimitAction = keyof typeof RATE_LIMITS;
