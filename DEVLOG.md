@@ -38,6 +38,22 @@ the column — it's unconstrained text; row ids are DB-generated):
 The import itself is ops (scratchpad harvest script, dry-run → apply),
 recorded here when run. Test count 1520 → 1527.
 
+**Import run (Aug 23 evening, ops):** 40 bbox chunks via the Overpass mirror
+ladder → 30,067 elements; 482 filtered (ranges/mini-putt/no coords), 568
+within-OSM duplicates (EXACT name ~2 km — token overlap would have collapsed
+real siblings like Rockland East/West/South), 54 cross-source skips. **28,899
+rows inserted; catalog 68 → 28,967.** Ottawa region: 56 new courses (62
+total), prod-search verified (Kanata, Loch March, GreyHawk). Ops lessons:
+kumi.systems throttles to 21-byte stubs after sustained use (overpass-api.de
+recovered); central Europe needed 3 sub-boxes; 500-row PostgREST batches died
+("other side closed") — 100-row batches + retry + 150 ms pacing landed clean,
+and the cross-dedupe makes re-runs resumable for free. A same-day geometry
+sweep for the Ottawa region added hole-by-hole for 12 more courses (Kanata,
+Loch March, Cedarhill, Tecumseh, Champlain, Gatineau, …) before exhausting
+the 200/day Overpass budget — the remaining ~26 self-heal lazily on first
+map open or on a re-run after the budget window resets. **Migration 103 was
+owed at import time** — until it runs, course search seq-scans 29k rows.
+
 ## August 23, 2026 — Boundary-scoped hole geometry: multi-course facilities
 
 Tom, after the catalog-wide geometry pre-fetch: "Why aren't all the Ottawa
