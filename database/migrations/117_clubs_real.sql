@@ -42,8 +42,10 @@ REVOKE ALL ON clubs FROM PUBLIC, anon, authenticated;
 -- backfill (112, owner_id NULL — always public). Nothing recreated here.
 
 -- ── athlete_clubs: retired ───────────────────────────────────────────────────
-DROP POLICY IF EXISTS "Users can view their own club associations" ON athlete_clubs;
-DROP POLICY IF EXISTS "Users can manage their own club associations" ON athlete_clubs;
+-- DROP TABLE alone: it removes the table's policies with it, and a separate
+-- DROP POLICY IF EXISTS would 42P01 on a RE-run once the table is gone —
+-- IF EXISTS guards the POLICY, not the TABLE (found by Tom's idempotence
+-- re-run, Aug 24; the first run was unaffected).
 DROP TABLE IF EXISTS athlete_clubs;
 
 -- ── club_members (verbatim league_members mirror) ────────────────────────────
