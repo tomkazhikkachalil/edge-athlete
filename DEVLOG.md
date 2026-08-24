@@ -26,6 +26,42 @@ New: org-peers module + unit tests, `e2e/org-feed-lens.spec.ts` (peer's
 public post shows; the same post disappears when the author flips private;
 anonymous scope=orgs is an empty envelope).
 
+## August 24, 2026 — Fan-out round PR 1: calendar read-time org merge
+
+The first parked follow-up lands, the way the 119 header promised it would
+be decided: NOT by writing guest rows. A member's calendar GET now MERGES
+their leagues'/clubs' active events at read time (two indexed queries over
+the 119 partial indexes), minus any event they hold their OWN guest row on —
+the row, whatever its status, is authoritative. Rationale over write-side
+fan-out: open-join membership is uncapped while events cap at MAX_GUESTS,
+series materialize ≤104 occurrences each, and written rows would miss
+late joiners. Merged items arrive `my_status: null, is_org_event: true,
+org_name` (chips render solid with a people marker; null tolerates every
+`=== 'invited'` check).
+
+The loop that makes it real: the detail gate (`loadEventForViewer`, now
+returning `{event, access}`) admits org members — org events are on the
+public org page, so nothing new leaks — and the respond route lets a member
+with no guest row CREATE one with their first RSVP (plain insert + 23505
+race-fallback, NOT upsert: `idx_event_guests_profile_unique` is PARTIAL and
+PostgREST's on_conflict can't target it). From there the existing reminder
+machinery just works, and a decline hides the org event for good (the merge
+drops own-row events). The ICS subscribe feed merges the same way, with
+recently-cancelled org events emitting STATUS:CANCELLED.
+
+Bug found while wiring: the series CREATE path builds its occurrence
+template by hand and omitted league_id/club_id — every recurring org
+event's occurrences silently lost their org link (extendRecurringSeries
+copied them correctly; only create was broken). Fixed here; prod probe owed
+on whether any pre-fix org series exist (likely zero).
+
+New: `src/lib/calendar/org-merge-server.ts` (pure `mergeOrgEvents` +
+`fetchOrgEventsForViewer`, unit-tested), `e2e/org-calendar.spec.ts` (member
+sees → opens → RSVPs → declines-and-stays-hidden). Guardian calendar reads
+merge the CHILD's orgs by construction (readAs). Merge failures are
+best-effort like the activity overlay — the calendar never goes down with
+the org tables.
+
 ## August 24, 2026 — Close-out II: orgs and connections, end to end
 
 Second maintenance pass of the day (the first closed the search & location
