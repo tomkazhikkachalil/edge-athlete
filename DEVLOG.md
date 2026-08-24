@@ -41,8 +41,29 @@ No sanity cap on the target (the player placed it). Design points:
 
 Internal to `CourseMapInner` — no new props; wherever `holes` + `focusHole`
 are passed (today the live page; the card previews' stepper too, which is
-harmless and useful pre-round). Test count 1539 → 1546. Owed: Tom's
+harmless and useful pre-round). Test count 1527 → 1536 (with the refinements below). Owed: Tom's
 on-course pass (the same one the to-green pill is waiting on).
+
+**Same day, after Tom's first look ("looking amazing", two asks):**
+
+- *"It auto-selects the furthest-away tee box."* The OSM way starts at its
+  first node — the back tee — so the line, the tee label and every "from
+  tee" number started from the tips. The cached geometry has no `golf=tee`
+  features to match against, but the round already carries the selected
+  tee's scorecard yardage per hole, so `trimLineToYards` (pure) walks back
+  from the green along the drawn line by exactly that yardage and starts
+  the hole there. Exact w.r.t. the scorecard, no OSM tee data, no re-sweep;
+  memoised on the live page so the map's effects don't churn. Rounds with
+  no per-hole yardage (OSM-only courses, manual rounds without yards) keep
+  the full line — the honest fallback; `golf=tee` + `colour` matching is a
+  follow-up only if that proves insufficient on real courses.
+- *"An additional line is created — just have the single line and interact
+  with that."* The dashed origin→target and target→green legs are gone.
+  The hole line is now the one line: straight tee-in-play→green until a
+  target exists, then origin→target→green with the orange ring as the
+  elbow you drag. Tapping the line itself places the elbow (Leaflet paths
+  bubble clicks to the map's handler). The focus effect keeps only the
+  green dot + fitBounds — a drag or a GPS tick must never re-fit the view.
 
 ## August 23, 2026 — OSM as a catalog source: every course selectable
 

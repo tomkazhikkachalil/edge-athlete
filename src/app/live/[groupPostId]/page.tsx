@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useAuth } from '@/lib/auth';
@@ -17,7 +17,7 @@ import CourseMap from '@/components/golf/CourseMap';
 import { nextHoleForScores } from '@/lib/golf/score-entry';
 import { useVisualViewportHeight } from '@/hooks/useVisualViewportHeight';
 import { embeddedCourseToInfo } from '@/lib/golf/course-info';
-import { polylineYards, type HoleGeometry } from '@/lib/golf/hole-geometry';
+import { polylineYards, trimLineToYards, type HoleGeometry } from '@/lib/golf/hole-geometry';
 import { formatDisplayName } from '@/lib/formatters';
 import type { CompleteGolfScorecard } from '@/types/group-posts';
 
@@ -127,6 +127,22 @@ export default function LiveRoundPage() {
     };
   }, [tab, holeGeo, embeddedCourseId]);
 
+  // The holes the map draws, started at the TEE-IN-PLAY: the OSM way begins
+  // at the back tee, so each line is walked back from the green by the
+  // round's per-hole yardage (the selected tee's scorecard number). No
+  // yardage (OSM-only course, manual round without yards) = the full line.
+  // Memoised: CourseMapInner keys its label/line effects on this array.
+  // Above the early returns — it's a hook.
+  const roundHoleData = scorecard?.golf_data?.hole_data ?? null;
+  const playedHoles = useMemo(() => {
+    const holes = holeGeo?.holes;
+    if (!holes) return null;
+    return holes.map(h => ({
+      ...h,
+      line: trimLineToYards(h.line, roundHoleData?.find(x => x.hole === h.hole)?.yardage),
+    }));
+  }, [holeGeo, roundHoleData]);
+
   // Open the scorer once, during render rather than in an effect: the page has
   // just fetched, so there is nothing to refresh first, and an effect would
   // paint the leaderboard for a frame before the scorer covered it. The ref
@@ -217,7 +233,7 @@ export default function LiveRoundPage() {
   // unscored hole; with geometry but a complete card, hole 1 (peeking a
   // finished round is still useful). Without geometry this collapses to
   // exactly the pre-geometry chip behavior.
-  const geoHoles = holeGeo?.holes ?? null;
+  const geoHoles = playedHoles;
   const displayHole =
     viewedHole ?? nextHole?.hole ?? (geoHoles && myParticipant ? geoHoles[0]?.hole ?? null : null);
   const holeDataArr = scorecard.golf_data.hole_data ?? null;

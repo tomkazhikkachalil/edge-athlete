@@ -4,6 +4,7 @@ import {
   greenDistanceYards,
   polylineYards,
   targetDistances,
+  trimLineToYards,
   yardsBetween,
   parseHoleGeometry,
   scopeHoleGeometry,
@@ -205,6 +206,53 @@ describe('polylineYards (hole length from the drawn way)', () => {
   it('nulls under two points', () => {
     expect(polylineYards([tee])).toBeNull();
     expect(polylineYards([])).toBeNull();
+  });
+});
+
+describe('trimLineToYards (start the hole at the tee-in-play)', () => {
+  const g = parseHoleGeometry(rideauView)!;
+  const hole1 = g.holes[0].line;
+  const tee = hole1[0];
+  const green = hole1[hole1.length - 1];
+  const drawn = polylineYards(hole1)!;
+
+  it('returns the line unchanged for missing, invalid, or ≥-length yardage', () => {
+    expect(trimLineToYards(hole1, undefined)).toBe(hole1);
+    expect(trimLineToYards(hole1, null)).toBe(hole1);
+    expect(trimLineToYards(hole1, 0)).toBe(hole1);
+    expect(trimLineToYards(hole1, NaN)).toBe(hole1);
+    expect(trimLineToYards(hole1, drawn)).toBe(hole1);
+    expect(trimLineToYards(hole1, drawn + 50)).toBe(hole1);
+    expect(trimLineToYards([tee], 100)).toEqual([tee]);
+  });
+
+  it('starts exactly the scorecard yardage from the green, on the drawn line', () => {
+    const played = trimLineToYards(hole1, 150);
+    expect(played[played.length - 1]).toEqual(green);
+    expect(played.length).toBeLessThanOrEqual(hole1.length);
+    expect(Math.abs(polylineYards(played)! - 150)).toBeLessThanOrEqual(1);
+    expect(played[0]).not.toEqual(tee);
+    // Interpolated, so the new start sits on the segment it landed in.
+    expect(Math.abs(yardsBetween(played[0], green) - 150)).toBeLessThanOrEqual(2 + (drawn - 150) / 100);
+  });
+
+  it('interpolates on the correct segment of a dogleg (first vs later)', () => {
+    const a: [number, number] = [45.2, -75.7];
+    const b: [number, number] = [45.203, -75.7]; // ~365 yds north of a
+    const c: [number, number] = [45.203, -75.696]; // ~343 yds east of b
+    const dogleg = [a, b, c];
+    const total = polylineYards(dogleg)!;
+    // Inside the LAST segment (b→c): start lies between b and c on b's latitude.
+    const short = trimLineToYards(dogleg, 100);
+    expect(short).toHaveLength(2);
+    expect(short[0][0]).toBeCloseTo(45.203, 5);
+    expect(Math.abs(polylineYards(short)! - 100)).toBeLessThanOrEqual(1);
+    // Inside the FIRST segment (a→b): keeps b as an interior vertex.
+    const long = trimLineToYards(dogleg, total - 100);
+    expect(long).toHaveLength(3);
+    expect(long[1]).toEqual(b);
+    expect(long[0][1]).toBeCloseTo(-75.7, 5);
+    expect(Math.abs(polylineYards(long)! - (total - 100))).toBeLessThanOrEqual(1);
   });
 });
 

@@ -85,9 +85,6 @@ const targetIcon = () =>
     iconAnchor: [22, 22],
   });
 
-const TARGET_LINE = { weight: 3, opacity: 0.95, dashArray: '2 8' } as const;
-const TARGET_LINE_HALO = { weight: 6, opacity: 0.8, dashArray: '2 8', color: '#ffffff' } as const;
-
 export default function CourseMapInner({
   lat,
   lng,
@@ -202,9 +199,11 @@ export default function CourseMapInner({
     };
   }, [holes]);
 
-  // Focused hole: tee→green line + green dot, and the view fits the hole.
-  // This is the "bring me to hole N" behavior; it takes the map from
-  // follow-the-player (Re-center hands it back).
+  // Focused hole: green dot, and the view fits the hole. This is the "bring
+  // me to hole N" behavior; it takes the map from follow-the-player
+  // (Re-center hands it back). The LINE is drawn by the effect further down
+  // — it bends around the target, so it must not be tied to this effect's
+  // fitBounds (a drag or a GPS tick must never re-fit the view).
   useEffect(() => {
     const map = mapRef.current;
     if (!map) return;
@@ -213,8 +212,6 @@ export default function CourseMapInner({
     const h = focusHole != null ? holes?.find(x => x.hole === focusHole) : null;
     if (!h) return;
     const group = L.layerGroup();
-    group.addLayer(L.polyline(h.line, { color: '#ffffff', weight: 6, opacity: 0.85 }));
-    group.addLayer(L.polyline(h.line, { color: '#7c3aed', weight: 3, opacity: 0.95 }));
     group.addLayer(
       L.circleMarker(h.line[h.line.length - 1], {
         radius: 6,
@@ -344,19 +341,38 @@ export default function CourseMapInner({
   const targetYds =
     activeTarget && focusedLine && targetOrigin ? targetDistances(targetOrigin, activeTarget, focusedLine) : null;
 
-  // Draw the target: draggable marker + dashed origin→target and
-  // target→green legs. Redraws on every fix while tracking (cheap: three
-  // polylines). The marker persists across redraws; it's dropped when the
-  // target clears (hole change, ✕).
+  // THE hole line — one line, and it's the thing you interact with (Tom:
+  // "just have the single line"). Straight tee-in-play→green until a target
+  // exists; then origin→target→green, the orange ring being the elbow you
+  // drag. Tapping the line itself places the elbow too: Leaflet paths
+  // bubble clicks to the map, where the mount-time handler lives. Redraws
+  // on every fix while tracking (cheap: two polylines). The marker persists
+  // across redraws; it's dropped when the target clears (hole change, ✕).
   useEffect(() => {
     const map = mapRef.current;
     if (!map) return;
     targetLinesRef.current?.remove();
     targetLinesRef.current = null;
-    if (!activeTarget || !focusedLine || !targetOrigin) {
+    if (!focusedLine) {
       targetMarkerRef.current?.remove();
       targetMarkerRef.current = null;
       return;
+    }
+    const green = focusedLine[focusedLine.length - 1];
+    const vertices: [number, number][] =
+      activeTarget && targetOrigin ? [targetOrigin, activeTarget, green] : focusedLine;
+    const group = L.layerGroup();
+    group.addLayer(L.polyline(vertices, { color: '#ffffff', weight: 6, opacity: 0.85 }));
+    group.addLayer(L.polyline(vertices, { color: '#7c3aed', weight: 3, opacity: 0.95 }));
+    group.addTo(map);
+    targetLinesRef.current = group;
+    if (!activeTarget) {
+      targetMarkerRef.current?.remove();
+      targetMarkerRef.current = null;
+      return () => {
+        targetLinesRef.current?.remove();
+        targetLinesRef.current = null;
+      };
     }
     if (!targetMarkerRef.current) {
       const marker = L.marker(activeTarget, {
@@ -377,14 +393,6 @@ export default function CourseMapInner({
     } else {
       targetMarkerRef.current.setLatLng(activeTarget);
     }
-    const green = focusedLine[focusedLine.length - 1];
-    const group = L.layerGroup();
-    group.addLayer(L.polyline([targetOrigin, activeTarget], TARGET_LINE_HALO));
-    group.addLayer(L.polyline([targetOrigin, activeTarget], { ...TARGET_LINE, color: '#f97316' }));
-    group.addLayer(L.polyline([activeTarget, green], TARGET_LINE_HALO));
-    group.addLayer(L.polyline([activeTarget, green], { ...TARGET_LINE, color: '#16a34a' }));
-    group.addTo(map);
-    targetLinesRef.current = group;
     return () => {
       targetLinesRef.current?.remove();
       targetLinesRef.current = null;
