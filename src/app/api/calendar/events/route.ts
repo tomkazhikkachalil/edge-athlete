@@ -10,6 +10,7 @@ import { formatEventWhen } from '@/lib/calendar/format-server';
 import { buildRoutineSnapshot, type RoutinePlan } from '@/lib/calendar/event-routine';
 import { fetchActivityOverlay } from '@/lib/calendar/activity-overlay';
 import { fetchOrgEventsForViewer } from '@/lib/calendar/org-merge-server';
+import { enforceRateLimit } from '@/lib/rate-limit';
 import { checkSupervisedInviteGate } from '@/lib/calendar/supervised-invites';
 import type { ServerRoutineRow } from '@/lib/workouts/routines';
 
@@ -119,9 +120,16 @@ export async function POST(request: NextRequest) {
   }
   try {
     const user = await requireAuth(request);
+    // PR 3: creates can now fan out a notification per org member, so event
+    // creation gets a bucket (league-join parity).
+    const limited = await enforceRateLimit(request, 'event-create', { userId: user.id });
+    if (limited) return limited;
     const body = await request.json().catch(() => ({}));
 
     const validated = validateEventInput(body);
+    // Kept for the member fan-out after the write (PR 3): the org this
+    // event is being attached to, once the authz gate has passed.
+    let orgContext: { side: 'league' | 'club'; orgId: string; orgName: string } | null = null;
     if (validated.ok && (validated.event.league_id || validated.event.club_id)) {
       // Org linkage (119): only the org's owner/manager may attach it.
       const { getOrgRole, isOwnerOrManager } = await import('@/lib/affiliations/authz');
@@ -130,7 +138,7 @@ export async function POST(request: NextRequest) {
       const orgId = (validated.event.league_id ?? validated.event.club_id) as string;
       const { data: org } = await admin0
         .from(side === 'league' ? 'leagues' : 'clubs')
-        .select('id, owner_profile_id')
+        .select('id, owner_profile_id, name')
         .eq('id', orgId)
         .maybeSingle();
       if (!org) {
@@ -149,6 +157,7 @@ export async function POST(request: NextRequest) {
           { status: 403 }
         );
       }
+      orgContext = { side, orgId, orgName: (org.name as string | null) ?? 'Your organization' };
     }
     if (!validated.ok) {
       return NextResponse.json({ error: validated.error }, { status: 400 });
@@ -282,6 +291,23 @@ export async function POST(request: NextRequest) {
         seriesId: series.id,
       };
       await notifyEventInvites(ctx, user.id, profileIds);
+      if (orgContext) {
+        // Member broadcast (team_update) — ONE per member for the whole
+        // series; invitees excluded (they just got event_invite).
+        const { notifyOrgEventScheduled } = await import('@/lib/calendar/org-event-notifications');
+        await notifyOrgEventScheduled({
+          supabase: admin,
+          ...orgContext,
+          eventId: firstEvent!.id,
+          seriesId: series.id,
+          eventTitle: validated.event.title,
+          whenText: formatEventWhen(
+            firstEvent!.starts_at, firstEvent!.ends_at, firstEvent!.all_day, firstEvent!.timezone
+          ),
+          organizerId: user.id,
+          excludeProfileIds: profileIds,
+        });
+      }
       if (emails.length > 0 && process.env.SMTP_USER && process.env.SMTP_PASS) {
         const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://edge-athlete.vercel.app';
         const { emailService } = await import('@/lib/email-service');
@@ -346,6 +372,19 @@ export async function POST(request: NextRequest) {
     // Best-effort fan-out: never fails the create.
     const ctx = { supabase: admin, eventId: event.id, title: event.title };
     await notifyEventInvites(ctx, user.id, profileIds);
+    if (orgContext) {
+      // Member broadcast (team_update); invitees excluded (event_invite).
+      const { notifyOrgEventScheduled } = await import('@/lib/calendar/org-event-notifications');
+      await notifyOrgEventScheduled({
+        supabase: admin,
+        ...orgContext,
+        eventId: event.id,
+        eventTitle: event.title,
+        whenText: formatEventWhen(event.starts_at, event.ends_at, event.all_day, event.timezone),
+        organizerId: user.id,
+        excludeProfileIds: profileIds,
+      });
+    }
     if (emails.length > 0 && process.env.SMTP_USER && process.env.SMTP_PASS) {
       const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://edge-athlete.vercel.app';
       const { emailService } = await import('@/lib/email-service');
