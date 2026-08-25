@@ -108,6 +108,34 @@ async function authorizeMessage(
   return participant ? { allow: true, isPublic: false } : DENY;
 }
 
+/**
+ * Group/round media: public group post OR creator OR any participant (any
+ * attestation status) — an exact mirror of the SQL `can_view_group_post`
+ * (migration 063). Anonymous may view only a public group post.
+ */
+async function authorizeGroup(
+  admin: SupabaseClient,
+  groupPostId: string,
+  viewerId: string | null
+): Promise<MediaAuthResult> {
+  const { data: gp } = await admin
+    .from('group_posts')
+    .select('visibility, creator_id')
+    .eq('id', groupPostId)
+    .maybeSingle();
+  if (!gp) return DENY;
+  if (gp.visibility === 'public') return { allow: true, isPublic: true };
+  if (!viewerId) return DENY;
+  if (viewerId === gp.creator_id) return { allow: true, isPublic: false };
+  const { data: participant } = await admin
+    .from('group_post_participants')
+    .select('id')
+    .eq('group_post_id', groupPostId)
+    .eq('profile_id', viewerId)
+    .maybeSingle();
+  return participant ? { allow: true, isPublic: false } : DENY;
+}
+
 export async function authorizeMedia(
   admin: SupabaseClient,
   payload: MediaTokenPayload,
@@ -121,8 +149,10 @@ export async function authorizeMedia(
       return authorizePost(admin, payload.id, viewerId);
     case 'message':
       return authorizeMessage(admin, payload.id, viewerId);
-    // group | equipment | vitals | workout — wired in later PRs; fail closed
-    // until then (no such token is minted yet, so unreachable).
+    case 'group':
+      return authorizeGroup(admin, payload.id, viewerId);
+    // equipment | vitals | workout — wired in later PRs; fail closed until
+    // then (no such token is minted yet, so unreachable).
     default:
       return DENY;
   }
