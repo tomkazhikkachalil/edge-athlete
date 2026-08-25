@@ -4,18 +4,132 @@
  *   1. Pin every formula (tests compare hand-computed values and legacy
  *      byte-parity against applyAdjustments).
  *   2. Export fallback when WebGL2 is unavailable or the context is lost —
- *      render.ts calls this AFTER the downscale, so worst case is one O(n)
- *      pass over ≤2048² pixels (a few hundred ms, rare devices only).
+ *      render.ts calls this AFTER the downscale, so worst case is a few
+ *      O(n) passes over ≤2048² pixels (sub-second, rare devices only).
  *
  * The GPU path in shaders.ts implements the same stages with the same
- * constants; the two must never be edited independently.
+ * constants; the two must never be edited independently. Detail blurs here
+ * mirror the GPU plan (σ=1 full-res, σ=2 at half resolution with bilinear
+ * resampling) — bilinear vs hardware filtering can differ by a hair, which
+ * is invisible at 8-bit and why blur outputs are pinned by property tests
+ * (impulse/flat images) rather than byte tables.
  */
 
-import { transformPixel, vignetteFalloff, type Rgb } from './color-math';
+import {
+  applyDetail,
+  BLUR_LARGE_SIGMA,
+  BLUR_LARGE_TAPS,
+  BLUR_SMALL_SIGMA,
+  BLUR_SMALL_TAPS,
+  gaussianKernel,
+  transformPixel,
+  vignetteFalloff,
+  type Rgb,
+} from './color-math';
 import type { EngineParams } from './params';
 
-/** Apply the full engine color pipeline in place. `width`/`height` are the
- *  pixel dimensions of `data` (needed for the vignette's position term). */
+/** RGBA bytes → packed RGB floats (0..1). */
+function toFloatRgb(data: Uint8ClampedArray): Float32Array {
+  const out = new Float32Array((data.length / 4) * 3);
+  for (let i = 0, j = 0; i < data.length; i += 4, j += 3) {
+    out[j] = data[i] / 255;
+    out[j + 1] = data[i + 1] / 255;
+    out[j + 2] = data[i + 2] / 255;
+  }
+  return out;
+}
+
+/** Separable gaussian (H then V), clamp-to-edge — the CPU twin of the
+ *  ping-pong blur passes. Exported for the convolution-pinning tests. */
+export function separableBlur(
+  src: Float32Array,
+  width: number,
+  height: number,
+  sigma: number,
+  taps: number
+): Float32Array {
+  const kernel = gaussianKernel(sigma, taps);
+  const half = kernel.length - 1;
+  const clampX = (x: number) => (x < 0 ? 0 : x >= width ? width - 1 : x);
+  const clampY = (y: number) => (y < 0 ? 0 : y >= height ? height - 1 : y);
+
+  const horizontal = new Float32Array(src.length);
+  for (let y = 0; y < height; y++) {
+    for (let x = 0; x < width; x++) {
+      let r = 0;
+      let g = 0;
+      let b = 0;
+      for (let k = -half; k <= half; k++) {
+        const j = (y * width + clampX(x + k)) * 3;
+        const w = kernel[Math.abs(k)];
+        r += src[j] * w;
+        g += src[j + 1] * w;
+        b += src[j + 2] * w;
+      }
+      const o = (y * width + x) * 3;
+      horizontal[o] = r;
+      horizontal[o + 1] = g;
+      horizontal[o + 2] = b;
+    }
+  }
+
+  const out = new Float32Array(src.length);
+  for (let y = 0; y < height; y++) {
+    for (let x = 0; x < width; x++) {
+      let r = 0;
+      let g = 0;
+      let b = 0;
+      for (let k = -half; k <= half; k++) {
+        const j = (clampY(y + k) * width + x) * 3;
+        const w = kernel[Math.abs(k)];
+        r += horizontal[j] * w;
+        g += horizontal[j + 1] * w;
+        b += horizontal[j + 2] * w;
+      }
+      const o = (y * width + x) * 3;
+      out[o] = r;
+      out[o + 1] = g;
+      out[o + 2] = b;
+    }
+  }
+  return out;
+}
+
+/** Bilinear resample at pixel centers (the CPU twin of a LINEAR texture
+ *  fetch), clamp-to-edge. Used half-down and back up for the large blur. */
+export function resampleBilinear(
+  src: Float32Array,
+  srcWidth: number,
+  srcHeight: number,
+  dstWidth: number,
+  dstHeight: number
+): Float32Array {
+  const out = new Float32Array(dstWidth * dstHeight * 3);
+  for (let y = 0; y < dstHeight; y++) {
+    const sy = ((y + 0.5) / dstHeight) * srcHeight - 0.5;
+    const y0 = Math.max(0, Math.min(srcHeight - 1, Math.floor(sy)));
+    const y1 = Math.min(srcHeight - 1, y0 + 1);
+    const fy = Math.max(0, Math.min(1, sy - y0));
+    for (let x = 0; x < dstWidth; x++) {
+      const sx = ((x + 0.5) / dstWidth) * srcWidth - 0.5;
+      const x0 = Math.max(0, Math.min(srcWidth - 1, Math.floor(sx)));
+      const x1 = Math.min(srcWidth - 1, x0 + 1);
+      const fx = Math.max(0, Math.min(1, sx - x0));
+      const o = (y * dstWidth + x) * 3;
+      for (let c = 0; c < 3; c++) {
+        const p00 = src[(y0 * srcWidth + x0) * 3 + c];
+        const p10 = src[(y0 * srcWidth + x1) * 3 + c];
+        const p01 = src[(y1 * srcWidth + x0) * 3 + c];
+        const p11 = src[(y1 * srcWidth + x1) * 3 + c];
+        out[o + c] = p00 * (1 - fx) * (1 - fy) + p10 * fx * (1 - fy) + p01 * (1 - fx) * fy + p11 * fx * fy;
+      }
+    }
+  }
+  return out;
+}
+
+/** Apply the full engine pipeline (detail + color) in place. `width`/
+ *  `height` are the pixel dimensions of `data`. */
 export function applyEngine(
   data: Uint8ClampedArray,
   width: number,
@@ -29,13 +143,39 @@ export function applyEngine(
     vignette: params.detail.vignette,
   };
   const hasVignette = params.detail.vignette !== 0;
+  const needSmall = params.detail.sharpen > 0;
+  const needLarge = params.detail.clarity > 0 || params.detail.noiseReduction > 0;
+
+  let srcFloat: Float32Array | null = null;
+  let blurSmall: Float32Array | null = null;
+  let blurLarge: Float32Array | null = null;
+  if (needSmall || needLarge) {
+    srcFloat = toFloatRgb(data);
+    if (needSmall) {
+      blurSmall = separableBlur(srcFloat, width, height, BLUR_SMALL_SIGMA, BLUR_SMALL_TAPS);
+    }
+    if (needLarge) {
+      const halfW = Math.max(1, Math.round(width / 2));
+      const halfH = Math.max(1, Math.round(height / 2));
+      const down = resampleBilinear(srcFloat, width, height, halfW, halfH);
+      const blurred = separableBlur(down, halfW, halfH, BLUR_LARGE_SIGMA, BLUR_LARGE_TAPS);
+      blurLarge = resampleBilinear(blurred, halfW, halfH, width, height);
+    }
+  }
+
   for (let y = 0; y < height; y++) {
     // Pixel centers, matching the GPU's gl_FragCoord + 0.5 convention.
     const v = (y + 0.5) / height;
     for (let x = 0; x < width; x++) {
       const i = (y * width + x) * 4;
+      const j = (y * width + x) * 3;
       const falloff = hasVignette ? vignetteFalloff((x + 0.5) / width, v, width, height) : 0;
-      const rgb: Rgb = [data[i] / 255, data[i + 1] / 255, data[i + 2] / 255];
+      let rgb: Rgb = [data[i] / 255, data[i + 1] / 255, data[i + 2] / 255];
+      if (srcFloat) {
+        const small: Rgb = blurSmall ? [blurSmall[j], blurSmall[j + 1], blurSmall[j + 2]] : rgb;
+        const large: Rgb = blurLarge ? [blurLarge[j], blurLarge[j + 1], blurLarge[j + 2]] : rgb;
+        rgb = applyDetail(rgb, small, large, params.detail);
+      }
       const [r, g, b] = transformPixel(rgb, pipelineParams, falloff);
       data[i] = r * 255;
       data[i + 1] = g * 255;

@@ -94,3 +94,16 @@ export function hasAdvancedParams(params: EngineParams): boolean {
 export function isEngineNeutral(params: EngineParams): boolean {
   return isNeutral(params.adjustments) && !hasAdvancedParams(params);
 }
+
+/**
+ * Which blur inputs the composite pass needs. Skip-when-neutral is the
+ * perf contract: a Light/Color slider drag stays a single fullscreen pass;
+ * blur passes run only while a detail slider is actually non-zero (and the
+ * engine caches them per source, so even then drags stay uniform-only).
+ */
+export function planPasses(params: EngineParams): { blurSmall: boolean; blurLarge: boolean } {
+  return {
+    blurSmall: params.detail.sharpen > 0,
+    blurLarge: params.detail.clarity > 0 || params.detail.noiseReduction > 0,
+  };
+}

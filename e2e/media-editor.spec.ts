@@ -66,6 +66,28 @@ test('media editor: crop session, undo, re-edit, dirty confirm, publish', async 
   await page.getByRole('button', { name: 'Color', exact: true }).click();
   await expect(page.getByRole('slider', { name: 'Vibrance' })).toBeVisible();
 
+  // Detail group (blur-pass round): sliders render.
+  await page.getByRole('button', { name: 'Detail', exact: true }).click();
+  await expect(page.getByRole('slider', { name: 'Sharpen' })).toBeVisible();
+  await expect(page.getByRole('slider', { name: 'Vignette' })).toBeVisible();
+
+  // Hold-to-compare: while pressed, the stage shows the ORIGINAL — the
+  // darkened preview must come back up to the neutral reading.
+  const compareBtn = page.getByRole('button', { name: 'Hold to compare with original' });
+  await compareBtn.dispatchEvent('pointerdown');
+  await page.waitForTimeout(300);
+  const comparingLuma = await readLuma();
+  expect(Math.abs(comparingLuma - neutralLuma)).toBeLessThan(2); // dither-tolerant
+  await compareBtn.dispatchEvent('pointerup');
+  await page.waitForTimeout(300);
+  expect(await readLuma()).toBeLessThan(neutralLuma); // edit restored
+
+  // Auto-enhance lands as one recipe patch: the Exposure slider moves off
+  // the manual −60.
+  await page.getByRole('button', { name: 'Light', exact: true }).click();
+  await page.getByRole('button', { name: 'Auto-enhance' }).click();
+  await expect(page.getByRole('slider', { name: 'Exposure' })).not.toHaveValue('-60');
+
   // Export goes through the engine (advanced params force the WebGL path).
   await page.getByRole('button', { name: 'Done', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'Edit media' })).toBeHidden({ timeout: 30_000 });

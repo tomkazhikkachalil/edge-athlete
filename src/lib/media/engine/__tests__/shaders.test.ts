@@ -1,13 +1,28 @@
 import { describe, it, expect } from 'vitest';
-import { FRAGMENT_SHADER, VERTEX_SHADER } from '../shaders';
 import {
+  BLUR_LARGE_FRAGMENT,
+  BLUR_SMALL_FRAGMENT,
+  COPY_FRAGMENT,
+  FRAGMENT_SHADER,
+  VERTEX_SHADER,
+} from '../shaders';
+import {
+  BLUR_LARGE_SIGMA,
+  BLUR_LARGE_TAPS,
+  BLUR_SMALL_SIGMA,
+  BLUR_SMALL_TAPS,
+  CLARITY_SCALE,
   EXPOSURE_EV_RANGE,
+  gaussianKernel,
   LUMA_B,
   LUMA_G,
   LUMA_R,
+  NR_EDGE_HI,
+  NR_EDGE_LO,
   SAT_B,
   SAT_G,
   SAT_R,
+  SHARPEN_SCALE,
   TONE_POINT_SCALE,
   TONE_SCALE,
   VIBRANCE_SCALE,
@@ -54,5 +69,29 @@ describe('shader sources embed the color-math constants', () => {
   it('float literals never degrade to GLSL ints (no bare "2)" style scalars)', () => {
     // The one integer-looking constant is EXPOSURE_EV_RANGE = 2 → must be 2.0
     expect(FRAGMENT_SHADER).not.toMatch(/u_exposure \* 2\)/);
+  });
+
+  it('detail constants appear verbatim in the composite', () => {
+    for (const c of [NR_EDGE_LO, NR_EDGE_HI, CLARITY_SCALE, SHARPEN_SCALE]) {
+      expect(FRAGMENT_SHADER).toContain(String(c));
+    }
+    expect(FRAGMENT_SHADER).toContain('u_detail');
+    // Dither is present at the output write.
+    expect(FRAGMENT_SHADER).toContain('12.9898');
+    expect(FRAGMENT_SHADER).toContain('/ 255.0');
+  });
+
+  it('blur fragments bake their exact gaussian kernels', () => {
+    for (const [source, sigma, taps] of [
+      [BLUR_SMALL_FRAGMENT, BLUR_SMALL_SIGMA, BLUR_SMALL_TAPS],
+      [BLUR_LARGE_FRAGMENT, BLUR_LARGE_SIGMA, BLUR_LARGE_TAPS],
+    ] as const) {
+      expect(source.startsWith('#version 300 es')).toBe(true);
+      for (const weight of gaussianKernel(sigma, taps)) {
+        expect(source).toContain(String(weight));
+      }
+      expect(source).toContain('u_direction');
+    }
+    expect(COPY_FRAGMENT.startsWith('#version 300 es')).toBe(true);
   });
 });

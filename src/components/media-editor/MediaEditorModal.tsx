@@ -12,7 +12,7 @@
  */
 
 import { useRef, useState } from 'react';
-import { X, Undo2, Redo2 } from 'lucide-react';
+import { X, Undo2, Redo2, Eye } from 'lucide-react';
 import { useBodyScrollLock } from '@/hooks/useBodyScrollLock';
 import { useDirtyClose } from '@/hooks/useDirtyClose';
 import ConfirmModal from '@/components/ConfirmModal';
@@ -23,6 +23,8 @@ import { exportAsset, passThrough } from '@/lib/media/export';
 import { isServerAllowedType } from '@/lib/media/validation';
 import { isVideoEditingSupported } from '@/lib/media/video';
 import { isEngineSupported } from '@/lib/media/engine/engine';
+import { autoEnhance } from '@/lib/media/engine/auto-enhance';
+import { sampleFileHistogram } from '@/lib/media/engine/sample';
 import type { EditedMedia, EditorConfig, ImageRecipe, MediaAsset } from '@/lib/media/types';
 import CropStage from './CropStage';
 import AdjustPanel from './AdjustPanel';
@@ -62,6 +64,8 @@ export default function MediaEditorModal({ assets: initialAssets, config, onDone
   const [activeId, setActiveId] = useState(initialAssets[0]?.id ?? '');
   const [tool, setTool] = useState<Tool>(initialAssets[0]?.kind === 'video' ? 'clips' : 'crop');
   const [exporting, setExporting] = useState<{ done: number; total: number } | null>(null);
+  // Hold-to-compare: while pressed, the stage renders the untouched source.
+  const [comparing, setComparing] = useState(false);
 
   // Crop/filter/trim recipes are deliberately non-persistable, so a confirm
   // on cancel is the only protection against losing the edits.
@@ -85,6 +89,23 @@ export default function MediaEditorModal({ assets: initialAssets, config, onDone
     : '';
   const tools = isVideo ? VIDEO_TOOLS : IMAGE_TOOLS;
   const activeTool: Tool = tools.some(t => t.id === tool) ? tool : tools[0].id;
+
+  // Histogram-targeted auto: exposure/whites/blacks + mild contrast, applied
+  // as ONE undo step ('auto' coalescing key). Sampled from the SOURCE file —
+  // the same pixels the engine transforms.
+  const handleAutoEnhance = async (id: string, file: File, recipe: ImageRecipe) => {
+    const histogram = await sampleFileHistogram(file);
+    if (!histogram) return;
+    const auto = autoEnhance(histogram);
+    patchRecipe(
+      id,
+      {
+        light: { ...recipe.light, ...auto.light },
+        adjustments: { ...recipe.adjustments, contrast: auto.contrast },
+      },
+      'auto'
+    );
+  };
 
   const handleDone = async () => {
     if (exporting) return;
@@ -209,7 +230,35 @@ export default function MediaEditorModal({ assets: initialAssets, config, onDone
             <div className="relative flex-1 min-h-0 flex items-center justify-center overflow-hidden">
               {/* WebGL preview of the FULL recipe (geometry + engine color);
                   falls back internally to <img> + CSS trio on no-WebGL. */}
-              <EnginePreview file={active.file} recipe={imageRecipe} fallbackUrl={activeUrl} />
+              <EnginePreview
+                file={active.file}
+                recipe={imageRecipe}
+                fallbackUrl={activeUrl}
+                showOriginal={comparing}
+              />
+              {/* Press-and-hold before/after — released anywhere restores
+                  the edit (pointer capture keeps Up firing off-button). */}
+              <button
+                type="button"
+                aria-label="Hold to compare with original"
+                title="Hold to compare with original"
+                onPointerDown={e => {
+                  try {
+                    e.currentTarget.setPointerCapture(e.pointerId);
+                  } catch {
+                    // Synthetic/untrusted events have no capturable pointer.
+                  }
+                  setComparing(true);
+                }}
+                onPointerUp={() => setComparing(false)}
+                onPointerCancel={() => setComparing(false)}
+                onContextMenu={e => e.preventDefault()}
+                className={`absolute bottom-3 right-3 w-11 h-11 flex items-center justify-center rounded-full ${
+                  comparing ? 'bg-white/30 text-white' : 'bg-black/40 text-white/80 hover:text-white'
+                }`}
+              >
+                <Eye className="w-5 h-5" />
+              </button>
             </div>
           )}
 
@@ -217,6 +266,7 @@ export default function MediaEditorModal({ assets: initialAssets, config, onDone
             <AdjustPanel
               recipe={imageRecipe}
               onPatch={(patch, keys) => patchRecipe(active.id, patch, keys)}
+              onAutoEnhance={() => handleAutoEnhance(active.id, active.file, imageRecipe)}
               engineAvailable={isEngineSupported()}
             />
           )}
@@ -224,7 +274,15 @@ export default function MediaEditorModal({ assets: initialAssets, config, onDone
             <FilterStrip
               imageUrl={activeUrl}
               activeFilterId={imageRecipe.filterId}
-              onSelect={filterId => patchRecipe(active.id, { filterId } as Partial<ImageRecipe>)}
+              filterStrength={imageRecipe.filterStrength}
+              onSelect={filterId =>
+                // Selecting a preset always starts at full intensity —
+                // predictable, and the slider appears right below to tune.
+                patchRecipe(active.id, { filterId, filterStrength: 1 } as Partial<ImageRecipe>, 'filterId')
+              }
+              onStrengthChange={strength =>
+                patchRecipe(active.id, { filterStrength: strength } as Partial<ImageRecipe>, 'filterStrength')
+              }
             />
           )}
         </>

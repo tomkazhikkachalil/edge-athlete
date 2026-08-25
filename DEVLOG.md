@@ -1,5 +1,42 @@
 # Development Log
 
+## August 25, 2026 — Photo engine E1b: Detail passes, auto-enhance, compare, filter intensity
+
+Second engine round, completing the Phase-1 adjustment set:
+
+**Detail group** (Sharpen / Clarity / Noise reduction / Vignette). The
+composite shader now samples two gaussian blurs — σ=1 at full res
+(sharpen's unsharp base) and σ=2 at HALF res (clarity's local-contrast
+base and NR's smoothing target, upsampled by the hardware's linear
+fetch). Everything is lazy and cached: blur programs compile and FBOs
+allocate on first need, blurs depend only on the SOURCE so they compute
+once per setSource — a Light/Color drag stays a single pass
+(`planPasses`, node-tested), and even a detail drag is uniform-only
+after the first frame. NR is edge-masked (luma delta vs the large blur,
+0.03–0.12 window) so it flattens grain without eating edges. Kernels
+come from one `gaussianKernel()` in color-math; the blur fragments bake
+the exact weights and a test pins them. The output write gained ±0.5/255
+hash dither — banding insurance for tone/vignette gradients at 8-bit.
+
+**Auto-enhance** (wand in the Adjust header): pure percentile targeting
+over a Rec. 709 histogram — median toward 0.45 as exposure (clamped
+±0.5 EV: auto never relights a scene), 0.5th/99.5th percentiles toward
+0.02/0.98 by INVERTING the tone stage's own endpoint math, mild contrast
+for flat histograms. One recipe patch, one undo step, every value
+visible on the sliders afterward. Synthetic-histogram tests pin low-key,
+washed-out, flat, and already-perfect inputs.
+
+**Hold-to-compare** (eye over the stage on adjust/filter): pointer-held
+`showOriginal` draw. **Filter intensity**: slider under the strip when a
+preset is active — `filterStrength` lerps the preset toward neutral
+before composing (test-pinned), selecting a preset resets to 100%.
+
+Test-fixture lesson: the first NR test probed 4px from a hard seam —
+inside the large blur's ~8px full-res reach, where the blur base is
+contaminated by the far side and NR *correctly* backs off. Detail-pass
+fixtures must be sized against the kernel's footprint, and the "leaves
+edges alone" assertion belongs deep in the interior.
+
 ## August 25, 2026 — Photo engine E1a: an in-house WebGL2 color pipeline
 
 First round of the photo-editor mandate (in-house only, Lightroom-class
