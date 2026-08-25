@@ -27,6 +27,7 @@ import {
   type Rgb,
 } from './color-math';
 import type { EngineParams } from './params';
+import { isNeutralPerspective, warpPerspective } from './perspective-math';
 
 /** RGBA bytes → packed RGB floats (0..1). */
 function toFloatRgb(data: Uint8ClampedArray): Float32Array {
@@ -145,6 +146,12 @@ export function applyEngine(
   const hasVignette = params.detail.vignette !== 0;
   const needSmall = params.detail.sharpen > 0;
   const needLarge = params.detail.clarity > 0 || params.detail.noiseReduction > 0;
+
+  // Perspective warps FIRST — blurs and color then run on warped pixels,
+  // exactly like the GPU's warp → blur → composite ordering.
+  if (!isNeutralPerspective(params.perspective)) {
+    warpPerspective(data, width, height, params.perspective);
+  }
 
   let srcFloat: Float32Array | null = null;
   let blurSmall: Float32Array | null = null;

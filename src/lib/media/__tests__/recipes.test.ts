@@ -37,6 +37,19 @@ describe('defaults and no-op detection', () => {
     expect(isNoopRecipe({ ...defaultImageRecipe(), filterStrength: 0.5 })).toBe(true);
   });
 
+  it('perspective: {0,0} and absent are both no-ops; any value is an edit', () => {
+    const base = defaultImageRecipe();
+    expect(isNoopRecipe({ ...base, perspective: { vertical: 0, horizontal: 0 } })).toBe(true);
+    expect(isNoopRecipe({ ...base, perspective: { vertical: 0.2, horizontal: 0 } })).toBe(false);
+  });
+
+  it('perspective round-trips through the envelope and rejects out-of-range', () => {
+    const recipe = { ...defaultImageRecipe(), perspective: { vertical: -0.3, horizontal: 0.5 } };
+    expect(parseRecipe(serializeRecipe(recipe))).toEqual(recipe);
+    const bad = { ...defaultImageRecipe(), perspective: { vertical: 2, horizontal: 0 } };
+    expect(parseRecipe(serializeRecipe(bad))).toBeNull();
+  });
+
   it('9:16 round-trips in both image and video recipes (story crop)', () => {
     const image = { ...defaultImageRecipe('9:16' as const) };
     expect(parseRecipe(serializeRecipe(image))).toEqual(image);

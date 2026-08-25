@@ -1,5 +1,38 @@
 # Development Log
 
+## August 25, 2026 — Photo engine E3b: perspective correction — PHASE 1 COMPLETE
+
+Keystone correction lands as the editor's fourth image tool: two sliders
+(Vertical / Horizontal) over the live engine stage. The warp is an
+inverse projective mapping (`perspective-math.ts` is the pure source of
+truth; the GPU `WARP_FRAGMENT` interpolates its scale constant, the CPU
+reference twin implements the same mapping with bilinear sampling).
+Slider range keeps the divisor in [0.6, 1.4] — no singularity guard
+needed, and a test pins that headroom.
+
+Two deliberate calls:
+- **Warp applies to the FRAMED image (after crop), not the source.**
+  Lightroom warps first, but our crop tool measures against the unwarped
+  preview — warping upstream would silently invalidate every crop
+  coordinate. Warp-after-crop keeps the whole geometry chain
+  self-consistent, at the cost of "correct, then re-crop" ordering.
+- **Exposed edges render black**, honestly, with a caption telling the
+  user to crop after. No auto-scale hiding what correction costs.
+
+Engine-wise it's pass slot 0: warp → blurs → composite all read the
+warped texture, and the warp result is cached by its parameter pair
+(`warpFor`) with blur invalidation on change — so even perspective drags
+are one warp + one composite per frame, and everything else stays
+uniform-only. Recipe: `perspective?` optional within v3 (the
+videoClip.speed additive precedent) — absent, null, and {0,0} all count
+neutral everywhere.
+
+**Phase 1 of the mandate is now complete**: crop/rotate/straighten/flip
++ presets incl. 9:16 + perspective; Light/Color/Detail; auto-enhance;
+filter presets with intensity incl. film looks; undo/redo + visible
+history with jump; press-and-hold compare; two layouts; 60fps engine
+preview; non-destructive throughout.
+
 ## August 25, 2026 — Photo engine E3a: film pack, 9:16, flip
 
 **Film looks.** Six new presets — Gold, Chrome, Instant, Noir, Cine,

@@ -22,8 +22,9 @@ function params(overrides: Partial<EngineParams>): EngineParams {
     light: { ...NEUTRAL_LIGHT },
     color: { ...NEUTRAL_COLOR },
     detail: { ...NEUTRAL_DETAIL },
+    perspective: { vertical: 0, horizontal: 0 },
     ...overrides,
-  };
+  } as EngineParams;
 }
 
 describe('reference engine — identity and legacy parity', () => {

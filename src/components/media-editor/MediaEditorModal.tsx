@@ -32,18 +32,20 @@ import CropStage from './CropStage';
 import AdjustPanel from './AdjustPanel';
 import EnginePreview from './EnginePreview';
 import HistoryRail from './HistoryRail';
+import PerspectivePanel from './PerspectivePanel';
 import FilterStrip from './FilterStrip';
 import Filmstrip from './Filmstrip';
 import VideoStage from './VideoStage';
 import VideoCropStage from './VideoCropStage';
 import { useEditorSession } from './useEditorSession';
 
-type Tool = 'crop' | 'adjust' | 'filter' | 'clips' | 'poster';
+type Tool = 'crop' | 'adjust' | 'filter' | 'perspective' | 'clips' | 'poster';
 
 const IMAGE_TOOLS: Array<{ id: Tool; label: string }> = [
   { id: 'crop', label: 'Crop' },
   { id: 'adjust', label: 'Adjust' },
   { id: 'filter', label: 'Filters' },
+  { id: 'perspective', label: 'Perspective' },
 ];
 const VIDEO_TOOLS: Array<{ id: Tool; label: string }> = [
   { id: 'clips', label: 'Clips' },
@@ -210,6 +212,13 @@ export default function MediaEditorModal({ assets: initialAssets, config, onDone
             recipe={imageRecipe}
             onPatch={(patch, keys) => patchRecipe(active.id, patch, keys)}
             onAutoEnhance={() => handleAutoEnhance(active.id, active.file, imageRecipe)}
+            engineAvailable={isEngineSupported()}
+          />
+        )}
+        {activeTool === 'perspective' && (
+          <PerspectivePanel
+            recipe={imageRecipe}
+            onPatch={(patch, keys) => patchRecipe(active.id, patch, keys)}
             engineAvailable={isEngineSupported()}
           />
         )}
