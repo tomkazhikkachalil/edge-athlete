@@ -29,7 +29,8 @@ function sessionDate(session: ServerWorkoutSession): Date {
   return new Date(session.started_at);
 }
 
-function sessionSeconds(session: ServerWorkoutSession): number {
+/** Stored duration when present, else ended−started; 0 for open sessions. */
+export function sessionSeconds(session: ServerWorkoutSession): number {
   if (session.duration_seconds !== null && session.duration_seconds > 0) {
     return session.duration_seconds;
   }
@@ -40,7 +41,8 @@ function sessionSeconds(session: ServerWorkoutSession): number {
   return 0;
 }
 
-function sessionVolumeLbs(session: ServerWorkoutSession): number {
+/** Total lifted volume (reps × weight, lbs) across every set of a session. */
+export function sessionVolumeLbs(session: ServerWorkoutSession): number {
   let volume = 0;
   for (const exercise of serverToEntries(session)) {
     for (const set of exercise.sets) {
