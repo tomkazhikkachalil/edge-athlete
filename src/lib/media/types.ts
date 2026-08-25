@@ -308,8 +308,8 @@ export interface EditedMedia {
 
 export interface OutputConfig {
   maxDimension: number; // longest-edge cap, e.g. 2048 posts / 512 avatar
-  mime: 'image/jpeg' | 'image/webp';
-  quality: number; // 0–1
+  mime: 'image/jpeg' | 'image/webp' | 'image/png';
+  quality: number; // 0–1 (ignored by PNG encoders)
 }
 
 export interface EditorConfig {

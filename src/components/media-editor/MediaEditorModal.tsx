@@ -12,7 +12,7 @@
  */
 
 import { useEffect, useRef, useState } from 'react';
-import { X, Undo2, Redo2, Eye, History } from 'lucide-react';
+import { X, Undo2, Redo2, Eye, History, Settings2 } from 'lucide-react';
 import { useBodyScrollLock } from '@/hooks/useBodyScrollLock';
 import { useDirtyClose } from '@/hooks/useDirtyClose';
 import { useIsDesktop } from '@/hooks/useIsDesktop';
@@ -35,6 +35,13 @@ import { neutralizeWhiteBalance } from '@/lib/media/engine/white-balance';
 import { MAX_MASKS, NEUTRAL_MASK_ADJUST } from '@/lib/media/engine/mask-math';
 import { getAiRunner, isAiAvailable } from '@/lib/media/ai';
 import { extractLook, lookToPatch, type Look } from '@/lib/media/look';
+import {
+  deriveOutput,
+  EXPORT_PREFS_KEY,
+  parseExportPrefs,
+  type ExportPrefs,
+} from '@/lib/media/export-prefs';
+import ExportSettingsSheet from './ExportSettingsSheet';
 import type { EditedMedia, EditorConfig, ImageRecipe, MediaAsset } from '@/lib/media/types';
 import CropStage from './CropStage';
 import AdjustPanel from './AdjustPanel';
@@ -124,6 +131,26 @@ export default function MediaEditorModal({ assets: initialAssets, config, onDone
   // Phase 4 (E-W1): the session's copied look (color/texture only — never
   // geometry, masks, retouch, or text).
   const [copiedLook, setCopiedLook] = useState<Look | null>(null);
+  // Phase 4 (E-W2): export preferences. Lazy-init from localStorage is
+  // safe HERE (unlike the RegistrationSteps hydration trap): the editor
+  // mounts only after user interaction, never in server-rendered HTML.
+  const [exportPrefs, setExportPrefs] = useState<ExportPrefs>(() => {
+    try {
+      return parseExportPrefs(localStorage.getItem(EXPORT_PREFS_KEY));
+    } catch {
+      return parseExportPrefs(null);
+    }
+  });
+  const [exportSheetOpen, setExportSheetOpen] = useState(false);
+
+  const updateExportPrefs = (prefs: ExportPrefs) => {
+    setExportPrefs(prefs);
+    try {
+      localStorage.setItem(EXPORT_PREFS_KEY, JSON.stringify(prefs));
+    } catch {
+      // Storage unavailable — session-only preference is fine.
+    }
+  };
 
   // Crop/filter/trim recipes are deliberately non-persistable, so a confirm
   // on cancel is the only protection against losing the edits.
@@ -145,6 +172,7 @@ export default function MediaEditorModal({ assets: initialAssets, config, onDone
       if (e.key === 'Escape') {
         if (confirmOpen) cancelDiscard();
         else if (wbPicking) setWbPicking(false);
+        else if (exportSheetOpen) setExportSheetOpen(false);
         else if (historySheetOpen) setHistorySheetOpen(false);
         else requestClose();
         return;
@@ -268,12 +296,21 @@ export default function MediaEditorModal({ assets: initialAssets, config, onDone
     if (exporting) return;
     setExporting({ done: 0, total: assets.length });
     const results: EditedMedia[] = [];
+    // E-W2: the user's export preferences over the surface's config —
+    // size only clamps below the surface cap; photos only.
+    const photoOutput = deriveOutput(config.output, exportPrefs);
     // Sequential on purpose — parallel decodes/encodes kill mobile tabs
     for (let i = 0; i < assets.length; i++) {
       const asset = assets[i];
       setExporting({ done: i, total: assets.length });
       try {
-        results.push(await exportAsset(asset, recipes[asset.id], config.output));
+        results.push(
+          await exportAsset(
+            asset,
+            recipes[asset.id],
+            asset.kind === 'image' ? photoOutput : config.output
+          )
+        );
       } catch (err) {
         console.error('Media export failed:', asset.file.name, err);
         if (isServerAllowedType(asset.file.type)) {
@@ -453,15 +490,34 @@ export default function MediaEditorModal({ assets: initialAssets, config, onDone
           )}
         </div>
         <h2 className="text-label font-semibold text-white">Edit media</h2>
-        <button
-          type="button"
-          onClick={handleDone}
-          disabled={!!exporting}
-          className="px-4 min-h-[44px] rounded-full bg-brand text-white text-label font-semibold hover:bg-brand-hover disabled:opacity-50"
-        >
-          Done
-        </button>
+        <div className="flex items-center gap-1">
+          <button
+            type="button"
+            onClick={() => setExportSheetOpen(true)}
+            aria-label="Export settings"
+            className="w-11 h-11 flex items-center justify-center rounded-full text-white hover:bg-white/10"
+          >
+            <Settings2 className="w-5 h-5" />
+          </button>
+          <button
+            type="button"
+            onClick={handleDone}
+            disabled={!!exporting}
+            className="px-4 min-h-[44px] rounded-full bg-brand text-white text-label font-semibold hover:bg-brand-hover disabled:opacity-50"
+          >
+            Done
+          </button>
+        </div>
       </div>
+
+      {exportSheetOpen && (
+        <ExportSettingsSheet
+          prefs={exportPrefs}
+          surfaceMax={config.output.maxDimension}
+          onChange={updateExportPrefs}
+          onClose={() => setExportSheetOpen(false)}
+        />
+      )}
 
       {/* Stage + tools, split at lg: stage column left, panel/history column
           right (one engine, two layouts). activeUrl is '' for one render
