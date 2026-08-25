@@ -40,6 +40,16 @@ export async function GET(request: NextRequest) {
     const wantGlobal = searchParams.get('global') === '1';
     const admin = getSupabaseAdmin();
 
+    // Optional auth, determined ONCE. Anonymous search still gets platform
+    // courses; a signed-in viewer additionally gets their OWN courses ordered
+    // first (below), which makes the search response per-viewer — so this also
+    // decides whether the response may be shared-cached at the return.
+    let viewerId: string | null = null;
+    try {
+      const user = await requireAuth(request);
+      viewerId = user.id;
+    } catch { /* anonymous — platform courses only */ }
+
     // ── Course by id — the hydration touchpoint ──────────────────────────
     if (courseId) {
       // ?holes=1 — the per-hole OSM geometry cache (live map's hole-by-hole
@@ -88,12 +98,6 @@ export async function GET(request: NextRequest) {
     let historyCourses: GolfCourse[] = [];
     const historyCatalogIds = new Map<string, string>();
     try {
-      let viewerId: string | null = null;
-      try {
-        const user = await requireAuth(request);
-        viewerId = user.id;
-      } catch { /* anonymous search still gets platform courses */ }
-
       // 1 char, like every other search: golf_rounds.course gained prefix and
       // trigram indexes in migration 087.
       // A filtered or near-me search is an Explore-style query; history rows
@@ -210,6 +214,16 @@ export async function GET(request: NextRequest) {
       // provenance client-side. Gating it on providers was a licence gap
       // once OSM rows became the bulk of the table.
       attribution: catalogAttribution(providersConfigured()),
+    }, {
+      // Per-viewer when authed (own courses ordered first) → never shared-cache
+      // that. Anonymous responses are public catalog data, CDN-cacheable per
+      // query URL. Vary:Cookie keeps the two apart (mirrors the media proxy).
+      headers: {
+        'Cache-Control': viewerId
+          ? 'private, no-store'
+          : 'public, s-maxage=300, stale-while-revalidate=3600',
+        'Vary': 'Cookie',
+      },
     });
   } catch (error) {
     // return, not throw: a thrown Response becomes a 500 at the handler
