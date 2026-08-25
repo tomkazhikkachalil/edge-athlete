@@ -20,7 +20,7 @@
 
 import type { TrimRange } from './video-math';
 import type { CropRect, VideoClip, VideoRecipe } from './types';
-import { materializeClips, timelineDuration } from './timeline-math';
+import { clipSpeed, clipTimelineLength, materializeClips, timelineDuration } from './timeline-math';
 
 /** Cheap synchronous capability gate for showing/hiding trim UI. */
 export function isVideoEditingSupported(): boolean {
@@ -104,7 +104,9 @@ export async function renderVideoRecipe(
   onProgress?: (fraction: number) => void
 ): Promise<TrimResult> {
   const clips = materializeClips(recipe.clips, duration);
-  const singleFullVolume = clips.length === 1 && clips[0].volume === 1;
+  // Any speed change forces the manual pipeline — Conversion can't retime.
+  const anySpeed = clips.some(c => clipSpeed(c) !== 1);
+  const singleFullVolume = clips.length === 1 && clips[0].volume === 1 && !anySpeed;
 
   // Tier 1: plain trim — keep the existing (stream-copy-eligible) path.
   if (singleFullVolume && !recipe.crop) {
@@ -178,23 +180,41 @@ async function renderClipsManually(
 
   let offset = 0;
   for (const clip of clips) {
+    const speed = clipSpeed(clip);
     for await (const wrapped of sink.canvases(clip.in, clip.out)) {
-      const timestamp = offset + Math.max(0, wrapped.timestamp - clip.in);
+      // Slo-mo (speed round): timestamps stretch by 1/speed — 0.5× doubles
+      // the spacing (frame rate halves; no interpolation, by design).
+      const timestamp = offset + Math.max(0, wrapped.timestamp - clip.in) / speed;
       const sample = new mb.VideoSample(wrapped.canvas, {
         timestamp,
-        duration: wrapped.duration,
+        duration: wrapped.duration / speed,
       });
       await videoSource.add(sample); // backpressure — never skip the await
       sample.close();
       if (onProgress && total > 0) onProgress(Math.min(0.99, timestamp / total));
     }
-    offset += clip.out - clip.in;
+    offset += clipTimelineLength(clip);
   }
 
   if (audioSource && audioTrack) {
     const audioSink = new mb.AudioSampleSink(audioTrack);
     let audioOffset = 0;
     for (const clip of clips) {
+      if (clipSpeed(clip) !== 1) {
+        // Speed-changed clips are MUTED (decision: honest silence over
+        // chipmunk/tape artifacts; pitch-preserving stretch is a follow-up).
+        // Silence, not a gap — a hole in the audio track desyncs players.
+        await addSilence(
+          mb,
+          audioSource,
+          audioTrack.sampleRate,
+          audioTrack.numberOfChannels,
+          audioOffset,
+          clipTimelineLength(clip)
+        );
+        audioOffset += clipTimelineLength(clip);
+        continue;
+      }
       for await (const sample of audioSink.samples(clip.in, clip.out)) {
         const timestamp = audioOffset + Math.max(0, sample.timestamp - clip.in);
         if (clip.volume === 1) {
@@ -220,7 +240,7 @@ async function renderClipsManually(
         await audioSource.add(scaled);
         scaled.close();
       }
-      audioOffset += clip.out - clip.in;
+      audioOffset += clipTimelineLength(clip);
     }
   }
 
@@ -229,4 +249,30 @@ async function renderClipsManually(
   if (!buffer) throw new Error('Render produced no output');
   if (onProgress) onProgress(1);
   return { blob: new Blob([buffer], { type: 'video/mp4' }), mime: 'video/mp4' };
+}
+
+/** Write `seconds` of silence starting at `timestamp`, in ≤1s samples. */
+async function addSilence(
+  mb: Mediabunny,
+  audioSource: InstanceType<Mediabunny['AudioSampleSource']>,
+  sampleRate: number,
+  numberOfChannels: number,
+  timestamp: number,
+  seconds: number
+): Promise<void> {
+  let written = 0;
+  while (written < seconds) {
+    const chunk = Math.min(1, seconds - written);
+    const frames = Math.max(1, Math.round(chunk * sampleRate));
+    const silent = new mb.AudioSample({
+      data: new Float32Array(frames * numberOfChannels),
+      format: 'f32',
+      numberOfChannels,
+      sampleRate,
+      timestamp: timestamp + written,
+    });
+    await audioSource.add(silent);
+    silent.close();
+    written += chunk;
+  }
 }
