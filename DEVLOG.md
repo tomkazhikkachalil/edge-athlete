@@ -1,5 +1,33 @@
 # Development Log
 
+## August 25, 2026 — Photo engine E-W1: copy/paste looks + apply-to-all — Phase 4 begins
+
+First workflow slice: **Copy look / Paste look / Apply to all** appear
+above the filmstrip in multi-photo sessions. A "look" (`src/lib/media/
+look.ts`, pure) is the transferable half of a recipe — everything that
+styles color and texture (trio, light, color, detail, filter+intensity,
+mixer, curves, grain) and NOTHING tied to one photo's pixels: geometry,
+masks, retouch spots, and text deliberately stay put. Pasting is a
+REPLACEMENT, not a merge — absent optional groups clear the target's,
+because a look is a complete statement. Apply-to-all patches each photo
+as its own history step, individually undoable. The zod `lookSchema`
+ships now because E-W3's saved presets persist exactly this shape.
+
+**The e2e undo assertion dug up a bug that predates the whole engine
+program**: react-easy-crop auto-emits `onCropComplete` on every mount /
+media-load with a full-frame rect, and CropStage committed it — every
+photo ever opened in the editor got a no-op full-frame `crop` in its
+recipe, a phantom "Crop" history entry, AND a dirty flag (open the
+editor, change nothing, hit X → "Discard changes?"). The interactedRef
+guard didn't hold because the library also fires `onCropChange`
+programmatically during layout, which set the flag. Fix:
+`isFullFrameCrop` (pure, tolerance ±2px) — a full-frame crop of an
+unrotated free-ratio frame is NOT an edit, and zooming back out to full
+frame now CLEARS a real crop instead of storing a redundant one. The
+lesson for the file: assertion-driven flows find what visual review
+can't — the failure mode was "undo appears to do nothing", which every
+human tester had shrugged past.
+
 ## August 25, 2026 — Photo engine E-AI: Phase-3 scaffold — built to the cost gate, then stopped
 
 Phase 3 (AI) built exactly as far as the mandate allows: the FULL
