@@ -39,6 +39,14 @@ describe('toProxyUrl', () => {
     expect(verifyMediaToken(token)?.k).toBe('posts/u1/a b.jpg');
   });
 
+  it('fails OPEN to the raw URL when no signing secret is set', () => {
+    delete process.env.MEDIA_PROXY_SECRET;
+    const raw = `${BASE}/uploads/posts/u1/a.jpg`;
+    // No 500 / throw — the response degrades to the raw public URL, which is
+    // safe while the bucket is still public (the flip is gated on the secret).
+    expect(toProxyUrl(raw, { type: 'post', id: 'p1' })).toBe(raw);
+  });
+
   it('isProtectedBucket', () => {
     expect(isProtectedBucket('uploads')).toBe(true);
     expect(isProtectedBucket('avatars')).toBe(false);

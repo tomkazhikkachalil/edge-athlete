@@ -55,8 +55,17 @@ export function toProxyUrl(
   if (!stored) return null;
   const parsed = parsePublicUrl(stored);
   if (!parsed || !PROTECTED_BUCKETS.has(parsed.bucket)) return stored;
-  const token = signMediaToken({ b: parsed.bucket, k: parsed.key, t: entity.type, id: entity.id });
-  return `/api/media/${token}`;
+  try {
+    const token = signMediaToken({ b: parsed.bucket, k: parsed.key, t: entity.type, id: entity.id });
+    return `/api/media/${token}`;
+  } catch {
+    // Fail OPEN to the raw public URL rather than 500 the response. The only
+    // way signing throws is a missing MEDIA_PROXY_SECRET — a deploy that
+    // hasn't set it yet. Raw URLs still work while the bucket is public, and
+    // the bucket flip to private is explicitly gated on the secret being set
+    // (docs/MEDIA_PRIVACY_FLIP.md), so this degradation is safe.
+    return stored;
+  }
 }
 
 /** True when a bucket's bytes are served through the proxy. */
