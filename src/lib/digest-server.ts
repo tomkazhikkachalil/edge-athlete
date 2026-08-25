@@ -1,11 +1,22 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { emailService } from './email-service';
 import { isSyntheticEmail } from './config/minors-config';
+import { chunk } from './chunk';
+
+// How many users a single cron run processes concurrently. The per-user work
+// (a few queries + a mail send) used to run fully serially — ~600-800 serial
+// round-trips at 200 opted-in users, which risked the 60s /api/cron/daily
+// budget (digest is one of its 5 phases). Batches run in sequence; users
+// within a batch run in parallel, bounding fan-out so the DB pool and SMTP
+// throughput are never swamped.
+const DIGEST_BATCH_SIZE = 10;
+
+type DigestPref = { user_id: string; last_digest_at: string | null };
 
 // Notification-digest job, extracted from the cron route so the combined
 // /api/cron/daily can run it alongside the transfer sweep (Vercel Hobby's
-// 2-cron cap). Logic unchanged except: synthetic minor addresses
-// (@minors.invalid) are skipped — they can never receive mail.
+// 2-cron cap). Synthetic minor addresses (@minors.invalid) are routed to the
+// guardian(s) rather than mailed directly.
 export async function runNotificationDigest(supabase: SupabaseClient, appUrl: string) {
   if (!process.env.SMTP_USER || !process.env.SMTP_PASS) {
     return { ok: true, skipped: 'SMTP not configured', sent: 0, considered: 0 };
@@ -22,9 +33,11 @@ export async function runNotificationDigest(supabase: SupabaseClient, appUrl: st
   }
   if (!prefs || prefs.length === 0) return { ok: true, sent: 0, considered: 0 };
 
-  let sent = 0;
   const nowIso = new Date().toISOString();
-  for (const pref of prefs) {
+
+  // One user's work. Returns how many emails it sent (0+). Never throws — a
+  // failure is logged and counts as 0, so it can't sink the rest of its batch.
+  const processOne = async (pref: DigestPref): Promise<number> => {
     try {
       let notifQuery = supabase
         .from('notifications')
@@ -50,7 +63,7 @@ export async function runNotificationDigest(supabase: SupabaseClient, appUrl: st
 
       if (!notifs || notifs.length === 0) {
         await advanceWatermark();
-        continue;
+        return 0;
       }
 
       const { data: profile } = await supabase
@@ -61,7 +74,7 @@ export async function runNotificationDigest(supabase: SupabaseClient, appUrl: st
       if (!profile?.email) {
         // Structurally undeliverable — don't retry forever.
         await advanceWatermark();
-        continue;
+        return 0;
       }
 
       if (isSyntheticEmail(profile.email)) {
@@ -71,7 +84,7 @@ export async function runNotificationDigest(supabase: SupabaseClient, appUrl: st
         // and the child gains a real email.
         if (profile.supervision_state !== 'supervised') {
           await advanceWatermark();
-          continue;
+          return 0;
         }
         const { data: guardianRows } = await supabase
           .from('profile_access')
@@ -81,34 +94,38 @@ export async function runNotificationDigest(supabase: SupabaseClient, appUrl: st
         const guardianEmails = (guardianRows ?? [])
           .map(r => (r.profiles as unknown as { email: string | null })?.email)
           .filter((e): e is string => !!e && !isSyntheticEmail(e));
-        let allGuardiansSent = true;
-        for (const guardianEmail of guardianEmails) {
-          const ok = await emailService.sendChildDigest(
+        // One child's guardians are independent recipients — fan the sends out.
+        const results = await Promise.all(
+          guardianEmails.map(guardianEmail => emailService.sendChildDigest(
             guardianEmail, profile.first_name || 'Your athlete', notifs, appUrl
-          );
-          if (ok) sent++;
-          else allGuardiansSent = false;
-        }
-        // Watermark advances only when EVERY guardian send succeeded
-        // (Round E, mirroring the main digest's rule). On partial failure
-        // it holds without throwing, so the loop continues to the next
-        // child and this digest retries next run — accepted tradeoff: a
-        // persistently bouncing co-guardian re-sends to the healthy one
-        // until fixed, which beats silently dropping the digest.
-        if (allGuardiansSent) await advanceWatermark();
-        continue;
+          ))
+        );
+        // Watermark advances only when EVERY guardian send succeeded (Round E,
+        // mirroring the main digest's rule). On partial failure it holds
+        // without throwing, so this digest retries next run — accepted
+        // tradeoff: a persistently bouncing co-guardian re-sends to the
+        // healthy one until fixed, which beats silently dropping the digest.
+        if (results.every(Boolean)) await advanceWatermark();
+        return results.filter(Boolean).length;
       }
 
       const displayName =
         [profile.first_name, profile.last_name].filter(Boolean).join(' ') ||
         profile.full_name || '';
       await emailService.sendNotificationDigest(profile.email, displayName, notifs, appUrl);
-      sent++;
       await advanceWatermark();
+      return 1;
     } catch (userError) {
       // One user's failure never stops the batch
       console.error('[DIGEST] failed for user', pref.user_id, userError);
+      return 0;
     }
+  };
+
+  let sent = 0;
+  for (const batch of chunk(prefs as DigestPref[], DIGEST_BATCH_SIZE)) {
+    const counts = await Promise.all(batch.map(processOne));
+    sent += counts.reduce((a, b) => a + b, 0);
   }
   return { ok: true, sent, considered: prefs.length };
 }
