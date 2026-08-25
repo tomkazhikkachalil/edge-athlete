@@ -110,7 +110,9 @@ export function defaultLinearMask(): Mask {
  * rasterized coverage buffer (0 when the caller didn't provide one).
  */
 export function maskWeight(mask: Mask, u: number, v: number, brush?: BrushBuffer | null): number {
-  if (mask.kind === 'brush') {
+  if (mask.kind === 'brush' || mask.kind === 'data') {
+    // Both raster kinds sample a provided coverage buffer (brush: the
+    // stroke raster; data: the decoded RLE — invert already baked in).
     if (!brush) return 0;
     return sampleMaskBuffer(brush.buffer, brush.width, brush.height, u, v);
   }
@@ -195,6 +197,8 @@ export function moveMask(mask: Mask, du: number, dv: number): Mask {
       y1: clamp01(mask.y1 + dv),
     };
   }
+  // Data masks are subject-shaped — they don't translate.
+  if (mask.kind === 'data') return mask;
   // Brush: translate every point, with the DELTA clamped so the stroke
   // bounding box stays inside the frame (per-point clamping would smear
   // the shape against the edge).

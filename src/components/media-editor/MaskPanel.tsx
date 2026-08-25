@@ -35,6 +35,7 @@ const MASK_KIND_LABELS: Record<Mask['kind'], string> = {
   radial: 'Radial',
   linear: 'Linear',
   brush: 'Brush',
+  data: 'Subject',
 };
 
 interface MaskPanelProps {
@@ -45,6 +46,11 @@ interface MaskPanelProps {
   brushSettings: BrushSettings;
   onBrushSettingsChange: (settings: BrushSettings) => void;
   engineAvailable: boolean;
+  /** Phase 3: AI subject selection — visible ONLY when a runner is
+   *  configured (cost-gated; see docs/AI_RUNNER.md). */
+  aiAvailable: boolean;
+  aiBusy: boolean;
+  onSelectSubject: () => void;
 }
 
 export default function MaskPanel({
@@ -55,6 +61,9 @@ export default function MaskPanel({
   brushSettings,
   onBrushSettingsChange,
   engineAvailable,
+  aiAvailable,
+  aiBusy,
+  onSelectSubject,
 }: MaskPanelProps) {
   const masks = recipe.masks ?? [];
   const selected: Mask | undefined = masks[selectedIndex];
@@ -125,6 +134,16 @@ export default function MaskPanel({
         >
           + Brush
         </button>
+        {aiAvailable && (
+          <button
+            type="button"
+            onClick={onSelectSubject}
+            disabled={aiBusy || masks.length >= MAX_MASKS}
+            className="px-3 min-h-[36px] rounded-full text-chip whitespace-nowrap shrink-0 bg-white/10 text-white/70 hover:bg-white/20 disabled:opacity-40"
+          >
+            {aiBusy ? 'Finding subject…' : '✦ Select subject'}
+          </button>
+        )}
         {selected && (
           <button
             type="button"
@@ -226,6 +245,40 @@ export default function MaskPanel({
                   }`}
                 >
                   Erase
+                </button>
+              </div>
+            </>
+          )}
+          {selected.kind === 'data' && (
+            <>
+              <EditorSlider
+                label="Edge feather"
+                value={unsignedToUi(selected.feather)}
+                min={0}
+                onChange={ui =>
+                  patchSelected(
+                    { ...selected, feather: uiToUnsigned(ui) },
+                    `mask.${selectedIndex}.feather`
+                  )
+                }
+              />
+              <div className="flex justify-end">
+                <button
+                  type="button"
+                  aria-pressed={selected.invert}
+                  onClick={() =>
+                    patchSelected(
+                      { ...selected, invert: !selected.invert },
+                      `mask.${selectedIndex}.invert`
+                    )
+                  }
+                  className={`px-3 min-h-[36px] rounded-full text-chip ${
+                    selected.invert
+                      ? 'bg-white/20 text-white font-semibold'
+                      : 'bg-white/10 text-white/70 hover:bg-white/20'
+                  }`}
+                >
+                  {selected.invert ? 'Background' : 'Subject'} — tap to flip
                 </button>
               </div>
             </>

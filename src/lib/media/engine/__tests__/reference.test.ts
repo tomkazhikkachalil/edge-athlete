@@ -126,6 +126,38 @@ describe('reference engine — engine-round stages', () => {
     expect(data[(2 * w + 2) * 4]).toBe(20); // unhealed black −1 EV
   });
 
+  it('masks: a data (AI) raster drives local exposure through the pipeline', () => {
+    // 16×16 gray frame; the data mask covers the top half (128 ones after
+    // 128 zeros... rows are y-major: first 8 rows = 128 bits).
+    const w = 16;
+    const h = 16;
+    const data = new Uint8ClampedArray(w * h * 4);
+    for (let i = 0; i < data.length; i += 4) {
+      data[i] = data[i + 1] = data[i + 2] = 100;
+      data[i + 3] = 255;
+    }
+    applyEngine(
+      data,
+      w,
+      h,
+      params({
+        masks: [
+          {
+            kind: 'data',
+            width: w,
+            height: h,
+            rle: '0,128,128', // top half ones
+            feather: 0,
+            invert: false,
+            adjust: { exposure: 1, saturation: 0, temperature: 0 },
+          },
+        ],
+      })
+    );
+    expect(data[(3 * w + 8) * 4]).toBe(200); // top half: +1 EV doubles
+    expect(data[(12 * w + 8) * 4]).toBe(100); // bottom half untouched
+  });
+
   it('masks: a painted brush corridor lifts exposure inside, not outside (E4f)', () => {
     const w = 32;
     const h = 32;

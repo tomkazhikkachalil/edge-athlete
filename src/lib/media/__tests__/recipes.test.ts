@@ -175,6 +175,31 @@ describe('defaults and no-op detection', () => {
     expect(parseRecipe(serializeRecipe({ ...base, masks: [many] }))).toBeNull();
   });
 
+  it('data masks (AI ingestion): round-trip; zero-adjust is a no-op; caps enforced', () => {
+    const base = defaultImageRecipe();
+    const data = {
+      kind: 'data' as const,
+      width: 16,
+      height: 16,
+      rle: '100,56,100', // 256 bits
+      feather: 0.3,
+      invert: true,
+      adjust: { exposure: 0, saturation: 0, temperature: 0, blur: 0.8 },
+    };
+    const recipe = { ...base, masks: [data] };
+    expect(isNoopRecipe(recipe)).toBe(false); // blur set
+    expect(parseRecipe(serializeRecipe(recipe))).toEqual(recipe);
+    expect(
+      isNoopRecipe({
+        ...base,
+        masks: [{ ...data, adjust: { exposure: 0, saturation: 0, temperature: 0 } }],
+      })
+    ).toBe(true); // raster alone never forces a re-encode
+    expect(
+      parseRecipe(serializeRecipe({ ...base, masks: [{ ...data, width: 1024 }] }))
+    ).toBeNull(); // dim cap
+  });
+
   it('clone stamps: absent/empty are no-ops; stamps round-trip; cap enforced (E4g)', () => {
     const base = defaultImageRecipe();
     expect(isNoopRecipe({ ...base, clones: [] })).toBe(true);

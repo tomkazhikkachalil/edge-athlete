@@ -182,6 +182,18 @@ export type Mask =
       kind: 'brush';
       strokes: BrushStroke[]; // 0..32
       adjust: MaskAdjust;
+    }
+  | {
+      /** Raster mask ingested from a data source (Phase 3: AI subject
+       *  segmentation) — RLE-encoded binary coverage at model resolution
+       *  (≤512²), feathered on decode. Invert flips subject↔background. */
+      kind: 'data';
+      width: number;
+      height: number;
+      rle: string;
+      feather: number; // 0..1
+      invert: boolean;
+      adjust: MaskAdjust;
     };
 
 /**

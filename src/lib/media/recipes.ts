@@ -175,6 +175,15 @@ const maskSchema = z.discriminatedUnion('kind', [
     strokes: z.array(brushStrokeSchema).max(32),
     adjust: maskAdjustSchema,
   }),
+  z.object({
+    kind: z.literal('data'),
+    width: z.number().int().min(8).max(512),
+    height: z.number().int().min(8).max(512),
+    rle: z.string().min(1).max(20_000),
+    feather: unsigned(),
+    invert: z.boolean(),
+    adjust: maskAdjustSchema,
+  }),
 ]);
 
 // A tone curve: 2..8 points, both axes 0..1, strictly ascending x.
