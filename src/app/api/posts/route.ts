@@ -352,12 +352,19 @@ export async function POST(request: NextRequest) {
 
     // Add media files if provided
     if (media && media.length > 0) {
-      const mediaRecords = media.map((file: { url: string; type: string; sortOrder?: number; thumbnailUrl?: string }, index: number) => ({
+      // Positive-finite guard on client-probed numbers — width/height/duration
+      // are nullable metadata, never trusted enough to fail the insert.
+      const dim = (v: unknown) =>
+        typeof v === 'number' && Number.isFinite(v) && v > 0 ? Math.round(v) : null;
+      const mediaRecords = media.map((file: { url: string; type: string; sortOrder?: number; thumbnailUrl?: string; width?: number; height?: number; duration?: number }, index: number) => ({
         post_id: post.id,
         media_url: file.url,
         media_type: file.type,
         display_order: (file.sortOrder ?? index) + 1, // ?? — sortOrder 0 is valid (|| collapsed slots 0 and 1)
-        thumbnail_url: file.thumbnailUrl || null
+        thumbnail_url: file.thumbnailUrl || null,
+        width: dim(file.width),
+        height: dim(file.height),
+        duration: dim(file.duration)
       }));
 
       const { error: mediaError } = await supabase

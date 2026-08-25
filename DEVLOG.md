@@ -1,5 +1,43 @@
 # Development Log
 
+## August 24, 2026 — Media round A: closing Layer 1's gaps (editor already existed)
+
+Session started from a brief that said "you can only zoom into an image."
+Exploration corrected the premise: the full pre-upload editor shipped
+July 26 (crop/presets/rotate/straighten/adjust/filters, video
+trim/split/cover via WebCodecs, 8 surfaces) — what was missing was a
+DELTA, not a greenfield. This round closes the small half of it; the
+media program's remaining rounds (non-destructive persistence, multi-clip
+timeline, slo-mo) are planned and feasibility-verified against the
+installed mediabunny 1.55.1 (concat/volume/reframe/retiming all buildable
+from its primitives, zero new deps).
+
+Landed here:
+- **Undo/redo in the editor** — recipe-snapshot history
+  (src/lib/media/history.ts, pure + tested), one step per control drag
+  (same-key coalescing, so a slider drag undoes as a unit), 30-step cap,
+  per-asset, works for image and video recipes alike.
+- **Video re-edit pencil** — the composer's per-tile Edit button was
+  image-gated even though openEditorFor and VideoStage were already
+  kind-agnostic; videos now reopen with trim/poster rehydrated.
+- **Round media goes through the editor** — RoundMediaManager (the
+  after-the-fact curation path) used to upload raw picks; now the same
+  editor session runs first, poster frames land as thumbnail_url, and
+  inferSegment reads the ORIGINAL file's lastModified (the rendered
+  blob's timestamp is "now" and would always be rejected).
+- **post_media.width/height/duration written for the first time** — the
+  columns existed live (verified by OpenAPI probe; they're in no repo
+  migration) but no client ever sent them. Export now best-effort-probes
+  every result (createImageBitmap / metadata load with the
+  Infinity-duration guard) and the posts API persists them with a
+  positive-finite clamp. MediaTile's duration badge can now actually fire
+  for post media.
+- Five stale "videos pass through untouched until the video phase"
+  comments corrected (the video phase shipped in July).
+- **First editor e2e ever** (e2e/media-editor.spec.ts + a generated PNG
+  fixture): pick → edit → undo → Done → re-edit pencil rehydrates →
+  dirty-cancel confirm → publish renders in the feed.
+
 ## August 24, 2026 — Close-out III: the fan-out round, end to end
 
 Third close-out of the day. The three follow-ups that close-out II parked

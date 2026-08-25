@@ -12,7 +12,7 @@
  */
 
 import { useRef, useState } from 'react';
-import { X } from 'lucide-react';
+import { X, Undo2, Redo2 } from 'lucide-react';
 import { useBodyScrollLock } from '@/hooks/useBodyScrollLock';
 import { useDirtyClose } from '@/hooks/useDirtyClose';
 import ConfirmModal from '@/components/ConfirmModal';
@@ -54,10 +54,8 @@ export default function MediaEditorModal({ assets: initialAssets, config, onDone
   useBodyScrollLock(true);
   const { showError } = useToast();
   const defaultAspect = config.enforcedRatio ?? config.aspectRatios[0] ?? 'free';
-  const { assets, recipes, patchRecipe, addAsset, previewUrls } = useEditorSession(
-    initialAssets,
-    defaultAspect
-  );
+  const { assets, recipes, patchRecipe, addAsset, previewUrls, undoRecipe, redoRecipe, canUndo, canRedo } =
+    useEditorSession(initialAssets, defaultAspect);
   const [activeId, setActiveId] = useState(initialAssets[0]?.id ?? '');
   const [tool, setTool] = useState<Tool>(initialAssets[0]?.kind === 'video' ? 'trim' : 'crop');
   const [exporting, setExporting] = useState<{ done: number; total: number } | null>(null);
@@ -134,14 +132,40 @@ export default function MediaEditorModal({ assets: initialAssets, config, onDone
       />
       {/* Header */}
       <div className="flex items-center justify-between px-4 py-2 flex-shrink-0">
-        <button
-          type="button"
-          onClick={requestClose}
-          aria-label="Cancel editing"
-          className="w-11 h-11 flex items-center justify-center rounded-full text-white hover:bg-white/10"
-        >
-          <X className="w-5 h-5" />
-        </button>
+        <div className="flex items-center gap-1">
+          <button
+            type="button"
+            onClick={requestClose}
+            aria-label="Cancel editing"
+            className="w-11 h-11 flex items-center justify-center rounded-full text-white hover:bg-white/10"
+          >
+            <X className="w-5 h-5" />
+          </button>
+          {/* Undo/redo appear once the active asset has history — recipe
+              snapshots only, one step per control drag (see lib/media/history). */}
+          {(canUndo(active.id) || canRedo(active.id)) && (
+            <>
+              <button
+                type="button"
+                onClick={() => undoRecipe(active.id)}
+                disabled={!canUndo(active.id)}
+                aria-label="Undo"
+                className="w-11 h-11 flex items-center justify-center rounded-full text-white hover:bg-white/10 disabled:opacity-40"
+              >
+                <Undo2 className="w-5 h-5" />
+              </button>
+              <button
+                type="button"
+                onClick={() => redoRecipe(active.id)}
+                disabled={!canRedo(active.id)}
+                aria-label="Redo"
+                className="w-11 h-11 flex items-center justify-center rounded-full text-white hover:bg-white/10 disabled:opacity-40"
+              >
+                <Redo2 className="w-5 h-5" />
+              </button>
+            </>
+          )}
+        </div>
         <h2 className="text-label font-semibold text-white">Edit media</h2>
         <button
           type="button"

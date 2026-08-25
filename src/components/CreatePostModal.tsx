@@ -52,6 +52,10 @@ interface MediaFile {
   recipe?: EditRecipe;
   /** Video cover frame from the editor — uploaded as post_media.thumbnail_url. */
   posterBlob?: Blob;
+  /** Output metadata from the editor's probe — persisted to post_media. */
+  width?: number;
+  height?: number;
+  durationSeconds?: number;
 }
 
 // Golf composer state lives in src/components/golf/GolfComposerSection.tsx
@@ -193,7 +197,7 @@ export default function CreatePostModal({
 
   const COMPOSER_EDITOR_CONFIG: EditorConfig = {
     aspectRatios: ['free', '1:1', '4:5', '16:9'],
-    allowVideo: true, // videos pass through untouched until the video phase
+    allowVideo: true, // trim/split/cover via WebCodecs; degrades to pass-through without it
     maxAssets: MAX_MEDIA_FILES,
     output: { maxDimension: 2048, mime: 'image/jpeg', quality: 0.9 },
   };
@@ -284,6 +288,9 @@ export default function CreatePostModal({
       sourceFile: r.sourceFile,
       recipe: r.recipe,
       posterBlob: r.posterBlob,
+      width: r.width,
+      height: r.height,
+      durationSeconds: r.durationSeconds,
     });
     if (editingExistingId) {
       const replaced = results[0];
@@ -515,7 +522,11 @@ export default function CreatePostModal({
           type: file.type,
           sortOrder: index,
           // server persists as post_media.thumbnail_url (posts/route.ts)
-          thumbnailUrl: file.thumbnailUrl
+          thumbnailUrl: file.thumbnailUrl,
+          // editor-probed output metadata → post_media.width/height/duration
+          width: file.width,
+          height: file.height,
+          duration: file.durationSeconds,
         })),
         stats_data:
           isStatLineSport && statLineData && statLineHasContent(statLineData)
@@ -954,8 +965,10 @@ export default function CreatePostModal({
                       </span>
                     </button>
 
-                    {/* Edit (re-opens the editor rehydrated with this asset's recipe) */}
-                    {file.type === 'image' && (file.sourceFile || file.file) && (
+                    {/* Edit (re-opens the editor rehydrated with this asset's
+                        recipe) — images AND videos: openEditorFor is
+                        kind-agnostic and VideoStage rehydrates trim/poster. */}
+                    {(file.sourceFile || file.file) && (
                       <button
                         onClick={() => openEditorFor(file)}
                         aria-label="Edit media"
