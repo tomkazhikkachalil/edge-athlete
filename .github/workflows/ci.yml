@@ -38,6 +38,24 @@ jobs:
           NEXT_PUBLIC_SUPABASE_ANON_KEY: placeholder-anon-key
           SUPABASE_SERVICE_ROLE_KEY: placeholder-service-role-key
 
+  # Hardening guardrails — cheap pattern checks that encode the exact
+  # regressions the pre-scale audit fixed (backslash .or() sanitizer, thrown
+  # Response in a route, await cookies() outside the auth exceptions) plus a
+  # high/critical dependency audit. See scripts/hardening-guardrails.sh and
+  # docs/HARDENING.md. Fast; runs on every PR alongside `verify`.
+  guardrails:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Install dependencies
+        run: npm ci
+      - name: Hardening guardrails
+        run: bash scripts/hardening-guardrails.sh
+
   # Playwright smoke suite against the real Supabase project (no staging
   # exists): global setup creates a disposable private-visibility edgeqa-*
   # user, teardown always deletes it, and a 24h sweep drains orphans from

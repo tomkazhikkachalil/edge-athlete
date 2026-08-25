@@ -347,6 +347,9 @@ addition below as a promise to keep it true.
   `migrations/`, `fixes/`, `features/`, `tests/` and `archive/`.
 - `docs/LAUNCH_RUNBOOK.md` — the pre-launch ops checklist (DNS/email, Supabase
   auth email, OAuth enablement, device walkthrough). Console actions, not code.
+- `docs/HARDENING.md` — the security & efficiency **stage gate**: re-run before
+  each stage. Pairs with `scripts/hardening-guardrails.sh` (the `guardrails` CI
+  job) and carries the Tier-2 backlog from the Aug 2026 pre-scale audit.
 - `docs/` — roadmaps (`docs/ROADMAP_2026-07.md`, `docs/MULTI_SPORT_ROADMAP.md`), a
   security audit, and feature write-ups. **`docs/devlog/` is the OLD devlog** (entries
   001–010, superseded by `DEVLOG.md` at the repo root) — history, not current
