@@ -80,13 +80,13 @@ public `/u/[handle]` page.
 Ranked, with the source finding. Fix deliberately; each is its own change.
 
 **Security**
-- ~~**Private-media signed URLs** (MEDIUM-HIGH)~~ — **IN PROGRESS (Aug 2026,
-  #297–#301).** Replaced by a same-origin authenticated media proxy
+- ~~**Private-media signed URLs** (MEDIUM-HIGH)~~ — **DONE (Aug 2026,
+  #297–#301 + bucket flip).** Same-origin authenticated media proxy
   (`/api/media/<token>`): every media response is rewritten to a proxy path,
-  and the proxy re-authorizes the live viewer before streaming bytes from a
-  now-private `uploads` bucket. PR1–4 (code) are the surface conversions; PR5
-  is the owner-run bucket flip — see `docs/MEDIA_PRIVACY_FLIP.md` and
-  `npm run verify:media-privacy`. Not done until the flip is executed in prod.
+  and the proxy re-authorizes the live viewer before streaming bytes from the
+  now-**private** `uploads` bucket. The owner-run flip is executed in prod and
+  verified (`npm run verify:media-privacy` green: raw `/object/public/uploads/…`
+  URLs 404, proxy still serves authorized viewers). See `docs/MEDIA_PRIVACY_FLIP.md`.
 - **CSP is report-only with no report-uri** (MEDIUM). Enforcing needs
   `unsafe-inline`/`unsafe-eval` removed first — its own careful project.
 - Verbose Postgres error bodies in `followers` 500s; consistent UUID-400s on the
@@ -97,15 +97,25 @@ Ranked, with the source finding. Fix deliberately; each is its own change.
   global-public feed today (doesn't go empty), and `hasMore` is pre-filter;
   `.range(offset)` degrades on deep pages. A keyset feed RPC is the scale-tomorrow
   shape — but changing feed composition is a product decision.
-- **live-now double-poll**: `useLiveNow` + `LiveNowStrip` fire the same deep-embed
-  endpoint twice/min; share one fetch, and add a count-only variant for the header.
+- ~~**live-now double-poll**~~ — **DONE (Aug 2026, #302).** Added a count-only
+  `/api/golf/live-now/count` (lean 4-column query) and pointed `useLiveNow` at
+  it; the deep embed now runs only on the 3 pages that render `LiveNowStrip`,
+  not on every authenticated page.
 - Single-post GET/create still embed `post_likes` (bounded to one post).
 - `active-sports` and `golf/stats` scan full history for a small set / two counts —
   need a distinct-keys RPC / `{count,head}`.
-- Public-data caching: `/u/[handle]` is client-rendered + uncached; `explore`,
-  `golf/courses`, all facets are recomputed per request.
-- `digest-server.ts` sequential 200-user cron will time out — batch it.
-- Messages conversation-list is `O(2N)` queries and unpaginated — an RPC.
+- ~~Public-data caching~~ — **DONE (Aug 2026, #303).** `Cache-Control` on
+  `/api/public/profile`, `/api/explore`, `/api/golf/courses/facets` (all CDN
+  `HIT` in prod), and `/api/golf/courses` (auth-branched: `private,no-store`
+  when authed / `public,s-maxage`+`Vary:Cookie` when anon).
+- ~~`digest-server.ts` sequential 200-user cron will time out~~ — **DONE
+  (Aug 2026, #304).** Batched (`chunk` of 10 + `Promise.all`, batches
+  sequential); the legacy unscheduled `/api/cron/notification-digest` copy was
+  collapsed into the shared lib.
+- ~~Messages conversation-list is `O(2N)` queries~~ — **DONE (Aug 2026, #305 +
+  migration 124).** One `get_conversation_list(p_user_id)` RPC (service_role-only
+  to prevent an IDOR) assembles the list in a single call. Still **unpaginated**
+  — true pagination (client infinite-scroll) remains a separate item.
 - RLS `(select auth.uid())` wrapping on the golf/group policies (mig 004).
 - Module-scope `supabaseAdmin` in `src/lib/supabase.ts` (imported by client files;
   key doesn't leak today, one refactor from mattering).
@@ -125,3 +135,11 @@ Ranked, with the source finding. Fix deliberately; each is its own change.
   count/limit fixes; feed like-embed removal; polling pause; security gates for
   stat-lines/organizations/tags/upload/`.or()` sanitizer). This runbook + the CI
   guardrails established. Backlog above is the remainder.
+- **Aug 2026** — private-media proxy + bucket flip completed (#297–#301). Tier-2
+  efficiency cluster shipped (#302–#305): live-now count endpoint, public-data
+  CDN caching, digest cron batching, and the messages conversation-list RPC
+  (migration 124). A default-`PUBLIC`-grant IDOR on the new RPC was caught in
+  verification and closed with a `REVOKE` (service_role-only EXECUTE) — the same
+  class as the 085/086 handle-takeover revokes; always test a new RPC with the
+  anon key. Remaining Tier-2: CSP enforcement, the Postgres-error/IDOR security
+  trio, feed keyset pagination, and the smaller efficiency + infra/ops items.
