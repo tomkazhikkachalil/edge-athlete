@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, Suspense } from 'react';
+import ConfirmModal from '@/components/ConfirmModal';
 import { useAuth } from '@/lib/auth';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { formatDisplayName, getInitials } from '@/lib/formatters';
@@ -17,6 +18,7 @@ interface FollowerProfile {
   avatar_url?: string;
   sport?: string;
   school?: string;
+  visibility?: string;
 }
 
 interface Follower {
@@ -44,6 +46,16 @@ function FollowersContent() {
   const [following, setFollowing] = useState<Follower[]>([]);
   const [requests, setRequests] = useState<FollowRequest[]>([]);
   const [loading, setLoading] = useState(true);
+  // Dummy-proofing round: destructive follow actions confirm first —
+  // remove-fan and decline always (the other person must re-request);
+  // unfollow only when the target is private (access is lost until they
+  // re-approve). Public unfollow stays one-tap (instantly reversible).
+  const [confirmAction, setConfirmAction] = useState<
+    | { kind: 'removeFan'; profileId: string }
+    | { kind: 'unfollow'; profileId: string }
+    | { kind: 'decline'; followId: string }
+    | null
+  >(null);
   const { showSuccess, showError } = useToast();
 
   useEffect(() => {
@@ -246,7 +258,7 @@ function FollowersContent() {
 
           {showRemoveButton && (
             <button
-              onClick={() => handleRemoveFollower(profile.id)}
+              onClick={() => setConfirmAction({ kind: 'removeFan', profileId: profile.id })}
               className="px-4 py-2 min-h-[44px] text-sm font-medium text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-950/40 rounded-lg hover:bg-red-100 dark:hover:bg-red-950/60 transition-colors shrink-0"
             >
               Remove
@@ -255,7 +267,11 @@ function FollowersContent() {
 
           {showUnfollowButton && (
             <button
-              onClick={() => handleUnfollow(profile.id)}
+              onClick={() =>
+                profile.visibility === 'private'
+                  ? setConfirmAction({ kind: 'unfollow', profileId: profile.id })
+                  : void handleUnfollow(profile.id)
+              }
               className="px-4 py-2 min-h-[44px] text-sm font-medium text-secondary bg-surface-sunken rounded-lg hover:bg-gray-200 dark:hover:bg-stone-800 transition-colors shrink-0"
             >
               Remove
@@ -270,6 +286,40 @@ function FollowersContent() {
     <div className="min-h-screen bg-canvas">
       {/* Unified Header */}
       <AppHeader showSearch={false} />
+
+      <ConfirmModal
+        isOpen={confirmAction !== null}
+        title={
+          confirmAction?.kind === 'removeFan'
+            ? 'Remove this fan?'
+            : confirmAction?.kind === 'decline'
+              ? 'Decline this request?'
+              : 'Unfollow this athlete?'
+        }
+        message={
+          confirmAction?.kind === 'removeFan'
+            ? "They'll no longer follow you and won't be told. They'd have to send a new request to follow you again."
+            : confirmAction?.kind === 'decline'
+              ? "The request is removed and they aren't notified. They can send a new one later."
+              : 'Their profile is private — to follow again you would need to send a new request and wait for their approval.'
+        }
+        confirmText={
+          confirmAction?.kind === 'removeFan'
+            ? 'Remove fan'
+            : confirmAction?.kind === 'decline'
+              ? 'Decline'
+              : 'Unfollow'
+        }
+        onConfirm={() => {
+          const action = confirmAction;
+          setConfirmAction(null);
+          if (!action) return;
+          if (action.kind === 'removeFan') void handleRemoveFollower(action.profileId);
+          else if (action.kind === 'unfollow') void handleUnfollow(action.profileId);
+          else void handleRejectRequest(action.followId);
+        }}
+        onCancel={() => setConfirmAction(null)}
+      />
 
 
       {/* Page Header with Tabs */}
@@ -461,7 +511,7 @@ function FollowersContent() {
                                 Accept
                               </button>
                               <button
-                                onClick={() => handleRejectRequest(request.id)}
+                                onClick={() => setConfirmAction({ kind: 'decline', followId: request.id })}
                                 className="flex-1 sm:flex-none px-4 py-2 min-h-[44px] bg-gray-200 dark:bg-stone-800 text-secondary text-sm font-medium rounded-lg hover:bg-gray-300 dark:hover:bg-stone-700 transition-colors"
                               >
                                 Decline

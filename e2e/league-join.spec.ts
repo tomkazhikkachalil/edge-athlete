@@ -58,6 +58,10 @@ test('league: join and leave from the league page', async ({ page }) => {
 
     // Leave → back to 1 member.
     await page.getByRole('button', { name: 'Leave league' }).click();
+    // Dummy-proofing round: leaving confirms first (a manager would lose
+    // their role) — the confirm appearing IS part of the contract now.
+    await expect(page.getByText('Leave this league?')).toBeVisible();
+    await page.getByRole('button', { name: 'Leave', exact: true }).click();
     await expect(page.getByRole('button', { name: 'Join league' })).toBeVisible({ timeout: 15_000 });
     await expect(page.getByText('1 member', { exact: false })).toBeVisible();
   } finally {

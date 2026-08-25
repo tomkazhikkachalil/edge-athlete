@@ -1,5 +1,48 @@
 # Development Log
 
+## August 24, 2026 — Dummy-proofing PR 2: no destructive tap without a confirm
+
+The app-wide audit behind PR 1 found nine severity-A accidental-permanence
+traps: destructive single-tap actions with no gate, several of them
+UNRECOVERABLE server-side. Every one now confirms through the standard
+ConfirmModal, with copy that says what is actually at stake:
+
+- **Guardian Decline** (posts + comments) — the server refuses to
+  re-decide (400 on anything not pending), so a stray tap permanently
+  killed a child's post. The confirm says so plainly. Approve stays
+  one-tap.
+- **Leave league/club** — the DELETE drops the member row INCLUDING a
+  manager role, and only the owner can hand it back; the message escalates
+  for managers. Joining stays one-tap.
+- **Message delete** — confirmed ONCE in MessageBubble so all four entry
+  points (desktop menu, action sheet, full page, dock) share the gate;
+  the modal portals to body per the messages-surface stacking rule.
+- **Group remove-member**, **round-media delete**, **cancel guardian
+  invite** (sits one tap from "Get new link" and breaks a link already in
+  the other parent's hands) — all confirmed.
+- **Private → public** — one tap used to publish everything instantly;
+  the confirm spells out that anything seen while public stays seen.
+  Going private stays one-tap (only ever narrows exposure).
+- **Remove fan / decline request** — always confirmed (the other person
+  must re-request; they're never notified). **Unfollow** confirms ONLY
+  for private targets (Tom's call — public unfollow is instantly
+  reversible and stays one-tap); the followers API rows now carry
+  `visibility` so both surfaces can tell the difference.
+- **Equipment retire/reactivate** — the toggle is lossy (reactivate
+  clears retired_on, a hand-editable date; re-retiring stamps today), so
+  both directions confirm with the loss named.
+
+Contract shift, deliberate: league-join, club-join and equipment e2e
+specs now assert the confirm APPEARS and click through it — the dialog is
+part of the product rule, not an obstacle the tests bypass. Confirm
+labels were chosen to never collide with the buttons that open them
+("Leave", "Yes, retire") so strict-mode locators stay unambiguous.
+
+Backlog (audit findings deliberately NOT in this PR): workout-PR
+forfeiture on nav-away, series guest-edit RSVP loss, event un-cancel,
+avatar/cover old-file deletion, sport-settings delete-on-uncheck, C-tier
+annoyances. PR 3 (resumability) lands next.
+
 ## August 24, 2026 — Dummy-proofing PR 1: a started round is a session, not a post
 
 Tom's report: start a round, no score yet, navigate away → the round is in
@@ -2681,8 +2724,6 @@ Decisions and traps worth recording:
 - Migration-lag retry (42703/PGRST204 → drop the column from the insert and
   retry) carried over from the posts route, so a stale PostgREST schema
   cache degrades to an unattributed comment instead of a failed one.
-
-
 
 The four items every sweep since Aug 11 has carried forward verbatim, done
 in one round while email DNS propagates.

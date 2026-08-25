@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useRef, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import dynamic from 'next/dynamic';
 import { Theme } from 'emoji-picker-react';
 import type { EmojiClickData } from 'emoji-picker-react';
@@ -11,6 +12,7 @@ import ReactionBar, { rememberRecentEmoji } from './ReactionBar';
 import QuotedReply from './QuotedReply';
 import EditMessageInline from './EditMessageInline';
 import ReportMessageModal from './ReportMessageModal';
+import ConfirmModal from '@/components/ConfirmModal';
 import MessageBubbleContent from './MessageBubbleContent';
 import MessageActionSheet, { type SheetAnchor } from './MessageActionSheet';
 import { haptic } from '@/lib/haptics';
@@ -75,6 +77,11 @@ export default function MessageBubble({
   const [showFullPicker, setShowFullPicker] = useState(false);
   const [editing, setEditing] = useState(false);
   const [showReportModal, setShowReportModal] = useState(false);
+  // Delete is confirmed here, ONCE, so every entry point (desktop hover
+  // menu, mobile action sheet, full page, dock) gets the same gate —
+  // deleting a message is permanent and was a single stray tap
+  // (dummy-proofing round).
+  const [confirmingDelete, setConfirmingDelete] = useState(false);
   const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const wrapperRef = useRef<HTMLDivElement | null>(null);
   // A completed long-press must not ALSO deliver the tap underneath it
@@ -138,8 +145,10 @@ export default function MessageBubble({
     setShowMenu(false);
   };
 
+  // The modal PORTALS to body per the messages-surface rule: bubbles sit
+  // under transformed/scrolling ancestors that break fixed positioning.
   const handleDelete = () => {
-    onDelete?.(message.id);
+    setConfirmingDelete(true);
     setShowMenu(false);
   };
 
@@ -441,9 +450,25 @@ export default function MessageBubble({
           onCopy={() => { setSheetOpen(false); if (message.content) navigator.clipboard.writeText(message.content); }}
           onEdit={() => { setSheetOpen(false); setEditing(true); }}
           onReport={() => { setSheetOpen(false); setShowReportModal(true); }}
-          onDelete={() => { setSheetOpen(false); onDelete?.(message.id); }}
+          onDelete={() => { setSheetOpen(false); setConfirmingDelete(true); }}
         />
       )}
+
+      {confirmingDelete &&
+        createPortal(
+          <ConfirmModal
+            isOpen
+            title="Delete this message?"
+            message="It will be removed for everyone in the conversation. This can't be undone."
+            confirmText="Delete"
+            onConfirm={() => {
+              setConfirmingDelete(false);
+              onDelete?.(message.id);
+            }}
+            onCancel={() => setConfirmingDelete(false)}
+          />,
+          document.body
+        )}
     </div>
   );
 }
