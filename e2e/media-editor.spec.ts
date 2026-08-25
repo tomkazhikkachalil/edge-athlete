@@ -327,6 +327,39 @@ test('media editor: crop session, undo, re-edit, dirty confirm, publish', async 
   await expect(page.getByText(marker).first()).toBeVisible({ timeout: 30_000 });
 });
 
+// Look tools (Phase 4 E-W1): a color/texture look copies across a
+// multi-photo session; geometry stays per-photo (pinned in unit tests —
+// here we pin the UI flow end to end).
+test('look tools: copy a look across a multi-photo session', async ({ page }) => {
+  test.setTimeout(120_000);
+  const fixture = path.join(__dirname, 'fixtures', 'photo.png');
+
+  await page.goto('/feed');
+  await page.getByRole('button', { name: /what's on your mind/i }).click();
+  await expect(page.getByPlaceholder('Share your thoughts...')).toBeVisible();
+  await page.locator('input[type="file"][multiple]').setInputFiles([fixture, fixture]);
+  await expect(page.getByRole('heading', { name: 'Edit media' })).toBeVisible({ timeout: 15_000 });
+
+  // Style photo 1.
+  await page.getByRole('button', { name: 'Adjust', exact: true }).click();
+  await page.getByRole('slider', { name: 'Exposure' }).fill('-40');
+
+  // Copy + apply to all, then check photo 2 carries the look.
+  await page.getByRole('button', { name: 'Copy look', exact: true }).click();
+  await page.getByRole('button', { name: 'Apply to all', exact: true }).click();
+  await page.getByRole('button', { name: /Edit photo\.png/ }).nth(1).click();
+  await page.getByRole('button', { name: 'Adjust', exact: true }).click();
+  await expect(page.getByRole('slider', { name: 'Exposure' })).toHaveValue('-40');
+
+  // And it's individually undoable on photo 2.
+  await page.getByRole('button', { name: 'Undo', exact: true }).click();
+  await expect(page.getByRole('slider', { name: 'Exposure' })).toHaveValue('0');
+
+  // Leave without publishing (dirty-confirm covers the exit).
+  await page.getByRole('button', { name: 'Cancel editing', exact: true }).click();
+  await page.getByRole('button', { name: /discard/i }).click();
+});
+
 // Multi-clip round reachability: the video tools render and split produces a
 // second clip WITHIN the asset. The fixture is recorded in-browser
 // (canvas.captureStream + MediaRecorder — also exercises the

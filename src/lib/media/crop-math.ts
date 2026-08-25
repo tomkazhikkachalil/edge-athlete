@@ -65,6 +65,26 @@ export function scaleRect(rect: CropRect, factor: number): CropRect {
 }
 
 /**
+ * Is this crop rect effectively the whole frame? react-easy-crop emits an
+ * automatic onCropComplete on mount/media-load covering the full image —
+ * committing that would dirty untouched sessions (phantom discard
+ * confirms) and pollute the history rail with no-op "Crop" entries. Small
+ * tolerances absorb the library's rounding.
+ */
+export function isFullFrameCrop(
+  crop: CropRect,
+  natural: { width: number; height: number },
+  tolerance = 2
+): boolean {
+  return (
+    crop.x <= tolerance &&
+    crop.y <= tolerance &&
+    Math.abs(crop.width - natural.width) <= tolerance &&
+    Math.abs(crop.height - natural.height) <= tolerance
+  );
+}
+
+/**
  * Total rotation of an image recipe: quarter turns plus the straighten angle.
  * Kept here so the UI (react-easy-crop `rotation`) and the export pipeline
  * share one definition.

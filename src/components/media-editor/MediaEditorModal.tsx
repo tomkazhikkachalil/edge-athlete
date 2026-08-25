@@ -34,6 +34,7 @@ import {
 import { neutralizeWhiteBalance } from '@/lib/media/engine/white-balance';
 import { MAX_MASKS, NEUTRAL_MASK_ADJUST } from '@/lib/media/engine/mask-math';
 import { getAiRunner, isAiAvailable } from '@/lib/media/ai';
+import { extractLook, lookToPatch, type Look } from '@/lib/media/look';
 import type { EditedMedia, EditorConfig, ImageRecipe, MediaAsset } from '@/lib/media/types';
 import CropStage from './CropStage';
 import AdjustPanel from './AdjustPanel';
@@ -120,6 +121,9 @@ export default function MediaEditorModal({ assets: initialAssets, config, onDone
   const [wbPicking, setWbPicking] = useState(false);
   // Phase 3: AI subject selection in flight (runner is cost-gated).
   const [aiBusy, setAiBusy] = useState(false);
+  // Phase 4 (E-W1): the session's copied look (color/texture only — never
+  // geometry, masks, retouch, or text).
+  const [copiedLook, setCopiedLook] = useState<Look | null>(null);
 
   // Crop/filter/trim recipes are deliberately non-persistable, so a confirm
   // on cancel is the only protection against losing the edits.
@@ -639,6 +643,46 @@ export default function MediaEditorModal({ assets: initialAssets, config, onDone
             <p className="px-3 pb-2 text-label font-semibold text-white">History</p>
             {historyRail}
           </div>
+        </div>
+      )}
+
+      {/* Look tools (E-W1): move the color/texture look between photos in
+          a multi-asset session. Geometry/masks/retouch/text stay per-photo
+          by design. */}
+      {imageRecipe && assets.filter(a => a.kind === 'image').length > 1 && (
+        <div className="flex items-center gap-2 px-4 py-1.5 flex-shrink-0 overflow-x-auto scrollbar-hide">
+          <button
+            type="button"
+            onClick={() => setCopiedLook(extractLook(imageRecipe))}
+            className="px-3 min-h-[36px] rounded-full text-chip whitespace-nowrap shrink-0 bg-white/10 text-white/70 hover:bg-white/20 hover:text-white"
+          >
+            Copy look
+          </button>
+          <button
+            type="button"
+            disabled={!copiedLook}
+            onClick={() => {
+              if (copiedLook) patchRecipe(active.id, lookToPatch(copiedLook), 'look.paste');
+            }}
+            className="px-3 min-h-[36px] rounded-full text-chip whitespace-nowrap shrink-0 bg-white/10 text-white/70 hover:bg-white/20 hover:text-white disabled:opacity-40"
+          >
+            Paste look
+          </button>
+          <button
+            type="button"
+            disabled={!copiedLook}
+            onClick={() => {
+              if (!copiedLook) return;
+              // One history step per photo — each stays individually undoable.
+              for (const asset of assets) {
+                if (asset.kind !== 'image' || asset.file.type === 'image/gif') continue;
+                patchRecipe(asset.id, lookToPatch(copiedLook), 'look.paste');
+              }
+            }}
+            className="px-3 min-h-[36px] rounded-full text-chip whitespace-nowrap shrink-0 bg-white/10 text-white/70 hover:bg-white/20 hover:text-white disabled:opacity-40"
+          >
+            Apply to all
+          </button>
         </div>
       )}
 

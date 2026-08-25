@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import Cropper from 'react-easy-crop';
 import 'react-easy-crop/react-easy-crop.css';
 import { FlipHorizontal2, FlipVertical2, RotateCw } from 'lucide-react';
-import { parseAspectRatio, scaleRect, totalRotation } from '@/lib/media/crop-math';
+import { isFullFrameCrop, parseAspectRatio, scaleRect, totalRotation } from '@/lib/media/crop-math';
 import { MAX_CANVAS_DIM } from '@/lib/media/limits';
 import type { AspectRatioId, CropRect, EditorConfig, ImageRecipe } from '@/lib/media/types';
 
@@ -98,8 +98,27 @@ export default function CropStage({ imageUrl, recipe, config, cssFilter, onPatch
   const ratioId = config.enforcedRatio ?? recipe.aspect;
   const aspect = parseAspectRatio(ratioId) ?? naturalAspect ?? 4 / 3;
   const ratioIsReal = config.enforcedRatio !== undefined || recipe.aspect !== 'free';
+  // Natural size of the DISPLAYED media (the flipped derivative when
+  // flipped) — same space as croppedAreaPixels, for the full-frame check.
+  const naturalSizeRef = useRef<{ width: number; height: number } | null>(null);
 
   const commitCrop = (pixels: CropRect) => {
+    // Full-frame crops of an unrotated free-ratio frame are not edits —
+    // react-easy-crop auto-emits one on every mount/media-load, and
+    // committing it dirtied untouched sessions and polluted history with
+    // no-op "Crop" entries. Zooming back OUT to full frame clears a real
+    // crop instead of storing a redundant one.
+    const naturalSize = naturalSizeRef.current;
+    if (
+      naturalSize &&
+      !ratioIsReal &&
+      recipe.rotate === 0 &&
+      recipe.straighten === 0 &&
+      isFullFrameCrop(pixels, naturalSize)
+    ) {
+      if (recipe.crop !== null) onPatch({ crop: null });
+      return;
+    }
     if (
       !interactedRef.current &&
       !ratioIsReal &&
@@ -135,7 +154,10 @@ export default function CropStage({ imageUrl, recipe, config, cssFilter, onPatch
             setZoom(next);
           }}
           onCropComplete={(_area, pixels) => commitCrop(pixels)}
-          onMediaLoaded={size => setNaturalAspect(size.naturalWidth / size.naturalHeight)}
+          onMediaLoaded={size => {
+            naturalSizeRef.current = { width: size.naturalWidth, height: size.naturalHeight };
+            setNaturalAspect(size.naturalWidth / size.naturalHeight);
+          }}
           style={{ mediaStyle: cssFilter ? { filter: cssFilter } : undefined }}
         />
       </div>

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { clampCrop, parseAspectRatio, rotatedSize, scaleRect, totalRotation } from '../crop-math';
+import { clampCrop, isFullFrameCrop, parseAspectRatio, rotatedSize, scaleRect, totalRotation } from '../crop-math';
 
 describe('parseAspectRatio', () => {
   it('parses ratio ids to numbers', () => {
@@ -70,6 +70,18 @@ describe('totalRotation', () => {
   it('sums quarter turns and straighten', () => {
     expect(totalRotation(90, -12)).toBe(78);
     expect(totalRotation(0, 0)).toBe(0);
+  });
+});
+
+describe('isFullFrameCrop (mount-noise guard)', () => {
+  const natural = { width: 320, height: 240 };
+  it('accepts the whole frame within rounding tolerance', () => {
+    expect(isFullFrameCrop({ x: 0, y: 0, width: 320, height: 240 }, natural)).toBe(true);
+    expect(isFullFrameCrop({ x: 1, y: 0, width: 319, height: 239 }, natural)).toBe(true);
+  });
+  it('rejects real crops', () => {
+    expect(isFullFrameCrop({ x: 0, y: 0, width: 240, height: 240 }, natural)).toBe(false);
+    expect(isFullFrameCrop({ x: 40, y: 0, width: 280, height: 240 }, natural)).toBe(false);
   });
 });
 
