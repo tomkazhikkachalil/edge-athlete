@@ -48,7 +48,10 @@ export type SweepBucket = (typeof SWEEP_BUCKETS)[number];
  * invisible until the first poster frame was written.
  */
 export const URL_SOURCE_COLUMNS: readonly { table: string; columns: string[] }[] = [
-  { table: 'post_media', columns: ['media_url', 'thumbnail_url'] },
+  // source_url (migration 120): the untouched original behind an edited
+  // render — non-destructive media. Registered in the same PR that first
+  // writes it, per the warning above.
+  { table: 'post_media', columns: ['media_url', 'thumbnail_url', 'source_url'] },
   { table: 'group_post_media', columns: ['media_url', 'thumbnail_url'] },
   { table: 'messages', columns: ['media_url'] },
   { table: 'profiles', columns: ['avatar_url', 'cover_url'] },

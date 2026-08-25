@@ -1,5 +1,85 @@
 # Development Log
 
+## August 24, 2026 — Media round B: non-destructive editing (migration 120)
+
+The architecture invariant Tom asked for, built on round A: every edit is
+now a RECIPE over an untouched original. post_media grows `source_url` +
+`edit_recipe` (120, ORDER-STRICT run-before-merge); every edited item
+uploads its original alongside the render (keep-everything decision —
+images and full-size videos alike), and the zod-validated envelope
+({v:1, recipe}) is stored as real JSONB (recipeEnvelope /
+parseRecipeEnvelope — recipes are validated at every write, never
+trusted). NULL source_url means media_url IS the original: pass-throughs
+and every pre-120 row, which keeps one storage object from being
+referenced by two swept columns.
+
+THE SWEEP INVARIANT, honored in the same commit that first writes the
+column: storage-sweep's URL_SOURCE_COLUMNS gains post_media.source_url,
+with the unit test extended — an unregistered URL column means the cron
+deletes every original 48h after upload.
+
+Re-edit after publish: EditPostModal grows a Media strip (owner-only
+GET /api/posts/[id]/media carries source_url + edit_recipe; public
+payloads never do). The pencil rehydrates the editor FROM THE ORIGINAL
+(assetFromRemote), and the new render lands via
+PATCH /api/posts/[id]/media/[mediaId] on the SAME row — post_tags.media_id
+and display_order survive, the replaced render is left for the sweep's
+48h grace (which also covers a PATCH that dies between upload and write).
+First re-edit of a pre-120 row moves the old media_url INTO source_url
+before overwriting it — that file was the original, and this is the one
+moment it can still be saved. Media changes save immediately on the
+editor's Done, independent of the Update button, and the strip says so.
+
+SAFETY, not optional: a supervised author replacing media changes what
+guardians approved — the PATCH flips their post back to pending_approval
+and bells guardians (create-path mirror). A guardian editing via
+write_content is the guardian's own action and is never re-held (the
+comments doctrine).
+
+New e2e (media-reedit.spec.ts, org-spec probe pattern — skips until 120
+is applied): publish edited image → row has source_url + recipe → Edit
+Post → pencil → re-render → same row id, new media_url, source_url
+untouched. group_post_media parity is a NAMED follow-up, deliberately not
+silently scoped in.
+
+## August 24, 2026 — Media round A: closing Layer 1's gaps (editor already existed)
+
+Session started from a brief that said "you can only zoom into an image."
+Exploration corrected the premise: the full pre-upload editor shipped
+July 26 (crop/presets/rotate/straighten/adjust/filters, video
+trim/split/cover via WebCodecs, 8 surfaces) — what was missing was a
+DELTA, not a greenfield. This round closes the small half of it; the
+media program's remaining rounds (non-destructive persistence, multi-clip
+timeline, slo-mo) are planned and feasibility-verified against the
+installed mediabunny 1.55.1 (concat/volume/reframe/retiming all buildable
+from its primitives, zero new deps).
+
+Landed here:
+- **Undo/redo in the editor** — recipe-snapshot history
+  (src/lib/media/history.ts, pure + tested), one step per control drag
+  (same-key coalescing, so a slider drag undoes as a unit), 30-step cap,
+  per-asset, works for image and video recipes alike.
+- **Video re-edit pencil** — the composer's per-tile Edit button was
+  image-gated even though openEditorFor and VideoStage were already
+  kind-agnostic; videos now reopen with trim/poster rehydrated.
+- **Round media goes through the editor** — RoundMediaManager (the
+  after-the-fact curation path) used to upload raw picks; now the same
+  editor session runs first, poster frames land as thumbnail_url, and
+  inferSegment reads the ORIGINAL file's lastModified (the rendered
+  blob's timestamp is "now" and would always be rejected).
+- **post_media.width/height/duration written for the first time** — the
+  columns existed live (verified by OpenAPI probe; they're in no repo
+  migration) but no client ever sent them. Export now best-effort-probes
+  every result (createImageBitmap / metadata load with the
+  Infinity-duration guard) and the posts API persists them with a
+  positive-finite clamp. MediaTile's duration badge can now actually fire
+  for post media.
+- Five stale "videos pass through untouched until the video phase"
+  comments corrected (the video phase shipped in July).
+- **First editor e2e ever** (e2e/media-editor.spec.ts + a generated PNG
+  fixture): pick → edit → undo → Done → re-edit pencil rehydrates →
+  dirty-cancel confirm → publish renders in the feed.
+
 ## August 24, 2026 — Close-out III: the fan-out round, end to end
 
 Third close-out of the day. The three follow-ups that close-out II parked

@@ -78,16 +78,28 @@ const videoRecipeSchema = z.object({
 export const editRecipeSchema = z.discriminatedUnion('kind', [imageRecipeSchema, videoRecipeSchema]);
 
 export function serializeRecipe(recipe: EditRecipe): string {
-  return JSON.stringify({ v: 1, recipe });
+  return JSON.stringify(recipeEnvelope(recipe));
 }
 
 export function parseRecipe(raw: string): EditRecipe | null {
   try {
-    const parsed = JSON.parse(raw);
-    if (parsed?.v !== 1) return null;
-    const result = editRecipeSchema.safeParse(parsed.recipe);
-    return result.success ? result.data : null;
+    return parseRecipeEnvelope(JSON.parse(raw));
   } catch {
     return null;
   }
+}
+
+/** The persistence shape — what post_media.edit_recipe (JSONB) holds. Kept
+ *  as an object (not a string) so the column stores real JSON. */
+export function recipeEnvelope(recipe: EditRecipe): { v: 1; recipe: EditRecipe } {
+  return { v: 1, recipe };
+}
+
+/** Validate an untrusted envelope (client payload / DB row) into a recipe.
+ *  Null on anything malformed — callers treat that as "no recipe". */
+export function parseRecipeEnvelope(value: unknown): EditRecipe | null {
+  if (!value || typeof value !== 'object') return null;
+  if ((value as { v?: unknown }).v !== 1) return null;
+  const result = editRecipeSchema.safeParse((value as { recipe?: unknown }).recipe);
+  return result.success ? result.data : null;
 }

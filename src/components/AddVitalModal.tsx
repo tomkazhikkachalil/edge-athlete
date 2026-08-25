@@ -22,7 +22,7 @@ const MAX_FILE_SIZE_BYTES = 5 * 1024 * 1024; // 5MB — same as CreatePostModal
 
 const VITAL_EDITOR_CONFIG: EditorConfig = {
   aspectRatios: ['free', '1:1', '4:5'],
-  allowVideo: true, // videos pass through untouched until the video phase
+  allowVideo: true, // trim/split/cover via WebCodecs; degrades to pass-through without it
   maxAssets: MAX_MEDIA_FILES,
   output: { maxDimension: 2048, mime: 'image/jpeg', quality: 0.9 },
 };

@@ -76,6 +76,9 @@ describe('URL_SOURCE_COLUMNS', () => {
   it.each([
     ['post_media', 'media_url'],
     ['post_media', 'thumbnail_url'],
+    // Migration 120 — non-destructive originals. Registered in the same PR
+    // that first writes the column.
+    ['post_media', 'source_url'],
     ['group_post_media', 'media_url'],
     // Migration 060 — hole-video poster frames. Was missing, and was invisible
     // because the column was still empty in production.

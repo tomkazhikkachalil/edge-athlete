@@ -10,6 +10,10 @@
  * split is deliberate: File.lastModified is not reliably capture time, and a
  * retrospectively entered card carries no positional information at all, so a
  * silent assignment would be confidently wrong some of the time.
+ *
+ * Picked files route through the shared MediaEditor (same config shape as
+ * live capture) before uploading — after-the-fact media is croppable,
+ * trimmable and gets a cover frame like everything else.
  */
 
 import { useRef, useState } from 'react';
@@ -17,6 +21,8 @@ import { validateFiles } from '@/lib/media/validation';
 import { uploadPostMedia } from '@/lib/media/upload';
 import { inferSegment, segmentTimesFromScores, type SegmentTime } from '@/lib/media/segment-autotag';
 import { segmentLabel, segmentOptions } from '@/lib/sports/segment-schemas';
+import { MediaEditor } from '@/components/media-editor';
+import type { EditedMedia, EditorConfig, MediaAsset } from '@/lib/media/types';
 import type { SportKey } from '@/lib/sports';
 
 interface RoundMediaManagerProps {
@@ -33,6 +39,15 @@ interface RoundMediaManagerProps {
 const MAX_FILES = 5;
 const MAX_BYTES = 50 * 1024 * 1024;
 
+// Same shape as the live-capture surface (ScoreEntryModal) — after-the-fact
+// media now goes through the same editor instead of straight to upload.
+const EDITOR_CONFIG: EditorConfig = {
+  aspectRatios: ['free', '1:1', '4:5', '16:9'],
+  allowVideo: true, // trim/split/cover via WebCodecs; degrades to pass-through without it
+  maxAssets: MAX_FILES,
+  output: { maxDimension: 1600, mime: 'image/jpeg', quality: 0.85 },
+};
+
 export default function RoundMediaManager({
   groupPostId,
   sportKey,
@@ -44,12 +59,14 @@ export default function RoundMediaManager({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  // Picked files open the shared editor first (crop/filters/trim/cover);
+  // upload happens on the editor's Done. null = editor closed.
+  const [editorAssets, setEditorAssets] = useState<MediaAsset[] | null>(null);
 
-  const handleFiles = async (fileList: FileList | null) => {
+  const handleFiles = (fileList: FileList | null) => {
     if (!fileList?.length) return;
     setError(null);
     setNotice(null);
-    setBusy(true);
 
     const files = Array.from(fileList).slice(0, MAX_FILES);
     const { accepted, rejected } = validateFiles(files, {
@@ -58,6 +75,21 @@ export default function RoundMediaManager({
       maxCount: MAX_FILES,
     });
     if (rejected.length) setError(rejected[0].message);
+    if (accepted.length > 0) {
+      setEditorAssets(
+        accepted.map(file => ({
+          id: `${Date.now()}-${Math.random()}`,
+          file,
+          kind: file.type.startsWith('video/') ? ('video' as const) : ('image' as const),
+        }))
+      );
+    }
+    if (inputRef.current) inputRef.current.value = '';
+  };
+
+  const handleEditorDone = async (results: EditedMedia[]) => {
+    setEditorAssets(null);
+    setBusy(true);
 
     // "hole" / "inning" / "lap" — the copy follows the sport, like every
     // other segment label in this feature.
@@ -67,13 +99,23 @@ export default function RoundMediaManager({
     let guessed = 0;
     const failures: string[] = [];
 
-    for (const file of accepted) {
+    for (const result of results) {
       try {
-        const uploaded = await uploadPostMedia(file);
-        // The suggestion. `lastModified` is the best capture time a browser
-        // will give us without parsing EXIF; inferSegment declines rather than
-        // guessing when it cannot be trusted.
-        const inferred = inferSegment(file.lastModified, segmentTimes);
+        const uploaded = await uploadPostMedia(result.file);
+        // Cover frame from the editor — never blocks the media itself.
+        let thumbnailUrl: string | null = null;
+        if (result.posterBlob) {
+          try {
+            const poster = new File([result.posterBlob], 'poster.jpg', { type: 'image/jpeg' });
+            thumbnailUrl = (await uploadPostMedia(poster)).url;
+          } catch (e) {
+            console.warn('Poster upload failed:', e);
+          }
+        }
+        // The suggestion — from the ORIGINAL file's lastModified (the rendered
+        // blob's timestamp is "now" and would always be rejected). inferSegment
+        // declines rather than guessing when it cannot be trusted.
+        const inferred = inferSegment(result.sourceFile.lastModified, segmentTimes);
         if (inferred.segment !== null) guessed += 1;
 
         const res = await fetch(`/api/group-posts/${groupPostId}/media`, {
@@ -84,6 +126,8 @@ export default function RoundMediaManager({
             media_url: uploaded.url,
             media_type: uploaded.type,
             segment_number: inferred.segment,
+            thumbnail_url: thumbnailUrl,
+            duration_seconds: result.durationSeconds,
           }),
         });
         if (!res.ok) {
@@ -111,7 +155,6 @@ export default function RoundMediaManager({
     if (failures.length) setError(`${failures.length} didn't upload. ${failures[0]}`);
 
     setBusy(false);
-    if (inputRef.current) inputRef.current.value = '';
   };
 
   return (
@@ -136,6 +179,15 @@ export default function RoundMediaManager({
 
       {notice && <p className="mt-2 text-xs font-semibold text-tertiary">{notice}</p>}
       {error && <p className="mt-2 text-xs font-semibold text-red-600 dark:text-red-400">{error}</p>}
+
+      {editorAssets && (
+        <MediaEditor
+          assets={editorAssets}
+          config={EDITOR_CONFIG}
+          onDone={handleEditorDone}
+          onCancel={() => setEditorAssets(null)}
+        />
+      )}
     </div>
   );
 }

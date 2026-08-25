@@ -14,6 +14,7 @@
 
 import { useEffect, useState } from 'react';
 import { defaultImageRecipe, defaultVideoRecipe } from '@/lib/media/recipes';
+import { emptyHistory, push, undo, redo, type History } from '@/lib/media/history';
 import type { EditRecipe, ImageRecipe, MediaAsset } from '@/lib/media/types';
 
 function seedRecipe(asset: MediaAsset, defaultAspect: ImageRecipe['aspect']): EditRecipe {
@@ -51,9 +52,40 @@ export function useEditorSession(
     };
   }, [assets]);
 
+  // Per-asset undo/redo over whole-recipe snapshots. The coalescing key is
+  // the patch's key set, so a slider drag (many same-key patches) is ONE
+  // undo step back to the pre-drag recipe. Recipe-level only — asset ops
+  // (split) are not undoable yet.
+  const [histories, setHistories] = useState<Record<string, History<EditRecipe>>>({});
+
   const patchRecipe = (id: string, patch: Partial<EditRecipe>) => {
-    setRecipes(prev => ({ ...prev, [id]: { ...prev[id], ...patch } as EditRecipe }));
+    setRecipes(prev => {
+      const current = prev[id];
+      return { ...prev, [id]: { ...current, ...patch } as EditRecipe };
+    });
+    const keys = Object.keys(patch).sort().join(',');
+    setHistories(prev => ({
+      ...prev,
+      [id]: push(prev[id] ?? emptyHistory<EditRecipe>(), recipes[id], keys),
+    }));
   };
+
+  const undoRecipe = (id: string) => {
+    const result = undo(histories[id] ?? emptyHistory<EditRecipe>(), recipes[id]);
+    if (!result) return;
+    setHistories(prev => ({ ...prev, [id]: result.history }));
+    setRecipes(prev => ({ ...prev, [id]: result.value }));
+  };
+
+  const redoRecipe = (id: string) => {
+    const result = redo(histories[id] ?? emptyHistory<EditRecipe>(), recipes[id]);
+    if (!result) return;
+    setHistories(prev => ({ ...prev, [id]: result.history }));
+    setRecipes(prev => ({ ...prev, [id]: result.value }));
+  };
+
+  const canUndo = (id: string) => (histories[id]?.past.length ?? 0) > 0;
+  const canRedo = (id: string) => (histories[id]?.future.length ?? 0) > 0;
 
   /** Split support: insert a new asset right after its sibling, with its recipe. */
   const addAsset = (asset: MediaAsset, afterId?: string) => {
@@ -65,5 +97,15 @@ export function useEditorSession(
     });
   };
 
-  return { assets, recipes, patchRecipe, addAsset, previewUrls };
+  return {
+    assets,
+    recipes,
+    patchRecipe,
+    addAsset,
+    previewUrls,
+    undoRecipe,
+    redoRecipe,
+    canUndo,
+    canRedo,
+  };
 }

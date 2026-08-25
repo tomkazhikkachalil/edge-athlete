@@ -68,6 +68,11 @@ export interface EditedMedia {
   sourceFile: File; // original, for re-editing
   recipe: EditRecipe;
   edited: boolean; // false = pass-through (GIF, no-op, unsupported video)
+  /** Output metadata, best-effort (probe failures leave them unset) —
+   *  persisted to post_media.width/height/duration. */
+  width?: number;
+  height?: number;
+  durationSeconds?: number;
 }
 
 export interface OutputConfig {

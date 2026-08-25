@@ -25,6 +25,7 @@ import ConfirmModal from '@/components/ConfirmModal';
 import { COPY } from '@/lib/copy';
 import { MediaEditor } from '@/components/media-editor';
 import { validateFiles } from '@/lib/media/validation';
+import { recipeEnvelope } from '@/lib/media/recipes';
 import { uploadPostMedia } from '@/lib/media/upload';
 import type { EditRecipe, EditedMedia, EditorConfig, MediaAsset } from '@/lib/media/types';
 
@@ -52,6 +53,13 @@ interface MediaFile {
   recipe?: EditRecipe;
   /** Video cover frame from the editor — uploaded as post_media.thumbnail_url. */
   posterBlob?: Blob;
+  /** Output metadata from the editor's probe — persisted to post_media. */
+  width?: number;
+  height?: number;
+  durationSeconds?: number;
+  /** True when `file` is a rendered blob distinct from `sourceFile` — drives
+   *  the non-destructive original upload (source_url, migration 120). */
+  edited?: boolean;
 }
 
 // Golf composer state lives in src/components/golf/GolfComposerSection.tsx
@@ -193,7 +201,7 @@ export default function CreatePostModal({
 
   const COMPOSER_EDITOR_CONFIG: EditorConfig = {
     aspectRatios: ['free', '1:1', '4:5', '16:9'],
-    allowVideo: true, // videos pass through untouched until the video phase
+    allowVideo: true, // trim/split/cover via WebCodecs; degrades to pass-through without it
     maxAssets: MAX_MEDIA_FILES,
     output: { maxDimension: 2048, mime: 'image/jpeg', quality: 0.9 },
   };
@@ -284,6 +292,10 @@ export default function CreatePostModal({
       sourceFile: r.sourceFile,
       recipe: r.recipe,
       posterBlob: r.posterBlob,
+      width: r.width,
+      height: r.height,
+      durationSeconds: r.durationSeconds,
+      edited: r.edited,
     });
     if (editingExistingId) {
       const replaced = results[0];
@@ -391,22 +403,34 @@ export default function CreatePostModal({
     }
   };
 
-  // Upload one media file (+ its video poster frame, when the editor made one)
+  // Upload one media file (+ its video poster frame, when the editor made
+  // one, + the untouched ORIGINAL when the render differs — non-destructive
+  // media, migration 120; a missing original degrades to re-editing the
+  // render, never fails the post).
   const uploadMediaWithPoster = async (
     mediaFile: MediaFile
-  ): Promise<{ url: string; thumbnailUrl?: string }> => {
+  ): Promise<{ url: string; thumbnailUrl?: string; sourceUrl?: string }> => {
     if (!mediaFile.file) return { url: mediaFile.url };
     const { url } = await uploadPostMedia(mediaFile.file);
-    if (!mediaFile.posterBlob) return { url };
-    try {
-      const poster = new File([mediaFile.posterBlob], 'poster.jpg', { type: 'image/jpeg' });
-      const uploaded = await uploadPostMedia(poster);
-      return { url, thumbnailUrl: uploaded.url };
-    } catch (err) {
-      // A poster is a nice-to-have — never fail the post over it
-      console.warn('Poster upload failed:', err);
-      return { url };
+    let thumbnailUrl: string | undefined;
+    if (mediaFile.posterBlob) {
+      try {
+        const poster = new File([mediaFile.posterBlob], 'poster.jpg', { type: 'image/jpeg' });
+        thumbnailUrl = (await uploadPostMedia(poster)).url;
+      } catch (err) {
+        // A poster is a nice-to-have — never fail the post over it
+        console.warn('Poster upload failed:', err);
+      }
     }
+    let sourceUrl: string | undefined;
+    if (mediaFile.edited && mediaFile.sourceFile) {
+      try {
+        sourceUrl = (await uploadPostMedia(mediaFile.sourceFile)).url;
+      } catch (err) {
+        console.warn('Original upload failed (render still posts):', err);
+      }
+    }
+    return { url, thumbnailUrl, sourceUrl };
   };
 
   // Validation
@@ -498,8 +522,8 @@ export default function CreatePostModal({
       // Upload media files (for individual posts)
       const uploadedMedia = await Promise.all(
         mediaFiles.map(async (file) => {
-          const { url, thumbnailUrl } = await uploadMediaWithPoster(file);
-          return { ...file, url, thumbnailUrl };
+          const { url, thumbnailUrl, sourceUrl } = await uploadMediaWithPoster(file);
+          return { ...file, url, thumbnailUrl, sourceUrl };
         })
       );
 
@@ -515,7 +539,15 @@ export default function CreatePostModal({
           type: file.type,
           sortOrder: index,
           // server persists as post_media.thumbnail_url (posts/route.ts)
-          thumbnailUrl: file.thumbnailUrl
+          thumbnailUrl: file.thumbnailUrl,
+          // editor-probed output metadata → post_media.width/height/duration
+          width: file.width,
+          height: file.height,
+          duration: file.durationSeconds,
+          // Non-destructive (120): untouched original + the recipe that made
+          // the render. Null sourceUrl ⇒ media_url IS the original.
+          sourceUrl: file.sourceUrl,
+          editRecipe: file.recipe && file.edited ? recipeEnvelope(file.recipe) : null,
         })),
         stats_data:
           isStatLineSport && statLineData && statLineHasContent(statLineData)
@@ -954,8 +986,10 @@ export default function CreatePostModal({
                       </span>
                     </button>
 
-                    {/* Edit (re-opens the editor rehydrated with this asset's recipe) */}
-                    {file.type === 'image' && (file.sourceFile || file.file) && (
+                    {/* Edit (re-opens the editor rehydrated with this asset's
+                        recipe) — images AND videos: openEditorFor is
+                        kind-agnostic and VideoStage rehydrates trim/poster. */}
+                    {(file.sourceFile || file.file) && (
                       <button
                         onClick={() => openEditorFor(file)}
                         aria-label="Edit media"

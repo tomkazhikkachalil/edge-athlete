@@ -352,13 +352,28 @@ export async function POST(request: NextRequest) {
 
     // Add media files if provided
     if (media && media.length > 0) {
-      const mediaRecords = media.map((file: { url: string; type: string; sortOrder?: number; thumbnailUrl?: string }, index: number) => ({
-        post_id: post.id,
-        media_url: file.url,
-        media_type: file.type,
-        display_order: (file.sortOrder ?? index) + 1, // ?? — sortOrder 0 is valid (|| collapsed slots 0 and 1)
-        thumbnail_url: file.thumbnailUrl || null
-      }));
+      // Positive-finite guard on client-probed numbers — width/height/duration
+      // are nullable metadata, never trusted enough to fail the insert.
+      const dim = (v: unknown) =>
+        typeof v === 'number' && Number.isFinite(v) && v > 0 ? Math.round(v) : null;
+      // Non-destructive media (120): recipes are validated, never trusted —
+      // a malformed envelope stores as null (the media itself still posts).
+      const { recipeEnvelope, parseRecipeEnvelope } = await import('@/lib/media/recipes');
+      const mediaRecords = media.map((file: { url: string; type: string; sortOrder?: number; thumbnailUrl?: string; width?: number; height?: number; duration?: number; sourceUrl?: string; editRecipe?: unknown }, index: number) => {
+        const recipe = parseRecipeEnvelope(file.editRecipe);
+        return {
+          post_id: post.id,
+          media_url: file.url,
+          media_type: file.type,
+          display_order: (file.sortOrder ?? index) + 1, // ?? — sortOrder 0 is valid (|| collapsed slots 0 and 1)
+          thumbnail_url: file.thumbnailUrl || null,
+          width: dim(file.width),
+          height: dim(file.height),
+          duration: dim(file.duration),
+          source_url: typeof file.sourceUrl === 'string' && file.sourceUrl ? file.sourceUrl : null,
+          edit_recipe: recipe ? recipeEnvelope(recipe) : null
+        };
+      });
 
       const { error: mediaError } = await supabase
         .from('post_media')

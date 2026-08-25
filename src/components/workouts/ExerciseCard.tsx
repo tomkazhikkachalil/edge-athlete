@@ -14,7 +14,7 @@ import type { EditedMedia, EditorConfig, MediaAsset } from '@/lib/media/types';
 
 const SET_MEDIA_EDITOR_CONFIG: EditorConfig = {
   aspectRatios: ['free', '1:1', '4:5'],
-  allowVideo: true, // videos pass through untouched until the video phase
+  allowVideo: true, // trim/split/cover via WebCodecs; degrades to pass-through without it
   maxAssets: MAX_MEDIA_PER_SET,
   output: { maxDimension: 1600, mime: 'image/jpeg', quality: 0.85 },
 };
