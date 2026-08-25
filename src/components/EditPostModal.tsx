@@ -1,11 +1,17 @@
 'use client';
 
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { useToast } from '@/components/Toast';
 import { getHashtagSuggestions } from '@/lib/sports/post-tags';
 import { useBodyScrollLock } from '@/hooks/useBodyScrollLock';
 import { useDirtyClose } from '@/hooks/useDirtyClose';
 import ConfirmModal from '@/components/ConfirmModal';
+import MediaTile from '@/components/media/MediaTile';
+import { MediaEditor } from '@/components/media-editor';
+import { assetFromRemote, type EditablePostMediaRow } from '@/lib/media/rehydrate';
+import { recipeEnvelope } from '@/lib/media/recipes';
+import { uploadPostMedia } from '@/lib/media/upload';
+import type { EditedMedia, EditorConfig, MediaAsset } from '@/lib/media/types';
 import { COPY } from '@/lib/copy';
 
 interface Post {
@@ -26,6 +32,14 @@ interface EditPostModalProps {
 
 // Hashtag suggestions are registry-driven — see src/lib/sports/post-tags.ts.
 
+// Same output shape as the composer's posts config.
+const MEDIA_EDITOR_CONFIG: EditorConfig = {
+  aspectRatios: ['free', '1:1', '4:5', '16:9'],
+  allowVideo: true, // trim/split/cover via WebCodecs; degrades to pass-through without it
+  maxAssets: 1, // re-edit is per item
+  output: { maxDimension: 2048, mime: 'image/jpeg', quality: 0.9 },
+};
+
 export default function EditPostModal({
   isOpen,
   onClose,
@@ -44,6 +58,107 @@ export default function EditPostModal({
 
   const postType = post.sport_key || 'general';
   const currentHashtagSuggestions = getHashtagSuggestions(postType);
+
+  // ── Media re-edit (non-destructive round, migration 120) ──
+  // Rows come from the owner-only media route (it carries source_url +
+  // edit_recipe, which public payloads never do). Media changes SAVE
+  // IMMEDIATELY on the editor's Done — independent of the Update button —
+  // so they never count toward the dirty check.
+  const [mediaRows, setMediaRows] = useState<EditablePostMediaRow[]>([]);
+  const [mediaAssets, setMediaAssets] = useState<MediaAsset[] | null>(null);
+  const [editingMediaId, setEditingMediaId] = useState<string | null>(null);
+  const [mediaBusy, setMediaBusy] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch(`/api/posts/${post.id}/media`, { credentials: 'include' });
+        if (!res.ok || cancelled) return;
+        const data = await res.json();
+        if (!cancelled) setMediaRows(data.media ?? []);
+      } catch {
+        /* media strip is progressive — the text edit form works without it */
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [isOpen, post.id]);
+
+  const openMediaEditor = async (row: EditablePostMediaRow) => {
+    if (mediaBusy) return;
+    setMediaBusy(row.id);
+    try {
+      const asset = await assetFromRemote(row);
+      setEditingMediaId(row.id);
+      setMediaAssets([asset]);
+    } catch {
+      showError('Could not load media', 'Please try again.');
+    } finally {
+      setMediaBusy(null);
+    }
+  };
+
+  const handleMediaEditorDone = async (results: EditedMedia[]) => {
+    const result = results[0];
+    const targetId = editingMediaId;
+    setMediaAssets(null);
+    setEditingMediaId(null);
+    if (!result || !targetId) return;
+    setMediaBusy(targetId);
+    try {
+      const { url } = await uploadPostMedia(result.file);
+      let thumbnailUrl: string | undefined;
+      if (result.posterBlob) {
+        try {
+          const poster = new File([result.posterBlob], 'poster.jpg', { type: 'image/jpeg' });
+          thumbnailUrl = (await uploadPostMedia(poster)).url;
+        } catch (e) {
+          console.warn('Poster upload failed:', e);
+        }
+      }
+      const res = await fetch(`/api/posts/${post.id}/media/${targetId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+          mediaUrl: url,
+          thumbnailUrl,
+          editRecipe: result.edited ? recipeEnvelope(result.recipe) : null,
+          width: result.width,
+          height: result.height,
+          duration: result.durationSeconds,
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        showError('Could not update media', data.error || 'Please try again.');
+        return;
+      }
+      setMediaRows(prev => prev.map(r => (r.id === targetId ? { ...r, ...data.media } : r)));
+      showSuccess(
+        data.pending_approval
+          ? 'Media updated — sent to your guardian for review'
+          : 'Media updated'
+      );
+      // Hand the parent a freshly hydrated post so the feed card re-renders
+      // with the new media URL (reuses the API's gated single-post branch).
+      if (onPostUpdated) {
+        try {
+          const fresh = await fetch(`/api/posts?postId=${post.id}`, { credentials: 'include' });
+          if (fresh.ok) onPostUpdated((await fresh.json()).post);
+        } catch {
+          /* the next feed load has it */
+        }
+      }
+    } catch {
+      showError('Could not update media', 'Please try again.');
+    } finally {
+      setMediaBusy(null);
+    }
+  };
 
   // Reset the form when the post changes. Done during render rather than in an
   // effect: this is state synchronisation, and in an effect the old post's
@@ -153,6 +268,48 @@ export default function EditPostModal({
 
         {/* Content */}
         <div className="flex-1 overflow-y-auto p-6">
+          {/* Media (re-edit in place — saves immediately on the editor's Done) */}
+          {mediaRows.length > 0 && (
+            <div className="mb-6">
+              <label className="block text-sm font-semibold text-secondary mb-2">
+                Media
+              </label>
+              <div className="grid grid-cols-3 sm:grid-cols-4 gap-3">
+                {mediaRows.map(row => (
+                  <div
+                    key={row.id}
+                    className="relative aspect-square bg-surface-sunken rounded-lg overflow-hidden"
+                  >
+                    <MediaTile
+                      src={row.media_url}
+                      thumbnailUrl={row.thumbnail_url}
+                      kind={row.media_type}
+                      alt=""
+                      className="h-full w-full"
+                      sizes="(max-width: 640px) 30vw, 150px"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => openMediaEditor(row)}
+                      disabled={mediaBusy !== null}
+                      aria-label="Edit media"
+                      className="absolute bottom-0 right-0 p-2 group disabled:opacity-60"
+                    >
+                      <span className="bg-black/60 text-white rounded-full w-6 h-6 flex items-center justify-center group-hover:bg-black/80 transition-colors">
+                        <i
+                          className={`fas ${mediaBusy === row.id ? 'fa-spinner fa-spin' : 'fa-pen'} text-xs`}
+                        ></i>
+                      </span>
+                    </button>
+                  </div>
+                ))}
+              </div>
+              <p className="mt-2 text-xs text-muted">
+                Media changes save right away — the rest of the post saves with Update.
+              </p>
+            </div>
+          )}
+
           {/* Caption */}
           <div className="mb-6">
             <label className="block text-sm font-semibold text-secondary mb-2">
@@ -300,6 +457,19 @@ export default function EditPostModal({
           </button>
         </div>
       </div>
+
+      {/* Shared editor (z-[65], above this z-50 modal) */}
+      {mediaAssets && (
+        <MediaEditor
+          assets={mediaAssets}
+          config={MEDIA_EDITOR_CONFIG}
+          onDone={handleMediaEditorDone}
+          onCancel={() => {
+            setMediaAssets(null);
+            setEditingMediaId(null);
+          }}
+        />
+      )}
     </div>
   );
 }

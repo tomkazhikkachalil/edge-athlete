@@ -5,6 +5,8 @@ import {
   isNoopRecipe,
   parseRecipe,
   serializeRecipe,
+  recipeEnvelope,
+  parseRecipeEnvelope,
 } from '../recipes';
 import type { ImageRecipe } from '../types';
 
@@ -61,5 +63,23 @@ describe('serialization round-trip', () => {
     expect(parseRecipe(serializeRecipe(bad))).toBeNull();
     const badRotate = { ...defaultImageRecipe(), rotate: 45 as unknown as 0 };
     expect(parseRecipe(serializeRecipe(badRotate))).toBeNull();
+  });
+});
+
+describe('persistence envelope (post_media.edit_recipe, migration 120)', () => {
+  it('round-trips an OBJECT envelope — JSONB stores real JSON, not a string', () => {
+    const recipe = { ...defaultVideoRecipe(), trim: { start: 1, end: 4 } };
+    const envelope = recipeEnvelope(recipe);
+    expect(envelope).toEqual({ v: 1, recipe });
+    expect(parseRecipeEnvelope(envelope)).toEqual(recipe);
+    // What a DB round-trip actually produces (plain JSON clone).
+    expect(parseRecipeEnvelope(JSON.parse(JSON.stringify(envelope)))).toEqual(recipe);
+  });
+
+  it('rejects non-objects, wrong versions, and invalid recipes', () => {
+    expect(parseRecipeEnvelope(null)).toBeNull();
+    expect(parseRecipeEnvelope('{"v":1}')).toBeNull(); // strings are not envelopes
+    expect(parseRecipeEnvelope({ v: 2, recipe: defaultImageRecipe() })).toBeNull();
+    expect(parseRecipeEnvelope({ v: 1, recipe: { kind: 'image' } })).toBeNull();
   });
 });
