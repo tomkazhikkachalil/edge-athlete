@@ -31,6 +31,8 @@ import { isNeutralPerspective } from './perspective-math';
 import { bakeHslLut, HSL_LUT_SIZE, isNeutralHsl } from './hsl-math';
 import { bakeCurveLut, CURVE_LUT_SIZE, isNeutralCurves } from './curves-math';
 import { MAX_MASKS, wantsBackgroundBlur } from './mask-math';
+import { extendRaster, rasterizeBrushMask } from './mask-raster';
+import type { BrushStroke } from '../types';
 
 export interface Engine {
   /** Upload (or replace) the source texture and size the canvas to match.
@@ -92,6 +94,7 @@ export function createEngine(
     grain: gl.getUniformLocation(composite, 'u_grain'),
     blurBg: gl.getUniformLocation(composite, 'u_blurBg'),
     bgBlurEnabled: gl.getUniformLocation(composite, 'u_bgBlurEnabled'),
+    brushMasks: [0, 1, 2, 3].map(i => gl.getUniformLocation(composite, `u_brushMask${i}`)),
   };
 
   let lost = false;
@@ -125,6 +128,50 @@ export function createEngine(
   // Curve LUT (unit 4): same pattern as the mixer LUT.
   let curveLutTex: WebGLTexture | null = null;
   let curveFor: string | null = null;
+  // Brush-mask coverage textures (units 6..9, E4f): per-slot cache holding
+  // the strokes it was rasterized from, so live painting extends the
+  // raster incrementally instead of recomputing per pointer move.
+  interface BrushSlot {
+    key: string;
+    strokes: BrushStroke[];
+    buffer: Float32Array;
+    tex: WebGLTexture;
+    width: number;
+    height: number;
+  }
+  const brushSlots: Array<BrushSlot | null> = [null, null, null, null];
+
+  const ensureBrushTexture = (slot: number, strokes: BrushStroke[]): WebGLTexture | null => {
+    const bw = Math.max(1, Math.round(srcWidth / 2));
+    const bh = Math.max(1, Math.round(srcHeight / 2));
+    const key = `${bw}x${bh}:${JSON.stringify(strokes)}`;
+    const cached = brushSlots[slot];
+    if (cached && cached.key === key) return cached.tex;
+    let buffer: Float32Array;
+    if (
+      cached &&
+      cached.width === bw &&
+      cached.height === bh &&
+      extendRaster(cached.buffer, cached.strokes, strokes, bw, bh)
+    ) {
+      buffer = cached.buffer; // stamped in place
+    } else {
+      buffer = rasterizeBrushMask(strokes, bw, bh);
+    }
+    const tex = cached?.tex ?? createSourceTexture(gl);
+    if (!tex) return null;
+    const bytes = new Uint8Array(buffer.length);
+    for (let i = 0; i < buffer.length; i++) bytes[i] = Math.round(Math.min(1, buffer[i]) * 255);
+    gl.activeTexture(gl.TEXTURE6 + slot);
+    gl.bindTexture(gl.TEXTURE_2D, tex);
+    gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, false);
+    // Single-channel rows aren't 4-byte aligned at arbitrary widths.
+    gl.pixelStorei(gl.UNPACK_ALIGNMENT, 1);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.R8, bw, bh, 0, gl.RED, gl.UNSIGNED_BYTE, bytes);
+    gl.pixelStorei(gl.UNPACK_ALIGNMENT, 4);
+    brushSlots[slot] = { key, strokes, buffer, tex, width: bw, height: bh };
+    return tex;
+  };
 
   /** Bake+upload a 256×1 LUT when its key changed. Returns the texture or
    *  null when allocation failed (caller degrades to disabled). */
@@ -368,7 +415,7 @@ export function createEngine(
     gl.uniform1i(loc.blurBg, 5);
     gl.uniform1f(loc.bgBlurEnabled, haveBg ? 1 : 0);
     // Local masks: analytic uniforms, y flipped into the shader's y-up uv.
-    // u_maskKind.w carries the per-mask blur amount (E4e).
+    // u_maskKind.x = kind (0 radial / 1 linear / 2 brush), .w = blur (E4e).
     const maskCount = Math.min(p.masks.length, MAX_MASKS);
     gl.uniform1i(loc.maskCount, maskCount);
     if (maskCount > 0) {
@@ -381,15 +428,34 @@ export function createEngine(
         if (m.kind === 'radial') {
           geom.set([m.cx, 1 - m.cy, m.rx, m.ry], i * 4);
           kind.set([0, m.feather, m.invert ? 1 : 0, blur], i * 4);
-        } else {
+        } else if (m.kind === 'linear') {
           geom.set([m.x0, 1 - m.y0, m.x1, 1 - m.y1], i * 4);
           kind.set([1, 0, 0, blur], i * 4);
+        } else {
+          // Brush: coverage texture on unit 6+i. A failed raster/alloc
+          // degrades to a zero-weight mask (kind stays radial-0 with a
+          // zero adjust row) rather than sampling garbage.
+          const tex = ensureBrushTexture(i, m.strokes);
+          if (tex) {
+            kind.set([2, 0, 0, blur], i * 4);
+          } else {
+            kind.set([0, 0, 0, 0], i * 4);
+            geom.set([0, 0, 1e-4, 1e-4], i * 4);
+            adjust.set([0, 0, 0], i * 3);
+            continue;
+          }
         }
         adjust.set([m.adjust.exposure, m.adjust.saturation, m.adjust.temperature], i * 3);
       }
       gl.uniform4fv(loc.maskGeom, geom);
       gl.uniform4fv(loc.maskKind, kind);
       gl.uniform3fv(loc.maskAdjust, adjust);
+    }
+    // Brush samplers must always point at valid units.
+    for (let i = 0; i < MAX_MASKS; i++) {
+      gl.activeTexture(gl.TEXTURE6 + i);
+      gl.bindTexture(gl.TEXTURE_2D, brushSlots[i]?.tex ?? texture);
+      gl.uniform1i(loc.brushMasks[i], 6 + i);
     }
     gl.uniform2f(loc.resolution, srcWidth, srcHeight);
     gl.uniform3f(loc.bcs, p.adjustments.brightness, p.adjustments.contrast, p.adjustments.saturation);
@@ -419,6 +485,7 @@ export function createEngine(
       }
       if (hslLutTex) gl.deleteTexture(hslLutTex);
       if (curveLutTex) gl.deleteTexture(curveLutTex);
+      for (const slot of brushSlots) if (slot) gl.deleteTexture(slot.tex);
       gl.deleteTexture(texture);
       gl.deleteProgram(composite);
       // Explicit teardown frees the context slot immediately instead of

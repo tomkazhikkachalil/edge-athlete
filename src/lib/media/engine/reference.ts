@@ -39,7 +39,9 @@ import {
   maskBlurWeight,
   maskDeltas,
   wantsBackgroundBlur,
+  type BrushBuffers,
 } from './mask-math';
+import { rasterizeBrushMask } from './mask-raster';
 import { applyGrain, isNeutralGrain } from './grain-math';
 
 /** RGBA bytes → packed RGB floats (0..1). */
@@ -171,13 +173,24 @@ export function applyEngine(
   // TDZ-cycle trap class). Skipped when neutral, mirroring the shader's
   // u_maskCount / u_hslEnabled / u_curveEnabled branches.
   const wantMasks = !isNeutralMasks(params.masks);
+  // Brush masks: rasterize once at half res (the GPU's resolution) and
+  // bilinear-sample per pixel — same buffer function, same sampling math.
+  const brushBuffers: BrushBuffers | undefined =
+    wantMasks && params.masks.some(m => m.kind === 'brush')
+      ? params.masks.map(m => {
+          if (m.kind !== 'brush') return null;
+          const bw = Math.max(1, Math.round(width / 2));
+          const bh = Math.max(1, Math.round(height / 2));
+          return { buffer: rasterizeBrushMask(m.strokes, bw, bh), width: bw, height: bh };
+        })
+      : undefined;
   const hslLut = isNeutralHsl(params.hsl) ? null : bakeHslLut(params.hsl);
   const curveLut = isNeutralCurves(params.curves) ? null : bakeCurveLut(params.curves);
   const hslApply =
     wantMasks || hslLut || curveLut
       ? (rgb: Rgb, u: number, vv: number): Rgb => {
           let out = rgb;
-          if (wantMasks) out = applyMaskDeltas(out, maskDeltas(params.masks, u, vv));
+          if (wantMasks) out = applyMaskDeltas(out, maskDeltas(params.masks, u, vv, brushBuffers));
           if (hslLut) out = applyHslLut(out, hslLut);
           if (curveLut) out = applyCurveLut([clamp01(out[0]), clamp01(out[1]), clamp01(out[2])], curveLut);
           return out;
@@ -222,7 +235,7 @@ export function applyEngine(
       // take every later adjustment uniformly — the shader's ordering.
       // Detail bases deliberately stay unmixed, also matching the GPU.
       if (blurBg) {
-        const wBlur = maskBlurWeight(params.masks, (x + 0.5) / width, v);
+        const wBlur = maskBlurWeight(params.masks, (x + 0.5) / width, v, brushBuffers);
         if (wBlur > 0) {
           rgb = [
             rgb[0] + (blurBg[j] - rgb[0]) * wBlur,

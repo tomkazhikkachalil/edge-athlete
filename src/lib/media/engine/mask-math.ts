@@ -17,7 +17,17 @@
  */
 
 import { clamp01, luma709, smoothstep, WB_TEMP_SCALE, type Rgb } from './color-math';
+import { sampleMaskBuffer } from './mask-raster';
 import type { Mask, MaskAdjust } from '../types';
+
+/** A brush mask's rasterized coverage, aligned by mask index (null for
+ *  analytic kinds). See mask-raster.ts. */
+export interface BrushBuffer {
+  buffer: Float32Array;
+  width: number;
+  height: number;
+}
+export type BrushBuffers = Array<BrushBuffer | null>;
 
 /** Shader uniform arrays are fixed-size — the recipe cap. */
 export const MAX_MASKS = 4;
@@ -38,12 +48,18 @@ export function isNeutralMaskAdjust(adjust: MaskAdjust): boolean {
 /** Per-pixel blur mix weight: Σ mask weight × blur amount, clamped 0..1.
  *  Applied to the composite INPUT (before detail/color) so the blurred
  *  region takes every color adjustment uniformly. */
-export function maskBlurWeight(masks: Mask[], u: number, v: number): number {
+export function maskBlurWeight(
+  masks: Mask[],
+  u: number,
+  v: number,
+  brushBuffers?: BrushBuffers
+): number {
   let total = 0;
-  for (const mask of masks) {
+  for (let i = 0; i < masks.length; i++) {
+    const mask = masks[i];
     const blur = mask.adjust.blur ?? 0;
     if (blur <= 0) continue;
-    total += maskWeight(mask, u, v) * blur;
+    total += maskWeight(mask, u, v, brushBuffers?.[i]) * blur;
   }
   return Math.min(1, Math.max(0, total));
 }
@@ -90,9 +106,14 @@ export function defaultLinearMask(): Mask {
  * Mask weight at normalized position (u, v), origin top-left. Radial:
  * 1 inside the feather-shrunk core, smoothstep to 0 at the ellipse edge
  * (invert flips). Linear: 1 at (x0,y0), fading to 0 at (x1,y1) along the
- * gradient axis (flat beyond either end).
+ * gradient axis (flat beyond either end). Brush: sampled from the
+ * rasterized coverage buffer (0 when the caller didn't provide one).
  */
-export function maskWeight(mask: Mask, u: number, v: number): number {
+export function maskWeight(mask: Mask, u: number, v: number, brush?: BrushBuffer | null): number {
+  if (mask.kind === 'brush') {
+    if (!brush) return 0;
+    return sampleMaskBuffer(brush.buffer, brush.width, brush.height, u, v);
+  }
   if (mask.kind === 'radial') {
     const dx = (u - mask.cx) / Math.max(mask.rx, 1e-4);
     const dy = (v - mask.cy) / Math.max(mask.ry, 1e-4);
@@ -113,14 +134,16 @@ export function maskWeight(mask: Mask, u: number, v: number): number {
 export function maskDeltas(
   masks: Mask[],
   u: number,
-  v: number
+  v: number,
+  brushBuffers?: BrushBuffers
 ): { ev: number; saturation: number; temperature: number } {
   let ev = 0;
   let saturation = 0;
   let temperature = 0;
-  for (const mask of masks) {
+  for (let i = 0; i < masks.length; i++) {
+    const mask = masks[i];
     if (isNeutralMaskAdjust(mask.adjust)) continue;
-    const w = maskWeight(mask, u, v);
+    const w = maskWeight(mask, u, v, brushBuffers?.[i]);
     if (w <= 0) continue;
     ev += w * mask.adjust.exposure;
     saturation += w * mask.adjust.saturation;
@@ -163,13 +186,44 @@ export function moveMask(mask: Mask, du: number, dv: number): Mask {
   if (mask.kind === 'radial') {
     return { ...mask, cx: clamp01(mask.cx + du), cy: clamp01(mask.cy + dv) };
   }
+  if (mask.kind === 'linear') {
+    return {
+      ...mask,
+      x0: clamp01(mask.x0 + du),
+      y0: clamp01(mask.y0 + dv),
+      x1: clamp01(mask.x1 + du),
+      y1: clamp01(mask.y1 + dv),
+    };
+  }
+  // Brush: translate every point, with the DELTA clamped so the stroke
+  // bounding box stays inside the frame (per-point clamping would smear
+  // the shape against the edge).
+  let minX = 1;
+  let maxX = 0;
+  let minY = 1;
+  let maxY = 0;
+  for (const stroke of mask.strokes) {
+    for (const p of stroke.points) {
+      minX = Math.min(minX, p.x);
+      maxX = Math.max(maxX, p.x);
+      minY = Math.min(minY, p.y);
+      maxY = Math.max(maxY, p.y);
+    }
+  }
+  if (maxX < minX) return mask; // no points yet
+  const cdu = Math.min(1 - maxX, Math.max(-minX, du));
+  const cdv = Math.min(1 - maxY, Math.max(-minY, dv));
   return {
     ...mask,
-    x0: clamp01(mask.x0 + du),
-    y0: clamp01(mask.y0 + dv),
-    x1: clamp01(mask.x1 + du),
-    y1: clamp01(mask.y1 + dv),
+    strokes: mask.strokes.map(stroke => ({
+      ...stroke,
+      points: stroke.points.map(p => ({ x: p.x + cdu, y: p.y + cdv })),
+    })),
   };
+}
+
+export function defaultBrushMask(): Mask {
+  return { kind: 'brush', strokes: [], adjust: { ...NEUTRAL_MASK_ADJUST } };
 }
 
 export function moveLinearEndpoint(

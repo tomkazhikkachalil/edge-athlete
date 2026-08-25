@@ -101,11 +101,22 @@ export interface GrainSettings {
   size: number;
 }
 
+/** One painted stroke (E4f): decimated pointer path, brush radius as a
+ *  fraction of image WIDTH (discs are circular in image space), feather
+ *  0..1, erase subtracts instead of painting. */
+export interface BrushStroke {
+  points: Array<{ x: number; y: number }>; // 1..256, normalized top-left
+  radius: number; // 0.01..0.5
+  feather: number; // 0..1
+  erase?: boolean;
+}
+
 /**
- * Local-adjustment masks (Phase 2 E4c). Geometry normalized to the FRAMED
- * image, ORIGIN TOP-LEFT. Radial = ellipse (full effect inside, feathered
- * to the edge, invertible); linear = gradient from (x0,y0) (full) to
- * (x1,y1) (none). Max 4 (shader uniform arrays).
+ * Local-adjustment masks (Phase 2 E4c/E4f). Geometry normalized to the
+ * FRAMED image, ORIGIN TOP-LEFT. Radial = ellipse (full effect inside,
+ * feathered to the edge, invertible); linear = gradient from (x0,y0)
+ * (full) to (x1,y1) (none); brush = painted strokes rasterized to a
+ * coverage buffer. Max 4 (shader uniform arrays / sampler slots).
  */
 export type Mask =
   | {
@@ -124,6 +135,11 @@ export type Mask =
       y0: number;
       x1: number;
       y1: number;
+      adjust: MaskAdjust;
+    }
+  | {
+      kind: 'brush';
+      strokes: BrushStroke[]; // 0..32
       adjust: MaskAdjust;
     };
 

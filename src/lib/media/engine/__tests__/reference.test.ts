@@ -96,6 +96,41 @@ describe('reference engine — engine-round stages', () => {
     expect(data[0]).toBe(64); // 0.25 · 255 = 63.75 → rounds to 64
   });
 
+  it('masks: a painted brush corridor lifts exposure inside, not outside (E4f)', () => {
+    const w = 32;
+    const h = 32;
+    const data = new Uint8ClampedArray(w * h * 4);
+    for (let i = 0; i < data.length; i += 4) {
+      data[i] = data[i + 1] = data[i + 2] = 100;
+      data[i + 3] = 255;
+    }
+    applyEngine(
+      data,
+      w,
+      h,
+      params({
+        masks: [
+          {
+            kind: 'brush',
+            strokes: [
+              {
+                points: [
+                  { x: 0.2, y: 0.5 },
+                  { x: 0.8, y: 0.5 },
+                ],
+                radius: 0.12,
+                feather: 0,
+              },
+            ],
+            adjust: { exposure: 1, saturation: 0, temperature: 0 },
+          },
+        ],
+      })
+    );
+    expect(data[(16 * w + 16) * 4]).toBeGreaterThan(190); // on the corridor: ≈+1 EV
+    expect(data[(2 * w + 2) * 4]).toBe(100); // far corner untouched
+  });
+
   it('masks: a radial exposure lift brightens the center and spares the corner', () => {
     const w = 16;
     const h = 16;

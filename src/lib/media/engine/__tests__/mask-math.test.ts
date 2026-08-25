@@ -120,6 +120,48 @@ describe('background blur (E4e)', () => {
   });
 });
 
+describe('brush masks (E4f)', () => {
+  it('maskWeight for a brush samples the provided buffer, 0 without one', () => {
+    const brush: Mask = {
+      kind: 'brush',
+      strokes: [{ points: [{ x: 0.5, y: 0.5 }], radius: 0.1, feather: 0 }],
+      adjust: { exposure: 1, saturation: 0, temperature: 0 },
+    };
+    expect(maskWeight(brush, 0.5, 0.5)).toBe(0); // no buffer provided
+    const buffer = new Float32Array(16 * 16).fill(0);
+    buffer[8 * 16 + 8] = 1;
+    const bb = { buffer, width: 16, height: 16 };
+    expect(maskWeight(brush, (8 + 0.5) / 16, (8 + 0.5) / 16, bb)).toBeCloseTo(1);
+    expect(maskWeight(brush, 0.05, 0.05, bb)).toBe(0);
+  });
+
+  it('maskDeltas threads brush buffers by index', () => {
+    const brush: Mask = {
+      kind: 'brush',
+      strokes: [{ points: [{ x: 0.5, y: 0.5 }], radius: 0.1, feather: 0 }],
+      adjust: { exposure: 0.5, saturation: 0, temperature: 0 },
+    };
+    const buffer = new Float32Array(8 * 8).fill(1);
+    const deltas = maskDeltas([brush], 0.5, 0.5, [{ buffer, width: 8, height: 8 }]);
+    expect(deltas.ev).toBeCloseTo(0.5);
+    expect(maskDeltas([brush], 0.5, 0.5).ev).toBe(0); // no buffers → inert
+  });
+
+  it('moveMask translates a brush without smearing at the frame edge', () => {
+    const brush: Mask = {
+      kind: 'brush',
+      strokes: [
+        { points: [{ x: 0.8, y: 0.5 }, { x: 0.9, y: 0.5 }], radius: 0.05, feather: 0.5 },
+      ],
+      adjust: { exposure: 0, saturation: 0, temperature: 0 },
+    };
+    const moved = moveMask(brush, 0.3, 0) as Extract<Mask, { kind: 'brush' }>;
+    // Delta clamped to 0.1 so the far point stops at 1 and spacing survives.
+    expect(moved.strokes[0].points[1].x).toBeCloseTo(1);
+    expect(moved.strokes[0].points[1].x - moved.strokes[0].points[0].x).toBeCloseTo(0.1);
+  });
+});
+
 describe('neutrality + editing rules', () => {
   it('absent/empty/zero-adjust masks are neutral; any adjust is not', () => {
     expect(isNeutralMasks(undefined)).toBe(true);

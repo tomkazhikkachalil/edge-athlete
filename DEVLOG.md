@@ -1,5 +1,39 @@
 # Development Log
 
+## August 25, 2026 — Photo engine E4f: brush masks
+
+Masks learn to be painted. "+ Brush" adds a mask whose weight comes from
+strokes drawn on the live stage — same local adjustments as the other
+kinds (exposure/saturation/warmth/blur), so paint-to-dodge, paint-to-
+blur, and erase-to-carve all compose with radial/linear masks.
+
+**The rasterizer is ours, not canvas-2D** (`mask-raster.ts`): canvas
+gradients aren't reproducible in node, and the engine's house rule is
+parity by construction. Strokes stamp feathered discs along their
+polylines (radius/2 spacing); paint composes `max`, erase composes
+`·(1−w)`; discs are circular in image space on any aspect. The buffer
+(half source res) uploads as an R8 texture — with `UNPACK_ALIGNMENT 1`,
+because single-channel rows aren't 4-byte aligned at arbitrary widths —
+and the CPU reference bilinear-samples the same buffer. Live painting is
+INCREMENTAL: `extendRaster` recognizes the grew-from-prefix shape and
+stamps only new segments, refusing anything else (removal, edit,
+non-last growth) so the cache can never drift from a full recompute
+(equality pinned by test). Pointer moves are decimated (quarter-radius
+minimum) and each stroke is one undo step via per-stroke coalescing
+keys.
+
+GLSL: sampler arrays can't be indexed dynamically in ES 3.0, so the four
+brush slots are fixed samplers behind a ternary chain in `maskW()`
+(kind code 2); a failed raster degrades that slot to a zero-weight mask
+rather than sampling garbage.
+
+**Found by the e2e center-stroke pin**: SVG hit-testing counts
+TRANSPARENT fills under `pointerEvents:'all'` — painting across an
+earlier radial mask's invisible ellipse grabbed and DRAGGED that mask
+instead of painting (the spec's mean-luma probe went the wrong way and
+exposed it). Product fix, not test fix: while a brush mask is selected,
+paint wins — other masks' shapes stop intercepting.
+
 ## August 25, 2026 — Photo engine E4e: background blur through masks
 
 Fifth Phase-2 slice, and the honest version of "background blur": every
