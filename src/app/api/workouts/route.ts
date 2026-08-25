@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAuth, getSupabaseAdmin } from '@/lib/auth-server';
+import { aspectHidden } from '@/lib/vitals-privacy';
+import { fetchVitalsPrivacy } from '@/lib/vitals-privacy-server';
 import { validateEntriesPayload, type EntryExercise } from '@/lib/workouts/entries';
 import { routineToEntries, type ServerRoutineRow } from '@/lib/workouts/routines';
 import {
@@ -194,6 +196,12 @@ export async function GET(request: NextRequest) {
       if (!followRecord) {
         return NextResponse.json({ error: 'This profile is private' }, { status: 403 });
       }
+    }
+
+    // Vitals privacy (migration 122): workouts hidden (or the whole section)
+    // → 200 with an empty list, indistinguishable from no data on purpose.
+    if (!isOwner && aspectHidden(await fetchVitalsPrivacy(supabase, profileId), 'workouts', isOwner)) {
+      return NextResponse.json({ sessions: [], hidden: true });
     }
 
     // Owner reads finalize abandoned live sessions before listing

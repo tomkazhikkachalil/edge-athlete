@@ -56,7 +56,8 @@ test('vitals: seed → hero → PBs → chart → log → visitor', async ({ pag
 
   // PB showcase: mm:ss formatting for the timed metric (never raw seconds).
   await expect(page.getByText('5:48').first()).toBeVisible();
-  await expect(page.getByText('348')).toHaveCount(0);
+  // exact: a random QA-title timestamp can contain "348" as a substring
+  await expect(page.getByText('348', { exact: true })).toHaveCount(0);
 
   // Progress chart renders with the chip picker; switching to the mile
   // swaps the charted series (aria-label carries the metric name).
@@ -95,6 +96,33 @@ test('vitals: seed → hero → PBs → chart → log → visitor', async ({ pag
     await expect(pageB.getByText('Bench Press · 225 lbs')).toBeVisible();
     await expect(pageB.getByRole('button', { name: 'Start Workout' })).toHaveCount(0);
     await expect(pageB.getByRole('button', { name: 'Add Metric' })).toHaveCount(0);
+
+    // Vitals privacy: the owner hides the section via the real settings API;
+    // the visitor gets a lock card and zero data, while the owner still sees
+    // everything. STRICT once migration 122 exists; before it, the reads
+    // fail open by design, so the scenario skips with a warning instead of
+    // failing the suite (the CI-secrets precedent).
+    const { error: columnMissing } = await adminClient()
+      .from('profiles').select('vitals_privacy').limit(1);
+    if (columnMissing) {
+      console.warn('[e2e] profiles.vitals_privacy missing — run migration 122; privacy scenario skipped');
+    } else {
+      const apiOwner = await apiAs('state.json');
+      try {
+        const res = await apiOwner.patch('/api/settings/vitals-privacy', { data: { hidden: true } });
+        expect(res.ok(), await readErrorBody(res)).toBe(true);
+      } finally {
+        await apiOwner.dispose();
+      }
+      await pageB.reload();
+      await pageB.getByRole('button', { name: /vitals/i }).first().click();
+      await expect(pageB.getByText('These vitals are private')).toBeVisible({ timeout: 15_000 });
+      await expect(pageB.getByText('Bench Press · 225 lbs')).toHaveCount(0);
+
+      await page.reload();
+      await page.getByRole('button', { name: /vitals/i }).first().click();
+      await expect(page.getByText('Bench Press · 225 lbs')).toBeVisible({ timeout: 15_000 });
+    }
   } finally {
     await ctxB.close();
   }

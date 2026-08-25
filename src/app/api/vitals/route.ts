@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAuth, getSupabaseAdmin } from '@/lib/auth-server';
+import { filterVitalsRows, aspectHidden } from '@/lib/vitals-privacy';
+import { fetchVitalsPrivacy } from '@/lib/vitals-privacy-server';
 
 /**
  * GET /api/vitals?profileId=xxx
@@ -55,6 +57,27 @@ export async function GET(request: NextRequest) {
         return NextResponse.json({ error: 'This profile is private' }, { status: 403 });
       }
     }
+
+    // Vitals privacy (migration 122): the profile itself is viewable, so a
+    // master-hidden section answers 200 with a hidden flag and empty
+    // payloads — the client renders a friendly lock card, not an error.
+    // Own query, not part of the select above: pre-122 it degrades to
+    // all-visible instead of failing the route.
+    const privacy = await fetchVitalsPrivacy(supabase, profileId);
+    if (!isOwner && privacy.hidden) {
+      return NextResponse.json({
+        hidden: true,
+        vitals: [],
+        trainingPosts: [],
+        athleteBirthday: null,
+        currentVitals: null,
+        profile: {
+          firstName: profile.first_name ?? null,
+          avatarUrl: profile.avatar_url ?? null,
+        },
+      });
+    }
+    const bodyHidden = aspectHidden(privacy, 'body', isOwner);
 
     // Fetch all vitals entries (immutable time-series, newest first)
     const { data: vitals, error: vitalsError } = await supabase
@@ -121,17 +144,21 @@ export async function GET(request: NextRequest) {
     }
 
     return NextResponse.json({
-      vitals: vitals || [],
+      // Aspect filter: body rows drop when body is private, the rest when
+      // records is private. Owners always get everything.
+      vitals: filterVitalsRows(vitals || [], privacy, isOwner),
       trainingPosts: trainingPostsRaw || [],
       // dob is what Edit Profile saves; birthday is a legacy column kept as
       // fallback (previously this read birthday alone — usually null, which
       // hid every age-at-date annotation).
       athleteBirthday: profile.dob || profile.birthday || null,
       currentVitals: {
-        heightCm: profile.height_cm ?? null,
-        weightKg: profile.weight_kg ?? null,
-        weightDisplay: profile.weight_display ?? null,
-        weightUnit: profile.weight_unit ?? null,
+        // Height/weight follow the body aspect; age/DOB exposure is
+        // unchanged by design (dob was already owner-gated client-side).
+        heightCm: bodyHidden ? null : profile.height_cm ?? null,
+        weightKg: bodyHidden ? null : profile.weight_kg ?? null,
+        weightDisplay: bodyHidden ? null : profile.weight_display ?? null,
+        weightUnit: bodyHidden ? null : profile.weight_unit ?? null,
         dob: profile.dob ?? null,
       },
       // The dashboard hero's greeting line — display data the viewer can
@@ -140,6 +167,8 @@ export async function GET(request: NextRequest) {
         firstName: profile.first_name ?? null,
         avatarUrl: profile.avatar_url ?? null,
       },
+      // Owner-only: seeds the settings modal's privacy toggles.
+      ...(isOwner ? { vitalsPrivacy: privacy } : {}),
     });
   } catch (error) {
     console.error('GET /api/vitals error:', error);

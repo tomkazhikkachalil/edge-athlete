@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseAdmin, getServerAuth } from '@/lib/auth-server';
+import { parseVitalsPrivacy } from '@/lib/vitals-privacy';
 import { canViewProfile } from '@/lib/privacy';
 import { participantOrder } from '@/lib/golf/scorecard-transform';
 import { canViewSharedPost } from '@/lib/reposts';
@@ -586,7 +587,17 @@ export async function POST(
       supabaseAdmin.from('athlete_achievements').select('id', { count: 'exact', head: true }).eq('profile_id', profileId),
     ]);
     const equipment = eqCount ?? 0;
-    const vitals = vitCount ?? 0;
+    // Vitals privacy (migration 122): a master-hidden section must not leak
+    // its size through the tab badge — non-owners see 0.
+    let vitals = vitCount ?? 0;
+    if (viewerId !== profileId && vitals > 0) {
+      const { data: privRow } = await supabaseAdmin
+        .from('profiles')
+        .select('vitals_privacy')
+        .eq('id', profileId)
+        .single();
+      if (parseVitalsPrivacy(privRow?.vitals_privacy).hidden) vitals = 0;
+    }
     const achievements = achCount ?? 0;
 
     return NextResponse.json({
