@@ -212,7 +212,9 @@ export async function GET(request: NextRequest) {
       attribution: catalogAttribution(providersConfigured()),
     });
   } catch (error) {
-    if (error instanceof Response) throw error;
+    // return, not throw: a thrown Response becomes a 500 at the handler
+    // boundary in this Next version (the working convention across the API).
+    if (error instanceof Response) return error;
     console.error('Golf courses API error:', error);
     return NextResponse.json({ error: 'Failed to search courses' }, { status: 500 });
   }

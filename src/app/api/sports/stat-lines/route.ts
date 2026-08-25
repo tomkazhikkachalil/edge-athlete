@@ -38,6 +38,39 @@ export async function GET(request: NextRequest) {
 
     const supabase = getSupabaseAdmin();
 
+    // Profile-visibility gate FIRST. The post-level `visibility='public'`
+    // filter below is NOT sufficient: posts default to public even on a
+    // PRIVATE profile, so without this a private athlete's stat lines leaked
+    // to anyone. Mirror the owner-||-public-||-accepted-follower block that
+    // vitals/workouts/golf-stats use (canViewProfile can't be used directly —
+    // it rejects anonymous viewers of public profiles).
+    const isOwner = viewerId === profileId;
+    if (!isOwner) {
+      const { data: prof } = await supabase
+        .from('profiles')
+        .select('visibility')
+        .eq('id', profileId)
+        .single();
+      if (!prof) {
+        return NextResponse.json({ error: 'Profile not found' }, { status: 404 });
+      }
+      if (prof.visibility !== 'public') {
+        if (!viewerId) {
+          return NextResponse.json({ error: 'This profile is private' }, { status: 403 });
+        }
+        const { data: follow } = await supabase
+          .from('follows')
+          .select('id')
+          .eq('follower_id', viewerId)
+          .eq('following_id', profileId)
+          .eq('status', 'accepted')
+          .maybeSingle();
+        if (!follow) {
+          return NextResponse.json({ error: 'This profile is private' }, { status: 403 });
+        }
+      }
+    }
+
     let query = supabase
       .from('posts')
       .select('id, created_at, stats_data, visibility')
@@ -47,8 +80,9 @@ export async function GET(request: NextRequest) {
       .order('created_at', { ascending: false })
       .limit(200);
 
-    // Owners see everything; everyone else sees public posts only.
-    if (viewerId !== profileId) {
+    // Even a permitted viewer of a public/followed profile sees only that
+    // profile's PUBLIC stat-line posts (per-post privacy still applies).
+    if (!isOwner) {
       query = query.eq('visibility', 'public');
     }
 
