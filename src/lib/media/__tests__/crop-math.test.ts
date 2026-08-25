@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { clampCrop, parseAspectRatio, rotatedSize, totalRotation } from '../crop-math';
+import { clampCrop, parseAspectRatio, rotatedSize, scaleRect, totalRotation } from '../crop-math';
 
 describe('parseAspectRatio', () => {
   it('parses ratio ids to numbers', () => {
@@ -70,5 +70,21 @@ describe('totalRotation', () => {
   it('sums quarter turns and straighten', () => {
     expect(totalRotation(90, -12)).toBe(78);
     expect(totalRotation(0, 0)).toBe(0);
+  });
+});
+
+describe('scaleRect (flip round)', () => {
+  it('scales down and back up within a pixel', () => {
+    const rect = { x: 100, y: 200, width: 1500, height: 900 };
+    const down = scaleRect(rect, 0.5);
+    expect(down).toEqual({ x: 50, y: 100, width: 750, height: 450 });
+    expect(scaleRect(down, 2)).toEqual(rect);
+  });
+
+  it('never emits negative origins or empty sizes', () => {
+    const tiny = scaleRect({ x: 0, y: 0, width: 1, height: 1 }, 0.1);
+    expect(tiny.width).toBeGreaterThanOrEqual(1);
+    expect(tiny.height).toBeGreaterThanOrEqual(1);
+    expect(tiny.x).toBe(0);
   });
 });

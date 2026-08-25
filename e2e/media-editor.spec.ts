@@ -36,6 +36,13 @@ test('media editor: crop session, undo, re-edit, dirty confirm, publish', async 
   // Re-apply the crop.
   await page.getByRole('button', { name: '1:1', exact: true }).click();
 
+  // E3a: the story ratio is offered, and flip is a real crop-tab control
+  // (the cropper swaps to a derived flipped preview; export flips innermost
+  // so crop coords stay valid).
+  await expect(page.getByRole('button', { name: '9:16', exact: true })).toBeVisible();
+  await page.getByRole('button', { name: 'Flip horizontally' }).click();
+  await page.waitForTimeout(700); // flipped preview URL minting
+
   // Engine round: the Adjust tab renders Light/Color groups over the WebGL
   // preview canvas, and an Exposure drag actually changes rendered pixels
   // (the preview-parity probe — CSS filters could never express exposure).
@@ -109,6 +116,13 @@ test('media editor: crop session, undo, re-edit, dirty confirm, publish', async 
   // The editor is a real dialog now — ⌘K must NOT open search over it.
   await page.keyboard.press('Control+k');
   await expect(page.getByRole('dialog', { name: 'Search' })).toHaveCount(0);
+
+  // Film pack (E3a): selecting a film look arms the intensity slider.
+  await page.getByRole('button', { name: 'Filters', exact: true }).click();
+  await page.getByRole('button', { name: /Gold/ }).click();
+  const intensity = page.getByRole('slider', { name: 'Intensity' });
+  await expect(intensity).toBeVisible();
+  await intensity.fill('50');
 
   // Export goes through the engine (advanced params force the WebGL path).
   await page.getByRole('button', { name: 'Done', exact: true }).click();

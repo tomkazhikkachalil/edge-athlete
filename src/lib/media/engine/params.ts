@@ -58,6 +58,9 @@ export function scaledPresetAdjustments(
   };
 }
 
+const clampSigned = (v: number) => Math.max(-1, Math.min(1, v));
+const clampUnsigned = (v: number) => Math.max(0, Math.min(1, v));
+
 export function recipeToEngineParams(recipe: ImageRecipe): EngineParams {
   let adjustments: Adjustments;
   if (recipe.filterStrength >= 1) {
@@ -70,11 +73,34 @@ export function recipeToEngineParams(recipe: ImageRecipe): EngineParams {
       saturation: recipe.adjustments.saturation * preset.saturation,
     };
   }
+  // Film-pack presets carry engine-group components: additive (the groups
+  // are zero-neutral), scaled by strength, clamped to each field's range so
+  // preset + user can never leave the schema domain.
+  const preset = getPreset(recipe.filterId);
+  const s = clampUnsigned(recipe.filterStrength);
+  const pl = preset?.light;
+  const pc = preset?.color;
+  const pd = preset?.detail;
   return {
     adjustments,
-    light: { ...recipe.light },
-    color: { ...recipe.color },
-    detail: { ...recipe.detail },
+    light: {
+      exposure: clampSigned(recipe.light.exposure + (pl?.exposure ?? 0) * s),
+      highlights: clampSigned(recipe.light.highlights + (pl?.highlights ?? 0) * s),
+      shadows: clampSigned(recipe.light.shadows + (pl?.shadows ?? 0) * s),
+      whites: clampSigned(recipe.light.whites + (pl?.whites ?? 0) * s),
+      blacks: clampSigned(recipe.light.blacks + (pl?.blacks ?? 0) * s),
+    },
+    color: {
+      temperature: clampSigned(recipe.color.temperature + (pc?.temperature ?? 0) * s),
+      tint: clampSigned(recipe.color.tint + (pc?.tint ?? 0) * s),
+      vibrance: clampSigned(recipe.color.vibrance + (pc?.vibrance ?? 0) * s),
+    },
+    detail: {
+      sharpen: clampUnsigned(recipe.detail.sharpen + (pd?.sharpen ?? 0) * s),
+      clarity: clampUnsigned(recipe.detail.clarity + (pd?.clarity ?? 0) * s),
+      noiseReduction: clampUnsigned(recipe.detail.noiseReduction + (pd?.noiseReduction ?? 0) * s),
+      vignette: clampSigned(recipe.detail.vignette + (pd?.vignette ?? 0) * s),
+    },
   };
 }
 

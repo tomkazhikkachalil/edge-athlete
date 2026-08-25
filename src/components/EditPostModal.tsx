@@ -34,7 +34,7 @@ interface EditPostModalProps {
 
 // Same output shape as the composer's posts config.
 const MEDIA_EDITOR_CONFIG: EditorConfig = {
-  aspectRatios: ['free', '1:1', '4:5', '16:9'],
+  aspectRatios: ['free', '1:1', '4:5', '9:16', '16:9'],
   allowVideo: true, // trim/split/cover via WebCodecs; degrades to pass-through without it
   maxAssets: 1, // re-edit is per item
   output: { maxDimension: 2048, mime: 'image/jpeg', quality: 0.9 },

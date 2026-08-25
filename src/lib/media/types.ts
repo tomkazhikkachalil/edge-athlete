@@ -10,7 +10,7 @@
 
 export type MediaKind = 'image' | 'video';
 
-export type AspectRatioId = 'free' | '1:1' | '4:5' | '16:9' | '3:1';
+export type AspectRatioId = 'free' | '1:1' | '4:5' | '9:16' | '16:9' | '3:1';
 
 /** All values 1 = neutral. Range 0–2, mirroring CSS filter semantics. */
 export interface Adjustments {

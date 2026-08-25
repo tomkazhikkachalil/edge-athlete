@@ -1,5 +1,33 @@
 # Development Log
 
+## August 25, 2026 — Photo engine E3a: film pack, 9:16, flip
+
+**Film looks.** Six new presets — Gold, Chrome, Instant, Noir, Cine,
+Meadow — defined the way the trio-only originals never could: each is a
+legacy-trio slice PLUS additive engine-group components (temperature
+shifts, highlight rolloff, black-point lift, clarity, vignette), all
+scaled by the intensity slider and clamped field-wise so preset + user
+can never leave the schema domain. The trio slice is deliberate double
+duty: it's the CSS thumbnail approximation AND the no-WebGL preview.
+The original five presets are untouched — their v2 byte parity is
+contract.
+
+**9:16.** The story ratio joins the `AspectRatioId` union — all five
+duplicated touchpoints in one commit (types, both schema enums, both
+RATIO_LABELS maps) — and is opted into on the four media-heavy surfaces
+(composer, post edit, golf round media, score entry). `parseAspectRatio`
+needed nothing.
+
+**Flip.** Two crop-tab buttons. react-easy-crop owns its media transform
+and cannot mirror, so a flipped session crops a DERIVED flipped object
+URL (one-shot canvas per toggle, EXIF-oriented decode). Flip is the
+INNERMOST export transform — flipped-image space IS export space — so
+crop coordinates need no translation, only a `scaleRect` k-rescale when
+the derived preview had to shrink under the iOS canvas cap. The derived
+URL carries WHICH flip it was rendered for and render gates on the
+match, so a stale revoked URL is never handed to the cropper (and the
+set-state-in-effect reset that lint rightly flagged became unnecessary).
+
 ## August 25, 2026 — Photo engine E2: visible history, two layouts, keyboard
 
 Third engine round — the editor grows its second layout and a real

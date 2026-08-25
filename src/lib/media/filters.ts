@@ -60,10 +60,21 @@ export function isNeutralDetail(detail: DetailAdjustments): boolean {
   return allZero(detail);
 }
 
+/**
+ * A preset is a legacy trio (multiplicative, and the CSS thumbnail
+ * approximation) plus optional engine-group components (additive,
+ * zero-neutral, scaled by filterStrength). The original five are trio-only
+ * — their byte-parity with v2 renders is contract. Film looks lean on the
+ * engine groups but still carry a trio slice so thumbnails and the
+ * no-WebGL preview show a recognizable approximation of the look.
+ */
 export interface FilterPreset {
   id: string;
   label: string;
   adjustments: Adjustments;
+  light?: Partial<LightAdjustments>;
+  color?: Partial<ColorAdjustments>;
+  detail?: Partial<DetailAdjustments>;
 }
 
 export const PRESET_FILTERS: FilterPreset[] = [
@@ -72,6 +83,50 @@ export const PRESET_FILTERS: FilterPreset[] = [
   { id: 'fade', label: 'Fade', adjustments: { brightness: 1.1, contrast: 0.85, saturation: 0.75 } },
   { id: 'punch', label: 'Punch', adjustments: { brightness: 1, contrast: 1.25, saturation: 1.35 } },
   { id: 'mono', label: 'Mono', adjustments: { brightness: 1, contrast: 1.05, saturation: 0 } },
+  // Film pack (engine round) — looks the trio alone could never express.
+  {
+    id: 'gold',
+    label: 'Gold',
+    adjustments: { brightness: 1.03, contrast: 1, saturation: 1.08 },
+    light: { exposure: 0.05, highlights: -0.15 },
+    color: { temperature: 0.3, vibrance: 0.2 },
+  },
+  {
+    id: 'chrome',
+    label: 'Chrome',
+    adjustments: { brightness: 1, contrast: 1.15, saturation: 1.15 },
+    color: { temperature: -0.05, vibrance: 0.25 },
+    detail: { clarity: 0.2 },
+  },
+  {
+    id: 'instant',
+    label: 'Instant',
+    adjustments: { brightness: 1.05, contrast: 0.9, saturation: 1.05 },
+    light: { exposure: 0.1, blacks: 0.2 },
+    color: { temperature: 0.15, tint: 0.1 },
+    detail: { vignette: 0.25 },
+  },
+  {
+    id: 'noir',
+    label: 'Noir',
+    adjustments: { brightness: 1, contrast: 1.2, saturation: 0 },
+    detail: { clarity: 0.25, vignette: 0.3 },
+  },
+  {
+    id: 'cine',
+    label: 'Cine',
+    adjustments: { brightness: 1, contrast: 1.1, saturation: 1.05 },
+    light: { highlights: -0.2 },
+    color: { temperature: -0.15, tint: -0.08 },
+  },
+  {
+    id: 'meadow',
+    label: 'Meadow',
+    adjustments: { brightness: 1.02, contrast: 1, saturation: 1.05 },
+    light: { shadows: 0.15 },
+    color: { temperature: 0.08, vibrance: 0.3 },
+    detail: { clarity: 0.1 },
+  },
 ];
 
 export function getPreset(filterId: string | null): FilterPreset | null {

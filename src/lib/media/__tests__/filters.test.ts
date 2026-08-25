@@ -91,4 +91,26 @@ describe('presets', () => {
   it('unknown preset id is ignored', () => {
     expect(composeAdjustments(NEUTRAL_ADJUSTMENTS, 'nope')).toEqual(NEUTRAL_ADJUSTMENTS);
   });
+
+  it('film-pack engine components stay within each field’s schema range', () => {
+    for (const p of PRESET_FILTERS) {
+      for (const v of Object.values(p.light ?? {})) {
+        expect(Math.abs(v)).toBeLessThanOrEqual(1);
+      }
+      for (const v of Object.values(p.color ?? {})) {
+        expect(Math.abs(v)).toBeLessThanOrEqual(1);
+      }
+      const { vignette, ...unsignedDetail } = p.detail ?? {};
+      for (const v of Object.values(unsignedDetail)) {
+        expect(v).toBeGreaterThanOrEqual(0);
+        expect(v).toBeLessThanOrEqual(1);
+      }
+      if (vignette !== undefined) expect(Math.abs(vignette)).toBeLessThanOrEqual(1);
+    }
+  });
+
+  it('preset ids are unique (getPreset resolves by first match)', () => {
+    const ids = PRESET_FILTERS.map(p => p.id);
+    expect(new Set(ids).size).toBe(ids.length);
+  });
 });
