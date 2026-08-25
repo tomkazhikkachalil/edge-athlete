@@ -55,19 +55,26 @@ const viewerId = user?.id ?? null;   // null = anonymous, and that's fine
 
 These **throw a `Response`** (401/403) instead of returning. Most routes using
 them have no surrounding try/catch and let the thrown Response propagate. If
-your handler DOES wrap work in try/catch, the catch block **MUST re-throw
-`instanceof Response`** — otherwise the thrown 401 gets swallowed into a 500
-(this exact bug shipped once; see DEVLOG):
+your handler DOES wrap work in try/catch, the catch block **MUST `return` the
+`Response`** — otherwise the thrown 401 gets swallowed into a 500 (this exact
+bug shipped once; see DEVLOG):
 
 ```typescript
 try {
   const user = await requireAuth(request);
   // ...
 } catch (err) {
-  if (err instanceof Response) throw err;   // REQUIRED
+  if (err instanceof Response) return err;   // REQUIRED
   return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
 }
 ```
+
+> **`return`, not `throw`** (corrected Aug 2026). Under Next 16.3.1 a `Response`
+> thrown out of a route handler is treated as an unhandled error → **500**, not
+> returned as that response. Verified live (`tags` GET: `throw` → 500, `return`
+> → 401); 93 routes already use the `return` form. The hardening guardrail
+> (`scripts/hardening-guardrails.sh`) fails the build on `instanceof Response) throw`
+> in a route.
 
 `requireProfileRole(request, profileId, action)` is the guardian-profiles
 authorization gate (feature-flagged; see `src/lib/profile-roles.ts`).
