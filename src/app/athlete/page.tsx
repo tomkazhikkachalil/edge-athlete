@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState, createContext, useContext } from 'react';
 import dynamic from 'next/dynamic';
 import Image from 'next/image';
-import { isOptimizableImageSrc } from '@/lib/media/image-src';
+import { coverProxyUrl } from '@/lib/media/cover-url';
 import { useAuth } from '@/lib/auth';
 import { useRouter } from 'next/navigation';
 import { AthleteService } from '@/lib/athleteService';
@@ -611,13 +611,15 @@ export default function AthleteProfilePage() {
           <div className="relative w-full aspect-[3/1] max-h-64">
             {profile?.cover_url ? (
               <Image
-                src={profile.cover_url}
+                // Covers live in the now-private uploads bucket; serve via the
+                // public per-profile cover endpoint (raw URL 404s post-flip).
+                src={coverProxyUrl(profile.id, profile.cover_url)!}
                 alt="Profile cover"
                 fill
                 preload
                 sizes="(max-width: 1280px) 100vw, 1232px"
                 className="object-cover"
-                unoptimized={!isOptimizableImageSrc(profile.cover_url)}
+                unoptimized
               />
             ) : (
               <div

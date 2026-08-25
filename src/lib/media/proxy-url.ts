@@ -16,7 +16,7 @@ import { signMediaToken, type MediaEntityType } from './token';
 const PROTECTED_BUCKETS = new Set(['uploads']);
 
 /** Parse {bucket,key} out of a stored Supabase public URL, else null. */
-function parsePublicUrl(url: string): { bucket: string; key: string } | null {
+export function parsePublicUrl(url: string): { bucket: string; key: string } | null {
   const marker = '/storage/v1/object/public/';
   const at = url.indexOf(marker);
   if (at === -1) return null;
