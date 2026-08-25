@@ -1,5 +1,48 @@
 # Development Log
 
+## August 24, 2026 — Dummy-proofing PR 1: a started round is a session, not a post
+
+Tom's report: start a round, no score yet, navigate away → the round is in
+the feed as an empty post and there's no way back into the scorer.
+Investigation (fully code-cited) REFUTED the literal mechanism — nothing
+posts on navigation; the post row is created at Go Live by design and the
+feed HIDES live rounds. The real bug was a status gap: a round is created
+'pending' and only a FIRST SCORE WRITE flips it 'active'
+(advanceRoundStatus), but isRoundLive demanded 'active'. A zero-score
+round therefore failed every liveness check at once — the feed exclusion
+didn't fire (empty post visible from second zero), and the resume banner,
+Live Now, and the card's quick view all ignored it. Nothing swept
+'pending', so it sat forever. Only the raw /live URL still worked; the
+round page itself already handled 'pending' — discovery didn't.
+
+The fix, in the one place each rule now lives:
+- **The feed shows a round only when it's FINISHED.** The exclusion is now
+  status-based (effectiveRoundStatus === 'completed' to appear), not
+  liveness-based — pending, active, out-of-window AND cancelled rounds all
+  stay out. No heuristic can leak a started round again. Profile grids and
+  pinned rows keep their exemption.
+- **'pending' within the 48h window IS live.** isRoundLive accepts
+  pending|active — a freshly started round has Live Now presence, the
+  "Continue scoring" banner, the LIVE badge and quick view (with Delete),
+  and polling, from second zero. live-now's SQL gate widened to match.
+- **Ending stays explicit.** End Round remains active-only (a scoreless
+  round can't be "ended" into an empty post; its way out is Delete);
+  navigation still writes nothing, anywhere.
+- **Abandoned scoreless rounds retire.** The daily sweep now cancels
+  'pending' rounds past their window (isAbandonedPendingRound, pure +
+  tested; status-guarded update so a concurrent first score wins). Tom's
+  keep-data decision: cancelled, never deleted — hidden everywhere, still
+  at its URL, owner can delete.
+
+e2e/round-lifecycle.spec.ts pins the product rule for the first time:
+zero-score round absent from feed + present in Live Now + returned by the
+resume path → first score, still absent → explicit End → lands in the
+feed. Adjacent specs (round-delete, quick-entry, invite) re-run green.
+
+The principle this round serves, app-wide: NAVIGATING AWAY IS NOT A
+DECISION. PR 2 (confirms on every unguarded destructive tap) and PR 3
+(refresh/draft resumability) follow from the same audit.
+
 ## August 24, 2026 — Media round D: slow motion
 
 The highest-value Layer-2 item — slo-mo on a swing is the reason athletes

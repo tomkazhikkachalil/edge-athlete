@@ -30,10 +30,11 @@ export function isActiveParticipant(status: string | null | undefined): boolean 
   return status !== 'declined';
 }
 
-/** How long after its (date-only) round date an 'active' round still counts as
- *  live. Covers timezone slop + a full day of play; beyond it a round someone
- *  abandoned mid-entry stops showing as LIVE. */
-const LIVE_WINDOW_MS = 48 * 60 * 60 * 1000;
+/** How long after its (date-only) round date a round still counts as live.
+ *  Covers timezone slop + a full day of play; beyond it a round someone
+ *  abandoned mid-entry stops showing as LIVE. Exported for the sweep's
+ *  abandonment predicate. */
+export const LIVE_WINDOW_MS = 48 * 60 * 60 * 1000;
 
 /** An 'active' round with no new scores for this long is over — players
  *  stopped and nobody tapped End Round. Product decision (July 25): 6 hours.
@@ -110,9 +111,14 @@ export function effectiveRoundStatus(
 }
 
 /**
- * Whether a round should display as LIVE. status === 'active' alone isn't
- * enough — group_posts.date is date-only, so we also require the round date to
- * be within ±48h of now, and the round must not have gone quiet past the
+ * Whether a round should display as LIVE — an in-progress session with a way
+ * back in. BOTH 'pending' and 'active' count (dummy-proofing round): a
+ * freshly started round has no scores yet and sits 'pending' until the first
+ * score write flips it 'active' (resolveRoundStatus), but it is every bit an
+ * open session — requiring 'active' here was the bug where a zero-score
+ * round had no LIVE presence, no resume banner, and no way back into the
+ * scorer. group_posts.date is date-only, so the round date must also be
+ * within ±48h of now, and the round must not have gone quiet past the
  * auto-end window (effectiveRoundStatus). A round left 'active' (players
  * stopped entering and nobody ended it) quietly stops advertising itself.
  */
@@ -120,10 +126,29 @@ export function isRoundLive(
   groupPost: { status?: string | null; date?: string | null; last_score_activity_at?: string | null },
   now: number = Date.now()
 ): boolean {
-  if (effectiveRoundStatus(groupPost, now) !== 'active' || !groupPost.date) return false;
+  const effective = effectiveRoundStatus(groupPost, now);
+  if ((effective !== 'active' && effective !== 'pending') || !groupPost.date) return false;
   const roundDate = Date.parse(groupPost.date);
   if (Number.isNaN(roundDate)) return false;
   return Math.abs(now - roundDate) <= LIVE_WINDOW_MS;
+}
+
+/**
+ * A started-but-never-scored round whose live window has passed. The daily
+ * sweep CANCELS these (dummy-proofing round, Tom's decision): the empty
+ * session must never surface in the feed as a post, but nothing is
+ * destroyed — the round stays viewable from its URL and the owner can
+ * delete it. 'pending' with any score is impossible (the first score write
+ * flips it 'active'), so status alone identifies the scoreless case.
+ */
+export function isAbandonedPendingRound(
+  groupPost: { status?: string | null; date?: string | null },
+  now: number = Date.now()
+): boolean {
+  if (groupPost.status !== 'pending' || !groupPost.date) return false;
+  const roundDate = Date.parse(groupPost.date);
+  if (Number.isNaN(roundDate)) return false;
+  return now - roundDate > LIVE_WINDOW_MS;
 }
 
 /**

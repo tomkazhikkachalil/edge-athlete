@@ -11,12 +11,18 @@ const row = (id: string, status: string, date: string, participant = `part-${id}
 describe('pickLiveRound', () => {
   it('returns null with no rounds or no live rounds', () => {
     expect(pickLiveRound([], NOW)).toBeNull();
-    expect(pickLiveRound([row('a', 'pending', '2026-07-24')], NOW)).toBeNull();
     expect(pickLiveRound([row('b', 'completed', '2026-07-24')], NOW)).toBeNull();
+    expect(pickLiveRound([row('c', 'cancelled', '2026-07-24')], NOW)).toBeNull();
   });
 
   it('returns an active round dated today', () => {
     expect(pickLiveRound([row('a', 'active', '2026-07-24')], NOW)?.group_post.id).toBe('a');
+  });
+
+  it('returns a PENDING round in its window — the zero-score session must get its resume banner (dummy-proofing round)', () => {
+    expect(pickLiveRound([row('a', 'pending', '2026-07-24')], NOW)?.group_post.id).toBe('a');
+    // …but not once its window has passed (the sweep cancels those).
+    expect(pickLiveRound([row('old', 'pending', '2026-07-19')], NOW)).toBeNull();
   });
 
   it('excludes active rounds outside the ±48h live window', () => {

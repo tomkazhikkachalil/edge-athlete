@@ -33,9 +33,10 @@ function cardComplete(r: LiveRoundRow): boolean {
 }
 
 /**
- * The round to offer resuming: LIVE per isRoundLive (status active, date
- * within the live window), the user's own card not yet complete, most recent
- * date wins on ties. Null when none.
+ * The round to offer resuming: LIVE per isRoundLive (status pending OR
+ * active, date within the live window — a freshly started zero-score round
+ * must get its resume banner too), the user's own card not yet complete,
+ * most recent date wins on ties. Null when none.
  */
 export function pickLiveRound(rows: LiveRoundRow[], now: number = Date.now()): LiveRoundRow | null {
   const live = rows.filter(r => r.group_post && isRoundLive(r.group_post, now) && !cardComplete(r));
