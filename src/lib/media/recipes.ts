@@ -25,17 +25,19 @@ export function defaultImageRecipe(aspect: AspectRatioId = 'free'): ImageRecipe 
 }
 
 export function defaultVideoRecipe(): VideoRecipe {
-  return { kind: 'video', trim: null, posterTime: 0 };
+  return { kind: 'video', clips: [], crop: null, aspect: 'free', posterTime: 0 };
 }
 
 /**
  * A no-op recipe means the ORIGINAL file can upload untouched (no re-encode
  * → no quality loss, GIFs keep animating). Callers must still force a
  * re-encode for non-allowlisted source types (HEIC) regardless of no-op.
+ * Video: [] clips = whole file; any real clip, volume change or reframe is
+ * an edit. posterTime alone still passes the file through.
  */
 export function isNoopRecipe(recipe: EditRecipe): boolean {
   if (recipe.kind === 'video') {
-    return recipe.trim === null;
+    return recipe.clips.length === 0 && recipe.crop === null;
   }
   return (
     recipe.crop === null &&
@@ -69,13 +71,45 @@ const imageRecipeSchema = z.object({
   aspect: z.enum(['free', '1:1', '4:5', '16:9', '3:1']),
 });
 
-const videoRecipeSchema = z.object({
+// v1 video shape (single trim) — persisted rows from round B upgrade on read.
+const videoRecipeV1Schema = z.object({
   kind: z.literal('video'),
   trim: z.object({ start: z.number().min(0), end: z.number().positive() }).nullable(),
   posterTime: z.number().min(0),
 });
+type VideoRecipeV1 = z.infer<typeof videoRecipeV1Schema>;
+
+const videoClipSchema = z.object({
+  in: z.number().min(0),
+  out: z.number().positive(),
+  volume: z.number().min(0).max(1),
+});
+
+const videoRecipeSchema = z.object({
+  kind: z.literal('video'),
+  clips: z.array(videoClipSchema).max(50),
+  crop: cropRectSchema.nullable(),
+  aspect: z.enum(['free', '1:1', '4:5', '16:9', '3:1']),
+  posterTime: z.number().min(0),
+});
 
 export const editRecipeSchema = z.discriminatedUnion('kind', [imageRecipeSchema, videoRecipeSchema]);
+const editRecipeV1Schema = z.discriminatedUnion('kind', [imageRecipeSchema, videoRecipeV1Schema]);
+
+/** v1 video → v2: trim becomes the single clip; posterTime moves from
+ *  source space into timeline space (subtract the trim start). */
+export function upgradeVideoRecipeV1(recipe: VideoRecipeV1): VideoRecipe {
+  const clips = recipe.trim
+    ? [{ in: recipe.trim.start, out: recipe.trim.end, volume: 1 }]
+    : [];
+  const posterTime = recipe.trim
+    ? Math.min(
+        Math.max(recipe.posterTime - recipe.trim.start, 0),
+        recipe.trim.end - recipe.trim.start
+      )
+    : recipe.posterTime;
+  return { kind: 'video', clips, crop: null, aspect: 'free', posterTime };
+}
 
 export function serializeRecipe(recipe: EditRecipe): string {
   return JSON.stringify(recipeEnvelope(recipe));
@@ -91,15 +125,25 @@ export function parseRecipe(raw: string): EditRecipe | null {
 
 /** The persistence shape — what post_media.edit_recipe (JSONB) holds. Kept
  *  as an object (not a string) so the column stores real JSON. */
-export function recipeEnvelope(recipe: EditRecipe): { v: 1; recipe: EditRecipe } {
-  return { v: 1, recipe };
+export function recipeEnvelope(recipe: EditRecipe): { v: 2; recipe: EditRecipe } {
+  return { v: 2, recipe };
 }
 
 /** Validate an untrusted envelope (client payload / DB row) into a recipe.
- *  Null on anything malformed — callers treat that as "no recipe". */
+ *  v1 rows (round B) upgrade transparently; null on anything malformed —
+ *  callers treat that as "no recipe". */
 export function parseRecipeEnvelope(value: unknown): EditRecipe | null {
   if (!value || typeof value !== 'object') return null;
-  if ((value as { v?: unknown }).v !== 1) return null;
-  const result = editRecipeSchema.safeParse((value as { recipe?: unknown }).recipe);
-  return result.success ? result.data : null;
+  const v = (value as { v?: unknown }).v;
+  const rawRecipe = (value as { recipe?: unknown }).recipe;
+  if (v === 2) {
+    const result = editRecipeSchema.safeParse(rawRecipe);
+    return result.success ? result.data : null;
+  }
+  if (v === 1) {
+    const result = editRecipeV1Schema.safeParse(rawRecipe);
+    if (!result.success) return null;
+    return result.data.kind === 'video' ? upgradeVideoRecipeV1(result.data) : result.data;
+  }
+  return null;
 }

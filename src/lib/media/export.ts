@@ -45,22 +45,27 @@ async function withMeta(result: EditedMedia): Promise<EditedMedia> {
 async function exportVideo(asset: MediaAsset, recipe: EditRecipe): Promise<EditedMedia> {
   if (recipe.kind !== 'video') return passThrough(asset, recipe);
 
-  // Poster always captured (plain canvas — works without WebCodecs); it's
-  // optional, so a capture failure never blocks the video itself.
-  let posterBlob: Blob | undefined;
-  try {
-    posterBlob = await capturePoster(asset.file, recipe.posterTime);
-  } catch (err) {
-    console.warn('Poster capture failed:', err);
-  }
-
-  if (recipe.trim) {
+  if (!isNoopRecipe(recipe)) {
     try {
-      const { isVideoEditingSupported, trimVideo } = await import('./video');
+      const { isVideoEditingSupported, renderVideoRecipe } = await import('./video');
       if (isVideoEditingSupported()) {
-        const { blob, mime } = await trimVideo(asset.file, recipe.trim);
+        const { probeVideoMeta } = await import('./probe');
+        const meta = await probeVideoMeta(asset.file);
+        const { blob, mime } = await renderVideoRecipe(
+          asset.file,
+          recipe,
+          meta?.durationSeconds ?? 0
+        );
         const base = asset.file.name.replace(/\.[^.]+$/, '') || 'video';
         const file = new File([blob], `${base}-edited.mp4`, { type: mime });
+        // Poster from the RENDERED output: posterTime is timeline-space, and
+        // the rendered file IS the timeline — no clip mapping needed.
+        let posterBlob: Blob | undefined;
+        try {
+          posterBlob = await capturePoster(file, recipe.posterTime);
+        } catch (err) {
+          console.warn('Poster capture failed:', err);
+        }
         return {
           id: asset.id,
           blob,
@@ -74,9 +79,24 @@ async function exportVideo(asset: MediaAsset, recipe: EditRecipe): Promise<Edite
         };
       }
     } catch (err) {
-      // Trim failed (unsupported codec/browser) → the original still uploads
-      console.warn('Video trim failed, uploading original:', err);
+      // Render failed (unsupported codec/browser) → the original still uploads
+      console.warn('Video render failed, uploading original:', err);
     }
+  }
+
+  // Pass-through: poster comes from the ORIGINAL, so map the timeline-space
+  // posterTime back into source time through the clips (plain canvas — works
+  // without WebCodecs; failure never blocks the video).
+  let posterBlob: Blob | undefined;
+  try {
+    const { timelineToSource } = await import('./timeline-math');
+    const posterSourceTime =
+      recipe.clips.length > 0
+        ? (timelineToSource(recipe.posterTime, recipe.clips)?.sourceTime ?? recipe.clips[0].in)
+        : recipe.posterTime;
+    posterBlob = await capturePoster(asset.file, posterSourceTime);
+  } catch (err) {
+    console.warn('Poster capture failed:', err);
   }
   return { ...passThrough(asset, recipe), posterBlob };
 }

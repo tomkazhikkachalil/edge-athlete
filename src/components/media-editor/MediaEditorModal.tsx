@@ -22,16 +22,16 @@ import { cssFilterString, composeAdjustments } from '@/lib/media/filters';
 import { exportAsset, passThrough } from '@/lib/media/export';
 import { isServerAllowedType } from '@/lib/media/validation';
 import { isVideoEditingSupported } from '@/lib/media/video';
-import type { TrimRange } from '@/lib/media/video-math';
-import type { EditedMedia, EditorConfig, ImageRecipe, MediaAsset, VideoRecipe } from '@/lib/media/types';
+import type { EditedMedia, EditorConfig, ImageRecipe, MediaAsset } from '@/lib/media/types';
 import CropStage from './CropStage';
 import AdjustPanel from './AdjustPanel';
 import FilterStrip from './FilterStrip';
 import Filmstrip from './Filmstrip';
 import VideoStage from './VideoStage';
+import VideoCropStage from './VideoCropStage';
 import { useEditorSession } from './useEditorSession';
 
-type Tool = 'crop' | 'adjust' | 'filter' | 'trim' | 'poster';
+type Tool = 'crop' | 'adjust' | 'filter' | 'clips' | 'poster';
 
 const IMAGE_TOOLS: Array<{ id: Tool; label: string }> = [
   { id: 'crop', label: 'Crop' },
@@ -39,7 +39,8 @@ const IMAGE_TOOLS: Array<{ id: Tool; label: string }> = [
   { id: 'filter', label: 'Filters' },
 ];
 const VIDEO_TOOLS: Array<{ id: Tool; label: string }> = [
-  { id: 'trim', label: 'Trim' },
+  { id: 'clips', label: 'Clips' },
+  { id: 'crop', label: 'Crop' },
   { id: 'poster', label: 'Cover' },
 ];
 
@@ -54,10 +55,10 @@ export default function MediaEditorModal({ assets: initialAssets, config, onDone
   useBodyScrollLock(true);
   const { showError } = useToast();
   const defaultAspect = config.enforcedRatio ?? config.aspectRatios[0] ?? 'free';
-  const { assets, recipes, patchRecipe, addAsset, previewUrls, undoRecipe, redoRecipe, canUndo, canRedo } =
+  const { assets, recipes, patchRecipe, previewUrls, undoRecipe, redoRecipe, canUndo, canRedo } =
     useEditorSession(initialAssets, defaultAspect);
   const [activeId, setActiveId] = useState(initialAssets[0]?.id ?? '');
-  const [tool, setTool] = useState<Tool>(initialAssets[0]?.kind === 'video' ? 'trim' : 'crop');
+  const [tool, setTool] = useState<Tool>(initialAssets[0]?.kind === 'video' ? 'clips' : 'crop');
   const [exporting, setExporting] = useState<{ done: number; total: number } | null>(null);
 
   // Crop/filter/trim recipes are deliberately non-persistable, so a confirm
@@ -82,19 +83,6 @@ export default function MediaEditorModal({ assets: initialAssets, config, onDone
     : '';
   const tools = isVideo ? VIDEO_TOOLS : IMAGE_TOOLS;
   const activeTool: Tool = tools.some(t => t.id === tool) ? tool : tools[0].id;
-
-  const handleSplit = (first: TrimRange, second: TrimRange) => {
-    patchRecipe(active.id, { trim: first } as Partial<VideoRecipe>);
-    addAsset(
-      {
-        id: `${active.id}-b`,
-        file: active.file,
-        kind: 'video',
-        recipe: { kind: 'video', trim: second, posterTime: second.start },
-      },
-      active.id
-    );
-  };
 
   const handleDone = async () => {
     if (exporting) return;
@@ -185,16 +173,25 @@ export default function MediaEditorModal({ assets: initialAssets, config, onDone
       {!activeUrl ? (
         <div className="flex-1 min-h-0" aria-hidden="true" />
       ) : isVideo && videoRecipe ? (
-        <VideoStage
-          key={active.id}
-          videoUrl={activeUrl}
-          recipe={videoRecipe}
-          tool={activeTool === 'poster' ? 'poster' : 'trim'}
-          canTrim={canTrim}
-          canSplit={canTrim && assets.length < config.maxAssets}
-          onPatch={patch => patchRecipe(active.id, patch)}
-          onSplit={handleSplit}
-        />
+        activeTool === 'crop' ? (
+          <VideoCropStage
+            key={`${active.id}-crop`}
+            videoUrl={activeUrl}
+            recipe={videoRecipe}
+            config={config}
+            onPatch={patch => patchRecipe(active.id, patch)}
+          />
+        ) : (
+          <VideoStage
+            key={active.id}
+            videoUrl={activeUrl}
+            file={active.file}
+            recipe={videoRecipe}
+            tool={activeTool === 'poster' ? 'poster' : 'clips'}
+            canEdit={canTrim}
+            onPatch={patch => patchRecipe(active.id, patch)}
+          />
+        )
       ) : !isGif && imageRecipe ? (
         <>
           {activeTool === 'crop' ? (
@@ -279,7 +276,7 @@ export default function MediaEditorModal({ assets: initialAssets, config, onDone
           onSelect={id => {
             setActiveId(id);
             const next = assets.find(a => a.id === id);
-            setTool(next?.kind === 'video' ? 'trim' : 'crop');
+            setTool(next?.kind === 'video' ? 'clips' : 'crop');
           }}
         />
       )}

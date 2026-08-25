@@ -1,55 +1,105 @@
 'use client';
 
 /**
- * Video editing stage: preview with trim-clamped playback, trim tool
- * (timeline handles + split-at-playhead + clear), poster tool (scrub to a
- * frame — capture happens at export via poster.ts, so poster selection
- * works even on browsers where trimming is unavailable).
+ * Video editing stage, multi-clip round. Two tools:
+ *
+ * 'clips'  — the output timeline: clip regions over the source strip
+ *            (ClipTimeline), a selected-clip control row (reorder, split,
+ *            delete, volume) and frame-accurate stepping. Playback previews
+ *            the OUTPUT: it walks the clips in order, jumping the single
+ *            <video> element across clip boundaries.
+ * 'poster' — scrub the full source strip for the cover frame; posterTime is
+ *            stored in TIMELINE space (uncovered scrubs snap to the nearest
+ *            covered instant), because the poster is captured from the
+ *            RENDERED output at export.
+ *
+ * Split now adds a clip WITHIN this asset's timeline — one asset renders to
+ * ONE stitched video (the old split-into-separate-assets behavior retired
+ * with recipe v2).
  */
 
-import { useEffect, useRef, useState } from 'react';
-import { Pause, Play, Scissors } from 'lucide-react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
-  formatClipTime,
-  splitRanges,
-  type TrimRange,
-} from '@/lib/media/video-math';
+  ChevronLeft,
+  ChevronRight,
+  Pause,
+  Play,
+  Scissors,
+  StepBack,
+  StepForward,
+  Trash2,
+  Volume2,
+  VolumeX,
+} from 'lucide-react';
+import { formatClipTime, MIN_CLIP_SECONDS } from '@/lib/media/video-math';
+import {
+  deleteClip,
+  materializeClips,
+  reorderClip,
+  setClipEdge,
+  setClipVolume,
+  timelineFromSource,
+  timelineToSource,
+} from '@/lib/media/timeline-math';
 import type { VideoRecipe } from '@/lib/media/types';
+import ClipTimeline from './ClipTimeline';
 import TrimTimeline from './TrimTimeline';
+import { useFrameStep } from './useFrameStep';
 
 interface VideoStageProps {
   videoUrl: string;
+  file: File;
   recipe: VideoRecipe;
-  tool: 'trim' | 'poster';
-  canTrim: boolean;
-  canSplit: boolean; // room for one more asset AND trimming supported
+  tool: 'clips' | 'poster';
+  canEdit: boolean; // WebCodecs available — clip tools hidden without it
   onPatch: (patch: Partial<VideoRecipe>) => void;
-  onSplit: (first: TrimRange, second: TrimRange) => void;
 }
 
 export default function VideoStage({
   videoUrl,
+  file,
   recipe,
   tool,
-  canTrim,
-  canSplit,
+  canEdit,
   onPatch,
-  onSplit,
 }: VideoStageProps) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const [duration, setDuration] = useState(0);
-  const [playhead, setPlayhead] = useState(0);
+  const [playhead, setPlayhead] = useState(0); // SOURCE seconds
   const [playing, setPlaying] = useState(false);
+  const [selectedIndex, setSelectedIndex] = useState(0);
+  // Output-order position while playing across clips.
+  const playOrderRef = useRef(0);
 
-  // Trim-clamped playback: play loops within [start, end]
+  const clips = useMemo(
+    () => (duration > 0 ? materializeClips(recipe.clips, duration) : []),
+    [recipe.clips, duration]
+  );
+  const selected = clips[Math.min(selectedIndex, Math.max(0, clips.length - 1))];
+  const selectedClamped = Math.min(selectedIndex, Math.max(0, clips.length - 1));
+
+  const { fps, step } = useFrameStep(videoRef, file, mediaTime => setPlayhead(mediaTime));
+
+  // Output-preview playback: when the playhead crosses the current clip's
+  // out-point, jump to the next clip's in-point; after the last clip, stop
+  // and rewind to the first. (timeupdate stays the coarse playhead source —
+  // rVFC above refines it when available.)
   useEffect(() => {
     const video = videoRef.current;
     if (!video) return;
     const onTime = () => {
       setPlayhead(video.currentTime);
-      const end = recipe.trim?.end ?? Infinity;
-      if (!video.paused && video.currentTime >= end) {
-        video.currentTime = recipe.trim?.start ?? 0;
+      if (video.paused || clips.length === 0) return;
+      const current = clips[Math.min(playOrderRef.current, clips.length - 1)];
+      if (video.currentTime >= current.out) {
+        if (playOrderRef.current + 1 < clips.length) {
+          playOrderRef.current += 1;
+          video.currentTime = clips[playOrderRef.current].in;
+        } else {
+          video.pause();
+          playOrderRef.current = 0;
+          video.currentTime = clips[0].in;
+        }
       }
     };
     const onPlay = () => setPlaying(true);
@@ -62,7 +112,7 @@ export default function VideoStage({
       video.removeEventListener('play', onPlay);
       video.removeEventListener('pause', onPause);
     };
-  }, [recipe.trim]);
+  }, [clips]);
 
   const seekTo = (time: number) => {
     const video = videoRef.current;
@@ -75,16 +125,59 @@ export default function VideoStage({
     const video = videoRef.current;
     if (!video) return;
     if (video.paused) {
-      const { start, end } = recipe.trim ?? { start: 0, end: duration };
-      if (video.currentTime < start || video.currentTime >= end) video.currentTime = start;
+      if (clips.length > 0) {
+        // Start from the selected clip when the playhead sits outside it.
+        const start = clips[selectedClamped];
+        if (video.currentTime < start.in || video.currentTime >= start.out) {
+          video.currentTime = start.in;
+        }
+        playOrderRef.current = selectedClamped;
+      }
       void video.play();
     } else {
       video.pause();
     }
   };
 
-  const range = recipe.trim ?? { start: 0, end: duration };
-  const split = duration > 0 ? splitRanges(recipe.trim, playhead, duration) : null;
+  const patchClips = (next: typeof clips) => onPatch({ clips: next });
+
+  const canSplitHere =
+    !!selected &&
+    playhead > selected.in + MIN_CLIP_SECONDS &&
+    playhead < selected.out - MIN_CLIP_SECONDS;
+
+  const splitSelected = () => {
+    if (!selected || !canSplitHere) return;
+    const next = [...clips];
+    next.splice(
+      selectedClamped,
+      1,
+      { ...selected, out: playhead },
+      { ...selected, in: playhead }
+    );
+    patchClips(next);
+  };
+
+  const removeSelected = () => {
+    const next = deleteClip(clips, selectedClamped);
+    if (!next) return;
+    patchClips(next);
+    setSelectedIndex(Math.max(0, selectedClamped - 1));
+  };
+
+  const move = (direction: -1 | 1) => {
+    const to = selectedClamped + direction;
+    const next = reorderClip(clips, selectedClamped, to);
+    if (next === clips) return;
+    patchClips(next);
+    setSelectedIndex(to);
+  };
+
+  // Poster scrub runs over the SOURCE strip; store timeline space.
+  const posterSource =
+    clips.length > 0
+      ? (timelineToSource(recipe.posterTime, clips)?.sourceTime ?? clips[0]?.in ?? 0)
+      : recipe.posterTime;
 
   return (
     <div className="flex flex-col flex-1 min-h-0">
@@ -120,46 +213,125 @@ export default function VideoStage({
         </div>
       </div>
 
-      {tool === 'trim' ? (
+      {tool === 'clips' ? (
         <>
-          {!canTrim && (
+          {!canEdit && (
             <p className="px-4 pt-2 text-chip text-amber-300">
-              Trimming isn&apos;t supported on this browser — the original video will upload.
-              Poster selection still works.
+              Video editing isn&apos;t supported on this browser — the original video will
+              upload. Poster selection still works.
             </p>
           )}
-          <TrimTimeline
-            videoUrl={videoUrl}
-            duration={duration}
-            trim={recipe.trim}
-            playhead={playhead}
-            showHandles={canTrim}
-            onTrimChange={canTrim ? trim => onPatch({ trim }) : undefined}
-            onScrub={seekTo}
-          />
-          <div className="flex items-center gap-3 px-4 pb-2 text-chip text-white/70 w-full max-w-xl mx-auto">
-            <span className="tabular-nums">
-              {formatClipTime(range.start)} – {formatClipTime(range.end)}
-              {duration > 0 && ` (${formatClipTime(range.end - range.start)})`}
-            </span>
-            {recipe.trim && (
+          {clips.length > 0 && (
+            <ClipTimeline
+              videoUrl={videoUrl}
+              duration={duration}
+              clips={clips}
+              selectedIndex={selectedClamped}
+              playhead={playhead}
+              onSelect={setSelectedIndex}
+              onScrub={seekTo}
+              onEdgeDrag={
+                canEdit
+                  ? (i, edge, t) => patchClips(setClipEdge(clips, i, edge, t, duration))
+                  : () => {}
+              }
+            />
+          )}
+
+          {/* Selected-clip control row. Scrolls, not clips (320px rule). */}
+          {canEdit && selected && (
+            <div className="flex items-center gap-1 px-4 pb-1 overflow-x-auto scrollbar-hide w-full max-w-xl mx-auto">
+              <span className="text-chip text-white/70 tabular-nums shrink-0 mr-1">
+                Clip {selectedClamped + 1}/{clips.length} ·{' '}
+                {formatClipTime(selected.out - selected.in)}
+              </span>
               <button
                 type="button"
-                onClick={() => onPatch({ trim: null })}
-                className="inline-flex items-center underline hover:text-white active:text-white min-h-[44px]"
+                onClick={() => move(-1)}
+                disabled={selectedClamped === 0}
+                aria-label="Move clip earlier"
+                className="w-11 h-11 shrink-0 flex items-center justify-center rounded-full text-white hover:bg-white/10 disabled:opacity-40"
               >
-                Clear trim
+                <ChevronLeft className="w-4 h-4" />
               </button>
-            )}
+              <button
+                type="button"
+                onClick={() => move(1)}
+                disabled={selectedClamped >= clips.length - 1}
+                aria-label="Move clip later"
+                className="w-11 h-11 shrink-0 flex items-center justify-center rounded-full text-white hover:bg-white/10 disabled:opacity-40"
+              >
+                <ChevronRight className="w-4 h-4" />
+              </button>
+              <button
+                type="button"
+                onClick={splitSelected}
+                disabled={!canSplitHere}
+                aria-label="Split clip at playhead"
+                title={canSplitHere ? 'Split at the playhead' : 'Move the playhead inside the clip'}
+                className="w-11 h-11 shrink-0 flex items-center justify-center rounded-full text-white hover:bg-white/10 disabled:opacity-40"
+              >
+                <Scissors className="w-4 h-4" />
+              </button>
+              <button
+                type="button"
+                onClick={removeSelected}
+                disabled={clips.length <= 1}
+                aria-label="Delete clip"
+                className="w-11 h-11 shrink-0 flex items-center justify-center rounded-full text-white hover:bg-white/10 disabled:opacity-40"
+              >
+                <Trash2 className="w-4 h-4" />
+              </button>
+              <button
+                type="button"
+                onClick={() =>
+                  patchClips(setClipVolume(clips, selectedClamped, selected.volume === 0 ? 1 : 0))
+                }
+                aria-label={selected.volume === 0 ? 'Unmute clip' : 'Mute clip'}
+                aria-pressed={selected.volume === 0}
+                className="w-11 h-11 shrink-0 flex items-center justify-center rounded-full text-white hover:bg-white/10"
+              >
+                {selected.volume === 0 ? (
+                  <VolumeX className="w-4 h-4" />
+                ) : (
+                  <Volume2 className="w-4 h-4" />
+                )}
+              </button>
+              <input
+                type="range"
+                min={0}
+                max={100}
+                value={Math.round(selected.volume * 100)}
+                onChange={e =>
+                  patchClips(setClipVolume(clips, selectedClamped, Number(e.target.value) / 100))
+                }
+                aria-label="Clip volume (applies to the exported video)"
+                className="w-20 shrink-0 accent-violet-500 min-h-[44px]"
+              />
+            </div>
+          )}
+
+          {/* Frame stepping — sports moments live in half-seconds */}
+          <div className="flex items-center gap-2 px-4 pb-2 text-chip text-white/70 w-full max-w-xl mx-auto">
             <button
               type="button"
-              disabled={!canSplit || !split}
-              onClick={() => split && onSplit(split[0], split[1])}
-              className="ml-auto inline-flex items-center gap-1.5 px-3 min-h-[44px] rounded-full bg-white/10 text-white disabled:opacity-40 hover:bg-white/20"
-              title={!canSplit ? 'Splitting unavailable' : !split ? 'Move the playhead inside the clip' : 'Split into two clips at the playhead'}
+              onClick={() => step(-1)}
+              aria-label="Back one frame"
+              className="w-11 h-11 shrink-0 flex items-center justify-center rounded-full text-white hover:bg-white/10"
             >
-              <Scissors className="w-4 h-4" /> Split
+              <StepBack className="w-4 h-4" />
             </button>
+            <button
+              type="button"
+              onClick={() => step(1)}
+              aria-label="Forward one frame"
+              className="w-11 h-11 shrink-0 flex items-center justify-center rounded-full text-white hover:bg-white/10"
+            >
+              <StepForward className="w-4 h-4" />
+            </button>
+            <span className="tabular-nums">
+              {formatClipTime(playhead)} · {Math.round(fps)}fps
+            </span>
           </div>
         </>
       ) : (
@@ -168,11 +340,14 @@ export default function VideoStage({
             videoUrl={videoUrl}
             duration={duration}
             trim={null}
-            playhead={recipe.posterTime}
+            playhead={posterSource}
             showHandles={false}
             onScrub={time => {
               seekTo(time);
-              onPatch({ posterTime: time });
+              onPatch({
+                posterTime:
+                  clips.length > 0 ? timelineFromSource(time, clips) : time,
+              });
             }}
           />
           <p className="px-4 pb-2 text-chip text-white/70 w-full max-w-xl mx-auto">

@@ -1,5 +1,53 @@
 # Development Log
 
+## August 24, 2026 — Media round C: the multi-clip timeline (recipe v2)
+
+The heart of Layer 1's video story: trim, split, DELETE, REORDER and
+per-clip volume over one output timeline, plus aspect reframe and
+frame-accurate stepping — rendered to ONE stitched mp4. Zero new
+dependencies; every capability was verified against the installed
+mediabunny 1.55.1 type definitions before a line was written.
+
+Recipe v2: `VideoRecipe { clips: [{in, out, volume}], crop, aspect,
+posterTime }` — clips are ordered OUTPUT segments over one source; [] means
+"whole file, untouched" so an unedited video stays a pass-through;
+posterTime is TIMELINE-space. The persistence envelope moves to v2 and
+round B's stored v1 rows upgrade transparently on read (trim → single
+clip, posterTime shifted into timeline space) — parseRecipeEnvelope
+handles both, unit-tested. Split CHANGES MEANING deliberately: it now adds
+a clip within the SAME asset's timeline (one asset → one rendered video);
+the old split-into-separate-assets behavior retired with the fork.
+
+The export is TIERED by cost (video.ts renderVideoRecipe): single
+untouched-volume clip → the existing Conversion trim (stream-copies at
+in=0); single clip + crop → one Conversion with trim+crop; multi-clip or
+volume ≠ 1 → the manual pipeline — pooled CanvasSink per clip (crop
+applied at the sink) → retimed VideoSamples, per-clip PCM gain (volume 0
+writes SILENCE, a track gap would desync players) → retimed AudioSamples,
+one Mp4 Output. `await source.add()` is the backpressure guard; full
+re-encodes cap the long edge at 1280 (mobile). Mid-start trims already
+re-encoded before this round — tier 3 is a longer instance of a known cost,
+not a new regime. Poster now captures from the RENDERED output (timeline
+space = output space); pass-through keeps capturing from the original via
+the timeline→source map.
+
+UI: ClipTimeline draws clip regions with output-order badges over the
+familiar source thumbnail strip (shared thumbs hook extracted from
+TrimTimeline); the selected clip gets pointer-captured edge handles, a
+control row (reorder ◀▶, split-at-playhead, delete, mute + volume slider)
+and ±1-frame stepping with real fps from computePacketStats (rVFC refines
+the playhead where supported; 30fps/seek fallback elsewhere). Video gains
+a Crop tool — react-easy-crop's native video mode with the same ratio
+chips. Round A's undo covers every clip operation for free (it's all
+recipe state).
+
+Degrade story unchanged: no WebCodecs → clip tools hidden, amber notice,
+original uploads, poster still works. e2e: in-browser MediaRecorder webm
+fixture (no local ffmpeg; also exercises the Infinity-duration trap) →
+tools render, split yields "Clip 2/2" within the asset, Done completes.
+Real encodes (h264 absent from test Chromium) are the device pass — owed:
+3-clip stitch + reframe + volume on iOS Safari, Android Chrome, desktop.
+
 ## August 24, 2026 — Media round B: non-destructive editing (migration 120)
 
 The architecture invariant Tom asked for, built on round A: every edit is
