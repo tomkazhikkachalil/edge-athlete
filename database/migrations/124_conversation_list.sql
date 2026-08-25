@@ -167,7 +167,16 @@ AS $$
   ) sub;
 $$;
 
--- 3. Grant to service_role ONLY (see the IDOR note above — never `authenticated`).
+-- 3. Lock down EXECUTE. Postgres grants EXECUTE to PUBLIC by default on EVERY
+--    new function, so a bare GRANT to service_role is NOT enough — anon and
+--    authenticated still inherit PUBLIC's grant and can call this directly via
+--    PostgREST with ANY p_user_id (IDOR — dump anyone's inbox with the public
+--    anon key). REVOKE from PUBLIC first, then grant to service_role only.
+--    Same class as the 085/086 handle-takeover revokes. Re-running the whole
+--    migration is safe: the recreate above re-adds the PUBLIC default, and
+--    these REVOKEs strip it again.
+REVOKE ALL ON FUNCTION public.get_conversation_list(UUID) FROM PUBLIC;
+REVOKE ALL ON FUNCTION public.get_conversation_list(UUID) FROM anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.get_conversation_list(UUID) TO service_role;
 
 -- 4. Refresh PostgREST's schema cache so the RPC is visible immediately.
