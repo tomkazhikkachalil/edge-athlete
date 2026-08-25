@@ -80,10 +80,13 @@ public `/u/[handle]` page.
 Ranked, with the source finding. Fix deliberately; each is its own change.
 
 **Security**
-- **Private-media signed URLs** (MEDIUM-HIGH). All uploads land in one public
-  bucket; a private profile's photo/video bytes are permanently URL-addressable
-  regardless of the metadata gates. Move member media behind signed URLs
-  (`admin/consent-reviews` already shows the pattern).
+- ~~**Private-media signed URLs** (MEDIUM-HIGH)~~ — **IN PROGRESS (Aug 2026,
+  #297–#301).** Replaced by a same-origin authenticated media proxy
+  (`/api/media/<token>`): every media response is rewritten to a proxy path,
+  and the proxy re-authorizes the live viewer before streaming bytes from a
+  now-private `uploads` bucket. PR1–4 (code) are the surface conversions; PR5
+  is the owner-run bucket flip — see `docs/MEDIA_PRIVACY_FLIP.md` and
+  `npm run verify:media-privacy`. Not done until the flip is executed in prod.
 - **CSP is report-only with no report-uri** (MEDIUM). Enforcing needs
   `unsafe-inline`/`unsafe-eval` removed first — its own careful project.
 - Verbose Postgres error bodies in `followers` 500s; consistent UUID-400s on the
