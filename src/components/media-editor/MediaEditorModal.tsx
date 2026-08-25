@@ -11,10 +11,12 @@
  * (TagPeopleModal etc.), below Toast (z-[70]).
  */
 
-import { useRef, useState } from 'react';
-import { X, Undo2, Redo2, Eye } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
+import { X, Undo2, Redo2, Eye, History } from 'lucide-react';
 import { useBodyScrollLock } from '@/hooks/useBodyScrollLock';
 import { useDirtyClose } from '@/hooks/useDirtyClose';
+import { useIsDesktop } from '@/hooks/useIsDesktop';
+import { isTypingTarget, matchesRedoShortcut, matchesUndoShortcut } from '@/lib/keyboard';
 import ConfirmModal from '@/components/ConfirmModal';
 import { COPY } from '@/lib/copy';
 import { useToast } from '@/components/Toast';
@@ -29,6 +31,7 @@ import type { EditedMedia, EditorConfig, ImageRecipe, MediaAsset } from '@/lib/m
 import CropStage from './CropStage';
 import AdjustPanel from './AdjustPanel';
 import EnginePreview from './EnginePreview';
+import HistoryRail from './HistoryRail';
 import FilterStrip from './FilterStrip';
 import Filmstrip from './Filmstrip';
 import VideoStage from './VideoStage';
@@ -59,8 +62,20 @@ export default function MediaEditorModal({ assets: initialAssets, config, onDone
   useBodyScrollLock(true);
   const { showError } = useToast();
   const defaultAspect = config.enforcedRatio ?? config.aspectRatios[0] ?? 'free';
-  const { assets, recipes, patchRecipe, previewUrls, undoRecipe, redoRecipe, canUndo, canRedo } =
-    useEditorSession(initialAssets, defaultAspect);
+  const {
+    assets,
+    recipes,
+    patchRecipe,
+    previewUrls,
+    undoRecipe,
+    redoRecipe,
+    canUndo,
+    canRedo,
+    jumpToRecipe,
+    historyFor,
+  } = useEditorSession(initialAssets, defaultAspect);
+  const isDesktop = useIsDesktop();
+  const [historySheetOpen, setHistorySheetOpen] = useState(false);
   const [activeId, setActiveId] = useState(initialAssets[0]?.id ?? '');
   const [tool, setTool] = useState<Tool>(initialAssets[0]?.kind === 'video' ? 'clips' : 'crop');
   const [exporting, setExporting] = useState<{ done: number; total: number } | null>(null);
@@ -74,6 +89,61 @@ export default function MediaEditorModal({ assets: initialAssets, config, onDone
     assets.length !== initialAssets.length || JSON.stringify(recipes) !== initialRecipesRef.current;
 
   const { requestClose, confirmOpen, confirmDiscard, cancelDiscard } = useDirtyClose(isDirty, onCancel);
+
+  // Editor keyboard map (desktop round): ⌘Z/⌘⇧Z undo/redo, Escape backs out
+  // one layer (confirm → sheet → editor), \ held = before/after, [ ] cycle
+  // tools. Registered on window for the modal's lifetime only; re-bound per
+  // render so closures are always current. Declared BEFORE the early return
+  // (rules of hooks), so everything derived is recomputed inside handlers.
+  useEffect(() => {
+    const activeAsset = assets.find(a => a.id === activeId) ?? assets[0];
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (exporting) return;
+      if (e.key === 'Escape') {
+        if (confirmOpen) cancelDiscard();
+        else if (historySheetOpen) setHistorySheetOpen(false);
+        else requestClose();
+        return;
+      }
+      // Range sliders are inputs but not text entry — undo/redo must keep
+      // working with a slider focused (the most common post-drag state).
+      const targetEl = e.target as HTMLInputElement | null;
+      const isRange = targetEl?.tagName === 'INPUT' && targetEl.type === 'range';
+      if (isTypingTarget(e.target) && !isRange) return;
+      if (!activeAsset) return;
+      if (matchesUndoShortcut(e)) {
+        e.preventDefault();
+        undoRecipe(activeAsset.id);
+        return;
+      }
+      if (matchesRedoShortcut(e)) {
+        e.preventDefault();
+        redoRecipe(activeAsset.id);
+        return;
+      }
+      const editable = activeAsset.file.type !== 'image/gif';
+      if (e.key === '\\' && editable) {
+        setComparing(true);
+        return;
+      }
+      if ((e.key === '[' || e.key === ']') && editable && !e.metaKey && !e.ctrlKey && !e.altKey) {
+        const toolList = activeAsset.kind === 'video' ? VIDEO_TOOLS : IMAGE_TOOLS;
+        const currentTool = toolList.some(t => t.id === tool) ? tool : toolList[0].id;
+        const index = toolList.findIndex(t => t.id === currentTool);
+        const step = e.key === ']' ? 1 : -1;
+        setTool(toolList[(index + step + toolList.length) % toolList.length].id);
+      }
+    };
+    const onKeyUp = (e: KeyboardEvent) => {
+      if (e.key === '\\') setComparing(false);
+    };
+    window.addEventListener('keydown', onKeyDown);
+    window.addEventListener('keyup', onKeyUp);
+    return () => {
+      window.removeEventListener('keydown', onKeyDown);
+      window.removeEventListener('keyup', onKeyUp);
+    };
+  });
 
   const active = assets.find(a => a.id === activeId) ?? assets[0];
   if (!active) return null;
@@ -129,8 +199,71 @@ export default function MediaEditorModal({ assets: initialAssets, config, onDone
     onDone(results);
   };
 
+  // Panels + tool tabs render ONCE and move between layouts via the JS
+  // gate (chat-dock precedent) — CSS-gated duplicates would double slider
+  // DOM and double-fire focus.
+  const panels =
+    activeUrl && !isGif && imageRecipe ? (
+      <>
+        {activeTool === 'adjust' && (
+          <AdjustPanel
+            recipe={imageRecipe}
+            onPatch={(patch, keys) => patchRecipe(active.id, patch, keys)}
+            onAutoEnhance={() => handleAutoEnhance(active.id, active.file, imageRecipe)}
+            engineAvailable={isEngineSupported()}
+          />
+        )}
+        {activeTool === 'filter' && (
+          <FilterStrip
+            imageUrl={activeUrl}
+            activeFilterId={imageRecipe.filterId}
+            filterStrength={imageRecipe.filterStrength}
+            onSelect={filterId =>
+              // Selecting a preset always starts at full intensity —
+              // predictable, and the slider appears right below to tune.
+              patchRecipe(active.id, { filterId, filterStrength: 1 } as Partial<ImageRecipe>, 'filterId')
+            }
+            onStrengthChange={strength =>
+              patchRecipe(active.id, { filterStrength: strength } as Partial<ImageRecipe>, 'filterStrength')
+            }
+          />
+        )}
+      </>
+    ) : null;
+
+  // Tool tabs (GIFs have no tools). Scrolls, not clips: the video path
+  // renders four tabs (~321px) in a 288px shell at 320px — same recipe as
+  // FilterStrip. sm:justify-center restores the centered look where
+  // everything fits.
+  const toolTabs =
+    activeUrl && !isGif ? (
+      <div className="flex sm:justify-center gap-2 px-4 py-2 flex-shrink-0 overflow-x-auto scrollbar-hide">
+        {tools.map(t => (
+          <button
+            key={t.id}
+            type="button"
+            onClick={() => setTool(t.id)}
+            className={`px-4 min-h-[44px] rounded-full text-label transition-colors shrink-0 whitespace-nowrap ${
+              activeTool === t.id ? 'bg-white/20 text-white font-semibold' : 'text-white/60 hover:text-white'
+            }`}
+          >
+            {t.label}
+          </button>
+        ))}
+      </div>
+    ) : null;
+
+  const historyRail = (
+    <HistoryRail history={historyFor(active.id)} onJump={index => jumpToRecipe(active.id, index)} />
+  );
+
   return (
-    <div className="fixed inset-0 z-[65] bg-black flex flex-col safe-top safe-bottom">
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-label="Edit media"
+      className="fixed inset-0 z-[65] bg-black flex flex-col safe-top safe-bottom"
+    >
       <ConfirmModal
         isOpen={confirmOpen}
         title={COPY.FORMS.DISCARD_TITLE}
@@ -174,6 +307,18 @@ export default function MediaEditorModal({ assets: initialAssets, config, onDone
               >
                 <Redo2 className="w-5 h-5" />
               </button>
+              {/* Mobile: history lives in a bottom sheet; desktop shows the
+                  rail in the right column instead. */}
+              {!isDesktop && (
+                <button
+                  type="button"
+                  onClick={() => setHistorySheetOpen(true)}
+                  aria-label="Edit history"
+                  className="w-11 h-11 flex items-center justify-center rounded-full text-white hover:bg-white/10"
+                >
+                  <History className="w-5 h-5" />
+                </button>
+              )}
             </>
           )}
         </div>
@@ -188,11 +333,14 @@ export default function MediaEditorModal({ assets: initialAssets, config, onDone
         </button>
       </div>
 
-      {/* Stage + tools. activeUrl is '' for one render while the effect mints
-          object URLs (StrictMode-safe lifecycle) — mounting react-easy-crop
-          with an empty image makes its position math NaN and loops
-          componentDidUpdate into "Maximum update depth exceeded". Never
-          render media elements until the URL exists. */}
+      {/* Stage + tools, split at lg: stage column left, panel/history column
+          right (one engine, two layouts). activeUrl is '' for one render
+          while the effect mints object URLs (StrictMode-safe lifecycle) —
+          mounting react-easy-crop with an empty image makes its position
+          math NaN and loops componentDidUpdate into "Maximum update depth
+          exceeded". Never render media elements until the URL exists. */}
+      <div className="flex-1 min-h-0 flex flex-col lg:flex-row">
+        <div className="flex-1 min-h-0 flex flex-col">
       {!activeUrl ? (
         <div className="flex-1 min-h-0" aria-hidden="true" />
       ) : isVideo && videoRecipe ? (
@@ -261,30 +409,6 @@ export default function MediaEditorModal({ assets: initialAssets, config, onDone
               </button>
             </div>
           )}
-
-          {activeTool === 'adjust' && (
-            <AdjustPanel
-              recipe={imageRecipe}
-              onPatch={(patch, keys) => patchRecipe(active.id, patch, keys)}
-              onAutoEnhance={() => handleAutoEnhance(active.id, active.file, imageRecipe)}
-              engineAvailable={isEngineSupported()}
-            />
-          )}
-          {activeTool === 'filter' && (
-            <FilterStrip
-              imageUrl={activeUrl}
-              activeFilterId={imageRecipe.filterId}
-              filterStrength={imageRecipe.filterStrength}
-              onSelect={filterId =>
-                // Selecting a preset always starts at full intensity —
-                // predictable, and the slider appears right below to tune.
-                patchRecipe(active.id, { filterId, filterStrength: 1 } as Partial<ImageRecipe>, 'filterId')
-              }
-              onStrengthChange={strength =>
-                patchRecipe(active.id, { filterStrength: strength } as Partial<ImageRecipe>, 'filterStrength')
-              }
-            />
-          )}
         </>
       ) : (
         <div className="flex-1 min-h-0 flex flex-col items-center justify-center gap-3 px-6">
@@ -298,24 +422,41 @@ export default function MediaEditorModal({ assets: initialAssets, config, onDone
         </div>
       )}
 
-      {/* Tool tabs (GIFs have no tools). Scrolls, not clips: the video path
-          renders four tabs (~321px) in a 288px shell at 320px — same recipe
-          as FilterStrip below. sm:justify-center restores the centered look
-          where everything fits. */}
-      {activeUrl && !isGif && (
-        <div className="flex sm:justify-center gap-2 px-4 py-2 flex-shrink-0 overflow-x-auto scrollbar-hide">
-          {tools.map(t => (
-            <button
-              key={t.id}
-              type="button"
-              onClick={() => setTool(t.id)}
-              className={`px-4 min-h-[44px] rounded-full text-label transition-colors shrink-0 whitespace-nowrap ${
-                activeTool === t.id ? 'bg-white/20 text-white font-semibold' : 'text-white/60 hover:text-white'
-              }`}
-            >
-              {t.label}
-            </button>
-          ))}
+          {/* Mobile flow: panel + tabs stack under the stage. */}
+          {!isDesktop && panels}
+          {!isDesktop && toolTabs}
+        </div>
+
+        {/* Desktop right column: tools, active panel, always-visible
+            history rail. Precise sliders, large stage, no thumb-reach
+            constraints — the second of the mandate's two layouts. */}
+        {isDesktop && activeUrl && !isGif && (
+          <div className="w-80 flex-shrink-0 border-l border-white/10 flex flex-col min-h-0">
+            {toolTabs}
+            <div className="flex-shrink-0 overflow-y-auto max-h-[55%]">{panels}</div>
+            <div className="flex-1 min-h-0 border-t border-white/10 flex flex-col">
+              <p className="px-4 pt-3 pb-1 text-chip font-semibold uppercase tracking-wide text-white/50">
+                History
+              </p>
+              <div className="flex-1 min-h-0 overflow-y-auto px-2 pb-2">{historyRail}</div>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Mobile history bottom sheet. */}
+      {!isDesktop && historySheetOpen && (
+        <div className="fixed inset-0 z-[68]" onClick={() => setHistorySheetOpen(false)}>
+          <div className="absolute inset-0 bg-black/60" />
+          <div
+            role="dialog"
+            aria-label="Edit history"
+            className="absolute bottom-0 inset-x-0 max-h-[60vh] overflow-y-auto rounded-t-2xl bg-neutral-900 p-3 safe-bottom"
+            onClick={e => e.stopPropagation()}
+          >
+            <p className="px-3 pb-2 text-label font-semibold text-white">History</p>
+            {historyRail}
+          </div>
         </div>
       )}
 

@@ -86,7 +86,29 @@ test('media editor: crop session, undo, re-edit, dirty confirm, publish', async 
   // the manual −60.
   await page.getByRole('button', { name: 'Light', exact: true }).click();
   await page.getByRole('button', { name: 'Auto-enhance' }).click();
-  await expect(page.getByRole('slider', { name: 'Exposure' })).not.toHaveValue('-60');
+  const exposureSlider = page.getByRole('slider', { name: 'Exposure' });
+  await expect(exposureSlider).not.toHaveValue('-60');
+
+  // Desktop layout round: the history rail lists labeled steps and jumps
+  // to ANY point. (Playwright's 1280px viewport runs the lg: layout.)
+  await expect(page.getByRole('list', { name: 'Edit history' })).toBeVisible();
+  // The rail row 'Auto enhance' (space) is distinct from the wand button
+  // 'Auto-enhance' (hyphen) — deliberate, and load-bearing for this test.
+  await expect(page.getByRole('button', { name: 'Auto enhance', exact: true })).toBeVisible();
+  await page.getByRole('button', { name: 'Original', exact: true }).click();
+  await expect(exposureSlider).toHaveValue('0'); // jumped all the way back
+  await page.getByRole('button', { name: 'Auto enhance', exact: true }).click();
+  await expect(exposureSlider).not.toHaveValue('0'); // jumped forward again
+
+  // Keyboard: ⌘Z/Ctrl+Z steps back (to the manual −60), redo returns.
+  await page.keyboard.press('Control+z');
+  await expect(exposureSlider).toHaveValue('-60');
+  await page.keyboard.press('Control+Shift+z');
+  await expect(exposureSlider).not.toHaveValue('-60');
+
+  // The editor is a real dialog now — ⌘K must NOT open search over it.
+  await page.keyboard.press('Control+k');
+  await expect(page.getByRole('dialog', { name: 'Search' })).toHaveCount(0);
 
   // Export goes through the engine (advanced params force the WebGL path).
   await page.getByRole('button', { name: 'Done', exact: true }).click();

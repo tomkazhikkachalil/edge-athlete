@@ -14,7 +14,7 @@
 
 import { useEffect, useState } from 'react';
 import { defaultImageRecipe, defaultVideoRecipe } from '@/lib/media/recipes';
-import { emptyHistory, push, undo, redo, type History } from '@/lib/media/history';
+import { emptyHistory, jumpTo, push, undo, redo, type History } from '@/lib/media/history';
 import type { EditRecipe, ImageRecipe, MediaAsset } from '@/lib/media/types';
 
 function seedRecipe(asset: MediaAsset, defaultAspect: ImageRecipe['aspect']): EditRecipe {
@@ -91,6 +91,17 @@ export function useEditorSession(
   const canUndo = (id: string) => (histories[id]?.past.length ?? 0) > 0;
   const canRedo = (id: string) => (histories[id]?.future.length ?? 0) > 0;
 
+  /** History rail: restore any timeline index (pure jumpTo underneath). */
+  const jumpToRecipe = (id: string, index: number) => {
+    const result = jumpTo(histories[id] ?? emptyHistory<EditRecipe>(), recipes[id], index);
+    if (!result) return;
+    setHistories(prev => ({ ...prev, [id]: result.history }));
+    setRecipes(prev => ({ ...prev, [id]: result.value }));
+  };
+
+  const historyFor = (id: string): History<EditRecipe> =>
+    histories[id] ?? emptyHistory<EditRecipe>();
+
   /** Split support: insert a new asset right after its sibling, with its recipe. */
   const addAsset = (asset: MediaAsset, afterId?: string) => {
     setRecipes(prev => ({ ...prev, [asset.id]: seedRecipe(asset, defaultAspect) }));
@@ -111,5 +122,7 @@ export function useEditorSession(
     redoRecipe,
     canUndo,
     canRedo,
+    jumpToRecipe,
+    historyFor,
   };
 }
