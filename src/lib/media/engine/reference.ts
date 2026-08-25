@@ -42,6 +42,7 @@ import {
   type BrushBuffers,
 } from './mask-math';
 import { rasterizeBrushMask } from './mask-raster';
+import { dataMaskBuffer } from './mask-rle';
 import { applyGrain, isNeutralGrain } from './grain-math';
 import { applyCloneStamps, isNeutralClones } from './clone-math';
 
@@ -177,15 +178,19 @@ export function applyEngine(
   // TDZ-cycle trap class). Skipped when neutral, mirroring the shader's
   // u_maskCount / u_hslEnabled / u_curveEnabled branches.
   const wantMasks = !isNeutralMasks(params.masks);
-  // Brush masks: rasterize once at half res (the GPU's resolution) and
-  // bilinear-sample per pixel — same buffer function, same sampling math.
+  // Raster masks (brush strokes / data masks): build coverage buffers once
+  // and bilinear-sample per pixel — same functions the GPU textures come
+  // from, same sampling math.
   const brushBuffers: BrushBuffers | undefined =
-    wantMasks && params.masks.some(m => m.kind === 'brush')
+    wantMasks && params.masks.some(m => m.kind === 'brush' || m.kind === 'data')
       ? params.masks.map(m => {
-          if (m.kind !== 'brush') return null;
-          const bw = Math.max(1, Math.round(width / 2));
-          const bh = Math.max(1, Math.round(height / 2));
-          return { buffer: rasterizeBrushMask(m.strokes, bw, bh), width: bw, height: bh };
+          if (m.kind === 'brush') {
+            const bw = Math.max(1, Math.round(width / 2));
+            const bh = Math.max(1, Math.round(height / 2));
+            return { buffer: rasterizeBrushMask(m.strokes, bw, bh), width: bw, height: bh };
+          }
+          if (m.kind === 'data') return dataMaskBuffer(m);
+          return null;
         })
       : undefined;
   const hslLut = isNeutralHsl(params.hsl) ? null : bakeHslLut(params.hsl);

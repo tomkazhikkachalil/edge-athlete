@@ -33,8 +33,9 @@ import { bakeHslLut, HSL_LUT_SIZE, isNeutralHsl } from './hsl-math';
 import { bakeCurveLut, CURVE_LUT_SIZE, isNeutralCurves } from './curves-math';
 import { MAX_MASKS, wantsBackgroundBlur } from './mask-math';
 import { extendRaster, rasterizeBrushMask } from './mask-raster';
+import { dataMaskBuffer } from './mask-rle';
 import { isNeutralClones, MAX_CLONE_STAMPS } from './clone-math';
-import type { BrushStroke, CloneStamp } from '../types';
+import type { BrushStroke, CloneStamp, Mask } from '../types';
 
 export interface Engine {
   /** Upload (or replace) the source texture and size the canvas to match.
@@ -147,10 +148,35 @@ export function createEngine(
   }
   const brushSlots: Array<BrushSlot | null> = [null, null, null, null];
 
+  /** Upload a coverage buffer to the slot's R8 texture (shared by brush
+   *  rasters and data masks). */
+  const uploadRasterSlot = (
+    slot: number,
+    key: string,
+    strokes: BrushStroke[],
+    buffer: Float32Array,
+    width: number,
+    height: number
+  ): WebGLTexture | null => {
+    const tex = brushSlots[slot]?.tex ?? createSourceTexture(gl);
+    if (!tex) return null;
+    const bytes = new Uint8Array(buffer.length);
+    for (let i = 0; i < buffer.length; i++) bytes[i] = Math.round(Math.min(1, buffer[i]) * 255);
+    gl.activeTexture(gl.TEXTURE6 + slot);
+    gl.bindTexture(gl.TEXTURE_2D, tex);
+    gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, false);
+    // Single-channel rows aren't 4-byte aligned at arbitrary widths.
+    gl.pixelStorei(gl.UNPACK_ALIGNMENT, 1);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.R8, width, height, 0, gl.RED, gl.UNSIGNED_BYTE, bytes);
+    gl.pixelStorei(gl.UNPACK_ALIGNMENT, 4);
+    brushSlots[slot] = { key, strokes, buffer, tex, width, height };
+    return tex;
+  };
+
   const ensureBrushTexture = (slot: number, strokes: BrushStroke[]): WebGLTexture | null => {
     const bw = Math.max(1, Math.round(srcWidth / 2));
     const bh = Math.max(1, Math.round(srcHeight / 2));
-    const key = `${bw}x${bh}:${JSON.stringify(strokes)}`;
+    const key = `brush:${bw}x${bh}:${JSON.stringify(strokes)}`;
     const cached = brushSlots[slot];
     if (cached && cached.key === key) return cached.tex;
     let buffer: Float32Array;
@@ -164,19 +190,21 @@ export function createEngine(
     } else {
       buffer = rasterizeBrushMask(strokes, bw, bh);
     }
-    const tex = cached?.tex ?? createSourceTexture(gl);
-    if (!tex) return null;
-    const bytes = new Uint8Array(buffer.length);
-    for (let i = 0; i < buffer.length; i++) bytes[i] = Math.round(Math.min(1, buffer[i]) * 255);
-    gl.activeTexture(gl.TEXTURE6 + slot);
-    gl.bindTexture(gl.TEXTURE_2D, tex);
-    gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, false);
-    // Single-channel rows aren't 4-byte aligned at arbitrary widths.
-    gl.pixelStorei(gl.UNPACK_ALIGNMENT, 1);
-    gl.texImage2D(gl.TEXTURE_2D, 0, gl.R8, bw, bh, 0, gl.RED, gl.UNSIGNED_BYTE, bytes);
-    gl.pixelStorei(gl.UNPACK_ALIGNMENT, 4);
-    brushSlots[slot] = { key, strokes, buffer, tex, width: bw, height: bh };
-    return tex;
+    return uploadRasterSlot(slot, key, strokes, buffer, bw, bh);
+  };
+
+  /** Data masks (AI subject rasters): decode + feather + invert, cached by
+   *  their content — model resolution, sampled LINEAR by the composite. */
+  const ensureDataTexture = (
+    slot: number,
+    mask: Extract<Mask, { kind: 'data' }>
+  ): WebGLTexture | null => {
+    const key = `data:${mask.width}x${mask.height}:${mask.feather}:${mask.invert}:${mask.rle}`;
+    const cached = brushSlots[slot];
+    if (cached && cached.key === key) return cached.tex;
+    const built = dataMaskBuffer(mask);
+    if (!built) return null;
+    return uploadRasterSlot(slot, key, [], built.buffer, built.width, built.height);
   };
 
   /** Bake+upload a 256×1 LUT when its key changed. Returns the texture or
@@ -479,10 +507,11 @@ export function createEngine(
           geom.set([m.x0, 1 - m.y0, m.x1, 1 - m.y1], i * 4);
           kind.set([1, 0, 0, blur], i * 4);
         } else {
-          // Brush: coverage texture on unit 6+i. A failed raster/alloc
-          // degrades to a zero-weight mask (kind stays radial-0 with a
-          // zero adjust row) rather than sampling garbage.
-          const tex = ensureBrushTexture(i, m.strokes);
+          // Raster kinds (brush strokes / data masks): coverage texture on
+          // unit 6+i, kind code 2. A failed raster/decode/alloc degrades
+          // to a zero-weight mask rather than sampling garbage.
+          const tex =
+            m.kind === 'brush' ? ensureBrushTexture(i, m.strokes) : ensureDataTexture(i, m);
           if (tex) {
             kind.set([2, 0, 0, blur], i * 4);
           } else {

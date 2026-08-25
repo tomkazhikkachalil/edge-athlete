@@ -147,6 +147,9 @@ export default function MaskOverlay({
         // silently grab the drag; caught by the e2e center-stroke pin).
         const painting = masks[selectedIndex]?.kind === 'brush' && !selected;
         const shapePointerEvents = painting ? ('none' as const) : ('all' as const);
+        // Data masks are subject-shaped: no outline to draw or drag — their
+        // effect is visible directly on the engine stage.
+        if (mask.kind === 'data') return null;
         if (mask.kind === 'brush') {
           // Cosmetic stroke preview (the real weight is the raster). Note:
           // stroke widths render slightly elliptical under the stretched

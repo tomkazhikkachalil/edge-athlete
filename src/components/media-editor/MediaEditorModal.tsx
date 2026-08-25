@@ -26,8 +26,14 @@ import { isServerAllowedType } from '@/lib/media/validation';
 import { isVideoEditingSupported } from '@/lib/media/video';
 import { isEngineSupported } from '@/lib/media/engine/engine';
 import { autoEnhance } from '@/lib/media/engine/auto-enhance';
-import { sampleFileHistogram, sampleFrameRegion } from '@/lib/media/engine/sample';
+import {
+  captureFramedImage,
+  sampleFileHistogram,
+  sampleFrameRegion,
+} from '@/lib/media/engine/sample';
 import { neutralizeWhiteBalance } from '@/lib/media/engine/white-balance';
+import { MAX_MASKS, NEUTRAL_MASK_ADJUST } from '@/lib/media/engine/mask-math';
+import { getAiRunner, isAiAvailable } from '@/lib/media/ai';
 import type { EditedMedia, EditorConfig, ImageRecipe, MediaAsset } from '@/lib/media/types';
 import CropStage from './CropStage';
 import AdjustPanel from './AdjustPanel';
@@ -112,6 +118,8 @@ export default function MediaEditorModal({ assets: initialAssets, config, onDone
   const [selectedOverlayIndex, setSelectedOverlayIndex] = useState(0);
   // White-balance eyedropper: stage waits for one neutral-gray tap.
   const [wbPicking, setWbPicking] = useState(false);
+  // Phase 3: AI subject selection in flight (runner is cost-gated).
+  const [aiBusy, setAiBusy] = useState(false);
 
   // Crop/filter/trim recipes are deliberately non-persistable, so a confirm
   // on cancel is the only protection against losing the edits.
@@ -219,6 +227,39 @@ export default function MediaEditorModal({ assets: initialAssets, config, onDone
     patchRecipe(id, { color: { ...recipe.color, ...wb } }, 'wb.eyedropper');
   };
 
+  // Phase 3: AI subject → a 'data' mask (RLE raster) with a soft edge.
+  // Only reachable when a runner is configured; every failure degrades to
+  // a toast, never an error state.
+  const handleSelectSubject = async (id: string, file: File, recipe: ImageRecipe) => {
+    const runner = getAiRunner();
+    if (!runner || aiBusy) return;
+    const masks = recipe.masks ?? [];
+    if (masks.length >= MAX_MASKS) return;
+    setAiBusy(true);
+    try {
+      const framed = await captureFramedImage(file, recipe, 512);
+      const result = framed ? await runner.segmentSubject(framed) : null;
+      if (!result) {
+        showError('Couldn’t find a subject', 'Try a brush mask instead');
+        return;
+      }
+      const next = [
+        ...masks,
+        {
+          kind: 'data' as const,
+          ...result,
+          feather: 0.3,
+          invert: false,
+          adjust: { ...NEUTRAL_MASK_ADJUST },
+        },
+      ];
+      patchRecipe(id, { masks: next }, 'mask.add');
+      setSelectedMaskIndex(next.length - 1);
+    } finally {
+      setAiBusy(false);
+    }
+  };
+
   const handleDone = async () => {
     if (exporting) return;
     setExporting({ done: 0, total: assets.length });
@@ -290,6 +331,9 @@ export default function MediaEditorModal({ assets: initialAssets, config, onDone
             brushSettings={brushSettings}
             onBrushSettingsChange={setBrushSettings}
             engineAvailable={isEngineSupported()}
+            aiAvailable={isAiAvailable()}
+            aiBusy={aiBusy}
+            onSelectSubject={() => handleSelectSubject(active.id, active.file, imageRecipe)}
           />
         )}
         {activeTool === 'filter' && (

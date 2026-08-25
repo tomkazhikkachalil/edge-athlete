@@ -137,6 +137,10 @@ test('media editor: crop session, undo, re-edit, dirty confirm, publish', async 
   expect(await readVariance()).toBeLessThan(preBlurVariance);
   await page.getByRole('slider', { name: 'Blur', exact: true }).fill('0');
 
+  // Phase-3 cost gate: with no AI runner configured, the subject-selection
+  // affordance must not exist at all (fail-closed).
+  await expect(page.getByRole('button', { name: /Select subject/ })).toHaveCount(0);
+
   // Brush masks (E4f): paint a stroke across the stage, lift its exposure
   // — the painted corridor must brighten the mean reading. Then remove it
   // so the rest of the flow sees stable state.

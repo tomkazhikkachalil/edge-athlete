@@ -1,5 +1,42 @@
 # Development Log
 
+## August 25, 2026 — Photo engine E-AI: Phase-3 scaffold — built to the cost gate, then stopped
+
+Phase 3 (AI) built exactly as far as the mandate allows: the FULL
+integration, zero models, zero hosting, zero cost. The stop is the
+feature.
+
+**The landing pad exists before any model does.** A fourth mask kind —
+`data` — carries an RLE-encoded binary raster (≤512², a few KB in the
+recipe JSONB; `mask-rle.ts` is the pure codec with decode-time gaussian
+feathering and invert). It flows through the SAME engine texture slots
+as brush masks (kind code 2 — no shader change at all), the same CPU
+reference, schema, history, and no-op rules. Critically: a recipe edited
+with AI help re-renders identically forever with AI turned off, because
+the mask raster lives IN the recipe — the model is a mask FACTORY, never
+a render dependency.
+
+**The runner is a deployment decision, not a code decision.**
+`src/lib/media/ai/` defines the contract (`AiRunner.segmentSubject`,
+with inpaint/upscale reserved in the same shape), an HTTP client for the
+small protocol in docs/AI_RUNNER.md (zod-validated — an AI endpoint is
+still untrusted input; every failure returns null, and the client even
+re-decodes the RLE before accepting it), and FAIL-CLOSED resolution:
+no `NEXT_PUBLIC_AI_RUNNER_URL` → null → the Masks tool's "✦ Select
+subject" button does not exist (e2e pins its absence). Subject + Invert
++ the mask Blur slider = one-tap background defocus, once a runner
+exists.
+
+docs/AI_RUNNER.md carries the protocol spec and the costed self-hosting
+table — the $0 row is a ~50-line FastAPI + MobileSAM server on a dev
+Mac, which exercises the entire feature end to end; everything past that
+row is a stop-and-ask by the mandate's hard stop. The env var is the
+switch; the code never decides to spend.
+
+(Also: the feather test initially probed a 4px square under a σ=2
+blur — the E1b kernel-footprint lesson, relearned in miniature and
+re-recorded here so it sticks.)
+
 ## August 25, 2026 — Photo engine E4h: text & emoji stickers — PHASE 2 COMPLETE
 
 The last Phase-2 tool: a **Text** tool with draggable text overlays and

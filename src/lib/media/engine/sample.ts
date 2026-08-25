@@ -50,6 +50,31 @@ export async function sampleFrameRegion(
   }
 }
 
+/** The FRAMED image (recipe geometry applied) as an encoded blob at a
+ *  small working size — what AI runners receive, so their masks come back
+ *  in the same coordinate space as every other mask. Null on failure. */
+export async function captureFramedImage(
+  file: File,
+  recipe: ImageRecipe,
+  maxDim = 512
+): Promise<Blob | null> {
+  try {
+    const decoded = await decodeImage(file);
+    let stage: HTMLCanvasElement | null = null;
+    try {
+      stage = renderGeometry(decoded, recipe, maxDim);
+      return await new Promise<Blob | null>(resolve =>
+        stage!.toBlob(blob => resolve(blob), 'image/jpeg', 0.9)
+      );
+    } finally {
+      if (stage) releaseCanvas(stage);
+      decoded.close();
+    }
+  } catch {
+    return null;
+  }
+}
+
 /** Luma histogram of a file's pixels, or null when decode fails. */
 export async function sampleFileHistogram(file: File): Promise<Uint32Array | null> {
   try {
