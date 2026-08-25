@@ -90,6 +90,37 @@ describe('reference engine — engine-round stages', () => {
     expect(data[0]).toBe(64); // 0.25 · 255 = 63.75 → rounds to 64
   });
 
+  it('masks: a radial exposure lift brightens the center and spares the corner', () => {
+    const w = 16;
+    const h = 16;
+    const data = new Uint8ClampedArray(w * h * 4);
+    for (let i = 0; i < data.length; i += 4) {
+      data[i] = data[i + 1] = data[i + 2] = 100;
+      data[i + 3] = 255;
+    }
+    applyEngine(
+      data,
+      w,
+      h,
+      params({
+        masks: [
+          {
+            kind: 'radial',
+            cx: 0.5,
+            cy: 0.5,
+            rx: 0.3,
+            ry: 0.3,
+            feather: 0.2,
+            invert: false,
+            adjust: { exposure: 1, saturation: 0, temperature: 0 },
+          },
+        ],
+      })
+    );
+    expect(data[(8 * w + 8) * 4]).toBe(200); // center: +1 EV doubles
+    expect(data[(0 * w + 0) * 4]).toBe(100); // corner untouched
+  });
+
   it('hsl mixer: aqua luminance −1 darkens a cyan pixel, spares red and gray', () => {
     const mix = neutralHslMix();
     mix.aqua = { hue: 0, saturation: 0, luminance: -1 };

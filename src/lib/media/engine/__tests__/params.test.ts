@@ -155,6 +155,41 @@ describe('advanced-params routing (engine vs legacy fast path)', () => {
     expect(hasAdvancedParams(identity)).toBe(false);
   });
 
+  it('masks route to the engine only when an adjust is non-zero', () => {
+    const base = defaultImageRecipe();
+    const geometryOnly = recipeToEngineParams({
+      ...base,
+      masks: [
+        {
+          kind: 'radial',
+          cx: 0.5,
+          cy: 0.5,
+          rx: 0.3,
+          ry: 0.3,
+          feather: 0.5,
+          invert: false,
+          adjust: { exposure: 0, saturation: 0, temperature: 0 },
+        },
+      ],
+    });
+    expect(hasAdvancedParams(geometryOnly)).toBe(false); // placement alone
+    const lit = recipeToEngineParams({
+      ...base,
+      masks: [
+        {
+          kind: 'linear',
+          x0: 0.5,
+          y0: 0.1,
+          x1: 0.5,
+          y1: 0.6,
+          adjust: { exposure: 0.5, saturation: 0, temperature: 0 },
+        },
+      ],
+    });
+    expect(hasAdvancedParams(lit)).toBe(true);
+    expect(lit.masks).toHaveLength(1);
+  });
+
   it('perspective routes to the engine; absent maps to neutral', () => {
     const base = defaultImageRecipe();
     expect(recipeToEngineParams(base).perspective).toEqual({ vertical: 0, horizontal: 0 });

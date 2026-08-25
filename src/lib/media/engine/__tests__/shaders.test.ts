@@ -14,6 +14,7 @@ import {
   HSL_LUM_RANGE,
   HSL_SAT_RANGE,
 } from '../hsl-math';
+import { MASK_EV_RANGE, MAX_MASKS } from '../mask-math';
 import {
   BLUR_LARGE_SIGMA,
   BLUR_LARGE_TAPS,
@@ -118,6 +119,12 @@ describe('shader sources embed the color-math constants', () => {
   it('composite carries the tone-curve LUT stage', () => {
     expect(FRAGMENT_SHADER).toContain('u_curveLut');
     expect(FRAGMENT_SHADER).toContain('u_curveEnabled');
+  });
+
+  it('composite carries the analytic mask stage with its constants', () => {
+    expect(FRAGMENT_SHADER).toContain('u_maskCount');
+    expect(FRAGMENT_SHADER).toContain(`u_maskGeom[${MAX_MASKS}]`);
+    expect(FRAGMENT_SHADER).toContain(String(MASK_EV_RANGE.toFixed(1))); // 1.0 EV local
   });
 
   it('warp fragment embeds the perspective scale and border-black rule', () => {

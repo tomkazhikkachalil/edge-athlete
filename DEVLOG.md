@@ -1,5 +1,36 @@
 # Development Log
 
+## August 25, 2026 — Photo engine E4c: local adjustments (radial + linear masks)
+
+Third Phase-2 slice: a Masks tool — up to four radial (ellipse, feathered,
+invertible) or linear (gradient) masks, each carrying local Exposure /
+Saturation / Warmth. Drag the outline on the live stage to place it;
+linear masks drag by their endpoints; radials get Size/Feather/Invert.
+
+**No mask textures.** Radial and linear weights are ANALYTIC — the shader
+evaluates the same closed-form falloffs per pixel from uniforms, so mask
+drags stay pure uniform updates inside the 60fps contract, and the recipe
+stays small JSON. (Brush masks, which genuinely need a painted texture,
+are a later slice — the stage is shaped so they slot in as one more input.)
+Per-mask adjustments compose as per-pixel SUMS of deltas (EV, saturation,
+temperature) applied once — N masks are one small loop, not N passes, and
+overlaps blend sensibly. Local exposure is ±1 EV (gentler than the global
+±2 — local light is a nudge, not a relight).
+
+Coordinate honesty: mask geometry is normalized to the framed image with
+ORIGIN TOP-LEFT (the pointer convention); the engine flips y once when
+setting uniforms (its uv is y-up), the CPU reference consumes rows as-is.
+The transformPixel hook now receives the pixel's (u,v) — masks are the
+first SPATIAL stage inside the hook region (masks → mixer → curves).
+Neutrality rule worth noting: a mask with all-zero adjustments is a no-op
+even though it has geometry — placement alone must never force a
+re-encode.
+
+e2e sequencing trap for the record: each tool block leaves the editor ON
+that tool — the Auto section timed out waiting for the Adjust panel's
+Light chip after the Masks block until the spec explicitly returned to
+Adjust. Multi-tool specs must re-establish their tool, not assume it.
+
 ## August 25, 2026 — Photo engine E4b: tone curves
 
 Second Phase-2 slice: real tone curves — master + per-channel R/G/B — as
