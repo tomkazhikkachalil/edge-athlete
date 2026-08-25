@@ -26,6 +26,7 @@ import { COPY } from '@/lib/copy';
 import { MediaEditor } from '@/components/media-editor';
 import { validateFiles } from '@/lib/media/validation';
 import { recipeEnvelope } from '@/lib/media/recipes';
+import { loadComposerDraft, saveComposerDraft, clearComposerDraft, type ComposerDraft } from '@/lib/posts/composer-draft';
 import { uploadPostMedia } from '@/lib/media/upload';
 import type { EditRecipe, EditedMedia, EditorConfig, MediaAsset } from '@/lib/media/types';
 
@@ -149,12 +150,18 @@ export default function CreatePostModal({
   // transition (ref-guarded so a prop change mid-composition can't clobber
   // what the user picked).
   const wasOpenRef = useRef(false);
+  // Crash-recovery draft (dummy-proofing round): offered back as a notice on
+  // open, never silently applied. Deliberate exits (discard confirm, post)
+  // clear it; only an unexpected death leaves one behind.
+  const [availableDraft, setAvailableDraft] = useState<ComposerDraft | null>(null);
   useEffect(() => {
     if (isOpen && !wasOpenRef.current) {
       setPostType(defaultSportKey);
+      setAvailableDraft(loadComposerDraft());
     }
     wasOpenRef.current = isOpen;
   }, [isOpen, defaultSportKey]);
+
   // Stat-line sports (ice hockey, volleyball, …) — schema-driven stat entry
   const [statLineData, setStatLineData] = useState<StatLineData | null>(null);
   const isStatLineSport = postType !== 'general' && getStatSchema(postType) !== null;
@@ -188,6 +195,23 @@ export default function CreatePostModal({
   // re-editing an already-attached asset (result replaces it in place).
   const [editorAssets, setEditorAssets] = useState<MediaAsset[] | null>(null);
   const [editingExistingId, setEditingExistingId] = useState<string | null>(null);
+
+  // Persist the recoverable half of the composer while open (storage write
+  // only — media Files and the uncontrolled golf section can't ride
+  // localStorage; see composer-draft.ts).
+  useEffect(() => {
+    if (!isOpen) return;
+    const timer = setTimeout(() => {
+      saveComposerDraft({
+        postType,
+        caption,
+        hashtags,
+        tags: selectedTags,
+        visibility,
+      });
+    }, 400);
+    return () => clearTimeout(timer);
+  }, [isOpen, postType, caption, hashtags, selectedTags, visibility]);
 
   // Tagging people
   const [taggedProfiles, setTaggedProfiles] = useState<string[]>([]);
@@ -234,6 +258,10 @@ export default function CreatePostModal({
   // after a save). User-initiated closes (X, Cancel) go through
   // requestClose below, which asks before discarding unsaved work.
   const closeAndReset = () => {
+    // Explicit exit (confirmed discard or successful post) — the draft's job
+    // is crash recovery, not resurrecting decisions.
+    clearComposerDraft();
+    setAvailableDraft(null);
     reset();
     onClose();
   };
@@ -715,6 +743,42 @@ export default function CreatePostModal({
               onCaptionGenerated={setCaption}
             />
           ))}
+
+          {/* Crash-recovery draft notice — restore is a choice, never automatic */}
+          {availableDraft && caption.trim() === '' && (
+            <div className="mb-4 flex flex-wrap items-center gap-2 rounded-lg border border-violet-200 dark:border-violet-800 bg-brand-soft px-3 py-2">
+              <i className="fas fa-clock-rotate-left text-brand-fg" aria-hidden="true"></i>
+              <p className="text-sm text-violet-900 dark:text-violet-200 flex-1 min-w-40">
+                You have an unfinished post{availableDraft.caption ? ` — “${availableDraft.caption.slice(0, 40)}${availableDraft.caption.length > 40 ? '…' : ''}”` : ''}
+              </p>
+              <button
+                type="button"
+                onClick={() => {
+                  setCaption(availableDraft.caption);
+                  setHashtags(availableDraft.hashtags);
+                  setSelectedTags(availableDraft.tags);
+                  setVisibility(availableDraft.visibility);
+                  if (availableDraft.postType !== postType) {
+                    setPostType(availableDraft.postType as SportKey | 'general');
+                  }
+                  setAvailableDraft(null);
+                }}
+                className="min-h-[44px] px-3 rounded-full bg-brand text-white text-sm font-semibold hover:bg-brand-hover"
+              >
+                Restore
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  clearComposerDraft();
+                  setAvailableDraft(null);
+                }}
+                className="min-h-[44px] px-3 rounded-full text-sm font-medium text-secondary hover:bg-surface-sunken"
+              >
+                Dismiss
+              </button>
+            </div>
+          )}
 
           {/* Caption */}
           <div className={isLiveSetup ? 'hidden' : 'mb-6'}>

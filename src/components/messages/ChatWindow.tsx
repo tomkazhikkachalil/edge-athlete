@@ -13,6 +13,7 @@ import TypingIndicator from './TypingIndicator';
 import GroupSettingsModal from './GroupSettingsModal';
 import PostDetailModal from '@/components/PostDetailModal';
 import GifPickerModal from '@/components/GifPickerModal';
+import { loadDraft, saveDraft } from '@/components/chat-dock/drafts';
 import type { Message, Conversation, AggregatedReaction } from '@/types/messages';
 import { FEATURE_FLAGS } from '@/lib/features';
 import { requestDockConversation } from '@/lib/chat-dock-open';
@@ -34,6 +35,17 @@ export default function ChatWindow({ conversationId, onBack }: Props) {
     () => (conversation?.participants ?? []).filter(p => !p.left_at).map(p => p.profile),
     [conversation]
   );
+  // Draft persistence (dummy-proofing round) — same store as the dock.
+  const initialDraft = useMemo(() => loadDraft(conversationId), [conversationId]);
+  const draftTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const handleDraftChange = (text: string) => {
+    if (draftTimerRef.current) clearTimeout(draftTimerRef.current);
+    if (text.trim() === '') {
+      saveDraft(conversationId, '');
+      return;
+    }
+    draftTimerRef.current = setTimeout(() => saveDraft(conversationId, text), 400);
+  };
   const [messages, setMessages] = useState<Message[]>([]); // newest first
   const [hasMore, setHasMore] = useState(false);
   const [nextCursor, setNextCursor] = useState<string | null>(null);
@@ -801,13 +813,20 @@ export default function ChatWindow({ conversationId, onBack }: Props) {
       {/* Typing indicator */}
       <TypingIndicator conversationId={conversationId} currentUserId={currentUserId} />
 
-      {/* Message input */}
+      {/* Message input. Drafts ride the SAME store as the chat dock
+          (chat-dock/drafts.ts — "persistence is the product"): a half-typed
+          message survives navigation and refresh on this surface too, and
+          the two surfaces share one draft per conversation. Keyed by
+          conversation so switching threads re-seeds the right draft. */}
       <MessageInput
+        key={conversationId}
         conversationId={conversationId}
         currentUserId={currentUserId}
         onSend={handleSend}
         replyingTo={replyingTo}
         onCancelReply={handleCancelReply}
+        initialText={initialDraft}
+        onTextChange={handleDraftChange}
         participants={activeParticipantProfiles}
       />
 

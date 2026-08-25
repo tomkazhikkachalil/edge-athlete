@@ -1,5 +1,40 @@
 # Development Log
 
+## August 24, 2026 — Dummy-proofing PR 3: mistakes are recoverable
+
+The resumability half of the principle: making a mistake — or having the
+browser make one for you — must not destroy work.
+
+- **Every dirty modal now survives refresh/tab-close.** useDirtyClose
+  arms a beforeunload prompt while dirty (the codebase had ZERO
+  beforeunload handlers). One hook change covers all 13 dirty-close
+  modals; the listener registers once and reads dirtiness through a ref.
+- **The full-page messages composer gets drafts** — wired to the SAME
+  chat-dock draft store ("persistence is the product" now holds on both
+  surfaces, one draft per conversation, keyed input so switching threads
+  re-seeds correctly). This closed the audit's oddest finding: the same
+  MessageInput component had drafts in the dock and none on /messages.
+- **The parked minor's guardian-invite link survives refresh**
+  (lib/parked-invite.ts, 7-day TTL matching the invite; pure parse,
+  tested). The code's own comment admitted the loss ("lost on refresh…
+  handed over here or never"). Only the EXPLICIT back-to-login clears it
+  — an accidental refresh never forgets the link. Rehydration runs in a
+  deferred callback: a lazy initializer would hydration-mismatch, and a
+  synchronous effect setState is a lint error.
+- **Composer crash-recovery draft** (lib/posts/composer-draft.ts, 48h
+  TTL, tested): caption/hashtags/tags/sport/visibility persist while the
+  composer is open and come back as a "restore?" notice — offered, never
+  silently applied. Deliberate exits (confirmed discard, successful post)
+  clear it; only an unexpected death leaves one behind. KNOWN LIMITS,
+  named: media Files can't ride localStorage (IndexedDB follow-up, per
+  the recipes.ts header) and GolfComposerSection is uncontrolled (no seed
+  prop yet), so the scorecard draft is a follow-up — the beforeunload
+  guard covers its accidental-loss paths meanwhile.
+
+With PR 1 (round lifecycle) and PR 2 (confirms), the round's principle
+holds: navigating away decides nothing, destroying takes an explicit
+confirmed action, and coming back finds your work where you left it.
+
 ## August 24, 2026 — Media round D: slow motion
 
 The highest-value Layer-2 item — slo-mo on a swing is the reason athletes

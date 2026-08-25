@@ -5,6 +5,7 @@ import * as Sentry from '@sentry/nextjs';
 import HandleSelector from '@/components/HandleSelector';
 import OAuthButtons from '@/components/OAuthButtons';
 import InviteLinkShare from '@/components/InviteLinkShare';
+import { loadParkedInvite, saveParkedInvite, clearParkedInvite } from '@/lib/parked-invite';
 import { isValidDateString, isNotFutureDate } from '@/lib/date-validation';
 
 // Registration step machine (guardian-profiles feature).
@@ -46,6 +47,21 @@ export default function RegistrationSteps({ onBackToLogin }: { onBackToLogin: ()
   const [guardianEmail, setGuardianEmail] = useState('');
   const [parkedMessage, setParkedMessage] = useState('');
   const [parkedInviteUrl, setParkedInviteUrl] = useState<string | null>(null);
+
+  // Rehydrate a parked screen lost to refresh (dummy-proofing round). An
+  // effect + macrotask, not a lazy initializer: localStorage differs from
+  // the SSR render (hydration mismatch), and the deferred callback keeps
+  // the setState out of the effect body (set-state-in-effect).
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      const stored = loadParkedInvite();
+      if (!stored) return;
+      setParkedMessage(stored.message);
+      setParkedInviteUrl(stored.inviteUrl);
+      setStep('parked');
+    }, 0);
+    return () => clearTimeout(timer);
+  }, []);
   const [form, setForm] = useState({
     firstName: '', lastName: '', nickname: '', email: '', phone: '',
     gender: '', location: '', postalCode: '', password: '', confirmPassword: '',
@@ -217,6 +233,10 @@ export default function RegistrationSteps({ onBackToLogin }: { onBackToLogin: ()
       if (result.parked) {
         setParkedMessage(result.message);
         setParkedInviteUrl(result.inviteUrl ?? null);
+        // Persist (dummy-proofing round): this screen is the minor's ONLY
+        // surface and the link their only channel — it must survive a
+        // refresh/back-tap. Cleared on the EXPLICIT back-to-login below.
+        saveParkedInvite({ message: result.message ?? '', inviteUrl: result.inviteUrl ?? null });
         setStep('parked');
         return;
       }
@@ -570,8 +590,10 @@ export default function RegistrationSteps({ onBackToLogin }: { onBackToLogin: ()
                 {parkedMessage || "We've emailed your parent or guardian a link to finish setting up your profile."}
               </p>
               {/* The link is the reliable channel (owner decision) — this
-                  screen is the minor's ONLY reachable surface, lost on
-                  refresh, so the link must be handed over here or never. */}
+                  screen is the minor's ONLY reachable surface. Since the
+                  dummy-proofing round it survives refresh via localStorage
+                  (7-day TTL, matching the invite), and only the explicit
+                  back-to-login below clears it. */}
               {parkedInviteUrl && (
                 <div className="mb-6">
                   <InviteLinkShare
@@ -580,7 +602,16 @@ export default function RegistrationSteps({ onBackToLogin }: { onBackToLogin: ()
                   />
                 </div>
               )}
-              <button type="button" onClick={onBackToLogin} className="text-sm text-brand-fg hover:underline">
+              <button
+                type="button"
+                onClick={() => {
+                  // EXPLICIT exit — the one action that forgets the parked
+                  // link (an accidental refresh never does).
+                  clearParkedInvite();
+                  onBackToLogin();
+                }}
+                className="text-sm text-brand-fg hover:underline"
+              >
                 Back to login
               </button>
             </div>
