@@ -10,6 +10,11 @@ import { useToast } from '../Toast';
 import { formatHeight, validateHeight } from '@/lib/formatters';
 import type { WeightUnit } from '@/lib/body-measurement';
 import { localDayKey } from '@/lib/calendar/grid';
+import {
+  DEFAULT_VITALS_PRIVACY,
+  type VitalsAspect,
+  type VitalsPrivacy,
+} from '@/lib/vitals-privacy';
 
 /**
  * The Vitals tab's own quick settings — update height/weight without a trip
@@ -34,6 +39,9 @@ interface CurrentVitalsSnapshot {
 
 interface VitalsSettingsModalProps {
   currentVitals: CurrentVitalsSnapshot;
+  /** Owner's current privacy (from GET /api/vitals); null hides the section
+   *  (payload predates the field — next refetch supplies it). */
+  vitalsPrivacy?: VitalsPrivacy | null;
   onClose: () => void;
   /** Called after a successful save; caller refetches. */
   onSaved: () => void;
@@ -41,10 +49,16 @@ interface VitalsSettingsModalProps {
   onManageRoutines?: () => void;
 }
 
+const PRIVACY_ASPECTS: Array<{ key: VitalsAspect; label: string; sub: string }> = [
+  { key: 'body', label: 'Body measurements', sub: 'Height, weight, and growth history' },
+  { key: 'records', label: 'Personal bests & metrics', sub: 'Trophy wall and performance history' },
+  { key: 'workouts', label: 'Workouts', sub: 'Workout log and weekly activity' },
+];
+
 const today = () => localDayKey(new Date());
 
 export default function VitalsSettingsModal({
-  currentVitals, onClose, onSaved, onManageRoutines,
+  currentVitals, vitalsPrivacy = null, onClose, onSaved, onManageRoutines,
 }: VitalsSettingsModalProps) {
   const { showSuccess, showError } = useToast();
   const [saving, setSaving] = useState(false);
@@ -60,6 +74,8 @@ export default function VitalsSettingsModal({
   const [weightInput, setWeightInput] = useState(seededWeight);
   const [weightUnit, setWeightUnit] = useState<WeightUnit>(seededUnit);
   const [recordedAt, setRecordedAt] = useState(today());
+  const seededPrivacy = vitalsPrivacy ?? DEFAULT_VITALS_PRIVACY;
+  const [privacy, setPrivacy] = useState<VitalsPrivacy>(seededPrivacy);
 
   useBodyScrollLock(true);
 
@@ -82,17 +98,24 @@ export default function VitalsSettingsModal({
     parsedWeight !== undefined &&
     (parsedWeight !== currentVitals.weightDisplay || weightUnit !== seededUnit);
 
+  const privacyChanged =
+    privacy.hidden !== seededPrivacy.hidden ||
+    privacy.body !== seededPrivacy.body ||
+    privacy.records !== seededPrivacy.records ||
+    privacy.workouts !== seededPrivacy.workouts;
+
   // Dirty = the user edited a field (raw comparison, so even an invalid
   // draft prompts the discard confirm). The date alone is not dirty.
   const isDirty = () =>
     heightInput !== seededHeight ||
     weightInput !== seededWeight ||
-    weightUnit !== seededUnit;
+    weightUnit !== seededUnit ||
+    privacyChanged;
 
   const { requestClose, confirmOpen, confirmDiscard, cancelDiscard } =
     useDirtyClose(isDirty, onClose);
 
-  const canSave = (heightChanged || weightChanged) && !saving;
+  const canSave = (heightChanged || weightChanged || privacyChanged) && !saving;
 
   const handleSave = async () => {
     setHeightError('');
@@ -107,35 +130,54 @@ export default function VitalsSettingsModal({
       setWeightError('Enter a weight greater than 0');
       return;
     }
-    if (!heightChanged && !weightChanged) return;
+    if (!heightChanged && !weightChanged && !privacyChanged) return;
 
     setSaving(true);
     try {
-      const response = await fetch('/api/vitals/body-measurement', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({
-          recorded_at: recordedAt,
-          ...(heightChanged ? { height: { height_cm: parsedHeightCm } } : {}),
-          ...(weightChanged ? { weight: { display: parsedWeight, unit: weightUnit } } : {}),
-        }),
-      });
-      const data = await response.json().catch(() => null);
-      if (!response.ok) {
-        throw new Error(data?.error || 'Failed to save measurements');
+      if (privacyChanged) {
+        const privacyRes = await fetch('/api/settings/vitals-privacy', {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify(privacy),
+        });
+        if (!privacyRes.ok) {
+          const data = await privacyRes.json().catch(() => null);
+          throw new Error(data?.error || 'Failed to save privacy settings');
+        }
       }
 
-      const submitted = [
-        ...(heightChanged ? ['height' as const] : []),
-        ...(weightChanged ? ['weight' as const] : []),
-      ];
-      const anyBackdated = submitted.some(key => !data?.profileUpdated?.[key]);
+      let anyBackdated = false;
+      if (heightChanged || weightChanged) {
+        const response = await fetch('/api/vitals/body-measurement', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify({
+            recorded_at: recordedAt,
+            ...(heightChanged ? { height: { height_cm: parsedHeightCm } } : {}),
+            ...(weightChanged ? { weight: { display: parsedWeight, unit: weightUnit } } : {}),
+          }),
+        });
+        const data = await response.json().catch(() => null);
+        if (!response.ok) {
+          throw new Error(data?.error || 'Failed to save measurements');
+        }
+
+        const submitted = [
+          ...(heightChanged ? ['height' as const] : []),
+          ...(weightChanged ? ['weight' as const] : []),
+        ];
+        anyBackdated = submitted.some(key => !data?.profileUpdated?.[key]);
+      }
+
       showSuccess(
         'Saved',
         anyBackdated
           ? 'Added to your timeline — current vitals unchanged (a newer entry exists).'
-          : 'Measurements updated.'
+          : heightChanged || weightChanged
+            ? 'Measurements updated.'
+            : 'Privacy updated.'
       );
       onSaved();
       // Successful save closes directly — never the discard prompt.
@@ -236,6 +278,50 @@ export default function VitalsSettingsModal({
               You can back-date entries to record historical measurements.
             </p>
           </div>
+
+          {vitalsPrivacy !== null && (
+            <div className="border-t border-border-subtle pt-4">
+              <p className="text-sm font-semibold text-primary mb-1">Privacy</p>
+              <p className="text-xs text-muted mb-3">
+                Your profile can stay public while any of this stays just for
+                you — hide whatever you&rsquo;re not comfortable showing.
+              </p>
+              <div className="space-y-2">
+                <label className="flex items-center gap-3 rounded-xl border border-border px-3 py-2.5 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={privacy.hidden}
+                    onChange={() => setPrivacy(p => ({ ...p, hidden: !p.hidden }))}
+                    className="w-5 h-5 rounded"
+                  />
+                  <span>
+                    <span className="block text-sm font-semibold text-primary">Hide all of Vitals</span>
+                    <span className="block text-xs text-muted">Only you can see anything on this tab</span>
+                  </span>
+                </label>
+                {PRIVACY_ASPECTS.map(aspect => (
+                  <label
+                    key={aspect.key}
+                    className={`flex items-center gap-3 rounded-xl border border-border px-3 py-2.5 ${
+                      privacy.hidden ? 'opacity-50' : 'cursor-pointer'
+                    }`}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={privacy.hidden || privacy[aspect.key]}
+                      disabled={privacy.hidden}
+                      onChange={() => setPrivacy(p => ({ ...p, [aspect.key]: !p[aspect.key] }))}
+                      className="w-5 h-5 rounded"
+                    />
+                    <span>
+                      <span className="block text-sm font-semibold text-primary">Hide {aspect.label.toLowerCase()}</span>
+                      <span className="block text-xs text-muted">{aspect.sub}</span>
+                    </span>
+                  </label>
+                ))}
+              </div>
+            </div>
+          )}
 
           {onManageRoutines && (
             <div className="border-t border-border-subtle pt-4">

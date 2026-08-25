@@ -4,7 +4,7 @@ import { useState, useEffect, useMemo, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { VITAL_CATEGORIES } from '@/lib/vitals-config';
 import {
-  Plus, History, Ruler, Dumbbell, Loader2, ChevronDown, Settings, BarChart3,
+  Plus, History, Ruler, Dumbbell, Loader2, ChevronDown, Settings, BarChart3, Lock,
 } from 'lucide-react';
 import AddVitalModal from './AddVitalModal';
 import CreatePostModal from './CreatePostModal';
@@ -33,6 +33,7 @@ import SectionEmptyState from './SectionEmptyState';
 import { categoryAccent } from './vitals/category-colors';
 import { useTheme } from '@/lib/use-theme';
 import type { VitalEntry } from './vitals/metric-stats';
+import type { VitalsPrivacy } from '@/lib/vitals-privacy';
 import type { ServerWorkoutSession } from '@/lib/workouts/serialize';
 import type { WorkoutRoutine } from '@/lib/workouts/routines';
 
@@ -106,6 +107,8 @@ export default function VitalsTab({ profileId, currentUserId, isOwnProfile = fal
   const [athleteBirthday, setAthleteBirthday] = useState<string | null>(null);
   const [currentVitals, setCurrentVitals] = useState<CurrentVitals | null>(null);
   const [heroProfile, setHeroProfile] = useState<HeroProfile | null>(null);
+  const [vitalsPrivacy, setVitalsPrivacy] = useState<VitalsPrivacy | null>(null);
+  const [hiddenByPrivacy, setHiddenByPrivacy] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [showAddVital, setShowAddVital] = useState(false);
@@ -145,6 +148,8 @@ export default function VitalsTab({ profileId, currentUserId, isOwnProfile = fal
           setAthleteBirthday(data.athleteBirthday || null);
           setCurrentVitals(data.currentVitals || null);
           setHeroProfile(data.profile || null);
+          setVitalsPrivacy(data.vitalsPrivacy ?? null);
+          setHiddenByPrivacy(Boolean(data.hidden));
           if (workoutsRes.ok) {
             const workoutData = await workoutsRes.json();
             setWorkouts(workoutData.sessions || []);
@@ -300,6 +305,23 @@ export default function VitalsTab({ profileId, currentUserId, isOwnProfile = fal
     return (
       <div className="py-16 text-center text-muted">
         <p>{error}</p>
+      </div>
+    );
+  }
+
+  // Vitals privacy: the athlete elected to keep this section to themselves.
+  // A friendly lock, not an error — the rest of the profile stays open.
+  if (hiddenByPrivacy && !isOwnProfile) {
+    return (
+      <div className="vt-scope">
+        <h2 className="text-h2 text-primary">Edge Vitals</h2>
+        <div className="mt-6">
+          <SectionEmptyState
+            icon={Lock}
+            title="These vitals are private"
+            body="This athlete keeps their training numbers to themselves."
+          />
+        </div>
       </div>
     );
   }
@@ -643,6 +665,7 @@ export default function VitalsTab({ profileId, currentUserId, isOwnProfile = fal
       {showVitalsSettings && (
         <VitalsSettingsModal
           currentVitals={currentVitals ?? { heightCm: null, weightDisplay: null, weightUnit: null }}
+          vitalsPrivacy={vitalsPrivacy}
           onClose={() => setShowVitalsSettings(false)}
           onSaved={() => fetchDataRef.current()}
           onManageRoutines={() => {

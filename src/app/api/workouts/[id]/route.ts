@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAuth, getSupabaseAdmin } from '@/lib/auth-server';
+import { aspectHidden } from '@/lib/vitals-privacy';
+import { fetchVitalsPrivacy } from '@/lib/vitals-privacy-server';
 
 const SESSION_SELECT = `
   *,
@@ -61,6 +63,11 @@ export async function GET(
         .select('visibility')
         .eq('id', session.profile_id)
         .single();
+      // Vitals privacy (migration 122): closes the lazy-details path used by
+      // WorkoutPostCard — the card already degrades to "unavailable".
+      if (aspectHidden(await fetchVitalsPrivacy(supabase, session.profile_id), 'workouts', false)) {
+        return NextResponse.json({ error: 'This profile is private' }, { status: 403 });
+      }
       if (profile?.visibility !== 'public') {
         if (!currentUserId) {
           return NextResponse.json({ error: 'This profile is private' }, { status: 403 });

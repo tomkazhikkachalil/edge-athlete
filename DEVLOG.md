@@ -1,5 +1,62 @@
 # Development Log
 
+## August 25, 2026 — Vitals redesign: bubbly dashboard, celebrations, elective privacy (#285–#289)
+
+Tom's brief: make Vitals feel like "the best health monitor and workout
+app in the world" for the kids who grow up on it — bubbly, playful,
+highly visual, never clinical. Presentation layer only: tracking, data
+capture, and PR logic stay byte-identical. Five stacked PRs:
+
+- **#285 dialect + hero**: `vt-` accent in globals.css, scoped under
+  `.vt-scope` so it cannot leak — 24px cards (`rounded-2xl`, the ONE
+  in-scale bubble radius; `rounded-3xl` is unoverridden and silently
+  also 24px), softer RE-POINTED shadows (still exactly two levels),
+  spring entrances that end at `transform: none` (no lingering stacking
+  context), a scoped focus-ring radius fix for pills. `VitalsHero` =
+  greeting + avatar + animated active-days/7 ring (CSS-owned fill: the
+  keyframe's `from` is the full circumference, `to` is the element's
+  own inline offset — one keyframe serves every fill level, no setState,
+  reduced-motion free). New pure lib `src/lib/vitals/derive.ts`.
+- **#286 bubble grid + overlays**: every dense list moved behind a
+  tappable bubble's "larger window" (`VitalsOverlay`, bottom sheet →
+  centered card, deliberately below z-[60] so PostDetailModal stacks
+  above). The 224-line inline MetricCard finally left VitalsTab
+  (`vitals/metric-stats.ts` + bubble/overlay split). **Date-class bug
+  swept**: every vitals `recorded_at` display now goes through
+  `parseDateLocal` — DATE columns rendered the previous day (and could
+  group Jan 1 under the prior year) in US timezones.
+- **#287 progression star**: `VitalsTrendChart` is a SIBLING of
+  TrendLineChart (golf trends untouched) with gradient fill, a
+  `pathLength=1` dash draw-in, and amber milestone stars; ProgressSection
+  gets a category-grouped chip picker (aria-label="Tracking" keeps the
+  e2e contract), 3M/6M/1Y/All ranges, and milestone chips. Milestones
+  compute on the FULL series so a narrow range can't fake a best.
+- **#288 celebration**: canvas-confetti (~5KB, the round's one new dep,
+  dynamically imported at the moment of celebration). `celebratePR()`
+  self-checks reduced-motion — the CSS kill-switch cannot reach JS
+  animation. `stats_data.prs` (omitted when empty; old posts'
+  shape byte-identical) puts an amber PR ribbon on shared feed posts.
+- **#289 privacy (migration 122)**: `profiles.vitals_privacy` JSONB —
+  a public profile can hide all of Vitals or aspects (body / records /
+  workouts). null = today's behavior. Enforcement is APP-LAYER in the
+  vitals/workouts/media-count routes (they read via the admin client);
+  the privacy read is its OWN query on purpose: folding it into a
+  route's main select would 500 every vitals read on any deploy that
+  precedes the migration — a dedicated query fails open to
+  all-visible, so merge order is not strict (the 121 precedent). The
+  e2e privacy scenario checks for the column and skips with a warning
+  until 122 runs, then arms itself.
+
+E2e discipline held: `e2e/vitals.spec.ts` updated in the same PR as
+each breaking change, run green against a live local server per PR,
+plus headless screenshot passes (light/dark × 390/1280) and a full
+driven finish-flow → confetti → feed-ribbon probe. One spec flake
+fixed on the way: `getByText('348')` substring-matched a random QA
+timestamp — the raw-seconds guard is now `exact: true`.
+
+**Tom owes**: run migration 122 (SQL editor), then the usual device
+pass. The AI-runner decision from the photo-engine round is still open.
+
 ## August 25, 2026 — Capture everywhere: native camera on all nine media surfaces
 
 The composer's Take photo / Record video affordance (#264) existed ONLY
