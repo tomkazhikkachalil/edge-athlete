@@ -13,8 +13,18 @@ export function materializeClips(clips: VideoClip[], duration: number): VideoCli
   return [{ in: 0, out: Math.max(duration, MIN_CLIP_SECONDS), volume: 1 }];
 }
 
+/** A clip's speed with the absent-means-1 default (slo-mo round). */
+export function clipSpeed(clip: VideoClip): number {
+  return clip.speed && clip.speed > 0 ? clip.speed : 1;
+}
+
+/** A clip's length ON THE TIMELINE — source length stretched by speed. */
+export function clipTimelineLength(clip: VideoClip): number {
+  return Math.max(0, clip.out - clip.in) / clipSpeed(clip);
+}
+
 export function timelineDuration(clips: VideoClip[]): number {
-  return clips.reduce((sum, c) => sum + Math.max(0, c.out - c.in), 0);
+  return clips.reduce((sum, c) => sum + clipTimelineLength(c), 0);
 }
 
 /** Timeline start of each clip, in order. */
@@ -23,7 +33,7 @@ export function sourceOffsets(clips: VideoClip[]): number[] {
   let t = 0;
   for (const clip of clips) {
     offsets.push(t);
-    t += Math.max(0, clip.out - clip.in);
+    t += clipTimelineLength(clip);
   }
   return offsets;
 }
@@ -36,8 +46,10 @@ export function timelineToSource(
   if (t < 0) return null;
   let offset = 0;
   for (let i = 0; i < clips.length; i++) {
-    const len = Math.max(0, clips[i].out - clips[i].in);
-    if (t < offset + len) return { clipIndex: i, sourceTime: clips[i].in + (t - offset) };
+    const len = clipTimelineLength(clips[i]);
+    if (t < offset + len) {
+      return { clipIndex: i, sourceTime: clips[i].in + (t - offset) * clipSpeed(clips[i]) };
+    }
     offset += len;
   }
   // The exact end maps to the last clip's final instant (poster at the end).
@@ -60,13 +72,13 @@ export function timelineFromSource(sourceT: number, clips: VideoClip[]): number 
   for (let i = 0; i < clips.length; i++) {
     const clip = clips[i];
     if (sourceT >= clip.in && sourceT <= clip.out) {
-      return offsets[i] + (sourceT - clip.in);
+      return offsets[i] + (sourceT - clip.in) / clipSpeed(clip);
     }
     const nearest = sourceT < clip.in ? clip.in : clip.out;
     const distance = Math.abs(sourceT - nearest);
     if (distance < bestDistance) {
       bestDistance = distance;
-      best = offsets[i] + (nearest - clip.in);
+      best = offsets[i] + (nearest - clip.in) / clipSpeed(clip);
     }
   }
   return best ?? 0;
@@ -136,5 +148,15 @@ export function setClipVolume(clips: VideoClip[], index: number, volume: number)
   if (!clip) return clips;
   const next = [...clips];
   next[index] = { ...clip, volume: Math.min(Math.max(volume, 0), 1) };
+  return next;
+}
+
+export const CLIP_SPEEDS = [0.5, 1, 2] as const;
+
+export function setClipSpeed(clips: VideoClip[], index: number, speed: number): VideoClip[] {
+  const clip = clips[index];
+  if (!clip || speed <= 0) return clips;
+  const next = [...clips];
+  next[index] = { ...clip, speed };
   return next;
 }

@@ -33,10 +33,14 @@ import {
 } from 'lucide-react';
 import { formatClipTime, MIN_CLIP_SECONDS } from '@/lib/media/video-math';
 import {
+  CLIP_SPEEDS,
+  clipSpeed,
+  clipTimelineLength,
   deleteClip,
   materializeClips,
   reorderClip,
   setClipEdge,
+  setClipSpeed,
   setClipVolume,
   timelineFromSource,
   timelineToSource,
@@ -94,11 +98,14 @@ export default function VideoStage({
       if (video.currentTime >= current.out) {
         if (playOrderRef.current + 1 < clips.length) {
           playOrderRef.current += 1;
-          video.currentTime = clips[playOrderRef.current].in;
+          const next = clips[playOrderRef.current];
+          video.currentTime = next.in;
+          video.playbackRate = clipSpeed(next); // slo-mo previews at speed
         } else {
           video.pause();
           playOrderRef.current = 0;
           video.currentTime = clips[0].in;
+          video.playbackRate = 1;
         }
       }
     };
@@ -132,6 +139,7 @@ export default function VideoStage({
           video.currentTime = start.in;
         }
         playOrderRef.current = selectedClamped;
+        video.playbackRate = clipSpeed(start); // slo-mo previews at speed
       }
       void video.play();
     } else {
@@ -243,7 +251,7 @@ export default function VideoStage({
             <div className="flex items-center gap-1 px-4 pb-1 overflow-x-auto scrollbar-hide w-full max-w-xl mx-auto">
               <span className="text-chip text-white/70 tabular-nums shrink-0 mr-1">
                 Clip {selectedClamped + 1}/{clips.length} ·{' '}
-                {formatClipTime(selected.out - selected.in)}
+                {formatClipTime(clipTimelineLength(selected))}
               </span>
               <button
                 type="button"
@@ -308,6 +316,24 @@ export default function VideoStage({
                 aria-label="Clip volume (applies to the exported video)"
                 className="w-20 shrink-0 accent-violet-500 min-h-[44px]"
               />
+              {/* Speed (slo-mo round). Slowed/sped clips export MUTED. */}
+              {CLIP_SPEEDS.map(speed => (
+                <button
+                  key={speed}
+                  type="button"
+                  onClick={() => patchClips(setClipSpeed(clips, selectedClamped, speed))}
+                  aria-label={`Play this clip at ${speed}x speed`}
+                  aria-pressed={clipSpeed(selected) === speed}
+                  title={speed !== 1 ? 'Speed-changed clips export without sound' : undefined}
+                  className={`px-2.5 min-h-[44px] shrink-0 rounded-full text-chip font-medium whitespace-nowrap transition-colors ${
+                    clipSpeed(selected) === speed
+                      ? 'bg-brand text-white'
+                      : 'bg-white/10 text-white/80 hover:bg-white/20'
+                  }`}
+                >
+                  {speed}×
+                </button>
+              ))}
             </div>
           )}
 

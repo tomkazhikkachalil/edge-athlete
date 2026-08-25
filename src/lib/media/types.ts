@@ -46,6 +46,10 @@ export interface VideoClip {
   in: number; // source seconds
   out: number; // source seconds, > in
   volume: number; // 0–1; 0 = muted
+  /** Playback speed (slo-mo round): 0.25 | 0.5 | 1 | 2; absent = 1. A
+   *  slowed/sped clip's TIMELINE length is (out − in) / speed, and its
+   *  audio is muted on export (pitch-preserving stretch is a follow-up). */
+  speed?: number;
 }
 
 /**
