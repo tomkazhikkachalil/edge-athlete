@@ -48,6 +48,7 @@ import {
 import { CURVE_LUT_SIZE } from './curves-math';
 import { MASK_EV_RANGE, MAX_MASKS } from './mask-math';
 import { GRAIN_BASE_WEIGHT, GRAIN_MID_WEIGHT, GRAIN_SCALE } from './grain-math';
+import { MAX_CLONE_STAMPS } from './clone-math';
 
 /** Number → GLSL float literal ("2" would be an int and fail to compile). */
 function glf(n: number): string {
@@ -106,6 +107,35 @@ ${lines.join('\n')}
 export const BLUR_SMALL_FRAGMENT = makeBlurFragment(BLUR_SMALL_SIGMA, BLUR_SMALL_TAPS);
 export const BLUR_LARGE_FRAGMENT = makeBlurFragment(BLUR_LARGE_SIGMA, BLUR_LARGE_TAPS);
 export const BLUR_BG_FRAGMENT = makeBlurFragment(BLUR_BG_SIGMA, BLUR_BG_TAPS);
+
+/** Clone-stamp pass (E4g) — the GPU twin of clone-math.applyCloneStamps.
+ *  All stamps sample the ORIGINAL source in one draw; feathered mix at
+ *  each destination circle. Geometry uniforms are y-up. */
+export const CLONE_FRAGMENT = `#version 300 es
+precision highp float;
+uniform sampler2D u_src;
+uniform vec2 u_resolution;
+uniform int u_stampCount;
+uniform vec4 u_stampGeom[${MAX_CLONE_STAMPS}];   // srcX, srcY, dstX, dstY
+uniform vec2 u_stampParams[${MAX_CLONE_STAMPS}]; // radius (width fraction), feather
+out vec4 outColor;
+void main() {
+  vec2 uv = gl_FragCoord.xy / u_resolution;
+  vec3 rgb = texture(u_src, uv).rgb;
+  float aspect = u_resolution.y / u_resolution.x;
+  for (int i = 0; i < ${MAX_CLONE_STAMPS}; i++) {
+    if (i >= u_stampCount) break;
+    vec2 d = (uv - u_stampGeom[i].zw) * vec2(1.0, aspect);
+    float dist = length(d) / max(u_stampParams[i].x, 1e-4);
+    if (dist >= 1.0) continue;
+    float w = 1.0 - smoothstep(max(0.0, 1.0 - u_stampParams[i].y), 1.0, dist);
+    vec2 offset = u_stampGeom[i].xy - u_stampGeom[i].zw;
+    vec3 healed = texture(u_src, clamp(uv + offset, 0.0, 1.0)).rgb;
+    rgb = mix(rgb, healed, w);
+  }
+  outColor = vec4(rgb, 1.0);
+}
+`;
 
 /** Keystone warp (inverse mapping, centered Y-up coords) — the GPU twin of
  *  perspective-math.ts. Outside samples render opaque black. */

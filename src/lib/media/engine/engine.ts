@@ -21,6 +21,7 @@ import {
   BLUR_BG_FRAGMENT,
   BLUR_LARGE_FRAGMENT,
   BLUR_SMALL_FRAGMENT,
+  CLONE_FRAGMENT,
   COPY_FRAGMENT,
   FRAGMENT_SHADER,
   VERTEX_SHADER,
@@ -32,7 +33,8 @@ import { bakeHslLut, HSL_LUT_SIZE, isNeutralHsl } from './hsl-math';
 import { bakeCurveLut, CURVE_LUT_SIZE, isNeutralCurves } from './curves-math';
 import { MAX_MASKS, wantsBackgroundBlur } from './mask-math';
 import { extendRaster, rasterizeBrushMask } from './mask-raster';
-import type { BrushStroke } from '../types';
+import { isNeutralClones, MAX_CLONE_STAMPS } from './clone-math';
+import type { BrushStroke, CloneStamp } from '../types';
 
 export interface Engine {
   /** Upload (or replace) the source texture and size the canvas to match.
@@ -109,6 +111,7 @@ export function createEngine(
   let blurLargeProgram: WebGLProgram | null | undefined;
   let blurBgProgram: WebGLProgram | null | undefined;
   let warpProgram: WebGLProgram | null | undefined;
+  let cloneProgram: WebGLProgram | null | undefined;
   let fullA: BlurTarget | null = null;
   let fullB: BlurTarget | null = null;
   let halfA: BlurTarget | null = null;
@@ -116,6 +119,9 @@ export function createEngine(
   let quarterA: BlurTarget | null = null;
   let quarterB: BlurTarget | null = null;
   let warpTarget: BlurTarget | null = null;
+  let cloneTarget: BlurTarget | null = null;
+  /** Stamps the clone texture was rendered for. */
+  let cloneFor: string | null = null;
   let blurSmallReady = false;
   let blurLargeReady = false;
   let blurBgReady = false;
@@ -222,14 +228,15 @@ export function createEngine(
   };
 
   const dropTargets = () => {
-    for (const t of [fullA, fullB, halfA, halfB, quarterA, quarterB, warpTarget]) {
+    for (const t of [fullA, fullB, halfA, halfB, quarterA, quarterB, warpTarget, cloneTarget]) {
       if (t) gl.deleteTexture(t.tex);
     }
-    fullA = fullB = halfA = halfB = quarterA = quarterB = warpTarget = null;
+    fullA = fullB = halfA = halfB = quarterA = quarterB = warpTarget = cloneTarget = null;
     blurSmallReady = false;
     blurLargeReady = false;
     blurBgReady = false;
     warpFor = null;
+    cloneFor = null;
   };
 
   /** One fullscreen pass: srcTex → target FBO with `program`. */
@@ -256,16 +263,47 @@ export function createEngine(
     gl.drawArrays(gl.TRIANGLES, 0, 3);
   };
 
-  /** Keystone pass: src texture → warpTarget. The warp output is what blurs
-   *  and the composite consume, so a perspective change invalidates blurs. */
-  const computeWarp = (p: EngineParams): boolean => {
+  /** Clone-stamp pass: heals the source BEFORE the warp (clone coords live
+   *  on the framed image). A stamp change invalidates warp + blurs. */
+  const computeClone = (stamps: CloneStamp[]): boolean => {
+    const key = JSON.stringify(stamps);
+    if (cloneFor === key && cloneTarget) return true;
+    cloneProgram ??= compileProgram(gl, VERTEX_SHADER, CLONE_FRAGMENT);
+    if (!cloneProgram) return false;
+    cloneTarget ??= makeTarget(srcWidth, srcHeight);
+    if (!cloneTarget) return false;
+    runPass(cloneProgram, texture, cloneTarget, undefined, prog => {
+      const count = Math.min(stamps.length, MAX_CLONE_STAMPS);
+      const geom = new Float32Array(MAX_CLONE_STAMPS * 4);
+      const params = new Float32Array(MAX_CLONE_STAMPS * 2);
+      for (let i = 0; i < count; i++) {
+        const s = stamps[i];
+        geom.set([s.srcX, 1 - s.srcY, s.dstX, 1 - s.dstY], i * 4);
+        params.set([s.radius, s.feather], i * 2);
+      }
+      gl.uniform1i(gl.getUniformLocation(prog, 'u_stampCount'), count);
+      gl.uniform4fv(gl.getUniformLocation(prog, 'u_stampGeom'), geom);
+      gl.uniform2fv(gl.getUniformLocation(prog, 'u_stampParams'), params);
+    });
+    cloneFor = key;
+    warpFor = null; // downstream passes consumed the old input
+    blurSmallReady = false;
+    blurLargeReady = false;
+    blurBgReady = false;
+    return true;
+  };
+
+  /** Keystone pass: input texture → warpTarget. The warp output is what
+   *  blurs and the composite consume, so a perspective change invalidates
+   *  blurs. */
+  const computeWarp = (p: EngineParams, inputTex: WebGLTexture): boolean => {
     const key = `${p.perspective.vertical},${p.perspective.horizontal}`;
     if (warpFor === key && warpTarget) return true;
     warpProgram ??= compileProgram(gl, VERTEX_SHADER, WARP_FRAGMENT);
     if (!warpProgram) return false;
     warpTarget ??= makeTarget(srcWidth, srcHeight);
     if (!warpTarget) return false;
-    runPass(warpProgram, texture, warpTarget, undefined, prog => {
+    runPass(warpProgram, inputTex, warpTarget, undefined, prog => {
       gl.uniform2f(
         gl.getUniformLocation(prog, 'u_persp'),
         p.perspective.vertical,
@@ -351,13 +389,22 @@ export function createEngine(
     if (lost || destroyed) return;
     const p = opts?.showOriginal ? NEUTRAL_ENGINE_PARAMS : params;
     const plan = planPasses(p);
-    // Perspective warps the source FIRST; blurs and the composite then all
-    // read the warped texture. A perspective change invalidates the blur
-    // cache (computeWarp handles that); turning it off restores the raw
-    // source and equally invalidates.
+    // Pre-passes in order: clone (heal the framed image) → perspective
+    // warp. Each caches by its inputs and invalidates everything
+    // downstream on change; turning either off restores the raw chain
+    // and equally invalidates.
     let inputTex = texture;
+    if (!isNeutralClones(p.clones)) {
+      if (computeClone(p.clones) && cloneTarget) inputTex = cloneTarget.tex;
+    } else if (cloneFor !== null) {
+      cloneFor = null;
+      warpFor = null;
+      blurSmallReady = false;
+      blurLargeReady = false;
+      blurBgReady = false;
+    }
     if (!isNeutralPerspective(p.perspective)) {
-      if (computeWarp(p) && warpTarget) inputTex = warpTarget.tex;
+      if (computeWarp(p, inputTex) && warpTarget) inputTex = warpTarget.tex;
     } else if (warpFor !== null) {
       warpFor = null;
       blurSmallReady = false;
@@ -480,7 +527,14 @@ export function createEngine(
     if (!lost) {
       dropTargets();
       if (fbo) gl.deleteFramebuffer(fbo);
-      for (const program of [copyProgram, blurSmallProgram, blurLargeProgram, warpProgram]) {
+      for (const program of [
+        copyProgram,
+        blurSmallProgram,
+        blurLargeProgram,
+        blurBgProgram,
+        warpProgram,
+        cloneProgram,
+      ]) {
         if (program) gl.deleteProgram(program);
       }
       if (hslLutTex) gl.deleteTexture(hslLutTex);

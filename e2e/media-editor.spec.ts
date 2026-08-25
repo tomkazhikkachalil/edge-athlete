@@ -157,6 +157,23 @@ test('media editor: crop session, undo, re-edit, dirty confirm, publish', async 
   expect(await readLuma()).toBeGreaterThan(prePaintLuma + 0.5);
   await page.getByRole('button', { name: 'Remove', exact: true }).click();
 
+  // Clone stamp (E4g): a tap drops a heal spot (source offset right) —
+  // cloning a different-colored region must shift the mean reading, and
+  // both handles render.
+  await page.getByRole('button', { name: 'Retouch', exact: true }).click();
+  const retouchBox = (await page.locator('[aria-label="Retouch overlay"]').boundingBox())!;
+  const preCloneLuma = await readLuma();
+  await page.mouse.click(
+    retouchBox.x + retouchBox.width * 0.35,
+    retouchBox.y + retouchBox.height * 0.5
+  );
+  await page.waitForTimeout(300);
+  await expect(page.getByRole('button', { name: 'Retouch spot 1' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Retouch source 1' })).toBeVisible();
+  expect(Math.abs((await readLuma()) - preCloneLuma)).toBeGreaterThan(0.3);
+  // The selected spot's Size slider tunes it.
+  await page.getByRole('slider', { name: 'Size', exact: true }).fill('40');
+
   // Hold-to-compare: while pressed, the stage shows the ORIGINAL — the
   // darkened preview must come back up to the neutral reading.
   const compareBtn = page.getByRole('button', { name: 'Hold to compare with original' });

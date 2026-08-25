@@ -59,5 +59,8 @@ export function labelForKeys(keys: string | null): string {
   if (keys === 'mask.add') return 'Add mask';
   if (keys === 'mask.delete') return 'Remove mask';
   if (keys.startsWith('mask.')) return 'Mask';
+  if (keys === 'clone.add') return 'Add retouch';
+  if (keys === 'clone.delete') return 'Remove retouch';
+  if (keys.startsWith('clone.')) return 'Retouch';
   return LABELS[keys] ?? 'Edit';
 }

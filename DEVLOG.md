@@ -1,5 +1,32 @@
 # Development Log
 
+## August 25, 2026 — Photo engine E4g: clone stamp (healing v1)
+
+A **Retouch** tool — the honest version of healing, no AI: tap a blemish
+and a feathered circle appears with a dashed source circle beside it;
+drag the dashed one to choose what to copy from. Up to 8 spots, each
+with Size/Feather, one undo step per action.
+
+Engine-wise it's the chain's new first pre-pass: **clone → warp → blurs
+→ composite**. All stamps sample the ORIGINAL source in a single draw —
+so a stamp whose source sits inside another stamp's healed region copies
+the original pixels, not the heal (deliberate, test-pinned: cascading
+heals would make stamp order load-bearing in a way users can't see).
+The pass caches by its stamp list and invalidates everything downstream
+on change, exactly like the warp; `computeWarp` now takes its input
+texture instead of assuming the source, since the healed image is what
+gets warped. CPU twin (`clone-math.applyCloneStamps`) reads from a
+snapshot copy — same semantics, and the reference suite pins that
+exposure applies to HEALED pixels (clone runs before all color).
+
+Circles are aspect-corrected (radius is a width fraction; round on any
+frame). Clone coordinates live on the framed image and the pass runs
+before perspective, so warp correction transforms the healed result and
+stamp positions never need warping math of their own.
+
+The `params()` test-builder loud-line earned its keep immediately: the
+new `clones` field failed ONE compile line instead of ten runtime tests.
+
 ## August 25, 2026 — Photo engine E4f: brush masks
 
 Masks learn to be painted. "+ Brush" adds a mask whose weight comes from
