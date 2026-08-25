@@ -63,6 +63,25 @@ test('media editor: crop session, undo, re-edit, dirty confirm, publish', async 
       for (let i = 0; i < d.length; i += 4) sum += d[i] + d[i + 1] + d[i + 2];
       return sum / ((d.length / 4) * 3);
     });
+  // Luma VARIANCE of a 1:1 center crop — the probe for zero-mean effects
+  // (grain adds variance, background blur removes it); scaling down would
+  // average both away.
+  const readVariance = () =>
+    page.evaluate(() => {
+      const canvas = document.querySelector('canvas[aria-label="Preview"]') as HTMLCanvasElement;
+      const probe = document.createElement('canvas');
+      probe.width = 48;
+      probe.height = 48;
+      const ctx = probe.getContext('2d')!;
+      const sx = Math.max(0, Math.floor((canvas.width - 48) / 2));
+      const sy = Math.max(0, Math.floor((canvas.height - 48) / 2));
+      ctx.drawImage(canvas, sx, sy, 48, 48, 0, 0, 48, 48);
+      const d = ctx.getImageData(0, 0, 48, 48).data;
+      const lumas: number[] = [];
+      for (let i = 0; i < d.length; i += 4) lumas.push((d[i] + d[i + 1] + d[i + 2]) / 3);
+      const mean = lumas.reduce((a, b) => a + b, 0) / lumas.length;
+      return lumas.reduce((a, b) => a + (b - mean) * (b - mean), 0) / lumas.length;
+    });
   await page.waitForTimeout(500); // first engine draw is rAF-scheduled
   const neutralLuma = await readLuma();
   expect(neutralLuma).toBeGreaterThan(0); // the engine rendered real pixels
@@ -109,6 +128,14 @@ test('media editor: crop session, undo, re-edit, dirty confirm, publish', async 
   await page.getByRole('slider', { name: 'Exposure' }).fill('80');
   await page.waitForTimeout(300);
   expect(await readLuma()).toBeGreaterThan(preMaskLuma);
+
+  // Background blur (E4e): the center-covering mask at full blur must
+  // smooth the center crop — variance drops.
+  const preBlurVariance = await readVariance();
+  await page.getByRole('slider', { name: 'Blur', exact: true }).fill('100');
+  await page.waitForTimeout(300);
+  expect(await readVariance()).toBeLessThan(preBlurVariance);
+  await page.getByRole('slider', { name: 'Blur', exact: true }).fill('0');
 
   // Hold-to-compare: while pressed, the stage shows the ORIGINAL — the
   // darkened preview must come back up to the neutral reading.
@@ -164,23 +191,6 @@ test('media editor: crop session, undo, re-edit, dirty confirm, publish', async 
 
   // Grain (E4d): variance-probe — zero-mean noise won't move the mean, so
   // measure luma variance instead.
-  const readVariance = () =>
-    page.evaluate(() => {
-      const canvas = document.querySelector('canvas[aria-label="Preview"]') as HTMLCanvasElement;
-      const probe = document.createElement('canvas');
-      probe.width = 48;
-      probe.height = 48;
-      const ctx = probe.getContext('2d')!;
-      // 1:1 center crop — scaling down would average the grain away.
-      const sx = Math.max(0, Math.floor((canvas.width - 48) / 2));
-      const sy = Math.max(0, Math.floor((canvas.height - 48) / 2));
-      ctx.drawImage(canvas, sx, sy, 48, 48, 0, 0, 48, 48);
-      const d = ctx.getImageData(0, 0, 48, 48).data;
-      const lumas: number[] = [];
-      for (let i = 0; i < d.length; i += 4) lumas.push((d[i] + d[i + 1] + d[i + 2]) / 3);
-      const mean = lumas.reduce((a, b) => a + b, 0) / lumas.length;
-      return lumas.reduce((a, b) => a + (b - mean) * (b - mean), 0) / lumas.length;
-    });
   await page.getByRole('button', { name: 'Detail', exact: true }).click();
   const preGrainVariance = await readVariance();
   await page.getByRole('slider', { name: 'Grain', exact: true }).fill('100');

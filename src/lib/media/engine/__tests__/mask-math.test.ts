@@ -4,11 +4,13 @@ import {
   defaultLinearMask,
   defaultRadialMask,
   isNeutralMasks,
+  maskBlurWeight,
   maskDeltas,
   maskWeight,
   MAX_MASKS,
   moveLinearEndpoint,
   moveMask,
+  wantsBackgroundBlur,
 } from '../mask-math';
 import type { Mask } from '../../types';
 
@@ -92,6 +94,29 @@ describe('maskDeltas + applyMaskDeltas', () => {
     const warm = applyMaskDeltas([0.5, 0.5, 0.5], { ev: 0, saturation: 0, temperature: 1 });
     expect(warm[0]).toBeCloseTo(0.6);
     expect(warm[2]).toBeCloseTo(0.4);
+  });
+});
+
+describe('background blur (E4e)', () => {
+  it('blur weight is mask weight × amount, clamped across overlaps', () => {
+    const soft = radial({
+      rx: 0.5,
+      ry: 0.5,
+      feather: 0,
+      adjust: { exposure: 0, saturation: 0, temperature: 0, blur: 0.6 },
+    });
+    expect(maskBlurWeight([soft], 0.5, 0.5)).toBeCloseTo(0.6);
+    expect(maskBlurWeight([soft], 0.99, 0.99)).toBe(0);
+    expect(maskBlurWeight([soft, soft], 0.5, 0.5)).toBe(1); // 1.2 → clamped
+  });
+
+  it('a blur-only mask is NOT neutral, and plans the bg pass', () => {
+    const blurOnly = radial({
+      adjust: { exposure: 0, saturation: 0, temperature: 0, blur: 0.5 },
+    });
+    expect(isNeutralMasks([blurOnly])).toBe(false);
+    expect(wantsBackgroundBlur([blurOnly])).toBe(true);
+    expect(wantsBackgroundBlur([radial()])).toBe(false);
   });
 });
 

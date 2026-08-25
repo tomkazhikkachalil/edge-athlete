@@ -62,6 +62,10 @@ export const BLUR_SMALL_TAPS = 5;
 /** Large blur (clarity/NR base): σ=2, 9 taps at HALF resolution. */
 export const BLUR_LARGE_SIGMA = 2;
 export const BLUR_LARGE_TAPS = 9;
+/** Background blur (mask blur, E4e): σ=4, 17 taps at QUARTER resolution
+ *  — effective reach ≈16 full-res px, a real defocus rather than a soften. */
+export const BLUR_BG_SIGMA = 4;
+export const BLUR_BG_TAPS = 17;
 
 // ---- Helpers ----
 

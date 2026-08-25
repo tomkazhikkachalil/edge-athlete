@@ -11,6 +11,8 @@
  */
 
 import {
+  BLUR_BG_SIGMA,
+  BLUR_BG_TAPS,
   BLUR_LARGE_SIGMA,
   BLUR_LARGE_TAPS,
   BLUR_SMALL_SIGMA,
@@ -103,6 +105,7 @@ ${lines.join('\n')}
 
 export const BLUR_SMALL_FRAGMENT = makeBlurFragment(BLUR_SMALL_SIGMA, BLUR_SMALL_TAPS);
 export const BLUR_LARGE_FRAGMENT = makeBlurFragment(BLUR_LARGE_SIGMA, BLUR_LARGE_TAPS);
+export const BLUR_BG_FRAGMENT = makeBlurFragment(BLUR_BG_SIGMA, BLUR_BG_TAPS);
 
 /** Keystone warp (inverse mapping, centered Y-up coords) — the GPU twin of
  *  perspective-math.ts. Outside samples render opaque black. */
@@ -149,10 +152,30 @@ uniform vec4 u_maskGeom[${MAX_MASKS}];   // radial: cx,cy,rx,ry | linear: x0,y0,
 uniform vec4 u_maskKind[${MAX_MASKS}];   // kind (0 radial / 1 linear), feather, invert, unused
 uniform vec3 u_maskAdjust[${MAX_MASKS}]; // exposure, saturation, temperature
 uniform vec2 u_grain; // amount (0 = off), cell size in device px
+uniform sampler2D u_blurBg; // σ=${glf(BLUR_BG_SIGMA)} quarter-res defocus (mask blur)
+uniform float u_bgBlurEnabled; // 0/1 — set only when the bg blur pass ran
 
 out vec4 outColor;
 
 const vec3 LUMA = vec3(${glf(LUMA_R)}, ${glf(LUMA_G)}, ${glf(LUMA_B)});
+
+/** Analytic mask weight (mask-math.maskWeight's GPU twin) — shared by the
+ *  blur-mix (top of pipeline) and the local-light stage. */
+float maskW(int i, vec2 uv) {
+  float w;
+  if (u_maskKind[i].x < 0.5) {
+    vec2 d = (uv - u_maskGeom[i].xy) / max(u_maskGeom[i].zw, vec2(1e-4));
+    float inner = max(0.0, 1.0 - u_maskKind[i].y);
+    w = 1.0 - smoothstep(inner, 1.0, length(d));
+    if (u_maskKind[i].z > 0.5) w = 1.0 - w;
+  } else {
+    vec2 grad = u_maskGeom[i].zw - u_maskGeom[i].xy;
+    float len2 = dot(grad, grad);
+    float t = len2 < 1e-8 ? 1.0 : dot(uv - u_maskGeom[i].xy, grad) / len2;
+    w = 1.0 - smoothstep(0.0, 1.0, t);
+  }
+  return w;
+}
 
 vec3 rgb2hsl(vec3 c) {
   float mx = max(c.r, max(c.g, c.b));
@@ -183,6 +206,18 @@ vec3 hsl2rgb(vec3 hsl) {
 void main() {
   vec2 uv = gl_FragCoord.xy / u_resolution;
   vec3 rgb = texture(u_src, uv).rgb;
+
+  // Mask blur (background defocus) mixes on the INPUT — before detail and
+  // every color stage — so blurred regions take all adjustments uniformly.
+  if (u_bgBlurEnabled > 0.5 && u_maskCount > 0) {
+    float wBlur = 0.0;
+    for (int i = 0; i < ${MAX_MASKS}; i++) {
+      if (i >= u_maskCount) break;
+      wBlur += maskW(i, uv) * u_maskKind[i].w;
+    }
+    wBlur = clamp(wBlur, 0.0, 1.0);
+    if (wBlur > 0.0) rgb = mix(rgb, texture(u_blurBg, uv).rgb, wBlur);
+  }
 
   // Detail pass FIRST (color math runs on the detail-processed pixel):
   // edge-masked NR toward the large blur → clarity (local-contrast ratio
@@ -237,18 +272,7 @@ void main() {
     float mTemp = 0.0;
     for (int i = 0; i < ${MAX_MASKS}; i++) {
       if (i >= u_maskCount) break;
-      float w;
-      if (u_maskKind[i].x < 0.5) {
-        vec2 d = (uv - u_maskGeom[i].xy) / max(u_maskGeom[i].zw, vec2(1e-4));
-        float inner = max(0.0, 1.0 - u_maskKind[i].y);
-        w = 1.0 - smoothstep(inner, 1.0, length(d));
-        if (u_maskKind[i].z > 0.5) w = 1.0 - w;
-      } else {
-        vec2 grad = u_maskGeom[i].zw - u_maskGeom[i].xy;
-        float len2 = dot(grad, grad);
-        float t = len2 < 1e-8 ? 1.0 : dot(uv - u_maskGeom[i].xy, grad) / len2;
-        w = 1.0 - smoothstep(0.0, 1.0, t);
-      }
+      float w = maskW(i, uv);
       mEv += w * u_maskAdjust[i].x;
       mSat += w * u_maskAdjust[i].y;
       mTemp += w * u_maskAdjust[i].z;

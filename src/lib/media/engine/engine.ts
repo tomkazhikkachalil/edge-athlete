@@ -18,6 +18,7 @@
 
 import { compileProgram, createSourceTexture, getWebGL2Context } from './gl';
 import {
+  BLUR_BG_FRAGMENT,
   BLUR_LARGE_FRAGMENT,
   BLUR_SMALL_FRAGMENT,
   COPY_FRAGMENT,
@@ -29,7 +30,7 @@ import { NEUTRAL_ENGINE_PARAMS, planPasses, type EngineParams } from './params';
 import { isNeutralPerspective } from './perspective-math';
 import { bakeHslLut, HSL_LUT_SIZE, isNeutralHsl } from './hsl-math';
 import { bakeCurveLut, CURVE_LUT_SIZE, isNeutralCurves } from './curves-math';
-import { MAX_MASKS } from './mask-math';
+import { MAX_MASKS, wantsBackgroundBlur } from './mask-math';
 
 export interface Engine {
   /** Upload (or replace) the source texture and size the canvas to match.
@@ -89,6 +90,8 @@ export function createEngine(
     maskKind: gl.getUniformLocation(composite, 'u_maskKind'),
     maskAdjust: gl.getUniformLocation(composite, 'u_maskAdjust'),
     grain: gl.getUniformLocation(composite, 'u_grain'),
+    blurBg: gl.getUniformLocation(composite, 'u_blurBg'),
+    bgBlurEnabled: gl.getUniformLocation(composite, 'u_bgBlurEnabled'),
   };
 
   let lost = false;
@@ -101,14 +104,18 @@ export function createEngine(
   let copyProgram: WebGLProgram | null | undefined;
   let blurSmallProgram: WebGLProgram | null | undefined;
   let blurLargeProgram: WebGLProgram | null | undefined;
+  let blurBgProgram: WebGLProgram | null | undefined;
   let warpProgram: WebGLProgram | null | undefined;
   let fullA: BlurTarget | null = null;
   let fullB: BlurTarget | null = null;
   let halfA: BlurTarget | null = null;
   let halfB: BlurTarget | null = null;
+  let quarterA: BlurTarget | null = null;
+  let quarterB: BlurTarget | null = null;
   let warpTarget: BlurTarget | null = null;
   let blurSmallReady = false;
   let blurLargeReady = false;
+  let blurBgReady = false;
   /** Perspective the warp texture (and any blurs) were computed for. */
   let warpFor: string | null = null;
   // Mixer LUT (unit 3): source-independent, re-baked only when the mixer
@@ -168,10 +175,13 @@ export function createEngine(
   };
 
   const dropTargets = () => {
-    for (const t of [fullA, fullB, halfA, halfB, warpTarget]) if (t) gl.deleteTexture(t.tex);
-    fullA = fullB = halfA = halfB = warpTarget = null;
+    for (const t of [fullA, fullB, halfA, halfB, quarterA, quarterB, warpTarget]) {
+      if (t) gl.deleteTexture(t.tex);
+    }
+    fullA = fullB = halfA = halfB = quarterA = quarterB = warpTarget = null;
     blurSmallReady = false;
     blurLargeReady = false;
+    blurBgReady = false;
     warpFor = null;
   };
 
@@ -218,6 +228,7 @@ export function createEngine(
     warpFor = key;
     blurSmallReady = false;
     blurLargeReady = false;
+    blurBgReady = false;
     return true;
   };
 
@@ -252,6 +263,24 @@ export function createEngine(
     return true;
   };
 
+  /** Quarter-res defocus (mask background blur): downsample twice via the
+   *  copy pass, σ=4 ping-pong; final blur lands in quarterA. */
+  const computeBlurBg = (inputTex: WebGLTexture): boolean => {
+    copyProgram ??= compileProgram(gl, VERTEX_SHADER, COPY_FRAGMENT);
+    blurBgProgram ??= compileProgram(gl, VERTEX_SHADER, BLUR_BG_FRAGMENT);
+    if (!copyProgram || !blurBgProgram) return false;
+    const qw = Math.max(1, Math.round(srcWidth / 4));
+    const qh = Math.max(1, Math.round(srcHeight / 4));
+    quarterA ??= makeTarget(qw, qh);
+    quarterB ??= makeTarget(qw, qh);
+    if (!quarterA || !quarterB) return false;
+    runPass(copyProgram, inputTex, quarterA);
+    runPass(blurBgProgram, quarterA.tex, quarterB, [1, 0]);
+    runPass(blurBgProgram, quarterB.tex, quarterA, [0, 1]);
+    blurBgReady = true;
+    return true;
+  };
+
   const setSource = (source: TexImageSource, width: number, height: number) => {
     if (lost || destroyed) return;
     canvas.width = width;
@@ -261,6 +290,7 @@ export function createEngine(
     srcHeight = height;
     blurSmallReady = false;
     blurLargeReady = false;
+    blurBgReady = false;
     gl.bindTexture(gl.TEXTURE_2D, texture);
     // uv comes from gl_FragCoord (origin bottom-left) — flip the upload so
     // source row 0 (top) lands at v=1 and the draw is upright. Blur FBO
@@ -285,11 +315,14 @@ export function createEngine(
       warpFor = null;
       blurSmallReady = false;
       blurLargeReady = false;
+      blurBgReady = false;
     }
     // Blur availability degrades gracefully: a failed compile/alloc just
     // leaves the sampler on src — detail sliders no-op instead of breaking.
     const haveSmall = plan.blurSmall && (blurSmallReady || computeBlurSmall(inputTex));
     const haveLarge = plan.blurLarge && (blurLargeReady || computeBlurLarge(inputTex));
+    const haveBg =
+      wantsBackgroundBlur(p.masks) && (blurBgReady || computeBlurBg(inputTex));
 
     // LUT stages: bake + upload only when their values changed.
     const wantHsl = !isNeutralHsl(p.hsl);
@@ -322,6 +355,8 @@ export function createEngine(
     gl.bindTexture(gl.TEXTURE_2D, hslActive && hslLutTex ? hslLutTex : inputTex);
     gl.activeTexture(gl.TEXTURE4);
     gl.bindTexture(gl.TEXTURE_2D, curvesActive && curveLutTex ? curveLutTex : inputTex);
+    gl.activeTexture(gl.TEXTURE5);
+    gl.bindTexture(gl.TEXTURE_2D, haveBg && quarterA ? quarterA.tex : inputTex);
     gl.uniform1i(loc.src, 0);
     gl.uniform1i(loc.blurSmall, 1);
     gl.uniform1i(loc.blurLarge, 2);
@@ -330,7 +365,10 @@ export function createEngine(
     gl.uniform1i(loc.curveLut, 4);
     gl.uniform1f(loc.curveEnabled, curvesActive ? 1 : 0);
     gl.uniform2f(loc.grain, p.grain.amount, p.grain.size);
+    gl.uniform1i(loc.blurBg, 5);
+    gl.uniform1f(loc.bgBlurEnabled, haveBg ? 1 : 0);
     // Local masks: analytic uniforms, y flipped into the shader's y-up uv.
+    // u_maskKind.w carries the per-mask blur amount (E4e).
     const maskCount = Math.min(p.masks.length, MAX_MASKS);
     gl.uniform1i(loc.maskCount, maskCount);
     if (maskCount > 0) {
@@ -339,12 +377,13 @@ export function createEngine(
       const adjust = new Float32Array(MAX_MASKS * 3);
       for (let i = 0; i < maskCount; i++) {
         const m = p.masks[i];
+        const blur = m.adjust.blur ?? 0;
         if (m.kind === 'radial') {
           geom.set([m.cx, 1 - m.cy, m.rx, m.ry], i * 4);
-          kind.set([0, m.feather, m.invert ? 1 : 0, 0], i * 4);
+          kind.set([0, m.feather, m.invert ? 1 : 0, blur], i * 4);
         } else {
           geom.set([m.x0, 1 - m.y0, m.x1, 1 - m.y1], i * 4);
-          kind.set([1, 0, 0, 0], i * 4);
+          kind.set([1, 0, 0, blur], i * 4);
         }
         adjust.set([m.adjust.exposure, m.adjust.saturation, m.adjust.temperature], i * 3);
       }

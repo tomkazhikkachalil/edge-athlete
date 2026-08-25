@@ -171,6 +171,17 @@ export default function MaskPanel({
             value={signedToUi(selected.adjust.temperature)}
             onChange={ui => patchAdjust('temperature', ui)}
           />
+          <EditorSlider
+            label="Blur"
+            value={unsignedToUi(selected.adjust.blur ?? 0)}
+            min={0}
+            onChange={ui =>
+              patchSelected(
+                { ...selected, adjust: { ...selected.adjust, blur: uiToUnsigned(ui) } },
+                `mask.${selectedIndex}.blur`
+              )
+            }
+          />
         </div>
       )}
     </div>
