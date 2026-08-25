@@ -26,7 +26,8 @@ import { deriveYearOptions, matchesYearFilter } from '@/lib/profile-filters';
 import { formatHeight, formatWeightWithUnit, formatAge, formatDate } from '@/lib/formatters';
 import { effectiveSessionStatus } from '@/lib/workouts/status';
 import { weeklySummary, streakWeeks, latestPB } from '@/lib/workouts/dashboard';
-import HeroStrip from './vitals/HeroStrip';
+import { activeDaysThisWeek } from '@/lib/vitals/derive';
+import VitalsHero from './vitals/VitalsHero';
 import PBShowcase from './vitals/PBShowcase';
 import ProgressSection from './vitals/ProgressSection';
 import VitalsSettingsModal from './vitals/VitalsSettingsModal';
@@ -100,11 +101,16 @@ interface CurrentVitals {
   dob: string | null;
 }
 
+interface HeroProfile {
+  firstName: string | null;
+  avatarUrl: string | null;
+}
+
 // Shared look for the two responsive placements of the settings gear.
 // Display classes (flex/hidden) stay per-instance — a display value in a
 // shared string is the .ea-icon-btn lg:hidden trap.
 const VITALS_GEAR_CLASSES =
-  'items-center justify-center p-2.5 border border-border-strong text-secondary rounded-lg hover:bg-surface-muted transition-colors';
+  'vt-pill items-center justify-center p-2.5 border border-border-strong text-secondary rounded-full hover:bg-surface-muted transition-colors';
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 
@@ -341,6 +347,7 @@ export default function VitalsTab({ profileId, currentUserId, isOwnProfile = fal
   const [workouts, setWorkouts] = useState<ServerWorkoutSession[]>([]);
   const [athleteBirthday, setAthleteBirthday] = useState<string | null>(null);
   const [currentVitals, setCurrentVitals] = useState<CurrentVitals | null>(null);
+  const [heroProfile, setHeroProfile] = useState<HeroProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [showAddVital, setShowAddVital] = useState(false);
@@ -377,6 +384,7 @@ export default function VitalsTab({ profileId, currentUserId, isOwnProfile = fal
           setTrainingPosts(data.trainingPosts || []);
           setAthleteBirthday(data.athleteBirthday || null);
           setCurrentVitals(data.currentVitals || null);
+          setHeroProfile(data.profile || null);
           if (workoutsRes.ok) {
             const workoutData = await workoutsRes.json();
             setWorkouts(workoutData.sessions || []);
@@ -519,6 +527,7 @@ export default function VitalsTab({ profileId, currentUserId, isOwnProfile = fal
   );
   const weekly = useMemo(() => weeklySummary(completedWorkouts), [completedWorkouts]);
   const streak = useMemo(() => streakWeeks(completedWorkouts), [completedWorkouts]);
+  const activeDays = useMemo(() => activeDaysThisWeek(completedWorkouts), [completedWorkouts]);
   const pbSpotlight = useMemo(() => latestPB(vitals), [vitals]);
   const [showAllActivity, setShowAllActivity] = useState(false);
 
@@ -549,7 +558,7 @@ export default function VitalsTab({ profileId, currentUserId, isOwnProfile = fal
   }
 
   return (
-    <div className="space-y-8">
+    <div className="vt-scope space-y-8">
       {/* ── Edge Vitals header + workout actions ─────────────────────── */}
       <div>
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
@@ -583,7 +592,7 @@ export default function VitalsTab({ profileId, currentUserId, isOwnProfile = fal
               <button
                 onClick={openStartWorkout}
                 disabled={startingWorkout}
-                className="flex items-center gap-2 px-4 py-2.5 bg-brand text-white rounded-lg font-bold text-sm hover:bg-brand-hover transition-colors shadow-sm disabled:opacity-60"
+                className="vt-pill flex items-center gap-2 px-5 py-2.5 bg-brand text-white rounded-full font-bold text-sm hover:bg-brand-hover transition-colors shadow-sm disabled:opacity-60"
               >
                 {startingWorkout ? (
                   <span className="animate-spin rounded-full h-3.5 w-3.5 border-b-2 border-white" aria-hidden="true" />
@@ -594,7 +603,7 @@ export default function VitalsTab({ profileId, currentUserId, isOwnProfile = fal
               </button>
               <button
                 onClick={() => router.push('/app/workout/new')}
-                className="flex items-center gap-1.5 px-4 py-2.5 border border-border-strong text-secondary rounded-lg font-semibold text-sm hover:bg-surface-muted transition-colors"
+                className="vt-pill flex items-center gap-1.5 px-5 py-2.5 border border-border-strong text-secondary rounded-full font-semibold text-sm hover:bg-surface-muted transition-colors"
               >
                 <History className="w-3.5 h-3.5" aria-hidden="true" />
                 Log Past Workout
@@ -646,8 +655,16 @@ export default function VitalsTab({ profileId, currentUserId, isOwnProfile = fal
         )}
       </div>
 
-      {/* ── Hero: this week, streak, latest PB — always all-time-true ── */}
-      <HeroStrip summary={weekly} streak={streak} pb={pbSpotlight} />
+      {/* ── Hero: greeting, active-days ring, this week, streak, latest PB —
+             always all-time-true ─────────────────────────────────────────── */}
+      <VitalsHero
+        profile={heroProfile}
+        isOwnProfile={isOwnProfile}
+        summary={weekly}
+        streak={streak}
+        activeDays={activeDays}
+        pb={pbSpotlight}
+      />
 
       {/* ── Personal bests — the trophy wall ─────────────────────────── */}
       <PBShowcase vitals={vitals} />

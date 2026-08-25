@@ -28,7 +28,7 @@ export async function GET(request: NextRequest) {
     // Check profile visibility (+ current-state vitals for the summary strip)
     const { data: profile } = await supabase
       .from('profiles')
-      .select('id, visibility, birthday, dob, height_cm, weight_kg, weight_display, weight_unit')
+      .select('id, visibility, birthday, dob, height_cm, weight_kg, weight_display, weight_unit, first_name, avatar_url')
       .eq('id', profileId)
       .single();
 
@@ -133,6 +133,12 @@ export async function GET(request: NextRequest) {
         weightDisplay: profile.weight_display ?? null,
         weightUnit: profile.weight_unit ?? null,
         dob: profile.dob ?? null,
+      },
+      // The dashboard hero's greeting line — display data the viewer can
+      // already see on the profile page itself, nothing new is exposed.
+      profile: {
+        firstName: profile.first_name ?? null,
+        avatarUrl: profile.avatar_url ?? null,
       },
     });
   } catch (error) {
