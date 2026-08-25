@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAuth, getSupabaseAdmin } from '@/lib/auth-server';
+import { toProxyUrl } from '@/lib/media/proxy-url';
 
 // ── GET /api/messages/[conversationId] ───────────────────────────────────────
 // Returns conversation details + cursor-paginated messages (50/page, newest first).
@@ -158,6 +159,11 @@ export async function GET(
           return { ...msg, content: null, media_url: null, media_type: null, shared_post_id: null, shared_profile_id: null };
         }
 
+        // The message's own media (image/video) is proxied and re-authorized
+        // per participant. A gif_reaction is an external Giphy URL, which
+        // toProxyUrl leaves untouched (not a protected bucket).
+        const mediaUrl = toProxyUrl(msg.media_url, { type: 'message', id: msg.id });
+
         if (msg.type === 'shared_post' && msg.shared_post_id) {
           const { data: post } = await supabase
             .from('posts')
@@ -172,7 +178,19 @@ export async function GET(
             `)
             .eq('id', msg.shared_post_id)
             .maybeSingle();
-          return { ...msg, shared_post: await filterViewableSharedPost(post) };
+          const viewable = await filterViewableSharedPost(post);
+          // The shared original's media is post media — proxied under the
+          // original post's id (its own visibility governs it).
+          const shared_post = viewable
+            ? {
+                ...viewable,
+                media: (viewable.media || []).map((m: { media_url: string; media_type: string }) => ({
+                  ...m,
+                  media_url: toProxyUrl(m.media_url, { type: 'post', id: viewable.id }),
+                })),
+              }
+            : null;
+          return { ...msg, media_url: mediaUrl, shared_post };
         }
 
         if (msg.type === 'shared_profile' && msg.shared_profile_id) {
@@ -181,10 +199,10 @@ export async function GET(
             .select('id, first_name, last_name, full_name, avatar_url, handle, bio, sport')
             .eq('id', msg.shared_profile_id)
             .maybeSingle();
-          return { ...msg, shared_profile: profile };
+          return { ...msg, media_url: mediaUrl, shared_profile: profile };
         }
 
-        return msg;
+        return { ...msg, media_url: mediaUrl };
       })
     );
 
