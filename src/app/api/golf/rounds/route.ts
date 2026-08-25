@@ -4,9 +4,12 @@ import { canViewProfile } from '@/lib/privacy';
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-// Escape characters that could break out of a PostgREST ilike pattern
+// Sanitize input for a PostgREST .or()/.ilike() filter: STRIP the structural
+// delimiters (comma, parens, double-quote) so a value can't break out and
+// inject or-terms, then escape LIKE wildcards. Backslash-escaping delimiters
+// is not PostgREST's documented mechanism. Same as course-catalog `likeSafe`.
 function sanitizeForFilter(input: string): string {
-  return input.replace(/[\\%_(),."']/g, '\\$&');
+  return input.replace(/[,()"]/g, ' ').replace(/[%_\\]/g, m => `\\${m}`).trim();
 }
 
 // ── GET /api/golf/rounds ──────────────────────────────────────────────────────
