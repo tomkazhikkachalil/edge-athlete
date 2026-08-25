@@ -44,17 +44,22 @@ Planned, same shape (not yet consumed by the editor):
 - `POST {base}/inpaint` — image + mask → healed image bytes.
 - `POST {base}/upscale?factor=2|4` — image → enlarged image bytes.
 
-## Self-hosting options and what they cost
+## Hosting options and what they cost
+
+**Local runners are ruled out** (Tom, Aug 25 2026: "production ready at
+all times" — nothing user-facing may depend on a machine that can be
+off). A `localhost` runner was once listed here as a $0 evaluation path;
+it is retired. The only acceptable runners are production-hosted:
 
 | Option | Model | Cost | Notes |
 | --- | --- | --- | --- |
-| **Your own Mac** (dev/testing) | MobileSAM / SlimSAM via a ~50-line Python (FastAPI + torch) server | **$0** | Apple-silicon CPU/MPS handles 512px segmentation in ~1s. Point `NEXT_PUBLIC_AI_RUNNER_URL=http://localhost:8765` in `.env.local`. Good enough to evaluate the whole feature. |
 | Always-on small VPS (CPU) | MobileSAM | ~$5–20/mo | Seconds-per-image latency; fine for low volume. |
 | GPU cloud (serverless or dedicated) | SAM / LaMa / Real-ESRGAN | usage-based, real money | Needed for snappy latency at user scale. |
 
-**Decision rule** (from the mandate): anything past the "your own Mac"
-row is a stop-and-ask. The env var is the switch; the code never decides
-to spend.
+**Decision rule** (from the mandate): with the free row retired, *every*
+way to turn this feature on costs money, so any enablement is a
+stop-and-ask. The env var is the switch; the code never decides to
+spend.
 
 ## Operational notes
 
