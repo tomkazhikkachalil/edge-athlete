@@ -6,6 +6,7 @@ import ProgressRing from './ProgressRing';
 import StreakBadge from './StreakBadge';
 import { formatVolume, formatDuration } from '@/lib/workouts/summary';
 import { parseDateLocal } from '@/lib/formatters';
+import { isRecentPB } from '@/lib/vitals/derive';
 import { categoryAccent, metricCategory } from './category-colors';
 import type { WeeklySummary, LatestPB } from '@/lib/workouts/dashboard';
 
@@ -138,7 +139,14 @@ export default function VitalsHero({
         </div>
         {pb ? (
           <div className="min-w-0">
-            <div className="text-xs text-muted uppercase tracking-wide">Latest personal best</div>
+            <div className="flex items-center gap-1.5">
+              <span className="text-xs text-muted uppercase tracking-wide">Latest personal best</span>
+              {isRecentPB(pb.recordedAt) && (
+                <span className="vt-pop inline-flex rounded-full bg-amber-100 dark:bg-amber-900/60 px-2 py-0.5 text-[10px] font-bold text-amber-700 dark:text-amber-300">
+                  New!
+                </span>
+              )}
+            </div>
             <div className="text-lg font-bold text-primary truncate tabular-nums">
               {pb.label} · {pb.valueDisplay}
             </div>

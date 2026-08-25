@@ -163,6 +163,9 @@ export function buildWorkoutStatsData(input: {
   title: string | null;
   durationSeconds: number;
   summary: WorkoutSummary;
+  /** PRs the athlete confirmed at finish — display data only; the field is
+   *  omitted entirely when empty so old posts' shape stays byte-identical. */
+  prs?: Array<{ label: string; display: string }>;
 }): Record<string, unknown> {
   return {
     type: 'workout_session',
@@ -173,5 +176,8 @@ export function buildWorkoutStatsData(input: {
     total_sets: input.summary.totalSets,
     total_volume_lbs: input.summary.totalVolumeLbs,
     top_line: input.summary.topLine,
+    ...(input.prs && input.prs.length > 0
+      ? { prs: input.prs.map(pr => ({ label: pr.label, display: pr.display })) }
+      : {}),
   };
 }
