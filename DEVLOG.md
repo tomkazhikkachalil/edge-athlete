@@ -1,5 +1,39 @@
 # Development Log
 
+## August 24, 2026 — Composer: capture in the moment, media first
+
+Two changes to how a general post starts, both Tom's calls:
+
+**Native-camera capture.** The composer's media section leads with a
+three-button row — Take photo / Record video / Upload — where the first
+two open the DEVICE'S OWN camera via `capture="environment"` file inputs.
+Chosen over a getUserMedia in-app viewfinder deliberately: Tom's steer
+was "maximize media input quality across different cameras," and the
+native path wins it — every phone contributes its full-quality camera
+app (browser viewfinders capture worse), while the existing editor
+normalizes whatever arrives (HEIC re-encodes, dimension caps, crop/
+adjust/filter before posting). Captured shots flow through the exact
+same validate→editor pipeline as uploads. Desktop ignores `capture` and
+falls back to the file picker — same buttons, no detection code. All
+three inputs also gained the onClick value-reset (the library input
+never had it, so re-picking the same file silently no-oped —
+AddVitalModal precedent).
+
+**Media-first order.** The modal body is now: crash-draft notice → MEDIA
+(capture row + dropzone + previews) → caption → post-type picker →
+stat-line/sport sections → tags → hashtags → tag people → visibility.
+PostPreview reordered to match (media above caption) so the preview
+tells the same story as the composer. The five isLiveSetup ternaries
+ride along unchanged; visibility stays the last visible block for golf
+live setup; sport sections keep their mounted-for-the-modal's-life state
+(static JSX reorder — no runtime remounts).
+
+e2e: the library input is now selected as `input[type="file"][multiple]`
+(the capture inputs are single-file — the old `.first()` would have
+grabbed one of them), and the media spec pins that the Take photo /
+Record video buttons exist. Capture itself is Tom's device pass — the
+native camera lives outside the browser.
+
 ## August 24, 2026 — Dummy-proofing PR 3: mistakes are recoverable
 
 The resumability half of the principle: making a mistake — or having the

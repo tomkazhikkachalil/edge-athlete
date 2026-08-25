@@ -15,8 +15,14 @@ test('media editor: crop session, undo, re-edit, dirty confirm, publish', async 
   const composer = page.getByPlaceholder('Share your thoughts...');
   await expect(composer).toBeVisible();
 
+  // Media-first round: native-camera capture buttons headline the composer.
+  // (Capture itself can't run headless — the camera is outside the browser;
+  // the device pass covers it. Here we pin that the affordances exist.)
+  await expect(page.getByRole('button', { name: 'Take photo' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Record video' })).toBeVisible();
+
   // Pick a file — the composer routes every pick through the editor.
-  await page.locator('input[type="file"]').first().setInputFiles(fixture);
+  await page.locator('input[type="file"][multiple]').setInputFiles(fixture);
   await expect(page.getByRole('heading', { name: 'Edit media' })).toBeVisible({ timeout: 15_000 });
 
   // A recipe change (aspect chip) arms undo/redo.
@@ -100,8 +106,7 @@ test('video editor: clips/crop/cover tools, frame step, split within the asset',
   await page.getByRole('button', { name: /what's on your mind/i }).click();
   await expect(page.getByPlaceholder('Share your thoughts...')).toBeVisible();
   await page
-    .locator('input[type="file"]')
-    .first()
+    .locator('input[type="file"][multiple]')
     .setInputFiles({ name: 'clip.webm', mimeType: 'video/webm', buffer: Buffer.from(webm) });
 
   await expect(page.getByRole('heading', { name: 'Edit media' })).toBeVisible({ timeout: 15_000 });
