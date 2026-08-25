@@ -36,19 +36,30 @@ import HistoryRail from './HistoryRail';
 import PerspectivePanel from './PerspectivePanel';
 import MaskPanel, { DEFAULT_BRUSH_SETTINGS, type BrushSettings } from './MaskPanel';
 import MaskOverlay from './MaskOverlay';
+import RetouchPanel from './RetouchPanel';
+import RetouchOverlay from './RetouchOverlay';
 import FilterStrip from './FilterStrip';
 import Filmstrip from './Filmstrip';
 import VideoStage from './VideoStage';
 import VideoCropStage from './VideoCropStage';
 import { useEditorSession } from './useEditorSession';
 
-type Tool = 'crop' | 'adjust' | 'filter' | 'masks' | 'perspective' | 'clips' | 'poster';
+type Tool =
+  | 'crop'
+  | 'adjust'
+  | 'filter'
+  | 'masks'
+  | 'retouch'
+  | 'perspective'
+  | 'clips'
+  | 'poster';
 
 const IMAGE_TOOLS: Array<{ id: Tool; label: string }> = [
   { id: 'crop', label: 'Crop' },
   { id: 'adjust', label: 'Adjust' },
   { id: 'filter', label: 'Filters' },
   { id: 'masks', label: 'Masks' },
+  { id: 'retouch', label: 'Retouch' },
   { id: 'perspective', label: 'Perspective' },
 ];
 const VIDEO_TOOLS: Array<{ id: Tool; label: string }> = [
@@ -91,6 +102,8 @@ export default function MediaEditorModal({ assets: initialAssets, config, onDone
   // settings the NEXT painted stroke will carry.
   const [selectedMaskIndex, setSelectedMaskIndex] = useState(0);
   const [brushSettings, setBrushSettings] = useState<BrushSettings>(DEFAULT_BRUSH_SETTINGS);
+  // Retouch tool: which clone stamp is selected.
+  const [selectedCloneIndex, setSelectedCloneIndex] = useState(0);
   // White-balance eyedropper: stage waits for one neutral-gray tap.
   const [wbPicking, setWbPicking] = useState(false);
 
@@ -241,6 +254,15 @@ export default function MediaEditorModal({ assets: initialAssets, config, onDone
         {activeTool === 'perspective' && (
           <PerspectivePanel
             recipe={imageRecipe}
+            onPatch={(patch, keys) => patchRecipe(active.id, patch, keys)}
+            engineAvailable={isEngineSupported()}
+          />
+        )}
+        {activeTool === 'retouch' && (
+          <RetouchPanel
+            recipe={imageRecipe}
+            selectedIndex={selectedCloneIndex}
+            onSelectIndex={setSelectedCloneIndex}
             onPatch={(patch, keys) => patchRecipe(active.id, patch, keys)}
             engineAvailable={isEngineSupported()}
           />
@@ -437,6 +459,16 @@ export default function MediaEditorModal({ assets: initialAssets, config, onDone
                     onSelect={setSelectedMaskIndex}
                     onChange={(masks, keys) => patchRecipe(active.id, { masks }, keys)}
                     brushSettings={brushSettings}
+                  />
+                )}
+                {activeTool === 'retouch' && (
+                  <RetouchOverlay
+                    clones={imageRecipe.clones ?? []}
+                    selectedIndex={selectedCloneIndex}
+                    onSelect={setSelectedCloneIndex}
+                    onChange={(clones, keys) =>
+                      patchRecipe(active.id, { clones: clones.length > 0 ? clones : undefined }, keys)
+                    }
                   />
                 )}
                 {wbPicking && (

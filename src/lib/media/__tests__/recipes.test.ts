@@ -175,6 +175,20 @@ describe('defaults and no-op detection', () => {
     expect(parseRecipe(serializeRecipe({ ...base, masks: [many] }))).toBeNull();
   });
 
+  it('clone stamps: absent/empty are no-ops; stamps round-trip; cap enforced (E4g)', () => {
+    const base = defaultImageRecipe();
+    expect(isNoopRecipe({ ...base, clones: [] })).toBe(true);
+    const s = { srcX: 0.7, srcY: 0.4, dstX: 0.3, dstY: 0.4, radius: 0.1, feather: 0.6 };
+    const recipe = { ...base, clones: [s] };
+    expect(isNoopRecipe(recipe)).toBe(false);
+    expect(parseRecipe(serializeRecipe(recipe))).toEqual(recipe);
+    const nine = { ...base, clones: Array.from({ length: 9 }, () => s) };
+    expect(parseRecipe(serializeRecipe(nine))).toBeNull();
+    expect(
+      parseRecipe(serializeRecipe({ ...base, clones: [{ ...s, radius: 0.9 }] }))
+    ).toBeNull();
+  });
+
   it('grain: absent/zero-amount is a no-op; settings round-trip; range enforced', () => {
     const base = defaultImageRecipe();
     expect(isNoopRecipe({ ...base, grain: { amount: 0, size: 2 } })).toBe(true);

@@ -29,7 +29,8 @@ import { isNeutralHsl, neutralHslMix, normalizeHslMix } from './hsl-math';
 import { isNeutralCurves } from './curves-math';
 import { isNeutralMasks } from './mask-math';
 import { isNeutralGrain } from './grain-math';
-import type { CurveSet, GrainSettings, HslMix, Mask } from '../types';
+import { isNeutralClones } from './clone-math';
+import type { CloneStamp, CurveSet, GrainSettings, HslMix, Mask } from '../types';
 import type {
   Adjustments,
   ColorAdjustments,
@@ -53,6 +54,8 @@ export interface EngineParams {
   masks: Mask[];
   /** Film grain; amount 0 = none. */
   grain: GrainSettings;
+  /** Clone stamps (healing v1); [] = none. */
+  clones: CloneStamp[];
 }
 
 export const NEUTRAL_ENGINE_PARAMS: EngineParams = {
@@ -65,6 +68,7 @@ export const NEUTRAL_ENGINE_PARAMS: EngineParams = {
   curves: {},
   masks: [],
   grain: { amount: 0, size: 1.5 },
+  clones: [],
 };
 
 /** Preset lerped toward neutral by strength (0 = off, 1 = full preset). */
@@ -130,6 +134,7 @@ export function recipeToEngineParams(recipe: ImageRecipe): EngineParams {
     curves: recipe.curves ? { ...recipe.curves } : {},
     masks: recipe.masks ? recipe.masks.map(m => ({ ...m, adjust: { ...m.adjust } })) : [],
     grain: recipe.grain ? { ...recipe.grain } : { amount: 0, size: 1.5 },
+    clones: recipe.clones ? recipe.clones.map(stamp => ({ ...stamp })) : [],
   };
 }
 
@@ -147,7 +152,8 @@ export function hasAdvancedParams(params: EngineParams): boolean {
     !isNeutralHsl(params.hsl) ||
     !isNeutralCurves(params.curves) ||
     !isNeutralMasks(params.masks) ||
-    !isNeutralGrain(params.grain)
+    !isNeutralGrain(params.grain) ||
+    !isNeutralClones(params.clones)
   );
 }
 

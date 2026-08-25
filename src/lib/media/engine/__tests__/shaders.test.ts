@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
   BLUR_LARGE_FRAGMENT,
   BLUR_SMALL_FRAGMENT,
+  CLONE_FRAGMENT,
   COPY_FRAGMENT,
   FRAGMENT_SHADER,
   VERTEX_SHADER,
@@ -15,6 +16,7 @@ import {
   HSL_SAT_RANGE,
 } from '../hsl-math';
 import { MASK_EV_RANGE, MAX_MASKS } from '../mask-math';
+import { MAX_CLONE_STAMPS } from '../clone-math';
 import {
   BLUR_LARGE_SIGMA,
   BLUR_LARGE_TAPS,
@@ -125,6 +127,14 @@ describe('shader sources embed the color-math constants', () => {
     expect(FRAGMENT_SHADER).toContain('u_maskCount');
     expect(FRAGMENT_SHADER).toContain(`u_maskGeom[${MAX_MASKS}]`);
     expect(FRAGMENT_SHADER).toContain(String(MASK_EV_RANGE.toFixed(1))); // 1.0 EV local
+  });
+
+  it('clone fragment carries the stamp uniforms and one-source-read rule', () => {
+    expect(CLONE_FRAGMENT.startsWith('#version 300 es')).toBe(true);
+    expect(CLONE_FRAGMENT).toContain(`u_stampGeom[${MAX_CLONE_STAMPS}]`);
+    expect(CLONE_FRAGMENT).toContain('u_stampCount');
+    // Healed pixels come from the ORIGINAL source texture, feather-mixed.
+    expect(CLONE_FRAGMENT).toContain('texture(u_src, clamp(uv + offset');
   });
 
   it('warp fragment embeds the perspective scale and border-black rule', () => {

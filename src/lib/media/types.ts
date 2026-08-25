@@ -101,6 +101,18 @@ export interface GrainSettings {
   size: number;
 }
 
+/** Clone stamp (Phase 2 E4g): copy a feathered circle from (src) over
+ *  (dst). Normalized to the FRAMED image, origin top-left; radius is a
+ *  fraction of image WIDTH. Max 8. */
+export interface CloneStamp {
+  srcX: number;
+  srcY: number;
+  dstX: number;
+  dstY: number;
+  radius: number; // 0.01..0.5
+  feather: number; // 0..1
+}
+
 /** One painted stroke (E4f): decimated pointer path, brush radius as a
  *  fraction of image WIDTH (discs are circular in image space), feather
  *  0..1, erase subtracts instead of painting. */
@@ -191,6 +203,8 @@ export interface ImageRecipe {
   masks?: Mask[];
   /** Film grain (Phase 2): absent or amount 0 = none. */
   grain?: GrainSettings;
+  /** Clone stamps (Phase 2 healing v1): absent/empty = none. Max 8. */
+  clones?: CloneStamp[];
 }
 
 /** One segment of the output timeline — a [in, out) slice of the SOURCE. */

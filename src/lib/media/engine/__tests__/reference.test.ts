@@ -30,6 +30,7 @@ function params(overrides: Partial<EngineParams>): EngineParams {
     curves: {},
     masks: [],
     grain: { amount: 0, size: 1.5 },
+    clones: [],
     ...overrides,
   };
 }
@@ -94,6 +95,35 @@ describe('reference engine — engine-round stages', () => {
     const data = new Uint8ClampedArray([0, 0, 0, 255]);
     applyEngine(data, 1, 1, params({ light: { ...NEUTRAL_LIGHT, blacks: 1 } }));
     expect(data[0]).toBe(64); // 0.25 · 255 = 63.75 → rounds to 64
+  });
+
+  it('clone stamps heal through the full pipeline before everything else (E4g)', () => {
+    // Left black / right white; a stamp copies white over a black spot,
+    // and exposure then applies to the HEALED pixels.
+    const w = 32;
+    const h = 32;
+    const data = new Uint8ClampedArray(w * h * 4);
+    for (let y = 0; y < h; y++) {
+      for (let x = 0; x < w; x++) {
+        const i = (y * w + x) * 4;
+        const v = x < w / 2 ? 40 : 200;
+        data[i] = data[i + 1] = data[i + 2] = v;
+        data[i + 3] = 255;
+      }
+    }
+    applyEngine(
+      data,
+      w,
+      h,
+      params({
+        clones: [
+          { srcX: 0.75, srcY: 0.5, dstX: 0.25, dstY: 0.5, radius: 0.12, feather: 0 },
+        ],
+        light: { ...NEUTRAL_LIGHT, exposure: -0.5 }, // −1 EV halves
+      })
+    );
+    expect(data[(16 * w + 8) * 4]).toBe(100); // healed to 200, then −1 EV
+    expect(data[(2 * w + 2) * 4]).toBe(20); // unhealed black −1 EV
   });
 
   it('masks: a painted brush corridor lifts exposure inside, not outside (E4f)', () => {

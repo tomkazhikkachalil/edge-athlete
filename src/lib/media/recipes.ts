@@ -30,6 +30,7 @@ import { isNeutralHsl } from './engine/hsl-math';
 import { isNeutralCurves } from './engine/curves-math';
 import { isNeutralMasks } from './engine/mask-math';
 import { isNeutralGrain } from './engine/grain-math';
+import { isNeutralClones } from './engine/clone-math';
 
 export function defaultImageRecipe(aspect: AspectRatioId = 'free'): ImageRecipe {
   return {
@@ -80,7 +81,8 @@ export function isNoopRecipe(recipe: EditRecipe): boolean {
     isNeutralHsl(recipe.hsl) &&
     isNeutralCurves(recipe.curves) &&
     isNeutralMasks(recipe.masks) &&
-    isNeutralGrain(recipe.grain)
+    isNeutralGrain(recipe.grain) &&
+    isNeutralClones(recipe.clones)
   );
 }
 
@@ -226,6 +228,19 @@ const imageRecipeSchema = imageRecipeV2Schema.extend({
   masks: z.array(maskSchema).max(4).optional(),
   grain: z
     .object({ amount: unsigned(), size: z.number().min(1).max(3) })
+    .optional(),
+  clones: z
+    .array(
+      z.object({
+        srcX: unsigned(),
+        srcY: unsigned(),
+        dstX: unsigned(),
+        dstY: unsigned(),
+        radius: z.number().min(0.01).max(0.5),
+        feather: unsigned(),
+      })
+    )
+    .max(8)
     .optional(),
 });
 

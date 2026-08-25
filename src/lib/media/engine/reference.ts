@@ -43,6 +43,7 @@ import {
 } from './mask-math';
 import { rasterizeBrushMask } from './mask-raster';
 import { applyGrain, isNeutralGrain } from './grain-math';
+import { applyCloneStamps, isNeutralClones } from './clone-math';
 
 /** RGBA bytes → packed RGB floats (0..1). */
 function toFloatRgb(data: Uint8ClampedArray): Float32Array {
@@ -162,8 +163,11 @@ export function applyEngine(
   const needSmall = params.detail.sharpen > 0;
   const needLarge = params.detail.clarity > 0 || params.detail.noiseReduction > 0;
 
-  // Perspective warps FIRST — blurs and color then run on warped pixels,
-  // exactly like the GPU's warp → blur → composite ordering.
+  // Pre-passes in GPU order: clone (heal the framed image) → perspective
+  // warp — blurs and color then run on the healed/warped pixels.
+  if (!isNeutralClones(params.clones)) {
+    applyCloneStamps(data, width, height, params.clones);
+  }
   if (!isNeutralPerspective(params.perspective)) {
     warpPerspective(data, width, height, params.perspective);
   }
