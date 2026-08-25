@@ -1,5 +1,34 @@
 # Development Log
 
+## August 25, 2026 — Photo engine E-W3: saved presets — PHASE 4 (and the program) COMPLETE
+
+The last workflow slice: **My presets** in the Filters tool — save the
+current look under a name, apply it in any future session, delete with a
+confirm. Presets persist exactly the Look shape from E-W1 (zod-validated
+on write; a look with zero adjustments refuses to save), capped at 24
+per user, and NEVER carry geometry/masks/retouch/text.
+
+Persistence: migration **121** (`user_media_presets`) follows the house
+access model — RLS ON + REVOKE ALL, all access through
+`/api/media/presets` on the admin client with ownership enforced in app
+code. The route **degrades gracefully until Tom runs 121**: missing
+table → GET returns an empty shelf, POST returns a clear 503 — merge
+order is deliberately not strict. The e2e is outcome-agnostic (chip OR
+toast) so it stays green on both sides of the migration, and QA-user
+teardown cascades any saved rows.
+
+Gotcha worth its own line: **a missing table is `42P01` from Postgres
+but `PGRST205` from PostgREST** — and supabase-js talks to PostgREST, so
+matching only the Postgres code left the "graceful" path dead and the
+route 500ing (caught by the console-error capture in a debug spec, not
+by the happy-path assertions). Both codes now count as "migration
+hasn't run here".
+
+**That closes the photo-editor program**: Phases 1–4 built (#266–#282),
+Phase 3 held at the cost gate awaiting Tom's runner decision. Remaining
+non-code items: Tom runs migration 121; Tom's device pass; the AI
+hosting decision.
+
 ## August 25, 2026 — Photo engine E-W2: export controls
 
 Second workflow slice: a gear next to Done opens **Export settings** —

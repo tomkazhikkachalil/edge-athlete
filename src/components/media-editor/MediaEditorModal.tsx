@@ -34,7 +34,8 @@ import {
 import { neutralizeWhiteBalance } from '@/lib/media/engine/white-balance';
 import { MAX_MASKS, NEUTRAL_MASK_ADJUST } from '@/lib/media/engine/mask-math';
 import { getAiRunner, isAiAvailable } from '@/lib/media/ai';
-import { extractLook, lookToPatch, type Look } from '@/lib/media/look';
+import { extractLook, isNeutralLook, lookToPatch, type Look } from '@/lib/media/look';
+import type { UserPreset } from './FilterStrip';
 import {
   deriveOutput,
   EXPORT_PREFS_KEY,
@@ -142,6 +143,59 @@ export default function MediaEditorModal({ assets: initialAssets, config, onDone
     }
   });
   const [exportSheetOpen, setExportSheetOpen] = useState(false);
+
+  // Phase 4 (E-W3): the user's saved looks. Loaded once per editor mount;
+  // an unavailable backend (pre-migration, offline) is just an empty shelf.
+  const [userPresets, setUserPresets] = useState<UserPreset[]>([]);
+  const [savingPreset, setSavingPreset] = useState(false);
+  useEffect(() => {
+    let cancelled = false;
+    fetch('/api/media/presets')
+      .then(response => (response.ok ? response.json() : { presets: [] }))
+      .then(data => {
+        if (!cancelled) setUserPresets(data.presets ?? []);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const handleSavePreset = async (name: string, recipe: ImageRecipe) => {
+    const look = extractLook(recipe);
+    if (isNeutralLook(look)) {
+      showError('Nothing to save', 'Make some adjustments first');
+      return;
+    }
+    setSavingPreset(true);
+    try {
+      const response = await fetch('/api/media/presets', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name, look }),
+      });
+      const data = await response.json().catch(() => ({}));
+      if (response.ok && data.preset) {
+        setUserPresets(prev => [data.preset, ...prev]);
+      } else {
+        showError('Couldn’t save preset', data.error ?? 'Try again later');
+      }
+    } catch {
+      showError('Couldn’t save preset', 'Check your connection');
+    } finally {
+      setSavingPreset(false);
+    }
+  };
+
+  const handleDeletePreset = async (preset: UserPreset) => {
+    // Optimistic — a failed delete just reappears on next editor open.
+    setUserPresets(prev => prev.filter(p => p.id !== preset.id));
+    try {
+      await fetch(`/api/media/presets?id=${encodeURIComponent(preset.id)}`, { method: 'DELETE' });
+    } catch {
+      // Silent: the shelf refetches next session.
+    }
+  };
 
   const updateExportPrefs = (prefs: ExportPrefs) => {
     setExportPrefs(prefs);
@@ -390,6 +444,13 @@ export default function MediaEditorModal({ assets: initialAssets, config, onDone
             onStrengthChange={strength =>
               patchRecipe(active.id, { filterStrength: strength } as Partial<ImageRecipe>, 'filterStrength')
             }
+            userPresets={userPresets}
+            onApplyPreset={preset =>
+              patchRecipe(active.id, lookToPatch(preset.look), 'preset.apply')
+            }
+            onSavePreset={name => handleSavePreset(name, imageRecipe)}
+            onDeletePreset={handleDeletePreset}
+            savingPreset={savingPreset}
           />
         )}
       </>

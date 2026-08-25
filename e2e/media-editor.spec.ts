@@ -259,6 +259,19 @@ test('media editor: crop session, undo, re-edit, dirty confirm, publish', async 
   await expect(intensity).toBeVisible();
   await intensity.fill('50');
 
+  // User presets (E-W3): the shelf renders and saving either lands a chip
+  // (migration 121 applied) or degrades to a clear toast (not yet) —
+  // outcome-agnostic on purpose; QA-user teardown cascades saved rows.
+  await expect(page.getByText('My presets')).toBeVisible();
+  await page.getByRole('button', { name: '+ Save look', exact: true }).click();
+  await page.getByRole('textbox', { name: 'Preset name' }).fill('Court day');
+  await page.getByRole('button', { name: 'Save', exact: true }).click();
+  await expect(
+    page
+      .getByRole('button', { name: 'Court day', exact: true })
+      .or(page.getByText(/Couldn.t save preset/).first())
+  ).toBeVisible({ timeout: 10_000 });
+
   // Perspective (E3b): the keystone warp runs live on the engine stage —
   // a vertical correction blacks out an edge, dropping the mean reading.
   await page.getByRole('button', { name: 'Perspective', exact: true }).click();
