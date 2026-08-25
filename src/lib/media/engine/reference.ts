@@ -21,6 +21,7 @@ import {
   BLUR_LARGE_TAPS,
   BLUR_SMALL_SIGMA,
   BLUR_SMALL_TAPS,
+  clamp01,
   gaussianKernel,
   transformPixel,
   vignetteFalloff,
@@ -29,6 +30,7 @@ import {
 import type { EngineParams } from './params';
 import { isNeutralPerspective, warpPerspective } from './perspective-math';
 import { applyHslLut, bakeHslLut, isNeutralHsl } from './hsl-math';
+import { applyCurveLut, bakeCurveLut, isNeutralCurves } from './curves-math';
 
 /** RGBA bytes → packed RGB floats (0..1). */
 function toFloatRgb(data: Uint8ClampedArray): Float32Array {
@@ -154,11 +156,21 @@ export function applyEngine(
     warpPerspective(data, width, height, params.perspective);
   }
 
-  // Color mixer: injected between vibrance and vignette as a hook (keeps
-  // color-math free of an hsl-math import — the TDZ-cycle trap class).
-  // Skipped when neutral, mirroring the shader's u_hslEnabled branch.
+  // LUT stages (mixer, then curves): injected between vibrance and
+  // vignette as ONE hook (keeps color-math free of hsl/curves imports —
+  // the TDZ-cycle trap class). Skipped when neutral, mirroring the
+  // shader's u_hslEnabled / u_curveEnabled branches.
   const hslLut = isNeutralHsl(params.hsl) ? null : bakeHslLut(params.hsl);
-  const hslApply = hslLut ? (rgb: Rgb) => applyHslLut(rgb, hslLut) : undefined;
+  const curveLut = isNeutralCurves(params.curves) ? null : bakeCurveLut(params.curves);
+  const hslApply =
+    hslLut || curveLut
+      ? (rgb: Rgb): Rgb => {
+          let out = rgb;
+          if (hslLut) out = applyHslLut(out, hslLut);
+          if (curveLut) out = applyCurveLut([clamp01(out[0]), clamp01(out[1]), clamp01(out[2])], curveLut);
+          return out;
+        }
+      : undefined;
 
   let srcFloat: Float32Array | null = null;
   let blurSmall: Float32Array | null = null;

@@ -27,6 +27,7 @@ import {
 } from './filters';
 import { isNeutralPerspective } from './engine/perspective-math';
 import { isNeutralHsl } from './engine/hsl-math';
+import { isNeutralCurves } from './engine/curves-math';
 
 export function defaultImageRecipe(aspect: AspectRatioId = 'free'): ImageRecipe {
   return {
@@ -74,7 +75,8 @@ export function isNoopRecipe(recipe: EditRecipe): boolean {
     isNeutralColor(recipe.color) &&
     isNeutralDetail(recipe.detail) &&
     isNeutralPerspective(recipe.perspective) &&
-    isNeutralHsl(recipe.hsl)
+    isNeutralHsl(recipe.hsl) &&
+    isNeutralCurves(recipe.curves)
   );
 }
 
@@ -123,6 +125,15 @@ const hslBandSchema = z.object({
   luminance: signed(),
 });
 
+// A tone curve: 2..8 points, both axes 0..1, strictly ascending x.
+const curveSchema = z
+  .array(z.object({ x: unsigned(), y: unsigned() }))
+  .min(2)
+  .max(8)
+  .refine(pts => pts.every((p, i) => i === 0 || p.x > pts[i - 1].x), {
+    message: 'curve points must be strictly ascending in x',
+  });
+
 // Shared v1/v2 image core — v3 extends it with the engine-round fields.
 const imageRecipeV2Schema = z.object({
   kind: z.literal('image'),
@@ -154,6 +165,14 @@ const imageRecipeSchema = imageRecipeV2Schema.extend({
       blue: hslBandSchema.optional(),
       purple: hslBandSchema.optional(),
       magenta: hslBandSchema.optional(),
+    })
+    .optional(),
+  curves: z
+    .object({
+      master: curveSchema.optional(),
+      r: curveSchema.optional(),
+      g: curveSchema.optional(),
+      b: curveSchema.optional(),
     })
     .optional(),
 });

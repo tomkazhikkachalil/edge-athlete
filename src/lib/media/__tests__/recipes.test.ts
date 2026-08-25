@@ -71,6 +71,37 @@ describe('defaults and no-op detection', () => {
     expect(parseRecipe(serializeRecipe(bad))).toBeNull();
   });
 
+  it('curves: identity/absent are no-ops; shaped sets round-trip; unsorted rejected', () => {
+    const base = defaultImageRecipe();
+    expect(isNoopRecipe({ ...base, curves: {} })).toBe(true);
+    expect(
+      isNoopRecipe({ ...base, curves: { master: [{ x: 0, y: 0 }, { x: 1, y: 1 }] } })
+    ).toBe(true);
+    const recipe = {
+      ...base,
+      curves: {
+        master: [
+          { x: 0, y: 0.1 },
+          { x: 0.5, y: 0.6 },
+          { x: 1, y: 0.95 },
+        ],
+        b: [
+          { x: 0, y: 0 },
+          { x: 1, y: 0.8 },
+        ],
+      },
+    };
+    expect(isNoopRecipe(recipe)).toBe(false);
+    expect(parseRecipe(serializeRecipe(recipe))).toEqual(recipe);
+    const unsorted = {
+      ...base,
+      curves: { master: [{ x: 0.5, y: 0 }, { x: 0.2, y: 1 }] },
+    };
+    expect(parseRecipe(serializeRecipe(unsorted))).toBeNull();
+    const tooFew = { ...base, curves: { master: [{ x: 0, y: 0 }] } };
+    expect(parseRecipe(serializeRecipe(tooFew))).toBeNull();
+  });
+
   it('9:16 round-trips in both image and video recipes (story crop)', () => {
     const image = { ...defaultImageRecipe('9:16' as const) };
     expect(parseRecipe(serializeRecipe(image))).toEqual(image);
