@@ -22,8 +22,15 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'No file provided' }, { status: 400 });
     }
 
-    // File validation
+    // File validation. Extension is derived from the VALIDATED MIME type, never
+    // the client filename — file.name is attacker-controlled: a '/' in it would
+    // write to an arbitrary sub-path, and an unvalidated extension mislabels
+    // the stored object (upload/route.ts already does it this way).
     const maxSize = 50 * 1024 * 1024; // 50MB
+    const EXT_BY_TYPE: Record<string, string> = {
+      'image/jpeg': 'jpg', 'image/png': 'png', 'image/gif': 'gif', 'image/webp': 'webp',
+      'video/mp4': 'mp4', 'video/quicktime': 'mov', 'video/webm': 'webm',
+    };
     const allowedImageTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
     const allowedVideoTypes = ['video/mp4', 'video/quicktime', 'video/webm'];
     const allowedTypes = [...allowedImageTypes, ...allowedVideoTypes];
@@ -33,20 +40,23 @@ export async function POST(request: NextRequest) {
     }
 
     if (!allowedTypes.includes(file.type)) {
-      return NextResponse.json({ 
-        error: 'Please select a valid image or video file (JPG, PNG, GIF, WebP, MP4, MOV, WebM)' 
+      return NextResponse.json({
+        error: 'Please select a valid image or video file (JPG, PNG, GIF, WebP, MP4, MOV, WebM)'
       }, { status: 400 });
     }
 
-    // Generate unique filename
-    const fileExt = file.name.split('.').pop();
-    const fileName = `${userId}/${Date.now()}-${Math.random().toString(36).substring(2)}.${fileExt}`;
+    // Generate unique filename — extension from the validated type, random
+    // name (crypto.randomUUID, same as upload/route.ts) so nothing in the key
+    // is caller-controlled.
+    const fileExt = EXT_BY_TYPE[file.type];
+    const fileName = `${userId}/${crypto.randomUUID()}.${fileExt}`;
     const filePath = `posts/${fileName}`;
 
     // Upload file to Supabase Storage
     const { error: uploadError } = await supabase.storage
       .from('uploads')
       .upload(filePath, file, {
+        contentType: file.type,
         cacheControl: '3600',
         upsert: false
       });

@@ -17,10 +17,14 @@ import { enforceRateLimit } from '@/lib/rate-limit';
 const PEOPLE_MIN_CHARS = 1;
 const CONTENT_MIN_CHARS = 2;
 
-// Sanitize user input for use in PostgREST .or() / .ilike() filters.
-// Escapes characters that could break out of the filter expression.
+// Sanitize user input for a PostgREST .or() / .ilike() filter. STRIP the
+// structural delimiters (comma, parens, double-quote) — backslash-escaping
+// them is NOT PostgREST's documented mechanism and a stray delimiter can
+// still terminate the filter element and inject extra or-terms — then escape
+// the LIKE wildcards. Same approach as course-catalog.ts `likeSafe`, which is
+// the demonstrably-correct one in this codebase.
 function sanitizeForFilter(input: string): string {
-  return input.replace(/[\\%_(),."']/g, '\\$&');
+  return input.replace(/[,()"]/g, ' ').replace(/[%_\\]/g, m => `\\${m}`).trim();
 }
 
 export async function GET(request: NextRequest) {

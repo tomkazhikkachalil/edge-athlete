@@ -239,6 +239,11 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({ tags });
   } catch (error) {
+    // requireAuth throws a Response (401) — return it so the 401 stands
+    // instead of being swallowed into a 500. `return`, not `throw`: a thrown
+    // Response at the handler boundary becomes a 500 in this Next version;
+    // `return error` is the working codebase convention (93 routes use it).
+    if (error instanceof Response) return error;
     console.error('Error fetching tags:', error);
     return NextResponse.json(
       { error: 'Internal server error' },

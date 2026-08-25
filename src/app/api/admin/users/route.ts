@@ -1,9 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseAdmin, requireAdmin } from '@/lib/auth-server';
 
-// Escape PostgREST ilike special characters
+// Sanitize input for a PostgREST .or()/.ilike() filter: STRIP structural
+// delimiters (comma, parens, double-quote) so a value can't break out and
+// inject or-terms, then escape LIKE wildcards. Backslash-escaping delimiters
+// is not PostgREST's documented mechanism; stripping is unconditionally safe.
+// Same approach as course-catalog.ts `likeSafe`.
 function sanitizeForFilter(input: string): string {
-  return input.replace(/[\\%_(),."']/g, '\\$&');
+  return input.replace(/[,()"]/g, ' ').replace(/[%_\\]/g, m => `\\${m}`).trim();
 }
 
 // ── GET /api/admin/users?q= ───────────────────────────────────────────────────
