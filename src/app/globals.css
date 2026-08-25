@@ -664,6 +664,15 @@ body {
 }
 .vt-bar-in { animation: vt-bar-in 500ms var(--ea-ease) backwards; transform-origin: bottom; }
 
+/* Chart line draw-in: pairs with pathLength=1 + strokeDasharray=1 on the
+ * path, so one keyframe draws any curve; the element's inline offset (0) is
+ * the implicit end value. Markers/area ride vt-fade-in slightly behind. */
+@keyframes vt-draw {
+  from { stroke-dashoffset: 1; }
+}
+.vt-draw { animation: vt-draw 900ms var(--ea-ease) backwards; }
+.vt-fade-in { animation: ea-fade-in 400ms ease-out 500ms backwards; }
+
 /* Long-press targets: a 400ms press must open OUR surface, not the OS text
  * selection (iOS loupe/callout) — the two fight, and selection wins ugly.
  * Coarse-scoped so desktop mouse selection (and copy) is untouched; on
