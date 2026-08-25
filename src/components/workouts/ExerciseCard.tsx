@@ -2,12 +2,14 @@
 
 import { useEffect, useRef, useState } from 'react';
 import Image from 'next/image';
-import { Camera, Check, Copy, Play, Plus, StickyNote, Trash2, X } from 'lucide-react';
+import { Camera, Check, Copy, Play, Plus, StickyNote, Trash2, Upload, Video, X } from 'lucide-react';
 import { EXERCISE_MAP, type ExerciseInputMode } from '@/lib/workout-config';
 import type { EntryExercise, EntrySet, SetMedia } from '@/lib/workouts/entries';
 import { MAX_SETS_PER_EXERCISE, MAX_MEDIA_PER_SET } from '@/lib/workouts/entries';
 import { useToast } from '../Toast';
 import { MediaEditor } from '@/components/media-editor';
+import CaptureInputs from '@/components/media/CaptureInputs';
+import { usePopoverDismiss } from '@/hooks/usePopoverDismiss';
 import { validateFiles } from '@/lib/media/validation';
 import { uploadPostMedia } from '@/lib/media/upload';
 import type { EditedMedia, EditorConfig, MediaAsset } from '@/lib/media/types';
@@ -59,6 +61,11 @@ function SetRow({ set, inputMode, onChange, onDelete }: SetRowProps) {
   const { showError } = useToast();
   const [uploading, setUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  // Capture popover (Take photo / Record video / Library) off the camera
+  // button — the per-set row has no room for three visible buttons.
+  const [mediaMenuOpen, setMediaMenuOpen] = useState(false);
+  const mediaMenuRef = useRef<HTMLDivElement>(null);
+  usePopoverDismiss(mediaMenuRef, mediaMenuOpen, () => setMediaMenuOpen(false));
   // Latest set for the ASYNC media upload only — it completes after
   // re-renders, and patching from a stale closure would revert concurrent
   // edits. Written in an effect, never during render.
@@ -215,24 +222,68 @@ function SetRow({ set, inputMode, onChange, onDelete }: SetRowProps) {
         )}
       </div>
 
-      {/* Attach photo/video to this set */}
-      <button
-        type="button"
-        onClick={() => fileInputRef.current?.click()}
-        disabled={uploading || set.media.length >= MAX_MEDIA_PER_SET}
-        className={`w-11 h-11 shrink-0 rounded-full flex items-center justify-center transition-colors ${
-          set.media.length > 0
-            ? 'bg-violet-100 dark:bg-violet-950/60 text-brand-fg'
-            : 'bg-surface-sunken text-faint hover:bg-gray-200 dark:hover:bg-stone-800'
-        } disabled:opacity-50`}
-        aria-label="Attach photo or video to this set"
-      >
-        {uploading ? (
-          <span className="animate-spin rounded-full h-4 w-4 border-b-2 border-violet-500" aria-hidden="true" />
-        ) : (
-          <Camera className="w-4 h-4" />
+      {/* Attach photo/video to this set. Capture-everywhere round: the
+          per-set row has no room to grow, so the camera button opens a
+          3-option popover (recording a lift is the app's strongest
+          capture case). */}
+      <CaptureInputs onFiles={handleFiles} allowVideo>
+        {({ openPhoto, openVideo }) => (
+          <div className="relative shrink-0" ref={mediaMenuRef}>
+            <button
+              type="button"
+              onClick={() => setMediaMenuOpen(open => !open)}
+              disabled={uploading || set.media.length >= MAX_MEDIA_PER_SET}
+              className={`w-11 h-11 shrink-0 rounded-full flex items-center justify-center transition-colors ${
+                set.media.length > 0
+                  ? 'bg-violet-100 dark:bg-violet-950/60 text-brand-fg'
+                  : 'bg-surface-sunken text-faint hover:bg-gray-200 dark:hover:bg-stone-800'
+              } disabled:opacity-50`}
+              aria-label="Attach photo or video to this set"
+              aria-expanded={mediaMenuOpen}
+            >
+              {uploading ? (
+                <span className="animate-spin rounded-full h-4 w-4 border-b-2 border-violet-500" aria-hidden="true" />
+              ) : (
+                <Camera className="w-4 h-4" />
+              )}
+            </button>
+            {mediaMenuOpen && (
+              <div className="absolute right-0 bottom-12 z-20 w-48 rounded-lg border border-border bg-surface-raised shadow-lg py-1">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMediaMenuOpen(false);
+                    openPhoto();
+                  }}
+                  className="w-full px-3 min-h-[40px] text-left text-sm text-secondary hover:bg-surface-sunken flex items-center gap-2"
+                >
+                  <Camera className="w-4 h-4" aria-hidden="true" /> Take photo
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMediaMenuOpen(false);
+                    openVideo?.();
+                  }}
+                  className="w-full px-3 min-h-[40px] text-left text-sm text-secondary hover:bg-surface-sunken flex items-center gap-2"
+                >
+                  <Video className="w-4 h-4" aria-hidden="true" /> Record video
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMediaMenuOpen(false);
+                    fileInputRef.current?.click();
+                  }}
+                  className="w-full px-3 min-h-[40px] text-left text-sm text-secondary hover:bg-surface-sunken flex items-center gap-2"
+                >
+                  <Upload className="w-4 h-4" aria-hidden="true" /> Choose from library
+                </button>
+              </div>
+            )}
+          </div>
         )}
-      </button>
+      </CaptureInputs>
       <input
         ref={fileInputRef}
         type="file"

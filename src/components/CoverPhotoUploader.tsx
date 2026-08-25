@@ -25,7 +25,7 @@ const COVER_MAX_BYTES = 10 * 1024 * 1024; // matches /api/upload/cover
 
 interface CoverPhotoUploaderProps {
   onUploaded: (coverUrl: string) => void | Promise<void>;
-  render: (props: { open: () => void; uploading: boolean }) => ReactNode;
+  render: (props: { open: () => void; openCamera: () => void; uploading: boolean }) => ReactNode;
 }
 
 export default function CoverPhotoUploader({ onUploaded, render }: CoverPhotoUploaderProps) {
@@ -33,6 +33,10 @@ export default function CoverPhotoUploader({ onUploaded, render }: CoverPhotoUpl
   // render, so any ref read reachable from the props we hand it trips
   // react-hooks/refs. Holding the element in state removes the ref entirely.
   const [inputEl, setInputEl] = useState<HTMLInputElement | null>(null);
+  // Native-capture sibling (capture-everywhere round): rear camera — a cover
+  // is scenery, not a selfie. Broad accept on purpose (narrow MIME + capture
+  // is unreliable on Android); validateFiles still guards the result.
+  const [cameraEl, setCameraEl] = useState<HTMLInputElement | null>(null);
   const { showError } = useToast();
   const [pending, setPending] = useState<MediaAsset | null>(null);
   const [uploading, setUploading] = useState(false);
@@ -80,6 +84,7 @@ export default function CoverPhotoUploader({ onUploaded, render }: CoverPhotoUpl
   };
 
   const open = useCallback(() => inputEl?.click(), [inputEl]);
+  const openCamera = useCallback(() => cameraEl?.click(), [cameraEl]);
 
   return (
     <>
@@ -93,7 +98,18 @@ export default function CoverPhotoUploader({ onUploaded, render }: CoverPhotoUpl
           e.target.value = '';
         }}
       />
-      {render({ open, uploading })}
+      <input
+        ref={setCameraEl}
+        type="file"
+        accept="image/*"
+        capture="environment"
+        className="sr-only"
+        onChange={e => {
+          handlePick(e.target.files?.[0]);
+          e.target.value = '';
+        }}
+      />
+      {render({ open, openCamera, uploading })}
       {editorAssets && (
         <MediaEditor
           assets={editorAssets}

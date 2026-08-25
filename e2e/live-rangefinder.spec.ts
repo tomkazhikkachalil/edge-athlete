@@ -289,3 +289,27 @@ test('rangefinder: a transient TIMEOUT keeps tracking; PERMISSION_DENIED stops i
     }
   }
 });
+
+// Capture-everywhere round: the live scorer's per-hole media block offers
+// native capture (Take photo / Record video) beside the Library picker.
+// Capture itself can't run headless — the camera is outside the browser;
+// this pins that the affordances exist on a live hole.
+test('scorer: per-hole capture row exists on a live round', async ({ browser }) => {
+  test.skip(!groupPostId, 'fixture unavailable');
+  const ctx = await browser.newContext({
+    storageState: 'e2e/.auth/state.json',
+    viewport: { width: 375, height: 740 },
+  });
+  try {
+    const page = await ctx.newPage();
+    await page.goto(`/live/${groupPostId}`);
+    // The scorer auto-opens for a scoreable round; the media block sits under
+    // the current hole.
+    await expect(page.getByText(/Hole \d+ media/)).toBeVisible({ timeout: 30_000 });
+    await expect(page.getByRole('button', { name: 'Take photo' })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Record video' })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Library', exact: true })).toBeVisible();
+  } finally {
+    await ctx.close();
+  }
+});

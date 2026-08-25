@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, createContext, useContext } from 'react';
+import { useEffect, useRef, useState, createContext, useContext } from 'react';
 import dynamic from 'next/dynamic';
 import Image from 'next/image';
 import { isOptimizableImageSrc } from '@/lib/media/image-src';
@@ -15,6 +15,7 @@ import StatementsRail from '@/components/StatementsRail';
 import SportQuickLinks from '@/components/SportQuickLinks';
 import AvatarUploader from '@/components/AvatarUploader';
 import CoverPhotoUploader from '@/components/CoverPhotoUploader';
+import { usePopoverDismiss } from '@/hooks/usePopoverDismiss';
 import PostDetailModal from '@/components/PostDetailModal';
 import { resolveSportKey, isComposerSport } from '@/lib/sports/resolve-sport-key';
 import AppHeader from '@/components/AppHeader';
@@ -439,6 +440,15 @@ export default function AthleteProfilePage() {
   //   }
   // };
 
+  // Capture popovers off the two camera FABs (capture-everywhere round):
+  // Take photo / Choose photo.
+  const [coverMenuOpen, setCoverMenuOpen] = useState(false);
+  const coverMenuRef = useRef<HTMLDivElement>(null);
+  usePopoverDismiss(coverMenuRef, coverMenuOpen, () => setCoverMenuOpen(false));
+  const [avatarMenuOpen, setAvatarMenuOpen] = useState(false);
+  const avatarMenuRef = useRef<HTMLDivElement>(null);
+  usePopoverDismiss(avatarMenuRef, avatarMenuOpen, () => setAvatarMenuOpen(false));
+
   // Avatar picking/cropping/uploading lives in the shared AvatarUploader
   // (circle crop via the media editor); this just refreshes on success.
   const handleAvatarUploaded = async () => {
@@ -617,20 +627,47 @@ export default function AthleteProfilePage() {
             )}
             <CoverPhotoUploader
               onUploaded={() => refreshProfile()}
-              render={({ open, uploading }) => (
-                <button
-                  type="button"
-                  onClick={open}
-                  disabled={uploading}
-                  aria-label={uploading ? 'Uploading cover photo…' : 'Change cover photo'}
-                  className="absolute bottom-2 right-2 w-11 h-11 bg-black/50 hover:bg-black/70 text-white rounded-full flex items-center justify-center shadow-lg transition-colors disabled:opacity-50"
-                >
-                  {uploading ? (
-                    <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" aria-hidden="true" />
-                  ) : (
-                    <i className="fas fa-camera" aria-hidden="true"></i>
+              render={({ open, openCamera, uploading }) => (
+                <div ref={coverMenuRef}>
+                  <button
+                    type="button"
+                    onClick={() => setCoverMenuOpen(v => !v)}
+                    disabled={uploading}
+                    aria-label={uploading ? 'Uploading cover photo…' : 'Change cover photo'}
+                    aria-expanded={coverMenuOpen}
+                    className="absolute bottom-2 right-2 w-11 h-11 bg-black/50 hover:bg-black/70 text-white rounded-full flex items-center justify-center shadow-lg transition-colors disabled:opacity-50"
+                  >
+                    {uploading ? (
+                      <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" aria-hidden="true" />
+                    ) : (
+                      <i className="fas fa-camera" aria-hidden="true"></i>
+                    )}
+                  </button>
+                  {coverMenuOpen && (
+                    <div className="absolute bottom-14 right-2 z-20 w-44 rounded-lg border border-border bg-surface-raised shadow-lg py-1">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setCoverMenuOpen(false);
+                          openCamera();
+                        }}
+                        className="w-full px-3 min-h-[40px] text-left text-sm text-secondary hover:bg-surface-sunken flex items-center gap-2"
+                      >
+                        <i className="fas fa-camera w-4 text-center" aria-hidden="true"></i> Take photo
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setCoverMenuOpen(false);
+                          open();
+                        }}
+                        className="w-full px-3 min-h-[40px] text-left text-sm text-secondary hover:bg-surface-sunken flex items-center gap-2"
+                      >
+                        <i className="fas fa-images w-4 text-center" aria-hidden="true"></i> Choose photo
+                      </button>
+                    </div>
                   )}
-                </button>
+                </div>
               )}
             />
           </div>
@@ -670,29 +707,56 @@ export default function AthleteProfilePage() {
                 )}
                 
                 {/* Avatar Upload Button */}
-                <div className="absolute -bottom-2 -right-2">
+                <div className="absolute -bottom-2 -right-2" ref={avatarMenuRef}>
                   <AvatarUploader
                     mode="immediate"
                     onUploaded={handleAvatarUploaded}
-                    render={({ open, uploading }) => (
-                      <button
-                        type="button"
-                        onClick={open}
-                        disabled={uploading}
-                        className={`w-14 h-14 bg-brand rounded-full flex items-center justify-center cursor-pointer shadow-lg hover:bg-brand-hover focus:outline-none focus:ring-2 focus:ring-violet-500 focus:ring-offset-2 transition-colors ${
-                          uploading ? 'opacity-50 cursor-not-allowed' : ''
-                        }`}
-                        aria-label={uploading ? 'Uploading avatar...' : 'Upload new avatar'}
-                      >
-                        {uploading ? (
-                          <div
-                            className="w-6 h-6 border-3 border-white border-t-transparent rounded-full animate-spin"
-                            aria-hidden="true"
-                          ></div>
-                        ) : (
-                          <i className="fas fa-camera text-white" aria-hidden="true"></i>
+                    render={({ open, openCamera, uploading }) => (
+                      <div className="relative">
+                        <button
+                          type="button"
+                          onClick={() => setAvatarMenuOpen(v => !v)}
+                          disabled={uploading}
+                          className={`w-14 h-14 bg-brand rounded-full flex items-center justify-center cursor-pointer shadow-lg hover:bg-brand-hover focus:outline-none focus:ring-2 focus:ring-violet-500 focus:ring-offset-2 transition-colors ${
+                            uploading ? 'opacity-50 cursor-not-allowed' : ''
+                          }`}
+                          aria-label={uploading ? 'Uploading avatar...' : 'Upload new avatar'}
+                          aria-expanded={avatarMenuOpen}
+                        >
+                          {uploading ? (
+                            <div
+                              className="w-6 h-6 border-3 border-white border-t-transparent rounded-full animate-spin"
+                              aria-hidden="true"
+                            ></div>
+                          ) : (
+                            <i className="fas fa-camera text-white" aria-hidden="true"></i>
+                          )}
+                        </button>
+                        {avatarMenuOpen && (
+                          <div className="absolute bottom-16 right-0 z-20 w-44 rounded-lg border border-border bg-surface-raised shadow-lg py-1">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setAvatarMenuOpen(false);
+                                openCamera();
+                              }}
+                              className="w-full px-3 min-h-[40px] text-left text-sm text-secondary hover:bg-surface-sunken flex items-center gap-2"
+                            >
+                              <i className="fas fa-camera w-4 text-center" aria-hidden="true"></i> Take photo
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setAvatarMenuOpen(false);
+                                open();
+                              }}
+                              className="w-full px-3 min-h-[40px] text-left text-sm text-secondary hover:bg-surface-sunken flex items-center gap-2"
+                            >
+                              <i className="fas fa-images w-4 text-center" aria-hidden="true"></i> Choose photo
+                            </button>
+                          </div>
                         )}
-                      </button>
+                      </div>
                     )}
                   />
                 </div>

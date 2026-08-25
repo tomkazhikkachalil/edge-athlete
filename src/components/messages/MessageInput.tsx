@@ -10,6 +10,8 @@ import type { Message, ParticipantProfile } from '@/types/messages';
 import MentionSuggestions from '@/components/MentionSuggestions';
 import { useMentionTypeahead, type MentionCandidate } from '@/hooks/useMentionTypeahead';
 import { MediaEditor } from '@/components/media-editor';
+import CaptureInputs from '@/components/media/CaptureInputs';
+import { usePopoverDismiss } from '@/hooks/usePopoverDismiss';
 import { validateFiles } from '@/lib/media/validation';
 import { isOptimizableImageSrc } from '@/lib/media/image-src';
 import {
@@ -89,6 +91,10 @@ export default function MessageInput({ conversationId, currentUserId, onSend, di
   const [sending, setSending] = useState(false);
   const [error, setError] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
+  // Capture popover off the paperclip (Take photo / Record video / Library).
+  const [attachMenuOpen, setAttachMenuOpen] = useState(false);
+  const attachMenuRef = useRef<HTMLDivElement>(null);
+  usePopoverDismiss(attachMenuRef, attachMenuOpen, () => setAttachMenuOpen(false));
   const typingChannelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
   const typingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -226,6 +232,12 @@ export default function MessageInput({ conversationId, currentUserId, onSend, di
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
+    handlePickedFile(file);
+  };
+
+  // Shared by the library input and the capture inputs — both end in the
+  // same single-file validate → editor path.
+  const handlePickedFile = (file: File) => {
     const { accepted, rejected } = validateFiles([file], {
       maxBytes: MAX_FILE_SIZE,
       allowVideo: true,
@@ -456,57 +468,104 @@ export default function MessageInput({ conversationId, currentUserId, onSend, di
             CLIPS pseudo-elements, hit-testing included. Heights are free to
             grow (only the WIDTHS are pinned to composer-layout constants),
             and the send button already makes the row 44px tall. */}
-        <div className="shrink-0 flex items-end">
-          <div
-            className="overflow-hidden transition-[width,opacity] duration-200 ease-out"
-            style={{ width: leadingOpen ? 0 : CHEVRON_PX, opacity: leadingOpen ? 0 : 1 }}
-            inert={leadingOpen}
-            aria-hidden={leadingOpen}
-          >
-            <button
-              type="button"
-              onClick={() => dispatchLeading({ type: 'TOGGLE' })}
-              disabled={disabled || sending}
-              className="w-10 h-11 flex items-center justify-center text-faint hover:text-violet-500 active:text-violet-500 transition-colors disabled:opacity-40"
-              aria-label="Show attachment and GIF buttons"
-              title="More options"
-              aria-expanded={leadingOpen}
-            >
-              <i className="fas fa-chevron-right text-sm"></i>
-            </button>
-          </div>
+        {/* Capture-everywhere round: the paperclip opens a 3-option popover
+            (Take photo / Record video / Library). CaptureInputs' hidden
+            inputs land HERE, direct children of this cluster div — outside
+            both inert width-animating boxes, so programmatic .click() is
+            never swallowed (the same reason the library input lives at the
+            component root). The popover panel is also a direct child: the
+            inert boxes are overflow-hidden, which would clip it. */}
+        <CaptureInputs onFiles={files => handlePickedFile(files[0])} allowVideo>
+          {({ openPhoto, openVideo }) => (
+            <div ref={attachMenuRef} className="relative shrink-0 flex items-end">
+              <div
+                className="overflow-hidden transition-[width,opacity] duration-200 ease-out"
+                style={{ width: leadingOpen ? 0 : CHEVRON_PX, opacity: leadingOpen ? 0 : 1 }}
+                inert={leadingOpen}
+                aria-hidden={leadingOpen}
+              >
+                <button
+                  type="button"
+                  onClick={() => dispatchLeading({ type: 'TOGGLE' })}
+                  disabled={disabled || sending}
+                  className="w-10 h-11 flex items-center justify-center text-faint hover:text-violet-500 active:text-violet-500 transition-colors disabled:opacity-40"
+                  aria-label="Show attachment and GIF buttons"
+                  title="More options"
+                  aria-expanded={leadingOpen}
+                >
+                  <i className="fas fa-chevron-right text-sm"></i>
+                </button>
+              </div>
 
-          <div
-            className="overflow-hidden transition-[width,opacity] duration-200 ease-out flex items-end"
-            style={{ width: leadingOpen ? LEADING_OPEN_PX : 0, opacity: leadingOpen ? 1 : 0 }}
-            inert={!leadingOpen}
-            aria-hidden={!leadingOpen}
-          >
-            {/* Attachment */}
-            <button
-              type="button"
-              onClick={() => fileInputRef.current?.click()}
-              disabled={disabled || sending}
-              className="w-10 h-11 shrink-0 flex items-center justify-center text-faint hover:text-tertiary active:text-tertiary transition-colors disabled:opacity-40"
-              aria-label="Attach file"
-              title="Attach a photo or video"
-            >
-              <i className="fas fa-paperclip text-lg"></i>
-            </button>
-            {/* GIF */}
-            <button
-              type="button"
-              onClick={() => setShowGifPicker(prev => !prev)}
-              disabled={disabled || sending}
-              data-gif-picker-toggle
-              className="w-10 h-11 shrink-0 flex items-center justify-center text-faint hover:text-violet-500 active:text-violet-500 transition-colors disabled:opacity-40 text-xs font-bold"
-              aria-label="Send GIF"
-              title="Send a GIF"
-            >
-              GIF
-            </button>
-          </div>
-        </div>
+              <div
+                className="overflow-hidden transition-[width,opacity] duration-200 ease-out flex items-end"
+                style={{ width: leadingOpen ? LEADING_OPEN_PX : 0, opacity: leadingOpen ? 1 : 0 }}
+                inert={!leadingOpen}
+                aria-hidden={!leadingOpen}
+              >
+                {/* Attachment */}
+                <button
+                  type="button"
+                  onClick={() => setAttachMenuOpen(open => !open)}
+                  disabled={disabled || sending}
+                  className="w-10 h-11 shrink-0 flex items-center justify-center text-faint hover:text-tertiary active:text-tertiary transition-colors disabled:opacity-40"
+                  aria-label="Attach file"
+                  title="Attach a photo or video"
+                  aria-expanded={attachMenuOpen}
+                >
+                  <i className="fas fa-paperclip text-lg"></i>
+                </button>
+                {/* GIF */}
+                <button
+                  type="button"
+                  onClick={() => setShowGifPicker(prev => !prev)}
+                  disabled={disabled || sending}
+                  data-gif-picker-toggle
+                  className="w-10 h-11 shrink-0 flex items-center justify-center text-faint hover:text-violet-500 active:text-violet-500 transition-colors disabled:opacity-40 text-xs font-bold"
+                  aria-label="Send GIF"
+                  title="Send a GIF"
+                >
+                  GIF
+                </button>
+              </div>
+
+              {attachMenuOpen && (
+                <div className="absolute bottom-12 left-0 z-20 w-52 rounded-lg border border-border bg-surface-raised shadow-lg py-1">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setAttachMenuOpen(false);
+                      openPhoto();
+                    }}
+                    className="w-full px-3 min-h-[40px] text-left text-sm text-secondary hover:bg-surface-sunken flex items-center gap-2"
+                  >
+                    <i className="fas fa-camera w-4 text-center" aria-hidden="true"></i> Take photo
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setAttachMenuOpen(false);
+                      openVideo?.();
+                    }}
+                    className="w-full px-3 min-h-[40px] text-left text-sm text-secondary hover:bg-surface-sunken flex items-center gap-2"
+                  >
+                    <i className="fas fa-video w-4 text-center" aria-hidden="true"></i> Record video
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setAttachMenuOpen(false);
+                      fileInputRef.current?.click();
+                    }}
+                    className="w-full px-3 min-h-[40px] text-left text-sm text-secondary hover:bg-surface-sunken flex items-center gap-2"
+                  >
+                    <i className="fas fa-images w-4 text-center" aria-hidden="true"></i> Choose from library
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
+        </CaptureInputs>
         {/* Text field. The wrapper is the emoji button's positioning context,
             so it must never get overflow-hidden — that would clip the picker
             panel. `pr-12` reserves the button's gutter on EVERY line, which is

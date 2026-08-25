@@ -6,6 +6,7 @@ import { useDirtyClose } from '@/hooks/useDirtyClose';
 import ConfirmModal from '@/components/ConfirmModal';
 import { COPY } from '@/lib/copy';
 import { MediaEditor } from '@/components/media-editor';
+import CaptureInputs from '@/components/media/CaptureInputs';
 import { validateFiles } from '@/lib/media/validation';
 import { uploadPostMedia } from '@/lib/media/upload';
 import type { EditedMedia, EditorConfig, MediaAsset } from '@/lib/media/types';
@@ -521,16 +522,33 @@ export default function AddVitalModal({ isOpen, onClose, onSaved }: AddVitalModa
                   </div>
                 )}
 
-                {/* Drop zone / file trigger */}
+                {/* Capture + drop zone (capture-everywhere round). PHOTO
+                    capture only: this surface's deliberate 5MB cap makes a
+                    device-recorded video impossible, and offering a button
+                    that always fails is worse than not offering it. */}
                 {mediaFiles.length < MAX_MEDIA_FILES && (
-                  <button
-                    type="button"
-                    onClick={() => fileInputRef.current?.click()}
-                    className="w-full border-2 border-dashed border-border-strong rounded-lg py-4 px-3 text-sm text-muted hover:border-violet-400 hover:text-brand-fg transition-colors flex items-center justify-center gap-2"
-                  >
-                    <i className="fas fa-cloud-upload-alt"></i>
-                    {mediaFiles.length === 0 ? 'Add photos or video' : 'Add more'}
-                  </button>
+                  <CaptureInputs onFiles={handleFileSelect}>
+                    {({ openPhoto }) => (
+                      <div className="flex gap-2">
+                        <button
+                          type="button"
+                          onClick={openPhoto}
+                          className="flex-1 border-2 border-dashed border-border-strong rounded-lg py-4 px-3 text-sm text-muted hover:border-violet-400 hover:text-brand-fg transition-colors flex items-center justify-center gap-2"
+                        >
+                          <i className="fas fa-camera" aria-hidden="true"></i>
+                          Take photo
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => fileInputRef.current?.click()}
+                          className="flex-1 border-2 border-dashed border-border-strong rounded-lg py-4 px-3 text-sm text-muted hover:border-violet-400 hover:text-brand-fg transition-colors flex items-center justify-center gap-2"
+                        >
+                          <i className="fas fa-cloud-upload-alt" aria-hidden="true"></i>
+                          {mediaFiles.length === 0 ? 'Add photos or video' : 'Add more'}
+                        </button>
+                      </div>
+                    )}
+                  </CaptureInputs>
                 )}
                 <input
                   ref={fileInputRef}
