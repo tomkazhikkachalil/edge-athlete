@@ -1,5 +1,39 @@
 # Development Log
 
+## August 25, 2026 — Photo engine E4a: HSL color mixer — Phase 2 begins
+
+First Phase-2 slice: an eight-band color mixer (the Lightroom set — red,
+orange, yellow, green, aqua, blue, purple, magenta), each band with Hue /
+Saturation / Luminance sliders, as a fourth "Mix" group in the Adjust
+panel (colored band chips, per-band-slider undo keys, one-tap group
+reset).
+
+**The LUT architecture** (this is the plumbing curves will reuse):
+`hsl-math.ts` bakes the mixer into a 256-bin hue LUT — adjacent band
+centers smoothstep-lerp (partition of unity, continuous across the red
+wrap) — and the SAME baked bytes feed both renderers: uploaded verbatim
+as a 256×1 texture for the GPU, linear-interpolated verbatim by the CPU
+reference. Parity by construction, not by parallel implementations. The
+LUT re-bakes only when mixer values change (256×4 bytes — trivial per
+drag frame), so HSL drags stay uniform-plus-tiny-upload.
+
+Two decisions worth their reasons:
+- **The mixer stage BRANCHES in the shader** (`u_hslEnabled`) — the one
+  deviation from the straight-line composite. HSL is a closed domain, so
+  an always-on identity round-trip would force a mid-pipeline clamp and
+  visibly change existing renders of overshooting pixels (exposure past
+  white then vignette). The CPU reference skips under the same condition,
+  injected between vibrance and vignette as a HOOK on transformPixel —
+  not an import — because color-math ← hsl-math ← color-math would be
+  exactly the TDZ cycle class that once crashed /notifications.
+- **Symmetric-zero LUT encoding**: byte 128 decodes to exactly 0. The
+  naive (v+1)/2·255 scheme puts zero at 127.5, and every "neutral" LUT
+  would nudge colors by half a step.
+
+Near-grays are guarded (smoothstep of original saturation) so noisy hue
+on desaturated pixels never gets amplified. e2e probe: the fixture is
+aqua-heavy (measured), so Aqua luminance −100 must darken the stage.
+
 ## August 25, 2026 — Photo engine E3b: perspective correction — PHASE 1 COMPLETE
 
 Keystone correction lands as the editor's fourth image tool: two sliders

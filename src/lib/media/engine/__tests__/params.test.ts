@@ -123,6 +123,23 @@ describe('advanced-params routing (engine vs legacy fast path)', () => {
     ).toBe(true);
   });
 
+  it('hsl routes to the engine; sparse recipes normalize to all-band mixes', () => {
+    const base = defaultImageRecipe();
+    const params = recipeToEngineParams({
+      ...base,
+      hsl: { aqua: { hue: 0, saturation: 0, luminance: -0.6 } },
+    });
+    expect(params.hsl.aqua.luminance).toBe(-0.6);
+    expect(params.hsl.red).toEqual({ hue: 0, saturation: 0, luminance: 0 });
+    expect(hasAdvancedParams(params)).toBe(true);
+    // Zeroed bands stay non-advanced.
+    expect(
+      hasAdvancedParams(
+        recipeToEngineParams({ ...base, hsl: { red: { hue: 0, saturation: 0, luminance: 0 } } })
+      )
+    ).toBe(false);
+  });
+
   it('perspective routes to the engine; absent maps to neutral', () => {
     const base = defaultImageRecipe();
     expect(recipeToEngineParams(base).perspective).toEqual({ vertical: 0, horizontal: 0 });

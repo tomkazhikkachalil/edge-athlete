@@ -49,5 +49,8 @@ const LABELS: Record<string, string> = {
 /** null = the oldest retained state. Unknown keys degrade to 'Edit'. */
 export function labelForKeys(keys: string | null): string {
   if (keys === null) return 'Original';
+  // Per-band mixer keys ('hsl.aqua.saturation') are open-ended — prefix rule.
+  if (keys.startsWith('hsl.')) return 'Color mix';
+  if (keys === 'reset.hsl') return 'Reset color mix';
   return LABELS[keys] ?? 'Edit';
 }

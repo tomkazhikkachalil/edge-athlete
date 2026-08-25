@@ -3,6 +3,7 @@ import { applyEngine, resampleBilinear, separableBlur } from '../reference';
 import { NEUTRAL_ENGINE_PARAMS, type EngineParams } from '../params';
 import { applyAdjustments, NEUTRAL_COLOR, NEUTRAL_DETAIL, NEUTRAL_LIGHT } from '../../filters';
 import { gaussianKernel } from '../color-math';
+import { neutralHslMix } from '../hsl-math';
 
 /** Deterministic RGBA test strip: every byte value appears across channels. */
 function testPixels(count = 256): Uint8ClampedArray {
@@ -87,6 +88,21 @@ describe('reference engine — engine-round stages', () => {
     const data = new Uint8ClampedArray([0, 0, 0, 255]);
     applyEngine(data, 1, 1, params({ light: { ...NEUTRAL_LIGHT, blacks: 1 } }));
     expect(data[0]).toBe(64); // 0.25 · 255 = 63.75 → rounds to 64
+  });
+
+  it('hsl mixer: aqua luminance −1 darkens a cyan pixel, spares red and gray', () => {
+    const mix = neutralHslMix();
+    mix.aqua = { hue: 0, saturation: 0, luminance: -1 };
+    // cyan, red, gray side by side
+    const data = new Uint8ClampedArray([
+      0, 200, 200, 255,
+      200, 0, 0, 255,
+      128, 128, 128, 255,
+    ]);
+    applyEngine(data, 3, 1, params({ hsl: mix }));
+    expect(data[1]).toBeLessThan(150); // cyan's green channel dropped
+    expect(data[4]).toBeGreaterThan(190); // red untouched
+    expect(data[8]).toBe(128); // gray fully guarded
   });
 });
 

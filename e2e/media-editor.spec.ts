@@ -78,6 +78,15 @@ test('media editor: crop session, undo, re-edit, dirty confirm, publish', async 
   await expect(page.getByRole('slider', { name: 'Sharpen' })).toBeVisible();
   await expect(page.getByRole('slider', { name: 'Vignette' })).toBeVisible();
 
+  // Color mixer (Phase 2 E4a): the fixture is aqua-heavy, so Aqua
+  // luminance −100 must darken the stage through the LUT stage.
+  await page.getByRole('button', { name: 'Mix', exact: true }).click();
+  await page.getByRole('button', { name: 'Aqua', exact: true }).click();
+  const preMixLuma = await readLuma();
+  await page.getByRole('slider', { name: 'Luminance' }).fill('-100');
+  await page.waitForTimeout(300);
+  expect(await readLuma()).toBeLessThan(preMixLuma);
+
   // Hold-to-compare: while pressed, the stage shows the ORIGINAL — the
   // darkened preview must come back up to the neutral reading.
   const compareBtn = page.getByRole('button', { name: 'Hold to compare with original' });

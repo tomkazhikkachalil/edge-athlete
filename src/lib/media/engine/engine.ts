@@ -27,6 +27,7 @@ import {
 } from './shaders';
 import { NEUTRAL_ENGINE_PARAMS, planPasses, type EngineParams } from './params';
 import { isNeutralPerspective } from './perspective-math';
+import { bakeHslLut, HSL_LUT_SIZE, isNeutralHsl } from './hsl-math';
 
 export interface Engine {
   /** Upload (or replace) the source texture and size the canvas to match.
@@ -77,6 +78,8 @@ export function createEngine(
     vibrance: gl.getUniformLocation(composite, 'u_vibrance'),
     vignette: gl.getUniformLocation(composite, 'u_vignette'),
     detail: gl.getUniformLocation(composite, 'u_detail'),
+    hslLut: gl.getUniformLocation(composite, 'u_hslLut'),
+    hslEnabled: gl.getUniformLocation(composite, 'u_hslEnabled'),
   };
 
   let lost = false;
@@ -99,6 +102,10 @@ export function createEngine(
   let blurLargeReady = false;
   /** Perspective the warp texture (and any blurs) were computed for. */
   let warpFor: string | null = null;
+  // Mixer LUT (unit 3): source-independent, re-baked only when the mixer
+  // values change (256×4 bytes — trivial even per drag frame).
+  let hslLutTex: WebGLTexture | null = null;
+  let hslFor: string | null = null;
 
   const handleLost = (event: Event) => {
     event.preventDefault(); // required, or the context never restores
@@ -240,6 +247,34 @@ export function createEngine(
     const haveSmall = plan.blurSmall && (blurSmallReady || computeBlurSmall(inputTex));
     const haveLarge = plan.blurLarge && (blurLargeReady || computeBlurLarge(inputTex));
 
+    // Mixer LUT: bake + upload only when the mixer values changed.
+    const wantHsl = !isNeutralHsl(p.hsl);
+    if (wantHsl) {
+      const key = JSON.stringify(p.hsl);
+      if (hslFor !== key) {
+        hslLutTex ??= createSourceTexture(gl);
+        if (hslLutTex) {
+          const lut = bakeHslLut(p.hsl);
+          gl.activeTexture(gl.TEXTURE3);
+          gl.bindTexture(gl.TEXTURE_2D, hslLutTex);
+          gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, false);
+          gl.texImage2D(
+            gl.TEXTURE_2D,
+            0,
+            gl.RGBA8,
+            HSL_LUT_SIZE,
+            1,
+            0,
+            gl.RGBA,
+            gl.UNSIGNED_BYTE,
+            new Uint8Array(lut.buffer, lut.byteOffset, lut.length)
+          );
+          hslFor = key;
+        }
+      }
+    }
+    const hslActive = wantHsl && hslLutTex !== null;
+
     gl.bindFramebuffer(gl.FRAMEBUFFER, null);
     gl.viewport(0, 0, srcWidth, srcHeight);
     gl.useProgram(composite);
@@ -249,9 +284,13 @@ export function createEngine(
     gl.bindTexture(gl.TEXTURE_2D, haveSmall && fullB ? fullB.tex : inputTex);
     gl.activeTexture(gl.TEXTURE2);
     gl.bindTexture(gl.TEXTURE_2D, haveLarge && halfA ? halfA.tex : inputTex);
+    gl.activeTexture(gl.TEXTURE3);
+    gl.bindTexture(gl.TEXTURE_2D, hslActive && hslLutTex ? hslLutTex : inputTex);
     gl.uniform1i(loc.src, 0);
     gl.uniform1i(loc.blurSmall, 1);
     gl.uniform1i(loc.blurLarge, 2);
+    gl.uniform1i(loc.hslLut, 3);
+    gl.uniform1f(loc.hslEnabled, hslActive ? 1 : 0);
     gl.uniform2f(loc.resolution, srcWidth, srcHeight);
     gl.uniform3f(loc.bcs, p.adjustments.brightness, p.adjustments.contrast, p.adjustments.saturation);
     gl.uniform1f(loc.exposure, p.light.exposure);
@@ -278,6 +317,7 @@ export function createEngine(
       for (const program of [copyProgram, blurSmallProgram, blurLargeProgram, warpProgram]) {
         if (program) gl.deleteProgram(program);
       }
+      if (hslLutTex) gl.deleteTexture(hslLutTex);
       gl.deleteTexture(texture);
       gl.deleteProgram(composite);
       // Explicit teardown frees the context slot immediately instead of

@@ -26,6 +26,7 @@ import {
   NEUTRAL_LIGHT,
 } from './filters';
 import { isNeutralPerspective } from './engine/perspective-math';
+import { isNeutralHsl } from './engine/hsl-math';
 
 export function defaultImageRecipe(aspect: AspectRatioId = 'free'): ImageRecipe {
   return {
@@ -72,7 +73,8 @@ export function isNoopRecipe(recipe: EditRecipe): boolean {
     isNeutralLight(recipe.light) &&
     isNeutralColor(recipe.color) &&
     isNeutralDetail(recipe.detail) &&
-    isNeutralPerspective(recipe.perspective)
+    isNeutralPerspective(recipe.perspective) &&
+    isNeutralHsl(recipe.hsl)
   );
 }
 
@@ -115,6 +117,12 @@ const cropRectSchema = z.object({
 
 const aspectSchema = z.enum(['free', '1:1', '4:5', '9:16', '16:9', '3:1']);
 
+const hslBandSchema = z.object({
+  hue: signed(),
+  saturation: signed(),
+  luminance: signed(),
+});
+
 // Shared v1/v2 image core — v3 extends it with the engine-round fields.
 const imageRecipeV2Schema = z.object({
   kind: z.literal('image'),
@@ -136,6 +144,18 @@ const imageRecipeSchema = imageRecipeV2Schema.extend({
   filterStrength: unsigned(),
   // Additive within v3 (videoClip.speed precedent): absent = none.
   perspective: z.object({ vertical: signed(), horizontal: signed() }).optional(),
+  hsl: z
+    .object({
+      red: hslBandSchema.optional(),
+      orange: hslBandSchema.optional(),
+      yellow: hslBandSchema.optional(),
+      green: hslBandSchema.optional(),
+      aqua: hslBandSchema.optional(),
+      blue: hslBandSchema.optional(),
+      purple: hslBandSchema.optional(),
+      magenta: hslBandSchema.optional(),
+    })
+    .optional(),
 });
 
 // v1 video shape (single trim) — persisted rows from round B upgrade on read.

@@ -9,6 +9,12 @@ import {
 } from '../shaders';
 import { PERSPECTIVE_SCALE } from '../perspective-math';
 import {
+  HSL_GRAY_GUARD,
+  HSL_HUE_RANGE_DEG,
+  HSL_LUM_RANGE,
+  HSL_SAT_RANGE,
+} from '../hsl-math';
+import {
   BLUR_LARGE_SIGMA,
   BLUR_LARGE_TAPS,
   BLUR_SMALL_SIGMA,
@@ -95,6 +101,18 @@ describe('shader sources embed the color-math constants', () => {
       expect(source).toContain('u_direction');
     }
     expect(COPY_FRAGMENT.startsWith('#version 300 es')).toBe(true);
+  });
+
+  it('composite carries the HSL mixer stage with its constants', () => {
+    expect(FRAGMENT_SHADER).toContain('u_hslLut');
+    expect(FRAGMENT_SHADER).toContain('u_hslEnabled');
+    expect(FRAGMENT_SHADER).toContain('rgb2hsl');
+    expect(FRAGMENT_SHADER).toContain('hsl2rgb');
+    for (const c of [HSL_HUE_RANGE_DEG, HSL_SAT_RANGE, HSL_LUM_RANGE, HSL_GRAY_GUARD]) {
+      expect(FRAGMENT_SHADER).toContain(String(c));
+    }
+    // Symmetric-zero LUT decode (byte 128 → exactly 0).
+    expect(FRAGMENT_SHADER).toContain('- 128.0) / 127.5');
   });
 
   it('warp fragment embeds the perspective scale and border-black rule', () => {
