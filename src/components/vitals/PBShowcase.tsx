@@ -5,6 +5,7 @@ import { TrendingUp, TrendingDown, Minus, Star } from 'lucide-react';
 import { VITAL_METRICS_MAP, getVitalDisplayValue, formatSecondsToDisplay } from '@/lib/vitals-config';
 import { EXERCISE_CATALOG } from '@/lib/workout-config';
 import { parseDateLocal } from '@/lib/formatters';
+import { isRecentPB } from '@/lib/vitals/derive';
 import { categoryAccent, metricCategory } from './category-colors';
 import type { VitalEntryLike } from '@/lib/workouts/dashboard';
 
@@ -117,6 +118,11 @@ export default function PBShowcase({ vitals, onOpenMetric }: PBShowcaseProps) {
               <span className="text-xs font-semibold text-muted uppercase tracking-wide truncate">
                 {card.label}
               </span>
+              {isRecentPB(card.bestDate) && (
+                <span className="vt-pop inline-flex rounded-full bg-amber-100 dark:bg-amber-900/60 px-2 py-0.5 text-[10px] font-bold text-amber-700 dark:text-amber-300 shrink-0">
+                  New!
+                </span>
+              )}
             </div>
             <div className="flex items-center gap-1.5">
               <span className="text-xl font-bold text-primary tabular-nums">{card.bestDisplay}</span>

@@ -158,4 +158,19 @@ describe('buildWorkoutStatsData', () => {
     expect(out.total_volume_lbs).toBe(0);
     expect(out.top_line).toBeNull();
   });
+
+  it('includes prs only when non-empty — old-post shape stays identical', () => {
+    const withPRs = buildWorkoutStatsData({
+      sessionId: 'w1', title: 'Push', durationSeconds: 60, summary,
+      prs: [{ label: 'Bench Press', display: '225 lbs' }],
+    });
+    expect(withPRs.prs).toEqual([{ label: 'Bench Press', display: '225 lbs' }]);
+
+    const withEmpty = buildWorkoutStatsData({
+      sessionId: 'w1', title: 'Push', durationSeconds: 60, summary, prs: [],
+    });
+    expect('prs' in withEmpty).toBe(false);
+    const without = buildWorkoutStatsData({ sessionId: 'w1', title: 'Push', durationSeconds: 60, summary });
+    expect('prs' in without).toBe(false);
+  });
 });

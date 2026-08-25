@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { ChevronDown, ChevronUp, Dumbbell, Timer, TrendingUp } from 'lucide-react';
+import { Award, ChevronDown, ChevronUp, Dumbbell, Timer, TrendingUp } from 'lucide-react';
 import { formatDuration, formatVolume, formatSetLine } from '@/lib/workouts/summary';
 import { serverToEntries, type ServerWorkoutSession } from '@/lib/workouts/serialize';
 import type { EntryExercise } from '@/lib/workouts/entries';
@@ -34,6 +34,14 @@ export default function WorkoutPostCard({ statsData }: WorkoutPostCardProps) {
   const totalVolumeLbs = (statsData.total_volume_lbs as number) || 0;
   const topLine = (statsData.top_line as string) || null;
   const sessionId = statsData.workout_session_id as string | undefined;
+  // Confirmed-at-finish PRs (present only on posts shared since the field
+  // existed) — tolerant parse: stats_data is untyped JSON.
+  const prs = Array.isArray(statsData.prs)
+    ? (statsData.prs as Array<{ label?: unknown; display?: unknown }>).filter(
+        (pr): pr is { label: string; display: string } =>
+          typeof pr?.label === 'string' && typeof pr?.display === 'string'
+      )
+    : [];
 
   const expanded = detail.status !== 'collapsed';
 
@@ -74,6 +82,21 @@ export default function WorkoutPostCard({ statsData }: WorkoutPostCardProps) {
             {topLine && <p className="text-xs text-brand-fg-strong truncate">Top set: {topLine}</p>}
           </div>
         </div>
+
+        {/* PR ribbon — the post wears its confirmed personal bests */}
+        {prs.length > 0 && (
+          <div className="flex flex-wrap gap-1.5 mb-2.5">
+            {prs.map((pr, i) => (
+              <span
+                key={i}
+                className="inline-flex items-center gap-1 rounded-full bg-amber-100 dark:bg-amber-900/60 px-2.5 py-1 text-xs font-bold text-amber-700 dark:text-amber-300"
+              >
+                <Award className="w-3 h-3" aria-hidden="true" />
+                PR · {pr.label} {pr.display}
+              </span>
+            ))}
+          </div>
+        )}
 
         <div className="grid grid-cols-3 gap-2">
           <div className="bg-surface rounded-lg px-2 py-1.5 text-center">

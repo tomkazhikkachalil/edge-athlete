@@ -457,6 +457,10 @@ export default function WorkoutEditorScreen({ mode, session, currentUserId, init
             title,
             durationSeconds: finishedDuration,
             summary,
+            // Only CONFIRMED PRs ride the post — same gate as recordPRs.
+            prs: prCandidates
+              .filter(pr => checkedPRs.has(pr.metricKey))
+              .map(pr => ({ label: pr.metricLabel, display: pr.valueDisplay })),
           }),
         }),
       });
