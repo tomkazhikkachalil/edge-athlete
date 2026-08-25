@@ -167,6 +167,30 @@ export default function ConsentPage() {
                     className="w-full text-sm text-secondary file:mr-3 file:py-2 file:px-4 file:rounded-md file:border-0 file:bg-brand file:text-white hover:file:bg-brand-hover"
                     required
                   />
+                  {/* Capture sibling (capture-everywhere round): "a photo of
+                      the signed statement" is literally the ask. The captured
+                      file is handed INTO the visible input via DataTransfer so
+                      `required`, the filename display and submit all keep
+                      working unchanged. */}
+                  <label className="mt-2 inline-flex items-center gap-1.5 text-xs font-semibold text-brand-fg cursor-pointer min-h-[32px] hover:underline">
+                    <i className="fas fa-camera text-[11px]" aria-hidden="true"></i>
+                    Take a photo of the signed form
+                    <input
+                      type="file"
+                      accept="image/*"
+                      capture="environment"
+                      className="sr-only"
+                      onChange={e => {
+                        const f = e.target.files?.[0];
+                        if (f && fileRef.current) {
+                          const dt = new DataTransfer();
+                          dt.items.add(f);
+                          fileRef.current.files = dt.files;
+                        }
+                        e.target.value = '';
+                      }}
+                    />
+                  </label>
                 </div>
                 <button
                   type="submit"

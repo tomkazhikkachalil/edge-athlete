@@ -35,7 +35,7 @@ interface AvatarUploaderProps {
   onFileReady?: (file: File) => void;
   /** Error sink — defaults to the global toast. */
   onError?: (message: string) => void;
-  render: (props: { open: () => void; uploading: boolean }) => ReactNode;
+  render: (props: { open: () => void; openCamera: () => void; uploading: boolean }) => ReactNode;
 }
 
 export default function AvatarUploader({
@@ -49,6 +49,12 @@ export default function AvatarUploader({
   // render, so any ref read reachable from the props we hand it trips
   // react-hooks/refs. Holding the element in state removes the ref entirely.
   const [inputEl, setInputEl] = useState<HTMLInputElement | null>(null);
+  // Second input for native capture (capture-everywhere round): front camera
+  // (`capture="user"` — an avatar is a selfie), broad accept on purpose —
+  // pairing `capture` with a narrow MIME list is unreliable on Android. The
+  // strict allowlist stays on the library input; validateFiles still guards
+  // whatever the camera hands back.
+  const [cameraEl, setCameraEl] = useState<HTMLInputElement | null>(null);
   const { showError } = useToast();
   const [pending, setPending] = useState<MediaAsset | null>(null);
   const [uploading, setUploading] = useState(false);
@@ -104,6 +110,7 @@ export default function AvatarUploader({
   };
 
   const open = useCallback(() => inputEl?.click(), [inputEl]);
+  const openCamera = useCallback(() => cameraEl?.click(), [cameraEl]);
 
   return (
     <>
@@ -117,7 +124,18 @@ export default function AvatarUploader({
           e.target.value = ''; // allow re-selecting the same file
         }}
       />
-      {render({ open, uploading })}
+      <input
+        ref={setCameraEl}
+        type="file"
+        accept="image/*"
+        capture="user"
+        className="sr-only"
+        onChange={e => {
+          handlePick(e.target.files?.[0]);
+          e.target.value = '';
+        }}
+      />
+      {render({ open, openCamera, uploading })}
       {editorAssets && (
         <MediaEditor
           assets={editorAssets}

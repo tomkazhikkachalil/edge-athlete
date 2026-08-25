@@ -31,16 +31,26 @@ test('own profile shows adapter-declared sport quick links', async ({ page }) =>
   const api = await apiAs('state.json');
   const res = await api.put('/api/profile', { data: { profileData: { sport: 'Golf' } } });
   expect(res.ok()).toBeTruthy();
-  await api.dispose();
 
-  await page.goto('/athlete');
-  const rounds = page.getByRole('link', { name: /view all rounds/i });
-  const trends = page.getByRole('link', { name: /trends/i }).first();
-  await expect(rounds).toBeVisible({ timeout: 15_000 });
-  await expect(trends).toBeVisible();
+  try {
+    await page.goto('/athlete');
+    const rounds = page.getByRole('link', { name: /view all rounds/i });
+    const trends = page.getByRole('link', { name: /trends/i }).first();
+    await expect(rounds).toBeVisible({ timeout: 15_000 });
+    await expect(trends).toBeVisible();
 
-  // Reachable, not just countable: the link must actually take the click.
-  await rounds.click();
-  await expect(page).toHaveURL(/\/app\/sport\/golf\/rounds/);
-  await expect(page.getByRole('heading', { name: /my rounds/i })).toBeVisible({ timeout: 15_000 });
+    // Reachable, not just countable: the link must actually take the click.
+    await rounds.click();
+    await expect(page).toHaveURL(/\/app\/sport\/golf\/rounds/);
+    await expect(page.getByRole('heading', { name: /my rounds/i })).toBeVisible({ timeout: 15_000 });
+  } finally {
+    // Undo the declaration: the QA user is SHARED across specs running in
+    // parallel, and a declared sport flips the feed composer's default to
+    // golf — which HIDES the caption textarea and broke media-editor /
+    // media-reedit whenever this test ran first (caught Aug 25, capture
+    // round). A sported user is this test's fixture, not the suite's.
+    const undo = await api.put('/api/profile', { data: { profileData: { sport: null } } });
+    expect(undo.ok()).toBeTruthy();
+    await api.dispose();
+  }
 });

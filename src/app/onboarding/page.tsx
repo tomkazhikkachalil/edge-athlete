@@ -227,23 +227,35 @@ export default function OnboardingPage() {
                   await refreshProfile();
                   setStep(3);
                 }}
-                render={({ open, uploading }) => (
-                  <button
-                    onClick={() => {
-                      setAvatarError(null);
-                      open();
-                    }}
-                    disabled={uploading}
-                    className="w-full bg-brand text-white py-3 px-4 rounded-md hover:bg-brand-hover transition font-medium disabled:opacity-50 mb-3"
-                  >
-                    {uploading ? (
-                      <><i className="fas fa-spinner fa-spin mr-2"></i>Uploading…</>
-                    ) : profile?.avatar_url ? (
-                      'Change photo'
-                    ) : (
-                      'Choose a photo'
-                    )}
-                  </button>
+                render={({ open, openCamera, uploading }) => (
+                  <div className="mb-3 flex flex-col gap-2">
+                    <button
+                      onClick={() => {
+                        setAvatarError(null);
+                        open();
+                      }}
+                      disabled={uploading}
+                      className="w-full bg-brand text-white py-3 px-4 rounded-md hover:bg-brand-hover transition font-medium disabled:opacity-50"
+                    >
+                      {uploading ? (
+                        <><i className="fas fa-spinner fa-spin mr-2"></i>Uploading…</>
+                      ) : profile?.avatar_url ? (
+                        'Change photo'
+                      ) : (
+                        'Choose a photo'
+                      )}
+                    </button>
+                    <button
+                      onClick={() => {
+                        setAvatarError(null);
+                        openCamera();
+                      }}
+                      disabled={uploading}
+                      className="w-full border border-border-strong text-secondary py-3 px-4 rounded-md hover:bg-surface-muted transition font-medium disabled:opacity-50"
+                    >
+                      <i className="fas fa-camera mr-2" aria-hidden="true"></i>Take a photo
+                    </button>
+                  </div>
                 )}
               />
               <div className="flex flex-wrap items-center justify-center gap-x-4 gap-y-1">

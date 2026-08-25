@@ -719,6 +719,26 @@ export default function GuardianAthletePage() {
                         }}
                       />
                     </label>
+                    {/* Capture sibling (capture-everywhere round): the
+                        guardian photographs the athlete, so rear camera.
+                        Broad accept on purpose — capture + narrow MIME is
+                        unreliable on Android; the upload route re-checks. */}
+                    <label className={`inline-flex items-center gap-1.5 mt-1 text-xs font-semibold cursor-pointer min-h-[32px] ${avatarBusy ? 'text-muted' : 'text-brand-fg-strong hover:text-violet-800 dark:hover:text-violet-300'}`}>
+                      <i className="fas fa-camera text-[11px]" aria-hidden="true"></i>
+                      Take photo
+                      <input
+                        type="file"
+                        accept="image/*"
+                        capture="environment"
+                        className="sr-only"
+                        disabled={avatarBusy}
+                        onChange={e => {
+                          const f = e.target.files?.[0];
+                          if (f) uploadAthleteAvatar(f);
+                          e.target.value = '';
+                        }}
+                      />
+                    </label>
                     <button
                       type="button"
                       onClick={openEditProfile}

@@ -26,6 +26,7 @@ import { GOLF_LABEL, GOLF_SELECT, GOLF_INPUT_COMPACT } from '@/components/golf/g
 import type { GolfHoleScore } from '@/types/group-posts';
 import type { HoleData } from '@/types/golf';
 import { MediaEditor } from '@/components/media-editor';
+import CaptureInputs from '@/components/media/CaptureInputs';
 import { validateFiles } from '@/lib/media/validation';
 import { uploadPostMedia } from '@/lib/media/upload';
 import type { EditedMedia, EditorConfig, MediaAsset } from '@/lib/media/types';
@@ -885,7 +886,9 @@ export default function ScoreEntryModal({
             </div>
           </div>
 
-          {/* Hole photo/video (live rounds) */}
+          {/* Hole photo/video (live rounds). Capture-everywhere round: the
+              highest-value capture surface in the app — live, on-course,
+              one hole at a time. */}
           {canAttachMedia && (
             <div className="mb-4">
               <input
@@ -895,26 +898,48 @@ export default function ScoreEntryModal({
                 className="hidden"
                 onChange={e => handleMediaSelect(e.target.files?.[0])}
               />
-              <button
-                onClick={() => mediaInputRef.current?.click()}
-                disabled={uploadingMedia}
-                className="w-full py-2.5 px-3 min-h-[40px] rounded-lg text-sm font-semibold bg-surface-sunken text-secondary hover:bg-border transition-colors disabled:opacity-60"
-              >
-                {uploadingMedia ? (
-                  <><i className="fas fa-spinner fa-spin mr-2"></i>Uploading…</>
-                ) : (
-                  <>
-                    <i className="fas fa-camera mr-2"></i>
-                    Add photo or video to hole {currentHoleData.hole_number}
-                    {(mediaCountByHole[currentHoleData.hole_number ?? -1] ?? 0) > 0 && (
-                      <span className="ml-2 text-green-700 dark:text-green-300 font-bold">
-                        <i className="fas fa-check mr-1"></i>
-                        {mediaCountByHole[currentHoleData.hole_number ?? -1]}
-                      </span>
-                    )}
-                  </>
+              <p className="mb-1.5 text-xs font-semibold text-secondary">
+                Hole {currentHoleData.hole_number} media
+                {(mediaCountByHole[currentHoleData.hole_number ?? -1] ?? 0) > 0 && (
+                  <span className="ml-2 text-green-700 dark:text-green-300 font-bold">
+                    <i className="fas fa-check mr-1"></i>
+                    {mediaCountByHole[currentHoleData.hole_number ?? -1]}
+                  </span>
                 )}
-              </button>
+              </p>
+              <CaptureInputs onFiles={files => handleMediaSelect(files[0])} allowVideo>
+                {({ openPhoto, openVideo }) => (
+                  <div className="grid grid-cols-3 gap-2">
+                    <button
+                      onClick={openPhoto}
+                      disabled={uploadingMedia}
+                      className="py-2.5 px-2 min-h-[40px] rounded-lg text-sm font-semibold bg-surface-sunken text-secondary hover:bg-border transition-colors disabled:opacity-60"
+                    >
+                      <i className="fas fa-camera mr-1.5" aria-hidden="true"></i>
+                      Take photo
+                    </button>
+                    <button
+                      onClick={openVideo}
+                      disabled={uploadingMedia}
+                      className="py-2.5 px-2 min-h-[40px] rounded-lg text-sm font-semibold bg-surface-sunken text-secondary hover:bg-border transition-colors disabled:opacity-60"
+                    >
+                      <i className="fas fa-video mr-1.5" aria-hidden="true"></i>
+                      Record video
+                    </button>
+                    <button
+                      onClick={() => mediaInputRef.current?.click()}
+                      disabled={uploadingMedia}
+                      className="py-2.5 px-2 min-h-[40px] rounded-lg text-sm font-semibold bg-surface-sunken text-secondary hover:bg-border transition-colors disabled:opacity-60"
+                    >
+                      {uploadingMedia ? (
+                        <><i className="fas fa-spinner fa-spin mr-1.5"></i>Uploading…</>
+                      ) : (
+                        <><i className="fas fa-cloud-upload-alt mr-1.5" aria-hidden="true"></i>Library</>
+                      )}
+                    </button>
+                  </div>
+                )}
+              </CaptureInputs>
             </div>
           )}
 

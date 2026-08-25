@@ -24,6 +24,7 @@ import { useDirtyClose } from '@/hooks/useDirtyClose';
 import ConfirmModal from '@/components/ConfirmModal';
 import { COPY } from '@/lib/copy';
 import { MediaEditor } from '@/components/media-editor';
+import CaptureInputs from '@/components/media/CaptureInputs';
 import { validateFiles } from '@/lib/media/validation';
 import { recipeEnvelope } from '@/lib/media/recipes';
 import { loadComposerDraft, saveComposerDraft, clearComposerDraft, type ComposerDraft } from '@/lib/posts/composer-draft';
@@ -140,11 +141,8 @@ export default function CreatePostModal({
   const { activeProfile } = useAuth();
   const captionRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  // Native-camera capture inputs (media-first round: full device camera
-  // quality; desktop browsers ignore `capture` and fall back to the file
-  // picker). Both feed the same validate→editor pipeline as uploads.
-  const photoCaptureRef = useRef<HTMLInputElement>(null);
-  const videoCaptureRef = useRef<HTMLInputElement>(null);
+  // Native-camera capture lives in the shared <CaptureInputs> (capture-
+  // everywhere round); it feeds the same validate→editor pipeline.
 
   // Post type and content
   const [postType, setPostType] = useState<SportKey | 'general'>(defaultSportKey);
@@ -749,59 +747,45 @@ export default function CreatePostModal({
             {/* Capture row — media is the headline act (Tom, Aug 24): take it
                 NOW at full native-camera quality, or upload. `capture` is a
                 mobile hint; on desktop these open the file picker. */}
-            <div className="grid grid-cols-3 gap-2 mb-3">
-              <input
-                ref={photoCaptureRef}
-                type="file"
-                accept="image/*"
-                capture="environment"
-                className="hidden"
-                onClick={(e) => { (e.target as HTMLInputElement).value = ''; }}
-                onChange={(e) => e.target.files && handleFileUpload(e.target.files)}
-              />
-              <input
-                ref={videoCaptureRef}
-                type="file"
-                accept="video/*"
-                capture="environment"
-                className="hidden"
-                onClick={(e) => { (e.target as HTMLInputElement).value = ''; }}
-                onChange={(e) => e.target.files && handleFileUpload(e.target.files)}
-              />
-              <input
-                ref={fileInputRef}
-                type="file"
-                multiple
-                accept="image/*,video/*"
-                className="hidden"
-                onClick={(e) => { (e.target as HTMLInputElement).value = ''; }}
-                onChange={(e) => e.target.files && handleFileUpload(e.target.files)}
-              />
-              <button
-                type="button"
-                onClick={() => photoCaptureRef.current?.click()}
-                className="flex flex-col items-center justify-center gap-1 min-h-[64px] rounded-lg border-2 border-border-strong hover:border-violet-500 hover:bg-brand-soft transition-all text-secondary"
-              >
-                <i className="fas fa-camera text-lg text-brand-fg" aria-hidden="true"></i>
-                <span className="text-xs font-semibold">Take photo</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => videoCaptureRef.current?.click()}
-                className="flex flex-col items-center justify-center gap-1 min-h-[64px] rounded-lg border-2 border-border-strong hover:border-violet-500 hover:bg-brand-soft transition-all text-secondary"
-              >
-                <i className="fas fa-video text-lg text-brand-fg" aria-hidden="true"></i>
-                <span className="text-xs font-semibold">Record video</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => fileInputRef.current?.click()}
-                className="flex flex-col items-center justify-center gap-1 min-h-[64px] rounded-lg border-2 border-border-strong hover:border-violet-500 hover:bg-brand-soft transition-all text-secondary"
-              >
-                <i className="fas fa-cloud-upload-alt text-lg text-brand-fg" aria-hidden="true"></i>
-                <span className="text-xs font-semibold">Upload</span>
-              </button>
-            </div>
+            <CaptureInputs onFiles={handleFileUpload} allowVideo>
+              {({ openPhoto, openVideo }) => (
+                <div className="grid grid-cols-3 gap-2 mb-3">
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    multiple
+                    accept="image/*,video/*"
+                    className="hidden"
+                    onClick={(e) => { (e.target as HTMLInputElement).value = ''; }}
+                    onChange={(e) => e.target.files && handleFileUpload(e.target.files)}
+                  />
+                  <button
+                    type="button"
+                    onClick={openPhoto}
+                    className="flex flex-col items-center justify-center gap-1 min-h-[64px] rounded-lg border-2 border-border-strong hover:border-violet-500 hover:bg-brand-soft transition-all text-secondary"
+                  >
+                    <i className="fas fa-camera text-lg text-brand-fg" aria-hidden="true"></i>
+                    <span className="text-xs font-semibold">Take photo</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={openVideo}
+                    className="flex flex-col items-center justify-center gap-1 min-h-[64px] rounded-lg border-2 border-border-strong hover:border-violet-500 hover:bg-brand-soft transition-all text-secondary"
+                  >
+                    <i className="fas fa-video text-lg text-brand-fg" aria-hidden="true"></i>
+                    <span className="text-xs font-semibold">Record video</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => fileInputRef.current?.click()}
+                    className="flex flex-col items-center justify-center gap-1 min-h-[64px] rounded-lg border-2 border-border-strong hover:border-violet-500 hover:bg-brand-soft transition-all text-secondary"
+                  >
+                    <i className="fas fa-cloud-upload-alt text-lg text-brand-fg" aria-hidden="true"></i>
+                    <span className="text-xs font-semibold">Upload</span>
+                  </button>
+                </div>
+              )}
+            </CaptureInputs>
 
             <p className={`text-xs ${draggedOver ? 'font-semibold text-brand-fg' : 'text-muted'}`}>
               {draggedOver

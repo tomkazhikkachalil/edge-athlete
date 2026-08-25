@@ -631,15 +631,25 @@ export default function EditProfileTabs({
           <AvatarUploader
             mode="deferred"
             onFileReady={file => setBasicForm(prev => ({ ...prev, avatar_file: file }))}
-            render={({ open }) => (
-              <button
-                type="button"
-                onClick={open}
-                className="cursor-pointer inline-flex items-center px-4 py-2 border border-border-strong rounded-md shadow-sm text-sm font-medium text-secondary bg-surface hover:bg-surface-muted focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-violet-500"
-              >
-                <i className="fas fa-upload mr-2" aria-hidden="true"></i>
-                {basicForm.avatar_file ? 'Avatar ready — saves with profile' : 'Change Avatar'}
-              </button>
+            render={({ open, openCamera }) => (
+              <div className="flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={open}
+                  className="cursor-pointer inline-flex items-center px-4 py-2 border border-border-strong rounded-md shadow-sm text-sm font-medium text-secondary bg-surface hover:bg-surface-muted focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-violet-500"
+                >
+                  <i className="fas fa-upload mr-2" aria-hidden="true"></i>
+                  {basicForm.avatar_file ? 'Avatar ready — saves with profile' : 'Change Avatar'}
+                </button>
+                <button
+                  type="button"
+                  onClick={openCamera}
+                  className="cursor-pointer inline-flex items-center px-4 py-2 border border-border-strong rounded-md shadow-sm text-sm font-medium text-secondary bg-surface hover:bg-surface-muted"
+                >
+                  <i className="fas fa-camera mr-2" aria-hidden="true"></i>
+                  Take photo
+                </button>
+              </div>
             )}
           />
           <p className="mt-1 text-xs text-muted">

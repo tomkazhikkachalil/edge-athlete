@@ -1,9 +1,10 @@
 'use client';
 
 import { useState, useRef } from 'react';
-import { Upload, X, Loader2 } from 'lucide-react';
+import { Camera as CameraIcon, Upload, X, Loader2 } from 'lucide-react';
 import Image from 'next/image';
 import { MediaEditor } from '@/components/media-editor';
+import CaptureInputs from '@/components/media/CaptureInputs';
 import { validateFiles } from '@/lib/media/validation';
 import type { EditedMedia, EditorConfig, MediaAsset } from '@/lib/media/types';
 
@@ -34,6 +35,12 @@ export default function EquipmentImageUpload({
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
+    handlePickedFile(file);
+  };
+
+  // Shared by the library input and the capture input — same validate →
+  // editor path.
+  const handlePickedFile = (file: File) => {
     const { accepted, rejected } = validateFiles([file], {
       maxBytes: 5 * 1024 * 1024,
       allowVideo: false,
@@ -127,30 +134,44 @@ export default function EquipmentImageUpload({
         </div>
       )}
 
-      {/* Upload Controls */}
-      <div className="flex items-center gap-2">
-        {/* Upload Button */}
-        <button
-          type="button"
-          onClick={() => fileInputRef.current?.click()}
-          disabled={uploading}
-          className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 border-2 border-dashed border-border-strong rounded-lg hover:border-violet-500 hover:bg-brand-soft transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-        >
-          {uploading ? (
-            <>
-              <Loader2 className="w-5 h-5 animate-spin text-brand-fg" />
-              <span className="text-sm font-medium text-secondary">Uploading...</span>
-            </>
-          ) : (
-            <>
-              <Upload className="w-5 h-5 text-faint" />
-              <span className="text-sm font-medium text-secondary">
-                {value ? 'Change Image' : 'Upload Image'}
-              </span>
-            </>
-          )}
-        </button>
-      </div>
+      {/* Upload Controls. Capture-everywhere round: photo-only capture
+          sibling (gear is a photo subject; no video on this surface). */}
+      <CaptureInputs onFiles={files => handlePickedFile(files[0])}>
+        {({ openPhoto }) => (
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={openPhoto}
+              disabled={uploading}
+              className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 border-2 border-dashed border-border-strong rounded-lg hover:border-violet-500 hover:bg-brand-soft transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <CameraIcon className="w-5 h-5 text-faint" />
+              <span className="text-sm font-medium text-secondary">Take Photo</span>
+            </button>
+            {/* Upload Button */}
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              disabled={uploading}
+              className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 border-2 border-dashed border-border-strong rounded-lg hover:border-violet-500 hover:bg-brand-soft transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {uploading ? (
+                <>
+                  <Loader2 className="w-5 h-5 animate-spin text-brand-fg" />
+                  <span className="text-sm font-medium text-secondary">Uploading...</span>
+                </>
+              ) : (
+                <>
+                  <Upload className="w-5 h-5 text-faint" />
+                  <span className="text-sm font-medium text-secondary">
+                    {value ? 'Change Image' : 'Upload Image'}
+                  </span>
+                </>
+              )}
+            </button>
+          </div>
+        )}
+      </CaptureInputs>
 
       {/* Hidden file input */}
       <input

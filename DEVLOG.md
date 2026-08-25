@@ -1,5 +1,60 @@
 # Development Log
 
+## August 25, 2026 — Capture everywhere: native camera on all nine media surfaces
+
+The composer's Take photo / Record video affordance (#264) existed ONLY
+in the post composer; every other media surface opened a bare library
+picker. This round brings native capture (`<input capture>` — mobile
+camera hint, desktop falls back to the picker, never getUserMedia) to
+every media surface, each sized to its real layout rather than a
+one-size row:
+
+- **Shared piece**: `src/components/media/CaptureInputs.tsx` — HEADLESS
+  children-as-function (renders the hidden capture inputs, hands the
+  surface `{openPhoto, openVideo}`); the composer refactored onto it
+  with identical DOM semantics (pinned e2e names and the `[multiple]`
+  library selector survive).
+- **Visible rows** where there's room: RoundMediaManager (3-up brand
+  row), ScoreEntryModal per-hole (3-up sunken grid — the highest-value
+  surface: live, on-course, per hole), AddVitalModal (photo-only tile —
+  the 5MB cap makes recorded video impossible, so no false button),
+  EquipmentImageUpload (photo-only, lucide).
+- **Popovers** where there isn't: ExerciseCard's per-set camera icon and
+  MessageInput's paperclip open a 3-option menu via `usePopoverDismiss`;
+  the athlete page's avatar/cover camera FABs open 2-option menus.
+- **Render-prop uploaders**: AvatarUploader and CoverPhotoUploader widen
+  to `render({open, openCamera, uploading})` — avatar capture is
+  `capture="user"` (a selfie), cover/guardian are `"environment"`.
+  Onboarding and Edit Profile gain a second button.
+- **Guardian surfaces**: set-child-avatar gains a Take-photo label
+  sibling; the consent form gains "Take a photo of the signed form",
+  handing the captured file INTO the visible required input via
+  `DataTransfer` so `required`/filename/submit stay untouched.
+
+Two traps re-confirmed, now encoded in CaptureInputs itself:
+**children-as-function props that close over `ref.current` trip
+`react-hooks/refs`** (lint caught it; fixed with the AvatarUploader
+callback-ref-into-state pattern), and **inert ancestors swallow
+programmatic `.click()`** — in MessageInput the hidden inputs and the
+popover panel mount as direct children of the cluster div, outside both
+inert width-animating boxes (which are also overflow-hidden and would
+clip the panel).
+
+Capture accept stays broad (`image/*`) on purpose — `capture` plus a
+narrow MIME list is unreliable on Android; every surface's existing
+validateFiles/server checks still guard what the camera returns.
+EditPostModal deliberately skipped: it has no file input at all, and
+adding media to a published post is a new feature + API (backlog).
+
+Suite bug flushed out by this round's e2e batch (pre-existing, on main
+too): **header-create's quick-links test declared `sport: 'Golf'` on
+the SHARED QA user and never undid it** — every composer spec whose
+test ran after it in a parallel batch got a golf-defaulted composer
+(which hides the caption textarea) and failed on
+`Share your thoughts…`. The failures pass in isolation, which is the
+tell for this class. Fixed with a `finally` that PUTs `sport: null`
+back: a sported profile is that test's fixture, not the suite's.
+
 ## August 25, 2026 — Photo engine E-W3: saved presets — PHASE 4 (and the program) COMPLETE
 
 The last workflow slice: **My presets** in the Filters tool — save the

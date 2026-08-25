@@ -22,6 +22,7 @@ import { uploadPostMedia } from '@/lib/media/upload';
 import { inferSegment, segmentTimesFromScores, type SegmentTime } from '@/lib/media/segment-autotag';
 import { segmentLabel, segmentOptions } from '@/lib/sports/segment-schemas';
 import { MediaEditor } from '@/components/media-editor';
+import CaptureInputs from '@/components/media/CaptureInputs';
 import ConfirmModal from '@/components/ConfirmModal';
 import type { EditedMedia, EditorConfig, MediaAsset } from '@/lib/media/types';
 import type { SportKey } from '@/lib/sports';
@@ -168,15 +169,42 @@ export default function RoundMediaManager({
         className="hidden"
         onChange={e => handleFiles(e.target.files)}
       />
-      <button
-        type="button"
-        onClick={() => inputRef.current?.click()}
-        disabled={disabled || busy}
-        className="inline-flex min-h-[44px] items-center gap-2 rounded-lg bg-brand px-4 py-2 font-bold text-white transition-colors hover:bg-brand-hover disabled:opacity-60"
-      >
-        <i className={`fas ${busy ? 'fa-spinner fa-spin' : 'fa-camera'}`} aria-hidden="true"></i>
-        {busy ? 'Adding…' : 'Add photos or videos'}
-      </button>
+      {/* Capture-everywhere round: shoot NOW at native-camera quality (the
+          "now" timestamp is exactly what hole inference wants on a live
+          round), or pick from the library. */}
+      <CaptureInputs onFiles={handleFiles} allowVideo>
+        {({ openPhoto, openVideo }) => (
+          <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={openPhoto}
+              disabled={disabled || busy}
+              className="inline-flex min-h-[44px] items-center gap-2 rounded-lg bg-brand px-4 py-2 font-bold text-white transition-colors hover:bg-brand-hover disabled:opacity-60"
+            >
+              <i className="fas fa-camera" aria-hidden="true"></i>
+              Take photo
+            </button>
+            <button
+              type="button"
+              onClick={openVideo}
+              disabled={disabled || busy}
+              className="inline-flex min-h-[44px] items-center gap-2 rounded-lg bg-brand px-4 py-2 font-bold text-white transition-colors hover:bg-brand-hover disabled:opacity-60"
+            >
+              <i className="fas fa-video" aria-hidden="true"></i>
+              Record video
+            </button>
+            <button
+              type="button"
+              onClick={() => inputRef.current?.click()}
+              disabled={disabled || busy}
+              className="inline-flex min-h-[44px] items-center gap-2 rounded-lg border-2 border-border-strong px-4 py-2 font-bold text-secondary transition-colors hover:border-violet-500 hover:bg-brand-soft disabled:opacity-60"
+            >
+              <i className={`fas ${busy ? 'fa-spinner fa-spin' : 'fa-cloud-upload-alt'}`} aria-hidden="true"></i>
+              {busy ? 'Adding…' : 'Upload'}
+            </button>
+          </div>
+        )}
+      </CaptureInputs>
 
       {notice && <p className="mt-2 text-xs font-semibold text-tertiary">{notice}</p>}
       {error && <p className="mt-2 text-xs font-semibold text-red-600 dark:text-red-400">{error}</p>}
