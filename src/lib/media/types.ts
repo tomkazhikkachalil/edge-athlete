@@ -41,10 +41,26 @@ export interface ImageRecipe {
   aspect: AspectRatioId;
 }
 
+/** One segment of the output timeline — a [in, out) slice of the SOURCE. */
+export interface VideoClip {
+  in: number; // source seconds
+  out: number; // source seconds, > in
+  volume: number; // 0–1; 0 = muted
+}
+
+/**
+ * Recipe v2 (multi-clip round). `clips` is the OUTPUT timeline in order —
+ * every clip slices the same source file; [] means "whole file, untouched"
+ * (so an unedited video stays a pass-through). `crop` is the aspect reframe
+ * in source display pixels. `posterTime` is TIMELINE-space seconds (with []
+ * clips, timeline == source).
+ */
 export interface VideoRecipe {
   kind: 'video';
-  trim: { start: number; end: number } | null; // seconds; null = full length
-  posterTime: number; // seconds, default 0
+  clips: VideoClip[];
+  crop: CropRect | null;
+  aspect: AspectRatioId;
+  posterTime: number;
 }
 
 export type EditRecipe = ImageRecipe | VideoRecipe;
