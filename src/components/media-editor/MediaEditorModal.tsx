@@ -38,6 +38,8 @@ import MaskPanel, { DEFAULT_BRUSH_SETTINGS, type BrushSettings } from './MaskPan
 import MaskOverlay from './MaskOverlay';
 import RetouchPanel from './RetouchPanel';
 import RetouchOverlay from './RetouchOverlay';
+import TextPanel from './TextPanel';
+import OverlayLayer from './OverlayLayer';
 import FilterStrip from './FilterStrip';
 import Filmstrip from './Filmstrip';
 import VideoStage from './VideoStage';
@@ -50,6 +52,7 @@ type Tool =
   | 'filter'
   | 'masks'
   | 'retouch'
+  | 'text'
   | 'perspective'
   | 'clips'
   | 'poster';
@@ -60,6 +63,7 @@ const IMAGE_TOOLS: Array<{ id: Tool; label: string }> = [
   { id: 'filter', label: 'Filters' },
   { id: 'masks', label: 'Masks' },
   { id: 'retouch', label: 'Retouch' },
+  { id: 'text', label: 'Text' },
   { id: 'perspective', label: 'Perspective' },
 ];
 const VIDEO_TOOLS: Array<{ id: Tool; label: string }> = [
@@ -104,6 +108,8 @@ export default function MediaEditorModal({ assets: initialAssets, config, onDone
   const [brushSettings, setBrushSettings] = useState<BrushSettings>(DEFAULT_BRUSH_SETTINGS);
   // Retouch tool: which clone stamp is selected.
   const [selectedCloneIndex, setSelectedCloneIndex] = useState(0);
+  // Text tool: which overlay is selected.
+  const [selectedOverlayIndex, setSelectedOverlayIndex] = useState(0);
   // White-balance eyedropper: stage waits for one neutral-gray tap.
   const [wbPicking, setWbPicking] = useState(false);
 
@@ -258,6 +264,14 @@ export default function MediaEditorModal({ assets: initialAssets, config, onDone
             engineAvailable={isEngineSupported()}
           />
         )}
+        {activeTool === 'text' && (
+          <TextPanel
+            recipe={imageRecipe}
+            selectedIndex={selectedOverlayIndex}
+            onSelectIndex={setSelectedOverlayIndex}
+            onPatch={(patch, keys) => patchRecipe(active.id, patch, keys)}
+          />
+        )}
         {activeTool === 'retouch' && (
           <RetouchPanel
             recipe={imageRecipe}
@@ -296,13 +310,16 @@ export default function MediaEditorModal({ assets: initialAssets, config, onDone
       </>
     ) : null;
 
-  // Tool tabs (GIFs have no tools). Scrolls, not clips: the video path
-  // renders four tabs (~321px) in a 288px shell at 320px — same recipe as
-  // FilterStrip. sm:justify-center restores the centered look where
-  // everything fits.
+  // Tool tabs (GIFs have no tools). Scrolls, not clips — and centering is
+  // done with FIRST/LAST auto margins, NOT justify-center: justify-center
+  // on an overflowing flex row overflows BOTH sides, and in the 320px
+  // desktop column the left tabs floated out over the crop stage, which
+  // swallowed their clicks (caught by e2e when the 7th tool landed). Auto
+  // margins center when content fits and degrade to a normal scroll row
+  // when it doesn't.
   const toolTabs =
     activeUrl && !isGif ? (
-      <div className="flex sm:justify-center gap-2 px-4 py-2 flex-shrink-0 overflow-x-auto scrollbar-hide">
+      <div className="flex gap-2 px-4 py-2 flex-shrink-0 overflow-x-auto scrollbar-hide [&>*:first-child]:ml-auto [&>*:last-child]:mr-auto">
         {tools.map(t => (
           <button
             key={t.id}
@@ -461,6 +478,22 @@ export default function MediaEditorModal({ assets: initialAssets, config, onDone
                     brushSettings={brushSettings}
                   />
                 )}
+                {(imageRecipe.overlays?.length ?? 0) > 0 || activeTool === 'text' ? (
+                  <OverlayLayer
+                    overlays={imageRecipe.overlays ?? []}
+                    selectedIndex={selectedOverlayIndex}
+                    interactive={activeTool === 'text'}
+                    hidden={comparing}
+                    onSelect={setSelectedOverlayIndex}
+                    onChange={(overlays, keys) =>
+                      patchRecipe(
+                        active.id,
+                        { overlays: overlays.length > 0 ? overlays : undefined },
+                        keys
+                      )
+                    }
+                  />
+                ) : null}
                 {activeTool === 'retouch' && (
                   <RetouchOverlay
                     clones={imageRecipe.clones ?? []}

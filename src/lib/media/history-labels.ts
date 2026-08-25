@@ -62,5 +62,8 @@ export function labelForKeys(keys: string | null): string {
   if (keys === 'clone.add') return 'Add retouch';
   if (keys === 'clone.delete') return 'Remove retouch';
   if (keys.startsWith('clone.')) return 'Retouch';
+  if (keys === 'overlay.add') return 'Add text';
+  if (keys === 'overlay.delete') return 'Remove text';
+  if (keys.startsWith('overlay.')) return 'Text';
   return LABELS[keys] ?? 'Edit';
 }

@@ -31,6 +31,7 @@ import { isNeutralCurves } from './engine/curves-math';
 import { isNeutralMasks } from './engine/mask-math';
 import { isNeutralGrain } from './engine/grain-math';
 import { isNeutralClones } from './engine/clone-math';
+import { isNeutralOverlays, OVERLAY_COLOR_REGEX } from './engine/overlay-layout';
 
 export function defaultImageRecipe(aspect: AspectRatioId = 'free'): ImageRecipe {
   return {
@@ -82,7 +83,8 @@ export function isNoopRecipe(recipe: EditRecipe): boolean {
     isNeutralCurves(recipe.curves) &&
     isNeutralMasks(recipe.masks) &&
     isNeutralGrain(recipe.grain) &&
-    isNeutralClones(recipe.clones)
+    isNeutralClones(recipe.clones) &&
+    isNeutralOverlays(recipe.overlays)
   );
 }
 
@@ -239,6 +241,32 @@ const imageRecipeSchema = imageRecipeV2Schema.extend({
         radius: z.number().min(0.01).max(0.5),
         feather: unsigned(),
       })
+    )
+    .max(8)
+    .optional(),
+  overlays: z
+    .array(
+      z.discriminatedUnion('kind', [
+        z.object({
+          kind: z.literal('text'),
+          content: z.string().min(1).max(120),
+          x: unsigned(),
+          y: unsigned(),
+          size: z.number().min(0.02).max(0.3),
+          fontId: z.enum(['inter', 'lora', 'caveat']),
+          color: z.string().regex(OVERLAY_COLOR_REGEX),
+          rotation: z.number().min(-45).max(45),
+          pill: z.boolean().optional(),
+        }),
+        z.object({
+          kind: z.literal('emoji'),
+          emoji: z.string().min(1).max(16),
+          x: unsigned(),
+          y: unsigned(),
+          size: z.number().min(0.02).max(0.3),
+          rotation: z.number().min(-45).max(45),
+        }),
+      ])
     )
     .max(8)
     .optional(),

@@ -933,3 +933,32 @@ html:not([data-theme="dark"]) .dark-theme-only {
   max-height: 90vh;
   max-height: 90dvh;
 }
+
+/* Media-editor overlay fonts (E4h) — bundled OFL faces (latin subsets,
+ * ~49KB total) so text on photos renders IDENTICALLY on every device and
+ * in every canvas export. Family names are OURS ('EAInter' etc.) because
+ * canvas fillText needs predictable font strings — next/font's hashed
+ * families can't be addressed from a 2D context. swap: the editor preloads
+ * via document.fonts before export, so no export ever rasterizes a
+ * fallback face. */
+@font-face {
+  font-family: 'EAInter';
+  src: url('/fonts/inter-600.woff2') format('woff2');
+  font-weight: 600;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'EALora';
+  src: url('/fonts/lora-500.woff2') format('woff2');
+  font-weight: 500;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'EACaveat';
+  src: url('/fonts/caveat-700.woff2') format('woff2');
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}

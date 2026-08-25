@@ -20,6 +20,7 @@ import { decodeImage, type DecodedImage } from './decode';
 import { hasAdvancedParams, recipeToEngineParams } from './engine/params';
 import { renderEngineOnCanvas } from './engine/engine';
 import { applyEngine } from './engine/reference';
+import { drawOverlays, ensureOverlayFontsLoaded } from './overlay-render';
 import type { ImageRecipe, OutputConfig } from './types';
 
 let canvasFilterSupport: boolean | null = null;
@@ -161,6 +162,15 @@ export async function renderImage(
     const imageData = ctx.getImageData(0, 0, current.width, current.height);
     applyAdjustments(imageData.data, params.adjustments);
     ctx.putImageData(imageData, 0, 0);
+  }
+
+  // Text/sticker overlays draw LAST (over grain/vignette), by 2D canvas —
+  // glyph raster is not an engine job. Fonts resolve first so an export
+  // never rasterizes a swapped-in fallback face.
+  if (recipe.overlays && recipe.overlays.length > 0) {
+    await ensureOverlayFontsLoaded(recipe.overlays);
+    const ctx = current.getContext('2d');
+    if (ctx) drawOverlays(ctx, current.width, current.height, recipe.overlays);
   }
 
   const blob = await toBlob(current, output.mime, output.quality);

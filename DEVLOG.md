@@ -1,5 +1,42 @@
 # Development Log
 
+## August 25, 2026 — Photo engine E4h: text & emoji stickers — PHASE 2 COMPLETE
+
+The last Phase-2 tool: a **Text** tool with draggable text overlays and
+emoji stickers. Text gets three BUNDLED faces (Tom's call: Inter/Lora/
+Caveat, OFL, latin subsets — 49KB total under public/fonts with our own
+@font-face family names, because canvas fillText needs predictable font
+strings and next/font's hashed families can't be addressed from a 2D
+context), an 8-color palette, size/rotation, and an optional pill
+backdrop. Stickers are EMOJI (Tom's call): curated sport grid + free
+entry — zero assets, zero licensing, and every platform renders its own
+emoji everywhere else in the app anyway.
+
+**Rendering is deliberately NOT the engine's job.** Glyph raster is 2D
+canvas: the export draws overlays as the LAST stage (over grain and
+vignette), after `document.fonts.load` resolves the bundled faces —
+font-display: swap would otherwise silently rasterize a fallback into
+the export. The preview is a DOM layer over the stage sharing the same
+layout math (`overlay-layout.ts`, pure) and the same fonts; the only
+divergence is the platform's glyph rasterizer, sub-pixel. Because the
+preview is DOM, the e2e pixel proof reads the EXPORTED blob: big white
+"GO" glyphs must appear as >200 near-white pixels in the rendered tile —
+the one check that actually exercises drawOverlays + the bundled fonts.
+
+**The 7th tool tab found a real layout bug**: the tool-tab row used
+`sm:justify-center` + overflow-x-auto, and justify-center on an
+OVERFLOWING flex row overflows BOTH sides — in the 320px desktop column
+the left tabs floated out over the crop stage, whose container swallowed
+their clicks (e2e died on a tab click that had worked for ten rounds).
+Fix: center with FIRST/LAST auto margins, which center when content fits
+and degrade to a normal scroll row when it doesn't. Same trap family as
+the FilterStrip note — now with the general cure.
+
+**Phase 2 of the photo-editor mandate is complete**: curves, HSL mixer,
+radial/linear/brush masks, clone stamp, grain, WB eyedropper, background
+blur, text/stickers. Remaining programs: E-AI (Phase 3, integration
+only, cost-gated) and E-W (Phase 4 workflow).
+
 ## August 25, 2026 — Photo engine E4g: clone stamp (healing v1)
 
 A **Retouch** tool — the honest version of healing, no AI: tap a blemish

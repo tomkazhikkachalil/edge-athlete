@@ -189,6 +189,36 @@ describe('defaults and no-op detection', () => {
     ).toBeNull();
   });
 
+  it('overlays: absent/empty are no-ops; text + emoji round-trip; bad values reject (E4h)', () => {
+    const base = defaultImageRecipe();
+    expect(isNoopRecipe({ ...base, overlays: [] })).toBe(true);
+    const textOverlay = {
+      kind: 'text' as const,
+      content: 'GAME DAY',
+      x: 0.5,
+      y: 0.8,
+      size: 0.1,
+      fontId: 'caveat' as const,
+      color: '#f97316',
+      rotation: -12,
+      pill: true,
+    };
+    const emojiOverlay = { kind: 'emoji' as const, emoji: '🔥', x: 0.2, y: 0.2, size: 0.15, rotation: 0 };
+    const recipe = { ...base, overlays: [textOverlay, emojiOverlay] };
+    expect(isNoopRecipe(recipe)).toBe(false);
+    expect(parseRecipe(serializeRecipe(recipe))).toEqual(recipe);
+    // Rejections: empty content, non-hex color, oversize list.
+    expect(
+      parseRecipe(serializeRecipe({ ...base, overlays: [{ ...textOverlay, content: '' }] }))
+    ).toBeNull();
+    expect(
+      parseRecipe(serializeRecipe({ ...base, overlays: [{ ...textOverlay, color: 'red' }] }))
+    ).toBeNull();
+    expect(
+      parseRecipe(serializeRecipe({ ...base, overlays: Array.from({ length: 9 }, () => emojiOverlay) }))
+    ).toBeNull();
+  });
+
   it('grain: absent/zero-amount is a no-op; settings round-trip; range enforced', () => {
     const base = defaultImageRecipe();
     expect(isNoopRecipe({ ...base, grain: { amount: 0, size: 2 } })).toBe(true);
