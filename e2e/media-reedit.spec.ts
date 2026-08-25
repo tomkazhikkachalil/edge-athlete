@@ -23,7 +23,7 @@ test('media re-edit after publish: new render, original preserved on the same ro
   await expect(composer).toBeVisible();
 
   // Publish with an EDITED image (ratio chip = real edit → original kept).
-  await page.locator('input[type="file"]').first().setInputFiles(fixture);
+  await page.locator('input[type="file"][multiple]').setInputFiles(fixture);
   await expect(page.getByRole('heading', { name: 'Edit media' })).toBeVisible({ timeout: 15_000 });
   await page.getByRole('button', { name: '1:1', exact: true }).click();
   await page.getByRole('button', { name: 'Done', exact: true }).click();
