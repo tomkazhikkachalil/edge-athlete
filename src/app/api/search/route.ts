@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseAdmin, requireAuth } from '@/lib/auth-server';
+import { toProxyUrl } from '@/lib/media/proxy-url';
 import { FEATURE_FLAGS } from '@/lib/features';
 import { searchPeople } from '@/lib/search/people-server';
 import { hasLocationFilter, readLocationParams, rpcLocationArgs } from '@/lib/geo/params';
@@ -501,6 +502,16 @@ export async function GET(request: NextRequest) {
         return !privateAuthors.has(authorId) || followedPrivate.has(authorId);
       }) as typeof results.posts;
     }
+
+    // Proxy post media bytes across every search branch (one pass, all
+    // results are public posts → the post resolver serves them to anyone).
+    results.posts = (results.posts as Array<{ id: string; post_media?: Array<{ media_url: string }> }>).map(p => ({
+      ...p,
+      post_media: (p.post_media || []).map(m => ({
+        ...m,
+        media_url: toProxyUrl(m.media_url, { type: 'post', id: p.id }) ?? m.media_url,
+      })),
+    })) as typeof results.posts;
 
     return NextResponse.json({
       query,

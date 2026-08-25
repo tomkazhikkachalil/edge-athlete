@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerAuth, getSupabaseAdmin } from '@/lib/auth-server';
+import { toProxyUrl } from '@/lib/media/proxy-url';
 import { mirrorRoundMedia } from '@/lib/golf/round-mirror';
 import { isValidSegment, segmentSchemaFor } from '@/lib/sports/segment-schemas';
 import { resolveSportKey } from '@/lib/sports/resolve-sport-key';
@@ -123,7 +124,14 @@ export async function POST(
       await mirrorRoundMedia(getSupabaseAdmin(), groupPostId);
     }
 
-    return NextResponse.json({ media: data }, { status: 201 });
+    // Proxy the created media so the manager's optimistic render uses the
+    // authorized path (governed by the group rule; id = group post id).
+    const media = {
+      ...data,
+      media_url: toProxyUrl(data.media_url, { type: 'group', id: groupPostId }) ?? data.media_url,
+      thumbnail_url: toProxyUrl(data.thumbnail_url, { type: 'group', id: groupPostId }),
+    };
+    return NextResponse.json({ media }, { status: 201 });
   } catch (error) {
     console.error('Unexpected error in POST /api/group-posts/[id]/media:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });

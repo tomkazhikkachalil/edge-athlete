@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { requireAuth, getSupabaseAdmin } from '@/lib/auth-server';
 import { aspectHidden } from '@/lib/vitals-privacy';
 import { fetchVitalsPrivacy } from '@/lib/vitals-privacy-server';
+import { toProxyUrl } from '@/lib/media/proxy-url';
 
 const SESSION_SELECT = `
   *,
@@ -86,6 +87,18 @@ export async function GET(
     }
 
     sortNested(session as NestedSession);
+    // Proxy workout-set media (governed by the owner profile + workouts aspect).
+    const s = session as { profile_id: string; exercises?: Array<{ sets?: Array<{ media?: Array<{ url?: string }> }> }> };
+    for (const exercise of s.exercises ?? []) {
+      for (const set of exercise.sets ?? []) {
+        if (Array.isArray(set.media)) {
+          set.media = set.media.map(m => ({
+            ...m,
+            url: (m?.url ? toProxyUrl(m.url, { type: 'workout', id: s.profile_id }) : m?.url) ?? m?.url,
+          }));
+        }
+      }
+    }
     return NextResponse.json({ session });
   } catch (error) {
     if (error instanceof Response) return error;

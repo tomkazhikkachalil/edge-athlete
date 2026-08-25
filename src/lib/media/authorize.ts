@@ -1,6 +1,8 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { getProfileRole } from '@/lib/auth-server';
 import { resolveProfileAction } from '@/lib/profile-roles';
+import { fetchVitalsPrivacy } from '@/lib/vitals-privacy-server';
+import { aspectHidden } from '@/lib/vitals-privacy';
 import type { MediaTokenPayload } from './token';
 
 /**
@@ -136,6 +138,50 @@ async function authorizeGroup(
   return participant ? { allow: true, isPublic: false } : DENY;
 }
 
+/**
+ * Profile-scoped media (equipment images, workout-set media): governed by the
+ * owner profile's visibility — owner || public || accepted-follower || guardian.
+ * Anonymous may view a public profile's media. The token id is the owner
+ * profile id.
+ */
+async function profileScoped(
+  admin: SupabaseClient,
+  ownerId: string,
+  viewerId: string | null
+): Promise<MediaAuthResult> {
+  const { data: prof } = await admin
+    .from('profiles')
+    .select('visibility')
+    .eq('id', ownerId)
+    .maybeSingle();
+  if (!prof) return DENY;
+  if (prof.visibility !== 'private') return { allow: true, isPublic: true };
+  if (!viewerId) return DENY;
+  if (viewerId === ownerId) return { allow: true, isPublic: false };
+  if (await isAcceptedFollower(admin, viewerId, ownerId)) return { allow: true, isPublic: false };
+  if (await hasManagedAccess(viewerId, ownerId)) return { allow: true, isPublic: false };
+  return DENY;
+}
+
+/**
+ * Workout-set media: profile-scoped, additionally hidden when the owner set
+ * the vitals `workouts` (or master) privacy aspect (migration 122) — matching
+ * GET /api/workouts, which returns an empty list in that case.
+ */
+async function authorizeWorkout(
+  admin: SupabaseClient,
+  ownerId: string,
+  viewerId: string | null
+): Promise<MediaAuthResult> {
+  const base = await profileScoped(admin, ownerId, viewerId);
+  if (!base.allow) return DENY;
+  if (viewerId !== ownerId) {
+    const privacy = await fetchVitalsPrivacy(admin, ownerId);
+    if (aspectHidden(privacy, 'workouts', false)) return DENY;
+  }
+  return base;
+}
+
 export async function authorizeMedia(
   admin: SupabaseClient,
   payload: MediaTokenPayload,
@@ -146,13 +192,18 @@ export async function authorizeMedia(
       // Owner decision: covers stay public (identity image).
       return { allow: true, isPublic: true };
     case 'post':
+    case 'vitals':
+      // Vitals-linked media is post media (linked_post_id → post_media); the
+      // token id is that post's id, governed by the post rule.
       return authorizePost(admin, payload.id, viewerId);
     case 'message':
       return authorizeMessage(admin, payload.id, viewerId);
     case 'group':
       return authorizeGroup(admin, payload.id, viewerId);
-    // equipment | vitals | workout — wired in later PRs; fail closed until
-    // then (no such token is minted yet, so unreachable).
+    case 'equipment':
+      return profileScoped(admin, payload.id, viewerId);
+    case 'workout':
+      return authorizeWorkout(admin, payload.id, viewerId);
     default:
       return DENY;
   }

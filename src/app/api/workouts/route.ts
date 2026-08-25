@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { requireAuth, getSupabaseAdmin } from '@/lib/auth-server';
 import { aspectHidden } from '@/lib/vitals-privacy';
 import { fetchVitalsPrivacy } from '@/lib/vitals-privacy-server';
+import { toProxyUrl } from '@/lib/media/proxy-url';
 import { validateEntriesPayload, type EntryExercise } from '@/lib/workouts/entries';
 import { routineToEntries, type ServerRoutineRow } from '@/lib/workouts/routines';
 import {
@@ -231,6 +232,20 @@ export async function GET(request: NextRequest) {
     }
 
     sortNested((sessions ?? []) as unknown as SessionRow[]);
+    // Proxy workout-set media bytes (workout_sets.media JSONB: [{ url, ... }]),
+    // governed by the owner profile's visibility + the vitals `workouts` aspect.
+    for (const session of (sessions ?? []) as Array<{ exercises?: Array<{ sets?: Array<{ media?: Array<{ url?: string }> }> }> }>) {
+      for (const exercise of session.exercises ?? []) {
+        for (const set of exercise.sets ?? []) {
+          if (Array.isArray(set.media)) {
+            set.media = set.media.map(m => ({
+              ...m,
+              url: (m?.url ? toProxyUrl(m.url, { type: 'workout', id: profileId }) : m?.url) ?? m?.url,
+            }));
+          }
+        }
+      }
+    }
     return NextResponse.json({ sessions: sessions || [] });
   } catch (error) {
     if (error instanceof Response) return error;

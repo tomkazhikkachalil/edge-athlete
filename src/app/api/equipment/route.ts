@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAuth, getSupabaseAdmin } from '@/lib/auth-server';
 import { canViewProfile } from '@/lib/privacy';
+import { toProxyUrl } from '@/lib/media/proxy-url';
 import { isValidDateString, isNotFutureDate } from '@/lib/date-validation';
 import { getEquipmentSportOptions } from '@/lib/equipment-config';
 import { EQUIPMENT_FIELD_CAPS } from '@/lib/equipment-validation';
@@ -58,7 +59,12 @@ export async function GET(request: NextRequest) {
         ? rows
         : rows.filter(item => !prefs.hiddenSports!.includes(item.sport_key || 'general'));
 
-    return NextResponse.json({ equipment: visibleRows, prefs });
+    // Proxy equipment image bytes (governed by the owner profile's visibility).
+    const proxiedRows = visibleRows.map(item => ({
+      ...item,
+      image_url: toProxyUrl(item.image_url, { type: 'equipment', id: profileId }),
+    }));
+    return NextResponse.json({ equipment: proxiedRows, prefs });
   } catch (error) {
     if (error instanceof Response) return error;
     console.error('Equipment GET error:', error);

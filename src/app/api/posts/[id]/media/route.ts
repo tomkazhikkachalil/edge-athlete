@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAuth, getSupabaseAdmin } from '@/lib/auth-server';
+import { toProxyUrl } from '@/lib/media/proxy-url';
 import { mayManagePostMedia } from './authz';
 
 // ── GET /api/posts/[id]/media ─────────────────────────────────────────────────
@@ -34,7 +35,15 @@ export async function GET(
       .order('display_order', { ascending: true });
     if (error) throw error;
 
-    return NextResponse.json({ media: media ?? [] });
+    // Proxy every URL column so the media manager / editor re-edit fetch stays
+    // same-origin (owner-only route → the post resolver grants the owner).
+    const proxied = (media ?? []).map(m => ({
+      ...m,
+      media_url: toProxyUrl(m.media_url, { type: 'post', id }) ?? m.media_url,
+      thumbnail_url: toProxyUrl(m.thumbnail_url, { type: 'post', id }),
+      source_url: toProxyUrl(m.source_url, { type: 'post', id }),
+    }));
+    return NextResponse.json({ media: proxied });
   } catch (error) {
     if (error instanceof Response) return error;
     console.error('[POST MEDIA] list error:', error);
