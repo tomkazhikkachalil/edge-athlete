@@ -79,12 +79,18 @@ export async function GET(request: NextRequest) {
     }
     const bodyHidden = aspectHidden(privacy, 'body', isOwner);
 
-    // Fetch all vitals entries (immutable time-series, newest first)
+    // Vitals entries (immutable time-series, newest first). Bounded: without a
+    // limit PostgREST silently caps at 1000 and would drop the OLDEST entries
+    // once an athlete crossed it (a daily logger, inside a year), corrupting
+    // every chart's baseline. 2000 newest covers years of real logging; the
+    // dashboard derivations already operate on a bounded set. Full history
+    // pagination is tracked in the hardening backlog.
     const { data: vitals, error: vitalsError } = await supabase
       .from('athlete_vitals')
       .select('*')
       .eq('profile_id', profileId)
-      .order('recorded_at', { ascending: false });
+      .order('recorded_at', { ascending: false })
+      .limit(2000);
 
     if (vitalsError) {
       console.error('Error fetching vitals:', vitalsError);
