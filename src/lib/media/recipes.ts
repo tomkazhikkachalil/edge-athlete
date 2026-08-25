@@ -133,6 +133,8 @@ const maskAdjustSchema = z.object({
   exposure: signed(),
   saturation: signed(),
   temperature: signed(),
+  // Background blur (E4e) — optional, additive within v3.
+  blur: unsigned().optional(),
 });
 
 const maskSchema = z.discriminatedUnion('kind', [

@@ -18,14 +18,20 @@ function testPixels(count = 256): Uint8ClampedArray {
 }
 
 function params(overrides: Partial<EngineParams>): EngineParams {
+  // No cast: every EngineParams field must have a default here, so adding
+  // a field to the engine breaks THIS line loudly instead of ten tests.
   return {
     adjustments: { ...NEUTRAL_ENGINE_PARAMS.adjustments },
     light: { ...NEUTRAL_LIGHT },
     color: { ...NEUTRAL_COLOR },
     detail: { ...NEUTRAL_DETAIL },
     perspective: { vertical: 0, horizontal: 0 },
+    hsl: neutralHslMix(),
+    curves: {},
+    masks: [],
+    grain: { amount: 0, size: 1.5 },
     ...overrides,
-  } as EngineParams;
+  };
 }
 
 describe('reference engine — identity and legacy parity', () => {
@@ -119,6 +125,46 @@ describe('reference engine — engine-round stages', () => {
     );
     expect(data[(8 * w + 8) * 4]).toBe(200); // center: +1 EV doubles
     expect(data[(0 * w + 0) * 4]).toBe(100); // corner untouched
+  });
+
+  it('mask background blur softens a hard edge inside the mask, not outside', () => {
+    // 32×16: left black / right white vertical split; an INVERTED radial in
+    // the left half keeps the center sharp… simpler: full-frame linear blur
+    // via a radial covering the left seam only.
+    const w = 32;
+    const h = 16;
+    const data = new Uint8ClampedArray(w * h * 4);
+    for (let y = 0; y < h; y++) {
+      for (let x = 0; x < w; x++) {
+        const i = (y * w + x) * 4;
+        const v = x < w / 2 ? 0 : 255;
+        data[i] = data[i + 1] = data[i + 2] = v;
+        data[i + 3] = 255;
+      }
+    }
+    applyEngine(
+      data,
+      w,
+      h,
+      params({
+        masks: [
+          {
+            kind: 'radial',
+            cx: 0.5,
+            cy: 0.5,
+            rx: 0.2,
+            ry: 0.5,
+            feather: 0,
+            invert: false,
+            adjust: { exposure: 0, saturation: 0, temperature: 0, blur: 1 },
+          },
+        ],
+      })
+    );
+    // Inside the mask, just left of the seam: pulled up off pure black.
+    expect(data[(8 * w + 14) * 4]).toBeGreaterThan(20);
+    // Outside the mask, far left: still pure black.
+    expect(data[(8 * w + 1) * 4]).toBe(0);
   });
 
   it('hsl mixer: aqua luminance −1 darkens a cyan pixel, spares red and gray', () => {

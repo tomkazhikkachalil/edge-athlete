@@ -1,5 +1,31 @@
 # Development Log
 
+## August 25, 2026 — Photo engine E4e: background blur through masks
+
+Fifth Phase-2 slice, and the honest version of "background blur": every
+mask gains a **Blur** slider. Draw a radial over your subject, INVERT it,
+push Blur — background defocused, subject sharp. No AI, no segmentation
+model, no cost — the user IS the segmenter, which also means it never
+hallucinates an edge. (When Phase 3's self-hosted SAM lands, it can
+simply pre-place these same masks.)
+
+Mechanics: a third gaussian tier — σ=4 at QUARTER resolution (~16px
+effective reach: a real defocus, not a soften) — lazily computed and
+cached per source like the other blurs. The blur MIXES ON THE COMPOSITE
+INPUT, before detail and every color stage, so blurred regions take all
+later adjustments uniformly; detail's unsharp bases deliberately stay
+unmixed (matching GPU and CPU exactly). Per-mask blur amount rides the
+spare `u_maskKind.w` uniform slot — zero new arrays — and the mask weight
+function was factored into one GLSL `maskW()` shared by the blur mix and
+the local-light stage. `blur` is OPTIONAL on MaskAdjust (E4c-saved masks
+parse unchanged), and a blur-only mask counts as an edit.
+
+Test-helper lesson: the reference suite's `params()` builder carried an
+`as EngineParams` cast from the perspective round — when masks/grain
+joined the struct, ten tests exploded at runtime instead of one line at
+compile time. The cast is gone; the builder now defaults every field, so
+the next engine field breaks THAT line loudly.
+
 ## August 25, 2026 — Photo engine E4d: film grain + white-balance eyedropper
 
 Two small Phase-2 finishers in one round.

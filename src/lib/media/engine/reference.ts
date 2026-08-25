@@ -17,6 +17,8 @@
 
 import {
   applyDetail,
+  BLUR_BG_SIGMA,
+  BLUR_BG_TAPS,
   BLUR_LARGE_SIGMA,
   BLUR_LARGE_TAPS,
   BLUR_SMALL_SIGMA,
@@ -31,7 +33,13 @@ import type { EngineParams } from './params';
 import { isNeutralPerspective, warpPerspective } from './perspective-math';
 import { applyHslLut, bakeHslLut, isNeutralHsl } from './hsl-math';
 import { applyCurveLut, bakeCurveLut, isNeutralCurves } from './curves-math';
-import { applyMaskDeltas, isNeutralMasks, maskDeltas } from './mask-math';
+import {
+  applyMaskDeltas,
+  isNeutralMasks,
+  maskBlurWeight,
+  maskDeltas,
+  wantsBackgroundBlur,
+} from './mask-math';
 import { applyGrain, isNeutralGrain } from './grain-math';
 
 /** RGBA bytes → packed RGB floats (0..1). */
@@ -176,10 +184,12 @@ export function applyEngine(
         }
       : undefined;
 
+  const needBg = wantsBackgroundBlur(params.masks);
   let srcFloat: Float32Array | null = null;
   let blurSmall: Float32Array | null = null;
   let blurLarge: Float32Array | null = null;
-  if (needSmall || needLarge) {
+  let blurBg: Float32Array | null = null;
+  if (needSmall || needLarge || needBg) {
     srcFloat = toFloatRgb(data);
     if (needSmall) {
       blurSmall = separableBlur(srcFloat, width, height, BLUR_SMALL_SIGMA, BLUR_SMALL_TAPS);
@@ -191,6 +201,13 @@ export function applyEngine(
       const blurred = separableBlur(down, halfW, halfH, BLUR_LARGE_SIGMA, BLUR_LARGE_TAPS);
       blurLarge = resampleBilinear(blurred, halfW, halfH, width, height);
     }
+    if (needBg) {
+      const qw = Math.max(1, Math.round(width / 4));
+      const qh = Math.max(1, Math.round(height / 4));
+      const down = resampleBilinear(srcFloat, width, height, qw, qh);
+      const blurred = separableBlur(down, qw, qh, BLUR_BG_SIGMA, BLUR_BG_TAPS);
+      blurBg = resampleBilinear(blurred, qw, qh, width, height);
+    }
   }
 
   for (let y = 0; y < height; y++) {
@@ -201,6 +218,19 @@ export function applyEngine(
       const j = (y * width + x) * 3;
       const falloff = hasVignette ? vignetteFalloff((x + 0.5) / width, v, width, height) : 0;
       let rgb: Rgb = [data[i] / 255, data[i + 1] / 255, data[i + 2] / 255];
+      // Mask blur mixes the INPUT (before detail/color) so blurred regions
+      // take every later adjustment uniformly — the shader's ordering.
+      // Detail bases deliberately stay unmixed, also matching the GPU.
+      if (blurBg) {
+        const wBlur = maskBlurWeight(params.masks, (x + 0.5) / width, v);
+        if (wBlur > 0) {
+          rgb = [
+            rgb[0] + (blurBg[j] - rgb[0]) * wBlur,
+            rgb[1] + (blurBg[j + 1] - rgb[1]) * wBlur,
+            rgb[2] + (blurBg[j + 2] - rgb[2]) * wBlur,
+          ];
+        }
+      }
       if (srcFloat) {
         const small: Rgb = blurSmall ? [blurSmall[j], blurSmall[j + 1], blurSmall[j + 2]] : rgb;
         const large: Rgb = blurLarge ? [blurLarge[j], blurLarge[j + 1], blurLarge[j + 2]] : rgb;

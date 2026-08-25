@@ -27,7 +27,30 @@ export const MASK_EV_RANGE = 1.0;
 export const NEUTRAL_MASK_ADJUST: MaskAdjust = { exposure: 0, saturation: 0, temperature: 0 };
 
 export function isNeutralMaskAdjust(adjust: MaskAdjust): boolean {
-  return adjust.exposure === 0 && adjust.saturation === 0 && adjust.temperature === 0;
+  return (
+    adjust.exposure === 0 &&
+    adjust.saturation === 0 &&
+    adjust.temperature === 0 &&
+    (adjust.blur ?? 0) === 0
+  );
+}
+
+/** Per-pixel blur mix weight: Σ mask weight × blur amount, clamped 0..1.
+ *  Applied to the composite INPUT (before detail/color) so the blurred
+ *  region takes every color adjustment uniformly. */
+export function maskBlurWeight(masks: Mask[], u: number, v: number): number {
+  let total = 0;
+  for (const mask of masks) {
+    const blur = mask.adjust.blur ?? 0;
+    if (blur <= 0) continue;
+    total += maskWeight(mask, u, v) * blur;
+  }
+  return Math.min(1, Math.max(0, total));
+}
+
+/** True when any mask asks for background blur (plans the big blur pass). */
+export function wantsBackgroundBlur(masks: Mask[]): boolean {
+  return masks.some(m => (m.adjust.blur ?? 0) > 0);
 }
 
 /** Masks are neutral when absent, empty, or every mask's adjust is zero —

@@ -91,6 +91,8 @@ export interface MaskAdjust {
   exposure: number; // ±1 EV locally
   saturation: number;
   temperature: number;
+  /** Background blur strength 0..1 (optional — E4e, additive in v3). */
+  blur?: number;
 }
 
 /** Film grain (Phase 2 E4d): amount 0..1 (0 = off), cell size 1..3 px. */
