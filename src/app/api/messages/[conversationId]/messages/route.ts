@@ -3,6 +3,7 @@ import { requireAuth, getSupabaseAdmin } from '@/lib/auth-server';
 import { extractHandles } from '@/lib/mentions';
 import { notifyChatMentions } from '@/lib/mentions/notify';
 import { enforceRateLimit } from '@/lib/rate-limit';
+import { toProxyUrl } from '@/lib/media/proxy-url';
 
 // ── POST /api/messages/[conversationId]/messages ──────────────────────────────
 // Send a message. Media must be pre-uploaded via /api/upload/post-media.
@@ -276,7 +277,13 @@ export async function POST(
       }
     }
 
-    return NextResponse.json({ message }, { status: 201 });
+    // Proxy the media so the sender's optimistic render uses the authorized
+    // path, not a raw public URL (matches what the list GET returns).
+    const responseMessage = {
+      ...message,
+      media_url: toProxyUrl(message.media_url, { type: 'message', id: message.id }),
+    };
+    return NextResponse.json({ message: responseMessage }, { status: 201 });
   } catch (error) {
     if (error instanceof Response) return error;
     console.error('POST /api/messages/[id]/messages error:', error);

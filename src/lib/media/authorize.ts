@@ -80,6 +80,34 @@ async function authorizePost(
   return DENY;
 }
 
+/**
+ * Message media: strictly conversation-participant scoped — never public.
+ * Matches the read gate on GET /api/messages/[id] (participant membership,
+ * no block filter on reads: a participant sees the conversation's media).
+ */
+async function authorizeMessage(
+  admin: SupabaseClient,
+  messageId: string,
+  viewerId: string | null
+): Promise<MediaAuthResult> {
+  if (!viewerId) return DENY; // messages are never anon-viewable
+  const { data: message } = await admin
+    .from('messages')
+    .select('conversation_id, deleted_at')
+    .eq('id', messageId)
+    .maybeSingle();
+  if (!message || message.deleted_at || !message.conversation_id) return DENY;
+
+  const { data: participant } = await admin
+    .from('conversation_participants')
+    .select('id')
+    .eq('conversation_id', message.conversation_id)
+    .eq('profile_id', viewerId)
+    .is('left_at', null)
+    .maybeSingle();
+  return participant ? { allow: true, isPublic: false } : DENY;
+}
+
 export async function authorizeMedia(
   admin: SupabaseClient,
   payload: MediaTokenPayload,
@@ -91,8 +119,10 @@ export async function authorizeMedia(
       return { allow: true, isPublic: true };
     case 'post':
       return authorizePost(admin, payload.id, viewerId);
-    // message | group | equipment | vitals | workout — wired in later PRs;
-    // fail closed until then (no such token is minted yet, so unreachable).
+    case 'message':
+      return authorizeMessage(admin, payload.id, viewerId);
+    // group | equipment | vitals | workout — wired in later PRs; fail closed
+    // until then (no such token is minted yet, so unreachable).
     default:
       return DENY;
   }

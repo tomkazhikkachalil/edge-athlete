@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { requireAuth, getSupabaseAdmin } from '@/lib/auth-server';
 import type { Conversation, ConversationParticipant, Message } from '@/types/messages';
 import { enforceRateLimit } from '@/lib/rate-limit';
+import { toProxyUrl } from '@/lib/media/proxy-url';
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -121,11 +122,15 @@ export async function GET(request: NextRequest) {
       })
       .filter((m): m is NonNullable<typeof m> => m !== null);
 
-    // Group last messages by conversation (first = newest)
+    // Group last messages by conversation (first = newest). Proxy the preview
+    // media so a private conversation's thumbnail isn't a raw public URL.
     const lastMessageByConv: Record<string, Message> = {};
     for (const msg of (lastMessages || [])) {
       if (!lastMessageByConv[msg.conversation_id]) {
-        lastMessageByConv[msg.conversation_id] = msg as unknown as Message;
+        lastMessageByConv[msg.conversation_id] = {
+          ...(msg as unknown as Message),
+          media_url: toProxyUrl(msg.media_url, { type: 'message', id: msg.id }),
+        };
       }
     }
 
