@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import Image from 'next/image';
+import { isOptimizableImageSrc } from '@/lib/media/image-src';
 
 interface LazyImageProps {
   src?: string | null;
@@ -57,6 +58,10 @@ export default function LazyImage({
         height={height || 600}
         className={className}
         style={{ width: width ? `${width}px` : '100%', height: height ? `${height}px` : 'auto', display: 'block' }}
+        // The optimizer fetches server-side without the viewer's cookie, so it
+        // can't fetch proxied private media (and external avatars); render
+        // those as-is. isOptimizableImageSrc knows the /api/media/ proxy path.
+        unoptimized={!isOptimizableImageSrc(src ?? undefined)}
         onLoad={() => setIsLoaded(true)}
         onError={() => { setHasError(true); onError?.(); }}
         // NOT renamed to `preload`. This component already expresses its

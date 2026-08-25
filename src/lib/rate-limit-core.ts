@@ -79,6 +79,11 @@ export const RATE_LIMITS = {
   // Calendar event creation — org events fan a team_update out to every
   // member (uncapped membership), so creation gets post-create parity.
   'event-create': { max: 30, windowSeconds: 3600, keyBy: 'user' },
+  // Authenticated media proxy (/api/media/[token]). IP-keyed (anon-reachable
+  // for public content) and generous: an image-dense page pulls dozens of
+  // media in one load. Forged tokens die on the HMAC check before any DB hit,
+  // and public bytes are CDN-cached, so this mainly caps bandwidth abuse.
+  media: { max: 600, windowSeconds: 60, keyBy: 'ip' },
 } as const satisfies Record<string, RateLimitRule>;
 
 export type RateLimitAction = keyof typeof RATE_LIMITS;

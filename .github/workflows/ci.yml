@@ -37,6 +37,10 @@ jobs:
           NEXT_PUBLIC_SUPABASE_URL: https://placeholder.supabase.co
           NEXT_PUBLIC_SUPABASE_ANON_KEY: placeholder-anon-key
           SUPABASE_SERVICE_ROLE_KEY: placeholder-service-role-key
+          # Throwaway media-proxy token secret; tokens are signed and verified
+          # within the same run, so any non-empty value works in CI. The real
+          # secret lives in Vercel.
+          MEDIA_PROXY_SECRET: ci-media-proxy-secret-placeholder
 
   # Hardening guardrails — cheap pattern checks that encode the exact
   # regressions the pre-scale audit fixed (backslash .or() sanitizer, thrown
@@ -72,6 +76,8 @@ jobs:
       # match the prod build so guardian-console.spec.ts arms instead of
       # green-skipping on its flag probe.
       NEXT_PUBLIC_FEATURE_GUARDIAN_PROFILES: '1'
+      # Media-proxy token secret — throwaway for CI (signed+verified in-run).
+      MEDIA_PROXY_SECRET: ci-media-proxy-secret-placeholder
     steps:
       - name: Gate on secrets
         id: gate

@@ -63,6 +63,10 @@ describe('isOptimizableImageSrc', () => {
     expect(isOptimizableImageSrc('/_next/static/media/hero.png')).toBe(true);
   });
 
+  it('rejects the media proxy path (optimizer has no cookie for private media)', () => {
+    expect(isOptimizableImageSrc('/api/media/abc.def')).toBe(false);
+  });
+
   it('returns false without throwing on empty or unparseable input', () => {
     expect(isOptimizableImageSrc('')).toBe(false);
     expect(isOptimizableImageSrc('not a url')).toBe(false);
