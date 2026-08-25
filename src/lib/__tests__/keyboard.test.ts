@@ -1,5 +1,10 @@
 import { describe, it, expect } from 'vitest';
-import { matchesSearchShortcut, isTypingTarget } from '../keyboard';
+import {
+  matchesSearchShortcut,
+  matchesUndoShortcut,
+  matchesRedoShortcut,
+  isTypingTarget,
+} from '../keyboard';
 
 const key = (k: string, mods: Partial<Record<'metaKey' | 'ctrlKey' | 'altKey' | 'shiftKey', boolean>> = {}) =>
   ({ key: k, ...mods });
@@ -79,5 +84,35 @@ describe('isTypingTarget', () => {
 
   it('survives an element with no getAttribute', () => {
     expect(isTypingTarget({ tagName: 'DIV' } as unknown as EventTarget)).toBe(false);
+  });
+});
+
+describe('matchesUndoShortcut (media editor)', () => {
+  it('fires on ⌘Z and Ctrl+Z, either case', () => {
+    expect(matchesUndoShortcut(key('z', { metaKey: true }))).toBe(true);
+    expect(matchesUndoShortcut(key('Z', { ctrlKey: true }))).toBe(true);
+  });
+
+  it('rejects bare z, shifted (that is redo), and alt combos', () => {
+    expect(matchesUndoShortcut(key('z'))).toBe(false);
+    expect(matchesUndoShortcut(key('z', { metaKey: true, shiftKey: true }))).toBe(false);
+    expect(matchesUndoShortcut(key('z', { ctrlKey: true, altKey: true }))).toBe(false);
+    expect(matchesUndoShortcut(key('y', { ctrlKey: true }))).toBe(false);
+  });
+});
+
+describe('matchesRedoShortcut (media editor)', () => {
+  it('fires on ⌘⇧Z, Ctrl+Shift+Z, and Ctrl+Y', () => {
+    expect(matchesRedoShortcut(key('z', { metaKey: true, shiftKey: true }))).toBe(true);
+    expect(matchesRedoShortcut(key('Z', { ctrlKey: true, shiftKey: true }))).toBe(true);
+    expect(matchesRedoShortcut(key('y', { ctrlKey: true }))).toBe(true);
+  });
+
+  it('rejects plain undo, bare keys, and modified Ctrl+Y variants', () => {
+    expect(matchesRedoShortcut(key('z', { metaKey: true }))).toBe(false);
+    expect(matchesRedoShortcut(key('y'))).toBe(false);
+    expect(matchesRedoShortcut(key('y', { metaKey: true }))).toBe(false);
+    expect(matchesRedoShortcut(key('y', { ctrlKey: true, shiftKey: true }))).toBe(false);
+    expect(matchesRedoShortcut(key('z', { metaKey: true, shiftKey: true, altKey: true }))).toBe(false);
   });
 });

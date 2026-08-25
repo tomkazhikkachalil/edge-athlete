@@ -48,6 +48,31 @@ export function matchesSearchShortcut(e: ShortcutEvent): boolean {
 }
 
 /**
+ * Undo inside the media editor: ⌘Z / Ctrl+Z, unmodified otherwise. Shift
+ * excluded here because ⌘⇧Z is redo, alt because ⌥Z types a character on
+ * some layouts.
+ */
+export function matchesUndoShortcut(e: ShortcutEvent): boolean {
+  if (e.key !== 'z' && e.key !== 'Z') return false;
+  if (!e.metaKey && !e.ctrlKey) return false;
+  return !e.altKey && !e.shiftKey;
+}
+
+/**
+ * Redo: ⌘⇧Z / Ctrl+Shift+Z (the Mac/global convention) or Ctrl+Y (the
+ * Windows one). Both accepted — same reasoning as the ⌘/Ctrl split above.
+ */
+export function matchesRedoShortcut(e: ShortcutEvent): boolean {
+  if ((e.key === 'z' || e.key === 'Z') && (e.metaKey || e.ctrlKey)) {
+    return !e.altKey && e.shiftKey === true;
+  }
+  if ((e.key === 'y' || e.key === 'Y') && e.ctrlKey) {
+    return !e.altKey && !e.shiftKey && !e.metaKey;
+  }
+  return false;
+}
+
+/**
  * Is the event coming from somewhere the user is composing text?
  *
  * Without this, "/" would be unusable inside every caption, message and search

@@ -1,5 +1,42 @@
 # Development Log
 
+## August 25, 2026 — Photo engine E2: visible history, two layouts, keyboard
+
+Third engine round — the editor grows its second layout and a real
+history.
+
+**History with step-back-to-any-point.** `history.ts` entries now carry
+the signature of the change that produced each state, so the rail can
+label every step ("Exposure", "Crop ratio", "Auto enhance" — map in
+`history-labels.ts`, tested) and `jumpTo` restores ANY timeline index as
+repeated pure undo/redo (labels survive round-trips; pinned). Desktop
+shows an always-visible rail; phones get a History header icon → bottom
+sheet. One `HistoryRail` component serves both.
+
+**Two layouts over one engine/state.** At `lg:` the shell splits: stage
+left, a 320px right column with tool tabs, the active panel, and the
+history rail. Panels render ONCE and move between layouts via a
+`useIsDesktop()` matchMedia gate (chat-dock precedent) — CSS-gated
+duplicates would double slider DOM. CropStage/VideoStage keep their own
+in-stage controls; the column is panels + history.
+
+**Keyboard + the ⌘K fix.** The modal root finally carries
+`role="dialog" aria-modal` — which alone fixes the long-noted leak where
+⌘K opened HeaderSearch over the editor (its guard already checked for
+dialogs; the editor just never declared itself one; e2e now pins it).
+Window-scoped while mounted: ⌘Z/⌘⇧Z/Ctrl+Y undo/redo (pure matchers in
+`src/lib/keyboard.ts`, tested), Escape backs out one layer (confirm →
+sheet → editor), `\` held = before/after, `[`/`]` cycle tools. One
+carve-out: range sliders are INPUTs but not text entry — undo must keep
+working with a slider focused, so `isTypingTarget` gets a range
+exception in the editor's handler.
+
+Naming trap worth recording: the rail row "Auto enhance" and the wand
+button "Auto-enhance" differ by a hyphen ON PURPOSE — strict-mode
+getByRole collides otherwise. Same rule as the confirm-button labels
+from the dummy-proofing round: sibling controls never share an
+accessible name.
+
 ## August 25, 2026 — Photo engine E1b: Detail passes, auto-enhance, compare, filter intensity
 
 Second engine round, completing the Phase-1 adjustment set:
