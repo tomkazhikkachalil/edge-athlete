@@ -716,8 +716,32 @@ export default function CreatePostModal({
             </div>
           )}
 
-          {/* Media Upload */}
-          <div className={isLiveSetup ? 'hidden' : 'mb-6'}>
+          {/* Media Upload. The whole section is an INVISIBLE drop target
+              (dropzone-box retired, Tom Aug 25 — the capture row already
+              names every input path): dragging files over it summons a ring
+              + "Drop to add"; at rest there's no drag furniture at all.
+              Files-only guards keep the preview grid's tile-reorder drags
+              from triggering it. */}
+          <div
+            className={`${isLiveSetup ? 'hidden' : 'mb-6'} ${
+              draggedOver ? 'ring-2 ring-violet-500 rounded-lg bg-brand-soft p-2 -m-2' : ''
+            }`}
+            onDrop={(e) => {
+              e.preventDefault();
+              setDraggedOver(false);
+              if (e.dataTransfer.files?.length) handleFileUpload(e.dataTransfer.files);
+            }}
+            onDragOver={(e) => {
+              if (!e.dataTransfer.types.includes('Files')) return;
+              e.preventDefault();
+              setDraggedOver(true);
+            }}
+            onDragLeave={(e) => {
+              // Leaving INTO a child also fires dragleave — ignore those.
+              if (e.currentTarget.contains(e.relatedTarget as Node)) return;
+              setDraggedOver(false);
+            }}
+          >
             <label className="block text-sm font-semibold text-secondary mb-3">
               Media ({mediaFiles.length}/{MAX_MEDIA_FILES})
             </label>
@@ -740,6 +764,15 @@ export default function CreatePostModal({
                 type="file"
                 accept="video/*"
                 capture="environment"
+                className="hidden"
+                onClick={(e) => { (e.target as HTMLInputElement).value = ''; }}
+                onChange={(e) => e.target.files && handleFileUpload(e.target.files)}
+              />
+              <input
+                ref={fileInputRef}
+                type="file"
+                multiple
+                accept="image/*,video/*"
                 className="hidden"
                 onClick={(e) => { (e.target as HTMLInputElement).value = ''; }}
                 onChange={(e) => e.target.files && handleFileUpload(e.target.files)}
@@ -770,50 +803,11 @@ export default function CreatePostModal({
               </button>
             </div>
 
-            {/* Upload area */}
-            <div
-              className={`border-2 border-dashed rounded-lg p-6 text-center transition-all ${
-                draggedOver
-                  ? 'border-violet-500 bg-brand-soft'
-                  : 'border-border-strong hover:border-gray-400'
-              }`}
-              onDrop={(e) => {
-                e.preventDefault();
-                setDraggedOver(false);
-                if (e.dataTransfer.files) {
-                  handleFileUpload(e.dataTransfer.files);
-                }
-              }}
-              onDragOver={(e) => {
-                e.preventDefault();
-                setDraggedOver(true);
-              }}
-              onDragLeave={() => setDraggedOver(false)}
-            >
-              <input
-                ref={fileInputRef}
-                type="file"
-                multiple
-                accept="image/*,video/*"
-                className="hidden"
-                onClick={(e) => { (e.target as HTMLInputElement).value = ''; }}
-                onChange={(e) => e.target.files && handleFileUpload(e.target.files)}
-              />
-
-              <i className="fas fa-cloud-upload-alt text-4xl text-faint mb-3"></i>
-              <p className="text-tertiary mb-2">
-                Drag and drop files here, or{' '}
-                <button
-                  onClick={() => fileInputRef.current?.click()}
-                  className="text-brand-fg hover:text-brand-fg-strong font-medium"
-                >
-                  browse
-                </button>
-              </p>
-              <p className="text-xs text-muted">
-                Take a photo or video, or upload — up to 50MB each; crop, adjust, and filter before posting
-              </p>
-            </div>
+            <p className={`text-xs ${draggedOver ? 'font-semibold text-brand-fg' : 'text-muted'}`}>
+              {draggedOver
+                ? 'Drop to add'
+                : 'Up to 50MB each — crop, adjust, and filter before posting'}
+            </p>
 
             {/* Media preview grid */}
             {mediaFiles.length > 0 && (
