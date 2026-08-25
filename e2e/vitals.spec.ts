@@ -58,12 +58,13 @@ test('vitals: seed → hero → PBs → chart → log → visitor', async ({ pag
   await expect(page.getByText('5:48').first()).toBeVisible();
   await expect(page.getByText('348')).toHaveCount(0);
 
-  // Progress chart renders with a picker; switching to the mile shows mm:ss.
+  // Progress chart renders with the chip picker; switching to the mile
+  // swaps the charted series (aria-label carries the metric name).
   const picker = page.getByLabel('Tracking');
   await expect(picker).toBeVisible();
   await expect(page.locator('svg[aria-label*="Bench Press"], svg[aria-label*="latest"]').first())
     .toBeVisible();
-  await picker.selectOption({ label: '1-Mile Run' });
+  await picker.getByRole('button', { name: '1-Mile Run' }).click();
   await expect(page.locator('svg[aria-label*="1-Mile Run"]')).toBeVisible();
 
   // Metric history lives behind the metric's larger window (tap the trophy
