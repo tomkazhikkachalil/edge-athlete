@@ -4,6 +4,7 @@ import { useMemo } from 'react';
 import { TrendingUp, TrendingDown, Minus, Star } from 'lucide-react';
 import { VITAL_METRICS_MAP, getVitalDisplayValue, formatSecondsToDisplay } from '@/lib/vitals-config';
 import { EXERCISE_CATALOG } from '@/lib/workout-config';
+import { parseDateLocal } from '@/lib/formatters';
 import { categoryAccent, metricCategory } from './category-colors';
 import type { VitalEntryLike } from '@/lib/workouts/dashboard';
 
@@ -17,6 +18,8 @@ import type { VitalEntryLike } from '@/lib/workouts/dashboard';
 
 interface PBShowcaseProps {
   vitals: VitalEntryLike[];
+  /** Opens the metric's detail overlay — the trophy is a door, not a plaque. */
+  onOpenMetric: (metricKey: string) => void;
 }
 
 interface ShowcaseCard {
@@ -41,7 +44,7 @@ function formatValue(metricKey: string, value: number, valueDisplay?: string | n
   return getVitalDisplayValue(value, null, metric?.unit ?? '');
 }
 
-export default function PBShowcase({ vitals }: PBShowcaseProps) {
+export default function PBShowcase({ vitals, onOpenMetric }: PBShowcaseProps) {
   const cards = useMemo<ShowcaseCard[]>(() => {
     const byMetric = new Map<string, VitalEntryLike[]>();
     for (const entry of vitals) {
@@ -94,13 +97,23 @@ export default function PBShowcase({ vitals }: PBShowcaseProps) {
   if (cards.length === 0) return null;
 
   return (
-    <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-      {cards.map(card => {
+    <div>
+      <h3 className="text-base font-bold text-primary mb-3">Personal Bests</h3>
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+      {cards.map((card, i) => {
         const accent = categoryAccent(card.category);
         return (
-          <div key={card.metricKey} className="bg-surface rounded-lg border border-border p-4">
-            <div className="flex items-center gap-1.5 mb-1">
-              <Star className={`w-3.5 h-3.5 ${accent.text}`} aria-hidden="true" />
+          <button
+            key={card.metricKey}
+            type="button"
+            onClick={() => onOpenMetric(card.metricKey)}
+            style={{ animationDelay: `${Math.min(i, 10) * 40}ms` }}
+            className="vt-card vt-pop-in ea-interactive text-left p-4"
+          >
+            <div className="flex items-center gap-2 mb-2">
+              <span className={`w-7 h-7 rounded-full flex items-center justify-center shrink-0 ${accent.chip}`}>
+                <Star className={`w-3.5 h-3.5 ${accent.text}`} aria-hidden="true" />
+              </span>
               <span className="text-xs font-semibold text-muted uppercase tracking-wide truncate">
                 {card.label}
               </span>
@@ -112,11 +125,14 @@ export default function PBShowcase({ vitals }: PBShowcaseProps) {
               {card.improved === null && <TrendingDown className="w-3.5 h-3.5 text-transparent" aria-hidden="true" />}
             </div>
             <div className="text-xs text-muted mt-0.5">
-              {new Date(card.bestDate).toLocaleDateString('en-US', { month: 'short', year: 'numeric' })}
+              {/* parseDateLocal: a DATE-column best on the 1st of a month must
+                  not render as the prior month in US timezones */}
+              {parseDateLocal(card.bestDate).toLocaleDateString('en-US', { month: 'short', year: 'numeric' })}
             </div>
-          </div>
+          </button>
         );
       })}
+      </div>
     </div>
   );
 }

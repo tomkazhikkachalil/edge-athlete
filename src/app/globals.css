@@ -657,6 +657,13 @@ body {
 }
 .vt-ring-fill { animation: vt-ring-fill 900ms var(--ea-ease) 150ms backwards; }
 
+/* Bar grow-in: scales from the baseline and ends at transform: none — same
+ * no-lingering-stacking-context guarantee as vt-pop-in. */
+@keyframes vt-bar-in {
+  from { transform: scaleY(0); }
+}
+.vt-bar-in { animation: vt-bar-in 500ms var(--ea-ease) backwards; transform-origin: bottom; }
+
 /* Long-press targets: a 400ms press must open OUR surface, not the OS text
  * selection (iOS loupe/callout) — the two fight, and selection wins ugly.
  * Coarse-scoped so desktop mouse selection (and copy) is untouched; on

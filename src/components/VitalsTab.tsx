@@ -2,60 +2,42 @@
 
 import { useState, useEffect, useMemo, useRef } from 'react';
 import { useRouter } from 'next/navigation';
+import { VITAL_CATEGORIES } from '@/lib/vitals-config';
 import {
-  VITAL_CATEGORIES,
-  VITAL_METRICS_MAP,
-  getAgeAtDate,
-  getVitalDisplayValue,
-  getYearsTracked,
-  getTrendArrow,
-  formatSecondsToDisplay,
-} from '@/lib/vitals-config';
-import {
-  Plus, History, Ruler, Timer, Dumbbell, Loader2, Star, Camera, ChevronDown, Settings,
+  Plus, History, Ruler, Dumbbell, Loader2, ChevronDown, Settings, BarChart3,
 } from 'lucide-react';
 import AddVitalModal from './AddVitalModal';
 import CreatePostModal from './CreatePostModal';
 import PostCard from './PostCard';
 import PostDetailModal from './PostDetailModal';
-import FilterBar from './filters/FilterBar';
-import MultiSelectDropdown from './filters/MultiSelectDropdown';
-import WorkoutCard from './workouts/WorkoutCard';
 import { useToast } from './Toast';
-import { deriveYearOptions, matchesYearFilter } from '@/lib/profile-filters';
-import { formatHeight, formatWeightWithUnit, formatAge, formatDate } from '@/lib/formatters';
+import { formatHeight, formatWeightWithUnit, formatAge, parseDateLocal } from '@/lib/formatters';
 import { effectiveSessionStatus } from '@/lib/workouts/status';
-import { weeklySummary, streakWeeks, latestPB } from '@/lib/workouts/dashboard';
-import { activeDaysThisWeek } from '@/lib/vitals/derive';
+import { weeklySummary, streakWeeks, latestPB, sessionSeconds } from '@/lib/workouts/dashboard';
+import { activeDaysThisWeek, weeklyBars } from '@/lib/vitals/derive';
+import { formatDuration } from '@/lib/workouts/summary';
 import VitalsHero from './vitals/VitalsHero';
 import PBShowcase from './vitals/PBShowcase';
 import ProgressSection from './vitals/ProgressSection';
+import StatBubbleCard from './vitals/StatBubbleCard';
+import MetricBubbleCard from './vitals/MetricBubbleCard';
+import MetricDetailOverlay from './vitals/MetricDetailOverlay';
+import WorkoutDetailOverlay from './vitals/WorkoutDetailOverlay';
+import WeeklyActivityOverlay from './vitals/WeeklyActivityOverlay';
+import BodyDetailOverlay from './vitals/BodyDetailOverlay';
+import RoundedBarChart from './vitals/RoundedBarChart';
 import VitalsSettingsModal from './vitals/VitalsSettingsModal';
 import StartWorkoutSheet from './workouts/StartWorkoutSheet';
 import WorkoutRoutinesModal from './workouts/WorkoutRoutinesModal';
 import SectionEmptyState from './SectionEmptyState';
 import { categoryAccent } from './vitals/category-colors';
 import { useTheme } from '@/lib/use-theme';
+import type { VitalEntry } from './vitals/metric-stats';
 import type { ServerWorkoutSession } from '@/lib/workouts/serialize';
 import type { WorkoutRoutine } from '@/lib/workouts/routines';
 
 // ── Types ──────────────────────────────────────────────────────────────────
-
-interface VitalEntry {
-  id: string;
-  profile_id: string;
-  metric_key: string;
-  metric_category: string;
-  metric_label: string;
-  value: number | null;
-  value_display: string | null;
-  unit: string;
-  notes: string | null;
-  source: string;
-  recorded_at: string;
-  created_at: string;
-  linked_post_id: string | null;
-}
+// VitalEntry moved to vitals/metric-stats.ts with the metric math.
 
 interface PostMedia {
   id: string;
@@ -112,230 +94,6 @@ interface HeroProfile {
 const VITALS_GEAR_CLASSES =
   'vt-pill items-center justify-center p-2.5 border border-border-strong text-secondary rounded-full hover:bg-surface-muted transition-colors';
 
-// ── Helpers ────────────────────────────────────────────────────────────────
-
-function formatEntryValue(entry: VitalEntry): string {
-  const metric = VITAL_METRICS_MAP[entry.metric_key];
-  if (!metric) return getVitalDisplayValue(entry.value, entry.value_display, entry.unit);
-
-  if (entry.value_display) return entry.value_display;
-  if (entry.value === null || entry.value === undefined) return '—';
-
-  if (metric.time_format === 'mm:ss') {
-    return formatSecondsToDisplay(entry.value, 'mm:ss');
-  }
-  if (metric.time_format === 'decimal_seconds') {
-    return `${entry.value} sec`;
-  }
-  return `${entry.value} ${entry.unit}`;
-}
-
-function isBetter(a: number, b: number, lowerIsBetter: boolean | null): boolean {
-  if (lowerIsBetter === null) return false;
-  return lowerIsBetter ? a < b : a > b;
-}
-
-// ── MetricCard ─────────────────────────────────────────────────────────────
-
-interface MetricCardProps {
-  metricKey: string;
-  entries: VitalEntry[];  // all entries for this metric, chronological (oldest first)
-  athleteBirthday: string | null;
-  onOpenPost: (postId: string) => void;
-}
-
-function MetricCard({ metricKey, entries, athleteBirthday, onOpenPost }: MetricCardProps) {
-  const [expanded, setExpanded] = useState(false);
-  const metric = VITAL_METRICS_MAP[metricKey];
-  if (!metric || entries.length === 0) return null;
-
-  const sorted = [...entries].sort(
-    (a, b) => new Date(a.recorded_at).getTime() - new Date(b.recorded_at).getTime()
-  );
-  const first = sorted[0];
-  const latest = sorted[sorted.length - 1];
-
-  // Personal best
-  let best = sorted[0];
-  for (const e of sorted) {
-    if (e.value !== null && best.value !== null && isBetter(e.value, best.value, metric.lower_is_better)) {
-      best = e;
-    }
-  }
-
-  const isCurrentBest = best.id === latest.id;
-
-  // Progression delta
-  let deltaText: string | null = null;
-  if (
-    sorted.length >= 2 &&
-    first.value !== null &&
-    latest.value !== null &&
-    metric.lower_is_better !== null
-  ) {
-    const diff = latest.value - first.value;
-    if (diff !== 0) {
-      const sign = diff > 0 ? '+' : '';
-      if (metric.time_format === 'mm:ss') {
-        const absDiff = Math.abs(diff);
-        const mins = Math.floor(absDiff / 60);
-        const secs = Math.round(absDiff % 60);
-        const formatted = mins > 0 ? `${mins}m ${secs}s` : `${secs}s`;
-        deltaText = `${diff < 0 ? '-' : '+'}${formatted} since first recorded`;
-      } else if (metric.time_format === 'decimal_seconds') {
-        deltaText = `${sign}${diff.toFixed(2)} sec since first recorded`;
-      } else {
-        deltaText = `${sign}${diff} ${metric.unit} since first recorded`;
-      }
-    }
-  }
-
-  const yearsTracked = sorted.length >= 2 ? getYearsTracked(first.recorded_at, latest.recorded_at) : null;
-  const trend = getTrendArrow(first.value, latest.value, metric.lower_is_better);
-  const trendColor = trend === '▲' ? 'text-emerald-600' : trend === '▼' ? 'text-red-500' : 'text-faint';
-
-  // History grouped by year (newest first)
-  const byYear: Record<string, VitalEntry[]> = {};
-  for (const e of [...sorted].reverse()) {
-    const year = new Date(e.recorded_at).getFullYear().toString();
-    if (!byYear[year]) byYear[year] = [];
-    byYear[year].push(e);
-  }
-  const years = Object.keys(byYear).sort((a, b) => parseInt(b) - parseInt(a));
-  const oldestYear = years[years.length - 1];
-
-  return (
-    <div className="border border-border rounded-xl overflow-hidden">
-      {/* Card header — clickable to expand/collapse */}
-      <button
-        type="button"
-        onClick={() => setExpanded(prev => !prev)}
-        className="w-full text-left p-4 hover:bg-surface-muted transition-colors"
-      >
-        <div className="flex items-start justify-between gap-3">
-          <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-2 mb-1">
-              <span className="text-sm font-semibold text-secondary">{metric.label}</span>
-              <span className="text-xs text-faint">{metric.unit}</span>
-              {trend !== '—' && (
-                <span className={`text-xs font-bold ${trendColor}`}>{trend}</span>
-              )}
-            </div>
-
-            {/* Current value — prominent */}
-            <div className="text-2xl font-bold text-primary mb-1">
-              {formatEntryValue(latest)}
-            </div>
-
-            {/* PB badge */}
-            {isCurrentBest ? (
-              <div className="inline-flex items-center gap-1 text-xs font-semibold text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/40 px-2 py-0.5 rounded-full mb-2">
-                <Star className="w-2.5 h-2.5 text-amber-500 inline" aria-hidden="true" />
-                Personal Best
-              </div>
-            ) : best.value !== null && (
-              <div className="text-xs text-muted mb-2">
-                PB: <span className="font-semibold">{formatEntryValue(best)}</span>
-                <span className="text-faint ml-1">({new Date(best.recorded_at).toLocaleDateString('en-US', { month: 'short', year: 'numeric' })})</span>
-              </div>
-            )}
-
-            {/* First recorded + progression */}
-            {sorted.length >= 2 && (
-              <div className="text-xs text-muted">
-                First: <span className="font-medium">{formatEntryValue(first)}</span>
-                {athleteBirthday && (
-                  <span className="text-faint ml-1">· {getAgeAtDate(athleteBirthday, first.recorded_at)}</span>
-                )}
-                {deltaText && (
-                  <span className={`ml-2 font-medium ${
-                    metric.lower_is_better !== null
-                      ? (latest.value! < first.value!) === metric.lower_is_better
-                        ? 'text-emerald-600'
-                        : 'text-red-500'
-                      : 'text-tertiary'
-                  }`}>{deltaText}</span>
-                )}
-              </div>
-            )}
-
-            {/* Years tracked */}
-            {yearsTracked && (
-              <div className="text-xs text-faint mt-0.5">{yearsTracked}</div>
-            )}
-          </div>
-
-          <div className="flex flex-col items-end gap-2 shrink-0">
-            <div className="text-xs text-faint">
-              {new Date(latest.recorded_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
-            </div>
-            <ChevronDown className={`w-4 h-4 text-faint transition-transform ${expanded ? 'rotate-180' : ''}`} aria-hidden="true" />
-          </div>
-        </div>
-      </button>
-
-      {/* Inline history panel */}
-      {expanded && (
-        <div className="border-t border-border-subtle bg-surface-muted">
-          <div className="px-4 py-3">
-            <p className="text-xs font-semibold text-muted uppercase tracking-wider mb-3">History</p>
-            {years.map(year => (
-              <div key={year} className="mb-4 last:mb-0">
-                <div className="flex items-center gap-2 mb-2">
-                  <span className="text-xs font-bold text-secondary">{year}</span>
-                  {year === oldestYear && (
-                    <span className="text-xs text-faint">· First recorded</span>
-                  )}
-                </div>
-                <div className="space-y-2">
-                  {byYear[year].map(entry => (
-                    <div key={entry.id} className="flex items-start justify-between text-sm py-2 px-3 bg-surface rounded-lg border border-border-subtle">
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <span className="font-semibold text-primary">{formatEntryValue(entry)}</span>
-                          {entry.id === best.id && (
-                            <span className="text-xs text-amber-600 font-medium">
-                              <Star className="w-2.5 h-2.5 text-amber-500 inline mr-0.5" aria-hidden="true" />PB
-                            </span>
-                          )}
-                          {athleteBirthday && (
-                            <span className="text-xs text-faint">{getAgeAtDate(athleteBirthday, entry.recorded_at)}</span>
-                          )}
-                          {entry.source !== 'manual' && (
-                            <span className="text-xs text-violet-500">{entry.source}</span>
-                          )}
-                        </div>
-                        {entry.notes && (
-                          <p className="text-xs text-muted mt-0.5 truncate">{entry.notes}</p>
-                        )}
-                      </div>
-                      <div className="flex items-center gap-2 ml-3 shrink-0">
-                        <span className="text-xs text-faint">
-                          {new Date(entry.recorded_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
-                        </span>
-                        {entry.linked_post_id && (
-                          <button
-                            type="button"
-                            onClick={(e) => { e.stopPropagation(); onOpenPost(entry.linked_post_id!); }}
-                            className="text-violet-500 hover:text-brand-fg-strong transition-colors"
-                            title="View media post"
-                          >
-                            <Camera className="w-3.5 h-3.5" aria-hidden="true" />
-                          </button>
-                        )}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
-
 // ── VitalsTab (main) ────────────────────────────────────────────────────────
 
 export default function VitalsTab({ profileId, currentUserId, isOwnProfile = false }: VitalsTabProps) {
@@ -354,8 +112,10 @@ export default function VitalsTab({ profileId, currentUserId, isOwnProfile = fal
   const [showVitalsSettings, setShowVitalsSettings] = useState(false);
   const [showCreatePost, setShowCreatePost] = useState(false);
   const [linkedPostId, setLinkedPostId] = useState<string | null>(null);
-  const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
-  const [selectedYears, setSelectedYears] = useState<number[]>([]);
+  const [metricOverlayKey, setMetricOverlayKey] = useState<string | null>(null);
+  const [showWorkoutsOverlay, setShowWorkoutsOverlay] = useState(false);
+  const [showActivityOverlay, setShowActivityOverlay] = useState(false);
+  const [showBodyOverlay, setShowBodyOverlay] = useState(false);
   const [startingWorkout, setStartingWorkout] = useState(false);
   const [bannerDismissed, setBannerDismissed] = useState(false);
   const [routines, setRoutines] = useState<WorkoutRoutine[]>([]);
@@ -487,40 +247,8 @@ export default function VitalsTab({ profileId, currentUserId, isOwnProfile = fal
     else handleStartWorkout();
   };
 
-  // Filter options derived from the data actually present
-  const categoryOptions = useMemo(() => {
-    const present = new Set(vitals.map(v => v.metric_category));
-    return VITAL_CATEGORIES.filter(c => present.has(c.key)).map(c => ({
-      value: c.key,
-      label: c.label,
-    }));
-  }, [vitals]);
-
-  const yearOptions = useMemo(
-    () => deriveYearOptions(vitals.map(v => v.recorded_at)),
-    [vitals]
-  );
-
-  // Apply filters BEFORE grouping — MetricCards (PB, first, trend, history)
-  // are scoped to the filtered range, not all-time.
-  const visibleVitals = vitals.filter(
-    v =>
-      matchesYearFilter(v.recorded_at, selectedYears) &&
-      (selectedCategories.length === 0 || selectedCategories.includes(v.metric_category))
-  );
-
-  // Year filter also narrows the training feed (category doesn't apply there)
-  const visibleTrainingPosts = trainingPosts.filter(p =>
-    matchesYearFilter(p.created_at, selectedYears)
-  );
-
-  // Completed workouts, year-filtered (active sessions live in the banner)
-  const visibleWorkouts = workouts.filter(
-    s => s.status === 'completed' && matchesYearFilter(s.started_at, selectedYears)
-  );
-
-  // Dashboard headline stats — all-time / unfiltered on purpose: filters
-  // narrow the library below, but "this week" and PBs must never lie.
+  // Dashboard headline stats — all-time on purpose: the year filter now
+  // lives inside the workouts overlay, and "this week" / PBs must never lie.
   const completedWorkouts = useMemo(
     () => workouts.filter(s => s.status === 'completed'),
     [workouts]
@@ -531,15 +259,34 @@ export default function VitalsTab({ profileId, currentUserId, isOwnProfile = fal
   const pbSpotlight = useMemo(() => latestPB(vitals), [vitals]);
   const [showAllActivity, setShowAllActivity] = useState(false);
 
-  // Group vitals by metric key
+  // The weekly-activity bubble's bars — last 8 weeks, workouts per week.
+  // Labels only on the first and current bars; more reads as clutter at
+  // bubble size, and the overlay carries the full detail.
+  const activityBars = useMemo(
+    () =>
+      weeklyBars(completedWorkouts, 8).map((bar, i, all) => {
+        const label = parseDateLocal(bar.weekStart).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+        return {
+          label: i === 0 || i === all.length - 1 ? label : '',
+          value: bar.workouts,
+          highlight: bar.isCurrent,
+          meta: `Week of ${label} — ${bar.workouts} workout${bar.workouts !== 1 ? 's' : ''}`,
+        };
+      }),
+    [completedWorkouts]
+  );
+
+  // API order is newest-first; the bubble shows the top of the diary.
+  const recentWorkouts = completedWorkouts.slice(0, 3);
+
+  // Group vitals by metric key (all-time — bubbles never lie either)
   const vitalsByMetric: Record<string, VitalEntry[]> = {};
-  for (const entry of visibleVitals) {
+  for (const entry of vitals) {
     if (!vitalsByMetric[entry.metric_key]) vitalsByMetric[entry.metric_key] = [];
     vitalsByMetric[entry.metric_key].push(entry);
   }
 
   const totalMetrics = Object.keys(vitalsByMetric).length;
-  const activeFilterCount = selectedCategories.length + selectedYears.length;
 
   if (loading) {
     return (
@@ -666,92 +413,107 @@ export default function VitalsTab({ profileId, currentUserId, isOwnProfile = fal
         pb={pbSpotlight}
       />
 
-      {/* ── Personal bests — the trophy wall ─────────────────────────── */}
-      <PBShowcase vitals={vitals} />
+      {/* ── Bubble grid — tap a card for its larger window ───────────── */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+        <StatBubbleCard
+          span="md"
+          icon={BarChart3}
+          label="Weekly activity"
+          onOpen={() => setShowActivityOverlay(true)}
+          staggerIndex={0}
+        >
+          <RoundedBarChart
+            bars={activityBars}
+            color="var(--brand-fg)"
+            height={72}
+            ariaLabel="Workouts per week, last 8 weeks"
+          />
+        </StatBubbleCard>
+
+        {recentWorkouts.length > 0 ? (
+          <StatBubbleCard
+            span="md"
+            icon={Dumbbell}
+            label="Recent workouts"
+            onOpen={() => setShowWorkoutsOverlay(true)}
+            staggerIndex={1}
+          >
+            <div className="space-y-2">
+              {recentWorkouts.map(session => (
+                <div key={session.id} className="flex items-center justify-between gap-2 text-sm">
+                  <span className="font-semibold text-primary truncate">{session.title || 'Workout'}</span>
+                  <span className="text-xs text-muted whitespace-nowrap shrink-0">
+                    {new Date(session.started_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                    {sessionSeconds(session) > 0 && <> · {formatDuration(sessionSeconds(session))}</>}
+                  </span>
+                </div>
+              ))}
+            </div>
+            <div className="mt-3 text-xs font-bold text-brand-fg-strong">
+              See all {completedWorkouts.length} workout{completedWorkouts.length !== 1 ? 's' : ''}
+            </div>
+          </StatBubbleCard>
+        ) : (
+          <StatBubbleCard span="md" icon={Dumbbell} label="Recent workouts" staggerIndex={1}>
+            <p className="text-sm text-muted mb-3">
+              {isOwnProfile
+                ? 'Record live — exercises, sets, reps, and weight as you go.'
+                : "This athlete hasn't recorded workouts yet."}
+            </p>
+            {isOwnProfile && (
+              <button
+                onClick={openStartWorkout}
+                disabled={startingWorkout}
+                className="vt-pill px-4 py-2 bg-brand text-white rounded-full text-xs font-bold hover:bg-brand-hover transition-colors disabled:opacity-60"
+              >
+                Start Your First Workout
+              </button>
+            )}
+          </StatBubbleCard>
+        )}
+
+        {/* Owners update height/weight via the header gear (each save also
+            appends a dated timeline entry); DOB stays an Edit Profile job and
+            shows only inside the owner's detail overlay. */}
+        {currentVitals && (
+          <StatBubbleCard
+            span="lg"
+            icon={Ruler}
+            iconClassName={categoryAccent('body').text}
+            iconBgClassName={categoryAccent('body').chip}
+            label="Body metrics"
+            onOpen={() => setShowBodyOverlay(true)}
+            staggerIndex={2}
+          >
+            <div className="grid grid-cols-3 gap-3">
+              <div className="text-center">
+                <div className="text-xl sm:text-2xl font-bold text-primary mb-0.5">{formatHeight(currentVitals.heightCm)}</div>
+                <div className="text-xs text-muted uppercase tracking-wide">Height</div>
+              </div>
+              <div className="text-center">
+                <div className="text-xl sm:text-2xl font-bold text-primary mb-0.5">
+                  {currentVitals.weightDisplay && currentVitals.weightUnit
+                    ? `${currentVitals.weightDisplay} ${currentVitals.weightUnit}`
+                    : formatWeightWithUnit(currentVitals.weightKg, currentVitals.weightUnit)}
+                </div>
+                <div className="text-xs text-muted uppercase tracking-wide">Weight</div>
+              </div>
+              <div className="text-center">
+                <div className="text-xl sm:text-2xl font-bold text-primary mb-0.5">{formatAge(currentVitals.dob)}</div>
+                <div className="text-xs text-muted uppercase tracking-wide">Age</div>
+              </div>
+            </div>
+          </StatBubbleCard>
+        )}
+      </div>
+
+      {/* ── Personal bests — the trophy wall (each trophy opens its metric) */}
+      <PBShowcase vitals={vitals} onOpenMetric={key => setMetricOverlayKey(key)} />
 
       {/* ── Progress — one big chart, pick what to track ─────────────── */}
       <ProgressSection vitals={vitals} sessions={completedWorkouts} />
 
-      {/* ── Current Vitals — the athlete's present-day snapshot from their
-             profile. Owners update height/weight via the Edge Vitals header
-             gear (each save also appends a dated athlete_vitals timeline
-             entry); DOB stays an Edit Profile job. DOB tile is owner-only;
-             visitors see Age. ─────────────────────────────────────────────── */}
-      {currentVitals && (
-        <div>
-          <div className="flex items-baseline justify-between mb-3">
-            <h3 className="text-base font-bold text-primary">Current Vitals</h3>
-          </div>
-          <div className={`grid grid-cols-2 gap-4 ${isOwnProfile ? 'md:grid-cols-4' : 'md:grid-cols-3'}`}>
-            <div className="text-center bg-surface rounded-lg border border-border p-4">
-              <div className="text-2xl font-bold text-primary mb-1">
-                {formatHeight(currentVitals.heightCm)}
-              </div>
-              <div className="text-xs text-muted uppercase tracking-wide">Height</div>
-            </div>
-            <div className="text-center bg-surface rounded-lg border border-border p-4">
-              <div className="text-2xl font-bold text-primary mb-1">
-                {currentVitals.weightDisplay && currentVitals.weightUnit
-                  ? `${currentVitals.weightDisplay} ${currentVitals.weightUnit}`
-                  : formatWeightWithUnit(currentVitals.weightKg, currentVitals.weightUnit)}
-              </div>
-              <div className="text-xs text-muted uppercase tracking-wide">Weight</div>
-            </div>
-            <div className="text-center bg-surface rounded-lg border border-border p-4">
-              <div className="text-2xl font-bold text-primary mb-1">
-                {formatAge(currentVitals.dob)}
-              </div>
-              <div className="text-xs text-muted uppercase tracking-wide">Age</div>
-            </div>
-            {isOwnProfile && (
-              <div className="text-center bg-surface rounded-lg border border-border p-4">
-                <div className="text-2xl font-bold text-primary mb-1">
-                  {/* T00:00:00 suffix → parsed as LOCAL midnight; a bare DATE
-                      string parses as UTC and shows the previous day in the US */}
-                  {currentVitals.dob ? formatDate(`${currentVitals.dob.slice(0, 10)}T00:00:00`) : '—'}
-                </div>
-                <div className="text-xs text-muted uppercase tracking-wide">Date of Birth</div>
-              </div>
-            )}
-          </div>
-        </div>
-      )}
-
-      {/* ── Filters (shared FilterBar treatment; always visible — dropdowns
-             disable until there's data to narrow) ──────────────────────── */}
-      <div className="space-y-6">
-        <FilterBar
-            resultCount={visibleVitals.length}
-            resultNoun="entry"
-            resultNounPlural="entries"
-            activeCount={activeFilterCount}
-            onClearAll={() => {
-              setSelectedCategories([]);
-              setSelectedYears([]);
-            }}
-          >
-            <MultiSelectDropdown<string>
-              allLabel="All Categories"
-              itemNounPlural="categories"
-              searchPlaceholder="Search categories..."
-              options={categoryOptions}
-              selected={selectedCategories}
-              onChange={setSelectedCategories}
-              disabled={categoryOptions.length === 0}
-            />
-            <MultiSelectDropdown<number>
-              allLabel="All Years"
-              itemNounPlural="years"
-              searchPlaceholder="Search years..."
-              options={yearOptions.map(year => ({ value: year, label: String(year) }))}
-              selected={selectedYears}
-              onChange={setSelectedYears}
-              disabled={yearOptions.length === 0}
-            />
-          </FilterBar>
-      </div>
-
-      {/* ── Section A: Metrics ───────────────────────────────────────── */}
+      {/* ── Metrics library — bubbles by category; history behind a tap ── */}
       <div>
         <div className="flex items-center justify-between mb-5">
           <div>
@@ -763,7 +525,7 @@ export default function VitalsTab({ profileId, currentUserId, isOwnProfile = fal
           {isOwnProfile && (
             <button
               onClick={() => setShowAddVital(true)}
-              className="flex items-center gap-1.5 px-3 py-2 bg-brand text-white rounded-lg text-sm font-semibold hover:bg-brand-hover transition-colors"
+              className="vt-pill flex items-center gap-1.5 px-4 py-2 bg-brand text-white rounded-full text-sm font-semibold hover:bg-brand-hover transition-colors"
             >
               <Plus className="w-3.5 h-3.5" aria-hidden="true" />
               Add Metric
@@ -771,11 +533,7 @@ export default function VitalsTab({ profileId, currentUserId, isOwnProfile = fal
           )}
         </div>
 
-        {totalMetrics === 0 && vitals.length > 0 ? (
-          <div className="text-center py-12 border border-dashed border-border rounded-lg">
-            <p className="text-sm text-tertiary">No metrics match your filters.</p>
-          </div>
-        ) : totalMetrics === 0 ? (
+        {totalMetrics === 0 ? (
           <SectionEmptyState
             icon={Ruler}
             title="No metrics recorded yet"
@@ -800,14 +558,14 @@ export default function VitalsTab({ profileId, currentUserId, isOwnProfile = fal
                     />
                     <h4 className={`text-sm font-semibold ${categoryAccent(category.key).text}`}>{category.label}</h4>
                   </div>
-                  <div className="space-y-2">
-                    {categoryMetrics.map(m => (
-                      <MetricCard
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    {categoryMetrics.map((m, i) => (
+                      <MetricBubbleCard
                         key={m.key}
                         metricKey={m.key}
                         entries={vitalsByMetric[m.key]}
-                        athleteBirthday={athleteBirthday}
-                        onOpenPost={(postId) => setLinkedPostId(postId)}
+                        staggerIndex={i}
+                        onOpen={() => setMetricOverlayKey(m.key)}
                       />
                     ))}
                   </div>
@@ -818,79 +576,19 @@ export default function VitalsTab({ profileId, currentUserId, isOwnProfile = fal
         )}
       </div>
 
-      {/* ── Workouts — Edge Vitals session history ───────────────────── */}
-      <div>
-        <div className="flex items-center justify-between mb-5">
-          <div>
-            <h3 className="text-base font-bold text-primary">Workouts</h3>
-            {visibleWorkouts.length > 0 && (
-              <p className="text-xs text-muted mt-0.5">
-                {visibleWorkouts.length} session{visibleWorkouts.length !== 1 ? 's' : ''}
-              </p>
-            )}
-          </div>
-        </div>
-
-        {visibleWorkouts.length === 0 && workouts.some(s => s.status === 'completed') ? (
-          <div className="text-center py-12 border border-dashed border-border rounded-lg">
-            <p className="text-sm text-tertiary">No workouts match your filters.</p>
-          </div>
-        ) : visibleWorkouts.length === 0 ? (
-          <SectionEmptyState
-            icon={Timer}
-            title="No workouts recorded yet"
-            body={isOwnProfile
-              ? 'Hit Start Workout to record live — exercises, sets, reps, and weight as you go.'
-              : "This athlete hasn't recorded workouts yet."}
-            cta={isOwnProfile ? { label: 'Start Your First Workout', onClick: openStartWorkout } : undefined}
-          />
-        ) : (
-          <div className="space-y-5">
-            {/* Month-grouped log — the training diary reads by month */}
-            {visibleWorkouts.reduce<Array<{ month: string; sessions: ServerWorkoutSession[] }>>((groups, session) => {
-              const month = new Date(session.started_at).toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
-              const last = groups[groups.length - 1];
-              if (last && last.month === month) last.sessions.push(session);
-              else groups.push({ month, sessions: [session] });
-              return groups;
-            }, []).map(group => (
-              <div key={group.month}>
-                <h4 className="text-xs font-bold text-muted uppercase tracking-wide mb-2">{group.month}</h4>
-                <div className="space-y-2">
-                  {group.sessions.map(session => (
-                    <WorkoutCard
-                      key={session.id}
-                      session={session}
-                      onOpenPost={postId => setLinkedPostId(postId)}
-                      isOwnProfile={isOwnProfile}
-                      onEdit={() => router.push(`/app/workout/${session.id}`)}
-                      onShare={() => router.push(`/app/workout/${session.id}?share=1`)}
-                      onDeleted={() => {
-                        setWorkouts(ws => ws.filter(w => w.id !== session.id));
-                        fetchDataRef.current();
-                      }}
-                    />
-                  ))}
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
-
       {/* ── Section B: Training Activity Feed ───────────────────────── */}
       <div>
         <div className="flex items-center justify-between mb-5">
           <div>
             <h3 className="text-base font-bold text-primary">Training Activity</h3>
-            {visibleTrainingPosts.length > 0 && (
-              <p className="text-xs text-muted mt-0.5">{visibleTrainingPosts.length} session{visibleTrainingPosts.length !== 1 ? 's' : ''} logged</p>
+            {trainingPosts.length > 0 && (
+              <p className="text-xs text-muted mt-0.5">{trainingPosts.length} session{trainingPosts.length !== 1 ? 's' : ''} logged</p>
             )}
           </div>
           {isOwnProfile && (
             <button
               onClick={() => setShowCreatePost(true)}
-              className="flex items-center gap-1.5 px-3 py-2 border border-border-strong text-secondary rounded-lg text-sm font-semibold hover:bg-surface-muted transition-colors"
+              className="vt-pill flex items-center gap-1.5 px-4 py-2 border border-border-strong text-secondary rounded-full text-sm font-semibold hover:bg-surface-muted transition-colors"
             >
               <Plus className="w-3.5 h-3.5" aria-hidden="true" />
               Log Training
@@ -898,11 +596,7 @@ export default function VitalsTab({ profileId, currentUserId, isOwnProfile = fal
           )}
         </div>
 
-        {visibleTrainingPosts.length === 0 && trainingPosts.length > 0 ? (
-          <div className="text-center py-12 border border-dashed border-border rounded-lg">
-            <p className="text-sm text-tertiary">No sessions match your filters.</p>
-          </div>
-        ) : trainingPosts.length === 0 ? (
+        {trainingPosts.length === 0 ? (
           <SectionEmptyState
             icon={Dumbbell}
             title="No training activity logged yet"
@@ -911,19 +605,19 @@ export default function VitalsTab({ profileId, currentUserId, isOwnProfile = fal
           />
         ) : (
           <div className="space-y-4">
-            {(showAllActivity ? visibleTrainingPosts : visibleTrainingPosts.slice(0, 3)).map(post => (
+            {(showAllActivity ? trainingPosts : trainingPosts.slice(0, 3)).map(post => (
               <PostCard
                 key={post.id}
                 post={post as Parameters<typeof PostCard>[0]['post']}
                 currentUserId={currentUserId}
               />
             ))}
-            {!showAllActivity && visibleTrainingPosts.length > 3 && (
+            {!showAllActivity && trainingPosts.length > 3 && (
               <button
                 onClick={() => setShowAllActivity(true)}
-                className="ea-interactive w-full flex items-center justify-center gap-2 py-3 rounded-lg border border-border text-sm font-semibold text-brand-fg-strong"
+                className="ea-interactive vt-pill w-full flex items-center justify-center gap-2 py-3 rounded-full border border-border text-sm font-semibold text-brand-fg-strong"
               >
-                Show all {visibleTrainingPosts.length} posts
+                Show all {trainingPosts.length} posts
                 <ChevronDown className="w-4 h-4" aria-hidden="true" />
               </button>
             )}
@@ -987,6 +681,49 @@ export default function VitalsTab({ profileId, currentUserId, isOwnProfile = fal
             setShowCreatePost(false);
             fetchDataRef.current();
           }}
+        />
+      )}
+
+      {/* ── Larger windows — one per bubble ──────────────────────────── */}
+      {metricOverlayKey && vitalsByMetric[metricOverlayKey] && (
+        <MetricDetailOverlay
+          metricKey={metricOverlayKey}
+          entries={vitalsByMetric[metricOverlayKey]}
+          athleteBirthday={athleteBirthday}
+          onOpenPost={postId => setLinkedPostId(postId)}
+          onClose={() => setMetricOverlayKey(null)}
+        />
+      )}
+
+      {showWorkoutsOverlay && (
+        <WorkoutDetailOverlay
+          sessions={completedWorkouts}
+          isOwnProfile={isOwnProfile}
+          onOpenPost={postId => setLinkedPostId(postId)}
+          onEdit={id => router.push(`/app/workout/${id}`)}
+          onShare={id => router.push(`/app/workout/${id}?share=1`)}
+          onDeleted={id => {
+            setWorkouts(ws => ws.filter(w => w.id !== id));
+            fetchDataRef.current();
+          }}
+          onClose={() => setShowWorkoutsOverlay(false)}
+        />
+      )}
+
+      {showActivityOverlay && (
+        <WeeklyActivityOverlay
+          sessions={completedWorkouts}
+          onClose={() => setShowActivityOverlay(false)}
+        />
+      )}
+
+      {showBodyOverlay && (
+        <BodyDetailOverlay
+          currentVitals={currentVitals}
+          vitals={vitals}
+          isOwnProfile={isOwnProfile}
+          onOpenPost={postId => setLinkedPostId(postId)}
+          onClose={() => setShowBodyOverlay(false)}
         />
       )}
 

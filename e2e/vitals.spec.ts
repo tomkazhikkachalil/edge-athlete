@@ -66,15 +66,22 @@ test('vitals: seed → hero → PBs → chart → log → visitor', async ({ pag
   await picker.selectOption({ label: '1-Mile Run' });
   await expect(page.locator('svg[aria-label*="1-Mile Run"]')).toBeVisible();
 
-  // Metric history expands from the library.
+  // Metric history lives behind the metric's larger window (tap the trophy
+  // or library bubble — both carry the metric name and open the overlay).
   await page.getByRole('button', { name: /Bench Press/ }).first().click();
-  await expect(page.getByText('185 lbs').first()).toBeVisible();
+  const metricDialog = page.getByRole('dialog', { name: 'Bench Press' });
+  await expect(metricDialog.getByText('185 lbs').first()).toBeVisible();
+  await metricDialog.getByRole('button', { name: 'Close' }).click();
 
-  // Month-grouped workout log with the session; expand shows the set line.
+  // The month-grouped diary opens from the Recent Workouts bubble; expanding
+  // a session still shows its set line.
+  await page.getByRole('button', { name: /Recent workouts/i }).click();
+  const workoutsDialog = page.getByRole('dialog', { name: 'Workouts' });
   const month = new Date().toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
-  await expect(page.getByRole('heading', { name: month })).toBeVisible();
-  await page.getByText(`QA Push ${stamp}`).first().click();
-  await expect(page.getByText('5 reps × 185 lbs').first()).toBeVisible();
+  await expect(workoutsDialog.getByRole('heading', { name: month })).toBeVisible();
+  await workoutsDialog.getByText(`QA Push ${stamp}`).first().click();
+  await expect(workoutsDialog.getByText('5 reps × 185 lbs').first()).toBeVisible();
+  await workoutsDialog.getByRole('button', { name: 'Close' }).click();
 
   // Visitor (user B): read-only dashboard — hero visible, no owner actions.
   await adminClient().from('profiles').update({ visibility: 'public' }).eq('id', userA.id);
