@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getEnabledSports } from '@/lib/sports/SportRegistry';
 import { requireAuth, getSupabaseAdmin } from '@/lib/auth-server';
 import { GROUP_SCORECARD_SELECT, transformGroupPostToScorecard } from '@/lib/golf/scorecard-transform';
-import { isActiveParticipant, isRoundLive } from '@/lib/golf/round-status';
+import { isActiveParticipant, effectiveRoundStatus } from '@/lib/golf/round-status';
 import { canPin, MAX_PINNED_POSTS } from '@/lib/posts/pinning';
 import { deletePostCascade } from '@/lib/posts/delete-post-server';
 import { deleteRoundCascade } from '@/lib/golf/round-delete-server';
@@ -1062,15 +1062,20 @@ export async function GET(request: NextRequest) {
           .map((id: string) => tagProfilesById.get(id))
           .filter((p: TaggedProfile | undefined): p is TaggedProfile => !!p),
       }))
-      // Product rule: a round in progress is NOT a feed post yet — it lives
-      // in the Live Now strip / banner / LIVE page while playing, and lands
-      // in the feed (with a fresh timestamp) when it completes. Applies to
-      // the FEED listing only: profile grids, pinned rows, and single-post
-      // fetches keep every deep link working.
+      // Product rule: a round is a feed post only once it's FINISHED — while
+      // in progress it lives in the Live Now strip / banner / LIVE page, and
+      // lands in the feed (with a fresh timestamp) when it completes.
+      // Status-based, not isRoundLive (dummy-proofing round): the old
+      // liveness predicate let a zero-score 'pending' round leak into the
+      // feed as an empty post the moment it was created, and hid 'active'
+      // rounds past their 48h window as bare text posts. Cancelled rounds
+      // (abandoned scoreless sessions, swept) never surface either. Applies
+      // to the FEED listing only: profile grids, pinned rows, and
+      // single-post fetches keep every deep link working.
       .filter(post => {
         if (userId || pinnedOnly) return true;
         if (!post.group_scorecard) return true;
-        return !isRoundLive(post.group_scorecard.group_post);
+        return effectiveRoundStatus(post.group_scorecard.group_post) === 'completed';
       });
 
     // Transform the data to match the expected format

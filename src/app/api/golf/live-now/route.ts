@@ -53,12 +53,16 @@ export async function GET(request: NextRequest) {
     // ones the viewer follows or plays in. Two queries rather than a PostgREST
     // .or() string because the id list can be empty, and `id.in.()` is a
     // syntax error rather than an empty match.
+    // 'pending' too (dummy-proofing round): a freshly started round has no
+    // scores yet but is an open session — it must have live presence from
+    // second zero, or its creator has no way back in. isRoundLive below
+    // applies the same rule plus the date window.
     const activeGolf = () =>
       supabase
         .from('group_posts')
         .select(GROUP_SCORECARD_SELECT)
         .eq('type', 'golf_round')
-        .eq('status', 'active');
+        .in('status', ['pending', 'active']);
 
     const [publicRes, followedRes] = await Promise.all([
       activeGolf().eq('visibility', 'public').limit(40),

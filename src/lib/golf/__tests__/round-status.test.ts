@@ -6,6 +6,7 @@ import {
   effectiveRoundStatus,
   initialRoundStatus,
   shouldShowStaleNotice,
+  isAbandonedPendingRound,
   AUTO_END_AFTER_MS,
 } from '../round-status';
 
@@ -181,9 +182,21 @@ describe('isRoundLive', () => {
     expect(isRoundLive({ status: 'active', date: '2026-07-18' }, NOW)).toBe(false);
   });
 
-  it('is NOT live for pending or completed rounds regardless of date', () => {
-    expect(isRoundLive({ status: 'pending', date: '2026-07-23' }, NOW)).toBe(false);
+  it('IS live for a pending round in its window — a started, zero-score round is an open session (dummy-proofing round)', () => {
+    // The bug: requiring 'active' here meant a round with no scores had no
+    // LIVE presence, no resume banner, and leaked into the feed as an empty
+    // post the moment it was created.
+    expect(isRoundLive({ status: 'pending', date: '2026-07-23' }, NOW)).toBe(true);
+    expect(isRoundLive({ status: 'pending', date: '2026-07-22' }, NOW)).toBe(true);
+  });
+
+  it('is NOT live for a pending round past its window (the sweep cancels those)', () => {
+    expect(isRoundLive({ status: 'pending', date: '2026-07-18' }, NOW)).toBe(false);
+  });
+
+  it('is NOT live for completed or cancelled rounds regardless of date', () => {
     expect(isRoundLive({ status: 'completed', date: '2026-07-23' }, NOW)).toBe(false);
+    expect(isRoundLive({ status: 'cancelled', date: '2026-07-23' }, NOW)).toBe(false);
   });
 
   it('is NOT live once the round has gone quiet past the auto-end window', () => {
@@ -195,6 +208,28 @@ describe('isRoundLive', () => {
     expect(isRoundLive({ status: 'active', date: null }, NOW)).toBe(false);
     expect(isRoundLive({ status: 'active', date: 'not-a-date' }, NOW)).toBe(false);
     expect(isRoundLive({}, NOW)).toBe(false);
+  });
+});
+
+describe('isAbandonedPendingRound', () => {
+  const NOW = Date.parse('2026-07-23T18:00:00Z');
+
+  it('flags a pending round whose 48h window has passed', () => {
+    expect(isAbandonedPendingRound({ status: 'pending', date: '2026-07-18' }, NOW)).toBe(true);
+  });
+
+  it('leaves rounds inside the window, and every non-pending status, alone', () => {
+    expect(isAbandonedPendingRound({ status: 'pending', date: '2026-07-23' }, NOW)).toBe(false);
+    expect(isAbandonedPendingRound({ status: 'pending', date: '2026-07-22' }, NOW)).toBe(false);
+    expect(isAbandonedPendingRound({ status: 'active', date: '2026-07-18' }, NOW)).toBe(false);
+    expect(isAbandonedPendingRound({ status: 'completed', date: '2026-07-18' }, NOW)).toBe(false);
+    expect(isAbandonedPendingRound({ status: 'cancelled', date: '2026-07-18' }, NOW)).toBe(false);
+  });
+
+  it('never flags future-dated or garbage-dated rounds', () => {
+    expect(isAbandonedPendingRound({ status: 'pending', date: '2026-07-30' }, NOW)).toBe(false);
+    expect(isAbandonedPendingRound({ status: 'pending', date: 'not-a-date' }, NOW)).toBe(false);
+    expect(isAbandonedPendingRound({ status: 'pending', date: null }, NOW)).toBe(false);
   });
 });
 

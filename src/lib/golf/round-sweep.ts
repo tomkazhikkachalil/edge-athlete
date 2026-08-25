@@ -12,7 +12,7 @@
 // stop the rest.
 
 import type { SupabaseClient } from '@supabase/supabase-js';
-import { advanceRoundStatus } from './round-status';
+import { advanceRoundStatus, isAbandonedPendingRound } from './round-status';
 import { mirrorCompletedRound, mirrorRoundMedia } from './round-mirror';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -24,11 +24,14 @@ export const ROUND_SWEEP_LIMIT = 200;
 export interface RoundSweepResult {
   examined: number;
   completed: number;
+  /** Started-but-never-scored rounds retired to 'cancelled' (dummy-proofing
+   *  round). Data kept; feed never shows them; owner can still delete. */
+  cancelled: number;
   failed: number;
 }
 
 export async function runRoundSweep(admin: Admin): Promise<RoundSweepResult> {
-  const result: RoundSweepResult = { examined: 0, completed: 0, failed: 0 };
+  const result: RoundSweepResult = { examined: 0, completed: 0, cancelled: 0, failed: 0 };
 
   const { data: rounds, error } = await admin
     .from('group_posts')
@@ -66,6 +69,41 @@ export async function runRoundSweep(admin: Admin): Promise<RoundSweepResult> {
     } catch (e) {
       result.failed += 1;
       console.error(`[ROUND SWEEP] round ${round.id} failed:`, e);
+    }
+  }
+
+  // ── Abandoned scoreless rounds ──
+  // A 'pending' round never advances (advanceRoundStatus needs a score) and
+  // was previously never swept — it sat forever. Once its 48h live window
+  // passes it retires to 'cancelled': hidden from every surface, nothing
+  // destroyed (Tom's keep-data decision). The status guard on the update
+  // makes a concurrent first-score write (pending→active) win the race.
+  const { data: stale, error: staleError } = await admin
+    .from('group_posts')
+    .select('id, status, date')
+    .eq('type', 'golf_round')
+    .eq('status', 'pending')
+    .limit(ROUND_SWEEP_LIMIT);
+
+  if (staleError) {
+    console.error('[ROUND SWEEP] pending fetch failed:', staleError);
+    return result;
+  }
+
+  for (const round of stale ?? []) {
+    if (!isAbandonedPendingRound(round)) continue;
+    result.examined += 1;
+    try {
+      const { error: cancelError } = await admin
+        .from('group_posts')
+        .update({ status: 'cancelled' })
+        .eq('id', round.id)
+        .eq('status', 'pending');
+      if (cancelError) throw cancelError;
+      result.cancelled += 1;
+    } catch (e) {
+      result.failed += 1;
+      console.error(`[ROUND SWEEP] cancel of pending round ${round.id} failed:`, e);
     }
   }
 
