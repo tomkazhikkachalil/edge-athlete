@@ -28,6 +28,7 @@ import {
 import { NEUTRAL_ENGINE_PARAMS, planPasses, type EngineParams } from './params';
 import { isNeutralPerspective } from './perspective-math';
 import { bakeHslLut, HSL_LUT_SIZE, isNeutralHsl } from './hsl-math';
+import { bakeCurveLut, CURVE_LUT_SIZE, isNeutralCurves } from './curves-math';
 
 export interface Engine {
   /** Upload (or replace) the source texture and size the canvas to match.
@@ -80,6 +81,8 @@ export function createEngine(
     detail: gl.getUniformLocation(composite, 'u_detail'),
     hslLut: gl.getUniformLocation(composite, 'u_hslLut'),
     hslEnabled: gl.getUniformLocation(composite, 'u_hslEnabled'),
+    curveLut: gl.getUniformLocation(composite, 'u_curveLut'),
+    curveEnabled: gl.getUniformLocation(composite, 'u_curveEnabled'),
   };
 
   let lost = false;
@@ -106,6 +109,41 @@ export function createEngine(
   // values change (256×4 bytes — trivial even per drag frame).
   let hslLutTex: WebGLTexture | null = null;
   let hslFor: string | null = null;
+  // Curve LUT (unit 4): same pattern as the mixer LUT.
+  let curveLutTex: WebGLTexture | null = null;
+  let curveFor: string | null = null;
+
+  /** Bake+upload a 256×1 LUT when its key changed. Returns the texture or
+   *  null when allocation failed (caller degrades to disabled). */
+  const ensureLut = (
+    existing: WebGLTexture | null,
+    unit: number,
+    size: number,
+    key: string,
+    lastKey: string | null,
+    bake: () => Uint8ClampedArray
+  ): WebGLTexture | null => {
+    const tex = existing ?? createSourceTexture(gl);
+    if (!tex) return null;
+    if (lastKey !== key || existing === null) {
+      const lut = bake();
+      gl.activeTexture(gl.TEXTURE0 + unit);
+      gl.bindTexture(gl.TEXTURE_2D, tex);
+      gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, false);
+      gl.texImage2D(
+        gl.TEXTURE_2D,
+        0,
+        gl.RGBA8,
+        size,
+        1,
+        0,
+        gl.RGBA,
+        gl.UNSIGNED_BYTE,
+        new Uint8Array(lut.buffer, lut.byteOffset, lut.length)
+      );
+    }
+    return tex;
+  };
 
   const handleLost = (event: Event) => {
     event.preventDefault(); // required, or the context never restores
@@ -247,33 +285,23 @@ export function createEngine(
     const haveSmall = plan.blurSmall && (blurSmallReady || computeBlurSmall(inputTex));
     const haveLarge = plan.blurLarge && (blurLargeReady || computeBlurLarge(inputTex));
 
-    // Mixer LUT: bake + upload only when the mixer values changed.
+    // LUT stages: bake + upload only when their values changed.
     const wantHsl = !isNeutralHsl(p.hsl);
     if (wantHsl) {
       const key = JSON.stringify(p.hsl);
-      if (hslFor !== key) {
-        hslLutTex ??= createSourceTexture(gl);
-        if (hslLutTex) {
-          const lut = bakeHslLut(p.hsl);
-          gl.activeTexture(gl.TEXTURE3);
-          gl.bindTexture(gl.TEXTURE_2D, hslLutTex);
-          gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, false);
-          gl.texImage2D(
-            gl.TEXTURE_2D,
-            0,
-            gl.RGBA8,
-            HSL_LUT_SIZE,
-            1,
-            0,
-            gl.RGBA,
-            gl.UNSIGNED_BYTE,
-            new Uint8Array(lut.buffer, lut.byteOffset, lut.length)
-          );
-          hslFor = key;
-        }
-      }
+      hslLutTex = ensureLut(hslLutTex, 3, HSL_LUT_SIZE, key, hslFor, () => bakeHslLut(p.hsl));
+      if (hslLutTex) hslFor = key;
     }
     const hslActive = wantHsl && hslLutTex !== null;
+    const wantCurves = !isNeutralCurves(p.curves);
+    if (wantCurves) {
+      const key = JSON.stringify(p.curves);
+      curveLutTex = ensureLut(curveLutTex, 4, CURVE_LUT_SIZE, key, curveFor, () =>
+        bakeCurveLut(p.curves)
+      );
+      if (curveLutTex) curveFor = key;
+    }
+    const curvesActive = wantCurves && curveLutTex !== null;
 
     gl.bindFramebuffer(gl.FRAMEBUFFER, null);
     gl.viewport(0, 0, srcWidth, srcHeight);
@@ -286,11 +314,15 @@ export function createEngine(
     gl.bindTexture(gl.TEXTURE_2D, haveLarge && halfA ? halfA.tex : inputTex);
     gl.activeTexture(gl.TEXTURE3);
     gl.bindTexture(gl.TEXTURE_2D, hslActive && hslLutTex ? hslLutTex : inputTex);
+    gl.activeTexture(gl.TEXTURE4);
+    gl.bindTexture(gl.TEXTURE_2D, curvesActive && curveLutTex ? curveLutTex : inputTex);
     gl.uniform1i(loc.src, 0);
     gl.uniform1i(loc.blurSmall, 1);
     gl.uniform1i(loc.blurLarge, 2);
     gl.uniform1i(loc.hslLut, 3);
     gl.uniform1f(loc.hslEnabled, hslActive ? 1 : 0);
+    gl.uniform1i(loc.curveLut, 4);
+    gl.uniform1f(loc.curveEnabled, curvesActive ? 1 : 0);
     gl.uniform2f(loc.resolution, srcWidth, srcHeight);
     gl.uniform3f(loc.bcs, p.adjustments.brightness, p.adjustments.contrast, p.adjustments.saturation);
     gl.uniform1f(loc.exposure, p.light.exposure);
@@ -318,6 +350,7 @@ export function createEngine(
         if (program) gl.deleteProgram(program);
       }
       if (hslLutTex) gl.deleteTexture(hslLutTex);
+      if (curveLutTex) gl.deleteTexture(curveLutTex);
       gl.deleteTexture(texture);
       gl.deleteProgram(composite);
       // Explicit teardown frees the context slot immediately instead of

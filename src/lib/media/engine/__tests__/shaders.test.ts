@@ -115,6 +115,11 @@ describe('shader sources embed the color-math constants', () => {
     expect(FRAGMENT_SHADER).toContain('- 128.0) / 127.5');
   });
 
+  it('composite carries the tone-curve LUT stage', () => {
+    expect(FRAGMENT_SHADER).toContain('u_curveLut');
+    expect(FRAGMENT_SHADER).toContain('u_curveEnabled');
+  });
+
   it('warp fragment embeds the perspective scale and border-black rule', () => {
     expect(WARP_FRAGMENT.startsWith('#version 300 es')).toBe(true);
     expect(WARP_FRAGMENT).toContain(String(PERSPECTIVE_SCALE));

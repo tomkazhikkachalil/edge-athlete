@@ -87,6 +87,19 @@ test('media editor: crop session, undo, re-edit, dirty confirm, publish', async 
   await page.waitForTimeout(300);
   expect(await readLuma()).toBeLessThan(preMixLuma);
 
+  // Tone curves (Phase 2 E4b): pressing high in the editor's left half adds
+  // a shadow-lifting point — the stage must brighten through the curve LUT.
+  await page.getByRole('button', { name: 'Curves', exact: true }).click();
+  const curveBox = (await page.getByRole('application', { name: 'Tone curve' }).boundingBox())!;
+  const preCurveLuma = await readLuma();
+  await page.mouse.move(curveBox.x + curveBox.width * 0.3, curveBox.y + curveBox.height * 0.2);
+  await page.mouse.down();
+  await page.mouse.up();
+  await page.waitForTimeout(300);
+  expect(await readLuma()).toBeGreaterThan(preCurveLuma);
+  // The point registered in the editor (2 endpoints + the new one).
+  await expect(page.getByRole('button', { name: 'Curve point 3' })).toBeVisible();
+
   // Hold-to-compare: while pressed, the stage shows the ORIGINAL — the
   // darkened preview must come back up to the neutral reading.
   const compareBtn = page.getByRole('button', { name: 'Hold to compare with original' });
@@ -96,7 +109,9 @@ test('media editor: crop session, undo, re-edit, dirty confirm, publish', async 
   expect(Math.abs(comparingLuma - neutralLuma)).toBeLessThan(2); // dither-tolerant
   await compareBtn.dispatchEvent('pointerup');
   await page.waitForTimeout(300);
-  expect(await readLuma()).toBeLessThan(neutralLuma); // edit restored
+  // Edit restored: clearly different from the original (direction depends
+  // on the accumulated edits — exposure darkens, the curve lift brightens).
+  expect(Math.abs((await readLuma()) - neutralLuma)).toBeGreaterThan(2);
 
   // Auto-enhance lands as one recipe patch: the Exposure slider moves off
   // the manual −60.

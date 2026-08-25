@@ -17,6 +17,8 @@ import { useState } from 'react';
 import { Wand2 } from 'lucide-react';
 import { NEUTRAL_COLOR, NEUTRAL_DETAIL, NEUTRAL_LIGHT } from '@/lib/media/filters';
 import { HSL_BAND_NAMES, NEUTRAL_BAND } from '@/lib/media/engine/hsl-math';
+import { IDENTITY_CURVE } from '@/lib/media/engine/curves-math';
+import CurveEditor from './CurveEditor';
 import {
   legacyToUi,
   signedToUi,
@@ -35,7 +37,16 @@ import type {
 } from '@/lib/media/types';
 import EditorSlider from './EditorSlider';
 
-type Group = 'light' | 'color' | 'detail' | 'mix';
+type Group = 'light' | 'color' | 'detail' | 'mix' | 'curves';
+
+type CurveChannel = 'master' | 'r' | 'g' | 'b';
+
+const CURVE_CHANNELS: Array<{ id: CurveChannel; label: string; color: string }> = [
+  { id: 'master', label: 'RGB', color: '#f4f4f5' },
+  { id: 'r', label: 'Red', color: '#f87171' },
+  { id: 'g', label: 'Green', color: '#4ade80' },
+  { id: 'b', label: 'Blue', color: '#60a5fa' },
+];
 
 // Chip swatches for the mixer bands (visual identity only — the math's
 // band centers live in hsl-math.ts).
@@ -148,8 +159,9 @@ const GROUPS: Array<{ id: Group; label: string; sliders: SliderDef[] }> = [
       },
     ],
   },
-  // 'mix' renders its own band-chip UI — sliders are built per selected band.
+  // 'mix' and 'curves' render their own UI — sliders don't apply.
   { id: 'mix', label: 'Mix', sliders: [] },
+  { id: 'curves', label: 'Curves', sliders: [] },
 ];
 
 interface AdjustPanelProps {
@@ -165,6 +177,7 @@ interface AdjustPanelProps {
 export default function AdjustPanel({ recipe, onPatch, onAutoEnhance, engineAvailable }: AdjustPanelProps) {
   const [group, setGroup] = useState<Group>('light');
   const [band, setBand] = useState<HslBandName>('red');
+  const [curveChannel, setCurveChannel] = useState<CurveChannel>('master');
   const active = GROUPS.find(g => g.id === group) ?? GROUPS[0];
 
   const resetGroup = () => {
@@ -180,6 +193,8 @@ export default function AdjustPanel({ recipe, onPatch, onAutoEnhance, engineAvai
       );
     } else if (active.id === 'mix') {
       onPatch({ hsl: undefined }, 'reset.hsl');
+    } else if (active.id === 'curves') {
+      onPatch({ curves: undefined }, 'reset.curves');
     } else {
       onPatch({ detail: { ...NEUTRAL_DETAIL } }, 'reset.detail');
     }
@@ -195,31 +210,34 @@ export default function AdjustPanel({ recipe, onPatch, onAutoEnhance, engineAvai
   return (
     <div className="px-4 py-3 space-y-2 w-full max-w-xl mx-auto">
       <div className="flex items-center gap-2">
-        {GROUPS.map(g => (
-          <button
-            key={g.id}
-            type="button"
-            onClick={() => setGroup(g.id)}
-            className={`px-3 min-h-[36px] rounded-full text-chip transition-colors ${
-              active.id === g.id ? 'bg-white/20 text-white font-semibold' : 'text-white/60 hover:text-white'
-            }`}
-          >
-            {g.label}
-          </button>
-        ))}
+        {/* Five groups now — the chip row scrolls at 320px. */}
+        <div className="flex items-center gap-2 overflow-x-auto scrollbar-hide min-w-0 flex-1">
+          {GROUPS.map(g => (
+            <button
+              key={g.id}
+              type="button"
+              onClick={() => setGroup(g.id)}
+              className={`px-3 min-h-[36px] rounded-full text-chip transition-colors shrink-0 whitespace-nowrap ${
+                active.id === g.id ? 'bg-white/20 text-white font-semibold' : 'text-white/60 hover:text-white'
+              }`}
+            >
+              {g.label}
+            </button>
+          ))}
+        </div>
         <button
           type="button"
           onClick={onAutoEnhance}
           aria-label="Auto-enhance"
           title="Auto-enhance"
-          className="ml-auto w-9 h-9 flex items-center justify-center rounded-full text-white/70 bg-white/10 hover:bg-white/20 hover:text-white"
+          className="w-9 h-9 flex-shrink-0 flex items-center justify-center rounded-full text-white/70 bg-white/10 hover:bg-white/20 hover:text-white"
         >
           <Wand2 className="w-4 h-4" />
         </button>
         <button
           type="button"
           onClick={resetGroup}
-          className="px-3 min-h-[36px] rounded-full text-chip text-white/70 bg-white/10 hover:bg-white/20 hover:text-white"
+          className="px-3 min-h-[36px] flex-shrink-0 rounded-full text-chip text-white/70 bg-white/10 hover:bg-white/20 hover:text-white"
         >
           Reset
         </button>
@@ -233,7 +251,41 @@ export default function AdjustPanel({ recipe, onPatch, onAutoEnhance, engineAvai
       )}
 
       <div className="space-y-1 max-h-[38vh] overflow-y-auto">
-        {active.id === 'mix' ? (
+        {active.id === 'curves' ? (
+          <div className={!engineAvailable ? 'opacity-40' : undefined}>
+            <div className="flex items-center gap-2 py-1">
+              {CURVE_CHANNELS.map(ch => (
+                <button
+                  key={ch.id}
+                  type="button"
+                  onClick={() => setCurveChannel(ch.id)}
+                  aria-pressed={curveChannel === ch.id}
+                  className={`px-3 min-h-[36px] rounded-full text-chip transition-colors ${
+                    curveChannel === ch.id
+                      ? 'bg-white/20 font-semibold'
+                      : 'hover:bg-white/10'
+                  }`}
+                  style={{ color: ch.color }}
+                >
+                  {ch.label}
+                </button>
+              ))}
+            </div>
+            <CurveEditor
+              points={recipe.curves?.[curveChannel] ?? IDENTITY_CURVE}
+              color={CURVE_CHANNELS.find(ch => ch.id === curveChannel)?.color ?? '#f4f4f5'}
+              onChange={pts =>
+                onPatch(
+                  { curves: { ...recipe.curves, [curveChannel]: pts } },
+                  `curves.${curveChannel}`
+                )
+              }
+            />
+            <p className="text-chip text-white/40 pt-1">
+              Tap the curve to add a point, drag to shape, double-tap a point to remove it.
+            </p>
+          </div>
+        ) : active.id === 'mix' ? (
           <div className={!engineAvailable ? 'opacity-40' : undefined}>
             <div className="flex items-center gap-2 py-1 overflow-x-auto scrollbar-hide">
               {HSL_BAND_NAMES.map(name => (

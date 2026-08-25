@@ -1,5 +1,36 @@
 # Development Log
 
+## August 25, 2026 — Photo engine E4b: tone curves
+
+Second Phase-2 slice: real tone curves — master + per-channel R/G/B — as
+a fifth "Curves" group in the Adjust panel. The editor is an SVG widget
+whose interaction rules (drag with neighbor clamping, tap-to-add up to 8
+points, double-tap-to-remove, endpoints pinned to the domain) are ALL
+pure functions in `curves-math.ts`, node-tested without a DOM; the
+component only translates pointer events. Pressing empty curve space
+adds a point under the pointer and drags it immediately — the Lightroom
+gesture.
+
+Interpolation is Fritsch–Carlson monotone cubic: a curve through rising
+points can never overshoot or dip (pinned by a 200-sample monotonicity
+test), which is why photo tools use it — an s-curve steepens midtones
+without inverting anything. Bake: 256-bin LUT of
+`curveC(master(x))` per channel — master composes BEFORE channel curves
+(test caught me assuming linear where the cubic correctly eases into a
+plateau; the fix was the fixture, not the math). Same
+parity-by-construction as the mixer: identical baked bytes to the GPU
+texture (unit 4) and the CPU reference; the engine's LUT slots are now a
+shared `ensureLut` helper. The shader stage branches like the mixer
+(closed domain), and the reference chains mixer → curves in the ONE
+transformPixel hook.
+
+Recipe: `curves?` optional in v3 — 2..8 points per channel, strictly
+ascending x enforced by zod refine; identity channels count as no-ops.
+e2e wrinkle worth recording: the curve lift brightened the accumulated
+edit PAST the original, breaking hold-compare's old "edit is darker"
+assertion — it now asserts *difference* from the original, not a
+direction, which is what it always meant.
+
 ## August 25, 2026 — Photo engine E4a: HSL color mixer — Phase 2 begins
 
 First Phase-2 slice: an eight-band color mixer (the Lightroom set — red,

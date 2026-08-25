@@ -52,5 +52,7 @@ export function labelForKeys(keys: string | null): string {
   // Per-band mixer keys ('hsl.aqua.saturation') are open-ended — prefix rule.
   if (keys.startsWith('hsl.')) return 'Color mix';
   if (keys === 'reset.hsl') return 'Reset color mix';
+  if (keys.startsWith('curves.')) return 'Curves';
+  if (keys === 'reset.curves') return 'Reset curves';
   return LABELS[keys] ?? 'Edit';
 }

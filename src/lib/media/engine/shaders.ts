@@ -43,6 +43,7 @@ import {
   HSL_LUT_SIZE,
   HSL_SAT_RANGE,
 } from './hsl-math';
+import { CURVE_LUT_SIZE } from './curves-math';
 
 /** Number → GLSL float literal ("2" would be an int and fail to compile). */
 function glf(n: number): string {
@@ -138,6 +139,8 @@ uniform float u_vignette;
 uniform vec3 u_detail;   // sharpen, clarity, noiseReduction (0 = off)
 uniform sampler2D u_hslLut;  // 256×1 mixer LUT (signed-encoded, see hsl-math)
 uniform float u_hslEnabled;  // 0/1 — see the mixer block for why it branches
+uniform sampler2D u_curveLut;  // 256×1 tone-curve LUT (see curves-math)
+uniform float u_curveEnabled;  // 0/1 — same closed-domain reasoning as HSL
 
 out vec4 outColor;
 
@@ -233,6 +236,17 @@ void main() {
     float lumMul = 1.0 + ((lut.b * 255.0 - 128.0) / 127.5) * ${glf(HSL_LUM_RANGE)};
     vec3 mixed = hsl2rgb(vec3(hsl.x + hueShift, clamp(hsl.y * satMul, 0.0, 1.0), clamp(hsl.z * lumMul, 0.0, 1.0)));
     rgb = base + (mixed - base) * guard;
+  }
+
+  // Tone curves (Phase 2): per-channel LUT (master pre-composed at bake).
+  // Branched for the same closed-domain reason as the mixer above.
+  if (u_curveEnabled > 0.5) {
+    vec3 cin = clamp(rgb, 0.0, 1.0);
+    rgb = vec3(
+      texture(u_curveLut, vec2((cin.r * ${glf(CURVE_LUT_SIZE - 1)} + 0.5) / ${glf(CURVE_LUT_SIZE)}, 0.5)).r,
+      texture(u_curveLut, vec2((cin.g * ${glf(CURVE_LUT_SIZE - 1)} + 0.5) / ${glf(CURVE_LUT_SIZE)}, 0.5)).g,
+      texture(u_curveLut, vec2((cin.b * ${glf(CURVE_LUT_SIZE - 1)} + 0.5) / ${glf(CURVE_LUT_SIZE)}, 0.5)).b
+    );
   }
 
   // Vignette: aspect-corrected radial falloff; + darkens, − lightens

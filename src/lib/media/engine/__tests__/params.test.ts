@@ -140,6 +140,21 @@ describe('advanced-params routing (engine vs legacy fast path)', () => {
     ).toBe(false);
   });
 
+  it('curves route to the engine; identity sets stay non-advanced', () => {
+    const base = defaultImageRecipe();
+    expect(recipeToEngineParams(base).curves).toEqual({});
+    const shaped = recipeToEngineParams({
+      ...base,
+      curves: { master: [{ x: 0, y: 0.2 }, { x: 1, y: 1 }] },
+    });
+    expect(hasAdvancedParams(shaped)).toBe(true);
+    const identity = recipeToEngineParams({
+      ...base,
+      curves: { master: [{ x: 0, y: 0 }, { x: 1, y: 1 }] },
+    });
+    expect(hasAdvancedParams(identity)).toBe(false);
+  });
+
   it('perspective routes to the engine; absent maps to neutral', () => {
     const base = defaultImageRecipe();
     expect(recipeToEngineParams(base).perspective).toEqual({ vertical: 0, horizontal: 0 });

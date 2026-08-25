@@ -71,6 +71,21 @@ export interface HslBandAdjust {
 /** Full mixer state — every band present (the engine's normalized form). */
 export type HslMix = Record<HslBandName, HslBandAdjust>;
 
+/** One tone-curve control point, both axes 0..1 (input → output). */
+export interface CurvePoint {
+  x: number;
+  y: number;
+}
+
+/** Tone curves (Phase 2 E4b): master applied first, then per-channel.
+ *  Absent channel = identity. Points sorted by x, 2..8 per channel. */
+export interface CurveSet {
+  master?: CurvePoint[];
+  r?: CurvePoint[];
+  g?: CurvePoint[];
+  b?: CurvePoint[];
+}
+
 /**
  * Crop rectangle in source pixels, in the ROTATED bounding-box coordinate
  * space (react-easy-crop's croppedAreaPixels convention — rotation is applied
@@ -113,6 +128,8 @@ export interface ImageRecipe {
   perspective?: PerspectiveCorrection;
   /** Color mixer (Phase 2): sparse — absent bands are neutral. */
   hsl?: Partial<Record<HslBandName, HslBandAdjust>>;
+  /** Tone curves (Phase 2): absent = identity. */
+  curves?: CurveSet;
 }
 
 /** One segment of the output timeline — a [in, out) slice of the SOURCE. */
