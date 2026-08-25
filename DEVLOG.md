@@ -1,5 +1,27 @@
 # Development Log
 
+## August 24, 2026 — Media round D: slow motion
+
+The highest-value Layer-2 item — slo-mo on a swing is the reason athletes
+edit at all — lands as a small additive delta on round C's timeline.
+`VideoClip.speed` (0.25|0.5|1|2, absent = 1, zod-additive so the envelope
+stays v2), speed chips in the selected-clip control row, and preview that
+plays each clip at its own playbackRate.
+
+The mechanics live where round C put the seams: timeline math is
+speed-aware (a clip's TIMELINE length is (out−in)/speed —
+clipTimelineLength threads through duration/offsets/both mappings,
+extended tests), and any speed ≠ 1 forces the manual export tier, where
+video timestamps stretch by 1/speed (0.5× halves the frame rate — no
+interpolation, deliberately). AUDIO ON SPEED-CHANGED CLIPS IS MUTED —
+Tom's call: honest silence over chipmunk/tape artifacts; written as real
+silence samples, not a track gap (gaps desync players). Pitch-preserving
+stretch is the documented follow-up. The speed chips carry the "exports
+without sound" title so nobody is surprised.
+
+Owed with round C's device pass: a 0.5× clip inside a 3-clip stitch on
+real hardware.
+
 ## August 24, 2026 — Media round C: the multi-clip timeline (recipe v2)
 
 The heart of Layer 1's video story: trim, split, DELETE, REORDER and

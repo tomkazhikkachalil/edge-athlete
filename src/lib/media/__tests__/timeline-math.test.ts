@@ -10,6 +10,8 @@ import {
   splitClipAt,
   setClipEdge,
   setClipVolume,
+  setClipSpeed,
+  clipTimelineLength,
 } from '../timeline-math';
 import { MIN_CLIP_SECONDS } from '../video-math';
 import type { VideoClip } from '../types';
@@ -101,5 +103,33 @@ describe('setClipEdge / setClipVolume', () => {
     expect(setClipVolume(clips, 0, 1.5)[0].volume).toBe(1);
     expect(setClipVolume(clips, 0, -1)[0].volume).toBe(0);
     expect(setClipVolume(clips, 0, 0.4)[0].volume).toBe(0.4);
+  });
+});
+
+describe('speed (slo-mo round)', () => {
+  const slow = { ...clip(2, 6), speed: 0.5 }; // 4s of source → 8s of timeline
+  const fast = { ...clip(0, 2), speed: 2 }; // 2s of source → 1s of timeline
+
+  it('stretches timeline lengths, durations, and offsets by 1/speed', () => {
+    expect(clipTimelineLength(slow)).toBe(8);
+    expect(clipTimelineLength(fast)).toBe(1);
+    expect(timelineDuration([slow, fast])).toBe(9);
+    expect(sourceOffsets([slow, fast])).toEqual([0, 8]);
+  });
+
+  it('maps timeline↔source through the speed factor', () => {
+    // Timeline 4 inside the slow clip = 2s of source progress → source 4.
+    expect(timelineToSource(4, [slow, fast])).toEqual({ clipIndex: 0, sourceTime: 4 });
+    // Timeline 8.5 inside the fast clip = 0.5 timeline = 1s of source → source 1.
+    expect(timelineToSource(8.5, [slow, fast])).toEqual({ clipIndex: 1, sourceTime: 1 });
+    expect(timelineFromSource(4, [slow])).toBe(4); // (4−2)/0.5
+    expect(timelineFromSource(1, [fast])).toBe(0.5);
+  });
+
+  it('setClipSpeed sets, ignores nonsense, and absent speed means 1', () => {
+    const clips = [clip(0, 2)];
+    expect(setClipSpeed(clips, 0, 0.5)[0].speed).toBe(0.5);
+    expect(setClipSpeed(clips, 0, -1)).toBe(clips);
+    expect(clipTimelineLength(clip(0, 2))).toBe(2);
   });
 });

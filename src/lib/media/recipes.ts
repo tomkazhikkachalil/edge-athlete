@@ -83,6 +83,10 @@ const videoClipSchema = z.object({
   in: z.number().min(0),
   out: z.number().positive(),
   volume: z.number().min(0).max(1),
+  // Slo-mo round: fixed chip set, absent = 1. Stays v2 (additive).
+  speed: z
+    .union([z.literal(0.25), z.literal(0.5), z.literal(1), z.literal(2)])
+    .optional(),
 });
 
 const videoRecipeSchema = z.object({

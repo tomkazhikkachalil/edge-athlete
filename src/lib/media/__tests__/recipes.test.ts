@@ -60,7 +60,7 @@ describe('serialization round-trip', () => {
     const recipe = {
       ...defaultVideoRecipe(),
       clips: [
-        { in: 1.5, out: 9, volume: 1 },
+        { in: 1.5, out: 9, volume: 1, speed: 0.5 as const },
         { in: 0, out: 1.5, volume: 0.25 },
       ],
       crop: { x: 10, y: 0, width: 720, height: 720 },
