@@ -255,6 +255,13 @@ export async function GET(request: NextRequest) {
       organizations,
       // Deprecated alias — kept one release so cached clients keep working
       golfStats: null
+    }, {
+      // The public-profile payload is viewer-independent: private profiles are
+      // 403'd above, and the only per-viewer behaviour ("this is you" CTA) is
+      // decided client-side. So it is CDN-cacheable per handle with NO
+      // Vary:Cookie — one cached entry serves everyone, authed or not. The
+      // media URLs inside are already proxied and re-authorized separately.
+      headers: { 'Cache-Control': 'public, s-maxage=60, stale-while-revalidate=300' },
     });
 
   } catch (error) {

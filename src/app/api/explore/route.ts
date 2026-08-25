@@ -113,6 +113,11 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({
       athletes: athletesResult.data || [],
       posts,
+    }, {
+      // Public browse surface: only public athletes/posts (private authors
+      // filtered out above), and it varies by query params, not by viewer.
+      // CDN-cacheable keyed on the full request URL.
+      headers: { 'Cache-Control': 'public, s-maxage=30, stale-while-revalidate=120' },
     });
   } catch (e) {
     console.error('[explore] unexpected error:', e);

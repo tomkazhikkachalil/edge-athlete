@@ -16,7 +16,11 @@ export async function GET(request: NextRequest) {
   const country = new URL(request.url).searchParams.get('country');
   try {
     const facets = await courseLocationFacets(getSupabaseAdmin(), country || null);
-    return NextResponse.json({ facets });
+    // Pure public reference data (country/region counts) — no viewer input
+    // beyond ?country=. Longest CDN cache of the public reads.
+    return NextResponse.json({ facets }, {
+      headers: { 'Cache-Control': 'public, s-maxage=3600, stale-while-revalidate=86400' },
+    });
   } catch (error) {
     console.error('Course facets error:', error);
     return NextResponse.json({ error: 'Failed to load facets' }, { status: 500 });
