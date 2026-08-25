@@ -1,5 +1,32 @@
 # Development Log
 
+## August 25, 2026 — Photo engine E-W2: export controls
+
+Second workflow slice: a gear next to Done opens **Export settings** —
+Quality (High/Balanced/Compact), Size (Maximum/Medium 1280/Small 720),
+Format (JPEG/WebP/PNG) — applied to this session's photos and remembered
+across sessions (versioned localStorage key, defensively parsed,
+node-tested). Three deliberate boundaries:
+
+- **Size only clamps.** Each surface's `maxDimension` is its server-side
+  sanity cap; user choices never exceed it (an avatar stays 512 no
+  matter what).
+- **Quality never goes below 0.72** — the mandate's "never force heavy
+  compression" made executable: Compact is a user choice, and even it
+  isn't destructive. A test pins every tier ≥0.7.
+- **No HEIC option.** Browsers DECODE HEIC (inputs re-encode fine) but
+  none can ENCODE it — offering the option would be a lie. JPEG/WebP/PNG
+  are what `canvas.toBlob` genuinely produces.
+
+The e2e proof reads the exported blob's actual MIME type after choosing
+PNG — the preference demonstrably reaches the encoder, not just the UI.
+The lazy-init-from-localStorage here is safe where RegistrationSteps'
+wasn't (that trap: hydration mismatch): the editor mounts only after
+user interaction and never appears in server-rendered HTML — the
+distinction is now written at the site. Escape's layered close gained
+the sheet as a link (confirm → eyedropper → export sheet → history →
+editor).
+
 ## August 25, 2026 — Photo engine E-W1: copy/paste looks + apply-to-all — Phase 4 begins
 
 First workflow slice: **Copy look / Paste look / Apply to all** appear

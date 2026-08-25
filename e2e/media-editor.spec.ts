@@ -268,9 +268,33 @@ test('media editor: crop session, undo, re-edit, dirty confirm, publish', async 
   await page.waitForTimeout(300);
   expect(await readLuma()).toBeLessThan(preWarpLuma);
 
+  // Export settings (E-W2): pick PNG — the exported blob must actually be
+  // PNG, proving the preference reaches the encoder. Escape closes the
+  // sheet without leaving the editor (the layered-Escape chain).
+  await page.getByRole('button', { name: 'Export settings', exact: true }).click();
+  await expect(page.getByRole('dialog', { name: 'Export settings' })).toBeVisible();
+  await page.getByRole('button', { name: 'PNG', exact: true }).click();
+  await page.keyboard.press('Escape');
+  await expect(page.getByRole('dialog', { name: 'Export settings' })).toHaveCount(0);
+  await expect(page.getByRole('heading', { name: 'Edit media' })).toBeVisible();
+
   // Export goes through the engine (advanced params force the WebGL path).
   await page.getByRole('button', { name: 'Done', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'Edit media' })).toBeHidden({ timeout: 30_000 });
+
+  // Exported blob is PNG per the chosen setting.
+  const exportedType = await page.evaluate(async () => {
+    const imgs = [...document.querySelectorAll('img')].filter(el =>
+      el.src.startsWith('blob:')
+    ) as HTMLImageElement[];
+    const tile = imgs.sort(
+      (a, b) => b.naturalWidth * b.naturalHeight - a.naturalWidth * a.naturalHeight
+    )[0];
+    if (!tile) return 'none';
+    const blob = await fetch(tile.src).then(r => r.blob());
+    return blob.type;
+  });
+  expect(exportedType).toBe('image/png');
 
   // E4h export proof: the rendered tile must contain the big pure-white
   // 'GO' glyphs — count near-white pixels in the exported blob (the DOM
