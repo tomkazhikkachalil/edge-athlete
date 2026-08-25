@@ -102,6 +102,36 @@ describe('defaults and no-op detection', () => {
     expect(parseRecipe(serializeRecipe(tooFew))).toBeNull();
   });
 
+  it('masks: geometry-only lists are no-ops; both kinds round-trip; cap enforced', () => {
+    const base = defaultImageRecipe();
+    const radial = {
+      kind: 'radial' as const,
+      cx: 0.4,
+      cy: 0.3,
+      rx: 0.25,
+      ry: 0.35,
+      feather: 0.6,
+      invert: true,
+      adjust: { exposure: 0.5, saturation: -0.2, temperature: 0.1 },
+    };
+    const linear = {
+      kind: 'linear' as const,
+      x0: 0.5,
+      y0: 0.1,
+      x1: 0.5,
+      y1: 0.6,
+      adjust: { exposure: -0.4, saturation: 0, temperature: 0 },
+    };
+    expect(
+      isNoopRecipe({ ...base, masks: [{ ...radial, adjust: { exposure: 0, saturation: 0, temperature: 0 } }] })
+    ).toBe(true);
+    const recipe = { ...base, masks: [radial, linear] };
+    expect(isNoopRecipe(recipe)).toBe(false);
+    expect(parseRecipe(serializeRecipe(recipe))).toEqual(recipe);
+    const five = { ...base, masks: [radial, radial, radial, radial, radial] };
+    expect(parseRecipe(serializeRecipe(five))).toBeNull();
+  });
+
   it('9:16 round-trips in both image and video recipes (story crop)', () => {
     const image = { ...defaultImageRecipe('9:16' as const) };
     expect(parseRecipe(serializeRecipe(image))).toEqual(image);

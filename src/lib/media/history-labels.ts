@@ -54,5 +54,8 @@ export function labelForKeys(keys: string | null): string {
   if (keys === 'reset.hsl') return 'Reset color mix';
   if (keys.startsWith('curves.')) return 'Curves';
   if (keys === 'reset.curves') return 'Reset curves';
+  if (keys === 'mask.add') return 'Add mask';
+  if (keys === 'mask.delete') return 'Remove mask';
+  if (keys.startsWith('mask.')) return 'Mask';
   return LABELS[keys] ?? 'Edit';
 }

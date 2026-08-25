@@ -28,6 +28,7 @@ import {
 import { isNeutralPerspective } from './engine/perspective-math';
 import { isNeutralHsl } from './engine/hsl-math';
 import { isNeutralCurves } from './engine/curves-math';
+import { isNeutralMasks } from './engine/mask-math';
 
 export function defaultImageRecipe(aspect: AspectRatioId = 'free'): ImageRecipe {
   return {
@@ -76,7 +77,8 @@ export function isNoopRecipe(recipe: EditRecipe): boolean {
     isNeutralDetail(recipe.detail) &&
     isNeutralPerspective(recipe.perspective) &&
     isNeutralHsl(recipe.hsl) &&
-    isNeutralCurves(recipe.curves)
+    isNeutralCurves(recipe.curves) &&
+    isNeutralMasks(recipe.masks)
   );
 }
 
@@ -124,6 +126,33 @@ const hslBandSchema = z.object({
   saturation: signed(),
   luminance: signed(),
 });
+
+const maskAdjustSchema = z.object({
+  exposure: signed(),
+  saturation: signed(),
+  temperature: signed(),
+});
+
+const maskSchema = z.discriminatedUnion('kind', [
+  z.object({
+    kind: z.literal('radial'),
+    cx: unsigned(),
+    cy: unsigned(),
+    rx: z.number().min(0.01).max(2),
+    ry: z.number().min(0.01).max(2),
+    feather: unsigned(),
+    invert: z.boolean(),
+    adjust: maskAdjustSchema,
+  }),
+  z.object({
+    kind: z.literal('linear'),
+    x0: unsigned(),
+    y0: unsigned(),
+    x1: unsigned(),
+    y1: unsigned(),
+    adjust: maskAdjustSchema,
+  }),
+]);
 
 // A tone curve: 2..8 points, both axes 0..1, strictly ascending x.
 const curveSchema = z
@@ -175,6 +204,7 @@ const imageRecipeSchema = imageRecipeV2Schema.extend({
       b: curveSchema.optional(),
     })
     .optional(),
+  masks: z.array(maskSchema).max(4).optional(),
 });
 
 // v1 video shape (single trim) — persisted rows from round B upgrade on read.

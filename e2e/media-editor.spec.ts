@@ -100,6 +100,16 @@ test('media editor: crop session, undo, re-edit, dirty confirm, publish', async 
   // The point registered in the editor (2 endpoints + the new one).
   await expect(page.getByRole('button', { name: 'Curve point 3' })).toBeVisible();
 
+  // Local masks (Phase 2 E4c): add a radial, lift its exposure — the
+  // center-weighted mask must brighten the stage, and its outline renders.
+  await page.getByRole('button', { name: 'Masks', exact: true }).click();
+  await page.getByRole('button', { name: '+ Radial', exact: true }).click();
+  await expect(page.getByRole('button', { name: 'Radial mask 1' })).toBeVisible();
+  const preMaskLuma = await readLuma();
+  await page.getByRole('slider', { name: 'Exposure' }).fill('80');
+  await page.waitForTimeout(300);
+  expect(await readLuma()).toBeGreaterThan(preMaskLuma);
+
   // Hold-to-compare: while pressed, the stage shows the ORIGINAL — the
   // darkened preview must come back up to the neutral reading.
   const compareBtn = page.getByRole('button', { name: 'Hold to compare with original' });
@@ -114,7 +124,9 @@ test('media editor: crop session, undo, re-edit, dirty confirm, publish', async 
   expect(Math.abs((await readLuma()) - neutralLuma)).toBeGreaterThan(2);
 
   // Auto-enhance lands as one recipe patch: the Exposure slider moves off
-  // the manual −60.
+  // the manual −60. (Back to the Adjust tool first — the Masks block left
+  // the editor on its own tool.)
+  await page.getByRole('button', { name: 'Adjust', exact: true }).click();
   await page.getByRole('button', { name: 'Light', exact: true }).click();
   await page.getByRole('button', { name: 'Auto-enhance' }).click();
   const exposureSlider = page.getByRole('slider', { name: 'Exposure' });

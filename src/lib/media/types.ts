@@ -86,6 +86,39 @@ export interface CurveSet {
   b?: CurvePoint[];
 }
 
+/** Local adjustment carried by a mask, −1..1, 0 = neutral. */
+export interface MaskAdjust {
+  exposure: number; // ±1 EV locally
+  saturation: number;
+  temperature: number;
+}
+
+/**
+ * Local-adjustment masks (Phase 2 E4c). Geometry normalized to the FRAMED
+ * image, ORIGIN TOP-LEFT. Radial = ellipse (full effect inside, feathered
+ * to the edge, invertible); linear = gradient from (x0,y0) (full) to
+ * (x1,y1) (none). Max 4 (shader uniform arrays).
+ */
+export type Mask =
+  | {
+      kind: 'radial';
+      cx: number;
+      cy: number;
+      rx: number;
+      ry: number;
+      feather: number; // 0..1
+      invert: boolean;
+      adjust: MaskAdjust;
+    }
+  | {
+      kind: 'linear';
+      x0: number;
+      y0: number;
+      x1: number;
+      y1: number;
+      adjust: MaskAdjust;
+    };
+
 /**
  * Crop rectangle in source pixels, in the ROTATED bounding-box coordinate
  * space (react-easy-crop's croppedAreaPixels convention — rotation is applied
@@ -130,6 +163,8 @@ export interface ImageRecipe {
   hsl?: Partial<Record<HslBandName, HslBandAdjust>>;
   /** Tone curves (Phase 2): absent = identity. */
   curves?: CurveSet;
+  /** Local-adjustment masks (Phase 2): absent/empty = none. Max 4. */
+  masks?: Mask[];
 }
 
 /** One segment of the output timeline — a [in, out) slice of the SOURCE. */

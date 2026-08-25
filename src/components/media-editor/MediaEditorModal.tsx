@@ -33,18 +33,21 @@ import AdjustPanel from './AdjustPanel';
 import EnginePreview from './EnginePreview';
 import HistoryRail from './HistoryRail';
 import PerspectivePanel from './PerspectivePanel';
+import MaskPanel from './MaskPanel';
+import MaskOverlay from './MaskOverlay';
 import FilterStrip from './FilterStrip';
 import Filmstrip from './Filmstrip';
 import VideoStage from './VideoStage';
 import VideoCropStage from './VideoCropStage';
 import { useEditorSession } from './useEditorSession';
 
-type Tool = 'crop' | 'adjust' | 'filter' | 'perspective' | 'clips' | 'poster';
+type Tool = 'crop' | 'adjust' | 'filter' | 'masks' | 'perspective' | 'clips' | 'poster';
 
 const IMAGE_TOOLS: Array<{ id: Tool; label: string }> = [
   { id: 'crop', label: 'Crop' },
   { id: 'adjust', label: 'Adjust' },
   { id: 'filter', label: 'Filters' },
+  { id: 'masks', label: 'Masks' },
   { id: 'perspective', label: 'Perspective' },
 ];
 const VIDEO_TOOLS: Array<{ id: Tool; label: string }> = [
@@ -83,6 +86,8 @@ export default function MediaEditorModal({ assets: initialAssets, config, onDone
   const [exporting, setExporting] = useState<{ done: number; total: number } | null>(null);
   // Hold-to-compare: while pressed, the stage renders the untouched source.
   const [comparing, setComparing] = useState(false);
+  // Masks tool: which mask the overlay/panel are editing.
+  const [selectedMaskIndex, setSelectedMaskIndex] = useState(0);
 
   // Crop/filter/trim recipes are deliberately non-persistable, so a confirm
   // on cancel is the only protection against losing the edits.
@@ -218,6 +223,15 @@ export default function MediaEditorModal({ assets: initialAssets, config, onDone
         {activeTool === 'perspective' && (
           <PerspectivePanel
             recipe={imageRecipe}
+            onPatch={(patch, keys) => patchRecipe(active.id, patch, keys)}
+            engineAvailable={isEngineSupported()}
+          />
+        )}
+        {activeTool === 'masks' && (
+          <MaskPanel
+            recipe={imageRecipe}
+            selectedIndex={selectedMaskIndex}
+            onSelectIndex={setSelectedMaskIndex}
             onPatch={(patch, keys) => patchRecipe(active.id, patch, keys)}
             engineAvailable={isEngineSupported()}
           />
@@ -386,13 +400,25 @@ export default function MediaEditorModal({ assets: initialAssets, config, onDone
           ) : (
             <div className="relative flex-1 min-h-0 flex items-center justify-center overflow-hidden">
               {/* WebGL preview of the FULL recipe (geometry + engine color);
-                  falls back internally to <img> + CSS trio on no-WebGL. */}
-              <EnginePreview
-                file={active.file}
-                recipe={imageRecipe}
-                fallbackUrl={activeUrl}
-                showOriginal={comparing}
-              />
+                  falls back internally to <img> + CSS trio on no-WebGL.
+                  The wrapper shrink-wraps the preview so the mask overlay's
+                  normalized coordinates map onto the image box exactly. */}
+              <div className="relative flex max-w-full max-h-full">
+                <EnginePreview
+                  file={active.file}
+                  recipe={imageRecipe}
+                  fallbackUrl={activeUrl}
+                  showOriginal={comparing}
+                />
+                {activeTool === 'masks' && (
+                  <MaskOverlay
+                    masks={imageRecipe.masks ?? []}
+                    selectedIndex={selectedMaskIndex}
+                    onSelect={setSelectedMaskIndex}
+                    onChange={(masks, keys) => patchRecipe(active.id, { masks }, keys)}
+                  />
+                )}
+              </div>
               {/* Press-and-hold before/after — released anywhere restores
                   the edit (pointer capture keeps Up firing off-button). */}
               <button

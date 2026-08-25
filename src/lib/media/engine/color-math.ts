@@ -226,14 +226,18 @@ export interface ColorPipelineParams {
 }
 
 /** The full color pipeline for one pixel; `falloff` precomputed per pixel.
- *  `postVibrance` is the Phase-2 injection point (HSL mixer, later curves)
- *  — a hook rather than an import so this module stays cycle-free. It runs
- *  between vibrance and vignette, matching the shader order. */
+ *  `postVibrance` is the Phase-2 injection point (masks → HSL mixer →
+ *  curves) — a hook rather than an import so this module stays cycle-free.
+ *  It runs between vibrance and vignette, matching the shader order, and
+ *  receives the pixel's normalized position (origin top-left) because
+ *  masks are spatial. */
 export function transformPixel(
   rgb: Rgb,
   params: ColorPipelineParams,
   falloff: number,
-  postVibrance?: (rgb: Rgb) => Rgb
+  postVibrance?: (rgb: Rgb, u: number, v: number) => Rgb,
+  u = 0,
+  v = 0
 ): Rgb {
   let out = applyLegacy(rgb, params.adjustments);
   if (params.light.exposure !== 0) out = applyExposure(out, params.light.exposure);
@@ -245,7 +249,7 @@ export function transformPixel(
     out = applyTone(out, l);
   }
   if (params.color.vibrance !== 0) out = applyVibrance(out, params.color.vibrance);
-  if (postVibrance) out = postVibrance(out);
+  if (postVibrance) out = postVibrance(out, u, v);
   if (params.vignette !== 0) out = applyVignette(out, params.vignette, falloff);
   return [clamp01(out[0]), clamp01(out[1]), clamp01(out[2])];
 }

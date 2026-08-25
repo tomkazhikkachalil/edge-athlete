@@ -27,7 +27,8 @@ import {
 } from './perspective-math';
 import { isNeutralHsl, neutralHslMix, normalizeHslMix } from './hsl-math';
 import { isNeutralCurves } from './curves-math';
-import type { CurveSet, HslMix } from '../types';
+import { isNeutralMasks } from './mask-math';
+import type { CurveSet, HslMix, Mask } from '../types';
 import type {
   Adjustments,
   ColorAdjustments,
@@ -47,6 +48,8 @@ export interface EngineParams {
   hsl: HslMix;
   /** Tone curves; empty object = identity. */
   curves: CurveSet;
+  /** Local-adjustment masks; [] = none. */
+  masks: Mask[];
 }
 
 export const NEUTRAL_ENGINE_PARAMS: EngineParams = {
@@ -57,6 +60,7 @@ export const NEUTRAL_ENGINE_PARAMS: EngineParams = {
   perspective: NEUTRAL_PERSPECTIVE,
   hsl: neutralHslMix(),
   curves: {},
+  masks: [],
 };
 
 /** Preset lerped toward neutral by strength (0 = off, 1 = full preset). */
@@ -120,6 +124,7 @@ export function recipeToEngineParams(recipe: ImageRecipe): EngineParams {
     perspective: recipe.perspective ? { ...recipe.perspective } : { ...NEUTRAL_PERSPECTIVE },
     hsl: normalizeHslMix(recipe.hsl),
     curves: recipe.curves ? { ...recipe.curves } : {},
+    masks: recipe.masks ? recipe.masks.map(m => ({ ...m, adjust: { ...m.adjust } })) : [],
   };
 }
 
@@ -135,7 +140,8 @@ export function hasAdvancedParams(params: EngineParams): boolean {
     !isNeutralDetail(params.detail) ||
     !isNeutralPerspective(params.perspective) ||
     !isNeutralHsl(params.hsl) ||
-    !isNeutralCurves(params.curves)
+    !isNeutralCurves(params.curves) ||
+    !isNeutralMasks(params.masks)
   );
 }
 

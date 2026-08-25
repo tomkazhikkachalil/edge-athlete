@@ -29,6 +29,7 @@ import { NEUTRAL_ENGINE_PARAMS, planPasses, type EngineParams } from './params';
 import { isNeutralPerspective } from './perspective-math';
 import { bakeHslLut, HSL_LUT_SIZE, isNeutralHsl } from './hsl-math';
 import { bakeCurveLut, CURVE_LUT_SIZE, isNeutralCurves } from './curves-math';
+import { MAX_MASKS } from './mask-math';
 
 export interface Engine {
   /** Upload (or replace) the source texture and size the canvas to match.
@@ -83,6 +84,10 @@ export function createEngine(
     hslEnabled: gl.getUniformLocation(composite, 'u_hslEnabled'),
     curveLut: gl.getUniformLocation(composite, 'u_curveLut'),
     curveEnabled: gl.getUniformLocation(composite, 'u_curveEnabled'),
+    maskCount: gl.getUniformLocation(composite, 'u_maskCount'),
+    maskGeom: gl.getUniformLocation(composite, 'u_maskGeom'),
+    maskKind: gl.getUniformLocation(composite, 'u_maskKind'),
+    maskAdjust: gl.getUniformLocation(composite, 'u_maskAdjust'),
   };
 
   let lost = false;
@@ -323,6 +328,28 @@ export function createEngine(
     gl.uniform1f(loc.hslEnabled, hslActive ? 1 : 0);
     gl.uniform1i(loc.curveLut, 4);
     gl.uniform1f(loc.curveEnabled, curvesActive ? 1 : 0);
+    // Local masks: analytic uniforms, y flipped into the shader's y-up uv.
+    const maskCount = Math.min(p.masks.length, MAX_MASKS);
+    gl.uniform1i(loc.maskCount, maskCount);
+    if (maskCount > 0) {
+      const geom = new Float32Array(MAX_MASKS * 4);
+      const kind = new Float32Array(MAX_MASKS * 4);
+      const adjust = new Float32Array(MAX_MASKS * 3);
+      for (let i = 0; i < maskCount; i++) {
+        const m = p.masks[i];
+        if (m.kind === 'radial') {
+          geom.set([m.cx, 1 - m.cy, m.rx, m.ry], i * 4);
+          kind.set([0, m.feather, m.invert ? 1 : 0, 0], i * 4);
+        } else {
+          geom.set([m.x0, 1 - m.y0, m.x1, 1 - m.y1], i * 4);
+          kind.set([1, 0, 0, 0], i * 4);
+        }
+        adjust.set([m.adjust.exposure, m.adjust.saturation, m.adjust.temperature], i * 3);
+      }
+      gl.uniform4fv(loc.maskGeom, geom);
+      gl.uniform4fv(loc.maskKind, kind);
+      gl.uniform3fv(loc.maskAdjust, adjust);
+    }
     gl.uniform2f(loc.resolution, srcWidth, srcHeight);
     gl.uniform3f(loc.bcs, p.adjustments.brightness, p.adjustments.contrast, p.adjustments.saturation);
     gl.uniform1f(loc.exposure, p.light.exposure);

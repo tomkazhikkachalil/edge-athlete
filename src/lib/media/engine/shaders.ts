@@ -44,6 +44,7 @@ import {
   HSL_SAT_RANGE,
 } from './hsl-math';
 import { CURVE_LUT_SIZE } from './curves-math';
+import { MASK_EV_RANGE, MAX_MASKS } from './mask-math';
 
 /** Number → GLSL float literal ("2" would be an int and fail to compile). */
 function glf(n: number): string {
@@ -141,6 +142,11 @@ uniform sampler2D u_hslLut;  // 256×1 mixer LUT (signed-encoded, see hsl-math)
 uniform float u_hslEnabled;  // 0/1 — see the mixer block for why it branches
 uniform sampler2D u_curveLut;  // 256×1 tone-curve LUT (see curves-math)
 uniform float u_curveEnabled;  // 0/1 — same closed-domain reasoning as HSL
+// Local masks (analytic — no textures; geometry pre-flipped to y-up):
+uniform int u_maskCount;
+uniform vec4 u_maskGeom[${MAX_MASKS}];   // radial: cx,cy,rx,ry | linear: x0,y0,x1,y1
+uniform vec4 u_maskKind[${MAX_MASKS}];   // kind (0 radial / 1 linear), feather, invert, unused
+uniform vec3 u_maskAdjust[${MAX_MASKS}]; // exposure, saturation, temperature
 
 out vec4 outColor;
 
@@ -219,6 +225,38 @@ void main() {
   float amount = 1.0 + u_vibrance * ${glf(VIBRANCE_SCALE)} * (1.0 - sat);
   float Lv = dot(rgb, LUMA);
   rgb = vec3(Lv) + (rgb - vec3(Lv)) * amount;
+
+  // Local masks (Phase 2): weighted delta SUMS applied once — N masks are
+  // one small loop, not N passes; drags stay uniform-only. Order matches
+  // mask-math.applyMaskDeltas: exposure → temperature → saturation.
+  if (u_maskCount > 0) {
+    float mEv = 0.0;
+    float mSat = 0.0;
+    float mTemp = 0.0;
+    for (int i = 0; i < ${MAX_MASKS}; i++) {
+      if (i >= u_maskCount) break;
+      float w;
+      if (u_maskKind[i].x < 0.5) {
+        vec2 d = (uv - u_maskGeom[i].xy) / max(u_maskGeom[i].zw, vec2(1e-4));
+        float inner = max(0.0, 1.0 - u_maskKind[i].y);
+        w = 1.0 - smoothstep(inner, 1.0, length(d));
+        if (u_maskKind[i].z > 0.5) w = 1.0 - w;
+      } else {
+        vec2 grad = u_maskGeom[i].zw - u_maskGeom[i].xy;
+        float len2 = dot(grad, grad);
+        float t = len2 < 1e-8 ? 1.0 : dot(uv - u_maskGeom[i].xy, grad) / len2;
+        w = 1.0 - smoothstep(0.0, 1.0, t);
+      }
+      mEv += w * u_maskAdjust[i].x;
+      mSat += w * u_maskAdjust[i].y;
+      mTemp += w * u_maskAdjust[i].z;
+    }
+    rgb *= exp2(mEv * ${glf(MASK_EV_RANGE)});
+    rgb.r *= 1.0 + mTemp * ${glf(WB_TEMP_SCALE)};
+    rgb.b *= 1.0 - mTemp * ${glf(WB_TEMP_SCALE)};
+    float Lmask = dot(rgb, LUMA);
+    rgb = vec3(Lmask) + (rgb - vec3(Lmask)) * max(0.0, 1.0 + mSat);
+  }
 
   // Color mixer (HSL, Phase 2): LUT by hue → shift/scale, gray-guarded.
   // Uniform-branched — NOT straight-line like the rest — because the

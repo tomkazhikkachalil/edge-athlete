@@ -31,6 +31,7 @@ import type { EngineParams } from './params';
 import { isNeutralPerspective, warpPerspective } from './perspective-math';
 import { applyHslLut, bakeHslLut, isNeutralHsl } from './hsl-math';
 import { applyCurveLut, bakeCurveLut, isNeutralCurves } from './curves-math';
+import { applyMaskDeltas, isNeutralMasks, maskDeltas } from './mask-math';
 
 /** RGBA bytes → packed RGB floats (0..1). */
 function toFloatRgb(data: Uint8ClampedArray): Float32Array {
@@ -156,16 +157,18 @@ export function applyEngine(
     warpPerspective(data, width, height, params.perspective);
   }
 
-  // LUT stages (mixer, then curves): injected between vibrance and
-  // vignette as ONE hook (keeps color-math free of hsl/curves imports —
-  // the TDZ-cycle trap class). Skipped when neutral, mirroring the
-  // shader's u_hslEnabled / u_curveEnabled branches.
+  // Phase-2 stages (masks → mixer → curves): injected between vibrance and
+  // vignette as ONE hook (keeps color-math free of their imports — the
+  // TDZ-cycle trap class). Skipped when neutral, mirroring the shader's
+  // u_maskCount / u_hslEnabled / u_curveEnabled branches.
+  const wantMasks = !isNeutralMasks(params.masks);
   const hslLut = isNeutralHsl(params.hsl) ? null : bakeHslLut(params.hsl);
   const curveLut = isNeutralCurves(params.curves) ? null : bakeCurveLut(params.curves);
   const hslApply =
-    hslLut || curveLut
-      ? (rgb: Rgb): Rgb => {
+    wantMasks || hslLut || curveLut
+      ? (rgb: Rgb, u: number, vv: number): Rgb => {
           let out = rgb;
+          if (wantMasks) out = applyMaskDeltas(out, maskDeltas(params.masks, u, vv));
           if (hslLut) out = applyHslLut(out, hslLut);
           if (curveLut) out = applyCurveLut([clamp01(out[0]), clamp01(out[1]), clamp01(out[2])], curveLut);
           return out;
@@ -202,7 +205,7 @@ export function applyEngine(
         const large: Rgb = blurLarge ? [blurLarge[j], blurLarge[j + 1], blurLarge[j + 2]] : rgb;
         rgb = applyDetail(rgb, small, large, params.detail);
       }
-      const [r, g, b] = transformPixel(rgb, pipelineParams, falloff, hslApply);
+      const [r, g, b] = transformPixel(rgb, pipelineParams, falloff, hslApply, (x + 0.5) / width, v);
       data[i] = r * 255;
       data[i + 1] = g * 255;
       data[i + 2] = b * 255;
