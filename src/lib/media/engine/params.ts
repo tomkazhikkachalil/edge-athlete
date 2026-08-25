@@ -25,6 +25,8 @@ import {
   NEUTRAL_PERSPECTIVE,
   type PerspectiveParams,
 } from './perspective-math';
+import { isNeutralHsl, neutralHslMix, normalizeHslMix } from './hsl-math';
+import type { HslMix } from '../types';
 import type {
   Adjustments,
   ColorAdjustments,
@@ -40,6 +42,8 @@ export interface EngineParams {
   color: ColorAdjustments;
   detail: DetailAdjustments;
   perspective: PerspectiveParams;
+  /** Normalized (all bands present); neutralHslMix() when the recipe has none. */
+  hsl: HslMix;
 }
 
 export const NEUTRAL_ENGINE_PARAMS: EngineParams = {
@@ -48,6 +52,7 @@ export const NEUTRAL_ENGINE_PARAMS: EngineParams = {
   color: NEUTRAL_COLOR,
   detail: NEUTRAL_DETAIL,
   perspective: NEUTRAL_PERSPECTIVE,
+  hsl: neutralHslMix(),
 };
 
 /** Preset lerped toward neutral by strength (0 = off, 1 = full preset). */
@@ -109,6 +114,7 @@ export function recipeToEngineParams(recipe: ImageRecipe): EngineParams {
       vignette: clampSigned(recipe.detail.vignette + (pd?.vignette ?? 0) * s),
     },
     perspective: recipe.perspective ? { ...recipe.perspective } : { ...NEUTRAL_PERSPECTIVE },
+    hsl: normalizeHslMix(recipe.hsl),
   };
 }
 
@@ -122,7 +128,8 @@ export function hasAdvancedParams(params: EngineParams): boolean {
     !isNeutralLight(params.light) ||
     !isNeutralColor(params.color) ||
     !isNeutralDetail(params.detail) ||
-    !isNeutralPerspective(params.perspective)
+    !isNeutralPerspective(params.perspective) ||
+    !isNeutralHsl(params.hsl)
   );
 }
 

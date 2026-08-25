@@ -16,6 +16,7 @@
 import { useState } from 'react';
 import { Wand2 } from 'lucide-react';
 import { NEUTRAL_COLOR, NEUTRAL_DETAIL, NEUTRAL_LIGHT } from '@/lib/media/filters';
+import { HSL_BAND_NAMES, NEUTRAL_BAND } from '@/lib/media/engine/hsl-math';
 import {
   legacyToUi,
   signedToUi,
@@ -27,12 +28,38 @@ import {
 import type {
   ColorAdjustments,
   DetailAdjustments,
+  HslBandAdjust,
+  HslBandName,
   ImageRecipe,
   LightAdjustments,
 } from '@/lib/media/types';
 import EditorSlider from './EditorSlider';
 
-type Group = 'light' | 'color' | 'detail';
+type Group = 'light' | 'color' | 'detail' | 'mix';
+
+// Chip swatches for the mixer bands (visual identity only — the math's
+// band centers live in hsl-math.ts).
+const BAND_SWATCHES: Record<HslBandName, string> = {
+  red: '#ef4444',
+  orange: '#f97316',
+  yellow: '#eab308',
+  green: '#22c55e',
+  aqua: '#06b6d4',
+  blue: '#3b82f6',
+  purple: '#a855f7',
+  magenta: '#ec4899',
+};
+
+const BAND_LABELS: Record<HslBandName, string> = {
+  red: 'Red',
+  orange: 'Orange',
+  yellow: 'Yellow',
+  green: 'Green',
+  aqua: 'Aqua',
+  blue: 'Blue',
+  purple: 'Purple',
+  magenta: 'Magenta',
+};
 
 interface SliderDef {
   label: string;
@@ -121,6 +148,8 @@ const GROUPS: Array<{ id: Group; label: string; sliders: SliderDef[] }> = [
       },
     ],
   },
+  // 'mix' renders its own band-chip UI — sliders are built per selected band.
+  { id: 'mix', label: 'Mix', sliders: [] },
 ];
 
 interface AdjustPanelProps {
@@ -135,6 +164,7 @@ interface AdjustPanelProps {
 
 export default function AdjustPanel({ recipe, onPatch, onAutoEnhance, engineAvailable }: AdjustPanelProps) {
   const [group, setGroup] = useState<Group>('light');
+  const [band, setBand] = useState<HslBandName>('red');
   const active = GROUPS.find(g => g.id === group) ?? GROUPS[0];
 
   const resetGroup = () => {
@@ -148,10 +178,19 @@ export default function AdjustPanel({ recipe, onPatch, onAutoEnhance, engineAvai
         { color: { ...NEUTRAL_COLOR }, adjustments: { ...recipe.adjustments, saturation: 1 } },
         'reset.color'
       );
+    } else if (active.id === 'mix') {
+      onPatch({ hsl: undefined }, 'reset.hsl');
     } else {
       onPatch({ detail: { ...NEUTRAL_DETAIL } }, 'reset.detail');
     }
   };
+
+  const bandAdjust: HslBandAdjust = recipe.hsl?.[band] ?? NEUTRAL_BAND;
+  const patchBand = (field: keyof HslBandAdjust, ui: number) =>
+    onPatch(
+      { hsl: { ...recipe.hsl, [band]: { ...bandAdjust, [field]: uiToSigned(ui) } } },
+      `hsl.${band}.${field}`
+    );
 
   return (
     <div className="px-4 py-3 space-y-2 w-full max-w-xl mx-auto">
@@ -194,19 +233,55 @@ export default function AdjustPanel({ recipe, onPatch, onAutoEnhance, engineAvai
       )}
 
       <div className="space-y-1 max-h-[38vh] overflow-y-auto">
-        {active.sliders.map(def => {
-          const legacy = def.keys.startsWith('adjustments.');
-          return (
-            <div key={def.keys} className={!engineAvailable && !legacy ? 'opacity-40' : undefined}>
-              <EditorSlider
-                label={def.label}
-                value={def.get(recipe)}
-                min={def.min}
-                onChange={ui => onPatch(def.patch(recipe, ui), def.keys)}
-              />
+        {active.id === 'mix' ? (
+          <div className={!engineAvailable ? 'opacity-40' : undefined}>
+            <div className="flex items-center gap-2 py-1 overflow-x-auto scrollbar-hide">
+              {HSL_BAND_NAMES.map(name => (
+                <button
+                  key={name}
+                  type="button"
+                  onClick={() => setBand(name)}
+                  aria-label={BAND_LABELS[name]}
+                  aria-pressed={band === name}
+                  title={BAND_LABELS[name]}
+                  className={`w-8 h-8 rounded-full flex-shrink-0 transition-transform ${
+                    band === name ? 'ring-2 ring-white scale-110' : 'ring-1 ring-white/20'
+                  }`}
+                  style={{ backgroundColor: BAND_SWATCHES[name] }}
+                />
+              ))}
             </div>
-          );
-        })}
+            <EditorSlider
+              label="Hue"
+              value={signedToUi(bandAdjust.hue)}
+              onChange={ui => patchBand('hue', ui)}
+            />
+            <EditorSlider
+              label="Saturation"
+              value={signedToUi(bandAdjust.saturation)}
+              onChange={ui => patchBand('saturation', ui)}
+            />
+            <EditorSlider
+              label="Luminance"
+              value={signedToUi(bandAdjust.luminance)}
+              onChange={ui => patchBand('luminance', ui)}
+            />
+          </div>
+        ) : (
+          active.sliders.map(def => {
+            const legacy = def.keys.startsWith('adjustments.');
+            return (
+              <div key={def.keys} className={!engineAvailable && !legacy ? 'opacity-40' : undefined}>
+                <EditorSlider
+                  label={def.label}
+                  value={def.get(recipe)}
+                  min={def.min}
+                  onChange={ui => onPatch(def.patch(recipe, ui), def.keys)}
+                />
+              </div>
+            );
+          })
+        )}
       </div>
     </div>
   );

@@ -50,6 +50,27 @@ export interface PerspectiveCorrection {
   horizontal: number;
 }
 
+/** The eight color-mixer bands (Phase 2 E4a — the Lightroom set). */
+export type HslBandName =
+  | 'red'
+  | 'orange'
+  | 'yellow'
+  | 'green'
+  | 'aqua'
+  | 'blue'
+  | 'purple'
+  | 'magenta';
+
+/** Per-band mixer sliders, −1..1, 0 = neutral. */
+export interface HslBandAdjust {
+  hue: number;
+  saturation: number;
+  luminance: number;
+}
+
+/** Full mixer state — every band present (the engine's normalized form). */
+export type HslMix = Record<HslBandName, HslBandAdjust>;
+
 /**
  * Crop rectangle in source pixels, in the ROTATED bounding-box coordinate
  * space (react-easy-crop's croppedAreaPixels convention — rotation is applied
@@ -90,6 +111,8 @@ export interface ImageRecipe {
   /** Keystone correction, applied to the FRAMED image (after crop) so crop
    *  coordinates stay valid; out-of-source edges render black. */
   perspective?: PerspectiveCorrection;
+  /** Color mixer (Phase 2): sparse — absent bands are neutral. */
+  hsl?: Partial<Record<HslBandName, HslBandAdjust>>;
 }
 
 /** One segment of the output timeline — a [in, out) slice of the SOURCE. */

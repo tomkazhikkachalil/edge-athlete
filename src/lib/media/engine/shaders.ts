@@ -36,6 +36,13 @@ import {
   WB_TINT_SCALE,
 } from './color-math';
 import { PERSPECTIVE_SCALE } from './perspective-math';
+import {
+  HSL_GRAY_GUARD,
+  HSL_HUE_RANGE_DEG,
+  HSL_LUM_RANGE,
+  HSL_LUT_SIZE,
+  HSL_SAT_RANGE,
+} from './hsl-math';
 
 /** Number → GLSL float literal ("2" would be an int and fail to compile). */
 function glf(n: number): string {
@@ -129,10 +136,38 @@ uniform vec4 u_tone;     // highlights, shadows, whites, blacks (0 = neutral)
 uniform float u_vibrance;
 uniform float u_vignette;
 uniform vec3 u_detail;   // sharpen, clarity, noiseReduction (0 = off)
+uniform sampler2D u_hslLut;  // 256×1 mixer LUT (signed-encoded, see hsl-math)
+uniform float u_hslEnabled;  // 0/1 — see the mixer block for why it branches
 
 out vec4 outColor;
 
 const vec3 LUMA = vec3(${glf(LUMA_R)}, ${glf(LUMA_G)}, ${glf(LUMA_B)});
+
+vec3 rgb2hsl(vec3 c) {
+  float mx = max(c.r, max(c.g, c.b));
+  float mn = min(c.r, min(c.g, c.b));
+  float l = (mx + mn) * 0.5;
+  float d = mx - mn;
+  if (d < 1e-6) return vec3(0.0, 0.0, l);
+  float s = d / (1.0 - abs(2.0 * l - 1.0) + 1e-6);
+  float h = mx == c.r ? mod((c.g - c.b) / d + 6.0, 6.0)
+          : mx == c.g ? (c.b - c.r) / d + 2.0
+          : (c.r - c.g) / d + 4.0;
+  return vec3(h / 6.0, s, l);
+}
+
+vec3 hsl2rgb(vec3 hsl) {
+  float c = (1.0 - abs(2.0 * hsl.z - 1.0)) * hsl.y;
+  float hp = fract(hsl.x) * 6.0;
+  float x = c * (1.0 - abs(mod(hp, 2.0) - 1.0));
+  vec3 rgb = hp < 1.0 ? vec3(c, x, 0.0)
+           : hp < 2.0 ? vec3(x, c, 0.0)
+           : hp < 3.0 ? vec3(0.0, c, x)
+           : hp < 4.0 ? vec3(0.0, x, c)
+           : hp < 5.0 ? vec3(x, 0.0, c)
+           : vec3(c, 0.0, x);
+  return rgb + (hsl.z - 0.5 * c);
+}
 
 void main() {
   vec2 uv = gl_FragCoord.xy / u_resolution;
@@ -181,6 +216,24 @@ void main() {
   float amount = 1.0 + u_vibrance * ${glf(VIBRANCE_SCALE)} * (1.0 - sat);
   float Lv = dot(rgb, LUMA);
   rgb = vec3(Lv) + (rgb - vec3(Lv)) * amount;
+
+  // Color mixer (HSL, Phase 2): LUT by hue → shift/scale, gray-guarded.
+  // Uniform-branched — NOT straight-line like the rest — because the
+  // identity path would force a mid-pipeline clamp (HSL is a closed
+  // domain), and that would change existing renders of overshooting
+  // pixels. The CPU reference skips the stage under the same condition.
+  if (u_hslEnabled > 0.5) {
+    vec3 base = clamp(rgb, 0.0, 1.0);
+    vec3 hsl = rgb2hsl(base);
+    float guard = smoothstep(0.0, ${glf(HSL_GRAY_GUARD)}, hsl.y);
+    vec4 lut = texture(u_hslLut, vec2((hsl.x * ${glf(HSL_LUT_SIZE - 1)} + 0.5) / ${glf(HSL_LUT_SIZE)}, 0.5));
+    // Symmetric-zero decode: byte 128 → exactly 0 (matches hsl-math).
+    float hueShift = ((lut.r * 255.0 - 128.0) / 127.5) * ${glf(HSL_HUE_RANGE_DEG)} / 360.0;
+    float satMul = 1.0 + ((lut.g * 255.0 - 128.0) / 127.5) * ${glf(HSL_SAT_RANGE)};
+    float lumMul = 1.0 + ((lut.b * 255.0 - 128.0) / 127.5) * ${glf(HSL_LUM_RANGE)};
+    vec3 mixed = hsl2rgb(vec3(hsl.x + hueShift, clamp(hsl.y * satMul, 0.0, 1.0), clamp(hsl.z * lumMul, 0.0, 1.0)));
+    rgb = base + (mixed - base) * guard;
+  }
 
   // Vignette: aspect-corrected radial falloff; + darkens, − lightens
   float ay = u_resolution.y / u_resolution.x;

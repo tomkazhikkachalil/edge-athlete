@@ -50,6 +50,27 @@ describe('defaults and no-op detection', () => {
     expect(parseRecipe(serializeRecipe(bad))).toBeNull();
   });
 
+  it('hsl mixer: zeroed/absent bands are no-ops; values round-trip sparsely', () => {
+    const base = defaultImageRecipe();
+    expect(isNoopRecipe({ ...base, hsl: {} })).toBe(true);
+    expect(
+      isNoopRecipe({ ...base, hsl: { blue: { hue: 0, saturation: 0, luminance: 0 } } })
+    ).toBe(true);
+    expect(
+      isNoopRecipe({ ...base, hsl: { blue: { hue: 0.3, saturation: 0, luminance: 0 } } })
+    ).toBe(false);
+    const recipe = {
+      ...base,
+      hsl: {
+        aqua: { hue: -0.2, saturation: 0.5, luminance: -0.4 },
+        red: { hue: 0.1, saturation: 0, luminance: 0 },
+      },
+    };
+    expect(parseRecipe(serializeRecipe(recipe))).toEqual(recipe);
+    const bad = { ...base, hsl: { red: { hue: 3, saturation: 0, luminance: 0 } } };
+    expect(parseRecipe(serializeRecipe(bad))).toBeNull();
+  });
+
   it('9:16 round-trips in both image and video recipes (story crop)', () => {
     const image = { ...defaultImageRecipe('9:16' as const) };
     expect(parseRecipe(serializeRecipe(image))).toEqual(image);
