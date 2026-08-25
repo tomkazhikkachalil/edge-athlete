@@ -1,3 +1,5 @@
+import { toProxyUrl } from '@/lib/media/proxy-url';
+
 // ── Shared-round scorecard shape assembly ─────────────────────────────────────
 // One home for (a) the nested group_posts select and (b) the transform from
 // the raw PostgREST row to the CompleteGolfScorecard shape components expect:
@@ -160,6 +162,15 @@ export function transformGroupPostToScorecard(groupData: any): any | null {
     participants: transformedParticipants,
     // hole_number fallback retired with migration 076: the 061 backfill made
     // segment_number authoritative for every row, and the column is dropped.
-    media: round_media || [],
+    // Round media is proxied under its group_post id — the single chokepoint
+    // for every caller (feed scorecards, live-now, profile shared rounds,
+    // round detail). Server-only module, so the crypto import stays off the
+    // client bundle. eslint-disable: round_media items are untyped `any`.
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    media: (round_media || []).map((m: any) => ({
+      ...m,
+      media_url: toProxyUrl(m.media_url, { type: 'group', id: groupPostFields.id }),
+      thumbnail_url: toProxyUrl(m.thumbnail_url, { type: 'group', id: groupPostFields.id }),
+    })),
   };
 }
