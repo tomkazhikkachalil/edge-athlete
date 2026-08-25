@@ -1,5 +1,23 @@
 # Development Log
 
+## August 25, 2026 — Composer: the dropzone box retires, drag-and-drop goes invisible
+
+With the capture row in (#264), the big dashed drag-and-drop box below it
+was the same destination twice. Tom called it clutter; the fix keeps his
+instinct AND the capability: the box is GONE, and the whole media section
+became an invisible drop target (the Twitter/Slack pattern). Dragging
+files over it summons a violet ring + "Drop to add"; at rest there is no
+drag furniture at all — just the three capture buttons, one small hint
+line, and the previews. Mobile never sees any of it (no drag events).
+
+Details that mattered: the drop handlers are FILES-ONLY
+(`dataTransfer.types.includes('Files')`) so the preview grid's
+tile-reorder drags don't light the ring, and dragleave ignores
+leaves-into-children (the classic flicker). The library input moved next
+to its capture siblings; the ring uses the p-2/-m-2 trick so appearing
+mid-drag shifts no layout. e2e untouched by design — specs drive the
+hidden input directly.
+
 ## August 24, 2026 — Composer: capture in the moment, media first
 
 Two changes to how a general post starts, both Tom's calls:
