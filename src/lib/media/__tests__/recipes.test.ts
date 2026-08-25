@@ -37,6 +37,13 @@ describe('defaults and no-op detection', () => {
     expect(isNoopRecipe({ ...defaultImageRecipe(), filterStrength: 0.5 })).toBe(true);
   });
 
+  it('9:16 round-trips in both image and video recipes (story crop)', () => {
+    const image = { ...defaultImageRecipe('9:16' as const) };
+    expect(parseRecipe(serializeRecipe(image))).toEqual(image);
+    const video = { ...defaultVideoRecipe(), aspect: '9:16' as const };
+    expect(parseRecipe(serializeRecipe(video))).toEqual(video);
+  });
+
   it('video: clips or crop break no-op (posterTime alone still passes the file through)', () => {
     expect(isNoopRecipe({ ...defaultVideoRecipe(), posterTime: 3 })).toBe(true);
     expect(

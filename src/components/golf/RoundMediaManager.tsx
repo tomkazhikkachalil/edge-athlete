@@ -43,7 +43,7 @@ const MAX_BYTES = 50 * 1024 * 1024;
 // Same shape as the live-capture surface (ScoreEntryModal) — after-the-fact
 // media now goes through the same editor instead of straight to upload.
 const EDITOR_CONFIG: EditorConfig = {
-  aspectRatios: ['free', '1:1', '4:5', '16:9'],
+  aspectRatios: ['free', '1:1', '4:5', '9:16', '16:9'],
   allowVideo: true, // trim/split/cover via WebCodecs; degrades to pass-through without it
   maxAssets: MAX_FILES,
   output: { maxDimension: 1600, mime: 'image/jpeg', quality: 0.85 },

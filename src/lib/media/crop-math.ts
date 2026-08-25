@@ -50,6 +50,21 @@ export function clampCrop(
 }
 
 /**
+ * Scale a crop rect by a uniform factor (rounded to whole pixels). The crop
+ * tool measures against a possibly-downscaled flipped preview; the recipe
+ * stores source-resolution coordinates — this is the bridge (factor k going
+ * in, 1/k coming out).
+ */
+export function scaleRect(rect: CropRect, factor: number): CropRect {
+  return {
+    x: Math.max(0, Math.round(rect.x * factor)),
+    y: Math.max(0, Math.round(rect.y * factor)),
+    width: Math.max(1, Math.round(rect.width * factor)),
+    height: Math.max(1, Math.round(rect.height * factor)),
+  };
+}
+
+/**
  * Total rotation of an image recipe: quarter turns plus the straighten angle.
  * Kept here so the UI (react-easy-crop `rotation`) and the export pipeline
  * share one definition.

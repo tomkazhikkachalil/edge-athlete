@@ -111,7 +111,7 @@ const cropRectSchema = z.object({
   height: z.number().positive(),
 });
 
-const aspectSchema = z.enum(['free', '1:1', '4:5', '16:9', '3:1']);
+const aspectSchema = z.enum(['free', '1:1', '4:5', '9:16', '16:9', '3:1']);
 
 // Shared v1/v2 image core — v3 extends it with the engine-round fields.
 const imageRecipeV2Schema = z.object({

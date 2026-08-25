@@ -42,6 +42,31 @@ describe('recipeToEngineParams', () => {
     expect(off.adjustments).toEqual(NEUTRAL_ENGINE_PARAMS.adjustments);
   });
 
+  it('film presets add their engine components, scaled by strength', () => {
+    const full = recipeToEngineParams({ ...defaultImageRecipe(), filterId: 'gold' });
+    expect(full.light.exposure).toBeCloseTo(0.05);
+    expect(full.light.highlights).toBeCloseTo(-0.15);
+    expect(full.color.temperature).toBeCloseTo(0.3);
+    expect(full.color.vibrance).toBeCloseTo(0.2);
+    expect(hasAdvancedParams(full)).toBe(true); // film looks need the engine
+    const half = recipeToEngineParams({
+      ...defaultImageRecipe(),
+      filterId: 'gold',
+      filterStrength: 0.5,
+    });
+    expect(half.color.temperature).toBeCloseTo(0.15);
+  });
+
+  it('preset + user components clamp to the schema range', () => {
+    const base = defaultImageRecipe();
+    const params = recipeToEngineParams({
+      ...base,
+      filterId: 'gold', // temperature +0.3
+      color: { ...base.color, temperature: 0.9 },
+    });
+    expect(params.color.temperature).toBe(1);
+  });
+
   it('scaledPresetAdjustments is neutral for null/unknown filters', () => {
     expect(scaledPresetAdjustments(null, 1)).toEqual(NEUTRAL_ENGINE_PARAMS.adjustments);
     expect(scaledPresetAdjustments('no-such-filter', 0.5)).toEqual(
