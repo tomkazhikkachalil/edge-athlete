@@ -7,6 +7,7 @@ import {
   initialRoundStatus,
   shouldShowStaleNotice,
   isAbandonedPendingRound,
+  countLiveVisibleRounds,
   AUTO_END_AFTER_MS,
 } from '../round-status';
 
@@ -285,5 +286,52 @@ describe('shouldShowStaleNotice', () => {
   it('does not show on a live round that is refreshing fine', () => {
     expect(shouldShowStaleNotice({ stale: false, live: true })).toBe(false);
     expect(shouldShowStaleNotice({ stale: false, live: false })).toBe(false);
+  });
+});
+
+describe('countLiveVisibleRounds', () => {
+  const NOW = Date.parse('2026-07-23T18:00:00Z');
+  const LIVE = '2026-07-23'; // within the ±48h window
+  const STALE = '2026-07-18'; // outside the window → not live
+
+  it('counts public live rounds', () => {
+    const rows = [
+      { id: 'a', visibility: 'public', status: 'active', date: LIVE },
+      { id: 'b', visibility: 'public', status: 'pending', date: LIVE },
+    ];
+    expect(countLiveVisibleRounds(rows, new Set(), NOW)).toBe(2);
+  });
+
+  it('counts a private round only when the viewer is on the roster', () => {
+    const rows = [
+      { id: 'mine', visibility: 'private', status: 'active', date: LIVE },
+      { id: 'theirs', visibility: 'private', status: 'active', date: LIVE },
+    ];
+    expect(countLiveVisibleRounds(rows, new Set(['mine']), NOW)).toBe(1);
+  });
+
+  it('excludes rounds outside the live window even when public', () => {
+    const rows = [{ id: 'a', visibility: 'public', status: 'active', date: STALE }];
+    expect(countLiveVisibleRounds(rows, new Set(), NOW)).toBe(0);
+  });
+
+  it('excludes completed/cancelled rounds', () => {
+    const rows = [
+      { id: 'a', visibility: 'public', status: 'completed', date: LIVE },
+      { id: 'b', visibility: 'public', status: 'cancelled', date: LIVE },
+    ];
+    expect(countLiveVisibleRounds(rows, new Set(), NOW)).toBe(0);
+  });
+
+  it('dedupes by id so a round in both scopes counts once', () => {
+    const rows = [
+      { id: 'dup', visibility: 'public', status: 'active', date: LIVE },
+      { id: 'dup', visibility: 'public', status: 'active', date: LIVE },
+    ];
+    expect(countLiveVisibleRounds(rows, new Set(['dup']), NOW)).toBe(1);
+  });
+
+  it('returns 0 for an empty set', () => {
+    expect(countLiveVisibleRounds([], new Set(), NOW)).toBe(0);
   });
 });
