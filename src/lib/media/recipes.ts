@@ -25,6 +25,7 @@ import {
   NEUTRAL_DETAIL,
   NEUTRAL_LIGHT,
 } from './filters';
+import { isNeutralPerspective } from './engine/perspective-math';
 
 export function defaultImageRecipe(aspect: AspectRatioId = 'free'): ImageRecipe {
   return {
@@ -70,7 +71,8 @@ export function isNoopRecipe(recipe: EditRecipe): boolean {
     isNeutral(recipe.adjustments) &&
     isNeutralLight(recipe.light) &&
     isNeutralColor(recipe.color) &&
-    isNeutralDetail(recipe.detail)
+    isNeutralDetail(recipe.detail) &&
+    isNeutralPerspective(recipe.perspective)
   );
 }
 
@@ -132,6 +134,8 @@ const imageRecipeSchema = imageRecipeV2Schema.extend({
   color: colorSchema,
   detail: detailSchema,
   filterStrength: unsigned(),
+  // Additive within v3 (videoClip.speed precedent): absent = none.
+  perspective: z.object({ vertical: signed(), horizontal: signed() }).optional(),
 });
 
 // v1 video shape (single trim) — persisted rows from round B upgrade on read.

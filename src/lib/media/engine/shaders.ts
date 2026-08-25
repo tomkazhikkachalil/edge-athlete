@@ -35,6 +35,7 @@ import {
   WB_TEMP_SCALE,
   WB_TINT_SCALE,
 } from './color-math';
+import { PERSPECTIVE_SCALE } from './perspective-math';
 
 /** Number → GLSL float literal ("2" would be an int and fail to compile). */
 function glf(n: number): string {
@@ -92,6 +93,27 @@ ${lines.join('\n')}
 
 export const BLUR_SMALL_FRAGMENT = makeBlurFragment(BLUR_SMALL_SIGMA, BLUR_SMALL_TAPS);
 export const BLUR_LARGE_FRAGMENT = makeBlurFragment(BLUR_LARGE_SIGMA, BLUR_LARGE_TAPS);
+
+/** Keystone warp (inverse mapping, centered Y-up coords) — the GPU twin of
+ *  perspective-math.ts. Outside samples render opaque black. */
+export const WARP_FRAGMENT = `#version 300 es
+precision highp float;
+uniform sampler2D u_src;
+uniform vec2 u_resolution;
+uniform vec2 u_persp; // vertical, horizontal (0 = none)
+out vec4 outColor;
+void main() {
+  vec2 uv = gl_FragCoord.xy / u_resolution;
+  vec2 c = uv - 0.5; // gl_FragCoord is already Y-up
+  float w = 1.0 + ${glf(PERSPECTIVE_SCALE)} * (u_persp.x * c.y + u_persp.y * c.x);
+  vec2 s = c * w;
+  if (abs(s.x) > 0.5 || abs(s.y) > 0.5) {
+    outColor = vec4(0.0, 0.0, 0.0, 1.0);
+    return;
+  }
+  outColor = vec4(texture(u_src, s + 0.5).rgb, 1.0);
+}
+`;
 
 export const FRAGMENT_SHADER = `#version 300 es
 precision highp float;

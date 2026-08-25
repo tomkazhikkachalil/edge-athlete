@@ -5,7 +5,9 @@ import {
   COPY_FRAGMENT,
   FRAGMENT_SHADER,
   VERTEX_SHADER,
+  WARP_FRAGMENT,
 } from '../shaders';
+import { PERSPECTIVE_SCALE } from '../perspective-math';
 import {
   BLUR_LARGE_SIGMA,
   BLUR_LARGE_TAPS,
@@ -93,5 +95,12 @@ describe('shader sources embed the color-math constants', () => {
       expect(source).toContain('u_direction');
     }
     expect(COPY_FRAGMENT.startsWith('#version 300 es')).toBe(true);
+  });
+
+  it('warp fragment embeds the perspective scale and border-black rule', () => {
+    expect(WARP_FRAGMENT.startsWith('#version 300 es')).toBe(true);
+    expect(WARP_FRAGMENT).toContain(String(PERSPECTIVE_SCALE));
+    expect(WARP_FRAGMENT).toContain('u_persp');
+    expect(WARP_FRAGMENT).toContain('vec4(0.0, 0.0, 0.0, 1.0)');
   });
 });

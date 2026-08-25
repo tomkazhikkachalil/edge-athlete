@@ -122,4 +122,15 @@ describe('advanced-params routing (engine vs legacy fast path)', () => {
       hasAdvancedParams(recipeToEngineParams({ ...base, detail: { ...base.detail, vignette: 0.5 } }))
     ).toBe(true);
   });
+
+  it('perspective routes to the engine; absent maps to neutral', () => {
+    const base = defaultImageRecipe();
+    expect(recipeToEngineParams(base).perspective).toEqual({ vertical: 0, horizontal: 0 });
+    const warped = recipeToEngineParams({
+      ...base,
+      perspective: { vertical: 0.4, horizontal: 0 },
+    });
+    expect(warped.perspective.vertical).toBe(0.4);
+    expect(hasAdvancedParams(warped)).toBe(true);
+  });
 });

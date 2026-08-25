@@ -23,8 +23,10 @@ import {
   COPY_FRAGMENT,
   FRAGMENT_SHADER,
   VERTEX_SHADER,
+  WARP_FRAGMENT,
 } from './shaders';
 import { NEUTRAL_ENGINE_PARAMS, planPasses, type EngineParams } from './params';
+import { isNeutralPerspective } from './perspective-math';
 
 export interface Engine {
   /** Upload (or replace) the source texture and size the canvas to match.
@@ -87,12 +89,16 @@ export function createEngine(
   let copyProgram: WebGLProgram | null | undefined;
   let blurSmallProgram: WebGLProgram | null | undefined;
   let blurLargeProgram: WebGLProgram | null | undefined;
+  let warpProgram: WebGLProgram | null | undefined;
   let fullA: BlurTarget | null = null;
   let fullB: BlurTarget | null = null;
   let halfA: BlurTarget | null = null;
   let halfB: BlurTarget | null = null;
+  let warpTarget: BlurTarget | null = null;
   let blurSmallReady = false;
   let blurLargeReady = false;
+  /** Perspective the warp texture (and any blurs) were computed for. */
+  let warpFor: string | null = null;
 
   const handleLost = (event: Event) => {
     event.preventDefault(); // required, or the context never restores
@@ -111,10 +117,11 @@ export function createEngine(
   };
 
   const dropTargets = () => {
-    for (const t of [fullA, fullB, halfA, halfB]) if (t) gl.deleteTexture(t.tex);
-    fullA = fullB = halfA = halfB = null;
+    for (const t of [fullA, fullB, halfA, halfB, warpTarget]) if (t) gl.deleteTexture(t.tex);
+    fullA = fullB = halfA = halfB = warpTarget = null;
     blurSmallReady = false;
     blurLargeReady = false;
+    warpFor = null;
   };
 
   /** One fullscreen pass: srcTex → target FBO with `program`. */
@@ -122,7 +129,8 @@ export function createEngine(
     program: WebGLProgram,
     srcTex: WebGLTexture,
     target: BlurTarget,
-    direction?: [number, number]
+    direction?: [number, number],
+    setExtraUniforms?: (prog: WebGLProgram) => void
   ) => {
     if (!fbo) fbo = gl.createFramebuffer();
     gl.bindFramebuffer(gl.FRAMEBUFFER, fbo);
@@ -136,17 +144,40 @@ export function createEngine(
     if (direction) {
       gl.uniform2f(gl.getUniformLocation(program, 'u_direction'), direction[0], direction[1]);
     }
+    setExtraUniforms?.(program);
     gl.drawArrays(gl.TRIANGLES, 0, 3);
   };
 
-  /** σ=1 full-res, ping-pong src → fullA → fullB. */
-  const computeBlurSmall = (): boolean => {
+  /** Keystone pass: src texture → warpTarget. The warp output is what blurs
+   *  and the composite consume, so a perspective change invalidates blurs. */
+  const computeWarp = (p: EngineParams): boolean => {
+    const key = `${p.perspective.vertical},${p.perspective.horizontal}`;
+    if (warpFor === key && warpTarget) return true;
+    warpProgram ??= compileProgram(gl, VERTEX_SHADER, WARP_FRAGMENT);
+    if (!warpProgram) return false;
+    warpTarget ??= makeTarget(srcWidth, srcHeight);
+    if (!warpTarget) return false;
+    runPass(warpProgram, texture, warpTarget, undefined, prog => {
+      gl.uniform2f(
+        gl.getUniformLocation(prog, 'u_persp'),
+        p.perspective.vertical,
+        p.perspective.horizontal
+      );
+    });
+    warpFor = key;
+    blurSmallReady = false;
+    blurLargeReady = false;
+    return true;
+  };
+
+  /** σ=1 full-res, ping-pong input → fullA → fullB. */
+  const computeBlurSmall = (inputTex: WebGLTexture): boolean => {
     blurSmallProgram ??= compileProgram(gl, VERTEX_SHADER, BLUR_SMALL_FRAGMENT);
     if (!blurSmallProgram) return false;
     fullA ??= makeTarget(srcWidth, srcHeight);
     fullB ??= makeTarget(srcWidth, srcHeight);
     if (!fullA || !fullB) return false;
-    runPass(blurSmallProgram, texture, fullA, [1, 0]);
+    runPass(blurSmallProgram, inputTex, fullA, [1, 0]);
     runPass(blurSmallProgram, fullA.tex, fullB, [0, 1]);
     blurSmallReady = true;
     return true;
@@ -154,7 +185,7 @@ export function createEngine(
 
   /** Half-res downsample (hardware linear), then σ=2 ping-pong; the final
    *  blur lands in halfA and upsamples in the composite's LINEAR fetch. */
-  const computeBlurLarge = (): boolean => {
+  const computeBlurLarge = (inputTex: WebGLTexture): boolean => {
     copyProgram ??= compileProgram(gl, VERTEX_SHADER, COPY_FRAGMENT);
     blurLargeProgram ??= compileProgram(gl, VERTEX_SHADER, BLUR_LARGE_FRAGMENT);
     if (!copyProgram || !blurLargeProgram) return false;
@@ -163,7 +194,7 @@ export function createEngine(
     halfA ??= makeTarget(hw, hh);
     halfB ??= makeTarget(hw, hh);
     if (!halfA || !halfB) return false;
-    runPass(copyProgram, texture, halfA);
+    runPass(copyProgram, inputTex, halfA);
     runPass(blurLargeProgram, halfA.tex, halfB, [1, 0]);
     runPass(blurLargeProgram, halfB.tex, halfA, [0, 1]);
     blurLargeReady = true;
@@ -192,20 +223,32 @@ export function createEngine(
     if (lost || destroyed) return;
     const p = opts?.showOriginal ? NEUTRAL_ENGINE_PARAMS : params;
     const plan = planPasses(p);
+    // Perspective warps the source FIRST; blurs and the composite then all
+    // read the warped texture. A perspective change invalidates the blur
+    // cache (computeWarp handles that); turning it off restores the raw
+    // source and equally invalidates.
+    let inputTex = texture;
+    if (!isNeutralPerspective(p.perspective)) {
+      if (computeWarp(p) && warpTarget) inputTex = warpTarget.tex;
+    } else if (warpFor !== null) {
+      warpFor = null;
+      blurSmallReady = false;
+      blurLargeReady = false;
+    }
     // Blur availability degrades gracefully: a failed compile/alloc just
     // leaves the sampler on src — detail sliders no-op instead of breaking.
-    const haveSmall = plan.blurSmall && (blurSmallReady || computeBlurSmall());
-    const haveLarge = plan.blurLarge && (blurLargeReady || computeBlurLarge());
+    const haveSmall = plan.blurSmall && (blurSmallReady || computeBlurSmall(inputTex));
+    const haveLarge = plan.blurLarge && (blurLargeReady || computeBlurLarge(inputTex));
 
     gl.bindFramebuffer(gl.FRAMEBUFFER, null);
     gl.viewport(0, 0, srcWidth, srcHeight);
     gl.useProgram(composite);
     gl.activeTexture(gl.TEXTURE0);
-    gl.bindTexture(gl.TEXTURE_2D, texture);
+    gl.bindTexture(gl.TEXTURE_2D, inputTex);
     gl.activeTexture(gl.TEXTURE1);
-    gl.bindTexture(gl.TEXTURE_2D, haveSmall && fullB ? fullB.tex : texture);
+    gl.bindTexture(gl.TEXTURE_2D, haveSmall && fullB ? fullB.tex : inputTex);
     gl.activeTexture(gl.TEXTURE2);
-    gl.bindTexture(gl.TEXTURE_2D, haveLarge && halfA ? halfA.tex : texture);
+    gl.bindTexture(gl.TEXTURE_2D, haveLarge && halfA ? halfA.tex : inputTex);
     gl.uniform1i(loc.src, 0);
     gl.uniform1i(loc.blurSmall, 1);
     gl.uniform1i(loc.blurLarge, 2);
@@ -232,7 +275,7 @@ export function createEngine(
     if (!lost) {
       dropTargets();
       if (fbo) gl.deleteFramebuffer(fbo);
-      for (const program of [copyProgram, blurSmallProgram, blurLargeProgram]) {
+      for (const program of [copyProgram, blurSmallProgram, blurLargeProgram, warpProgram]) {
         if (program) gl.deleteProgram(program);
       }
       gl.deleteTexture(texture);

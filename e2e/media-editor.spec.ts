@@ -124,6 +124,15 @@ test('media editor: crop session, undo, re-edit, dirty confirm, publish', async 
   await expect(intensity).toBeVisible();
   await intensity.fill('50');
 
+  // Perspective (E3b): the keystone warp runs live on the engine stage —
+  // a vertical correction blacks out an edge, dropping the mean reading.
+  await page.getByRole('button', { name: 'Perspective', exact: true }).click();
+  await page.waitForTimeout(300);
+  const preWarpLuma = await readLuma();
+  await page.getByRole('slider', { name: 'Vertical', exact: true }).fill('60');
+  await page.waitForTimeout(300);
+  expect(await readLuma()).toBeLessThan(preWarpLuma);
+
   // Export goes through the engine (advanced params force the WebGL path).
   await page.getByRole('button', { name: 'Done', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'Edit media' })).toBeHidden({ timeout: 30_000 });

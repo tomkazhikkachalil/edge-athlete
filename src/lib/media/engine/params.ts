@@ -20,6 +20,11 @@ import {
   NEUTRAL_DETAIL,
   NEUTRAL_LIGHT,
 } from '../filters';
+import {
+  isNeutralPerspective,
+  NEUTRAL_PERSPECTIVE,
+  type PerspectiveParams,
+} from './perspective-math';
 import type {
   Adjustments,
   ColorAdjustments,
@@ -34,6 +39,7 @@ export interface EngineParams {
   light: LightAdjustments;
   color: ColorAdjustments;
   detail: DetailAdjustments;
+  perspective: PerspectiveParams;
 }
 
 export const NEUTRAL_ENGINE_PARAMS: EngineParams = {
@@ -41,6 +47,7 @@ export const NEUTRAL_ENGINE_PARAMS: EngineParams = {
   light: NEUTRAL_LIGHT,
   color: NEUTRAL_COLOR,
   detail: NEUTRAL_DETAIL,
+  perspective: NEUTRAL_PERSPECTIVE,
 };
 
 /** Preset lerped toward neutral by strength (0 = off, 1 = full preset). */
@@ -101,6 +108,7 @@ export function recipeToEngineParams(recipe: ImageRecipe): EngineParams {
       noiseReduction: clampUnsigned(recipe.detail.noiseReduction + (pd?.noiseReduction ?? 0) * s),
       vignette: clampSigned(recipe.detail.vignette + (pd?.vignette ?? 0) * s),
     },
+    perspective: recipe.perspective ? { ...recipe.perspective } : { ...NEUTRAL_PERSPECTIVE },
   };
 }
 
@@ -113,7 +121,8 @@ export function hasAdvancedParams(params: EngineParams): boolean {
   return (
     !isNeutralLight(params.light) ||
     !isNeutralColor(params.color) ||
-    !isNeutralDetail(params.detail)
+    !isNeutralDetail(params.detail) ||
+    !isNeutralPerspective(params.perspective)
   );
 }
 

@@ -29,6 +29,9 @@ const LABELS: Record<string, string> = {
   'detail.clarity': 'Clarity',
   'detail.noiseReduction': 'Noise reduction',
   'detail.vignette': 'Vignette',
+  // Perspective
+  'perspective.vertical': 'Perspective',
+  'perspective.horizontal': 'Perspective',
   // Filters + one-taps
   filterId: 'Filter',
   filterStrength: 'Filter intensity',

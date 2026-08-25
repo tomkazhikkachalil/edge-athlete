@@ -43,6 +43,13 @@ export interface DetailAdjustments {
   vignette: number;
 }
 
+/** Keystone correction, −1..1 per axis, 0 = none. Optional on the recipe
+ *  (absent = none) — added within v3, additive like videoClip.speed. */
+export interface PerspectiveCorrection {
+  vertical: number;
+  horizontal: number;
+}
+
 /**
  * Crop rectangle in source pixels, in the ROTATED bounding-box coordinate
  * space (react-easy-crop's croppedAreaPixels convention — rotation is applied
@@ -80,6 +87,9 @@ export interface ImageRecipe {
   /** 0..1 intensity of the preset (1 = full). Irrelevant when filterId null. */
   filterStrength: number;
   aspect: AspectRatioId;
+  /** Keystone correction, applied to the FRAMED image (after crop) so crop
+   *  coordinates stay valid; out-of-source edges render black. */
+  perspective?: PerspectiveCorrection;
 }
 
 /** One segment of the output timeline — a [in, out) slice of the SOURCE. */
