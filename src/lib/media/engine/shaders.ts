@@ -11,13 +11,22 @@
  */
 
 import {
+  BLUR_LARGE_SIGMA,
+  BLUR_LARGE_TAPS,
+  BLUR_SMALL_SIGMA,
+  BLUR_SMALL_TAPS,
+  CLARITY_SCALE,
   EXPOSURE_EV_RANGE,
+  gaussianKernel,
   LUMA_B,
   LUMA_G,
   LUMA_R,
+  NR_EDGE_HI,
+  NR_EDGE_LO,
   SAT_B,
   SAT_G,
   SAT_R,
+  SHARPEN_SCALE,
   TONE_POINT_SCALE,
   TONE_SCALE,
   VIBRANCE_SCALE,
@@ -44,10 +53,52 @@ void main() {
 }
 `;
 
+/** Plain resample (the half-res downsample pass — LINEAR filtering does
+ *  the 2×2 averaging in hardware). */
+export const COPY_FRAGMENT = `#version 300 es
+precision highp float;
+uniform sampler2D u_src;
+uniform vec2 u_resolution;
+out vec4 outColor;
+void main() {
+  outColor = vec4(texture(u_src, gl_FragCoord.xy / u_resolution).rgb, 1.0);
+}
+`;
+
+/** Separable gaussian with the kernel BAKED as constants (test-pinnable,
+ *  no uniform arrays). u_direction is (1,0) or (0,1). */
+function makeBlurFragment(sigma: number, taps: number): string {
+  const weights = gaussianKernel(sigma, taps);
+  const lines = [`  vec3 acc = texture(u_src, uv).rgb * ${glf(weights[0])};`];
+  for (let i = 1; i < weights.length; i++) {
+    lines.push(
+      `  acc += (texture(u_src, uv + texel * ${glf(i)}).rgb + texture(u_src, uv - texel * ${glf(i)}).rgb) * ${glf(weights[i])};`
+    );
+  }
+  return `#version 300 es
+precision highp float;
+uniform sampler2D u_src;
+uniform vec2 u_resolution;
+uniform vec2 u_direction;
+out vec4 outColor;
+void main() {
+  vec2 uv = gl_FragCoord.xy / u_resolution;
+  vec2 texel = u_direction / u_resolution;
+${lines.join('\n')}
+  outColor = vec4(acc, 1.0);
+}
+`;
+}
+
+export const BLUR_SMALL_FRAGMENT = makeBlurFragment(BLUR_SMALL_SIGMA, BLUR_SMALL_TAPS);
+export const BLUR_LARGE_FRAGMENT = makeBlurFragment(BLUR_LARGE_SIGMA, BLUR_LARGE_TAPS);
+
 export const FRAGMENT_SHADER = `#version 300 es
 precision highp float;
 
 uniform sampler2D u_src;
+uniform sampler2D u_blurSmall; // σ=${glf(BLUR_SMALL_SIGMA)} full-res (bound to u_src when sharpen is 0)
+uniform sampler2D u_blurLarge; // σ=${glf(BLUR_LARGE_SIGMA)} half-res (bound to u_src when clarity/NR are 0)
 uniform vec2 u_resolution;
 uniform vec3 u_bcs;      // brightness, contrast, saturation (1 = neutral)
 uniform float u_exposure;
@@ -55,6 +106,7 @@ uniform vec2 u_wb;       // temperature, tint (0 = neutral)
 uniform vec4 u_tone;     // highlights, shadows, whites, blacks (0 = neutral)
 uniform float u_vibrance;
 uniform float u_vignette;
+uniform vec3 u_detail;   // sharpen, clarity, noiseReduction (0 = off)
 
 out vec4 outColor;
 
@@ -63,6 +115,19 @@ const vec3 LUMA = vec3(${glf(LUMA_R)}, ${glf(LUMA_G)}, ${glf(LUMA_B)});
 void main() {
   vec2 uv = gl_FragCoord.xy / u_resolution;
   vec3 rgb = texture(u_src, uv).rgb;
+
+  // Detail pass FIRST (color math runs on the detail-processed pixel):
+  // edge-masked NR toward the large blur → clarity (local-contrast ratio
+  // vs large blur) → sharpen (unsharp vs small blur). With zero uniforms
+  // every step is an exact identity, samplers bound to src or not.
+  vec3 blurL = texture(u_blurLarge, uv).rgb;
+  vec3 blurS = texture(u_blurSmall, uv).rgb;
+  float lumaLarge = dot(blurL, LUMA);
+  float edge = abs(dot(rgb, LUMA) - lumaLarge);
+  float nrMask = 1.0 - smoothstep(${glf(NR_EDGE_LO)}, ${glf(NR_EDGE_HI)}, edge);
+  rgb = mix(rgb, blurL, u_detail.z * nrMask);
+  rgb *= 1.0 + u_detail.y * ${glf(CLARITY_SCALE)} * (dot(rgb, LUMA) - lumaLarge);
+  rgb += u_detail.x * ${glf(SHARPEN_SCALE)} * (rgb - blurS);
 
   // Legacy trio (CSS Filter Effects math — byte parity with applyAdjustments)
   rgb = (rgb * u_bcs.x - 0.5) * u_bcs.y + 0.5;
@@ -106,6 +171,9 @@ void main() {
     rgb = mix(rgb, vec3(1.0), -u_vignette * ${glf(VIGNETTE_SCALE)} * f);
   }
 
-  outColor = vec4(clamp(rgb, 0.0, 1.0), 1.0);
+  // Ordered-ish dither: ±0.5/255 of position hash kills the banding that
+  // smooth tone/vignette gradients produce on an 8-bit output.
+  float dither = fract(sin(dot(gl_FragCoord.xy, vec2(12.9898, 78.233))) * 43758.5453) - 0.5;
+  outColor = vec4(clamp(rgb, 0.0, 1.0) + dither / 255.0, 1.0);
 }
 `;

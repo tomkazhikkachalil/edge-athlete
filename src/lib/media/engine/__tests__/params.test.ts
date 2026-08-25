@@ -3,6 +3,7 @@ import {
   hasAdvancedParams,
   isEngineNeutral,
   NEUTRAL_ENGINE_PARAMS,
+  planPasses,
   recipeToEngineParams,
   scaledPresetAdjustments,
 } from '../params';
@@ -57,6 +58,31 @@ describe('advanced-params routing (engine vs legacy fast path)', () => {
       filterId: 'warm',
     };
     expect(hasAdvancedParams(recipeToEngineParams(recipe))).toBe(false);
+  });
+
+  it('planPasses skips every blur when detail is neutral (the 1-pass drag contract)', () => {
+    expect(planPasses(NEUTRAL_ENGINE_PARAMS)).toEqual({ blurSmall: false, blurLarge: false });
+    const base = NEUTRAL_ENGINE_PARAMS;
+    expect(
+      planPasses({ ...base, light: { ...base.light, exposure: 0.5 } })
+    ).toEqual({ blurSmall: false, blurLarge: false });
+    expect(planPasses({ ...base, detail: { ...base.detail, sharpen: 0.5 } })).toEqual({
+      blurSmall: true,
+      blurLarge: false,
+    });
+    expect(planPasses({ ...base, detail: { ...base.detail, clarity: 0.5 } })).toEqual({
+      blurSmall: false,
+      blurLarge: true,
+    });
+    expect(planPasses({ ...base, detail: { ...base.detail, noiseReduction: 0.5 } })).toEqual({
+      blurSmall: false,
+      blurLarge: true,
+    });
+    // Vignette needs no blur input at all.
+    expect(planPasses({ ...base, detail: { ...base.detail, vignette: 1 } })).toEqual({
+      blurSmall: false,
+      blurLarge: false,
+    });
   });
 
   it('any light/color/detail value routes to the engine', () => {

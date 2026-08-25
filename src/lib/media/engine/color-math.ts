@@ -47,6 +47,22 @@ export const VIGNETTE_INNER = 0.35;
 /** Vignette ±1 → up to 80% darken / lighten at the corners. */
 export const VIGNETTE_SCALE = 0.8;
 
+// Detail pass (E1b): two separable gaussians feed three ops.
+/** Noise reduction protects edges: luma deltas below LO blur fully,
+ *  above HI not at all. */
+export const NR_EDGE_LO = 0.03;
+export const NR_EDGE_HI = 0.12;
+/** Clarity: local-contrast unsharp vs the LARGE blur, ratio-applied. */
+export const CLARITY_SCALE = 1.2;
+/** Sharpen: unsharp mask vs the SMALL blur. */
+export const SHARPEN_SCALE = 1.0;
+/** Small blur (sharpen base): σ=1, 5 taps at full resolution. */
+export const BLUR_SMALL_SIGMA = 1;
+export const BLUR_SMALL_TAPS = 5;
+/** Large blur (clarity/NR base): σ=2, 9 taps at HALF resolution. */
+export const BLUR_LARGE_SIGMA = 2;
+export const BLUR_LARGE_TAPS = 9;
+
 // ---- Helpers ----
 
 export function clamp01(x: number): number {
@@ -61,6 +77,19 @@ export function smoothstep(edge0: number, edge1: number, x: number): number {
 
 export function luma709(r: number, g: number, b: number): number {
   return LUMA_R * r + LUMA_G * g + LUMA_B * b;
+}
+
+/**
+ * Normalized symmetric gaussian kernel: [center, ±1, ±2, …]. `taps` is the
+ * FULL width (odd), so the returned array has (taps+1)/2 one-sided weights.
+ * Shaders bake these as constants; the reference convolves with them.
+ */
+export function gaussianKernel(sigma: number, taps: number): number[] {
+  const half = Math.floor(taps / 2);
+  const raw: number[] = [];
+  for (let i = 0; i <= half; i++) raw.push(Math.exp(-(i * i) / (2 * sigma * sigma)));
+  const sum = raw.reduce((acc, w, i) => acc + (i === 0 ? w : 2 * w), 0);
+  return raw.map(w => w / sum);
 }
 
 // ---- Pipeline stages ----
@@ -148,6 +177,43 @@ export function applyVignette([r, g, b]: Rgb, vignette: number, falloff: number)
   }
   const t = -vignette * VIGNETTE_SCALE * falloff;
   return [r + (1 - r) * t, g + (1 - g) * t, b + (1 - b) * t];
+}
+
+/**
+ * Detail pass on the SOURCE pixel, before any color math (the composite
+ * shader's input): edge-masked noise reduction toward the large blur →
+ * clarity (local-contrast ratio vs large blur) → sharpen (unsharp vs small
+ * blur). All three sliders are 0..1, 0 = off.
+ */
+export function applyDetail(
+  src: Rgb,
+  blurSmall: Rgb,
+  blurLarge: Rgb,
+  detail: { sharpen: number; clarity: number; noiseReduction: number }
+): Rgb {
+  let [r, g, b] = src;
+  const lumaLarge = luma709(blurLarge[0], blurLarge[1], blurLarge[2]);
+  if (detail.noiseReduction > 0) {
+    const edge = Math.abs(luma709(r, g, b) - lumaLarge);
+    const mask = 1 - smoothstep(NR_EDGE_LO, NR_EDGE_HI, edge);
+    const t = detail.noiseReduction * mask;
+    r += (blurLarge[0] - r) * t;
+    g += (blurLarge[1] - g) * t;
+    b += (blurLarge[2] - b) * t;
+  }
+  if (detail.clarity > 0) {
+    const m = 1 + detail.clarity * CLARITY_SCALE * (luma709(r, g, b) - lumaLarge);
+    r *= m;
+    g *= m;
+    b *= m;
+  }
+  if (detail.sharpen > 0) {
+    const k = detail.sharpen * SHARPEN_SCALE;
+    r += k * (r - blurSmall[0]);
+    g += k * (g - blurSmall[1]);
+    b += k * (b - blurSmall[2]);
+  }
+  return [r, g, b];
 }
 
 // ---- Composition ----

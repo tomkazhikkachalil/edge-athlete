@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import {
+  applyDetail,
   applyExposure,
   applyLegacy,
   applyTone,
@@ -7,6 +8,7 @@ import {
   applyVignette,
   applyWhiteBalance,
   clamp01,
+  gaussianKernel,
   luma709,
   smoothstep,
   transformPixel,
@@ -143,6 +145,52 @@ describe('vignette', () => {
     closeTo(applyVignette([0.5, 0.5, 0.5], 1, 1), [0.1, 0.1, 0.1]); // ×(1−0.8)
     closeTo(applyVignette([0.5, 0.5, 0.5], -1, 1), [0.9, 0.9, 0.9]); // +0.8·(1−0.5)
     closeTo(applyVignette([0.5, 0.5, 0.5], 1, 0), [0.5, 0.5, 0.5]); // center untouched
+  });
+});
+
+describe('gaussianKernel', () => {
+  it('normalizes to 1 across the full symmetric kernel', () => {
+    for (const [sigma, taps] of [
+      [1, 5],
+      [2, 9],
+    ] as const) {
+      const k = gaussianKernel(sigma, taps);
+      expect(k).toHaveLength((taps + 1) / 2);
+      const sum = k.reduce((acc, w, i) => acc + (i === 0 ? w : 2 * w), 0);
+      expect(sum).toBeCloseTo(1, 10);
+    }
+  });
+
+  it('weights decrease monotonically from the center', () => {
+    const k = gaussianKernel(2, 9);
+    for (let i = 1; i < k.length; i++) expect(k[i]).toBeLessThan(k[i - 1]);
+  });
+});
+
+describe('applyDetail', () => {
+  const gray = (v: number): Rgb => [v, v, v];
+  const OFF = { sharpen: 0, clarity: 0, noiseReduction: 0 };
+
+  it('all-zero detail is the identity regardless of blur inputs', () => {
+    const out = applyDetail([0.3, 0.5, 0.7], gray(0.1), gray(0.9), OFF);
+    closeTo(out, [0.3, 0.5, 0.7]);
+  });
+
+  it('sharpen is an unsharp mask against the SMALL blur', () => {
+    // src 0.6, blurSmall 0.5 → 0.6 + 1·1.0·(0.6−0.5) = 0.7
+    closeTo(applyDetail(gray(0.6), gray(0.5), gray(0.6), { ...OFF, sharpen: 1 }), gray(0.7));
+  });
+
+  it('clarity boosts pixels brighter than their large-blur neighborhood', () => {
+    // luma diff 0.1 → ×(1 + 1·1.2·0.1) = ×1.12
+    closeTo(applyDetail(gray(0.6), gray(0.6), gray(0.5), { ...OFF, clarity: 1 }), gray(0.672));
+  });
+
+  it('noise reduction blends flat areas toward the large blur but spares edges', () => {
+    // Flat: |luma−lumaLarge| = 0.01 < LO 0.03 → full blend at nr=1.
+    closeTo(applyDetail(gray(0.51), gray(0.51), gray(0.5), { ...OFF, noiseReduction: 1 }), gray(0.5));
+    // Edge: |0.8−0.4| = 0.4 ≥ HI 0.12 → mask 0 → untouched.
+    closeTo(applyDetail(gray(0.8), gray(0.8), gray(0.4), { ...OFF, noiseReduction: 1 }), gray(0.8));
   });
 });
 
