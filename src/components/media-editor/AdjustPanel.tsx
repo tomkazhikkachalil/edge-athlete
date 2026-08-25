@@ -1,49 +1,160 @@
 'use client';
 
-import { NEUTRAL_ADJUSTMENTS } from '@/lib/media/filters';
-import type { Adjustments } from '@/lib/media/types';
+/**
+ * Grouped adjustment panel (engine round): Light | Color sub-tabs, one
+ * thumb-reach group of sliders at a time so the panel stays bounded at
+ * 320px. Detail (sharpen/clarity/NR) arrives with the blur passes.
+ *
+ * Legacy trio: Contrast and Saturation are the SAME recipe fields as v2
+ * (adjustments.*) so old recipes keep their meaning; Brightness has no
+ * slider anymore — Exposure supersedes it (old recipes still honor it).
+ *
+ * Every slider passes its own coalescing key so a drag is one undo step
+ * per control (and, later, one labeled history entry).
+ */
 
-const SLIDERS: Array<{ key: keyof Adjustments; label: string }> = [
-  { key: 'brightness', label: 'Brightness' },
-  { key: 'contrast', label: 'Contrast' },
-  { key: 'saturation', label: 'Saturation' },
+import { useState } from 'react';
+import { NEUTRAL_COLOR, NEUTRAL_LIGHT } from '@/lib/media/filters';
+import {
+  legacyToUi,
+  signedToUi,
+  uiToLegacy,
+  uiToSigned,
+} from '@/lib/media/slider-scale';
+import type { ColorAdjustments, ImageRecipe, LightAdjustments } from '@/lib/media/types';
+import EditorSlider from './EditorSlider';
+
+type Group = 'light' | 'color';
+
+interface SliderDef {
+  label: string;
+  keys: string;
+  get: (recipe: ImageRecipe) => number;
+  patch: (recipe: ImageRecipe, ui: number) => Partial<ImageRecipe>;
+}
+
+function lightSlider(field: keyof LightAdjustments, label: string): SliderDef {
+  return {
+    label,
+    keys: `light.${field}`,
+    get: r => signedToUi(r.light[field]),
+    patch: (r, ui) => ({ light: { ...r.light, [field]: uiToSigned(ui) } }),
+  };
+}
+
+function colorSlider(field: keyof ColorAdjustments, label: string): SliderDef {
+  return {
+    label,
+    keys: `color.${field}`,
+    get: r => signedToUi(r.color[field]),
+    patch: (r, ui) => ({ color: { ...r.color, [field]: uiToSigned(ui) } }),
+  };
+}
+
+function legacySlider(field: 'contrast' | 'saturation', label: string): SliderDef {
+  return {
+    label,
+    keys: `adjustments.${field}`,
+    get: r => legacyToUi(r.adjustments[field]),
+    patch: (r, ui) => ({ adjustments: { ...r.adjustments, [field]: uiToLegacy(ui) } }),
+  };
+}
+
+const GROUPS: Array<{ id: Group; label: string; sliders: SliderDef[] }> = [
+  {
+    id: 'light',
+    label: 'Light',
+    sliders: [
+      lightSlider('exposure', 'Exposure'),
+      legacySlider('contrast', 'Contrast'),
+      lightSlider('highlights', 'Highlights'),
+      lightSlider('shadows', 'Shadows'),
+      lightSlider('whites', 'Whites'),
+      lightSlider('blacks', 'Blacks'),
+    ],
+  },
+  {
+    id: 'color',
+    label: 'Color',
+    sliders: [
+      colorSlider('temperature', 'Temperature'),
+      colorSlider('tint', 'Tint'),
+      colorSlider('vibrance', 'Vibrance'),
+      legacySlider('saturation', 'Saturation'),
+    ],
+  },
 ];
 
 interface AdjustPanelProps {
-  adjustments: Adjustments;
-  onChange: (adjustments: Adjustments) => void;
+  recipe: ImageRecipe;
+  onPatch: (patch: Partial<ImageRecipe>, keys: string) => void;
+  /** When false (no WebGL2), engine-only sliders are disabled with a notice
+   *  — they'd show no live preview, though export would still apply them. */
+  engineAvailable: boolean;
 }
 
-/** Three sliders → live CSS-filter preview (zero canvas per frame). */
-export default function AdjustPanel({ adjustments, onChange }: AdjustPanelProps) {
+export default function AdjustPanel({ recipe, onPatch, engineAvailable }: AdjustPanelProps) {
+  const [group, setGroup] = useState<Group>('light');
+  const active = GROUPS.find(g => g.id === group) ?? GROUPS[0];
+
+  const resetGroup = () => {
+    if (active.id === 'light') {
+      onPatch(
+        { light: { ...NEUTRAL_LIGHT }, adjustments: { ...recipe.adjustments, contrast: 1 } },
+        'reset.light'
+      );
+    } else {
+      onPatch(
+        { color: { ...NEUTRAL_COLOR }, adjustments: { ...recipe.adjustments, saturation: 1 } },
+        'reset.color'
+      );
+    }
+  };
+
   return (
     <div className="px-4 py-3 space-y-2 w-full max-w-xl mx-auto">
-      {SLIDERS.map(({ key, label }) => (
-        <div key={key} className="flex items-center gap-3">
-          <span className="text-chip text-white/60 w-20">{label}</span>
-          <input
-            type="range"
-            min={0}
-            max={2}
-            step={0.01}
-            value={adjustments[key]}
-            onChange={e => onChange({ ...adjustments, [key]: Number(e.target.value) })}
-            className="flex-1 accent-violet-500 min-h-[44px]"
-            aria-label={label}
-          />
-          <span className="text-chip text-white/60 w-10 text-right tabular-nums">
-            {Math.round(adjustments[key] * 100)}
-          </span>
-        </div>
-      ))}
-      <div className="flex justify-end">
+      <div className="flex items-center gap-2">
+        {GROUPS.map(g => (
+          <button
+            key={g.id}
+            type="button"
+            onClick={() => setGroup(g.id)}
+            className={`px-3 min-h-[36px] rounded-full text-chip transition-colors ${
+              active.id === g.id ? 'bg-white/20 text-white font-semibold' : 'text-white/60 hover:text-white'
+            }`}
+          >
+            {g.label}
+          </button>
+        ))}
         <button
           type="button"
-          onClick={() => onChange({ ...NEUTRAL_ADJUSTMENTS })}
-          className="px-3 min-h-[44px] rounded-full text-chip text-white/70 bg-white/10 hover:bg-white/20 hover:text-white"
+          onClick={resetGroup}
+          className="ml-auto px-3 min-h-[36px] rounded-full text-chip text-white/70 bg-white/10 hover:bg-white/20 hover:text-white"
         >
           Reset
         </button>
+      </div>
+
+      {!engineAvailable && (
+        <p className="text-chip text-amber-300/90">
+          Live preview for these controls isn&apos;t available on this device — Contrast and
+          Saturation still preview, and every adjustment is applied on save.
+        </p>
+      )}
+
+      <div className="space-y-1 max-h-[38vh] overflow-y-auto">
+        {active.sliders.map(def => {
+          const legacy = def.keys.startsWith('adjustments.');
+          return (
+            <div key={def.keys} className={!engineAvailable && !legacy ? 'opacity-40' : undefined}>
+              <EditorSlider
+                label={def.label}
+                value={def.get(recipe)}
+                onChange={ui => onPatch(def.patch(recipe, ui), def.keys)}
+              />
+            </div>
+          );
+        })}
       </div>
     </div>
   );

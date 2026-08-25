@@ -58,15 +58,19 @@ export function useEditorSession(
   // (split) are not undoable yet.
   const [histories, setHistories] = useState<Record<string, History<EditRecipe>>>({});
 
-  const patchRecipe = (id: string, patch: Partial<EditRecipe>) => {
+  // `keys` overrides the coalescing signature — sliders pass a per-control
+  // key ('light.exposure') because their patches share a top-level field
+  // ('light'), and the default would wrongly coalesce different sliders in
+  // the same group into one undo step.
+  const patchRecipe = (id: string, patch: Partial<EditRecipe>, keys?: string) => {
     setRecipes(prev => {
       const current = prev[id];
       return { ...prev, [id]: { ...current, ...patch } as EditRecipe };
     });
-    const keys = Object.keys(patch).sort().join(',');
+    const signature = keys ?? Object.keys(patch).sort().join(',');
     setHistories(prev => ({
       ...prev,
-      [id]: push(prev[id] ?? emptyHistory<EditRecipe>(), recipes[id], keys),
+      [id]: push(prev[id] ?? emptyHistory<EditRecipe>(), recipes[id], signature),
     }));
   };
 

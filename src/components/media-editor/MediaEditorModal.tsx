@@ -22,9 +22,11 @@ import { cssFilterString, composeAdjustments } from '@/lib/media/filters';
 import { exportAsset, passThrough } from '@/lib/media/export';
 import { isServerAllowedType } from '@/lib/media/validation';
 import { isVideoEditingSupported } from '@/lib/media/video';
+import { isEngineSupported } from '@/lib/media/engine/engine';
 import type { EditedMedia, EditorConfig, ImageRecipe, MediaAsset } from '@/lib/media/types';
 import CropStage from './CropStage';
 import AdjustPanel from './AdjustPanel';
+import EnginePreview from './EnginePreview';
 import FilterStrip from './FilterStrip';
 import Filmstrip from './Filmstrip';
 import VideoStage from './VideoStage';
@@ -205,24 +207,17 @@ export default function MediaEditorModal({ assets: initialAssets, config, onDone
             />
           ) : (
             <div className="relative flex-1 min-h-0 flex items-center justify-center overflow-hidden">
-              {/* Raw <img>: blob: object URL the optimizer cannot fetch. The
-                  live style={{filter}} IS the preview feature, and an
-                  arbitrary user photo on a fluid stage has no honest
-                  intrinsic width/height to give <Image>. */}
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src={activeUrl}
-                alt="Preview"
-                style={liveFilter ? { filter: liveFilter } : undefined}
-                className="max-w-full max-h-full object-contain"
-              />
+              {/* WebGL preview of the FULL recipe (geometry + engine color);
+                  falls back internally to <img> + CSS trio on no-WebGL. */}
+              <EnginePreview file={active.file} recipe={imageRecipe} fallbackUrl={activeUrl} />
             </div>
           )}
 
           {activeTool === 'adjust' && (
             <AdjustPanel
-              adjustments={imageRecipe.adjustments}
-              onChange={adjustments => patchRecipe(active.id, { adjustments })}
+              recipe={imageRecipe}
+              onPatch={(patch, keys) => patchRecipe(active.id, patch, keys)}
+              engineAvailable={isEngineSupported()}
             />
           )}
           {activeTool === 'filter' && (

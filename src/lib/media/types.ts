@@ -19,6 +19,30 @@ export interface Adjustments {
   saturation: number;
 }
 
+/** Engine round: all values 0 = neutral, range −1..1. Light = tonal range. */
+export interface LightAdjustments {
+  exposure: number; // ±2 EV at full scale
+  highlights: number;
+  shadows: number;
+  whites: number;
+  blacks: number;
+}
+
+/** 0 = neutral, −1..1. temperature + = warm, tint + = magenta (LR convention). */
+export interface ColorAdjustments {
+  temperature: number;
+  tint: number;
+  vibrance: number;
+}
+
+/** sharpen/clarity/noiseReduction 0..1 (0 = off); vignette −1..1 (+ darkens). */
+export interface DetailAdjustments {
+  sharpen: number;
+  clarity: number;
+  noiseReduction: number;
+  vignette: number;
+}
+
 /**
  * Crop rectangle in source pixels, in the ROTATED bounding-box coordinate
  * space (react-easy-crop's croppedAreaPixels convention — rotation is applied
@@ -31,13 +55,30 @@ export interface CropRect {
   height: number;
 }
 
+/**
+ * Recipe v3 (engine round). The legacy `adjustments` trio stays verbatim so
+ * existing v2 recipes render byte-identically (contrast/saturation remain the
+ * UI's Contrast/Saturation; brightness is honored for old recipes but has no
+ * slider in the new UI — exposure supersedes it). Everything new is
+ * zero/false-neutral, so v2 → v3 upgrade is a spread plus neutrals.
+ */
 export interface ImageRecipe {
   kind: 'image';
   crop: CropRect | null; // null = uncropped
   rotate: 0 | 90 | 180 | 270; // quarter-turn button
   straighten: number; // degrees, -45..45 (slider), added to rotate
+  /** Mirror, applied to the SOURCE before rotation (innermost in the
+   *  transform chain) — crop coords live in the flipped image's rotated
+   *  bbox, so all existing crop math is unchanged. */
+  flipH: boolean;
+  flipV: boolean;
   adjustments: Adjustments;
+  light: LightAdjustments;
+  color: ColorAdjustments;
+  detail: DetailAdjustments;
   filterId: string | null; // preset applied on top of adjustments
+  /** 0..1 intensity of the preset (1 = full). Irrelevant when filterId null. */
+  filterStrength: number;
   aspect: AspectRatioId;
 }
 

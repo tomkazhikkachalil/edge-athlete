@@ -9,7 +9,7 @@
  * pixel path implements — no blur/vignette in v1.
  */
 
-import type { Adjustments } from './types';
+import type { Adjustments, ColorAdjustments, DetailAdjustments, LightAdjustments } from './types';
 
 export const NEUTRAL_ADJUSTMENTS: Adjustments = {
   brightness: 1,
@@ -19,6 +19,45 @@ export const NEUTRAL_ADJUSTMENTS: Adjustments = {
 
 export function isNeutral(adj: Adjustments): boolean {
   return adj.brightness === 1 && adj.contrast === 1 && adj.saturation === 1;
+}
+
+// Engine-round groups (recipe v3) — all zero-neutral, so neutrality is
+// "every value is 0" and the v2 → v3 upgrade is a spread plus these.
+export const NEUTRAL_LIGHT: LightAdjustments = {
+  exposure: 0,
+  highlights: 0,
+  shadows: 0,
+  whites: 0,
+  blacks: 0,
+};
+
+export const NEUTRAL_COLOR: ColorAdjustments = {
+  temperature: 0,
+  tint: 0,
+  vibrance: 0,
+};
+
+export const NEUTRAL_DETAIL: DetailAdjustments = {
+  sharpen: 0,
+  clarity: 0,
+  noiseReduction: 0,
+  vignette: 0,
+};
+
+function allZero(group: object): boolean {
+  return Object.values(group).every(v => v === 0);
+}
+
+export function isNeutralLight(light: LightAdjustments): boolean {
+  return allZero(light);
+}
+
+export function isNeutralColor(color: ColorAdjustments): boolean {
+  return allZero(color);
+}
+
+export function isNeutralDetail(detail: DetailAdjustments): boolean {
+  return allZero(detail);
 }
 
 export interface FilterPreset {

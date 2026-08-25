@@ -33,8 +33,40 @@ test('media editor: crop session, undo, re-edit, dirty confirm, publish', async 
   // Undo restored 'free' → the Original chip is the active one again.
   await expect(page.getByRole('button', { name: 'Redo', exact: true })).toBeEnabled();
 
-  // Re-apply and export.
+  // Re-apply the crop.
   await page.getByRole('button', { name: '1:1', exact: true }).click();
+
+  // Engine round: the Adjust tab renders Light/Color groups over the WebGL
+  // preview canvas, and an Exposure drag actually changes rendered pixels
+  // (the preview-parity probe — CSS filters could never express exposure).
+  await page.getByRole('button', { name: 'Adjust', exact: true }).click();
+  await expect(page.getByRole('button', { name: 'Light', exact: true })).toBeVisible();
+  const previewCanvas = page.locator('canvas[aria-label="Preview"]');
+  await expect(previewCanvas).toBeVisible({ timeout: 15_000 });
+  const readLuma = () =>
+    page.evaluate(() => {
+      const canvas = document.querySelector('canvas[aria-label="Preview"]') as HTMLCanvasElement;
+      const probe = document.createElement('canvas');
+      probe.width = 16;
+      probe.height = 16;
+      const ctx = probe.getContext('2d')!;
+      ctx.drawImage(canvas, 0, 0, 16, 16);
+      const d = ctx.getImageData(0, 0, 16, 16).data;
+      let sum = 0;
+      for (let i = 0; i < d.length; i += 4) sum += d[i] + d[i + 1] + d[i + 2];
+      return sum / ((d.length / 4) * 3);
+    });
+  await page.waitForTimeout(500); // first engine draw is rAF-scheduled
+  const neutralLuma = await readLuma();
+  expect(neutralLuma).toBeGreaterThan(0); // the engine rendered real pixels
+  await page.getByRole('slider', { name: 'Exposure' }).fill('-60');
+  await page.waitForTimeout(300); // coalesced uniform redraw
+  expect(await readLuma()).toBeLessThan(neutralLuma);
+  // The Color group presents its engine sliders too.
+  await page.getByRole('button', { name: 'Color', exact: true }).click();
+  await expect(page.getByRole('slider', { name: 'Vibrance' })).toBeVisible();
+
+  // Export goes through the engine (advanced params force the WebGL path).
   await page.getByRole('button', { name: 'Done', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'Edit media' })).toBeHidden({ timeout: 30_000 });
 
