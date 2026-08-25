@@ -1,5 +1,102 @@
 # Development Log
 
+## August 25, 2026 — Tier-2 efficiency round: no bottlenecks at scale (#302–#305)
+
+The efficiency/scale cluster from the `docs/HARDENING.md` Tier-2 backlog —
+four independent PRs, each removing a real per-request or per-cron cost, each
+`npm run verify`-green and merged. CI on main is green (guardrails/verify/smoke)
+and the changes are prod-verified.
+
+- **#302 live-now count endpoint.** The header's Live dot (`useLiveNow`) only
+  needs to know whether *anything* is live, but it polled the full deep-embed
+  `/api/golf/live-now` (`GROUP_SCORECARD_SELECT`: per-hole scores, media, nested
+  courses) on EVERY authenticated page, once a minute. New lean
+  `/api/golf/live-now/count` returns just `{count}` off four columns; the deep
+  query now runs only on the three pages that render `LiveNowStrip`. The counted
+  set matches the deep route's final filter exactly (live AND (public OR the
+  viewer is an active participant) — followed users' private rounds never count),
+  extracted as the pure, unit-tested `countLiveVisibleRounds` in
+  `src/lib/golf/round-status.ts`.
+- **#303 public-data CDN caching.** `/u/[handle]`, explore, and the course
+  pickers were recomputed per request with no cache headers. Added
+  `Cache-Control` to the truly-public reads: `/api/public/profile`
+  (viewer-independent — private profiles 403, so one CDN entry per handle serves
+  everyone, no `Vary:Cookie`), `/api/explore`, `/api/golf/courses/facets`, and
+  `/api/golf/courses` — the last **branches on auth** (`private,no-store` when
+  authed, since it orders the viewer's own courses first; `public,s-maxage` +
+  `Vary:Cookie` when anon), mirroring the media proxy's public/private pattern.
+  Verified live: `x-vercel-cache: HIT`/`STALE` on all four.
+- **#304 digest cron batching.** `runNotificationDigest` processed opted-in users
+  fully serially — ~600–800 serial round-trips at 200 users, under the 60s
+  `/api/cron/daily` budget it shares with four other phases. Extracted
+  `processOne()` and ran users in batches of 10 (`chunk` + `Promise.all`, batches
+  sequential to bound DB/SMTP fan-out); a supervised minor's per-guardian sends
+  fan out too. Semantics preserved (SMTP guard, after-success watermark, per-user
+  try/catch, counts). The legacy unscheduled `/api/cron/notification-digest`
+  route was collapsed into the shared lib — its inline copy had drifted (advanced
+  the watermark *before* sending = data-loss, and never routed a minor's digest
+  to guardians).
+- **#305 messages conversation-list RPC (migration 124).** `GET /api/messages`
+  was O(2N): two bulk queries plus a last-message query and an unread-count query
+  *per conversation*, on a ~30s poll. Migration 124 adds
+  `get_conversation_list(p_user_id)`, one `SECURITY DEFINER` function returning
+  the fully-assembled jsonb list (conversation core + participants+profiles +
+  last_message+sender + unread_count + my_participant, ordered updated_at DESC).
+  The route became a single `.rpc()` + media proxying; same wire shape, same
+  unread floor (`GREATEST(last_read_at, joined_at)`), realtime-safe keys.
+  **Security lesson worth keeping:** the first cut granted EXECUTE to
+  `service_role` but Postgres grants every new function to `PUBLIC` by default —
+  so anon/authenticated still inherited it, and a direct PostgREST call with the
+  public anon key could dump any user's inbox (IDOR). Caught in verification (the
+  anon-key test returned data), closed with `REVOKE ... FROM PUBLIC / anon,
+  authenticated` before the grant (same class as the 085/086 handle-takeover
+  revokes). The takeaway: a bare GRANT is not a lockdown, and always test a new
+  RPC with the *anon* key — a service-role test passes either way and hides the
+  hole.
+
+## August 25, 2026 — Private-media protection: same-origin authenticated proxy + bucket flip (#297–#301)
+
+Every user media file lived in **public** Supabase buckets served by permanent
+`getPublicUrl` URLs: the app gated media *metadata* but never the *bytes*, so a
+private profile's or private post's photos were fetchable by anyone with the URL,
+forever. As the app becomes anonymously viewable (logged-out visitors can view
+public accounts), private data had to become unfetchable through any backend path.
+
+The fix is a **same-origin authenticated media proxy**. API responses rewrite
+sensitive media URLs to stable `/api/media/<token>` paths (`toProxyUrl`,
+normalize-on-read — proxy paths never enter the DB, so the storage-sweep, delete,
+and account-deletion strippers are untouched); the proxy re-authorizes the *live*
+viewer against the media's *current* visibility on each load and streams the bytes.
+The token (`src/lib/media/token.ts`) is an HMAC-SHA256 capability that names the
+object AND its governing entity — never a visibility verdict, so a post flipping
+public→private is honored on the next load with no token change.
+
+- **#297** foundation (token / `toProxyUrl` / `authorize.ts` / the
+  `/api/media/[token]` streaming route with Range support and public-vs-private
+  `Cache-Control` + `Vary:Cookie`) + post media + profile media + covers. The
+  proxy is served **unoptimized** (Next's optimizer fetches server-side with no
+  cookie → can't read private objects). Critically, `toProxyUrl` **fails OPEN to
+  the raw URL** if `MEDIA_PROXY_SECRET` is unset, so deploying before the secret
+  is set never 500s the feed.
+- **#298–#300** wired every remaining media-emitting response (messages, group /
+  round media via the one `scorecard-transform` chokepoint, equipment, workouts,
+  vitals, search, public profile, admin reports) with per-type resolvers, plus a
+  moderator override in the proxy.
+- **#301** the owner-run flip playbook (`docs/MEDIA_PRIVACY_FLIP.md` +
+  `npm run verify:media-privacy`).
+- **The flip.** With the code deployed and `MEDIA_PROXY_SECRET` set, the `uploads`
+  bucket was flipped to private. Verified in prod: raw `/object/public/uploads/…`
+  URLs now **404** for everyone, while the proxy still streams 200 to authorized
+  viewers (and public post media to anonymous ones). `avatars`/`badges` stay
+  public by decision; `consent-evidence` was already private. Rollback is a
+  single flag flip back to public — the proxy works against a public bucket too.
+
+Two operational snags worth remembering: a Vercel env var is snapshotted at
+build time (setting `MEDIA_PROXY_SECRET` does not auto-redeploy), and a broken
+env-var entry can *display* a value yet not inject at runtime — proven by the
+raw-URL fail-open symptom plus a hand-signed token 404ing; fixed by deleting and
+re-adding the secret cleanly.
+
 ## August 25, 2026 — Vitals redesign: bubbly dashboard, celebrations, elective privacy (#285–#289)
 
 Tom's brief: make Vitals feel like "the best health monitor and workout
