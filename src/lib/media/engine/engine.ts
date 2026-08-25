@@ -88,6 +88,7 @@ export function createEngine(
     maskGeom: gl.getUniformLocation(composite, 'u_maskGeom'),
     maskKind: gl.getUniformLocation(composite, 'u_maskKind'),
     maskAdjust: gl.getUniformLocation(composite, 'u_maskAdjust'),
+    grain: gl.getUniformLocation(composite, 'u_grain'),
   };
 
   let lost = false;
@@ -328,6 +329,7 @@ export function createEngine(
     gl.uniform1f(loc.hslEnabled, hslActive ? 1 : 0);
     gl.uniform1i(loc.curveLut, 4);
     gl.uniform1f(loc.curveEnabled, curvesActive ? 1 : 0);
+    gl.uniform2f(loc.grain, p.grain.amount, p.grain.size);
     // Local masks: analytic uniforms, y flipped into the shader's y-up uv.
     const maskCount = Math.min(p.masks.length, MAX_MASKS);
     gl.uniform1i(loc.maskCount, maskCount);

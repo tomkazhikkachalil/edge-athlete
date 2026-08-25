@@ -45,6 +45,7 @@ import {
 } from './hsl-math';
 import { CURVE_LUT_SIZE } from './curves-math';
 import { MASK_EV_RANGE, MAX_MASKS } from './mask-math';
+import { GRAIN_BASE_WEIGHT, GRAIN_MID_WEIGHT, GRAIN_SCALE } from './grain-math';
 
 /** Number → GLSL float literal ("2" would be an int and fail to compile). */
 function glf(n: number): string {
@@ -147,6 +148,7 @@ uniform int u_maskCount;
 uniform vec4 u_maskGeom[${MAX_MASKS}];   // radial: cx,cy,rx,ry | linear: x0,y0,x1,y1
 uniform vec4 u_maskKind[${MAX_MASKS}];   // kind (0 radial / 1 linear), feather, invert, unused
 uniform vec3 u_maskAdjust[${MAX_MASKS}]; // exposure, saturation, temperature
+uniform vec2 u_grain; // amount (0 = off), cell size in device px
 
 out vec4 outColor;
 
@@ -296,6 +298,16 @@ void main() {
     rgb *= 1.0 - u_vignette * ${glf(VIGNETTE_SCALE)} * f;
   } else {
     rgb = mix(rgb, vec3(1.0), -u_vignette * ${glf(VIGNETTE_SCALE)} * f);
+  }
+
+  // Film grain: white noise per cell, midtone-weighted, LAST look stage
+  // (over the vignette, like real stock). Stochastic — the CPU twin uses
+  // its own hash; the parity contract is statistical, not per-pixel.
+  if (u_grain.x > 0.0) {
+    vec2 cell = floor(gl_FragCoord.xy / max(u_grain.y, 1.0));
+    float gn = fract(sin(dot(cell, vec2(12.9898, 78.233))) * 43758.5453) - 0.5;
+    float Lg = dot(clamp(rgb, 0.0, 1.0), LUMA);
+    rgb += gn * u_grain.x * ${glf(GRAIN_SCALE)} * (${glf(GRAIN_BASE_WEIGHT)} + ${glf(GRAIN_MID_WEIGHT)} * 4.0 * Lg * (1.0 - Lg));
   }
 
   // Ordered-ish dither: ±0.5/255 of position hash kills the banding that

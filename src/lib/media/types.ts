@@ -93,6 +93,12 @@ export interface MaskAdjust {
   temperature: number;
 }
 
+/** Film grain (Phase 2 E4d): amount 0..1 (0 = off), cell size 1..3 px. */
+export interface GrainSettings {
+  amount: number;
+  size: number;
+}
+
 /**
  * Local-adjustment masks (Phase 2 E4c). Geometry normalized to the FRAMED
  * image, ORIGIN TOP-LEFT. Radial = ellipse (full effect inside, feathered
@@ -165,6 +171,8 @@ export interface ImageRecipe {
   curves?: CurveSet;
   /** Local-adjustment masks (Phase 2): absent/empty = none. Max 4. */
   masks?: Mask[];
+  /** Film grain (Phase 2): absent or amount 0 = none. */
+  grain?: GrainSettings;
 }
 
 /** One segment of the output timeline — a [in, out) slice of the SOURCE. */

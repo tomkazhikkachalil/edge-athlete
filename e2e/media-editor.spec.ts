@@ -153,6 +153,42 @@ test('media editor: crop session, undo, re-edit, dirty confirm, publish', async 
   await page.keyboard.press('Control+k');
   await expect(page.getByRole('dialog', { name: 'Search' })).toHaveCount(0);
 
+  // White-balance eyedropper (Phase 2 E4d): arm it, tap the (colorful)
+  // stage — the Temperature slider must move off neutral.
+  await page.getByRole('button', { name: 'Color', exact: true }).click();
+  await page.getByRole('button', { name: 'Pick white balance' }).click();
+  const wbTarget = page.getByRole('button', { name: 'Sample white balance from the photo' });
+  await expect(wbTarget).toBeVisible();
+  await wbTarget.click();
+  await expect(page.getByRole('slider', { name: 'Temperature' })).not.toHaveValue('0');
+
+  // Grain (E4d): variance-probe — zero-mean noise won't move the mean, so
+  // measure luma variance instead.
+  const readVariance = () =>
+    page.evaluate(() => {
+      const canvas = document.querySelector('canvas[aria-label="Preview"]') as HTMLCanvasElement;
+      const probe = document.createElement('canvas');
+      probe.width = 48;
+      probe.height = 48;
+      const ctx = probe.getContext('2d')!;
+      // 1:1 center crop — scaling down would average the grain away.
+      const sx = Math.max(0, Math.floor((canvas.width - 48) / 2));
+      const sy = Math.max(0, Math.floor((canvas.height - 48) / 2));
+      ctx.drawImage(canvas, sx, sy, 48, 48, 0, 0, 48, 48);
+      const d = ctx.getImageData(0, 0, 48, 48).data;
+      const lumas: number[] = [];
+      for (let i = 0; i < d.length; i += 4) lumas.push((d[i] + d[i + 1] + d[i + 2]) / 3);
+      const mean = lumas.reduce((a, b) => a + b, 0) / lumas.length;
+      return lumas.reduce((a, b) => a + (b - mean) * (b - mean), 0) / lumas.length;
+    });
+  await page.getByRole('button', { name: 'Detail', exact: true }).click();
+  const preGrainVariance = await readVariance();
+  await page.getByRole('slider', { name: 'Grain', exact: true }).fill('100');
+  await page.waitForTimeout(300);
+  expect(await readVariance()).toBeGreaterThan(preGrainVariance);
+  // Take grain back off so the remaining assertions see stable pixels.
+  await page.getByRole('slider', { name: 'Grain', exact: true }).fill('0');
+
   // Film pack (E3a): selecting a film look arms the intensity slider.
   await page.getByRole('button', { name: 'Filters', exact: true }).click();
   await page.getByRole('button', { name: /Gold/ }).click();

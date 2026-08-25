@@ -29,6 +29,7 @@ import { isNeutralPerspective } from './engine/perspective-math';
 import { isNeutralHsl } from './engine/hsl-math';
 import { isNeutralCurves } from './engine/curves-math';
 import { isNeutralMasks } from './engine/mask-math';
+import { isNeutralGrain } from './engine/grain-math';
 
 export function defaultImageRecipe(aspect: AspectRatioId = 'free'): ImageRecipe {
   return {
@@ -78,7 +79,8 @@ export function isNoopRecipe(recipe: EditRecipe): boolean {
     isNeutralPerspective(recipe.perspective) &&
     isNeutralHsl(recipe.hsl) &&
     isNeutralCurves(recipe.curves) &&
-    isNeutralMasks(recipe.masks)
+    isNeutralMasks(recipe.masks) &&
+    isNeutralGrain(recipe.grain)
   );
 }
 
@@ -205,6 +207,9 @@ const imageRecipeSchema = imageRecipeV2Schema.extend({
     })
     .optional(),
   masks: z.array(maskSchema).max(4).optional(),
+  grain: z
+    .object({ amount: unsigned(), size: z.number().min(1).max(3) })
+    .optional(),
 });
 
 // v1 video shape (single trim) — persisted rows from round B upgrade on read.

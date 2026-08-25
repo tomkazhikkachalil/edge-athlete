@@ -32,6 +32,7 @@ import { isNeutralPerspective, warpPerspective } from './perspective-math';
 import { applyHslLut, bakeHslLut, isNeutralHsl } from './hsl-math';
 import { applyCurveLut, bakeCurveLut, isNeutralCurves } from './curves-math';
 import { applyMaskDeltas, isNeutralMasks, maskDeltas } from './mask-math';
+import { applyGrain, isNeutralGrain } from './grain-math';
 
 /** RGBA bytes → packed RGB floats (0..1). */
 function toFloatRgb(data: Uint8ClampedArray): Float32Array {
@@ -205,10 +206,13 @@ export function applyEngine(
         const large: Rgb = blurLarge ? [blurLarge[j], blurLarge[j + 1], blurLarge[j + 2]] : rgb;
         rgb = applyDetail(rgb, small, large, params.detail);
       }
-      const [r, g, b] = transformPixel(rgb, pipelineParams, falloff, hslApply, (x + 0.5) / width, v);
-      data[i] = r * 255;
-      data[i + 1] = g * 255;
-      data[i + 2] = b * 255;
+      let out = transformPixel(rgb, pipelineParams, falloff, hslApply, (x + 0.5) / width, v);
+      // Grain rides over everything (incl. vignette), matching the shader's
+      // last-look placement; the byte write clamps.
+      if (!isNeutralGrain(params.grain)) out = applyGrain(out, x, y, params.grain);
+      data[i] = out[0] * 255;
+      data[i + 1] = out[1] * 255;
+      data[i + 2] = out[2] * 255;
     }
   }
 }

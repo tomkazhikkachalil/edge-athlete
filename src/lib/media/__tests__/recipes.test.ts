@@ -132,6 +132,15 @@ describe('defaults and no-op detection', () => {
     expect(parseRecipe(serializeRecipe(five))).toBeNull();
   });
 
+  it('grain: absent/zero-amount is a no-op; settings round-trip; range enforced', () => {
+    const base = defaultImageRecipe();
+    expect(isNoopRecipe({ ...base, grain: { amount: 0, size: 2 } })).toBe(true);
+    const grainy = { ...base, grain: { amount: 0.4, size: 1.5 } };
+    expect(isNoopRecipe(grainy)).toBe(false);
+    expect(parseRecipe(serializeRecipe(grainy))).toEqual(grainy);
+    expect(parseRecipe(serializeRecipe({ ...base, grain: { amount: 0.4, size: 9 } }))).toBeNull();
+  });
+
   it('9:16 round-trips in both image and video recipes (story crop)', () => {
     const image = { ...defaultImageRecipe('9:16' as const) };
     expect(parseRecipe(serializeRecipe(image))).toEqual(image);

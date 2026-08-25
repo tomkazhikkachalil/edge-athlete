@@ -14,7 +14,7 @@
  */
 
 import { useState } from 'react';
-import { Wand2 } from 'lucide-react';
+import { Pipette, Wand2 } from 'lucide-react';
 import { NEUTRAL_COLOR, NEUTRAL_DETAIL, NEUTRAL_LIGHT } from '@/lib/media/filters';
 import { HSL_BAND_NAMES, NEUTRAL_BAND } from '@/lib/media/engine/hsl-math';
 import { IDENTITY_CURVE } from '@/lib/media/engine/curves-math';
@@ -157,6 +157,25 @@ const GROUPS: Array<{ id: Group; label: string; sliders: SliderDef[] }> = [
         get: r => signedToUi(r.detail.vignette),
         patch: (r, ui) => ({ detail: { ...r.detail, vignette: uiToSigned(ui) } }),
       },
+      {
+        label: 'Grain',
+        keys: 'grain.amount',
+        min: 0,
+        get: r => unsignedToUi(r.grain?.amount ?? 0),
+        patch: (r, ui) => ({
+          grain: { amount: uiToUnsigned(ui), size: r.grain?.size ?? 1.5 },
+        }),
+      },
+      {
+        label: 'Grain size',
+        keys: 'grain.size',
+        min: 0,
+        // size 1..3 px ↔ 0..100 ui
+        get: r => Math.round((((r.grain?.size ?? 1.5) - 1) / 2) * 100),
+        patch: (r, ui) => ({
+          grain: { amount: r.grain?.amount ?? 0, size: 1 + (ui / 100) * 2 },
+        }),
+      },
     ],
   },
   // 'mix' and 'curves' render their own UI — sliders don't apply.
@@ -169,12 +188,23 @@ interface AdjustPanelProps {
   onPatch: (patch: Partial<ImageRecipe>, keys: string) => void;
   /** One-tap auto-enhance (histogram targeting) — lands as ONE undo step. */
   onAutoEnhance: () => void;
+  /** Arms the stage's white-balance eyedropper (Color group). */
+  onWhiteBalancePick: () => void;
+  /** True while the stage is waiting for the eyedropper click. */
+  whiteBalancePicking: boolean;
   /** When false (no WebGL2), engine-only sliders are disabled with a notice
    *  — they'd show no live preview, though export would still apply them. */
   engineAvailable: boolean;
 }
 
-export default function AdjustPanel({ recipe, onPatch, onAutoEnhance, engineAvailable }: AdjustPanelProps) {
+export default function AdjustPanel({
+  recipe,
+  onPatch,
+  onAutoEnhance,
+  onWhiteBalancePick,
+  whiteBalancePicking,
+  engineAvailable,
+}: AdjustPanelProps) {
   const [group, setGroup] = useState<Group>('light');
   const [band, setBand] = useState<HslBandName>('red');
   const [curveChannel, setCurveChannel] = useState<CurveChannel>('master');
@@ -320,19 +350,40 @@ export default function AdjustPanel({ recipe, onPatch, onAutoEnhance, engineAvai
             />
           </div>
         ) : (
-          active.sliders.map(def => {
-            const legacy = def.keys.startsWith('adjustments.');
-            return (
-              <div key={def.keys} className={!engineAvailable && !legacy ? 'opacity-40' : undefined}>
-                <EditorSlider
-                  label={def.label}
-                  value={def.get(recipe)}
-                  min={def.min}
-                  onChange={ui => onPatch(def.patch(recipe, ui), def.keys)}
-                />
+          <>
+            {active.id === 'color' && (
+              <div className="flex justify-end">
+                <button
+                  type="button"
+                  onClick={onWhiteBalancePick}
+                  aria-pressed={whiteBalancePicking}
+                  aria-label="Pick white balance"
+                  title="Tap something that should be neutral gray"
+                  className={`px-3 min-h-[36px] rounded-full text-chip flex items-center gap-1.5 ${
+                    whiteBalancePicking
+                      ? 'bg-brand text-white font-semibold'
+                      : 'bg-white/10 text-white/70 hover:bg-white/20 hover:text-white'
+                  }`}
+                >
+                  <Pipette className="w-3.5 h-3.5" />
+                  {whiteBalancePicking ? 'Tap a neutral…' : 'White balance'}
+                </button>
               </div>
-            );
-          })
+            )}
+            {active.sliders.map(def => {
+              const legacy = def.keys.startsWith('adjustments.');
+              return (
+                <div key={def.keys} className={!engineAvailable && !legacy ? 'opacity-40' : undefined}>
+                  <EditorSlider
+                    label={def.label}
+                    value={def.get(recipe)}
+                    min={def.min}
+                    onChange={ui => onPatch(def.patch(recipe, ui), def.keys)}
+                  />
+                </div>
+              );
+            })}
+          </>
         )}
       </div>
     </div>
