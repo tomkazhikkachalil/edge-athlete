@@ -137,6 +137,16 @@ const maskAdjustSchema = z.object({
   blur: unsigned().optional(),
 });
 
+const brushStrokeSchema = z.object({
+  points: z
+    .array(z.object({ x: unsigned(), y: unsigned() }))
+    .min(1)
+    .max(256),
+  radius: z.number().min(0.01).max(0.5),
+  feather: unsigned(),
+  erase: z.boolean().optional(),
+});
+
 const maskSchema = z.discriminatedUnion('kind', [
   z.object({
     kind: z.literal('radial'),
@@ -154,6 +164,11 @@ const maskSchema = z.discriminatedUnion('kind', [
     y0: unsigned(),
     x1: unsigned(),
     y1: unsigned(),
+    adjust: maskAdjustSchema,
+  }),
+  z.object({
+    kind: z.literal('brush'),
+    strokes: z.array(brushStrokeSchema).max(32),
     adjust: maskAdjustSchema,
   }),
 ]);

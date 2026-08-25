@@ -154,15 +154,30 @@ uniform vec3 u_maskAdjust[${MAX_MASKS}]; // exposure, saturation, temperature
 uniform vec2 u_grain; // amount (0 = off), cell size in device px
 uniform sampler2D u_blurBg; // σ=${glf(BLUR_BG_SIGMA)} quarter-res defocus (mask blur)
 uniform float u_bgBlurEnabled; // 0/1 — set only when the bg blur pass ran
+// Brush-mask coverage textures (E4f) — sampler arrays can't be indexed
+// dynamically in ES 3.0, hence four fixed slots (units 6..9).
+uniform sampler2D u_brushMask0;
+uniform sampler2D u_brushMask1;
+uniform sampler2D u_brushMask2;
+uniform sampler2D u_brushMask3;
 
 out vec4 outColor;
 
 const vec3 LUMA = vec3(${glf(LUMA_R)}, ${glf(LUMA_G)}, ${glf(LUMA_B)});
 
-/** Analytic mask weight (mask-math.maskWeight's GPU twin) — shared by the
- *  blur-mix (top of pipeline) and the local-light stage. */
+/** Mask weight (mask-math.maskWeight's GPU twin) — shared by the blur-mix
+ *  (top of pipeline) and the local-light stage. Kind codes: 0 radial,
+ *  1 linear, 2 brush (coverage texture; buffers are top-left row order,
+ *  so the y flips once here). */
 float maskW(int i, vec2 uv) {
   float w;
+  if (u_maskKind[i].x > 1.5) {
+    vec2 buv = vec2(uv.x, 1.0 - uv.y);
+    return i == 0 ? texture(u_brushMask0, buv).r
+         : i == 1 ? texture(u_brushMask1, buv).r
+         : i == 2 ? texture(u_brushMask2, buv).r
+         : texture(u_brushMask3, buv).r;
+  }
   if (u_maskKind[i].x < 0.5) {
     vec2 d = (uv - u_maskGeom[i].xy) / max(u_maskGeom[i].zw, vec2(1e-4));
     float inner = max(0.0, 1.0 - u_maskKind[i].y);

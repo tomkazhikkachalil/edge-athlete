@@ -137,6 +137,26 @@ test('media editor: crop session, undo, re-edit, dirty confirm, publish', async 
   expect(await readVariance()).toBeLessThan(preBlurVariance);
   await page.getByRole('slider', { name: 'Blur', exact: true }).fill('0');
 
+  // Brush masks (E4f): paint a stroke across the stage, lift its exposure
+  // — the painted corridor must brighten the mean reading. Then remove it
+  // so the rest of the flow sees stable state.
+  await page.getByRole('button', { name: '+ Brush', exact: true }).click();
+  const overlayBox = (await page.locator('[aria-label="Mask overlay"]').boundingBox())!;
+  await page.mouse.move(overlayBox.x + overlayBox.width * 0.25, overlayBox.y + overlayBox.height * 0.5);
+  await page.mouse.down();
+  for (let i = 1; i <= 6; i++) {
+    await page.mouse.move(
+      overlayBox.x + overlayBox.width * (0.25 + i * 0.08),
+      overlayBox.y + overlayBox.height * 0.5
+    );
+  }
+  await page.mouse.up();
+  const prePaintLuma = await readLuma();
+  await page.getByRole('slider', { name: 'Exposure' }).fill('90');
+  await page.waitForTimeout(300);
+  expect(await readLuma()).toBeGreaterThan(prePaintLuma + 0.5);
+  await page.getByRole('button', { name: 'Remove', exact: true }).click();
+
   // Hold-to-compare: while pressed, the stage shows the ORIGINAL — the
   // darkened preview must come back up to the neutral reading.
   const compareBtn = page.getByRole('button', { name: 'Hold to compare with original' });

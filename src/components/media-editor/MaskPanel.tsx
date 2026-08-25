@@ -9,6 +9,7 @@
  */
 
 import {
+  defaultBrushMask,
   defaultLinearMask,
   defaultRadialMask,
   MAX_MASKS,
@@ -17,11 +18,32 @@ import { signedToUi, uiToSigned, uiToUnsigned, unsignedToUi } from '@/lib/media/
 import type { ImageRecipe, Mask, MaskAdjust } from '@/lib/media/types';
 import EditorSlider from './EditorSlider';
 
+/** Settings for the NEXT painted stroke (strokes carry their own copies). */
+export interface BrushSettings {
+  radius: number; // 0.01..0.5, fraction of image width
+  feather: number; // 0..1
+  erase: boolean;
+}
+
+export const DEFAULT_BRUSH_SETTINGS: BrushSettings = {
+  radius: 0.06,
+  feather: 0.5,
+  erase: false,
+};
+
+const MASK_KIND_LABELS: Record<Mask['kind'], string> = {
+  radial: 'Radial',
+  linear: 'Linear',
+  brush: 'Brush',
+};
+
 interface MaskPanelProps {
   recipe: ImageRecipe;
   selectedIndex: number;
   onSelectIndex: (index: number) => void;
   onPatch: (patch: Partial<ImageRecipe>, keys: string) => void;
+  brushSettings: BrushSettings;
+  onBrushSettingsChange: (settings: BrushSettings) => void;
   engineAvailable: boolean;
 }
 
@@ -30,6 +52,8 @@ export default function MaskPanel({
   selectedIndex,
   onSelectIndex,
   onPatch,
+  brushSettings,
+  onBrushSettingsChange,
   engineAvailable,
 }: MaskPanelProps) {
   const masks = recipe.masks ?? [];
@@ -74,7 +98,7 @@ export default function MaskPanel({
                 : 'bg-white/10 text-white/70 hover:bg-white/20'
             }`}
           >
-            {mask.kind === 'radial' ? 'Radial' : 'Linear'} {i + 1}
+            {MASK_KIND_LABELS[mask.kind]} {i + 1}
           </button>
         ))}
         <button
@@ -92,6 +116,14 @@ export default function MaskPanel({
           className="px-3 min-h-[36px] rounded-full text-chip whitespace-nowrap shrink-0 bg-white/10 text-white/70 hover:bg-white/20 disabled:opacity-40"
         >
           + Linear
+        </button>
+        <button
+          type="button"
+          onClick={() => addMask(defaultBrushMask())}
+          disabled={masks.length >= MAX_MASKS}
+          className="px-3 min-h-[36px] rounded-full text-chip whitespace-nowrap shrink-0 bg-white/10 text-white/70 hover:bg-white/20 disabled:opacity-40"
+        >
+          + Brush
         </button>
         {selected && (
           <button
@@ -152,6 +184,48 @@ export default function MaskPanel({
                   }`}
                 >
                   Invert
+                </button>
+              </div>
+            </>
+          )}
+          {selected.kind === 'brush' && (
+            <>
+              <p className="text-chip text-white/50">
+                Paint on the photo. Strokes keep the size and feather they were painted with.
+              </p>
+              <EditorSlider
+                label="Brush size"
+                value={Math.round(((brushSettings.radius - 0.01) / 0.49) * 100)}
+                min={0}
+                onChange={ui =>
+                  onBrushSettingsChange({
+                    ...brushSettings,
+                    radius: 0.01 + (ui / 100) * 0.49,
+                  })
+                }
+              />
+              <EditorSlider
+                label="Brush feather"
+                value={unsignedToUi(brushSettings.feather)}
+                min={0}
+                onChange={ui =>
+                  onBrushSettingsChange({ ...brushSettings, feather: uiToUnsigned(ui) })
+                }
+              />
+              <div className="flex justify-end">
+                <button
+                  type="button"
+                  aria-pressed={brushSettings.erase}
+                  onClick={() =>
+                    onBrushSettingsChange({ ...brushSettings, erase: !brushSettings.erase })
+                  }
+                  className={`px-3 min-h-[36px] rounded-full text-chip ${
+                    brushSettings.erase
+                      ? 'bg-white/20 text-white font-semibold'
+                      : 'bg-white/10 text-white/70 hover:bg-white/20'
+                  }`}
+                >
+                  Erase
                 </button>
               </div>
             </>

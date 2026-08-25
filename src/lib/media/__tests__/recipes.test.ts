@@ -132,6 +132,49 @@ describe('defaults and no-op detection', () => {
     expect(parseRecipe(serializeRecipe(five))).toBeNull();
   });
 
+  it('brush masks: strokes round-trip; caps enforced (E4f)', () => {
+    const base = defaultImageRecipe();
+    const brush = {
+      kind: 'brush' as const,
+      strokes: [
+        {
+          points: [
+            { x: 0.2, y: 0.5 },
+            { x: 0.8, y: 0.55 },
+          ],
+          radius: 0.08,
+          feather: 0.4,
+        },
+        { points: [{ x: 0.5, y: 0.5 }], radius: 0.05, feather: 1, erase: true },
+      ],
+      adjust: { exposure: 0.4, saturation: 0, temperature: 0 },
+    };
+    const recipe = { ...base, masks: [brush] };
+    expect(isNoopRecipe(recipe)).toBe(false);
+    expect(parseRecipe(serializeRecipe(recipe))).toEqual(recipe);
+    // Zero-adjust brush = placement only = no-op (the mask rule).
+    expect(
+      isNoopRecipe({
+        ...base,
+        masks: [{ ...brush, adjust: { exposure: 0, saturation: 0, temperature: 0 } }],
+      })
+    ).toBe(true);
+    // Caps: >256 points in a stroke and >32 strokes both reject.
+    const fat = {
+      ...brush,
+      strokes: [
+        {
+          points: Array.from({ length: 257 }, (_, i) => ({ x: i / 257, y: 0.5 })),
+          radius: 0.05,
+          feather: 0,
+        },
+      ],
+    };
+    expect(parseRecipe(serializeRecipe({ ...base, masks: [fat] }))).toBeNull();
+    const many = { ...brush, strokes: Array.from({ length: 33 }, () => brush.strokes[0]) };
+    expect(parseRecipe(serializeRecipe({ ...base, masks: [many] }))).toBeNull();
+  });
+
   it('grain: absent/zero-amount is a no-op; settings round-trip; range enforced', () => {
     const base = defaultImageRecipe();
     expect(isNoopRecipe({ ...base, grain: { amount: 0, size: 2 } })).toBe(true);

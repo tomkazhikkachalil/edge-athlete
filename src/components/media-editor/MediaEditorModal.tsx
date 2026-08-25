@@ -34,7 +34,7 @@ import AdjustPanel from './AdjustPanel';
 import EnginePreview from './EnginePreview';
 import HistoryRail from './HistoryRail';
 import PerspectivePanel from './PerspectivePanel';
-import MaskPanel from './MaskPanel';
+import MaskPanel, { DEFAULT_BRUSH_SETTINGS, type BrushSettings } from './MaskPanel';
 import MaskOverlay from './MaskOverlay';
 import FilterStrip from './FilterStrip';
 import Filmstrip from './Filmstrip';
@@ -87,8 +87,10 @@ export default function MediaEditorModal({ assets: initialAssets, config, onDone
   const [exporting, setExporting] = useState<{ done: number; total: number } | null>(null);
   // Hold-to-compare: while pressed, the stage renders the untouched source.
   const [comparing, setComparing] = useState(false);
-  // Masks tool: which mask the overlay/panel are editing.
+  // Masks tool: which mask the overlay/panel are editing, plus the brush
+  // settings the NEXT painted stroke will carry.
   const [selectedMaskIndex, setSelectedMaskIndex] = useState(0);
+  const [brushSettings, setBrushSettings] = useState<BrushSettings>(DEFAULT_BRUSH_SETTINGS);
   // White-balance eyedropper: stage waits for one neutral-gray tap.
   const [wbPicking, setWbPicking] = useState(false);
 
@@ -249,6 +251,8 @@ export default function MediaEditorModal({ assets: initialAssets, config, onDone
             selectedIndex={selectedMaskIndex}
             onSelectIndex={setSelectedMaskIndex}
             onPatch={(patch, keys) => patchRecipe(active.id, patch, keys)}
+            brushSettings={brushSettings}
+            onBrushSettingsChange={setBrushSettings}
             engineAvailable={isEngineSupported()}
           />
         )}
@@ -432,6 +436,7 @@ export default function MediaEditorModal({ assets: initialAssets, config, onDone
                     selectedIndex={selectedMaskIndex}
                     onSelect={setSelectedMaskIndex}
                     onChange={(masks, keys) => patchRecipe(active.id, { masks }, keys)}
+                    brushSettings={brushSettings}
                   />
                 )}
                 {wbPicking && (
