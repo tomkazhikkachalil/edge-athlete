@@ -6,6 +6,7 @@ import { resolveSportKey } from '@/lib/sports/resolve-sport-key';
 import { buildSportStatsCard } from '@/lib/sports/server';
 import { getSupabaseAdmin } from '@/lib/auth-server';
 import { isStatementPost } from '@/lib/statements';
+import { toProxyUrl } from '@/lib/media/proxy-url';
 
 export async function GET(request: NextRequest) {
   try {
@@ -147,7 +148,12 @@ export async function GET(request: NextRequest) {
         created_at: p.created_at,
         likes_count: p.likes_count,
         comments_count: p.comments_count,
-        post_media: p.post_media,
+        // Anonymous page, but the bytes still route through the proxy (these
+        // are public posts, so the proxy serves them to anyone).
+        post_media: (p.post_media as Array<{ media_url: string }> | null || []).map(m => ({
+          ...m,
+          media_url: toProxyUrl(m.media_url, { type: 'post', id: p.id }) ?? m.media_url,
+        })),
       }));
     const statementRows = (rawRecentPosts || [])
       .filter(p => isStatementPost(p))

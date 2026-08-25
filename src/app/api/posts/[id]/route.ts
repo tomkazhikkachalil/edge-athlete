@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseAdmin, requireAuth } from '@/lib/auth-server';
+import { toProxyUrl } from '@/lib/media/proxy-url';
 import { canViewProfile } from '@/lib/privacy';
 
 export async function GET(
@@ -98,6 +99,15 @@ export async function GET(
       }
     }
 
+    // Proxy this post's media bytes (governed by the post rule; id = post.id).
+    const pm = post as { id: string; media?: Array<{ media_url: string; thumbnail_url: string | null }> };
+    if (Array.isArray(pm.media)) {
+      pm.media = pm.media.map(m => ({
+        ...m,
+        media_url: toProxyUrl(m.media_url, { type: 'post', id: pm.id }) ?? m.media_url,
+        thumbnail_url: toProxyUrl(m.thumbnail_url, { type: 'post', id: pm.id }),
+      }));
+    }
     return NextResponse.json({ post });
   } catch (error) {
     if (error instanceof Response) return error;

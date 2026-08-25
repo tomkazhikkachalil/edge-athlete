@@ -139,6 +139,7 @@ export async function PATCH(
       if (clearError) console.error('clearing previous highlight failed:', clearError);
     }
 
+    // No media URL in the response (metadata-only select), so nothing to proxy.
     return NextResponse.json({ media: data });
   } catch (error) {
     console.error('Unexpected error in PATCH /api/group-posts/[id]/media/[mediaId]:', error);

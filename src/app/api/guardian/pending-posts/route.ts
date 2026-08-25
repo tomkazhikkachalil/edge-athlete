@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAuth, getSupabaseAdmin } from '@/lib/auth-server';
+import { toProxyUrl } from '@/lib/media/proxy-url';
 import { FEATURE_FLAGS } from '@/lib/features';
 
 // ── /api/guardian/pending-posts ──────────────────────────────────────────────
@@ -58,7 +59,20 @@ export async function GET(request: NextRequest) {
       .order('created_at', { ascending: true });
     if (postsError) throw postsError;
 
-    return NextResponse.json({ posts: posts ?? [] });
+    // Proxy media of the minor's pending posts (guardian access is granted by
+    // the post resolver's hasManagedAccess branch).
+    const proxiedPosts = (posts ?? []).map((p) => {
+      const post = p as { id: string; post_media?: Array<{ media_url: string; thumbnail_url: string | null }> };
+      return {
+        ...post,
+        post_media: (post.post_media || []).map(m => ({
+          ...m,
+          media_url: toProxyUrl(m.media_url, { type: 'post', id: post.id }) ?? m.media_url,
+          thumbnail_url: toProxyUrl(m.thumbnail_url, { type: 'post', id: post.id }),
+        })),
+      };
+    });
+    return NextResponse.json({ posts: proxiedPosts });
   } catch (error) {
     if (error instanceof Response) return error;
     console.error('[GUARDIAN] pending-posts error:', error);

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAuth, getSupabaseAdmin } from '@/lib/auth-server';
+import { toProxyUrl } from '@/lib/media/proxy-url';
 import { FEATURE_FLAGS } from '@/lib/features';
 import { recipeEnvelope, parseRecipeEnvelope } from '@/lib/media/recipes';
 import { mayManagePostMedia } from '../authz';
@@ -114,7 +115,13 @@ export async function PATCH(
       }
     }
 
-    return NextResponse.json({ media: updated, pending_approval: statusChanged });
+    const proxiedUpdated = {
+      ...updated,
+      media_url: toProxyUrl(updated.media_url, { type: 'post', id }) ?? updated.media_url,
+      thumbnail_url: toProxyUrl(updated.thumbnail_url, { type: 'post', id }),
+      source_url: toProxyUrl(updated.source_url, { type: 'post', id }),
+    };
+    return NextResponse.json({ media: proxiedUpdated, pending_approval: statusChanged });
   } catch (error) {
     if (error instanceof Response) return error;
     console.error('[POST MEDIA] update error:', error);

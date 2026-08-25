@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerAuth, getSupabaseAdmin } from '@/lib/auth-server';
+import { toProxyUrl } from '@/lib/media/proxy-url';
 import { deleteRoundCascade } from '@/lib/golf/round-delete-server';
 import { mirrorCompletedRound, mirrorRoundMedia } from '@/lib/golf/round-mirror';
 
@@ -79,6 +80,15 @@ export async function GET(
       return NextResponse.json({ error: 'Failed to fetch group post' }, { status: 500 });
     }
 
+    // Proxy round media bytes (governed by the group rule; id = group post id).
+    const gp = groupPost as { media?: Array<{ media_url: string; thumbnail_url: string | null }> };
+    if (Array.isArray(gp.media)) {
+      gp.media = gp.media.map(m => ({
+        ...m,
+        media_url: toProxyUrl(m.media_url, { type: 'group', id }) ?? m.media_url,
+        thumbnail_url: toProxyUrl(m.thumbnail_url, { type: 'group', id }),
+      }));
+    }
     return NextResponse.json({ group_post: groupPost });
   } catch (error) {
     console.error('Unexpected error in GET /api/group-posts/[id]:', error);

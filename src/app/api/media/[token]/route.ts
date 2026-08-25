@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getServerAuth, getSupabaseAdmin } from '@/lib/auth-server';
+import { getServerAuth, getSupabaseAdmin, isAdminEmail } from '@/lib/auth-server';
 import { enforceRateLimit } from '@/lib/rate-limit';
 import { verifyMediaToken } from '@/lib/media/token';
 import { authorizeMedia } from '@/lib/media/authorize';
@@ -35,7 +35,12 @@ export async function GET(
     const viewerId = user?.id ?? null;
 
     const admin = getSupabaseAdmin();
-    const auth = await authorizeMedia(admin, payload, viewerId);
+    // Moderator override: admins view reported content (admin/reports). A
+    // legitimate, narrow access class; private cache so it's never shared.
+    const isModerator = isAdminEmail(user?.email, process.env.ADMIN_EMAILS);
+    const auth = isModerator
+      ? { allow: true, isPublic: false }
+      : await authorizeMedia(admin, payload, viewerId);
     if (!auth.allow) {
       return NextResponse.json({ error: 'Not found' }, { status: 404 });
     }

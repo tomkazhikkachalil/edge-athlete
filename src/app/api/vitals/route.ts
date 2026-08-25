@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { requireAuth, getSupabaseAdmin } from '@/lib/auth-server';
 import { filterVitalsRows, aspectHidden } from '@/lib/vitals-privacy';
 import { fetchVitalsPrivacy } from '@/lib/vitals-privacy-server';
+import { toProxyUrl } from '@/lib/media/proxy-url';
 
 /**
  * GET /api/vitals?profileId=xxx
@@ -153,7 +154,18 @@ export async function GET(request: NextRequest) {
       // Aspect filter: body rows drop when body is private, the rest when
       // records is private. Owners always get everything.
       vitals: filterVitalsRows(vitals || [], privacy, isOwner),
-      trainingPosts: trainingPostsRaw || [],
+      // Training posts are ordinary posts — their media is post media, proxied
+      // under each post's id (governed by the post rule).
+      trainingPosts: (trainingPostsRaw || []).map((p) => {
+        const post = p as { id: string; media?: Array<{ media_url: string }> };
+        return {
+          ...post,
+          media: (post.media || []).map((m) => ({
+            ...m,
+            media_url: toProxyUrl(m.media_url, { type: 'post', id: post.id }) ?? m.media_url,
+          })),
+        };
+      }),
       // dob is what Edit Profile saves; birthday is a legacy column kept as
       // fallback (previously this read birthday alone — usually null, which
       // hid every age-at-date annotation).

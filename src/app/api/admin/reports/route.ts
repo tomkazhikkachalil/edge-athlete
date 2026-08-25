@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseAdmin, requireAdmin } from '@/lib/auth-server';
+import { toProxyUrl } from '@/lib/media/proxy-url';
 
 const VALID_STATUSES = ['open', 'reviewing', 'resolved', 'dismissed'];
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -40,7 +41,16 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Failed to load reports' }, { status: 500 });
     }
 
-    return NextResponse.json({ reports: reports || [] });
+    // Proxy reported message media (the moderator override in the proxy grants
+    // admins access regardless of conversation membership).
+    const proxiedReports = (reports || []).map((r) => {
+      const report = r as unknown as { message?: { id: string; media_url: string | null } | Array<{ id: string; media_url: string | null }> | null };
+      const message = Array.isArray(report.message) ? report.message[0] : report.message;
+      return message?.media_url
+        ? { ...report, message: { ...message, media_url: toProxyUrl(message.media_url, { type: 'message', id: message.id }) } }
+        : report;
+    });
+    return NextResponse.json({ reports: proxiedReports });
   } catch (error) {
     if (error instanceof Response) return error;
     console.error('GET /api/admin/reports error:', error);
