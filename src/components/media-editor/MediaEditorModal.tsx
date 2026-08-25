@@ -26,7 +26,8 @@ import { isServerAllowedType } from '@/lib/media/validation';
 import { isVideoEditingSupported } from '@/lib/media/video';
 import { isEngineSupported } from '@/lib/media/engine/engine';
 import { autoEnhance } from '@/lib/media/engine/auto-enhance';
-import { sampleFileHistogram } from '@/lib/media/engine/sample';
+import { sampleFileHistogram, sampleFrameRegion } from '@/lib/media/engine/sample';
+import { neutralizeWhiteBalance } from '@/lib/media/engine/white-balance';
 import type { EditedMedia, EditorConfig, ImageRecipe, MediaAsset } from '@/lib/media/types';
 import CropStage from './CropStage';
 import AdjustPanel from './AdjustPanel';
@@ -88,6 +89,8 @@ export default function MediaEditorModal({ assets: initialAssets, config, onDone
   const [comparing, setComparing] = useState(false);
   // Masks tool: which mask the overlay/panel are editing.
   const [selectedMaskIndex, setSelectedMaskIndex] = useState(0);
+  // White-balance eyedropper: stage waits for one neutral-gray tap.
+  const [wbPicking, setWbPicking] = useState(false);
 
   // Crop/filter/trim recipes are deliberately non-persistable, so a confirm
   // on cancel is the only protection against losing the edits.
@@ -108,6 +111,7 @@ export default function MediaEditorModal({ assets: initialAssets, config, onDone
       if (exporting) return;
       if (e.key === 'Escape') {
         if (confirmOpen) cancelDiscard();
+        else if (wbPicking) setWbPicking(false);
         else if (historySheetOpen) setHistorySheetOpen(false);
         else requestClose();
         return;
@@ -184,6 +188,16 @@ export default function MediaEditorModal({ assets: initialAssets, config, onDone
     );
   };
 
+  // Eyedropper resolution: sample the framed image (pre-color) where the
+  // user tapped, invert the WB stage, land as ONE undo step.
+  const handleWbPick = async (id: string, file: File, recipe: ImageRecipe, u: number, v: number) => {
+    setWbPicking(false);
+    const sample = await sampleFrameRegion(file, recipe, u, v);
+    if (!sample) return;
+    const wb = neutralizeWhiteBalance(sample[0], sample[1], sample[2]);
+    patchRecipe(id, { color: { ...recipe.color, ...wb } }, 'wb.eyedropper');
+  };
+
   const handleDone = async () => {
     if (exporting) return;
     setExporting({ done: 0, total: assets.length });
@@ -217,6 +231,8 @@ export default function MediaEditorModal({ assets: initialAssets, config, onDone
             recipe={imageRecipe}
             onPatch={(patch, keys) => patchRecipe(active.id, patch, keys)}
             onAutoEnhance={() => handleAutoEnhance(active.id, active.file, imageRecipe)}
+            onWhiteBalancePick={() => setWbPicking(current => !current)}
+            whiteBalancePicking={wbPicking}
             engineAvailable={isEngineSupported()}
           />
         )}
@@ -416,6 +432,23 @@ export default function MediaEditorModal({ assets: initialAssets, config, onDone
                     selectedIndex={selectedMaskIndex}
                     onSelect={setSelectedMaskIndex}
                     onChange={(masks, keys) => patchRecipe(active.id, { masks }, keys)}
+                  />
+                )}
+                {wbPicking && (
+                  <button
+                    type="button"
+                    aria-label="Sample white balance from the photo"
+                    className="absolute inset-0 w-full h-full cursor-crosshair"
+                    onPointerDown={e => {
+                      const rect = e.currentTarget.getBoundingClientRect();
+                      handleWbPick(
+                        active.id,
+                        active.file,
+                        imageRecipe,
+                        (e.clientX - rect.left) / rect.width,
+                        (e.clientY - rect.top) / rect.height
+                      );
+                    }}
                   />
                 )}
               </div>

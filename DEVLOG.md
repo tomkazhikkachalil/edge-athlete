@@ -1,5 +1,32 @@
 # Development Log
 
+## August 25, 2026 — Photo engine E4d: film grain + white-balance eyedropper
+
+Two small Phase-2 finishers in one round.
+
+**Film grain** (Detail group: Grain + Grain size). Procedural monochrome
+noise per grain cell (1–3 device px), midtone-weighted (4·L·(1−L) — real
+stock grains the midtones; shadows and highlights stay cleaner), applied
+as the LAST look stage over the vignette. One parity deviation stated
+honestly in `grain-math.ts`: the GPU's fract(sin) hash and the CPU's
+integer hash produce DIFFERENT per-pixel noise (GPU sin precision varies
+by driver, so cross-platform determinism is impossible anyway) — grain's
+parity contract is STATISTICAL (zero mean, same amplitude, same
+weighting), which the tests pin. Everything deterministic elsewhere stays
+byte-comparable. e2e lesson: a zero-mean effect is invisible to the mean-
+luma probe — the grain probe measures VARIANCE, on a 1:1 center crop
+(scaling down would average the noise away).
+
+**White-balance eyedropper** (Color group: "White balance" → tap a
+neutral). `white-balance.ts` inverts the engine's own WB stage in closed
+form — temperature equalizes r and b exactly, tint pulls g onto them —
+clamped to slider range so a wildly colored "neutral" maxes the sliders
+instead of exploding. The sample comes from a 5×5 average of the FRAMED
+image (geometry applied, color NOT — you're neutralizing the source
+cast), via the same renderGeometry the export uses. Lands as one undo
+step; Escape backs out of picking before anything else (the layered-
+Escape chain grew a link).
+
 ## August 25, 2026 — Photo engine E4c: local adjustments (radial + linear masks)
 
 Third Phase-2 slice: a Masks tool — up to four radial (ellipse, feathered,
