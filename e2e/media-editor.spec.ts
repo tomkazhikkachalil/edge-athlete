@@ -174,6 +174,18 @@ test('media editor: crop session, undo, re-edit, dirty confirm, publish', async 
   // The selected spot's Size slider tunes it.
   await page.getByRole('slider', { name: 'Size', exact: true }).fill('40');
 
+  // Text & stickers (E4h): add big white text + an emoji sticker. The
+  // PREVIEW overlay is DOM (not the engine canvas), so the pixel proof of
+  // the export happens on the rendered tile after Done, below.
+  await page.getByRole('button', { name: 'Text', exact: true }).click();
+  await page.getByRole('button', { name: '+ Text', exact: true }).click();
+  await expect(page.getByRole('button', { name: 'Overlay 1' })).toBeVisible();
+  const textInput = page.getByRole('textbox', { name: 'Overlay text' });
+  await textInput.fill('GO');
+  await page.getByRole('slider', { name: 'Size', exact: true }).fill('95');
+  await page.getByRole('button', { name: '+ Sticker', exact: true }).click();
+  await expect(page.getByRole('button', { name: 'Overlay 2' })).toBeVisible();
+
   // Hold-to-compare: while pressed, the stage shows the ORIGINAL — the
   // darkened preview must come back up to the neutral reading.
   const compareBtn = page.getByRole('button', { name: 'Hold to compare with original' });
@@ -256,11 +268,45 @@ test('media editor: crop session, undo, re-edit, dirty confirm, publish', async 
   await page.getByRole('button', { name: 'Done', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'Edit media' })).toBeHidden({ timeout: 30_000 });
 
+  // E4h export proof: the rendered tile must contain the big pure-white
+  // 'GO' glyphs — count near-white pixels in the exported blob (the DOM
+  // preview never touches the canvas, so this is the only pixel check
+  // that exercises drawOverlays + the bundled fonts).
+  const whitePixels = await page.evaluate(async () => {
+    const imgs = [...document.querySelectorAll('img')].filter(el =>
+      el.src.startsWith('blob:')
+    ) as HTMLImageElement[];
+    const tile = imgs.sort(
+      (a, b) => b.naturalWidth * b.naturalHeight - a.naturalWidth * a.naturalHeight
+    )[0];
+    if (!tile) return -1;
+    await tile.decode();
+    const canvas = document.createElement('canvas');
+    canvas.width = tile.naturalWidth;
+    canvas.height = tile.naturalHeight;
+    const ctx = canvas.getContext('2d')!;
+    ctx.drawImage(tile, 0, 0);
+    const d = ctx.getImageData(0, 0, canvas.width, canvas.height).data;
+    let count = 0;
+    for (let i = 0; i < d.length; i += 4) {
+      if (d[i] > 245 && d[i + 1] > 245 && d[i + 2] > 245) count++;
+    }
+    return count;
+  });
+  expect(whitePixels).toBeGreaterThan(200);
+
   // The tile rendered with its re-edit pencil; reopening rehydrates the recipe.
   const editPencil = page.getByRole('button', { name: 'Edit media', exact: true });
   await expect(editPencil).toBeVisible();
   await editPencil.click();
   await expect(page.getByRole('heading', { name: 'Edit media' })).toBeVisible({ timeout: 15_000 });
+
+  // Overlays rehydrated: the Text tool lists both, content intact.
+  await page.getByRole('button', { name: 'Text', exact: true }).click();
+  await expect(page.getByRole('button', { name: 'GO', exact: true })).toBeVisible();
+  // .first(): the history rail also has a 'Crop' row; the tool tab
+  // precedes the rail in DOM order.
+  await page.getByRole('button', { name: 'Crop', exact: true }).first().click();
 
   // Dirty close asks before discarding; "Keep editing" returns to the editor.
   await page.getByRole('button', { name: '4:5', exact: true }).click();

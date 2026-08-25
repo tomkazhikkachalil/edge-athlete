@@ -101,6 +101,35 @@ export interface GrainSettings {
   size: number;
 }
 
+/** Bundled overlay faces (E4h) — family names owned by globals.css. */
+export type OverlayFontId = 'inter' | 'lora' | 'caveat';
+
+/**
+ * Text / emoji-sticker overlay (Phase 2 E4h). (x, y) is the CENTER,
+ * normalized top-left space on the framed image; size is the text height
+ * as a fraction of image WIDTH; rotation in degrees.
+ */
+export type Overlay =
+  | {
+      kind: 'text';
+      content: string; // 1..120 chars
+      x: number;
+      y: number;
+      size: number; // 0.02..0.3
+      fontId: OverlayFontId;
+      color: string; // '#rrggbb'
+      rotation: number; // −45..45
+      pill?: boolean; // rounded translucent backdrop
+    }
+  | {
+      kind: 'emoji';
+      emoji: string; // 1..16 chars (ZWJ sequences)
+      x: number;
+      y: number;
+      size: number;
+      rotation: number;
+    };
+
 /** Clone stamp (Phase 2 E4g): copy a feathered circle from (src) over
  *  (dst). Normalized to the FRAMED image, origin top-left; radius is a
  *  fraction of image WIDTH. Max 8. */
@@ -205,6 +234,10 @@ export interface ImageRecipe {
   grain?: GrainSettings;
   /** Clone stamps (Phase 2 healing v1): absent/empty = none. Max 8. */
   clones?: CloneStamp[];
+  /** Text + emoji sticker overlays (Phase 2 E4h): absent/empty = none.
+   *  Max 8. Drawn LAST (over grain/vignette) by 2D canvas, never by the
+   *  engine — glyph raster is a canvas job. */
+  overlays?: Overlay[];
 }
 
 /** One segment of the output timeline — a [in, out) slice of the SOURCE. */
