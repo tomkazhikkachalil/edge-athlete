@@ -6,6 +6,7 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { useAuth } from '@/lib/auth';
 import AppHeader from '@/components/AppHeader';
+import ConfirmModal from '@/components/ConfirmModal';
 import { FEATURE_FLAGS } from '@/lib/features';
 import { formatDisplayName } from '@/lib/formatters';
 
@@ -100,6 +101,16 @@ export default function GuardianApprovalsPage() {
       cancelled = true;
     };
   }, [user]);
+
+  // Rejection is TERMINAL server-side (the PATCH refuses to re-decide), so
+  // it must never be a single tap — dummy-proofing round. Approve stays
+  // direct: it's the reversible-in-effect action (content publishes as the
+  // athlete intended).
+  const [pendingReject, setPendingReject] = useState<
+    | { kind: 'post'; postId: string }
+    | { kind: 'comment'; comment: PendingComment }
+    | null
+  >(null);
 
   const decide = async (postId: string, action: 'approve' | 'reject') => {
     setActing(postId);
@@ -260,7 +271,7 @@ export default function GuardianApprovalsPage() {
                     Approve
                   </button>
                   <button
-                    onClick={() => decide(post.id, 'reject')}
+                    onClick={() => setPendingReject({ kind: 'post', postId: post.id })}
                     disabled={acting === post.id}
                     className="border border-red-300 dark:border-red-700 text-red-600 dark:text-red-400 px-4 py-2 rounded-md text-sm font-medium hover:bg-red-50 dark:hover:bg-red-950/40 transition disabled:opacity-50"
                   >
@@ -318,7 +329,7 @@ export default function GuardianApprovalsPage() {
                         Approve
                       </button>
                       <button
-                        onClick={() => decideComment(comment, 'reject')}
+                        onClick={() => setPendingReject({ kind: 'comment', comment })}
                         disabled={acting === comment.id}
                         className="border border-red-300 dark:border-red-700 text-red-600 dark:text-red-400 px-4 py-2 rounded-md text-sm font-medium hover:bg-red-50 dark:hover:bg-red-950/40 transition disabled:opacity-50"
                       >
@@ -334,6 +345,24 @@ export default function GuardianApprovalsPage() {
           </>
         )}
       </main>
+
+      <ConfirmModal
+        isOpen={pendingReject !== null}
+        title={pendingReject?.kind === 'comment' ? 'Reject this comment?' : 'Reject this post?'}
+        message={
+          pendingReject?.kind === 'comment'
+            ? "Rejecting is permanent — a rejected comment can never be approved later. Your athlete will see that it wasn't approved."
+            : "Rejecting is permanent — a rejected post can never be approved later. Your athlete keeps it on their own profile, marked as not approved."
+        }
+        confirmText="Reject"
+        cancelText="Keep reviewing"
+        onConfirm={() => {
+          if (pendingReject?.kind === 'post') void decide(pendingReject.postId, 'reject');
+          if (pendingReject?.kind === 'comment') void decideComment(pendingReject.comment, 'reject');
+          setPendingReject(null);
+        }}
+        onCancel={() => setPendingReject(null)}
+      />
     </div>
   );
 }

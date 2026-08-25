@@ -7,6 +7,7 @@ import { useAuth } from '@/lib/auth';
 import { formatDisplayName, getInitials } from '@/lib/formatters';
 import { getHandle } from '@/lib/profile-display';
 import { useBodyScrollLock } from '@/hooks/useBodyScrollLock';
+import ConfirmModal from '@/components/ConfirmModal';
 
 interface Profile {
   id: string;
@@ -18,6 +19,7 @@ interface Profile {
   handle?: string | null;
   sport?: string | null;
   school?: string | null;
+  visibility?: string | null;
 }
 
 interface FollowersModalProps {
@@ -37,7 +39,13 @@ export default function FollowersModal({ isOpen, onClose, profileId, initialTab 
   const [myPending, setMyPending] = useState<Set<string>>(new Set()); // IDs with an outgoing pending request
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [actionLoading, setActionLoading] = useState<string | null>(null); // Track which button is loading
+  const [actionLoading, setActionLoading] = useState<string | null>(null);
+  // Dummy-proofing round: unfollowing a PRIVATE athlete needs a confirm
+  // (re-following is a request they must approve — access is lost until
+  // then); removing a fan always does (it deletes THEIR follow of you).
+  const [confirmAction, setConfirmAction] = useState<
+    { kind: 'unfollow' | 'removeFan'; profile: Profile } | null
+  >(null); // Track which button is loading
 
   // Is this the current user's own profile?
   const isOwnProfile = user?.id === profileId;
@@ -421,7 +429,11 @@ export default function FollowersModal({ isOpen, onClose, profileId, initialTab 
                             {/* Fan/Unfollow button - always visible */}
                             {amFanOfThem ? (
                               <button
-                                onClick={(e) => handleUnfollow(profile.id, e)}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  if (profile.visibility === 'private') setConfirmAction({ kind: 'unfollow', profile });
+                                  else void handleUnfollow(profile.id, e);
+                                }}
                                 disabled={isLoadingThis}
                                 className="px-3 py-2 min-h-[44px] text-xs font-medium text-secondary bg-gray-200 dark:bg-stone-800 rounded-full hover:bg-gray-300 dark:hover:bg-stone-700 transition-colors disabled:opacity-50 whitespace-nowrap"
                               >
@@ -454,7 +466,7 @@ export default function FollowersModal({ isOpen, onClose, profileId, initialTab 
                             {/* Remove Fan - only on own profile, always visible */}
                             {isOwnProfile && (
                               <button
-                                onClick={(e) => handleRemoveFan(profile.id, e)}
+                                onClick={(e) => { e.stopPropagation(); setConfirmAction({ kind: 'removeFan', profile }); }}
                                 disabled={isLoadingThis}
                                 className="px-3 py-2 min-h-[44px] text-xs font-medium text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-950/40 rounded-full hover:bg-red-100 dark:hover:bg-red-950/60 transition-colors disabled:opacity-50 whitespace-nowrap"
                               >
@@ -469,7 +481,11 @@ export default function FollowersModal({ isOpen, onClose, profileId, initialTab 
                           <>
                             {amFanOfThem ? (
                               <button
-                                onClick={(e) => handleUnfollow(profile.id, e)}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  if (profile.visibility === 'private') setConfirmAction({ kind: 'unfollow', profile });
+                                  else void handleUnfollow(profile.id, e);
+                                }}
                                 disabled={isLoadingThis}
                                 className="px-3 py-2 min-h-[44px] text-xs font-medium text-secondary bg-gray-200 dark:bg-stone-800 rounded-full hover:bg-gray-300 dark:hover:bg-stone-700 transition-colors disabled:opacity-50 whitespace-nowrap"
                               >
@@ -509,6 +525,26 @@ export default function FollowersModal({ isOpen, onClose, profileId, initialTab 
           )}
         </div>
       </div>
+
+      <ConfirmModal
+        isOpen={confirmAction !== null}
+        title={confirmAction?.kind === 'removeFan' ? 'Remove this fan?' : 'Unfollow this athlete?'}
+        message={
+          confirmAction?.kind === 'removeFan'
+            ? "They'll no longer follow you and won't be told. They'd have to send a new request to follow you again."
+            : 'Their profile is private — to follow again you would need to send a new request and wait for their approval.'
+        }
+        confirmText={confirmAction?.kind === 'removeFan' ? 'Remove fan' : 'Unfollow'}
+        onConfirm={() => {
+          const action = confirmAction;
+          setConfirmAction(null);
+          if (!action) return;
+          const noop = { stopPropagation: () => {} } as React.MouseEvent;
+          if (action.kind === 'unfollow') void handleUnfollow(action.profile.id, noop);
+          else void handleRemoveFan(action.profile.id, noop);
+        }}
+        onCancel={() => setConfirmAction(null)}
+      />
     </div>
   );
 }

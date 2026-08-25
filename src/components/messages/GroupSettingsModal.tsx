@@ -3,6 +3,7 @@
 import { useState, useCallback, useMemo } from 'react';
 import LazyImage from '@/components/LazyImage';
 import { formatDisplayName, getInitials } from '@/lib/formatters';
+import ConfirmModal from '@/components/ConfirmModal';
 import type { Conversation, ConversationParticipant } from '@/types/messages';
 import { useBodyScrollLock } from '@/hooks/useBodyScrollLock';
 import { useTypeahead } from '@/hooks/useTypeahead';
@@ -25,6 +26,8 @@ export default function GroupSettingsModal({ conversation, currentUserId, onClos
   const [savingName, setSavingName] = useState(false);
   const [error, setError] = useState('');
   const [addingMembers, setAddingMembers] = useState(false);
+  // Removing someone is not a stray-tap decision (dummy-proofing round).
+  const [removeTarget, setRemoveTarget] = useState<ConversationParticipant | null>(null);
 
 
   const myParticipant = conversation.my_participant;
@@ -252,7 +255,7 @@ export default function GroupSettingsModal({ conversation, currentUserId, onClos
                         Tailwind's layered utilities). Extender instead. */}
                     {isAdmin && !isMe && (
                       <button
-                        onClick={() => handleRemoveMember(p)}
+                        onClick={() => setRemoveTarget(p)}
                         className="relative after:absolute after:content-[''] after:-inset-2.5 text-red-400 hover:text-red-600 active:text-red-600 dark:hover:text-red-400 p-1 shrink-0"
                         title="Remove from group"
                       >
@@ -335,6 +338,18 @@ export default function GroupSettingsModal({ conversation, currentUserId, onClos
           </div>
         </div>
       </div>
+
+      <ConfirmModal
+        isOpen={removeTarget !== null}
+        title="Remove from group?"
+        message={`${removeTarget ? formatDisplayName(removeTarget.profile?.first_name, null, removeTarget.profile?.last_name, removeTarget.profile?.full_name) || 'This member' : 'This member'} will lose access to the conversation.`}
+        confirmText="Remove"
+        onConfirm={() => {
+          if (removeTarget) void handleRemoveMember(removeTarget);
+          setRemoveTarget(null);
+        }}
+        onCancel={() => setRemoveTarget(null)}
+      />
     </div>
   );
 }

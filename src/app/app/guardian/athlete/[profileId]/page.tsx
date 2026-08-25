@@ -189,6 +189,10 @@ export default function GuardianAthletePage() {
   const [pendingInvites, setPendingInvites] = useState<PendingInvite[]>([]);
   const [inviteEmail, setInviteEmail] = useState('');
   const [inviteBusy, setInviteBusy] = useState(false);
+  // Cancelling breaks a link that may already be in the other parent's
+  // hands, and it sits one tap from "Get new link" — confirm it
+  // (dummy-proofing round).
+  const [cancelInviteTarget, setCancelInviteTarget] = useState<{ id: string; email: string } | null>(null);
   const [manualInviteUrl, setManualInviteUrl] = useState('');
   const [removeTarget, setRemoveTarget] = useState<GuardianRow | null>(null);
   const [removing, setRemoving] = useState(false);
@@ -1152,7 +1156,7 @@ export default function GuardianAthletePage() {
                       </button>
                       <button
                         type="button"
-                        onClick={() => cancelInvite(inv.id)}
+                        onClick={() => setCancelInviteTarget({ id: inv.id, email: inv.invited_email })}
                         className="shrink-0 min-h-[44px] px-2 inline-flex items-center text-sm font-semibold text-secondary hover:text-red-600 transition-colors"
                       >
                         Cancel
@@ -1278,6 +1282,19 @@ export default function GuardianAthletePage() {
           </>
         )}
       </main>
+
+      <ConfirmModal
+        isOpen={cancelInviteTarget !== null}
+        title="Cancel this invite?"
+        message={`The invite link sent to ${cancelInviteTarget?.email ?? 'this address'} will stop working — if you already shared it, it can't be used. You can always send a new one.`}
+        confirmText="Cancel invite"
+        cancelText="Keep invite"
+        onConfirm={() => {
+          if (cancelInviteTarget) void cancelInvite(cancelInviteTarget.id);
+          setCancelInviteTarget(null);
+        }}
+        onCancel={() => setCancelInviteTarget(null)}
+      />
 
       <ConfirmModal
         isOpen={!!removeTarget}

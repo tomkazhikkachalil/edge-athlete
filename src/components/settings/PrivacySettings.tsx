@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { useAuth } from '@/lib/auth';
 import { useToast } from '@/components/Toast';
+import ConfirmModal from '@/components/ConfirmModal';
 import GuardiansCard from './GuardiansCard';
 import SupervisedSettingCard from './SupervisedSettingCard';
 
@@ -11,6 +12,10 @@ export default function PrivacySettings() {
   const { showSuccess, showError } = useToast();
   const [visibility, setVisibility] = useState<'public' | 'private'>('public');
   const [saving, setSaving] = useState(false);
+  // Going public exposes everything instantly (indexed, seen, screenshotted)
+  // — irreversible in effect, so it's never a single tap (dummy-proofing
+  // round). Going private stays direct: it only ever narrows exposure.
+  const [confirmingPublic, setConfirmingPublic] = useState(false);
 
   // Sync from the profile during render, not in an effect: the stale value
   // paints for a frame otherwise.
@@ -75,7 +80,7 @@ export default function PrivacySettings() {
         <div className="space-y-4">
           {/* Public Option */}
           <button
-            onClick={() => handleVisibilityChange('public')}
+            onClick={() => visibility !== 'public' && setConfirmingPublic(true)}
             disabled={saving}
             className={`w-full text-left p-4 rounded-lg border-2 transition-all ${
               visibility === 'public'
@@ -153,6 +158,20 @@ export default function PrivacySettings() {
           </div>
         </div>
       </div>
+
+      <ConfirmModal
+        isOpen={confirmingPublic}
+        title="Make your profile public?"
+        message="Everyone will immediately be able to see your profile, posts, and stats, and your content may appear in search results. You can go back to private anytime, but anything seen while public stays seen."
+        confirmText="Go public"
+        confirmButtonClass="bg-brand hover:bg-brand-hover"
+        cancelText="Stay private"
+        onConfirm={() => {
+          setConfirmingPublic(false);
+          void handleVisibilityChange('public');
+        }}
+        onCancel={() => setConfirmingPublic(false)}
+      />
     </div>
   );
 }

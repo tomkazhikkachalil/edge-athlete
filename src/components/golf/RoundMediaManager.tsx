@@ -22,6 +22,7 @@ import { uploadPostMedia } from '@/lib/media/upload';
 import { inferSegment, segmentTimesFromScores, type SegmentTime } from '@/lib/media/segment-autotag';
 import { segmentLabel, segmentOptions } from '@/lib/sports/segment-schemas';
 import { MediaEditor } from '@/components/media-editor';
+import ConfirmModal from '@/components/ConfirmModal';
 import type { EditedMedia, EditorConfig, MediaAsset } from '@/lib/media/types';
 import type { SportKey } from '@/lib/sports';
 
@@ -209,6 +210,9 @@ export function RoundMediaItemControls({
   onChanged: () => void;
 }) {
   const [busy, setBusy] = useState(false);
+  // Removing an uploaded file is permanent — never a stray tap
+  // (dummy-proofing round).
+  const [confirmingRemove, setConfirmingRemove] = useState(false);
 
   const patch = async (body: Record<string, unknown>) => {
     setBusy(true);
@@ -282,7 +286,7 @@ export function RoundMediaItemControls({
 
         <button
           type="button"
-          onClick={remove}
+          onClick={() => setConfirmingRemove(true)}
           disabled={busy}
           title="Remove"
           className="flex h-10 w-10 sm:h-7 sm:w-7 shrink-0 items-center justify-center rounded text-faint hover:text-red-600 dark:hover:text-red-400"
@@ -290,6 +294,18 @@ export function RoundMediaItemControls({
           <i className="fas fa-trash text-xs" aria-hidden="true"></i>
         </button>
       </div>
+
+      <ConfirmModal
+        isOpen={confirmingRemove}
+        title="Remove this media?"
+        message="It will be removed from the round for everyone. This can't be undone."
+        confirmText="Remove"
+        onConfirm={() => {
+          setConfirmingRemove(false);
+          void remove();
+        }}
+        onCancel={() => setConfirmingRemove(false)}
+      />
     </div>
   );
 }

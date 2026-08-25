@@ -73,6 +73,10 @@ export default function ClubPage() {
   const [busy, setBusy] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
   const [removeTarget, setRemoveTarget] = useState<MemberRow | null>(null);
+  // Leaving is not a toggle-tap decision (dummy-proofing round): the DELETE
+  // drops the member row INCLUDING a manager role, and only the owner can
+  // hand that back. Joining stays one-tap (harmlessly reversible).
+  const [confirmLeave, setConfirmLeave] = useState(false);
   const [reloadKey, setReloadKey] = useState(0);
 
   useEffect(() => {
@@ -254,7 +258,7 @@ export default function ClubPage() {
                   ) : (
                     <button
                       type="button"
-                      onClick={toggleMembership}
+                      onClick={() => (viewerRole ? setConfirmLeave(true) : toggleMembership())}
                       disabled={busy}
                       className={`px-4 py-2 text-sm min-h-[40px] rounded-lg font-medium transition-colors disabled:opacity-60 ${
                         viewerRole
@@ -390,6 +394,23 @@ export default function ClubPage() {
         confirmButtonClass="bg-red-600 hover:bg-red-700 text-white"
         onConfirm={() => removeTarget && removeMember(removeTarget)}
         onCancel={() => setRemoveTarget(null)}
+      />
+
+      <ConfirmModal
+        isOpen={confirmLeave}
+        title="Leave this club?"
+        message={
+          viewerRole === 'manager'
+            ? `You'll lose your manager role — only the owner can restore it. You can rejoin as a member anytime.`
+            : `You can rejoin anytime.`
+        }
+        confirmText="Leave"
+        cancelText="Stay"
+        onConfirm={() => {
+          setConfirmLeave(false);
+          void toggleMembership();
+        }}
+        onCancel={() => setConfirmLeave(false)}
       />
     </div>
   );

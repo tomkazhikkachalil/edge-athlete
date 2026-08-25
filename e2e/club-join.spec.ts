@@ -46,6 +46,9 @@ test('club: join and leave from the club page', async ({ page }) => {
     expect((notif ?? []).length).toBeGreaterThan(0);
 
     await page.getByRole('button', { name: 'Leave club' }).click();
+    // Dummy-proofing round: leaving confirms first.
+    await expect(page.getByText('Leave this club?')).toBeVisible();
+    await page.getByRole('button', { name: 'Leave', exact: true }).click();
     await expect(page.getByRole('button', { name: 'Join club' })).toBeVisible({ timeout: 15_000 });
     await expect(page.getByText('1 member', { exact: false })).toBeVisible();
   } finally {

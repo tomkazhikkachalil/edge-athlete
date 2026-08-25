@@ -159,6 +159,9 @@ test('equipment: seed → In the Bag → search → retire → History', async (
     .filter({ hasText: model })
     .getByRole('button', { name: 'Retire', exact: true })
     .click();
+  // Dummy-proofing round: the lossy retire/reactivate toggle confirms first.
+  await expect(page.getByText('Retire this equipment?')).toBeVisible();
+  await page.getByRole('button', { name: 'Yes, retire', exact: true }).click();
   await expect(page.getByText(model)).toBeHidden({ timeout: 15_000 });
   await page.locator('section').getByRole('button', { name: /history/i }).first().click();
   await expect(page.getByText(model).first()).toBeVisible();

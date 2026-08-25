@@ -59,7 +59,8 @@ export async function GET(request: NextRequest) {
             avatar_url,
             handle,
             sport,
-            school
+            school,
+            visibility
           )
         `)
         .eq('following_id', profileId)
@@ -107,7 +108,8 @@ export async function GET(request: NextRequest) {
             avatar_url,
             handle,
             sport,
-            school
+            school,
+            visibility
           )
         `)
         .eq('follower_id', profileId);

@@ -60,6 +60,11 @@ export default function EquipmentSection({ profileId, isOwnProfile = false }: Eq
   const [equipmentToReplace, setEquipmentToReplace] = useState<EquipmentItem | null>(null);
   const [equipmentToEdit, setEquipmentToEdit] = useState<EquipmentItem | null>(null);
   const [pendingDelete, setPendingDelete] = useState<EquipmentItem | null>(null);
+  // Retire/reactivate is lossy, not a harmless toggle: reactivating clears
+  // retired_on (a hand-editable history date) and re-retiring stamps TODAY
+  // — so a stray tap destroys a hand-entered date. Confirm both directions
+  // (dummy-proofing round).
+  const [pendingToggle, setPendingToggle] = useState<EquipmentItem | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [prefs, setPrefs] = useState<EquipmentPrefs>({});
   // First-load-only guard for seeding sort/view from the athlete's defaults —
@@ -419,7 +424,10 @@ export default function EquipmentSection({ profileId, isOwnProfile = false }: Eq
                 compact={prefs.cardDetail === 'compact'}
                 onEdit={() => setEquipmentToEdit(item)}
                 onDelete={id => setPendingDelete(equipment.find(e => e.id === id) ?? null)}
-                onToggleStatus={handleToggleStatus}
+                onToggleStatus={id => {
+                  const item = equipment.find(e => e.id === id);
+                  if (item) setPendingToggle(item);
+                }}
                 onReplace={() => handleReplace(item)}
               />
             );
@@ -676,6 +684,27 @@ export default function EquipmentSection({ profileId, isOwnProfile = false }: Eq
           setPendingDelete(null);
         }}
         onCancel={() => setPendingDelete(null)}
+      />
+
+      {/* Retire/reactivate confirm */}
+      <ConfirmModal
+        isOpen={pendingToggle !== null}
+        title={pendingToggle?.status === 'active' ? 'Retire this equipment?' : 'Put back in the bag?'}
+        message={
+          pendingToggle?.status === 'active'
+            ? `${pendingToggle.brand} ${pendingToggle.model} will be marked retired as of today. You can reactivate it later, but the retirement date resets.`
+            : pendingToggle
+              ? `${pendingToggle.brand} ${pendingToggle.model} becomes active again — its retirement date is cleared and won't come back.`
+              : ''
+        }
+        confirmText={pendingToggle?.status === 'active' ? 'Yes, retire' : 'Yes, reactivate'}
+        confirmButtonClass="bg-brand hover:bg-brand-hover"
+        cancelText="Never mind"
+        onConfirm={() => {
+          if (pendingToggle) void handleToggleStatus(pendingToggle.id);
+          setPendingToggle(null);
+        }}
+        onCancel={() => setPendingToggle(null)}
       />
     </div>
   );
