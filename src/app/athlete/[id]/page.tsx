@@ -4,7 +4,7 @@ import { useEffect, useState, useRef } from 'react';
 import { useAuth } from '@/lib/auth';
 import { useRouter, useParams, useSearchParams } from 'next/navigation';
 import Image from 'next/image';
-import { isOptimizableImageSrc } from '@/lib/media/image-src';
+import { coverProxyUrl } from '@/lib/media/cover-url';
 import LazyImage from '@/components/LazyImage';
 import AppHeader from '@/components/AppHeader';
 import FollowButton from '@/components/FollowButton';
@@ -310,13 +310,15 @@ export default function AthleteProfilePage() {
             // positioned parent to fill; the gradient branch keeps it inline.
             <div className="relative w-full aspect-[3/1] max-h-64">
               <Image
-                src={profile.cover_url}
+                // Covers live in the now-private uploads bucket; serve via the
+                // public per-profile cover endpoint (raw URL 404s post-flip).
+                src={coverProxyUrl(profile.id, profile.cover_url)!}
                 alt=""
                 fill
                 preload
                 sizes="(max-width: 1280px) 100vw, 1232px"
                 className="object-cover"
-                unoptimized={!isOptimizableImageSrc(profile.cover_url)}
+                unoptimized
               />
             </div>
           ) : (
