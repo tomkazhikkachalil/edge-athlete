@@ -134,6 +134,38 @@ export function isRoundLive(
 }
 
 /**
+ * Count the rounds that should surface as LIVE for one viewer — the pure core
+ * of the header's Live indicator (`/api/golf/live-now/count`). A round counts
+ * when it is live (`isRoundLive`) AND the viewer may open it: it is public, or
+ * the viewer is an active participant (`viewerRoundIds`). This is exactly the
+ * visibility filter the deep `/api/golf/live-now` route applies after
+ * transforming rows (followed users' PRIVATE rounds never count — the deep
+ * route filters them out too), but it reads only the four lean columns, so the
+ * count endpoint can skip the heavy scorecard embed. Deduped by id.
+ */
+export function countLiveVisibleRounds(
+  rows: Array<{
+    id: string;
+    visibility?: string | null;
+    status?: string | null;
+    date?: string | null;
+    last_score_activity_at?: string | null;
+  }>,
+  viewerRoundIds: Set<string>,
+  now: number = Date.now()
+): number {
+  const seen = new Set<string>();
+  let count = 0;
+  for (const row of rows) {
+    if (seen.has(row.id)) continue;
+    seen.add(row.id);
+    if (!isRoundLive(row, now)) continue;
+    if (row.visibility === 'public' || viewerRoundIds.has(row.id)) count++;
+  }
+  return count;
+}
+
+/**
  * A started-but-never-scored round whose live window has passed. The daily
  * sweep CANCELS these (dummy-proofing round, Tom's decision): the empty
  * session must never surface in the feed as a post, but nothing is

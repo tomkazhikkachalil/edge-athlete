@@ -10,9 +10,11 @@ import { useEffect, useState } from 'react';
  * "live" every second of every day. Promoting it to a status chip made that
  * worse, so it now needs the truth.
  *
- * ONE fetch per page, shared by every caller through a module-level cache:
- * `LiveNowStrip` already polls this endpoint on /feed, /explore and /live, so
- * on those pages this adds no request at all. Elsewhere it is one cheap call.
+ * ONE cheap fetch per page, shared by every caller through a module-level
+ * cache. It hits `/api/golf/live-now/count` — which returns just `{ count }` —
+ * NOT the deep scorecard endpoint `LiveNowStrip` uses for its list. The header
+ * only needs to know whether anything is live, and this poll runs on every
+ * authenticated page, so it must stay off the heavy embed.
  *
  * Deliberately NOT a context provider: that would mean touching the root layout
  * and mounting a fetch for signed-out visitors on public pages. A module cache
@@ -34,10 +36,10 @@ async function fetchLiveCount(): Promise<number> {
 
   inFlight = (async () => {
     try {
-      const res = await fetch('/api/golf/live-now', { credentials: 'include' });
+      const res = await fetch('/api/golf/live-now/count', { credentials: 'include' });
       if (!res.ok) return cachedCount ?? 0;
       const data = await res.json();
-      return Array.isArray(data.rounds) ? data.rounds.length : 0;
+      return typeof data.count === 'number' ? data.count : 0;
     } catch {
       // An indicator is a nicety. A failure means "show nothing", never an
       // error state in the header.
