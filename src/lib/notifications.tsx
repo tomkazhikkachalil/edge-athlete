@@ -360,11 +360,11 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
   // Initial fetch on mount and cleanup on logout
   useEffect(() => {
     if (user) {
-      // PERFORMANCE OPTIMIZED: Load immediately - no artificial delays!
-      // OUT OF SCOPE by decision: fetchNotifications owns cursor pagination and
-      // is shared with the realtime channel and the "load more" handler.
+      // One request on mount, not two: fetchNotifications' response already
+      // carries unread_count and sets it (see :191), so the separate
+      // refreshUnreadCount() call was redundant. The SUBSCRIBED handler still
+      // re-fetches once to close the mount→subscription gap.
       // eslint-disable-next-line react-hooks/set-state-in-effect
-      refreshUnreadCount();
       fetchNotifications({ reset: true });
     } else {
       // Clear notifications when user logs out
