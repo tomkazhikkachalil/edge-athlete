@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseAdmin, requireAuth } from '@/lib/auth-server';
+import { UUID_RE } from '@/lib/golf/course-catalog';
 
 export async function GET(request: NextRequest) {
   try {
@@ -20,6 +21,11 @@ export async function GET(request: NextRequest) {
 
     if (!profileId) {
       return NextResponse.json({ error: 'Profile ID is required' }, { status: 400 });
+    }
+    // Malformed input is the caller's error, not a server failure — without
+    // this, a non-UUID reached Postgres and surfaced as a 500.
+    if (!UUID_RE.test(profileId)) {
+      return NextResponse.json({ error: 'Invalid profileId' }, { status: 400 });
     }
     
     // Get follower count (people following this profile) - only count accepted
