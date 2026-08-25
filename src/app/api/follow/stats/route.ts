@@ -28,25 +28,28 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Invalid profileId' }, { status: 400 });
     }
     
-    // Get follower count (people following this profile) - only count accepted
-    const { data: followers, error: followersError } = await supabase
-      .from('follows')
-      .select('id')
-      .eq('following_id', profileId)
-      .eq('status', 'accepted');
+    // Counts via head:true — never fetch the rows. The old .select('id').length
+    // transferred the entire follow graph per profile view AND silently capped
+    // at PostgREST's 1000-row limit, so a >1000-follower account reported 1000
+    // forever. (public/profile/route.ts already does it this way.)
+    const [{ count: followersCountRaw, error: followersError },
+           { count: followingCountRaw, error: followingError }] = await Promise.all([
+      supabase
+        .from('follows')
+        .select('*', { count: 'exact', head: true })
+        .eq('following_id', profileId)
+        .eq('status', 'accepted'),
+      supabase
+        .from('follows')
+        .select('*', { count: 'exact', head: true })
+        .eq('follower_id', profileId)
+        .eq('status', 'accepted'),
+    ]);
 
     if (followersError) {
       console.error('Followers error:', followersError);
       return NextResponse.json({ error: 'Failed to get followers' }, { status: 500 });
     }
-
-    // Get following count (people this profile follows) - only count accepted
-    const { data: following, error: followingError } = await supabase
-      .from('follows')
-      .select('id')
-      .eq('follower_id', profileId)
-      .eq('status', 'accepted');
-
     if (followingError) {
       console.error('Following error:', followingError);
       return NextResponse.json({ error: 'Failed to get following' }, { status: 500 });
@@ -81,8 +84,8 @@ export async function GET(request: NextRequest) {
     }
     
     return NextResponse.json({
-      followersCount: followers?.length || 0,
-      followingCount: following?.length || 0,
+      followersCount: followersCountRaw ?? 0,
+      followingCount: followingCountRaw ?? 0,
       isFollowing,
       followStatus,
       // Missing profile reads as private: the fail-safe direction is the

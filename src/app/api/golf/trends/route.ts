@@ -119,13 +119,21 @@ export async function GET(request: NextRequest) {
     // exact net double bogey). Both optional per round; absence degrades to
     // the pre-upgrade raw-gross behavior.
     const roundIds = (hcRounds || []).map(r => r.id);
-    const { data: holeRows } = roundIds.length
-      ? await supabase
-          .from('golf_holes')
-          .select('round_id, hole_number, par, strokes')
-          .in('round_id', roundIds)
-          .order('hole_number', { ascending: true })
-      : { data: [] as never[] };
+    // 60 rounds × 18 holes = 1,080 rows > PostgREST's 1000-row cap, so a single
+    // .in() silently dropped holes from the oldest rounds — the handicap for
+    // those degraded to raw-gross TODAY, not just at scale. Chunk the round ids
+    // so no batch can exceed the cap (55 rounds × 18 = 990 < 1000).
+    const HOLE_BATCH_ROUNDS = 55;
+    const holeRows: Array<{ round_id: string; hole_number: number; par: number | null; strokes: number }> = [];
+    for (let i = 0; i < roundIds.length; i += HOLE_BATCH_ROUNDS) {
+      const batch = roundIds.slice(i, i + HOLE_BATCH_ROUNDS);
+      const { data: batchRows } = await supabase
+        .from('golf_holes')
+        .select('round_id, hole_number, par, strokes')
+        .in('round_id', batch)
+        .order('hole_number', { ascending: true });
+      if (batchRows) holeRows.push(...batchRows);
+    }
     const holesByRound = new Map<string, Array<{ hole_number: number; par: number | null; strokes: number }>>();
     for (const h of holeRows || []) {
       const list = holesByRound.get(h.round_id) ?? [];
