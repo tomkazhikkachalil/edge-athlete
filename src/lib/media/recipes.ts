@@ -6,11 +6,25 @@
  * deviation from the workout-draft pattern; IndexedDB File persistence is a
  * possible future). The zod schema exists so recipes can be persisted later
  * without rework, and to validate anything that does round-trip.
+ *
+ * Versioning: the envelope is {v: N, recipe}. v3 (engine round) added flip,
+ * light/color/detail groups and filterStrength to images — all neutral-
+ * defaulted, so v2 → v3 is a spread plus neutrals. Stored v1/v2 rows
+ * upgrade transparently on read; writes always emit the current version.
  */
 
 import { z } from 'zod';
 import type { Adjustments, AspectRatioId, EditRecipe, ImageRecipe, VideoRecipe } from './types';
-import { isNeutral, NEUTRAL_ADJUSTMENTS } from './filters';
+import {
+  isNeutral,
+  isNeutralColor,
+  isNeutralDetail,
+  isNeutralLight,
+  NEUTRAL_ADJUSTMENTS,
+  NEUTRAL_COLOR,
+  NEUTRAL_DETAIL,
+  NEUTRAL_LIGHT,
+} from './filters';
 
 export function defaultImageRecipe(aspect: AspectRatioId = 'free'): ImageRecipe {
   return {
@@ -18,8 +32,14 @@ export function defaultImageRecipe(aspect: AspectRatioId = 'free'): ImageRecipe 
     crop: null,
     rotate: 0,
     straighten: 0,
+    flipH: false,
+    flipV: false,
     adjustments: { ...NEUTRAL_ADJUSTMENTS },
+    light: { ...NEUTRAL_LIGHT },
+    color: { ...NEUTRAL_COLOR },
+    detail: { ...NEUTRAL_DETAIL },
     filterId: null,
+    filterStrength: 1,
     aspect,
   };
 }
@@ -33,7 +53,8 @@ export function defaultVideoRecipe(): VideoRecipe {
  * → no quality loss, GIFs keep animating). Callers must still force a
  * re-encode for non-allowlisted source types (HEIC) regardless of no-op.
  * Video: [] clips = whole file; any real clip, volume change or reframe is
- * an edit. posterTime alone still passes the file through.
+ * an edit. posterTime alone still passes the file through. filterStrength
+ * is irrelevant when filterId is null, so it never breaks no-op by itself.
  */
 export function isNoopRecipe(recipe: EditRecipe): boolean {
   if (recipe.kind === 'video') {
@@ -43,8 +64,13 @@ export function isNoopRecipe(recipe: EditRecipe): boolean {
     recipe.crop === null &&
     recipe.rotate === 0 &&
     recipe.straighten === 0 &&
+    !recipe.flipH &&
+    !recipe.flipV &&
     recipe.filterId === null &&
-    isNeutral(recipe.adjustments)
+    isNeutral(recipe.adjustments) &&
+    isNeutralLight(recipe.light) &&
+    isNeutralColor(recipe.color) &&
+    isNeutralDetail(recipe.detail)
   );
 }
 
@@ -54,6 +80,30 @@ const adjustmentsSchema: z.ZodType<Adjustments> = z.object({
   saturation: z.number().min(0).max(2),
 });
 
+const signed = () => z.number().min(-1).max(1);
+const unsigned = () => z.number().min(0).max(1);
+
+const lightSchema = z.object({
+  exposure: signed(),
+  highlights: signed(),
+  shadows: signed(),
+  whites: signed(),
+  blacks: signed(),
+});
+
+const colorSchema = z.object({
+  temperature: signed(),
+  tint: signed(),
+  vibrance: signed(),
+});
+
+const detailSchema = z.object({
+  sharpen: unsigned(),
+  clarity: unsigned(),
+  noiseReduction: unsigned(),
+  vignette: signed(),
+});
+
 const cropRectSchema = z.object({
   x: z.number().min(0),
   y: z.number().min(0),
@@ -61,14 +111,27 @@ const cropRectSchema = z.object({
   height: z.number().positive(),
 });
 
-const imageRecipeSchema = z.object({
+const aspectSchema = z.enum(['free', '1:1', '4:5', '16:9', '3:1']);
+
+// Shared v1/v2 image core — v3 extends it with the engine-round fields.
+const imageRecipeV2Schema = z.object({
   kind: z.literal('image'),
   crop: cropRectSchema.nullable(),
   rotate: z.union([z.literal(0), z.literal(90), z.literal(180), z.literal(270)]),
   straighten: z.number().min(-45).max(45),
   adjustments: adjustmentsSchema,
   filterId: z.string().nullable(),
-  aspect: z.enum(['free', '1:1', '4:5', '16:9', '3:1']),
+  aspect: aspectSchema,
+});
+type ImageRecipeV2 = z.infer<typeof imageRecipeV2Schema>;
+
+const imageRecipeSchema = imageRecipeV2Schema.extend({
+  flipH: z.boolean(),
+  flipV: z.boolean(),
+  light: lightSchema,
+  color: colorSchema,
+  detail: detailSchema,
+  filterStrength: unsigned(),
 });
 
 // v1 video shape (single trim) — persisted rows from round B upgrade on read.
@@ -89,16 +152,18 @@ const videoClipSchema = z.object({
     .optional(),
 });
 
+// Video is unchanged in v3 — one schema serves the v2 and v3 branches.
 const videoRecipeSchema = z.object({
   kind: z.literal('video'),
   clips: z.array(videoClipSchema).max(50),
   crop: cropRectSchema.nullable(),
-  aspect: z.enum(['free', '1:1', '4:5', '16:9', '3:1']),
+  aspect: aspectSchema,
   posterTime: z.number().min(0),
 });
 
 export const editRecipeSchema = z.discriminatedUnion('kind', [imageRecipeSchema, videoRecipeSchema]);
-const editRecipeV1Schema = z.discriminatedUnion('kind', [imageRecipeSchema, videoRecipeV1Schema]);
+const editRecipeV2Schema = z.discriminatedUnion('kind', [imageRecipeV2Schema, videoRecipeSchema]);
+const editRecipeV1Schema = z.discriminatedUnion('kind', [imageRecipeV2Schema, videoRecipeV1Schema]);
 
 /** v1 video → v2: trim becomes the single clip; posterTime moves from
  *  source space into timeline space (subtract the trim start). */
@@ -115,6 +180,19 @@ export function upgradeVideoRecipeV1(recipe: VideoRecipeV1): VideoRecipe {
   return { kind: 'video', clips, crop: null, aspect: 'free', posterTime };
 }
 
+/** v2 image → v3: every new field is neutral, so old edits render the same. */
+export function upgradeImageRecipeV2(recipe: ImageRecipeV2): ImageRecipe {
+  return {
+    ...recipe,
+    flipH: false,
+    flipV: false,
+    light: { ...NEUTRAL_LIGHT },
+    color: { ...NEUTRAL_COLOR },
+    detail: { ...NEUTRAL_DETAIL },
+    filterStrength: 1,
+  };
+}
+
 export function serializeRecipe(recipe: EditRecipe): string {
   return JSON.stringify(recipeEnvelope(recipe));
 }
@@ -129,25 +207,32 @@ export function parseRecipe(raw: string): EditRecipe | null {
 
 /** The persistence shape — what post_media.edit_recipe (JSONB) holds. Kept
  *  as an object (not a string) so the column stores real JSON. */
-export function recipeEnvelope(recipe: EditRecipe): { v: 2; recipe: EditRecipe } {
-  return { v: 2, recipe };
+export function recipeEnvelope(recipe: EditRecipe): { v: 3; recipe: EditRecipe } {
+  return { v: 3, recipe };
 }
 
 /** Validate an untrusted envelope (client payload / DB row) into a recipe.
- *  v1 rows (round B) upgrade transparently; null on anything malformed —
- *  callers treat that as "no recipe". */
+ *  v1/v2 rows upgrade transparently; null on anything malformed — callers
+ *  treat that as "no recipe". */
 export function parseRecipeEnvelope(value: unknown): EditRecipe | null {
   if (!value || typeof value !== 'object') return null;
   const v = (value as { v?: unknown }).v;
   const rawRecipe = (value as { recipe?: unknown }).recipe;
-  if (v === 2) {
+  if (v === 3) {
     const result = editRecipeSchema.safeParse(rawRecipe);
     return result.success ? result.data : null;
+  }
+  if (v === 2) {
+    const result = editRecipeV2Schema.safeParse(rawRecipe);
+    if (!result.success) return null;
+    return result.data.kind === 'image' ? upgradeImageRecipeV2(result.data) : result.data;
   }
   if (v === 1) {
     const result = editRecipeV1Schema.safeParse(rawRecipe);
     if (!result.success) return null;
-    return result.data.kind === 'video' ? upgradeVideoRecipeV1(result.data) : result.data;
+    return result.data.kind === 'video'
+      ? upgradeVideoRecipeV1(result.data)
+      : upgradeImageRecipeV2(result.data);
   }
   return null;
 }

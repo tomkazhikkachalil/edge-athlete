@@ -1,5 +1,44 @@
 # Development Log
 
+## August 25, 2026 — Photo engine E1a: an in-house WebGL2 color pipeline
+
+First round of the photo-editor mandate (in-house only, Lightroom-class
+bar). The editor's adjustment engine got real: a WebGL2 shader pipeline
+(`src/lib/media/engine/`, zero new dependencies — raw GL, our own GLSL)
+now renders the live preview AND the export, replacing a preview that
+could only express what CSS filters can (brightness/contrast/saturate).
+New controls: Light (exposure, highlights, shadows, whites, blacks) and
+Color (temperature, tint, vibrance) in a grouped Adjust panel, each
+slider its own undo step (per-control coalescing keys), double-tap to
+reset, vignette + filterStrength wired in the engine/recipe for the next
+round's UI.
+
+**The parity architecture** — one set of formulas, three consumers:
+`color-math.ts` is the pure, node-tested source of truth; `shaders.ts`
+interpolates ITS constants into the GLSL (a test asserts each appears
+verbatim); `reference.ts` composes the same functions over raw bytes and
+is both the formula-pinning test target and the no-WebGL export
+fallback. Legacy-trio-only recipes keep the v2 ctx.filter path and
+byte-parity (±1 vs applyAdjustments, pinned). Preview = texture uploaded
+once per geometry, sliders are uniform-only redraws coalesced to one
+rAF — the 60fps contract.
+
+**Recipe v3**: flipH/flipV (geometry support landed — UI next round),
+light/color/detail groups, filterStrength; envelope {v:3}; v1/v2 rows
+upgrade transparently on read (spread + neutrals), writes emit v3. The
+long-pinned "v3 → null" test flipped to "v4 → null" — the one deliberate
+test change; every parity suite is additive.
+
+**Two StrictMode traps found by the e2e pixel probe** (worth their own
+paragraph — both are invisible to unit tests): (1) a React-mounted
+WebGL canvas must NOT `loseContext()` on effect cleanup — the remount
+reuses the same canvas node and inherits the dead context
+(`keepContextOnDestroy`); (2) canceling a pending rAF must also zero the
+ref that guards scheduling, or the canceled callback never resets it and
+every future draw is silently skipped. The e2e probe (exposure −60 must
+darken the preview canvas's actual pixels) caught both; DOM assertions
+alone would have shipped a frozen preview.
+
 ## August 25, 2026 — Composer: the dropzone box retires, drag-and-drop goes invisible
 
 With the capture row in (#264), the big dashed drag-and-drop box below it

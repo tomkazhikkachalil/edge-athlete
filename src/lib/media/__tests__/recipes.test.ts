@@ -25,6 +25,16 @@ describe('defaults and no-op detection', () => {
     expect(
       isNoopRecipe({ ...base, adjustments: { brightness: 1.1, contrast: 1, saturation: 1 } })
     ).toBe(false);
+    // Engine-round fields (v3)
+    expect(isNoopRecipe({ ...base, flipH: true })).toBe(false);
+    expect(isNoopRecipe({ ...base, flipV: true })).toBe(false);
+    expect(isNoopRecipe({ ...base, light: { ...base.light, exposure: 0.2 } })).toBe(false);
+    expect(isNoopRecipe({ ...base, color: { ...base.color, vibrance: -0.3 } })).toBe(false);
+    expect(isNoopRecipe({ ...base, detail: { ...base.detail, vignette: 0.4 } })).toBe(false);
+  });
+
+  it('filterStrength alone is not an edit (irrelevant without a filter)', () => {
+    expect(isNoopRecipe({ ...defaultImageRecipe(), filterStrength: 0.5 })).toBe(true);
   });
 
   it('video: clips or crop break no-op (posterTime alone still passes the file through)', () => {
@@ -43,14 +53,20 @@ describe('defaults and no-op detection', () => {
 });
 
 describe('serialization round-trip', () => {
-  it('round-trips a full image recipe', () => {
+  it('round-trips a full image recipe (every v3 field non-default)', () => {
     const recipe: ImageRecipe = {
       kind: 'image',
       crop: { x: 10, y: 20, width: 300, height: 240 },
       rotate: 270,
       straighten: -7.5,
+      flipH: true,
+      flipV: false,
       adjustments: { brightness: 1.2, contrast: 0.9, saturation: 1.4 },
+      light: { exposure: 0.4, highlights: -0.5, shadows: 0.3, whites: 0.1, blacks: -0.2 },
+      color: { temperature: -0.25, tint: 0.15, vibrance: 0.6 },
+      detail: { sharpen: 0.5, clarity: 0.2, noiseReduction: 0.1, vignette: -0.35 },
       filterId: 'warm',
+      filterStrength: 0.7,
       aspect: '4:5',
     };
     expect(parseRecipe(serializeRecipe(recipe))).toEqual(recipe);
@@ -84,10 +100,34 @@ describe('persistence envelope (post_media.edit_recipe, migration 120)', () => {
   it('round-trips an OBJECT envelope — JSONB stores real JSON, not a string', () => {
     const recipe = { ...defaultVideoRecipe(), clips: [{ in: 1, out: 4, volume: 1 }] };
     const envelope = recipeEnvelope(recipe);
-    expect(envelope).toEqual({ v: 2, recipe });
+    expect(envelope).toEqual({ v: 3, recipe });
     expect(parseRecipeEnvelope(envelope)).toEqual(recipe);
     // What a DB round-trip actually produces (plain JSON clone).
     expect(parseRecipeEnvelope(JSON.parse(JSON.stringify(envelope)))).toEqual(recipe);
+  });
+
+  it('upgrades stored v2 image envelopes: engine-round fields arrive neutral', () => {
+    const v2Image = {
+      kind: 'image',
+      crop: { x: 5, y: 5, width: 100, height: 80 },
+      rotate: 90,
+      straighten: 3,
+      adjustments: { brightness: 1.1, contrast: 0.95, saturation: 1.2 },
+      filterId: 'fade',
+      aspect: '1:1',
+    };
+    expect(parseRecipeEnvelope({ v: 2, recipe: v2Image })).toEqual({
+      ...v2Image,
+      flipH: false,
+      flipV: false,
+      light: { exposure: 0, highlights: 0, shadows: 0, whites: 0, blacks: 0 },
+      color: { temperature: 0, tint: 0, vibrance: 0 },
+      detail: { sharpen: 0, clarity: 0, noiseReduction: 0, vignette: 0 },
+      filterStrength: 1,
+    });
+    // v2 video is shape-identical in v3.
+    const v2Video = { ...defaultVideoRecipe(), clips: [{ in: 0, out: 2, volume: 0.5 }] };
+    expect(parseRecipeEnvelope({ v: 2, recipe: v2Video })).toEqual(v2Video);
   });
 
   it('upgrades stored v1 video envelopes (round B rows): trim → clip, posterTime → timeline space', () => {
@@ -109,8 +149,12 @@ describe('persistence envelope (post_media.edit_recipe, migration 120)', () => {
   it('rejects non-objects, unknown versions, and invalid recipes', () => {
     expect(parseRecipeEnvelope(null)).toBeNull();
     expect(parseRecipeEnvelope('{"v":2}')).toBeNull(); // strings are not envelopes
-    expect(parseRecipeEnvelope({ v: 3, recipe: defaultImageRecipe() })).toBeNull();
+    expect(parseRecipeEnvelope({ v: 4, recipe: defaultImageRecipe() })).toBeNull(); // future version
     expect(parseRecipeEnvelope({ v: 2, recipe: { kind: 'video', trim: null, posterTime: 0 } })).toBeNull(); // v1 shape under v2
     expect(parseRecipeEnvelope({ v: 1, recipe: { kind: 'image' } })).toBeNull();
+    // v2 image shape under v3 (missing engine fields) is malformed, not upgraded.
+    const { flipH: _f, ...v2Shaped } = defaultImageRecipe();
+    void _f;
+    expect(parseRecipeEnvelope({ v: 3, recipe: v2Shaped })).toBeNull();
   });
 });

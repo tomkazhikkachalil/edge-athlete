@@ -5,6 +5,10 @@
 /** iOS Safari corrupts canvases beyond ~4096px on a side / ~16.7M px area. */
 export const MAX_CANVAS_DIM = 4096;
 
+/** Live-preview texture cap: enough for any on-screen stage, uploads fast,
+ *  and matches the common export cap so preview ≈ export resolution. */
+export const PREVIEW_MAX_DIM = 2048;
+
 export const MB = 1024 * 1024;
 
 /** Fit w×h inside maxDim on the longest edge. Never upscales. */
