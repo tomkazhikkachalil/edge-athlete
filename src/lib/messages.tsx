@@ -43,6 +43,7 @@ export function MessagesProvider({ children }: { children: ReactNode }) {
     conversationsRef.current = conversations;
   }, [conversations]);
   const pollTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const visibilityCleanupRef = useRef<(() => void) | null>(null);
   // Controller for the auto-fetches kicked off by the user-change effect.
   // Aborted on logout / effect cleanup so navigation races don't surface as scary console errors.
   const fetchAbortRef = useRef<AbortController | null>(null);
@@ -178,13 +179,28 @@ export function MessagesProvider({ children }: { children: ReactNode }) {
         if (!controller.signal.aborted) setLoading(false);
       });
 
-      // 30-second poll fallback for realtime gaps.
+      // 30-second poll fallback for realtime gaps. This provider mounts in the
+      // ROOT layout, so it runs for every logged-in user on every page — a
+      // backgrounded tab must NOT keep polling all day (the single largest
+      // sustained cost in the app). Skip a cycle when the tab is hidden;
+      // realtime covers a focused tab, and a visibilitychange catch-up fires
+      // one refresh the moment the tab returns to the foreground.
       // Each poll cycle gets its own controller so a stale abort never kills future polls.
       pollTimerRef.current = setInterval(() => {
+        if (typeof document !== 'undefined' && document.hidden) return;
         const pollController = new AbortController();
         fetchConversations(pollController.signal);
         refreshUnreadCount(pollController.signal);
       }, 30_000);
+
+      const onVisible = () => {
+        if (document.hidden) return;
+        const c = new AbortController();
+        fetchConversations(c.signal);
+        refreshUnreadCount(c.signal);
+      };
+      document.addEventListener('visibilitychange', onVisible);
+      visibilityCleanupRef.current = () => document.removeEventListener('visibilitychange', onVisible);
     } else {
       // Clear state on logout
       fetchAbortRef.current?.abort();
@@ -201,6 +217,8 @@ export function MessagesProvider({ children }: { children: ReactNode }) {
         clearInterval(pollTimerRef.current);
         pollTimerRef.current = null;
       }
+      visibilityCleanupRef.current?.();
+      visibilityCleanupRef.current = null;
     }
 
     return () => {
@@ -209,6 +227,8 @@ export function MessagesProvider({ children }: { children: ReactNode }) {
         clearInterval(pollTimerRef.current);
         pollTimerRef.current = null;
       }
+      visibilityCleanupRef.current?.();
+      visibilityCleanupRef.current = null;
     };
   }, [user]); // eslint-disable-line react-hooks/exhaustive-deps
 
