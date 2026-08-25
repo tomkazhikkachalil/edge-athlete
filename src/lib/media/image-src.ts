@@ -37,6 +37,12 @@ const SUPABASE_HOSTS = ['.supabase.co', '.supabase.in'];
 export function isOptimizableImageSrc(src: string | null | undefined): boolean {
   if (!src) return false;
 
+  // Authenticated media proxy: the Next optimizer fetches server-side with NO
+  // user cookie, so it 403s on private objects. Proxied media must render
+  // unoptimized (the browser fetches directly with its session). Checked
+  // before the same-origin rule below, which would otherwise mark it true.
+  if (src.startsWith('/api/media/')) return false;
+
   // Same-origin path (e.g. /logo.png) — always optimizable, no host to check.
   if (src.startsWith('/')) return true;
 

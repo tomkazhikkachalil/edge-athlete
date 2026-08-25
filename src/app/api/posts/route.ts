@@ -13,6 +13,7 @@ import { createGolfRoundEntities } from '@/lib/golf/post-write';
 import { fetchGolfRoundById, fetchGolfRoundsByIds } from '@/lib/golf/post-read';
 import { enforceRateLimit } from '@/lib/rate-limit';
 import { isOrgLensVisible } from '@/lib/affiliations/org-peers';
+import { toProxyUrl } from '@/lib/media/proxy-url';
 
 // Interface for tagged profiles
 interface TaggedProfile {
@@ -81,7 +82,7 @@ function gateSharedPost(orig: any, currentUserId: string | null, followingIds: S
       handle: owner.handle,
     },
     media: (orig.media || []).map((m: { media_url: string; media_type: string }) => ({
-      media_url: m.media_url,
+      media_url: toProxyUrl(m.media_url, { type: 'post', id: orig.id }),
       media_type: m.media_type,
     })),
   };
@@ -510,13 +511,13 @@ export async function POST(request: NextRequest) {
         .sort((a: { display_order: number }, b: { display_order: number }) => a.display_order - b.display_order)
         .map((media: { id: string; media_url: string; media_type: string; display_order: number; thumbnail_url: string | null }) => ({
           id: media.id,
-          media_url: media.media_url,
+          media_url: toProxyUrl(media.media_url, { type: 'post', id: completePost.id }),
           media_type: media.media_type,
           display_order: media.display_order,
           // Selected above and then dropped here, so PostCard's
           // poster={media.thumbnail_url} was ALWAYS undefined and every video
           // in the app rendered a black first frame.
-          thumbnail_url: media.thumbnail_url ?? null
+          thumbnail_url: toProxyUrl(media.thumbnail_url, { type: 'post', id: completePost.id })
         })),
       likes: completePost.post_likes || [],
       golf_round: golfRound,
@@ -819,13 +820,14 @@ export async function GET(request: NextRequest) {
           .sort((a: { display_order: number }, b: { display_order: number }) => a.display_order - b.display_order)
           .map((media: { id: string; media_url: string; media_type: string; display_order: number; thumbnail_url: string | null }) => ({
             id: media.id,
-            media_url: media.media_url,
+            // Proxy protected-bucket bytes; the viewer is re-authorized at load.
+            media_url: toProxyUrl(media.media_url, { type: 'post', id: post.id }),
             media_type: media.media_type,
             display_order: media.display_order,
             // Selected above and then dropped here, so PostCard's
             // poster={media.thumbnail_url} was ALWAYS undefined and every video
             // in the app rendered a black first frame.
-            thumbnail_url: media.thumbnail_url ?? null
+            thumbnail_url: toProxyUrl(media.thumbnail_url, { type: 'post', id: post.id })
           })),
         likes: post.post_likes || [],
         golf_round: golfRound,
@@ -1137,13 +1139,14 @@ export async function GET(request: NextRequest) {
           .sort((a: { display_order: number }, b: { display_order: number }) => a.display_order - b.display_order)
           .map((media: { id: string; media_url: string; media_type: string; display_order: number; thumbnail_url: string | null }) => ({
             id: media.id,
-            media_url: media.media_url,
+            // Proxy protected-bucket bytes; the viewer is re-authorized at load.
+            media_url: toProxyUrl(media.media_url, { type: 'post', id: post.id }),
             media_type: media.media_type,
             display_order: media.display_order,
             // Selected above and then dropped here, so PostCard's
             // poster={media.thumbnail_url} was ALWAYS undefined and every video
             // in the app rendered a black first frame.
-            thumbnail_url: media.thumbnail_url ?? null
+            thumbnail_url: toProxyUrl(media.thumbnail_url, { type: 'post', id: post.id })
           })),
           // Same shape PostCard expects (an array holding the viewer's like
           // iff present) — never other users' likes. Count is likes_count.

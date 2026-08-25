@@ -4,6 +4,7 @@ import { parseVitalsPrivacy } from '@/lib/vitals-privacy';
 import { canViewProfile } from '@/lib/privacy';
 import { participantOrder } from '@/lib/golf/scorecard-transform';
 import { canViewSharedPost } from '@/lib/reposts';
+import { toProxyUrl } from '@/lib/media/proxy-url';
 
 interface MediaItem {
   id: string;
@@ -273,14 +274,19 @@ export async function GET(
         .in('post_id', postIds)
         .order('display_order', { ascending: true });
 
-      // Attach media to posts
+      // Attach media to posts — proxy protected-bucket bytes (the viewer is
+      // re-authorized at load; post_id is the governing entity).
       const mediaMap = new Map<string, MediaAttachment[]>();
       if (media) {
         media.forEach((m: MediaAttachment) => {
           if (!mediaMap.has(m.post_id)) {
             mediaMap.set(m.post_id, []);
           }
-          mediaMap.get(m.post_id)!.push(m);
+          mediaMap.get(m.post_id)!.push({
+            ...m,
+            media_url: toProxyUrl(m.media_url, { type: 'post', id: m.post_id }) ?? m.media_url,
+            thumbnail_url: toProxyUrl(m.thumbnail_url, { type: 'post', id: m.post_id }),
+          });
         });
       }
 

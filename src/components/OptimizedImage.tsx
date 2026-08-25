@@ -6,6 +6,7 @@
 
 import Image from 'next/image';
 import { useState } from 'react';
+import { isOptimizableImageSrc } from '@/lib/media/image-src';
 
 interface OptimizedImageProps {
   src: string | null | undefined;
@@ -57,7 +58,7 @@ export default function OptimizedImage({
       quality={quality}
       onError={() => setError(true)}
       // Allow images from Supabase Storage and other common sources
-      unoptimized={src.startsWith('http') && !src.includes('supabase')}
+      unoptimized={!isOptimizableImageSrc(src)}
     />
   );
 }
@@ -102,7 +103,7 @@ export function AvatarImage({
       className={`rounded-full object-cover ${className}`}
       quality={85}
       onError={() => setError(true)}
-      unoptimized={src.startsWith('http') && !src.includes('supabase')}
+      unoptimized={!isOptimizableImageSrc(src)}
     />
   );
 }
@@ -144,7 +145,7 @@ export function MediaImage({
         preload={preload}
         onError={() => setError(true)}
         sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
-        unoptimized={src.startsWith('http') && !src.includes('supabase')}
+        unoptimized={!isOptimizableImageSrc(src)}
       />
     );
   }
@@ -160,7 +161,7 @@ export function MediaImage({
       preload={preload}
       onError={() => setError(true)}
       style={{ width: '100%', height: 'auto' }}
-      unoptimized={src.startsWith('http') && !src.includes('supabase')}
+      unoptimized={!isOptimizableImageSrc(src)}
     />
   );
 }
