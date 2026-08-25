@@ -881,11 +881,15 @@ export async function GET(request: NextRequest) {
           last_name,
           full_name,
           handle
-        ),
-        post_likes (
-          profile_id
         )
       `)
+      // NB: post_likes is deliberately NOT embedded here. It used to pull the
+      // ENTIRE like list of every post in the page just so the client could
+      // tell whether the VIEWER liked it — a viral post shipped tens of
+      // thousands of rows, ×20 posts/page, and silently capped at 1000 (so the
+      // heart mis-rendered on popular posts). The viewer's own likes are
+      // batch-fetched below into likedPostIds, exactly like savedPostIds; the
+      // count comes from the denormalized likes_count column.
       .order(pinnedOnly ? 'pinned_at' : 'created_at', { ascending: false })
       .range(offset, offset + limit - 1);
 
@@ -988,13 +992,26 @@ export async function GET(request: NextRequest) {
     // Without it every feed post rendered unsaved, and tapping the bookmark
     // on an already-saved post silently UNSAVED it (the endpoint toggles).
     let savedPostIds = new Set<string>();
+    // The viewer's OWN likes for this page — one bounded query keyed on the
+    // viewer, replacing the per-post embed of everyone's likes. PostCard only
+    // reads post.likes to test membership of currentUserId (isLiked).
+    let likedPostIds = new Set<string>();
     if (currentUserId && finalVisiblePosts.length > 0) {
-      const { data: savedRows } = await supabase
-        .from('saved_posts')
-        .select('post_id')
-        .eq('profile_id', currentUserId)
-        .in('post_id', finalVisiblePosts.map(p => p.id));
+      const pageIds = finalVisiblePosts.map(p => p.id);
+      const [{ data: savedRows }, { data: likedRows }] = await Promise.all([
+        supabase
+          .from('saved_posts')
+          .select('post_id')
+          .eq('profile_id', currentUserId)
+          .in('post_id', pageIds),
+        supabase
+          .from('post_likes')
+          .select('post_id')
+          .eq('profile_id', currentUserId)
+          .in('post_id', pageIds),
+      ]);
       savedPostIds = new Set((savedRows || []).map(r => r.post_id));
+      likedPostIds = new Set((likedRows || []).map(r => r.post_id));
     }
 
     // Batched enrichment — ONE query per data type instead of one per post.
@@ -1128,7 +1145,9 @@ export async function GET(request: NextRequest) {
             // in the app rendered a black first frame.
             thumbnail_url: media.thumbnail_url ?? null
           })),
-          likes: post.post_likes || [],
+          // Same shape PostCard expects (an array holding the viewer's like
+          // iff present) — never other users' likes. Count is likes_count.
+          likes: currentUserId && likedPostIds.has(post.id) ? [{ profile_id: currentUserId }] : [],
           golf_round: post.golf_round || null,
           group_scorecard: post.group_scorecard || null,
           tagged_profiles: post.tagged_profiles || [],
