@@ -146,14 +146,11 @@ export async function DELETE(request: NextRequest) {
         // CRITICAL - if auth deletion fails, the email remains registered
         return NextResponse.json({
           error: 'Failed to delete authentication user',
-          details: message,
+          // Friendly guidance, not a DB detail — deliberate.
           hint: 'Account data deleted but email may still be reserved. Contact support.'
         }, { status: 500 });
       }
-      return NextResponse.json({
-        error: 'Failed to delete account data',
-        details: message
-      }, { status: 500 });
+      return NextResponse.json({ error: 'Failed to delete account data' }, { status: 500 });
     }
 
     // 9. Sign out the user
@@ -171,9 +168,6 @@ export async function DELETE(request: NextRequest) {
 
   } catch (error) {
     console.error('[Account Deletion] Unexpected error:', error);
-    return NextResponse.json({
-      error: 'Internal server error during account deletion',
-      details: error instanceof Error ? error.message : 'Unknown error'
-    }, { status: 500 });
+    return NextResponse.json({ error: 'Internal server error during account deletion' }, { status: 500 });
   }
 }

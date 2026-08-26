@@ -16,7 +16,7 @@ export async function GET(request: NextRequest) {
 
     if (error) {
       console.error('[NOTIFICATIONS API] Error fetching preferences:', error);
-      return NextResponse.json({ error: error.message }, { status: 500 });
+      return NextResponse.json({ error: 'Failed to fetch preferences' }, { status: 500 });
     }
 
     // If no preferences exist, create default ones
@@ -39,7 +39,7 @@ export async function GET(request: NextRequest) {
           if (existing) return NextResponse.json({ preferences: existing });
         }
         console.error('[NOTIFICATIONS API] Error creating preferences:', createError);
-        return NextResponse.json({ error: createError.message }, { status: 500 });
+        return NextResponse.json({ error: 'Failed to fetch preferences' }, { status: 500 });
       }
 
       return NextResponse.json({ preferences: newPreferences, lockedFields: await lockedFieldsFor(user.id) });
@@ -51,7 +51,7 @@ export async function GET(request: NextRequest) {
     if (error instanceof Response) return error;
     console.error('[NOTIFICATIONS API] Error:', error);
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : 'Failed to fetch preferences' },
+      { error: 'Failed to fetch preferences' },
       { status: 500 }
     );
   }
@@ -131,7 +131,7 @@ export async function PATCH(request: NextRequest) {
 
     if (error) {
       console.error('[NOTIFICATIONS API] Error updating preferences:', error);
-      return NextResponse.json({ error: error.message }, { status: 500 });
+      return NextResponse.json({ error: 'Failed to update preferences' }, { status: 500 });
     }
 
     return NextResponse.json({
@@ -143,7 +143,7 @@ export async function PATCH(request: NextRequest) {
     if (error instanceof Response) return error;
     console.error('[NOTIFICATIONS API] Error:', error);
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : 'Failed to update preferences' },
+      { error: 'Failed to update preferences' },
       { status: 500 }
     );
   }

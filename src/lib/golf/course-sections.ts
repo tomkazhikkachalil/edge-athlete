@@ -9,6 +9,7 @@
 // scorecard grid all work on it unchanged.
 
 import type { CourseHole, GolfCourse } from '@/types/golf';
+import { UUID_RE as UUID_SHAPE } from '@/lib/uuid';
 import {
   MIN_PLAUSIBLE_9_HOLE_RATING,
   MAX_PLAUSIBLE_9_HOLE_RATING,
@@ -22,8 +23,6 @@ export interface CompositionEntry {
 }
 
 export type CourseComposition = CompositionEntry[];
-
-const UUID_SHAPE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 /**
  * Validate a raw course_composition value (from the client or the DB).

@@ -176,7 +176,7 @@ export async function POST(request: NextRequest) {
         });
       } else {
         console.error('[PARTICIPANT SCORES] hole insert failed:', holeScoresError);
-        failures.push({ participant_id, error: holeScoresError.message });
+        failures.push({ participant_id, error: 'Failed to save hole scores' });
       }
     }
 

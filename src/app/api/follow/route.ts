@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseAdmin, requireAuth, requireProfileRole } from '@/lib/auth-server';
 import { enforceRateLimit } from '@/lib/rate-limit';
+import { isUuid } from '@/lib/uuid';
 
 export async function POST(request: NextRequest) {
   try {
@@ -21,11 +22,14 @@ export async function POST(request: NextRequest) {
     // — server-authoritative via the role matrix (owner passes too, so the
     // self case is the same gate).
     if (action === 'remove_fan') {
-      if (!fanId || typeof fanId !== 'string') {
-        return NextResponse.json({ error: 'fanId is required' }, { status: 400 });
+      if (!isUuid(fanId)) {
+        return NextResponse.json({ error: 'Invalid fan ID' }, { status: 400 });
       }
       let removeFrom = user.id;
       const targetProfileId = body.targetProfileId;
+      if (targetProfileId !== undefined && targetProfileId !== null && !isUuid(targetProfileId)) {
+        return NextResponse.json({ error: 'Invalid profile ID' }, { status: 400 });
+      }
       if (typeof targetProfileId === 'string' && targetProfileId && targetProfileId !== user.id) {
         await requireProfileRole(request, targetProfileId, 'manage_privacy');
         removeFrom = targetProfileId;
@@ -46,6 +50,10 @@ export async function POST(request: NextRequest) {
     if (!followingId) {
       return NextResponse.json({ error: 'Following ID is required' }, { status: 400 });
     }
+    if (!isUuid(followingId)) {
+      // A raw non-UUID would reach Postgres as a 22P02 and surface as a 500.
+      return NextResponse.json({ error: 'Invalid following ID' }, { status: 400 });
+    }
 
     if (followerId === followingId) {
       return NextResponse.json({ error: 'Cannot follow yourself' }, { status: 400 });
@@ -61,10 +69,7 @@ export async function POST(request: NextRequest) {
 
     if (checkError) {
       console.error('[FOLLOW API] Check follow error:', checkError);
-      return NextResponse.json({
-        error: 'Failed to check follow status',
-        details: checkError.message
-      }, { status: 500 });
+      return NextResponse.json({ error: 'Failed to check follow status' }, { status: 500 });
     }
 
 
@@ -121,12 +126,7 @@ export async function POST(request: NextRequest) {
       if (insertError) {
         console.error('[FOLLOW API] Insert error:', insertError);
         console.error('[FOLLOW API] Insert error details:', JSON.stringify(insertError, null, 2));
-        return NextResponse.json({
-          error: 'Failed to follow user',
-          details: insertError.message,
-          code: insertError.code,
-          hint: insertError.hint
-        }, { status: 500 });
+        return NextResponse.json({ error: 'Failed to follow user' }, { status: 500 });
       }
 
       if (!insertedFollow) {

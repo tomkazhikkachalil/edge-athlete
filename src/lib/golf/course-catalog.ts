@@ -62,8 +62,10 @@ export function catalogAttribution(providersOn: boolean): string {
   return providersOn ? OPENGOLF_ATTRIBUTION : OSM_ATTRIBUTION;
 }
 
-export const UUID_RE =
-  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+// Canonical home is src/lib/uuid.ts (Aug 2026 hardening round); imported AND
+// re-exported so this module's many existing importers stay unchanged.
+import { UUID_RE } from '@/lib/uuid';
+export { UUID_RE };
 
 const PROVIDER_TIMEOUT_MS = 5000;
 

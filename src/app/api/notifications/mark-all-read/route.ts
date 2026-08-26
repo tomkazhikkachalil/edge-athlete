@@ -18,7 +18,7 @@ export async function PATCH(request: NextRequest) {
 
     if (error) {
       console.error('[NOTIFICATIONS API] Error marking all as read:', error);
-      return NextResponse.json({ error: error.message }, { status: 500 });
+      return NextResponse.json({ error: 'Failed to mark all as read' }, { status: 500 });
     }
 
     return NextResponse.json({
@@ -30,7 +30,7 @@ export async function PATCH(request: NextRequest) {
     if (error instanceof Response) return error;
     console.error('[NOTIFICATIONS API] Error:', error);
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : 'Failed to mark all as read' },
+      { error: 'Failed to mark all as read' },
       { status: 500 }
     );
   }

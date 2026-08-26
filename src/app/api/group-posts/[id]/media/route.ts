@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { isUuid } from '@/lib/uuid';
 import { getServerAuth, getSupabaseAdmin } from '@/lib/auth-server';
 import { toProxyUrl } from '@/lib/media/proxy-url';
 import { mirrorRoundMedia } from '@/lib/golf/round-mirror';
@@ -29,6 +30,9 @@ export async function POST(
 
   try {
     const { id: groupPostId } = await params;
+    if (!isUuid(groupPostId)) {
+      return NextResponse.json({ error: 'Invalid group post ID' }, { status: 400 });
+    }
     const body = await request.json();
     const {
       media_url,

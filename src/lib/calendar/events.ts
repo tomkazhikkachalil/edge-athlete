@@ -7,6 +7,7 @@
 // here so a client bug surfaces as a 400 instead of an off-by-one grid.
 
 import { emailString } from '../validation';
+import { UUID_RE } from '@/lib/uuid';
 
 export const EVENT_CATEGORIES = [
   'general', 'practice', 'game', 'tournament', 'training', 'social', 'other', 'workout',
@@ -41,8 +42,6 @@ export interface NormalizedGuestInput {
   profileIds: string[];
   emails: string[];
 }
-
-const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 function isValidTimeZone(tz: string): boolean {
   if (!tz || tz.length > 64) return false;

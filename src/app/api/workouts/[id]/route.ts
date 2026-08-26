@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { isUuid } from '@/lib/uuid';
 import { requireAuth, getSupabaseAdmin } from '@/lib/auth-server';
 import { aspectHidden } from '@/lib/vitals-privacy';
 import { fetchVitalsPrivacy } from '@/lib/vitals-privacy-server';
@@ -35,6 +36,9 @@ export async function GET(
   try {
     const supabase = getSupabaseAdmin();
     const { id } = await params;
+    if (!isUuid(id)) {
+      return NextResponse.json({ error: 'Invalid workout ID' }, { status: 400 });
+    }
 
     let currentUserId: string | null = null;
     try {
@@ -120,6 +124,9 @@ export async function PATCH(
     const supabase = getSupabaseAdmin();
     const user = await requireAuth(request);
     const { id } = await params;
+    if (!isUuid(id)) {
+      return NextResponse.json({ error: 'Invalid workout ID' }, { status: 400 });
+    }
     const body = await request.json();
 
     const { data: session, error: fetchError } = await supabase
@@ -216,6 +223,9 @@ export async function DELETE(
     const supabase = getSupabaseAdmin();
     const user = await requireAuth(request);
     const { id } = await params;
+    if (!isUuid(id)) {
+      return NextResponse.json({ error: 'Invalid workout ID' }, { status: 400 });
+    }
 
     const { data: session, error: fetchError } = await supabase
       .from('workout_sessions')

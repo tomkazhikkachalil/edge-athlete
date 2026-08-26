@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { isUuid } from '@/lib/uuid';
 import { requireAuth, getSupabaseAdmin } from '@/lib/auth-server';
 import { FEATURE_FLAGS } from '@/lib/features';
 import { isValidReminderMinutes } from '@/lib/calendar/reminders';
@@ -19,6 +20,9 @@ export async function POST(
   try {
     const user = await requireAuth(request);
     const { id } = await params;
+    if (!isUuid(id)) {
+      return NextResponse.json({ error: 'Invalid event ID' }, { status: 400 });
+    }
     const body = await request.json().catch(() => ({}));
     const minutes = body.minutes;
     if (!isValidReminderMinutes(minutes)) {

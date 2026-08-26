@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { isUuid } from '@/lib/uuid';
 import { getSupabaseAdmin } from '@/lib/auth-server';
 import { computeActiveSports } from '@/lib/sports/active-sports';
 
@@ -25,7 +26,7 @@ export async function GET(
 ) {
   try {
     const { profileId } = await params;
-    if (!profileId) {
+    if (!profileId || !isUuid(profileId)) {
       return NextResponse.json({ error: 'Profile ID is required' }, { status: 400 });
     }
 

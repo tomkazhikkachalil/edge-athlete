@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { isUuid } from '@/lib/uuid';
 import { getSupabaseAdmin, getServerAuth } from '@/lib/auth-server';
 import { parseVitalsPrivacy } from '@/lib/vitals-privacy';
 import { canViewProfile } from '@/lib/privacy';
@@ -105,6 +106,9 @@ export async function GET(
 
     // Parameters (await params in Next.js 15)
     const { profileId } = await params;
+    if (!isUuid(profileId)) {
+      return NextResponse.json({ error: 'Invalid profile ID' }, { status: 400 });
+    }
     const tab = searchParams.get('tab') || 'all'; // all | stats | tagged | statements
     // NaN-guard (?limit=abc used to reach the RPC and 500)
     const limit = Math.min(Math.max(parseInt(searchParams.get('limit') || '20', 10) || 20, 1), 100);
@@ -198,12 +202,7 @@ export async function GET(
       if (rpcParams.filter_sport_keys || rpcParams.filter_years) {
         console.error('Hint: ensure migration 018_profile_media_sport_year_filters.sql is applied in Supabase.');
       }
-      return NextResponse.json({
-        error: 'Failed to fetch media',
-        details: mediaError.message,
-        hint: mediaError.hint,
-        function: functionName
-      }, { status: 500 });
+      return NextResponse.json({ error: 'Failed to fetch media' }, { status: 500 });
     }
 
     let items = mediaItems as MediaItem[] || [];
@@ -533,6 +532,9 @@ export async function POST(
     const viewerId = user?.id || null;
 
     const { profileId } = await params;
+    if (!isUuid(profileId)) {
+      return NextResponse.json({ error: 'Invalid profile ID' }, { status: 400 });
+    }
 
     if (!profileId) {
       return NextResponse.json({ error: 'Profile ID is required' }, { status: 400 });

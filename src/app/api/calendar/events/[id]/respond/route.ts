@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { isUuid } from '@/lib/uuid';
 import { requireAuth, getSupabaseAdmin, getProfileRole } from '@/lib/auth-server';
 import { FEATURE_FLAGS } from '@/lib/features';
 import { notifyEventResponse } from '@/lib/calendar/notifications';
@@ -25,6 +26,9 @@ export async function POST(
   try {
     const user = await requireAuth(request);
     const { id } = await params;
+    if (!isUuid(id)) {
+      return NextResponse.json({ error: 'Invalid event ID' }, { status: 400 });
+    }
     const body = await request.json().catch(() => ({}));
     const status = typeof body.status === 'string' ? body.status : '';
     if (!VALID.has(status)) {

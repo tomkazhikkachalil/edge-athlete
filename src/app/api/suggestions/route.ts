@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { isUuid } from '@/lib/uuid';
 import { getSupabaseAdmin, requireAuth } from '@/lib/auth-server';
 
 // Type for suggestions returned by the RPC function
@@ -20,6 +21,9 @@ export async function GET(request: NextRequest) {
     const user = await requireAuth(request);
     const { searchParams } = new URL(request.url);
     const profileId = searchParams.get('profileId');
+    if (profileId && !isUuid(profileId)) {
+      return NextResponse.json({ error: 'Invalid profile ID' }, { status: 400 });
+    }
     const limit = Math.min(Math.max(parseInt(searchParams.get('limit') || '10', 10) || 10, 1), 100);
 
     if (!profileId) {
@@ -101,7 +105,7 @@ export async function GET(request: NextRequest) {
     if (error instanceof Response) return error;
     console.error('Suggestions fetch error:', error);
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : 'Failed to fetch suggestions' },
+      { error: 'Failed to fetch suggestions' },
       { status: 500 }
     );
   }
@@ -133,7 +137,7 @@ export async function POST(request: NextRequest) {
         }, { onConflict: 'profile_id,suggested_profile_id' }); // re-dismiss used to 500 on the UNIQUE constraint
 
       if (error) {
-        return NextResponse.json({ error: error.message }, { status: 500 });
+        return NextResponse.json({ error: 'Failed to process suggestion action' }, { status: 500 });
       }
 
       return NextResponse.json({ success: true, message: 'Suggestion dismissed' });
@@ -145,7 +149,7 @@ export async function POST(request: NextRequest) {
     if (error instanceof Response) return error;
     console.error('Suggestion action error:', error);
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : 'Failed to process suggestion action' },
+      { error: 'Failed to process suggestion action' },
       { status: 500 }
     );
   }

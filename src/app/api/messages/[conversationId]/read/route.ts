@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { isUuid } from '@/lib/uuid';
 import { requireAuth, getSupabaseAdmin } from '@/lib/auth-server';
 
 // ── PATCH /api/messages/[conversationId]/read ─────────────────────────────────
@@ -11,6 +12,9 @@ export async function PATCH(
     const supabase = getSupabaseAdmin();
     const user = await requireAuth(request);
     const { conversationId } = await params;
+    if (!isUuid(conversationId)) {
+      return NextResponse.json({ error: 'Invalid conversation ID' }, { status: 400 });
+    }
 
     const { error } = await supabase
       .from('conversation_participants')

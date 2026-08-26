@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
 import { requireAuth, requireProfileRole, getSupabaseAdmin } from '@/lib/auth-server';
+import { isUuid } from '@/lib/uuid';
 import { canViewProfile } from '@/lib/privacy';
 import { notifyGuardians, notifyUser, profileFirstName } from '@/lib/guardian-notify';
 
@@ -22,6 +22,9 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const type = searchParams.get('type') || 'followers'; // 'followers', 'following', 'requests'
     const profileId = searchParams.get('profileId') || user.id;
+    if (!isUuid(profileId)) {
+      return NextResponse.json({ error: 'Invalid profile ID' }, { status: 400 });
+    }
     // Bounded pages (were unbounded — a large account would ship its entire
     // follower list in one response). Defaults generous for MVP scale.
     const limit = Math.min(Math.max(parseInt(searchParams.get('limit') || '200', 10) || 200, 1), 500);
@@ -40,10 +43,7 @@ export async function GET(request: NextRequest) {
 
     if (type === 'followers') {
       // Get list of followers - use admin client to bypass RLS for profile data
-      const supabaseAdmin = createClient(
-        process.env.NEXT_PUBLIC_SUPABASE_URL!,
-        process.env.SUPABASE_SERVICE_ROLE_KEY!
-      );
+      const supabaseAdmin = getSupabaseAdmin();
 
       const { data: followers, error } = await supabaseAdmin
         .from('follows')
@@ -70,12 +70,7 @@ export async function GET(request: NextRequest) {
 
       if (error) {
         console.error('[FOLLOWERS API] Error fetching followers:', error);
-        return NextResponse.json({
-          error: error.message || 'Database error',
-          details: error.details || 'Failed to fetch followers',
-          code: error.code,
-          hint: error.hint || 'Check database setup'
-        }, { status: 500 });
+        return NextResponse.json({ error: 'Failed to fetch followers' }, { status: 500 });
       }
 
       return NextResponse.json({ followers: followers || [] });
@@ -83,10 +78,7 @@ export async function GET(request: NextRequest) {
 
     if (type === 'following') {
       // Get list of people this user follows - use admin client to bypass RLS
-      const supabaseAdmin = createClient(
-        process.env.NEXT_PUBLIC_SUPABASE_URL!,
-        process.env.SUPABASE_SERVICE_ROLE_KEY!
-      );
+      const supabaseAdmin = getSupabaseAdmin();
 
       // includeStatus=true (self only) also returns PENDING outgoing requests
       // with a status field, so clients can render "Requested" instead of
@@ -123,7 +115,8 @@ export async function GET(request: NextRequest) {
         .range(offset, offset + limit - 1);
 
       if (error) {
-        return NextResponse.json({ error: error.message }, { status: 500 });
+        console.error('[FOLLOWERS API] Error fetching following:', error);
+        return NextResponse.json({ error: 'Failed to fetch following' }, { status: 500 });
       }
 
       return NextResponse.json({ following: following || [] });
@@ -150,7 +143,7 @@ export async function GET(request: NextRequest) {
 
       if (followError) {
         console.error('[FOLLOWERS API] Error fetching follow requests:', followError);
-        return NextResponse.json({ error: followError.message }, { status: 500 });
+        return NextResponse.json({ error: 'Failed to fetch follow requests' }, { status: 500 });
       }
 
 
@@ -168,7 +161,7 @@ export async function GET(request: NextRequest) {
 
       if (profileError) {
         console.error('[FOLLOWERS API] Error fetching profiles:', profileError);
-        return NextResponse.json({ error: profileError.message }, { status: 500 });
+        return NextResponse.json({ error: 'Failed to fetch follow requests' }, { status: 500 });
       }
 
       // Combine the data
@@ -197,10 +190,7 @@ export async function GET(request: NextRequest) {
   } catch (error) {
     if (error instanceof Response) return error;
     console.error('[FOLLOWERS API] Catch error:', error);
-    return NextResponse.json({
-      error: error instanceof Error ? error.message : 'Failed to fetch followers',
-      details: 'Database setup required. See CLAUDE.md for instructions',
-    }, { status: 500 });
+    return NextResponse.json({ error: 'Failed to fetch followers' }, { status: 500 });
   }
 }
 
@@ -221,6 +211,12 @@ export async function POST(request: NextRequest) {
 
     const body = await request.json();
     const { action, followId } = body;
+    if (!isUuid(followId)) {
+      return NextResponse.json({ error: 'Invalid follow request ID' }, { status: 400 });
+    }
+    if (body.profileId !== undefined && body.profileId !== null && !isUuid(body.profileId)) {
+      return NextResponse.json({ error: 'Invalid profile ID' }, { status: 400 });
+    }
 
     // Round G ("either can approve"): a guardian may act on their managed
     // athlete's requests by passing profileId. The role matrix gates it
@@ -247,7 +243,8 @@ export async function POST(request: NextRequest) {
         .select('follower_id');
 
       if (error) {
-        return NextResponse.json({ error: error.message }, { status: 500 });
+        console.error('[FOLLOWERS API] Error accepting follow request:', error);
+        return NextResponse.json({ error: 'Failed to accept follow request' }, { status: 500 });
       }
 
       // Cross-notify the party who didn't act (the DB trigger already tells
@@ -301,7 +298,7 @@ export async function POST(request: NextRequest) {
 
       if (error) {
         console.error('[FOLLOWERS API] Error deleting follow request:', error);
-        return NextResponse.json({ error: error.message }, { status: 500 });
+        return NextResponse.json({ error: 'Failed to reject follow request' }, { status: 500 });
       }
 
       if (!deletedRows || deletedRows.length === 0) {
@@ -323,9 +320,6 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     if (error instanceof Response) return error;
     console.error('Follow action error:', error);
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : 'Failed to process follow action' },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: 'Failed to process follow action' }, { status: 500 });
   }
 }

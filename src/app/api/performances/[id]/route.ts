@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { isUuid } from '@/lib/uuid';
 import { supabaseAdmin } from '@/lib/supabase';
 import { requireAuth } from '@/lib/auth-server';
 
@@ -10,6 +11,9 @@ export async function DELETE(
     const user = await requireAuth(request);
     const params = await context.params;
     const performanceId = params.id;
+    if (!isUuid(performanceId)) {
+      return NextResponse.json({ error: 'Invalid performance ID' }, { status: 400 });
+    }
 
     if (!performanceId) {
       return NextResponse.json({ error: 'Performance ID is required' }, { status: 400 });

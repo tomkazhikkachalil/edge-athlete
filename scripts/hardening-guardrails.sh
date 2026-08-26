@@ -79,6 +79,13 @@ adv=$(scan "\.select\('(id|\*)'\)" 'src/app/api/**/*.ts' | wc -l | tr -d ' ')
 adv=$(scan "\.(or|filter)\(\`[^)]*\\\$\{" 'src/app/api/**/*.ts' 'src/lib/**/*.ts' | wc -l | tr -d ' ')
 [ "$adv" != "0" ] && note "$adv interpolated .or()/.filter() sites — confirm each sanitizes user input"
 
+# Raw DB/JS error internals in a RESPONSE body (Aug 2026 sweep): the client
+# gets a friendly string; message/details/hint/code/stack go to console.error
+# (Sentry). Heuristic — matches leak-shaped fields inside a json({...}) line.
+adv=$(scan "(error|details|hint|stack): *[A-Za-z]+(Error)?\.(message|details|hint|stack|code)" 'src/app/api/**/*.ts' \
+  | grep -v 'console\.' | wc -l | tr -d ' ')
+[ "$adv" != "0" ] && note "$adv possible raw-error response bodies — each must ship a friendly string (raw belongs in console.error)"
+
 echo
 if [ "$fail" -ne 0 ]; then
   echo "✗ hardening guardrails FAILED"

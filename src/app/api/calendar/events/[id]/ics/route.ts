@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { isUuid } from '@/lib/uuid';
 import { requireAuth, getSupabaseAdmin } from '@/lib/auth-server';
 import { FEATURE_FLAGS } from '@/lib/features';
 import { loadEventForViewer } from '@/lib/calendar/detail-server';
@@ -22,6 +23,9 @@ export async function GET(
   try {
     const user = await requireAuth(request);
     const { id } = await params;
+    if (!isUuid(id)) {
+      return NextResponse.json({ error: 'Invalid event ID' }, { status: 400 });
+    }
     const admin = getSupabaseAdmin();
     const loaded = await loadEventForViewer(admin, id, user.id);
     if (!loaded) return NextResponse.json({ error: 'Event not found' }, { status: 404 });

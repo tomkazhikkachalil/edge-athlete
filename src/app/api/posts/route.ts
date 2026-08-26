@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { UUID_RE } from '@/lib/uuid';
 import { getEnabledSports } from '@/lib/sports/SportRegistry';
 import { requireAuth, getSupabaseAdmin } from '@/lib/auth-server';
 import { GROUP_SCORECARD_SELECT, transformGroupPostToScorecard } from '@/lib/golf/scorecard-transform';
@@ -27,8 +28,6 @@ interface TaggedProfile {
 }
 
 // Reject non-UUID ids up front (garbage used to hit PostgREST as 22P02 → 500)
-const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-
 /** Select shape for a repost's quoted ORIGINAL — the wire subset
  *  QuotedPostEmbed renders, plus visibility/status/profile visibility for
  *  the per-viewer gate (stripped before shipping). */
@@ -328,12 +327,7 @@ export async function POST(request: NextRequest) {
         hint: postError.hint,
         code: postError.code
       });
-      return NextResponse.json({
-        error: 'Failed to create post',
-        details: postError.message,
-        code: postError.code,
-        hint: postError.hint
-      }, { status: 500 });
+      return NextResponse.json({ error: 'Failed to create post' }, { status: 500 });
     }
 
     // Guardian-profiles: a supervised author's post just entered the approval
@@ -1379,10 +1373,7 @@ export async function PUT(request: NextRequest) {
 
     if (updateError) {
       console.error('[PUT] Post update error:', updateError);
-      return NextResponse.json({
-        error: 'Failed to update post',
-        details: updateError.message
-      }, { status: 500 });
+      return NextResponse.json({ error: 'Failed to update post' }, { status: 500 });
     }
 
     // Reconcile post_tags with the new tagged-people list. This used to be

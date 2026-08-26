@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { isUuid } from '@/lib/uuid';
 import * as Sentry from '@sentry/nextjs';
 import { requireAuth, getSupabaseAdmin, getProfileRole } from '@/lib/auth-server';
 import { FEATURE_FLAGS } from '@/lib/features';
@@ -17,6 +18,9 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ transfer: null });
     }
     const profileId = request.nextUrl.searchParams.get('profileId') ?? '';
+    if (profileId && !isUuid(profileId)) {
+      return NextResponse.json({ error: 'Invalid profile ID' }, { status: 400 });
+    }
     const role = await getProfileRole(user.id, profileId);
     if (!role) return NextResponse.json({ error: 'Not permitted' }, { status: 403 });
 

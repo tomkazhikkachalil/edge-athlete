@@ -228,6 +228,9 @@ export async function POST(request: NextRequest) {
         level: 'warning',
         extra: { code: error.code, status: error.status, message: error.message },
       });
+      // Supabase AUTH validation messages ("Password should be at least 6
+      // characters") are user-facing copy the signup form displays — not DB
+      // internals. Deliberately passed through. hardening-ok
       return NextResponse.json(
         { error: error.message },
         { status: 400 }

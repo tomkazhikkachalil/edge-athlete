@@ -11,6 +11,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
+import { isUuid } from '@/lib/uuid';
 import { getServerAuth, getSupabaseAdmin } from '@/lib/auth-server';
 import { isNeutralLook, lookSchema } from '@/lib/media/look';
 
@@ -106,6 +107,9 @@ export async function DELETE(request: NextRequest) {
       return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
     }
     const id = request.nextUrl.searchParams.get('id');
+    if (id && !isUuid(id)) {
+      return NextResponse.json({ error: 'Invalid preset ID' }, { status: 400 });
+    }
     if (!id) return NextResponse.json({ error: 'id required' }, { status: 400 });
     const admin = getSupabaseAdmin();
     // Ownership enforced in the filter — admin bypasses RLS by design here.

@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { isUuid } from '@/lib/uuid';
 import * as Sentry from '@sentry/nextjs';
 import { requireAuth, getSupabaseAdmin, getProfileRole } from '@/lib/auth-server';
 import { FEATURE_FLAGS } from '@/lib/features';
@@ -27,6 +28,9 @@ export async function POST(
       return NextResponse.json({ error: 'Not available' }, { status: 404 });
     }
     const { id } = await params;
+    if (!isUuid(id)) {
+      return NextResponse.json({ error: 'Invalid transfer ID' }, { status: 400 });
+    }
     const admin = getSupabaseAdmin();
     const { data: transfer } = await admin
       .from('profile_transfers')

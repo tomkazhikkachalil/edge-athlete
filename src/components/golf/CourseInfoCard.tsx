@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
+import { UUID_RE as UUID_SHAPE } from '@/lib/uuid';
 import type { GolfCourse } from '@/types/golf';
 import type { HoleLine } from '@/lib/golf/hole-geometry';
 import CourseMap from '@/components/golf/CourseMap';
@@ -8,8 +9,6 @@ import CourseScorecardTable from '@/components/golf/CourseScorecardTable';
 import BrandLogo from '@/components/BrandLogo';
 import LogoDevAttribution from '@/components/LogoDevAttribution';
 import { websiteDomain, logoUrl } from '@/lib/logo-dev';
-
-const UUID_SHAPE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 /**
  * About-this-course card under the composer's selected-course badge:

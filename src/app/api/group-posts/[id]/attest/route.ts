@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { isUuid } from '@/lib/uuid';
 import { getSupabaseAdmin, getServerAuth } from '@/lib/auth-server';
 import { notifyAttestation, groupPostActionUrl } from '@/lib/golf/group-notifications';
 
@@ -20,6 +21,9 @@ export async function POST(
 
   try {
     const { id } = await params;
+    if (!isUuid(id)) {
+      return NextResponse.json({ error: 'Invalid group post ID' }, { status: 400 });
+    }
     const body = await request.json();
     const { status } = body;
 
@@ -155,6 +159,9 @@ export async function GET(
 
   try {
     const { id } = await params;
+    if (!isUuid(id)) {
+      return NextResponse.json({ error: 'Invalid group post ID' }, { status: 400 });
+    }
 
     // Fetch participant record
     const { data: participant, error: participantError } = await supabase

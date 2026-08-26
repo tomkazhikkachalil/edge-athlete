@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { isUuid } from '@/lib/uuid';
 import { getServerClient, getServerAuth, getSupabaseAdmin } from '@/lib/auth-server';
 import { isValidSegment, segmentSchemaFor } from '@/lib/sports/segment-schemas';
 import { resolveSportKey } from '@/lib/sports/resolve-sport-key';
@@ -62,6 +63,12 @@ export async function PATCH(
 
   try {
     const { id: groupPostId, mediaId } = await params;
+    if (!isUuid(groupPostId)) {
+      return NextResponse.json({ error: 'Invalid group post ID' }, { status: 400 });
+    }
+    if (!isUuid(mediaId)) {
+      return NextResponse.json({ error: 'Invalid media ID' }, { status: 400 });
+    }
     const body = await request.json();
     const patch: MediaPatch = {};
 
@@ -158,6 +165,12 @@ export async function DELETE(
 
   try {
     const { id: groupPostId, mediaId } = await params;
+    if (!isUuid(groupPostId)) {
+      return NextResponse.json({ error: 'Invalid group post ID' }, { status: 400 });
+    }
+    if (!isUuid(mediaId)) {
+      return NextResponse.json({ error: 'Invalid media ID' }, { status: 400 });
+    }
 
     // Read the URL BEFORE deleting — it is the key to the mirrored feed row.
     const { data: existing } = await supabase

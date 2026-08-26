@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { isUuid } from '@/lib/uuid';
 import * as Sentry from '@sentry/nextjs';
 import { requireAuth, getSupabaseAdmin } from '@/lib/auth-server';
 import { FEATURE_FLAGS } from '@/lib/features';
@@ -120,6 +121,9 @@ export async function GET(
   try {
     const user = await requireAuth(request);
     const { id } = await params;
+    if (!isUuid(id)) {
+      return NextResponse.json({ error: 'Invalid event ID' }, { status: 400 });
+    }
     const admin = getSupabaseAdmin();
     const loaded = await loadEventForViewer(admin, id, user.id);
     if (!loaded) return NextResponse.json({ error: 'Event not found' }, { status: 404 });
@@ -146,6 +150,9 @@ export async function PATCH(
   try {
     const user = await requireAuth(request);
     const { id } = await params;
+    if (!isUuid(id)) {
+      return NextResponse.json({ error: 'Invalid event ID' }, { status: 400 });
+    }
     const admin = getSupabaseAdmin();
 
     const loaded = await loadEventForViewer(admin, id, user.id);
@@ -483,6 +490,9 @@ export async function DELETE(
   try {
     const user = await requireAuth(request);
     const { id } = await params;
+    if (!isUuid(id)) {
+      return NextResponse.json({ error: 'Invalid event ID' }, { status: 400 });
+    }
     const admin = getSupabaseAdmin();
     const scope = parseScope(new URL(request.url).searchParams.get('scope'));
     if (!scope) return NextResponse.json({ error: 'Invalid scope' }, { status: 400 });

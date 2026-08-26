@@ -1,10 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { UUID_RE } from '@/lib/uuid';
 import { getSupabaseAdmin, requireAuth } from '@/lib/auth-server';
 import { canViewProfile } from '@/lib/privacy';
 import { buildHandicapSeries, type EnrichedRound } from '@/lib/golf/handicap';
 import { rankStrokeIndexes } from '@/lib/golf/adjusted-gross';
-
-const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 interface TrendPoint {
   round_id: string;

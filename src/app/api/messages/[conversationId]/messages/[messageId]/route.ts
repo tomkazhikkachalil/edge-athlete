@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { isUuid } from '@/lib/uuid';
 import { requireAuth, getSupabaseAdmin } from '@/lib/auth-server';
 
 const EDIT_WINDOW_MS = 15 * 60 * 1000; // 15 minutes
@@ -14,6 +15,12 @@ export async function PATCH(
     const supabase = getSupabaseAdmin();
     const user = await requireAuth(request);
     const { conversationId, messageId } = await params;
+    if (!isUuid(conversationId)) {
+      return NextResponse.json({ error: 'Invalid conversation ID' }, { status: 400 });
+    }
+    if (!isUuid(messageId)) {
+      return NextResponse.json({ error: 'Invalid message ID' }, { status: 400 });
+    }
     const body = await request.json();
     const { content } = body;
 
@@ -97,6 +104,9 @@ export async function DELETE(
     const supabase = getSupabaseAdmin();
     const user = await requireAuth(request);
     const { messageId } = await params;
+    if (!isUuid(messageId)) {
+      return NextResponse.json({ error: 'Invalid message ID' }, { status: 400 });
+    }
 
     // Only the sender can delete their own messages
     const { data: message } = await supabase

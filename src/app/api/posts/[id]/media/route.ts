@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { isUuid } from '@/lib/uuid';
 import { requireAuth, getSupabaseAdmin } from '@/lib/auth-server';
 import { toProxyUrl } from '@/lib/media/proxy-url';
 import { mayManagePostMedia } from './authz';
@@ -16,6 +17,9 @@ export async function GET(
   try {
     const user = await requireAuth(request);
     const { id } = await params;
+    if (!isUuid(id)) {
+      return NextResponse.json({ error: 'Invalid post ID' }, { status: 400 });
+    }
     const admin = getSupabaseAdmin();
 
     const { data: post } = await admin

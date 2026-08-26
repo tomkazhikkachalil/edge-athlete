@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { isUuid } from '@/lib/uuid';
 import { getSupabaseAdmin, requireAuth, getServerClient } from '@/lib/auth-server';
 import { canViewProfile } from '@/lib/privacy';
 
@@ -92,10 +93,7 @@ export async function POST(request: NextRequest) {
 
     if (tagError) {
       console.error('Tag creation error:', tagError);
-      return NextResponse.json(
-        { error: 'Failed to create tags', details: tagError.message },
-        { status: 500 }
-      );
+      return NextResponse.json({ error: 'Failed to create tags' }, { status: 500 });
     }
 
     // Round H: tagging a SUPERVISED athlete bells their guardians (the
@@ -150,6 +148,12 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const postId = searchParams.get('postId');
     const profileId = searchParams.get('profileId'); // Get tagged posts for a profile
+    if (postId && !isUuid(postId)) {
+      return NextResponse.json({ error: 'Invalid post ID' }, { status: 400 });
+    }
+    if (profileId && !isUuid(profileId)) {
+      return NextResponse.json({ error: 'Invalid profile ID' }, { status: 400 });
+    }
 
     if (!postId && !profileId) {
       return NextResponse.json(
@@ -295,6 +299,9 @@ export async function DELETE(request: NextRequest) {
     const supabase = getSupabaseAdmin();
     const { searchParams } = new URL(request.url);
     const tagId = searchParams.get('tagId');
+    if (tagId && !isUuid(tagId)) {
+      return NextResponse.json({ error: 'Invalid tag ID' }, { status: 400 });
+    }
     const postId = searchParams.get('postId');
 
     if (postId) {
