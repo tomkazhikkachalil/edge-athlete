@@ -177,6 +177,9 @@ export interface GolfScorecardData {
   /** Per-hole course data (real pars) — [{hole, par, yardage?}]; null on
    *  rounds created before migration 039 */
   hole_data?: { hole: number; par: number; yardage?: number }[] | null;
+  /** Two-nine combo at a multi-course club (migration 125): which nine is
+   *  holes 1–9 and which is 10–18. Null/absent for single-course rounds. */
+  course_composition?: { course_id: string; section_name: string | null; holes: '1-9' | '10-18' }[] | null;
   weather_conditions: string | null;
   temperature: number | null;
   wind_speed: number | null;

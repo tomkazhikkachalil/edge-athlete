@@ -1,5 +1,49 @@
 # Development Log
 
+## August 26, 2026 — Multi-course golf clubs: the nines + combos model (#311–#314, migration 125)
+
+Selecting Greensmere or Ottawa Hunt "failed" — not with an error, but with
+silent wrongness: one `golf_courses` row per club, Ottawa Hunt carrying a
+FABRICATED 18-hole seed scorecard for a real 27-hole club, the composer
+truncating everything to 18, and the OSM geometry resolver correctly nulling
+on duplicate hole refs (a wrong overlay is worse than none — the refusal was
+the one part working as designed; the MODEL gave it nothing to work with).
+
+The restructure (Tom's decisions: nines + combos, general mechanism, full
+catalog sweep): **a section is its own row.** `golf_clubs` (migration 125)
+links siblings via `golf_courses.club_id` + `section_name`/`section_kind`;
+each playable layout — an 18, or an individual nine — keeps per-row
+`hole_data`/`hole_geometry`/ratings, so nearly all existing plumbing works
+untouched. An 18 at a 27-hole club is TWO chosen nines, numbered 1–18 the way
+WHS rates combinations (CR = sum of nines, slope = rounded average —
+`course-sections.ts`), recorded in `golf_scorecard_data.course_composition`
+with `course_id` = the front nine. **Every ≤18 CHECK and validator stays.**
+
+- **#311 schema + pure libs** — migration 125 (additive, re-runnable,
+  check-grid), `composeCourses`/`combineNineRatings`/`parseComposition`.
+- **#312 picker + persistence** — section chooser in the composer (generic
+  club row → "which course?"; a nine → "pick your back nine" / "just this
+  nine"); the composed course LOOKS like a normal 18-hole catalog course, so
+  `applyCourseData`/tee-ladder/grid are unchanged. `?id=` returns
+  club+siblings; typeahead merges club fields without touching the search
+  RPC's contract; the played-courses dedupe keys by catalog id (name-keyed
+  dedupe was swallowing same-named sibling sections).
+- **#313 GPS** — `clusterHoleLoops` splits duplicate-ref payloads into
+  coherent loops by green→next-tee chaining (fails to null on >300 m links or
+  near-ties; the REAL Ottawa Hunt Overpass payload is a committed fixture and
+  splits into two clean nines). Loops label to section rows ONLY on positive
+  OSM evidence — none exists at Ottawa Hunt today, so it honestly nulls and
+  the 30-day TTL keeps retrying as OSM improves. Combo live maps compose both
+  nines' geometry (back renumbered 10–18) client-side.
+- **#314 sweep + curation** — `scripts/golf-club-sweep.mjs` (dry-run default):
+  links sibling rows by section-marker-stripped base name + ~2 km, never
+  merges. First dry-run proposed 30 groups / 65 rows — eyeballed, all genuine
+  (Torrey Pines N/S, Fields Ranch E/W…). Curation builds Greensmere (club +
+  Premier/Legacy 18s, no fabricated data) and Ottawa Hunt (club + three
+  nines, seed scorecard NULLED).
+
+Ops order: run migration 125 → merge the stack → `node
+scripts/golf-club-sweep.mjs` (eyeball) → `--apply` → post-deploy probe.
 ## August 26, 2026 — Vitals mobile parity + the Web & Mobile Ship Together rule
 
 Tom reported the Vitals redesign "not showing in the mobile app." Exploration

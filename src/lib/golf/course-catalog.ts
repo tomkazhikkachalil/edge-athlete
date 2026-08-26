@@ -112,8 +112,10 @@ export interface CatalogRow {
   match_rank?: number;
 }
 
+// club_id/section_name/section_kind ride the select since migration 125 —
+// deploys referencing this string REQUIRE 125 to have run (42703 otherwise).
 export const CATALOG_ROW_COLUMNS =
-  'id, external_source, external_id, name, club_name, city, region, country, total_par, holes_count, hole_data, course_rating, slope_rating, lat, lng, description, description_attribution, architect, year_built, course_type, website, phone, hydrated_at, place_id, country_code, region_code, location_source';
+  'id, external_source, external_id, name, club_name, city, region, country, total_par, holes_count, hole_data, course_rating, slope_rating, lat, lng, description, description_attribution, architect, year_built, course_type, website, phone, hydrated_at, place_id, country_code, region_code, location_source, club_id, section_name, section_kind';
 
 /** Ranked, location-aware search options (migration 104's RPC). */
 export interface CatalogSearchOptions {

@@ -17,7 +17,7 @@ import CourseMap from '@/components/golf/CourseMap';
 import { nextHoleForScores } from '@/lib/golf/score-entry';
 import { useVisualViewportHeight } from '@/hooks/useVisualViewportHeight';
 import { embeddedCourseToInfo } from '@/lib/golf/course-info';
-import { polylineYards, trimLineToYards, type HoleGeometry } from '@/lib/golf/hole-geometry';
+import { polylineYards, trimLineToYards, composeHoleGeometry, type HoleGeometry } from '@/lib/golf/hole-geometry';
 import { formatDisplayName } from '@/lib/formatters';
 import type { CompleteGolfScorecard } from '@/types/group-posts';
 
@@ -110,14 +110,28 @@ export default function LiveRoundPage() {
   // Lazy per-hole geometry: fetched once, the first time the Map view opens.
   // The 30-day cache lives server-side (migration 102); a null answer means
   // OSM has no unambiguous holes here and the map keeps course-level behavior.
+  // A two-nine combo round (course_composition, migration 125) fetches BOTH
+  // nines' geometries and composes them — front 1–9, back renumbered 10–18 —
+  // so everything downstream (displayGeoHole's flat lookup, the rangefinder)
+  // works on a normal 18-hole shape; either side missing → null, never a
+  // half-right map.
   const embeddedCourseId = scorecard?.golf_data?.course?.id ?? null;
+  const composition = scorecard?.golf_data?.course_composition ?? null;
   useEffect(() => {
-    if (tab !== 'map' || holeGeo !== undefined || !embeddedCourseId) return;
+    if (tab !== 'map' || holeGeo !== undefined || (!embeddedCourseId && !composition)) return;
     let cancelled = false;
-    fetch(`/api/golf/courses?id=${embeddedCourseId}&holes=1`, { credentials: 'include' })
-      .then(r => (r.ok ? r.json() : null))
-      .then(body => {
-        if (!cancelled) setHoleGeo((body?.geometry as HoleGeometry | null) ?? null);
+    const fetchGeo = (id: string) =>
+      fetch(`/api/golf/courses?id=${id}&holes=1`, { credentials: 'include' })
+        .then(r => (r.ok ? r.json() : null))
+        .then(body => (body?.geometry as HoleGeometry | null) ?? null);
+    const load =
+      composition && composition.length === 2
+        ? Promise.all([fetchGeo(composition[0].course_id), fetchGeo(composition[1].course_id)])
+            .then(([front, back]) => composeHoleGeometry(front, back))
+        : fetchGeo(embeddedCourseId!);
+    load
+      .then(geo => {
+        if (!cancelled) setHoleGeo(geo);
       })
       .catch(() => {
         if (!cancelled) setHoleGeo(null);
@@ -125,7 +139,7 @@ export default function LiveRoundPage() {
     return () => {
       cancelled = true;
     };
-  }, [tab, holeGeo, embeddedCourseId]);
+  }, [tab, holeGeo, embeddedCourseId, composition]);
 
   // The holes the map draws, started at the TEE-IN-PLAY: the OSM way begins
   // at the back tee, so each line is walked back from the green by the
