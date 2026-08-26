@@ -27,13 +27,24 @@
 // ─────────────────────────────────────────────────────────────────────────────
 import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
+import { buildCsp, CSP_REPORT_PATH } from '@/lib/csp'
 import { THEME_COOKIE, THEME_COOKIE_MAX_AGE, encodeThemeCookie } from '@/lib/theme-cookie'
 import { sanitizeThemePrefs } from '@/lib/theme-prefs'
 
 export async function middleware(request: NextRequest) {
+  // Per-request CSP nonce (hardening round). It rides a REQUEST header so
+  // Next auto-nonces its own inline bootstrap scripts, and x-nonce lets the
+  // root layout stamp the theme script. Both response constructions below
+  // must carry these request headers or the nonce never reaches the render.
+  const nonce = btoa(crypto.randomUUID())
+  const csp = buildCsp(nonce, { dev: process.env.NODE_ENV !== 'production' })
+  const requestHeaders = new Headers(request.headers)
+  requestHeaders.set('x-nonce', nonce)
+  requestHeaders.set('content-security-policy', csp)
+
   let response = NextResponse.next({
     request: {
-      headers: request.headers,
+      headers: requestHeaders,
     },
   })
 
@@ -51,7 +62,7 @@ export async function middleware(request: NextRequest) {
           )
           response = NextResponse.next({
             request: {
-              headers: request.headers,
+              headers: requestHeaders,
             },
           })
           cookiesToSet.forEach(({ name, value, options }) =>
@@ -66,6 +77,20 @@ export async function middleware(request: NextRequest) {
   const { data: { user } } = await supabase.auth.getUser()
 
   await syncThemeCookie(request, response, supabase, user?.id)
+
+  // ENFORCED in production (owner decision, Aug 2026) with a kill switch:
+  // CSP_ENFORCE=0 sends the identical policy Report-Only — rollback is an
+  // env flip + redeploy, no code revert. Dev is ALWAYS report-only:
+  // Turbopack's HMR/overlay inject un-nonce-able scripts, and fighting them
+  // buys nothing. Set on the FINAL response object (setAll may have rebuilt
+  // it above).
+  const enforce =
+    process.env.NODE_ENV === 'production' && process.env.CSP_ENFORCE !== '0'
+  response.headers.set(
+    enforce ? 'Content-Security-Policy' : 'Content-Security-Policy-Report-Only',
+    csp
+  )
+  response.headers.set('Reporting-Endpoints', `csp="${CSP_REPORT_PATH}"`)
 
   return response
 }

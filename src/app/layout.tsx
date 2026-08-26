@@ -1,4 +1,5 @@
 import type { Metadata, Viewport } from "next";
+import { headers } from "next/headers";
 import { Inter } from 'next/font/google';
 import { AuthProvider } from "@/lib/auth";
 import { NotificationsProvider } from "@/lib/notifications";
@@ -75,11 +76,17 @@ export const viewport: Viewport = {
   ],
 };
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  // Per-request CSP nonce minted by the middleware (hardening round). Reading
+  // headers() makes the root layout — and with it every page — DYNAMIC; the
+  // deliberate trade for an enforced script-src (every document request
+  // already transits the middleware's auth call, so nothing was truly
+  // edge-cached before). Null on any path the middleware matcher skips.
+  const nonce = (await headers()).get('x-nonce') ?? undefined;
   return (
     // suppressHydrationWarning is attribute-scoped to <html> only: the theme
     // script below stamps data-theme before React hydrates, and that delta
@@ -90,7 +97,7 @@ export default function RootLayout({
             schedule and any override) and stamps <html> before first paint,
             so there is no flash of the wrong theme. Must stay ahead of any
             stylesheet-dependent paint; see src/lib/theme-script.ts. */}
-        <script dangerouslySetInnerHTML={{ __html: THEME_INIT_SCRIPT }} />
+        <script nonce={nonce} dangerouslySetInnerHTML={{ __html: THEME_INIT_SCRIPT }} />
         {/* use-credentials is load-bearing: without it the browser fetches the
             manifest without cookies, app/manifest.ts never sees the resolved
             theme, and every install gets the light splash. */}

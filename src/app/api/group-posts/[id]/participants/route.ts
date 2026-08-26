@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { isUuid } from '@/lib/uuid';
 import { getServerAuth, getSupabaseAdmin } from '@/lib/auth-server';
 import { syncMirrorPostTags } from '@/lib/group-posts/mirror-tags';
+import { filterBlockedBidirectional } from '@/lib/blocks';
+import { enforceRateLimit } from '@/lib/rate-limit';
 
 /**
  * GET /api/group-posts/[id]/participants
@@ -76,6 +78,9 @@ export async function POST(
     if (!isUuid(id)) {
       return NextResponse.json({ error: 'Invalid group post ID' }, { status: 400 });
     }
+    const limited = await enforceRateLimit(request, 'group-post-add', { userId: user.id });
+    if (limited) return limited;
+
     const body = await request.json();
     const { participant_ids, role } = body;
 
@@ -123,6 +128,21 @@ export async function POST(
       );
     }
 
+    // Block gate (hardening round, owner decision: SILENT SKIP). Anyone who
+    // has a user_blocks row in either direction vs the caller is quietly
+    // excluded; if EVERYONE was excluded we still return 201 with an empty
+    // list — an error here would reveal the block. Response carries only a
+    // count, never identities. ids are UUID-validated above.
+    const { allowed: addableIds, skipped: skippedBlocked } =
+      await filterBlockedBidirectional(getSupabaseAdmin(), user.id, participant_ids as string[]);
+    if (addableIds.length === 0) {
+      return NextResponse.json({
+        participants: [],
+        ...(skippedBlocked > 0 ? { skipped_blocked: skippedBlocked } : {}),
+        message: 'Participants added successfully',
+      }, { status: 201 });
+    }
+
     // Late additions append to the canonical creation order (migration 071):
     // next position after the current max, in the order they're added now.
     const { data: maxRow } = await supabase
@@ -136,7 +156,7 @@ export async function POST(
 
     // Add participants — AUTO-CONFIRMED (same model as creation-time invites:
     // anyone invited can score immediately; only an explicit decline excludes)
-    const participantInserts = participant_ids.map((profile_id: string, i: number) => ({
+    const participantInserts = addableIds.map((profile_id: string, i: number) => ({
       group_post_id: id,
       profile_id,
       role: role || 'participant',
@@ -180,6 +200,7 @@ export async function POST(
 
     return NextResponse.json({
       participants: newParticipants,
+      ...(skippedBlocked > 0 ? { skipped_blocked: skippedBlocked } : {}),
       message: 'Participants added successfully',
     }, { status: 201 });
   } catch (error) {

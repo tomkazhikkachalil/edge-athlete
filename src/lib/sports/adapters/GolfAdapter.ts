@@ -33,6 +33,28 @@ interface GolfStatsResponse {
   years?: number[];
 }
 
+// One profile view calls getHighlights + getHighlightYears + getRecentActivity
+// in quick succession — three identical GETs of the same endpoint. A short-TTL
+// module promise-cache collapses them to one request (two when a season is
+// selected). Delete-on-reject so a transient failure never sticks.
+const STATS_CACHE_TTL_MS = 15_000;
+const statsCache = new Map<string, { at: number; promise: Promise<GolfStatsResponse | null> }>();
+
+function fetchGolfStats(profileId: string, season?: string): Promise<GolfStatsResponse | null> {
+  const key = `${profileId}|${season ?? ''}`;
+  const hit = statsCache.get(key);
+  if (hit && Date.now() - hit.at < STATS_CACHE_TTL_MS) return hit.promise;
+  const yearParam = season ? `&year=${encodeURIComponent(season)}` : '';
+  const promise = fetch(`/api/golf/stats?profileId=${profileId}${yearParam}`, { credentials: 'include' })
+    .then(res => (res.ok ? (res.json() as Promise<GolfStatsResponse>) : null))
+    .catch(() => {
+      statsCache.delete(key);
+      return null;
+    });
+  statsCache.set(key, { at: Date.now(), promise });
+  return promise;
+}
+
 export class GolfAdapter extends BaseSportAdapter {
   constructor() {
     super('golf');
@@ -40,16 +62,12 @@ export class GolfAdapter extends BaseSportAdapter {
 
   async getHighlights(profileId: string, season?: string): Promise<HighlightTile[]> {
     try {
-      // Fetch real golf stats from API (season = calendar year filter)
-      const yearParam = season ? `&year=${encodeURIComponent(season)}` : '';
-      const response = await fetch(`/api/golf/stats?profileId=${profileId}${yearParam}`, { credentials: 'include' });
-
-      if (!response.ok) {
+      // Season = calendar year filter; deduped via the shared stats fetch.
+      const data = await fetchGolfStats(profileId, season);
+      if (!data) {
         // Fall back to empty tiles on error
         return this.getEmptyHighlights();
       }
-
-      const data: GolfStatsResponse = await response.json();
 
       // Map API response to HighlightTile format
       return data.highlights.map(h => ({
@@ -66,10 +84,8 @@ export class GolfAdapter extends BaseSportAdapter {
 
   async getHighlightYears(profileId: string): Promise<number[]> {
     try {
-      const response = await fetch(`/api/golf/stats?profileId=${profileId}`, { credentials: 'include' });
-      if (!response.ok) return [];
-      const data: GolfStatsResponse = await response.json();
-      return data.years ?? [];
+      const data = await fetchGolfStats(profileId);
+      return data?.years ?? [];
     } catch {
       return [];
     }
@@ -89,14 +105,11 @@ export class GolfAdapter extends BaseSportAdapter {
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   async getRecentActivity(profileId: string, limit = 10, _cursor?: string): Promise<ActivityResult> {
     try {
-      // Fetch real golf rounds from API
-      const response = await fetch(`/api/golf/stats?profileId=${profileId}`, { credentials: 'include' });
-
-      if (!response.ok) {
+      // Deduped via the shared stats fetch.
+      const data = await fetchGolfStats(profileId);
+      if (!data) {
         return { rows: [], hasMore: false };
       }
-
-      const data: GolfStatsResponse = await response.json();
 
       // Format rounds for activity display
       const rows: ActivityRow[] = data.recentRounds.slice(0, limit).map(round => {

@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { isUuid } from '@/lib/uuid';
-import { supabaseAdmin } from '@/lib/supabase';
-import { requireAuth } from '@/lib/auth-server';
+import { requireAuth, getSupabaseAdmin } from '@/lib/auth-server';
 
 export async function DELETE(
   request: NextRequest,
@@ -19,9 +18,7 @@ export async function DELETE(
       return NextResponse.json({ error: 'Performance ID is required' }, { status: 400 });
     }
 
-    if (!supabaseAdmin) {
-      return NextResponse.json({ error: 'Server configuration error' }, { status: 500 });
-    }
+    const supabaseAdmin = getSupabaseAdmin();
 
     // Only the owner may delete. Scope the delete to the caller's profile_id
     // so a non-owner's request affects zero rows even if the row exists.

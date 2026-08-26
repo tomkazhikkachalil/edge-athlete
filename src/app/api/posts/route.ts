@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { UUID_RE } from '@/lib/uuid';
+import { UUID_RE, isUuid } from '@/lib/uuid';
 import { getEnabledSports } from '@/lib/sports/SportRegistry';
 import { requireAuth, getSupabaseAdmin } from '@/lib/auth-server';
 import { GROUP_SCORECARD_SELECT, transformGroupPostToScorecard } from '@/lib/golf/scorecard-transform';
@@ -427,9 +427,6 @@ export async function POST(request: NextRequest) {
           last_name,
           full_name,
           handle
-        ),
-        post_likes (
-          profile_id
         )
       `)
       .eq('id', post.id)
@@ -513,7 +510,8 @@ export async function POST(request: NextRequest) {
           // in the app rendered a black first frame.
           thumbnail_url: toProxyUrl(media.thumbnail_url, { type: 'post', id: completePost.id })
         })),
-      likes: completePost.post_likes || [],
+      // A just-created post cannot have likes — no embed, no query.
+      likes: [],
       golf_round: golfRound,
       tagged_profiles: taggedProfilesList,
       shared_post_id: completePost.shared_post_id ?? null,
@@ -573,6 +571,27 @@ export async function GET(request: NextRequest) {
     const limit = Math.min(Math.max(parseInt(searchParams.get('limit') || '20', 10) || 20, 1), 100);
     const offset = Math.max(parseInt(searchParams.get('offset') || '0', 10) || 0, 0);
 
+    // Keyset cursor (hardening round): "<created_at>_<id>", parsed from the
+    // RIGHT (a UUID is exactly 36 chars; ISO timestamps contain no '_').
+    // When present it replaces .range() with a (created_at, id) keyset —
+    // O(page) at any depth where offset degrades linearly — and the response
+    // gains nextCursor. Absent → the legacy offset path, byte-identical
+    // (old clients, e2e pins, FeaturedPosts). Cursor wins if both arrive.
+    // Present-but-EMPTY cursor = "first keyset page": no keyset filter yet,
+    // but the response carries nextCursor so the client can continue. This is
+    // how a new client opts into cursor mode from page one.
+    const cursorParam = searchParams.get('cursor');
+    const keysetMode = cursorParam !== null;
+    let cursor: { ts: string; id: string } | null = null;
+    if (cursorParam) {
+      const id = cursorParam.slice(-36);
+      const ts = cursorParam.slice(0, -37);
+      if (!isUuid(id) || cursorParam[cursorParam.length - 37] !== '_' || Number.isNaN(Date.parse(ts))) {
+        return NextResponse.json({ error: 'Invalid cursor' }, { status: 400 });
+      }
+      cursor = { ts, id };
+    }
+
     // UUID_RE hoisted to module scope (reposts need it in POST too)
     if (postId && !UUID_RE.test(postId)) {
       return NextResponse.json({ error: 'Post not found' }, { status: 404 });
@@ -620,9 +639,6 @@ export async function GET(request: NextRequest) {
             last_name,
             full_name,
             handle
-          ),
-          post_likes (
-            profile_id
           )
         `)
         .eq('id', postId)
@@ -768,6 +784,21 @@ export async function GET(request: NextRequest) {
         );
       }
 
+      // Viewer-scoped like membership (the feed's pattern, :~1000): consumers
+      // only ever test `likes.some(l => l.profile_id === viewer)`, so the
+      // full per-post like list was pure payload (silently capped at 1000
+      // rows by PostgREST on a viral post). Wire shape unchanged.
+      let viewerLikedPost = false;
+      if (currentUserId) {
+        const { data: likeRow } = await supabase
+          .from('post_likes')
+          .select('post_id')
+          .eq('post_id', post.id)
+          .eq('profile_id', currentUserId)
+          .maybeSingle();
+        viewerLikedPost = !!likeRow;
+      }
+
       // Fetch tagged profiles if exists
       let taggedProfiles: TaggedProfile[] = [];
       if (post.tags && post.tags.length > 0) {
@@ -823,7 +854,7 @@ export async function GET(request: NextRequest) {
             // in the app rendered a black first frame.
             thumbnail_url: toProxyUrl(media.thumbnail_url, { type: 'post', id: post.id })
           })),
-        likes: post.post_likes || [],
+        likes: viewerLikedPost && currentUserId ? [{ profile_id: currentUserId }] : [],
         golf_round: golfRound,
         group_scorecard: groupScorecard,
         tagged_profiles: taggedProfiles,
@@ -886,8 +917,26 @@ export async function GET(request: NextRequest) {
       // heart mis-rendered on popular posts). The viewer's own likes are
       // batch-fetched below into likedPostIds, exactly like savedPostIds; the
       // count comes from the denormalized likes_count column.
-      .order(pinnedOnly ? 'pinned_at' : 'created_at', { ascending: false })
-      .range(offset, offset + limit - 1);
+      .order(pinnedOnly ? 'pinned_at' : 'created_at', { ascending: false });
+    if (!pinnedOnly) {
+      // id tiebreak: identical created_at values were nondeterministically
+      // ordered across pages (an ordering-stability fix, not a behavior
+      // change). Required for the keyset to be a total order.
+      query = query.order('id', { ascending: false });
+    }
+    if (keysetMode && !pinnedOnly) {
+      if (cursor) {
+        // Strictly-older-than-the-cursor keyset. The double quotes protect
+        // the timestamp's reserved chars inside .or() (PostgREST-documented;
+        // smoke-tested against live Supabase).
+        query = query.or(
+          `created_at.lt."${cursor.ts}",and(created_at.eq."${cursor.ts}",id.lt.${cursor.id})`
+        );
+      }
+      query = query.limit(limit + 1); // overfetch for hasMore
+    } else {
+      query = query.range(offset, offset + limit - 1);
+    }
 
     // Filter by user if provided
     if (userId) {
@@ -944,8 +993,25 @@ export async function GET(request: NextRequest) {
       }
     }
 
+    // Cursor mode: the +1 overfetch answers hasMore exactly; trim BEFORE the
+    // privacy filter so the extra row never leaks into the page. nextCursor
+    // comes from the last RAW row of the trimmed page — the scan frontier
+    // advances past privacy-filtered rows instead of stalling on them.
+    const cursorMode = keysetMode && !pinnedOnly;
+    let rawPage = posts || [];
+    let cursorHasMore = false;
+    if (cursorMode) {
+      cursorHasMore = rawPage.length > limit;
+      rawPage = rawPage.slice(0, limit);
+    }
+    const lastRawRow = rawPage.length ? rawPage[rawPage.length - 1] : null;
+    const nextCursor =
+      cursorMode && cursorHasMore && lastRawRow
+        ? `${lastRawRow.created_at}_${lastRawRow.id}`
+        : null;
+
     // Filter posts based on privacy rules
-    const visiblePosts = (posts || []).filter(post => {
+    const visiblePosts = rawPage.filter(post => {
       if (!post.profiles) return false;
 
       const postOwner = post.profiles;
@@ -982,7 +1048,7 @@ export async function GET(request: NextRequest) {
     // hasMore must reflect the RAW page size (pre-privacy-filter): a page
     // where many posts were filtered out used to make clients stop paginating
     // even though older visible posts exist.
-    const rawPageCount = (posts || []).length;
+    const rawPageCount = rawPage.length;
 
     // Attach the viewer's saved state — PostCard reads post.saved_posts.
     // Without it every feed post rendered unsaved, and tapping the bookmark
@@ -1153,7 +1219,13 @@ export async function GET(request: NextRequest) {
           reposts_count: post.reposts_count ?? 0
         }));
 
-    return NextResponse.json({ posts: transformedPosts, hasMore: rawPageCount === limit });
+    return NextResponse.json({
+      posts: transformedPosts,
+      hasMore: cursorMode ? cursorHasMore : rawPageCount === limit,
+      // Additive: present only in cursor mode, so legacy responses stay
+      // byte-identical for old clients and the pinned/e2e paths.
+      ...(cursorMode ? { nextCursor } : {}),
+    });
 
   } catch (error) {
     console.error('Posts fetch error:', error);

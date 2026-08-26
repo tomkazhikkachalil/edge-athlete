@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { supabaseAdmin } from '@/lib/supabase';
-import { requireAuth } from '@/lib/auth-server';
+import { requireAuth, getSupabaseAdmin } from '@/lib/auth-server';
 
 export async function POST(request: NextRequest) {
   try {
@@ -13,9 +12,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Performance data is required' }, { status: 400 });
     }
 
-    if (!supabaseAdmin) {
-      return NextResponse.json({ error: 'Server configuration error' }, { status: 500 });
-    }
+    const supabaseAdmin = getSupabaseAdmin();
 
     const performanceData = {
       ...body.performanceData,

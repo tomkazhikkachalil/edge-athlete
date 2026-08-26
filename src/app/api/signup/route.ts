@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import * as Sentry from '@sentry/nextjs';
-import { supabase, supabaseAdmin } from '@/lib/supabase';
+import { supabase } from '@/lib/supabase';
+import { getSupabaseAdmin } from '@/lib/auth-server';
 import { mapProfileUpsertError, isObfuscatedDuplicateSignUp } from '@/lib/signup-errors';
 import { FEATURE_FLAGS } from '@/lib/features';
 import { isValidDateString, isNotFutureDate } from '@/lib/date-validation';
@@ -16,6 +17,10 @@ import { resolveSignupUserType } from '@/lib/signup-user-type';
 
 export async function POST(request: NextRequest) {
   try {
+    // Lazy admin client, once per request (module-scope export removed in
+    // the Aug 2026 hardening round). Throws only on missing env — a deploy
+    // fault, same contract as every other route.
+    const supabaseAdmin = getSupabaseAdmin();
     const body = await request.json();
     const { email, password, profileData } = body;
 
@@ -69,9 +74,6 @@ export async function POST(request: NextRequest) {
             { needsGuardian: true, error: "The guardian's email must be different from the athlete's email." },
             { status: 422 }
           );
-        }
-        if (!supabaseAdmin) {
-          return NextResponse.json({ error: 'Server configuration error' }, { status: 500 });
         }
         // Re-submitting for the same child IS the resend/typo-correction
         // mechanism (no auth exists to manage a parked request): expire any
@@ -262,7 +264,7 @@ export async function POST(request: NextRequest) {
 
     // Create/update the profile with additional data (using admin client to bypass RLS if available)
     if (data.user) {
-      const client = supabaseAdmin || supabase;
+      const client = supabaseAdmin;
 
       if (!client) {
         console.error('[SIGNUP] No Supabase client available!');
