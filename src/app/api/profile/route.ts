@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { isUuid } from '@/lib/uuid';
-import { supabaseAdmin } from '@/lib/supabase';
-import { requireAuth, requireProfileRole } from '@/lib/auth-server';
+import { requireAuth, requireProfileRole, getSupabaseAdmin } from '@/lib/auth-server';
 import { canViewProfile } from '@/lib/privacy';
 import {
   IDENTITY_FIELDS,
@@ -38,11 +37,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Profile ID is required' }, { status: 400 });
     }
 
-    if (!supabaseAdmin) {
-      return NextResponse.json({ 
-        error: 'Server configuration error - supabaseAdmin not available' 
-      }, { status: 500 });
-    }
+    const supabaseAdmin = getSupabaseAdmin();
 
     // Fetch profile data
     const { data: profile, error: profileError } = await supabaseAdmin
@@ -122,6 +117,7 @@ export async function GET(request: NextRequest) {
 
 export async function PUT(request: NextRequest) {
   try {
+    const supabaseAdmin = getSupabaseAdmin();
     // Auth required — only the owner may update their profile.
     const user = await requireAuth(request);
 
@@ -185,7 +181,7 @@ export async function PUT(request: NextRequest) {
     // identity fields (Round H needs the old values to diff for the
     // guardian "profile changed" bell).
     let oldRow: Record<string, unknown> | null = null;
-    if (supabaseAdmin) {
+    {
       // Dynamic select string defeats supabase-js's template-literal query
       // parser — the row shape is asserted instead.
       const { data: fetched } = await supabaseAdmin
@@ -264,17 +260,6 @@ export async function PUT(request: NextRequest) {
     }
 
     
-    if (!supabaseAdmin) {
-      console.error('Profile API: supabaseAdmin not configured - missing SUPABASE_SERVICE_ROLE_KEY');
-      console.error('Profile API: Available env vars:', {
-        url: !!process.env.NEXT_PUBLIC_SUPABASE_URL,
-        anonKey: !!process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
-        serviceKey: !!process.env.SUPABASE_SERVICE_ROLE_KEY
-      });
-      return NextResponse.json({ 
-        error: 'Server configuration error - supabaseAdmin not available. Missing SUPABASE_SERVICE_ROLE_KEY environment variable.' 
-      }, { status: 500 });
-    }
     
     // Update profile in database using admin client
     const { data, error } = await supabaseAdmin

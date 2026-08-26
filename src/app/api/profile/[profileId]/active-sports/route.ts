@@ -34,19 +34,21 @@ export async function GET(
 
     // Declared label ∪ posted sports ∪ intake-declared sport_settings rows.
     // Sport keys are not sensitive, so the admin read is fine (see header).
-    const [{ data: profile }, { data: posts }, { data: settings }] = await Promise.all([
+    const [{ data: profile }, { data: postSportKeys, error: rpcError }, { data: settings }] = await Promise.all([
       supabase.from('profiles').select('sport').eq('id', profileId).single(),
-      supabase
-        .from('posts')
-        .select('sport_key')
-        .eq('profile_id', profileId)
-        .not('sport_key', 'is', null),
+      // One aggregate instead of every post's sport_key row (migration 126;
+      // service-role-only RPC — same lockdown class as 124).
+      supabase.rpc('get_profile_post_sport_keys', { p_profile_id: profileId }),
       supabase.from('sport_settings').select('sport_key').eq('profile_id', profileId),
     ]);
 
+    // Loud, not silent: a missing RPC (deploy before migration 126) would
+    // otherwise quietly drop every posted sport from the answer.
+    if (rpcError) console.error('[active-sports] get_profile_post_sport_keys failed:', rpcError);
+
     const ordered = computeActiveSports({
       declaredSport: profile?.sport ?? null,
-      postSportKeys: (posts || []).map(p => p.sport_key as string | null),
+      postSportKeys: (postSportKeys as string[] | null) ?? [],
       settingsSportKeys: (settings || []).map(s => s.sport_key as string),
     });
 

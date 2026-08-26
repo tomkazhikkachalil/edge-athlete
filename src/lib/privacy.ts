@@ -5,7 +5,7 @@
  * Simple public/private now, with infrastructure for granular controls later
  */
 
-import { supabaseAdmin } from './supabase';
+import { getSupabaseAdmin } from './auth-server';
 import { FEATURE_FLAGS } from './features';
 
 export type ProfileVisibility = 'public' | 'private';
@@ -51,9 +51,7 @@ export async function canViewProfile(
     };
   }
 
-  if (!supabaseAdmin) {
-    throw new Error('Supabase admin client not configured');
-  }
+  const supabaseAdmin = getSupabaseAdmin();
 
   // Guardian/supervised/viewer access rows grant view regardless of
   // visibility (guardian-profiles feature; inert while the flag is off —
@@ -130,9 +128,7 @@ export async function getProfileWithPrivacy(
   profileId: string,
   currentUserId: string | null
 ) {
-  if (!supabaseAdmin) {
-    throw new Error('Supabase admin client not configured');
-  }
+  const supabaseAdmin = getSupabaseAdmin();
 
   const privacyCheck = await canViewProfile(profileId, currentUserId);
 
@@ -188,12 +184,7 @@ export async function updateProfileVisibility(
     };
   }
 
-  if (!supabaseAdmin) {
-    return {
-      success: false,
-      error: 'Supabase admin client not configured'
-    };
-  }
+  const supabaseAdmin = getSupabaseAdmin();
 
   const { error } = await supabaseAdmin
     .from('profiles')
@@ -222,9 +213,7 @@ export async function getPrivacySettings(
     return null;
   }
 
-  if (!supabaseAdmin) {
-    throw new Error('Supabase admin client not configured');
-  }
+  const supabaseAdmin = getSupabaseAdmin();
 
   const { data, error } = await supabaseAdmin
     .from('privacy_settings')
@@ -268,12 +257,7 @@ export async function updatePrivacySettings(
     };
   }
 
-  if (!supabaseAdmin) {
-    return {
-      success: false,
-      error: 'Supabase admin client not configured'
-    };
-  }
+  const supabaseAdmin = getSupabaseAdmin();
 
   // Update or create privacy_settings
   const { error } = await supabaseAdmin

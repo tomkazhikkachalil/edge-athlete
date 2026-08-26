@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getServerClient } from '@/lib/auth-server';
-import { supabaseAdmin } from '@/lib/supabase';
+import { getServerClient, getSupabaseAdmin } from '@/lib/auth-server';
 import { FEATURE_FLAGS } from '@/lib/features';
 import { hardDeleteAccount } from '@/lib/account-deletion';
 import { formatDisplayName } from '@/lib/formatters';
@@ -49,12 +48,7 @@ export async function DELETE(request: NextRequest) {
     }
 
     // 4. Verify admin client is available
-    if (!supabaseAdmin) {
-      console.error('Supabase admin client not available');
-      return NextResponse.json({
-        error: 'Server configuration error'
-      }, { status: 500 });
-    }
+    const supabaseAdmin = getSupabaseAdmin();
 
     // 5. Guardian preflight (guardian-profiles). Two failure modes without
     // this: deleting a guardian whose child has no credentials yet trips
