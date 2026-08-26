@@ -97,4 +97,11 @@ export interface GolfCourse {
   yearBuilt?: number;
   courseType?: string;
   website?: string;
+  // Club/section fields (migration 125) — present only on rows linked to a
+  // multi-course facility. A section row is a playable layout (an 18 or an
+  // individual nine); sectionKind ∈ 'course_18' | 'nine' | 'unspecified'.
+  clubId?: string;
+  clubName?: string;
+  sectionName?: string;
+  sectionKind?: string;
 }

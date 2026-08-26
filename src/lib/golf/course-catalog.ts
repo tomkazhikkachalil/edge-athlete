@@ -93,6 +93,13 @@ export interface CatalogRow {
   website: string | null;
   phone: string | null;
   hydrated_at: string | null;
+  // Club/section model (migration 125): siblings at a multi-course facility
+  // share a club_id; a section row is a playable 18 or an individual nine.
+  // Optional (not in CATALOG_ROW_COLUMNS until the picker round deploys
+  // AFTER the migration) so pre-125 selects keep parsing.
+  club_id?: string | null;
+  section_name?: string | null;
+  section_kind?: string | null;
   // Location model (migration 104): the shared `places` FK plus ISO codes
   // next to the names, and which writer filled them ('osm' | 'provider' |
   // 'nominatim' | 'gazetteer'). Writers never downgrade a better source.
@@ -144,6 +151,11 @@ export function rowToCourse(row: CatalogRow): GolfCourse {
     yearBuilt: row.year_built ?? undefined,
     courseType: row.course_type ?? undefined,
     website: row.website ?? undefined,
+    // Undefined until migration 125's columns ride the select.
+    clubId: row.club_id ?? undefined,
+    clubName: row.club_name ?? undefined,
+    sectionName: row.section_name ?? undefined,
+    sectionKind: row.section_kind ?? undefined,
   };
 }
 
