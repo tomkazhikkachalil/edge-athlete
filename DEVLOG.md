@@ -51,6 +51,23 @@ the following-scope feed (product calls), staging env / WAF rule / Resend DNS
 (ops), conversation search beyond loaded pages, the no-year golf aggregate's
 >1000-row residual.
 
+**ROUND CLOSED (later Aug 26).** The stacked merge trap struck a second time
+(#317–#321 merged into their undeleted base branches; only #316 reached main)
+— catch-up **#322** landed the chain, and the repo now has
+`delete_branch_on_merge: true` so GitHub auto-retargets stacked children and
+this class of incident cannot recur (all 20 stale branches pruned after
+verifying zero unique content). Migrations 126/127 applied with perfect check
+grids (`wrapped 15, bare_remaining 0`; `fn_three_args true`). Post-deploy
+probes all green: anon-key denied on all three RPCs / service-role works;
+golf-stats parity on seeded rounds (RPC years + SQL year filter); feed cursor
+page-2 zero-overlap on prod; messages 3-conversation pagination across two
+pages; CSP enforced header live. The authed browser watch caught ONE
+real-world violation — Zod 4's JIT probe (`Function("")` in try/catch,
+harmless interpreted-mode fallback but report-noise on every schema-parsing
+page) — fixed in **#323** (`z.config({ jitless: true })`, browser-only, from
+AuthProvider). Final pass: 7/7 prod surfaces zero violations, zero console
+errors, @mobile e2e green against prod.
+
 ## August 26, 2026 — Multi-course golf clubs: the nines + combos model (#311–#314, migration 125)
 
 Selecting Greensmere or Ottawa Hunt "failed" — not with an error, but with
